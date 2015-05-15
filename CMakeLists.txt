@@ -19,9 +19,10 @@ set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
 
 ### External modules
 add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
-set(CMAKE_Fortran_FLAGS "-I BOOZER_MAGFIE/OBJS")
-
 add_subdirectory("../contrib/odepack" "odepack")
+add_subdirectory("../spline" "spline")
+
+set(CMAKE_Fortran_FLAGS "-I BOOZER_MAGFIE/OBJS -I spline/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -31,10 +32,12 @@ add_executable(${PROJECT_EXE_NAME}
 add_library("driftorbit"
   common.f90
   driftorbit.f90
+  do_magfie_neo.f90
 )
 
 add_dependencies(driftorbit boozer_magfie)
 add_dependencies(driftorbit odepack)
+add_dependencies(driftorbit spline)
 
 ### Linking
 target_link_libraries(
@@ -44,6 +47,7 @@ target_link_libraries(
   blas
   boozer_magfie
   odepack
+  spline
 )
 
 ### For make install

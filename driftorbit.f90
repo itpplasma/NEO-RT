@@ -389,7 +389,6 @@ contains
        !fsa = fsa + psi_pr*(iota*hcovar(3)+hcovar(2))/bmod*dth
     end do
 
-    fsa = 2*pi*fsa
     call disp('init_fsa: iota       = ', iota)
     call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
@@ -413,11 +412,11 @@ contains
     eta = etax
     maxres = maxwellian(vr)
     call bounce
-!    integrand = pi/(2*n0)*(2*pi)**3/fsa*&
-!         mph**2*c/(qi*iota*psi_pr)*2*mi*v*(mi*v**2/2d0)**3*&
-!         taub*mi*c/(qi*2d0*pi)*abs(bounceavg(4))**2*maxres(1)
-    integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
-         *mph**2*v**7*taub*abs(bounceavg(4))**2*maxres(1)*mi**3/n0
+    integrand =  pi/(2d0*n0)*(2*pi)**3/fsa*mph**2*c/(qi*iota*psi_pr)*&
+         taub*mi**3*v**3*c/(qi*2d0*pi)*(mi*v**2/2d0)**2*abs(bounceavg(4))**2*&
+         maxres(1)
+!    integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
+!         *mph**2*v**7*taub*abs(bounceavg(4))**2*maxres(1)*mi**3/n0
     ! TODO: factor of 2
   end function integrand
 end module driftorbit

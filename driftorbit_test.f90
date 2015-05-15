@@ -7,8 +7,8 @@ PROGRAM main
 
   call test_magfie
   !call test_bounce
-  call test_torfreq
-  call test_resline
+  !call test_torfreq
+  !call test_resline
   call test_flux
 contains
 
@@ -17,7 +17,7 @@ contains
     !s = 5.4688d-2  ! flux surface no. 3
     s = 1.58d-5 ! eps=1e-3
     !s = .1547    ! eps=1e-1
-    M_t = -1d-5    ! set Mach number M_t = Om_tE*R0/vth
+    M_t = 1d-5    ! set Mach number M_t = Om_tE*R0/vth
     n0 = 1d22     ! particle density
     vth = 1d0
 
@@ -156,7 +156,7 @@ contains
   end subroutine test_resline
   
   subroutine test_flux
-    integer, parameter :: n = 100
+    integer, parameter :: n = 300
     integer :: k
     real(8) :: vrange(n), fluxint(n)
     real(8) :: vmin, vmax, dv
