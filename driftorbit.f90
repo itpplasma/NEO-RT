@@ -23,7 +23,7 @@ module driftorbit
   real(8) :: Om_spl_coeff(netaspl-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
-  integer, parameter :: mph = 3, mth = 0
+  integer, parameter :: mph = 3, mth = 1
 
   ! Flux surface TODO: make a dynamic
   real(8) :: fsa, B0, a
@@ -244,6 +244,7 @@ contains
 
     res_etamin = mph*Omph_etamin+mth*Omth_etamin
     res_etamax = mph*Omph_etamax+mth*Omth_etamax
+    print *, v, Omth_etamin, Omth_etamax, res_etamin, res_etamax
     if(sign(1d0,res_etamin) /= sign(1d0,res_etamax)) then
        driftorbit_nroot = 1
     end if
