@@ -15,8 +15,8 @@ contains
   subroutine init_test
     !s = .16406d0  ! flux surface no. 10
     !s = 5.4688d-2  ! flux surface no. 3
-    s = 1.58d-5 ! eps=1e-3
-    !s = .1547    ! eps=1e-1
+    !s = 1.58d-5 ! eps=1e-3
+    s = .1547    ! eps=1e-1
     M_t = 1d-5    ! set Mach number M_t = Om_tE*R0/vth
     n0 = 1d22     ! particle density
     vth = 1d0
@@ -130,6 +130,11 @@ contains
     end do
     close(unit=9)
   end subroutine test_torfreq
+  
+  subroutine test_Om_spline
+    ! TODO: write test routine for splined canonical frequencies over eta
+    ! Om_tB/v^2 and Omth/v are independent of v and splined in init_Om_tB_spl.
+  end subroutine test_Om_spline
   
   subroutine test_resline
     integer, parameter :: n = 50

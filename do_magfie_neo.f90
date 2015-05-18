@@ -20,7 +20,6 @@ module do_magfie_mod
 contains
   
   subroutine do_magfie_init
-    real(8) :: thetab, phib, boozer_s
     real(8) :: bmod, bmod1, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     bmod0 = 1d-4

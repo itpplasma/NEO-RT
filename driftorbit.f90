@@ -20,10 +20,11 @@ module driftorbit
 
   ! For splining Om_tB
   integer, parameter :: netaspl = 200
-  real(8) :: Om_spl_coeff(netaspl-1, 5)
+  real(8) :: Omph_spl_coeff(netaspl-1, 5)
+  real(8) :: Omth_spl_coeff(netaspl-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
-  integer, parameter :: mph = 3, mth = 1
+  integer, parameter :: mph = 3, mth = 0
 
   ! Flux surface TODO: make a dynamic
   real(8) :: fsa, B0, a
@@ -37,7 +38,7 @@ contains
   end subroutine init
  
   subroutine init_Om_tB_spl
-    real(8) :: etarange(netaspl), Om_tB_v(netaspl)
+    real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
     real(8) :: etamin, etamax
     integer :: k
     v = vth    
@@ -49,8 +50,10 @@ contains
        etarange(k+1) = eta
        call bounce
        Om_tB_v(k+1) = bounceavg(3)
+       Omth_v(k+1) = 2*pi/(v*taub)
     end do
-    Om_spl_coeff = spline_coeff(etarange, Om_tB_v)
+    Omph_spl_coeff = spline_coeff(etarange, Om_tB_v)
+    Omth_spl_coeff = spline_coeff(etarange, Omth_v)
   end subroutine init_Om_tB_spl
 
   subroutine init_misc
@@ -217,34 +220,45 @@ contains
     ! returns canonical toroidal frequency
     ! and derivatives w.r.t. v and eta
     real(8), intent(out) :: Omph, dOmphdv, dOmphdeta
-    real(8) :: Om_ph_can(3)
-    Om_ph_can = spline_val_0(Om_spl_coeff, eta)*v**2
-    Omph = Om_ph_can(1) + Om_tE
-    dOmphdv = 2*Om_ph_can(1)/v
-    dOmphdeta = Om_ph_can(2)
+    real(8) :: splineval(3)
+    splineval = spline_val_0(Omph_spl_coeff, eta)*v**2
+    Omph = splineval(1) + Om_tE
+    dOmphdv = 2*splineval(1)/v
+    dOmphdeta = splineval(2)
   end subroutine Om_ph
 
+  subroutine Om_th(Omth, dOmthdv, dOmthdeta)
+    ! returns canonical poloidal frequency
+    ! and derivatives w.r.t. v and eta
+    real(8), intent(out) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: splineval(3)
+    splineval = spline_val_0(Omth_spl_coeff, eta)*v
+    Omth = splineval(1)
+    dOmthdv = splineval(1)/v
+    dOmthdeta = splineval(2)
+  end subroutine Om_th
+  
   function driftorbit_nroot(maxlevel)
     integer :: driftorbit_nroot, maxlevel
     real(8) :: etamin, etamax
-    real(8) :: Omph_etamin, Omph_etamax, dOmphdv, dOmphdeta,&
+    real(8) :: Omph_etamin, Omph_etamax, dummy,&
          Omth_etamin, Omth_etamax, res_etamin, res_etamax
     
     etamin = etatp()*(1d0+1d-10)
     etamax = etadt()*(1d0-1d-10)
-    
+
     driftorbit_nroot = 0
     ! TODO: return number of possible roots instead of 0 and 1
     eta = etamax
-    call Om_ph(Omph_etamin, dOmphdv, dOmphdeta)
-    Omth_etamin = 2d0*pi/taub
+    call Om_ph(Omph_etamin, dummy, dummy)
+    call Om_th(Omth_etamin, dummy, dummy)
     eta = etamin
-    call Om_ph(Omph_etamax, dOmphdv, dOmphdeta)
-    Omth_etamin = 2d0*pi/taub
+    call Om_ph(Omph_etamax, dummy, dummy)
+    call Om_th(Omth_etamax, dummy, dummy)
 
     res_etamin = mph*Omph_etamin+mth*Omth_etamin
     res_etamax = mph*Omph_etamax+mth*Omth_etamax
-    print *, v, Omth_etamin, Omth_etamax, res_etamin, res_etamax
+    !print *, v/vth, etamin, etamax, Omth_etamin, Omth_etamax
     if(sign(1d0,res_etamin) /= sign(1d0,res_etamax)) then
        driftorbit_nroot = 1
     end if
@@ -258,6 +272,7 @@ contains
     real(8) :: driftorbit_root(2)
     real(8) :: tol, res, res_old, eta0, eta_old
     real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
     integer :: maxit, k, state
     real(8) :: etamin, etamax
     maxit = 100
@@ -275,7 +290,8 @@ contains
     do k = 1,maxit
        res_old = res
        call Om_ph(Omph, dOmphdv, dOmphdeta)
-       res = mph*Omph + mth*2d0*pi/taub
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       res = mph*Omph + mth*Omth
 
        if (k>90) then
           print *, "driftorbit_root: ", k, res, tol, eta
@@ -288,8 +304,9 @@ contains
           !driftorbit_root(2) = dOmphdeta
           eta = eta*(1+1d-10)
           call Om_ph(Omph, dOmphdv, dOmphdeta)
-          driftorbit_root(2) = dOmphdeta
-          driftorbit_root(2) = (mph*Omph + mth*2d0*pi/taub - res)/(eta*1d-10)
+          call Om_th(Omth, dOmthdv, dOmthdeta)
+          driftorbit_root(2) = mph*dOmphdeta + mth*dOmthdeta
+          !driftorbit_root(2) = (mph*Omph + mth*2d0*pi/taub - res)/(eta*1d-10)
           exit       
        elseif (res > 0) then
           etamax = eta
@@ -337,7 +354,7 @@ contains
   function flux_integral(vrange)
     real(8) :: vrange(:), v0, eta0
     real(8) :: flux_integral(size(vrange))
-    real(8) :: eta_res(2), Dp, Om_tB_ref, dpsidreff, dresdeta
+    real(8) :: eta_res(2), Dp, dpsidreff, dresdeta
     integer :: k
 
     flux_integral = 0d0
@@ -390,6 +407,8 @@ contains
        !fsa = fsa + psi_pr*(iota*hcovar(3)+hcovar(2))/bmod*dth
     end do
 
+    fsa = 2*pi*fsa
+
     call disp('init_fsa: iota       = ', iota)
     call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
@@ -413,11 +432,11 @@ contains
     eta = etax
     maxres = maxwellian(vr)
     call bounce
-    integrand =  pi/(2d0*n0)*(2*pi)**3/fsa*mph**2*c/(qi*iota*psi_pr)*&
-         taub*mi**3*v**3*c/(qi*2d0*pi)*(mi*v**2/2d0)**2*abs(bounceavg(4))**2*&
-         maxres(1)
-!    integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
-!         *mph**2*v**7*taub*abs(bounceavg(4))**2*maxres(1)*mi**3/n0
+!    integrand =  pi/(2d0*n0)*(2*pi)**3/fsa*mph**2*c/(qi*iota*psi_pr)*&
+!         taub*mi**3*v**3*c/(qi*2d0*pi)*(mi*v**2/2d0)**2*abs(bounceavg(4))**2*&
+!         maxres(1)
+    integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
+         *mph**2*v**7*taub*abs(bounceavg(4))**2*maxres(1)*mi**3/n0
     ! TODO: factor of 2
   end function integrand
 end module driftorbit

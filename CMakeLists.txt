@@ -22,7 +22,7 @@ add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
 add_subdirectory("../contrib/odepack" "odepack")
 add_subdirectory("../spline" "spline")
 
-set(CMAKE_Fortran_FLAGS "-I BOOZER_MAGFIE/OBJS -I spline/OBJS")
+set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O2 -I BOOZER_MAGFIE/OBJS -I spline/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
