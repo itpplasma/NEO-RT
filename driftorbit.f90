@@ -20,7 +20,7 @@ module driftorbit
   real(8) :: Om_tE, vth, M_t, n0
 
   ! For splining Om_tB
-  integer, parameter :: netaspl = 500
+  integer, parameter :: netaspl = 200
   real(8) :: Omph_spl_coeff(netaspl-1, 5)
   real(8) :: Omth_spl_coeff(netaspl-1, 5)
 
@@ -49,7 +49,7 @@ contains
     etamin = etatp()
     etamax = etadt()*(1d0-1d-15)
 
-    delta = 1d-8   ! smallest relative distance to etamin
+    delta = 1d-9   ! smallest relative distance to etamin
     b = log(delta)
     a = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
     
@@ -146,16 +146,15 @@ contains
   subroutine jac 
   end subroutine jac
 
-  subroutine timestep(neq, t, y, ydot)
+  subroutine timestep(t, y, ydot)
     !
     !  Timestep function for orbit integration.
     !  Includes poloidal angle theta and parallel velocity.
     !  More integrands may be added starting from y(3)
     !
-    
-    integer :: neq
-    real(8) :: t, y(neq)
-    real(8), intent(out) :: ydot(neq)
+
+    real(8) :: t, y(*)
+    real(8), intent(out) :: ydot(*)
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
     real(8) :: Om_tB_v
     real(8) :: Omth, dOmthdv, dOmthdeta
@@ -177,7 +176,7 @@ contains
     ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
     ydot(3) = Om_tB_v                                           ! v_ph
     ydot(4) = (2d0 - eta*bmod)*cos(m0*y(1))*&
-         cos(mph*y(1)/iota-mth*x(1)*Omth) ! Hmn/(mv**2/2)
+         cos(mph*y(1)/iota-mth*t*Omth) ! Hmn/(mv**2/2)
   end subroutine timestep
 
   function findroot(y0, dt, tol)
@@ -190,9 +189,9 @@ contains
     integer :: n
 
     integer :: k, state, rootstate
-    integer :: iwork(1000)
     real(8) :: ti, told
-    real(8) :: rwork(1000), y(nvar), yold(nvar)
+    real(8) :: y(nvar), yold(nvar), yp(nvar)
+    real(8) :: relerr, abserr
 
     n = 500
     rootstate = -1
@@ -206,7 +205,9 @@ contains
        told = ti
        !call dlsode(timestep, nvar, y, ti, ti+dt, 1, 1d-11, 1d-12, 1, &
        !     state, 0, rwork, 1000, iwork, 1000, jac, 10)
-       call r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
+       relerr = 1d-9
+       abserr = 1d-10
+       call r8_rkf45 ( timestep, nvar, y, yp, ti, ti+dt, relerr, abserr, state )
        if (k > 490) then
           print *, y(1)
        end if

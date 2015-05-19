@@ -10,18 +10,18 @@ PROGRAM main
   !call test_bounce
   call test_torfreq
   !call test_resline
-  !call test_flux
+  call test_flux
   !call test_driftorbit
 contains
 
   subroutine init_test
     !s = .16406d0   ! flux surface no. 10
     !s = 5.4688d-2  ! flux surface no. 3
-    s = 1.58d-5     ! eps=1e-3
+    !s = 1.58d-5     ! eps=1e-3
     !s = 1.5765d-3  ! eps=1e-2
-    !s = .1547      ! eps=1e-1
+    s = .1547      ! eps=1e-1
     !s = .3
-    M_t = -1d-4   ! set Mach number M_t = Om_tE*R0/vth
+    M_t = 1d-5   ! set Mach number M_t = Om_tE*R0/vth
     n0 = 1d22    ! particle density
     vth = 1d0
 
@@ -75,9 +75,9 @@ contains
     integer, parameter :: n = 100
 
     integer :: k, state
-    integer :: iwork(1000)
-    real(8) :: t
-    real(8) :: rwork(1000), y(nvar)
+    !integer :: iwork(1000)
+    real(8) :: t, y(nvar)
+    !real(8) :: rwork(1000)
     
     print *, "test_bounce"
     open(unit=9, file='test_bounce.dat', recl=1024)
@@ -143,8 +143,8 @@ contains
        !print *, etamin, etamax, eta
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        call Om_th(Omth, dOmthdv, dOmthdeta)
-       write(9, *) (eta-etamin)/(etamax-etamin), mph*(Omph-Om_tE), mph*Om_tE,&
-            mth*Omth, mph*Omph + mth*Omth
+       write(9, *) log((eta-etamin)/(etamax-etamin)), mph*(Omph-Om_tE),&
+            mph*Om_tE, mth*Omth, mph*Omph + mth*Omth
        !write(9, *) log(eta-etamin), log(mph*dOmphdeta), log(mth*dOmthdeta),&
        !     log(mph*dOmphdeta + mth*dOmthdeta)
     end do
