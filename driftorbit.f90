@@ -5,6 +5,7 @@
 module driftorbit
   use do_magfie_mod
   use spline
+  use rkf45
   
   implicit none
   save
@@ -19,12 +20,13 @@ module driftorbit
   real(8) :: Om_tE, vth, M_t, n0
 
   ! For splining Om_tB
-  integer, parameter :: netaspl = 200
+  integer, parameter :: netaspl = 500
   real(8) :: Omph_spl_coeff(netaspl-1, 5)
   real(8) :: Omth_spl_coeff(netaspl-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
   integer, parameter :: mph = 3, mth = 0
+  integer, parameter :: m0 = 0
 
   ! Flux surface TODO: make a dynamic
   real(8) :: fsa, B0, a
@@ -41,17 +43,47 @@ contains
     real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
     real(8) :: etamin, etamax
     integer :: k
-    v = vth    
-    etamin = etatp()*(1d0+1d-10)
-    etamax = etadt()*(1d0-1d-10)
+    real(8) :: a, b, delta
     
-    do k = 0, netaspl-1
-       eta = etamin * (1d0 + (k/(netaspl-1d0))**4*(etamax/etamin-1d0))
+    v = vth    
+    etamin = etatp()
+    etamax = etadt()*(1d0-1d-15)
+
+    delta = 1d-8   ! smallest relative distance to etamin
+    b = log(delta)
+    a = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
+    
+    do k = netaspl-1, 0, -1
+       !eta = etamin * (1d0 + (k/(netaspl-1d0))**4*(etamax/etamin-1d0))
+       eta = etamin*(1d0 + exp(a*k+b))
        etarange(k+1) = eta
-       call bounce
+       if (k == netaspl-1) then
+          call bounce
+          !print *, k, eta, taub, bounceavg(3)*v**2, 2*pi/taub, '*'
+       else
+          call bounce(taub)
+          !print *, k, eta, taub, bounceavg(3)*v**2, 2*pi/taub
+       end if
        Om_tB_v(k+1) = bounceavg(3)
        Omth_v(k+1) = 2*pi/(v*taub)
     end do
+
+    ! Asymptotic values ? TODO
+    !etarange(1) = etamin
+    !Omth_v(1) = 0d0
+    !eta = etamin*(1+1d-9)
+    !call bounce
+    !Om_tB_v(1) = bounceavg(3)
+    !etarange(netaspl) = etamax
+    !Om_tB_v(netaspl) = Om_tB_v(netaspl-1) + &
+    !     (etarange(netaspl)-etarange(netaspl-1))*&
+    !     (Om_tB_v(netaspl-1)-Om_tB_v(netaspl-2))/&
+    !     (etarange(netaspl-1)-etarange(netaspl-2))
+    !Omth_v(netaspl) = Omth_v(netaspl-1) +&
+    !     (etarange(netaspl)-etarange(netaspl-1))*&
+    !     (Omth_v(netaspl-1)-Omth_v(netaspl-2))/&
+    !     (etarange(netaspl-1)-etarange(netaspl-2))
+    
     Omph_spl_coeff = spline_coeff(etarange, Om_tB_v)
     Omth_spl_coeff = spline_coeff(etarange, Omth_v)
   end subroutine init_Om_tB_spl
@@ -126,11 +158,13 @@ contains
     real(8), intent(out) :: ydot(neq)
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
     real(8) :: Om_tB_v
+    real(8) :: Omth, dOmthdv, dOmthdeta
 
     x(1) = s
     x(2) = 0d0
     x(3) = y(1)
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+    call Om_th(Omth, dOmthdv, dOmthdeta)
 
     Om_tB_v = mi*c/(2d0*qi*sqrtg*hctrvr(3)*bmod**2)*(&      ! Om_tB/v**2
          -(2d0-eta*bmod)*bmod*hder(1)&
@@ -139,10 +173,11 @@ contains
      !         +Bphcov*dqds)& TODO: add extra term!
     )
 
-    ydot(1) = y(2)*hctrvr(3)                                ! theta
-    ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod          ! v_par
-    ydot(3) = Om_tB_v                                       ! v_ph
-    ydot(4) = (2d0 - eta*bmod)*cos(mph*y(1)/iota)           ! Hmn/(mv**2/2)
+    ydot(1) = y(2)*hctrvr(3)                                    ! theta
+    ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+    ydot(3) = Om_tB_v                                           ! v_ph
+    ydot(4) = (2d0 - eta*bmod)*cos(m0*y(1))*&
+         cos(mph*y(1)/iota-mth*x(1)*Omth) ! Hmn/(mv**2/2)
   end subroutine timestep
 
   function findroot(y0, dt, tol)
@@ -169,11 +204,12 @@ contains
     do k = 2,n
        yold = y
        told = ti
-       call dlsode(timestep, nvar, y, ti, ti+dt, 1, 1d-13, 1d-13, 1, &
-            state, 0, rwork, 1000, iwork, 1000, jac, 10)
-       !if (k > 90) then
-       !   print *, y(1)
-       !end if
+       !call dlsode(timestep, nvar, y, ti, ti+dt, 1, 1d-11, 1d-12, 1, &
+       !     state, 0, rwork, 1000, iwork, 1000, jac, 10)
+       call r8_rkf45 ( f, neqn, y, yp, t, tout, relerr, abserr, flag )
+       if (k > 490) then
+          print *, y(1)
+       end if
        if (abs(y(1)) < tol) then
           rootstate = 0
           exit
@@ -195,10 +231,11 @@ contains
     findroot(2:) = y
   end function findroot
 
-  subroutine bounce
+  subroutine bounce(taub_estimate)
     ! calculate all bounce averages
     real(8) :: findroot_res(nvar+1)
-    real(8) :: taub_wesson
+    real(8), optional :: taub_estimate
+    real(8) :: taub_est
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
     real(8) :: y0(nvar)
 
@@ -208,13 +245,29 @@ contains
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     y0 = 0d0
     y0(2) = vpar(bmod)
-    taub_wesson = 2.0*pi/(vperp(bmod)*iota/R0*&
-         sqrt(eps/2d0))
 
-    findroot_res = findroot(y0, taub_wesson/10d0, 1d-13)
+    if (present(taub_estimate)) then
+       taub_est = taub_estimate
+    else
+       taub_est = 2.0*pi/(vperp(bmod)*iota/R0*&
+         sqrt(eps/2d0))
+    end if
+       
+    findroot_res = findroot(y0, taub_est/1d1, 1d-10)
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
   end subroutine bounce
+  
+  subroutine Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+    ! returns canonical toroidal frequency
+    ! and derivatives w.r.t. v and eta
+    real(8), intent(out) :: OmtB, dOmtBdv, dOmtBdeta
+    real(8) :: splineval(3)
+    splineval = spline_val_0(Omph_spl_coeff, eta)*v**2
+    OmtB = splineval(1)
+    dOmtBdv = 2*splineval(1)/v
+    dOmtBdeta = splineval(2)
+  end subroutine Om_tB
     
   subroutine Om_ph(Omph, dOmphdv, dOmphdeta)
     ! returns canonical toroidal frequency
@@ -223,7 +276,7 @@ contains
     real(8) :: splineval(3)
     splineval = spline_val_0(Omph_spl_coeff, eta)*v**2
     Omph = splineval(1) + Om_tE
-    dOmphdv = 2*splineval(1)/v
+    dOmphdv = 2d0*splineval(1)/v
     dOmphdeta = splineval(2)
   end subroutine Om_ph
 
@@ -244,8 +297,8 @@ contains
     real(8) :: Omph_etamin, Omph_etamax, dummy,&
          Omth_etamin, Omth_etamax, res_etamin, res_etamax
     
-    etamin = etatp()*(1d0+1d-10)
-    etamax = etadt()*(1d0-1d-10)
+    etamin = etatp()*(1d0+1d-7)
+    etamax = etadt()*(1d0-1d-15)
 
     driftorbit_nroot = 0
     ! TODO: return number of possible roots instead of 0 and 1
@@ -258,7 +311,7 @@ contains
 
     res_etamin = mph*Omph_etamin+mth*Omth_etamin
     res_etamax = mph*Omph_etamax+mth*Omth_etamax
-    !print *, v/vth, etamin, etamax, Omth_etamin, Omth_etamax
+    !print *, v/vth, etamin, etamax, res_etamin, res_etamax
     if(sign(1d0,res_etamin) /= sign(1d0,res_etamax)) then
        driftorbit_nroot = 1
     end if
@@ -280,9 +333,9 @@ contains
     eta0 = eta
     eta_old = 0d0
     res = 0d0
-    etamin = etatp()*(1d0+1d-10)
-    etamax = etadt()*(1d0-1d-10)
-    eta = (etamax+etamin)/2d0
+    etamin = etatp()*(1d0+1d-7)
+    etamax = etadt()*(1d0-1d-15)
+    eta = etamin
     if(driftorbit_nroot(1) == 0) then
        print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
        return
@@ -293,20 +346,19 @@ contains
        call Om_th(Omth, dOmthdv, dOmthdeta)
        res = mph*Omph + mth*Omth
 
-       if (k>90) then
-          print *, "driftorbit_root: ", k, res, tol, eta
+       if (k==1) then
+          !print *, "driftorbit_root: ", k, res, tol, eta
        end if
        
        driftorbit_root(1) = eta
 
        if (abs(res) < tol) then
           state = 1
-          !driftorbit_root(2) = dOmphdeta
-          eta = eta*(1+1d-10)
-          call Om_ph(Omph, dOmphdv, dOmphdeta)
-          call Om_th(Omth, dOmthdv, dOmthdeta)
           driftorbit_root(2) = mph*dOmphdeta + mth*dOmthdeta
-          !driftorbit_root(2) = (mph*Omph + mth*2d0*pi/taub - res)/(eta*1d-10)
+          !eta = eta*(1+1d-10)
+          !call Om_ph(Omph, dOmphdv, dOmphdeta)
+          !call Om_th(Omth, dOmthdv, dOmthdeta)
+          !driftorbit_root(2) = (mph*Omph + mth*Omth - res)/(eta*1d-10)
           exit       
        elseif (res > 0) then
           etamax = eta

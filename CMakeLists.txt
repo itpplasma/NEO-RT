@@ -19,10 +19,10 @@ set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
 
 ### External modules
 add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
-add_subdirectory("../contrib/odepack" "odepack")
+add_subdirectory("../contrib/rkf45" "rkf45")
 add_subdirectory("../spline" "spline")
 
-set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O2 -I BOOZER_MAGFIE/OBJS -I spline/OBJS")
+set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O1 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I rkf45/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -36,7 +36,7 @@ add_library("driftorbit"
 )
 
 add_dependencies(driftorbit boozer_magfie)
-add_dependencies(driftorbit odepack)
+add_dependencies(driftorbit rkf45)
 add_dependencies(driftorbit spline)
 
 ### Linking
@@ -46,7 +46,7 @@ target_link_libraries(
   lapack
   blas
   boozer_magfie
-  odepack
+  rkf45
   spline
 )
 
