@@ -19,35 +19,43 @@ module driftorbit
   ! Plasma parameters
   real(8) :: Om_tE, vth, M_t, n0
 
-  ! For splining Om_tB
+  ! For splining in the trapped eta region
   integer, parameter :: netaspl = 200
   real(8) :: Omph_spl_coeff(netaspl-1, 5)
   real(8) :: Omth_spl_coeff(netaspl-1, 5)
 
+  ! For splining in the passing eta region
+  integer, parameter :: netaspl_pass = 200
+  real(8) :: Omth_pass_spl_coeff(netaspl_pass-1, 5)
+
   ! Harmonics TODO: make dynamic, multiple harmonics
   integer, parameter :: mph = 3, mth = 0
   integer, parameter :: m0 = 0
+  logical, parameter :: nobdrift = .false.
 
-  ! Flux surface TODO: make a dynamic
-  real(8) :: fsa, B0, a
+  ! Flux surface TODO: make a dynamic, multiple flux surfaces support
+  real(8) :: fsa, B0, a, etadt, etatp
 contains
 
   subroutine init
     call do_magfie_init
     call init_misc
-    call init_Om_tB_spl
+    call init_Om_spl
+    !call init_Om_pass_spl
     call init_fsa
   end subroutine init
- 
-  subroutine init_Om_tB_spl
+
+  subroutine init_Om_spl
+    ! Initialise splines for canonical frequencies of trapped orbits
+    
     real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
     real(8) :: etamin, etamax
     integer :: k
     real(8) :: a, b, delta
     
     v = vth    
-    etamin = etatp()
-    etamax = etadt()*(1d0-1d-15)
+    etamin = etatp
+    etamax = etadt*(1d0-1d-15)
 
     delta = 1d-9   ! smallest relative distance to etamin
     b = log(delta)
@@ -67,26 +75,38 @@ contains
        Om_tB_v(k+1) = bounceavg(3)
        Omth_v(k+1) = 2*pi/(v*taub)
     end do
-
-    ! Asymptotic values ? TODO
-    !etarange(1) = etamin
-    !Omth_v(1) = 0d0
-    !eta = etamin*(1+1d-9)
-    !call bounce
-    !Om_tB_v(1) = bounceavg(3)
-    !etarange(netaspl) = etamax
-    !Om_tB_v(netaspl) = Om_tB_v(netaspl-1) + &
-    !     (etarange(netaspl)-etarange(netaspl-1))*&
-    !     (Om_tB_v(netaspl-1)-Om_tB_v(netaspl-2))/&
-    !     (etarange(netaspl-1)-etarange(netaspl-2))
-    !Omth_v(netaspl) = Omth_v(netaspl-1) +&
-    !     (etarange(netaspl)-etarange(netaspl-1))*&
-    !     (Omth_v(netaspl-1)-Omth_v(netaspl-2))/&
-    !     (etarange(netaspl-1)-etarange(netaspl-2))
     
     Omph_spl_coeff = spline_coeff(etarange, Om_tB_v)
     Omth_spl_coeff = spline_coeff(etarange, Omth_v)
-  end subroutine init_Om_tB_spl
+  end subroutine init_Om_spl
+
+  
+  subroutine init_Om_pass_spl
+    ! Initialise splines for canonical frequencies of passing orbits
+    
+    real(8) :: etarange(netaspl), Omth_v(netaspl)
+    real(8) :: etamin, etamax
+    integer :: k
+    
+    v = vth    
+    etamin = 1d-9
+    etamax = etatp*(1d0-1d-9)
+    
+    do k = netaspl_pass-1, 0, -1
+       eta = etamin * (1d0 + k/(netaspl_pass-1d0)*(etamax/etamin-1d0))
+       etarange(k+1) = eta
+       if (k == netaspl_pass-1) then
+          call bounce
+          print *, k, eta, taub, '*'
+       else
+          call bounce(taub)
+          print *, k, eta, taub
+       end if
+       Omth_v(k+1) = 2*pi/(v*taub)
+    end do
+    
+    Omth_pass_spl_coeff = spline_coeff(etarange, Omth_v)
+  end subroutine init_Om_pass_spl
 
   subroutine init_misc
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
@@ -96,6 +116,11 @@ contains
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     B0 = bmod
     a = 4.6d1
+    ! eta deeply trapped and trapped passing limits
+    etadt = 1d0/bmod
+    x(3) = pi
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+    etatp = 1d0/bmod
   end subroutine init_misc
   
   function Jperp()
@@ -120,28 +145,6 @@ contains
        vperp = 0d0
     end if
   end function vperp
-
-  function etatp()
-    ! returns eta at trapped passing boundary
-    real(8) :: etatp
-    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-    x(1) = s
-    x(2) = 0d0
-    x(3) = pi
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    etatp = 1d0/bmod
-  end function etatp
-  
-  function etadt()
-    ! returns maximum eta for deeply trapped orbits
-    real(8) :: etadt
-    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-    x(1) = s
-    x(2) = 0d0
-    x(3) = 0d0
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    etadt = 1d0/bmod
-  end function etadt
   
   subroutine jac 
   end subroutine jac
@@ -193,6 +196,14 @@ contains
     real(8) :: y(nvar), yold(nvar), yp(nvar)
     real(8) :: relerr, abserr
 
+    logical :: pass
+
+    ! check for passing orbit
+    pass = .false.
+    if (eta < etatp) then
+       pass = .true.
+    end if
+
     n = 500
     rootstate = -1
     
@@ -203,23 +214,42 @@ contains
     do k = 2,n
        yold = y
        told = ti
-       !call dlsode(timestep, nvar, y, ti, ti+dt, 1, 1d-11, 1d-12, 1, &
-       !     state, 0, rwork, 1000, iwork, 1000, jac, 10)
        relerr = 1d-9
        abserr = 1d-10
        call r8_rkf45 ( timestep, nvar, y, yp, ti, ti+dt, relerr, abserr, state )
-       if (k > 490) then
-          print *, y(1)
+       !ti = ti+dt
+       if (k<5) then
+          print *, k, ti, told+dt, y(1), state
        end if
-       if (abs(y(1)) < tol) then
+
+       ! check for full turn completed
+       if (((.not. pass) .and. (abs(y(1)) < tol)) .or. &
+          (pass .and. (abs(y(1)-2d0*pi) < tol)) .or. &
+          (pass .and. (abs(y(1)+2d0*pi) < tol))) then
+          !print *, "ROOT", k, ti, yold(1), y(1)
           rootstate = 0
           exit
        end if
-       if (yold(1)<0 .and. y(1)>0) then       
-          dt = -yold(1)/(y(1)-yold(1))*dt ! guess for time interval to root
+          
+       ! if orbit end is bracketed, do regula falsi search
+       if ((.not. pass) .and. (yold(1)<0 .and. y(1)>0)) then
+          dt = -yold(1)/(y(1)-yold(1))*dt
           y = yold
           ti = told
-          state = 1
+          !state = 1
+       elseif (pass .and. (yold(1)<2d0*pi .and. y(1)>2d0*pi)) then
+          !print *, "HIT", k, yold(1), y(1)
+          dt = -(yold(1)-2d0*pi)/(y(1)-yold(1))*dt
+          !dt = dt/2d0
+          y = yold
+          ti = told
+          !state = 1
+       elseif (pass .and. (yold(1)>-2d0*pi .and. y(1)<-2d0*pi)) then
+          dt = -(yold(1)+2d0*pi)/(y(1)-yold(1))*dt
+          !dt = dt/2d0
+          y = yold
+          ti = told
+          !state = 1
        end if
     end do
     if (rootstate < 0) then
@@ -253,8 +283,9 @@ contains
        taub_est = 2.0*pi/(vperp(bmod)*iota/R0*&
          sqrt(eps/2d0))
     end if
+    print *, 2*pi/taub_est
        
-    findroot_res = findroot(y0, taub_est/1d1, 1d-10)
+    findroot_res = findroot(y0, taub_est/5d0, 1d-10)
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
   end subroutine bounce
@@ -275,10 +306,16 @@ contains
     ! and derivatives w.r.t. v and eta
     real(8), intent(out) :: Omph, dOmphdv, dOmphdeta
     real(8) :: splineval(3)
-    splineval = spline_val_0(Omph_spl_coeff, eta)*v**2
-    Omph = splineval(1) + Om_tE
-    dOmphdv = 2d0*splineval(1)/v
-    dOmphdeta = splineval(2)
+    if (nobdrift) then      ! magnetic drift switch PoP 2014 paper
+       Omph = Om_tE
+       dOmphdv = 0d0
+       dOmphdeta = 0d0
+    else
+       splineval = spline_val_0(Omph_spl_coeff, eta)*v**2
+       Omph = splineval(1) + Om_tE
+       dOmphdv = 2d0*splineval(1)/v
+       dOmphdeta = splineval(2)
+    end if
   end subroutine Om_ph
 
   subroutine Om_th(Omth, dOmthdv, dOmthdeta)
@@ -298,8 +335,8 @@ contains
     real(8) :: Omph_etamin, Omph_etamax, dummy,&
          Omth_etamin, Omth_etamax, res_etamin, res_etamax
     
-    etamin = etatp()*(1d0+1d-7)
-    etamax = etadt()*(1d0-1d-15)
+    etamin = etatp*(1d0+1d-8)
+    etamax = etadt*(1d0-1d-15)
 
     driftorbit_nroot = 0
     ! TODO: return number of possible roots instead of 0 and 1
@@ -334,8 +371,8 @@ contains
     eta0 = eta
     eta_old = 0d0
     res = 0d0
-    etamin = etatp()*(1d0+1d-7)
-    etamax = etadt()*(1d0-1d-15)
+    etamin = etatp*(1d0+1d-8)
+    etamax = etadt*(1d0-1d-15)
     eta = etamin
     if(driftorbit_nroot(1) == 0) then
        print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
@@ -403,6 +440,34 @@ contains
     v = v0
     find_vmin = vmax
   end function find_vmin
+  
+  subroutine find_vlim(vmin, vmax)
+    real(8) :: etamin, etamax, vmin, vmax, eta0
+    real(8) :: Omth, dOmthdv, dOmthdeta
+
+    if (.not. nobdrift) then
+       vmin = find_vmin(vmin, vmax)
+       return
+    end if
+
+    ! if nobdrift is set for drift-orbit resonances,
+    ! there is both a minimum and a maximum frequency
+    eta0 = eta
+    
+    etamin = etatp*(1d0+1d-7)
+    etamax = etadt*(1d0-1d-14)
+
+    eta = etamax
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmin = -(mph*Om_tE)/(mth*Omth/v)
+
+    eta = etamin
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmax = -(mph*Om_tE)/(mth*Omth/v)
+    
+    eta = eta0
+    
+  end subroutine find_vlim 
   
   function flux_integral(vrange)
     real(8) :: vrange(:), v0, eta0
