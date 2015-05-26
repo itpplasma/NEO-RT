@@ -29,9 +29,9 @@ module driftorbit
   real(8) :: Omth_pass_spl_coeff(netaspl_pass-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
-  integer, parameter :: mph = 3, mth = 0
+  integer, parameter :: mph = 3, mth = 1
   integer, parameter :: m0 = 0
-  logical, parameter :: nobdrift = .false.
+  logical, parameter :: nobdrift = .true.
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
   real(8) :: fsa, B0, a, etadt, etatp
@@ -41,7 +41,7 @@ contains
     call do_magfie_init
     call init_misc
     call init_Om_spl
-    !call init_Om_pass_spl
+    call init_Om_pass_spl
     call init_fsa
   end subroutine init
 
@@ -55,7 +55,7 @@ contains
     
     v = vth    
     etamin = etatp
-    etamax = etadt*(1d0-1d-15)
+    etamax = etadt*(1d0-1d-9)
 
     delta = 1d-9   ! smallest relative distance to etamin
     b = log(delta)
@@ -85,22 +85,29 @@ contains
     ! Initialise splines for canonical frequencies of passing orbits
     
     real(8) :: etarange(netaspl), Omth_v(netaspl)
-    real(8) :: etamin, etamax
+    real(8) :: etamin, etamax, delta, a, b
     integer :: k
     
     v = vth    
+    !etamin = etatp*1d-9
+    !etamax = etatp*(1d0-1d-9)
     etamin = 1d-9
-    etamax = etatp*(1d0-1d-9)
+    etamax = etatp
+    
+    delta = 1d-9   ! smallest relative distance to etamin
+    b = log((etamax-etamin)/etamax)
+    a = 1d0/(netaspl-1d0)*(log(delta) - b)
     
     do k = netaspl_pass-1, 0, -1
-       eta = etamin * (1d0 + k/(netaspl_pass-1d0)*(etamax/etamin-1d0))
+       !eta = etamin * (1d0 + k/(netaspl_pass-1d0)*(etamax/etamin-1d0))
+       eta = etamax * (1d0 - exp(a*k+b))
        etarange(k+1) = eta
        if (k == netaspl_pass-1) then
           call bounce
-          print *, k, eta, taub, '*'
+          !print *, k, eta, taub, '*'
        else
           call bounce(taub)
-          print *, k, eta, taub
+          !print *, k, eta, taub
        end if
        Omth_v(k+1) = 2*pi/(v*taub)
     end do
@@ -218,9 +225,9 @@ contains
        abserr = 1d-10
        call r8_rkf45 ( timestep, nvar, y, yp, ti, ti+dt, relerr, abserr, state )
        !ti = ti+dt
-       if (k<5) then
-          print *, k, ti, told+dt, y(1), state
-       end if
+       !if (k<5) then
+       !   print *, k, ti, told+dt, y(1), state
+       !end if
 
        ! check for full turn completed
        if (((.not. pass) .and. (abs(y(1)) < tol)) .or. &
@@ -280,10 +287,9 @@ contains
     if (present(taub_estimate)) then
        taub_est = taub_estimate
     else
-       taub_est = 2.0*pi/(vperp(bmod)*iota/R0*&
-         sqrt(eps/2d0))
+       taub_est = 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
     end if
-    print *, 2*pi/taub_est
+    !print *, 2*pi/taub_est
        
     findroot_res = findroot(y0, taub_est/5d0, 1d-10)
     taub = findroot_res(1)
@@ -323,20 +329,32 @@ contains
     ! and derivatives w.r.t. v and eta
     real(8), intent(out) :: Omth, dOmthdv, dOmthdeta
     real(8) :: splineval(3)
-    splineval = spline_val_0(Omth_spl_coeff, eta)*v
+
+    if (eta > etatp) then
+       splineval = spline_val_0(Omth_spl_coeff, eta)*v
+    else
+       splineval = spline_val_0(Omth_pass_spl_coeff, eta)*v
+    end if
     Omth = splineval(1)
     dOmthdv = splineval(1)/v
     dOmthdeta = splineval(2)
   end subroutine Om_th
   
-  function driftorbit_nroot(maxlevel)
+  function driftorbit_nroot(maxlevel, eta_min, eta_max)
     integer :: driftorbit_nroot, maxlevel
+    real(8), optional :: eta_min, eta_max
     real(8) :: etamin, etamax
     real(8) :: Omph_etamin, Omph_etamax, dummy,&
          Omth_etamin, Omth_etamax, res_etamin, res_etamax
     
-    etamin = etatp*(1d0+1d-8)
-    etamax = etadt*(1d0-1d-15)
+    if (present(eta_min) .and. present(eta_max)) then
+       etamin = eta_min
+       etamax = eta_max
+    else
+       ! default behavior for trapped particles
+       etamin = etatp*(1d0+1d-8)
+       etamax = etadt*(1d0-1d-8)
+    end if
 
     driftorbit_nroot = 0
     ! TODO: return number of possible roots instead of 0 and 1
@@ -359,23 +377,31 @@ contains
     end if
   end function driftorbit_nroot
 
-  function driftorbit_root(tol)
+  function driftorbit_root(tol, eta_min, eta_max)
     real(8) :: driftorbit_root(2)
     real(8) :: tol, res, res_old, eta0, eta_old
     real(8) :: Omph, dOmphdv, dOmphdeta
     real(8) :: Omth, dOmthdv, dOmthdeta
     integer :: maxit, k, state
     real(8) :: etamin, etamax
+    real(8), optional:: eta_min, eta_max
     maxit = 100
     state = -2
     eta0 = eta
     eta_old = 0d0
     res = 0d0
-    etamin = etatp*(1d0+1d-8)
-    etamax = etadt*(1d0-1d-15)
+    if (present(eta_min) .and. present(eta_max)) then
+       etamin = eta_min
+       etamax = eta_max
+    else
+       ! default behavior for trapped particles
+       etamin = etatp*(1d0+1d-8)
+       etamax = etadt*(1d0-1d-8)
+    end if
     eta = etamin
-    if(driftorbit_nroot(1) == 0) then
+    if(driftorbit_nroot(1, etamin, etamax) == 0) then
        print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
+       print *, "ERROR: etamin = ", etamin, " etamax = ", etamax 
        return
     end if
     do k = 1,maxit
@@ -398,7 +424,8 @@ contains
           !call Om_th(Omth, dOmthdv, dOmthdeta)
           !driftorbit_root(2) = (mph*Omph + mth*Omth - res)/(eta*1d-10)
           exit       
-       elseif (res > 0) then
+       elseif (((res > 0) .and. (eta > etatp)) .or.&
+            (res < 0) .and. (eta < etatp)) then
           etamax = eta
           eta_old = eta
           eta = (eta+etamin)/2d0
@@ -411,7 +438,7 @@ contains
     if (state < 0) then
        driftorbit_root(1) = 0
        driftorbit_root(2) = 0
-       print *, "ERROR: driftorbit_root did not converge in 100 iterations" 
+       print *, "ERROR: driftorbit_root did not converge in 100 iterations, eta=min", etamin 
     end if
     eta = eta0
   end function driftorbit_root
@@ -455,8 +482,9 @@ contains
     eta0 = eta
     
     etamin = etatp*(1d0+1d-7)
-    etamax = etadt*(1d0-1d-14)
+    etamax = etadt*(1d0-1d-7)
 
+    ! trapped orbits
     eta = etamax
     call Om_th(Omth, dOmthdv, dOmthdeta)
     vmin = -(mph*Om_tE)/(mth*Omth/v)
@@ -464,40 +492,49 @@ contains
     eta = etamin
     call Om_th(Omth, dOmthdv, dOmthdeta)
     vmax = -(mph*Om_tE)/(mth*Omth/v)
+
+    ! passing orbits
+    etamin = etatp*1d-7
+    etamax = etatp*(1d0-1d-7)
     
+    eta = etamin
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmin = min(vmin,-(mph*Om_tE)/(mth*Omth/v))
+    
+    eta = etamax
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmax = max(vmax,-(mph*Om_tE)/(mth*Omth/v))
+        
     eta = eta0
-    
   end subroutine find_vlim 
   
-  function flux_integral(vrange)
-    real(8) :: vrange(:), v0, eta0
-    real(8) :: flux_integral(size(vrange))
+  function flux_integral(vr, etamin, etamax)
+    real(8) :: vr, v0, eta0
+    real(8) :: flux_integral
     real(8) :: eta_res(2), Dp, dpsidreff, dresdeta
-    integer :: k
-
+    real(8) :: etamin, etamax
+    
     flux_integral = 0d0
 
     v0 = v
     eta0 = eta
     
-    ! Integral contributions
-    do k=lbound(vrange,1), ubound(vrange,1)
-       v = vrange(k)
-       eta_res = driftorbit_root(1d-8*abs(Om_tE))
-       eta = eta_res(1)
-       dresdeta = eta_res(2)
+    ! Integral contribution
+    v = vr
+    eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
+    eta = eta_res(1)
+    dresdeta = eta_res(2)
 
-       flux_integral(k) = integrand(vrange(k), eta_res(1))*&
-            1d0/abs(dresdeta)       
-    end do
+    flux_integral = integrand(vr, eta_res(1))*&
+         1d0/abs(dresdeta)       
 
     ! Normalisation
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
     dpsidreff = 2d0/a*sqrt(s)
     flux_integral = dpsidreff**(-2)*flux_integral/Dp
 
-    call disp("flux_integral: ds/dr = ", dpsidreff)
-    call disp("flux_integral: Dp    = ", Dp)
+    !call disp("flux_integral: ds/dr = ", dpsidreff)
+    !call disp("flux_integral: Dp    = ", Dp)
     
     v = v0
     eta = eta0
@@ -545,11 +582,14 @@ contains
     real(8) :: integrand
     real(8) :: vx, etax
     real(8) :: vr(1), maxres(1)
+    real(8) :: Omth, dummy
+    
     v = vx
     vr(1) = vx
     eta = etax
     maxres = maxwellian(vr)
-    call bounce
+    call Om_th(Omth, dummy, dummy)
+    call bounce(2d0*pi/Omth)
 !    integrand =  pi/(2d0*n0)*(2*pi)**3/fsa*mph**2*c/(qi*iota*psi_pr)*&
 !         taub*mi**3*v**3*c/(qi*2d0*pi)*(mi*v**2/2d0)**2*abs(bounceavg(4))**2*&
 !         maxres(1)

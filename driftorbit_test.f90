@@ -8,10 +8,11 @@ PROGRAM main
 
   call test_magfie
   !call test_bounce
-  call test_torfreq
+  !call test_torfreq
   !call test_resline
-  !call test_flux
+  call test_flux
   !call test_driftorbit
+  !call test_torfreq_pass
 contains
 
   subroutine init_test
@@ -21,8 +22,9 @@ contains
     !s = 1.5765d-3  ! eps=1e-2
     s = .1547       ! eps=1e-1
     !s = .3
-    M_t = 1d-5   ! set Mach number M_t = Om_tE*R0/vth
-    !M_t = -5.6d-5 ! set Mach number M_t = Om_tE*R0/vth
+    !M_t = 1d-5   ! set Mach number M_t = Om_tE*R0/vth
+    !M_t = -3.2d-2 ! set Mach number M_t = Om_tE*R0/vth
+    M_t = -2.8d-2 ! set Mach number M_t = Om_tE*R0/vth
     n0 = 1d22     ! particle density
     vth = 1d8
 
@@ -129,10 +131,12 @@ contains
 
     etamin = etatp
     etamax = etadt
-    
-    !etamin = etatp()*(1d0+1d-9)
-    !etamax = etadt()*(1d0-1d-15)
-    !etamax = etamin*(1d0+1d-8)
+
+    eta = etamax*(1d0-1d-7)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+
+    call disp("test_torfreq: Om_th_approx    = ", v/(q*R0*sqrt(2d0/eps)))
+    call disp("test_torfreq: Om_th_deeptrap  = ", Omth)
 
     delta = 1d-9   ! smallest relative distance to etamin
     b = log(delta)
@@ -162,7 +166,7 @@ contains
     integer, parameter :: n = 50
     integer :: k
     real(8) :: vmin, vmax
-    real(8) :: etares(2)
+    real(8) :: etarest(2), etaresp(2)
 
     vmin = 1d-6*vth
     vmax = 3.5d0*vth
@@ -175,28 +179,42 @@ contains
     
     call disp("test_resline: vmin/vth        = ", vmin/vth)
     call disp("test_resline: vmax/vth        = ", vmax/vth)
-
     
     open(unit=9, file='test_resline.dat', recl=1024)
     do k = 0, n-1
        v = vmin + k/(n-1d0)*(vmax-vmin)
-       etares = driftorbit_root(1d-8*abs(Om_tE))
-       write(9, *) v, etares(1)-etatp
+       if (driftorbit_nroot(1, 1d-7*etatp, (1-1d-7)*etatp) > 0) then
+          ! trapped resonance (bounce)
+          etaresp = driftorbit_root(1d-8*abs(Om_tE), 1d-7*etatp, (1-1d-7)*etatp)
+       end if
+       if (driftorbit_nroot(1, (1+1d-8)*etatp, (1-1d-8)*etadt) > 0) then
+          ! passing resonance (transit)
+          etarest=driftorbit_root(1d-8*abs(Om_tE),(1+1d-8)*etatp,(1-1d-8)*etadt)
+       end if
+       write(9, *) v/vth, etaresp(1)/etatp, etarest(1)/etatp
     end do
     close(unit=9)
   end subroutine test_resline
   
   subroutine test_flux
-    integer, parameter :: n = 100
+    integer, parameter :: n = 500
     integer :: k
-    real(8) :: vrange(n), fluxint(n)
+    real(8) :: vrange(n), fluxintp(n), fluxintt(n)
     real(8) :: vmin, vmax, dv
 
+    fluxintp = 0d0
+    fluxintt = 0d0
+    
     vmin = 1d-6*vth
-    vmax = 3.5d0*vth
+    vmax = 1d2*vth
     !vmax = 5d0*vth
 
     call find_vlim(vmin, vmax)
+
+    !vmin = 2.8*vth
+    vmax = min(vmax,3.5d0*vth)
+    
+    !vmax = .5*vth
     
     call disp("test_flux: vmin/vth        = ", vmin/vth)
     call disp("test_flux: vmax/vth        = ", vmax/vth)
@@ -206,49 +224,62 @@ contains
     end do
 
     dv = vrange(2) - vrange(1)
-    fluxint = flux_integral(vrange)
     
     open(unit=9, file='test_flux.dat', recl=1024)
     do k = 1, n
-       write(9, *) vrange(k)/vth, fluxint(k)*vth ! f(v)*vth
+       v = vrange(k)
+       if (driftorbit_nroot(1, 1d-7*etatp, (1-1d-7)*etatp) > 0) then
+          ! passing resonance (transit)
+          fluxintp(k) = flux_integral(vrange(k), 1d-7*etatp, (1-1d-7)*etatp)
+       end if
+       if (driftorbit_nroot(1, (1+1d-8)*etatp, (1-1d-8)*etadt) > 0) then
+          ! trapped resonance (bounce)
+          fluxintt(k) = flux_integral(vrange(k),(1+1d-8)*etatp,(1-1d-8)*etadt)
+       end if
+       write(9, *) vrange(k)/vth, fluxintp(k)*vth, fluxintt(k)*vth ! f(v)*vth
     end do
     close(unit=9)
-    call disp("test_flux: D11/Dp          = ", sum(fluxint)*dv)
+    call disp("test_flux: D11/Dp passing  = ", sum(fluxintp)*dv)
+    call disp("test_flux: D11/Dp trapped  = ", sum(fluxintt)*dv)
+    call disp("test_flux: D11/Dp total    = ", (sum(fluxintt)+sum(fluxintp))*dv)
   end subroutine test_flux
 
   subroutine test_driftorbit
     integer, parameter :: n = 100
     integer :: k
     real(8) :: etamin, etamax
-    real(8) :: OmtB, dOmtBdv, dOmtBdeta
+    real(8) :: Omph, dOmphdv, dOmphdeta
     real(8) :: Omth, dOmthdv, dOmthdeta
     real(8) :: pa, qa
     real(8) :: aa, ba, ca
-    real(8) :: v1, v2
+    real(8) :: v1, v2, vmin, vmax
     
-    v = 1d0*vth
+    vmin = 1d-6*vth
+    vmax = 3.5d0*vth
+    !vmax = 5d0*vth
+    !vmin = 1d-10*vth
+    !vmax = 3.5d1*vth
+    !vmax = 4d-3*vth
 
-    etamin = 1d-7*etatp
-    etamax = etatp*(1d0-1d-7)
-   
+    call find_vlim(vmin, vmax)
+    call disp("test_driftorbit: vmin/vth        = ", vmin/vth)
+    call disp("test_driftorbit: vmax/vth        = ", vmax/vth)
+    v = 0.7*vth
+
+    etamin = 1d-8*etatp
+    !etamin = etatp*(1d0-1d-1)
+    etamax = etadt*(1d0-1d-8)
+
+    !etamin = etatp*(1d0-1d-7)
+    !etamax = etatp*(1d0+1d-7)
     
     open(unit=9, file='test_driftorbit.dat', recl=1024)
     do k = 2, n-1
        eta = etamin + k/(n-1d0)*(etamax-etamin)
-       call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
        call Om_th(Omth, dOmthdv, dOmthdeta)
-
-       aa = mph*OmtB/v**2
-       ba = mth*Omth/v
-       ca = mph*Om_tE
        
-       pa = v*mth*Omth/(mph*OmtB)
-       qa = v**2*Om_tE/OmtB
-
-       v1 = (-ba + sqrt(ba**2 - 4*aa*ca))/(2*aa)
-       v2 = (-ba - sqrt(ba**2 - 4*aa*ca))/(2*aa)
-       
-       write(9, *) eta, pa, qa, v1/vth, v2/vth, ba**2 - 4*aa*ca
+       write(9, *) eta/etadt, mth*Omth, -mph*Om_tE
        !write(9, *) eta, OmtB/v
     end do
     close(unit=9)
