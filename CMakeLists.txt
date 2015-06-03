@@ -21,8 +21,9 @@ set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
 add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
 add_subdirectory("../contrib/rkf45" "rkf45")
 add_subdirectory("../spline" "spline")
+add_subdirectory("../contrib/quadpack" "quadpack")
 
-set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O2 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I rkf45/OBJS")
+set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O2 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I rkf45/OBJS -I quadpack/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -38,6 +39,7 @@ add_library("driftorbit"
 add_dependencies(driftorbit boozer_magfie)
 add_dependencies(driftorbit rkf45)
 add_dependencies(driftorbit spline)
+add_dependencies(driftorbit quadpack)
 
 ### Linking
 target_link_libraries(
@@ -48,6 +50,7 @@ target_link_libraries(
   boozer_magfie
   rkf45
   spline
+  quadpack
 )
 
 ### For make install
