@@ -5,17 +5,20 @@ module do_magfie_mod
   use magfie_mod, only: magfie, stevvo, magfie_deallocate
   use neo_magfie_mod, only: magfie_spline, magfie_sarray, boozer_curr_tor_hat,&
        boozer_curr_pol_hat, boozer_curr_tor_hat_s, boozer_curr_pol_hat_s,&
-       boozer_psi_pr_hat, boozer_sqrtg11, boozer_isqrg, boozer_iota
+       boozer_psi_pr_hat, boozer_sqrtg11, boozer_isqrg, boozer_iota,&
+       boozer_iota_s
   use nrtype, only: twopi
   USE partpa_mod,  ONLY : bmod0
   use neo_magfie_mod, only: boozer_curr_tor_hat, boozer_curr_pol_hat,&
        boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat,&
        boozer_sqrtg11, boozer_isqrg
+  use neo_input, only: bmnc
   
   implicit none
   save
 
-  real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, iota, R0, eps
+  real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds,&
+       iota, R0, eps
 
 contains
   
@@ -24,9 +27,11 @@ contains
 
     bmod0 = 1d-4
     magfie_spline = 1
-    
-    allocate(magfie_sarray(1))
-    magfie_sarray = s
+
+    if (.not. allocated(magfie_sarray)) then
+       allocate(magfie_sarray(1))
+       magfie_sarray = s
+    end if
 
     x(1) = s
     x(2:3) = 0.0d0
@@ -56,6 +61,7 @@ contains
     dBphcovds = boozer_curr_pol_hat_s
     iota      = boozer_iota
     q         = 1d0/iota
+    dqds      = -boozer_iota_s/iota**2
     R0        = 1d2*rt0
   end subroutine do_magfie
   

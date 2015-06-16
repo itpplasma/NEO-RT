@@ -23,7 +23,7 @@ module common
   subroutine disp(str, val)
     character(*) :: str
     real(8)      :: val
-    write(*,'("' // str // '" ES12.3E2)') val
+    write(*,'("' // str // '" ES16.9E2)') val
   end subroutine disp
 
   function linspace(a, b, cnt)

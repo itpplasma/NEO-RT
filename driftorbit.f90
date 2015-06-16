@@ -21,7 +21,7 @@ module driftorbit
   real(8) :: Om_tE, vth, M_t, n0
 
   ! For splining in the trapped eta region
-  integer, parameter :: netaspl = 200
+  integer, parameter :: netaspl = 300
   real(8) :: Omph_spl_coeff(netaspl-1, 5)
   real(8) :: Omth_spl_coeff(netaspl-1, 5)
 
@@ -30,10 +30,10 @@ module driftorbit
   real(8) :: Omth_pass_spl_coeff(netaspl_pass-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
-  integer, parameter :: m0 = 0, mph = 18
+  integer :: m0, mph
   integer :: mth
-  logical, parameter :: nobdrift = .true.
-  logical, parameter :: nopassing = .false.
+  logical :: nobdrift 
+  logical :: nopassing 
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
   real(8) :: fsa, B0, a, etadt, etatp
@@ -64,7 +64,7 @@ contains
     etamin = etatp
     etamax = etadt*(1d0-1d-9)
 
-    delta = 1d-9   ! smallest relative distance to etamin
+    delta = 1d-8   ! smallest relative distance to etamin
     b = log(delta)
     a = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
     
@@ -91,7 +91,7 @@ contains
   subroutine init_Om_pass_spl
     ! Initialise splines for canonical frequencies of passing orbits
     
-    real(8) :: etarange(netaspl), Omth_v(netaspl)
+    real(8) :: etarange(netaspl_pass), Omth_v(netaspl_pass)
     real(8) :: delta, a, b
     integer :: k
     
@@ -103,7 +103,7 @@ contains
     
     delta = 1d-9   ! smallest relative distance to etamin
     b = log((etamax-etamin)/etamax)
-    a = 1d0/(netaspl-1d0)*(log(delta) - b)
+    a = 1d0/(netaspl_pass-1d0)*(log(delta) - b)
     
     do k = netaspl_pass-1, 0, -1
        !eta = etamin * (1d0 + k/(netaspl_pass-1d0)*(etamax/etamin-1d0))
@@ -186,9 +186,7 @@ contains
     Om_tB_v = mi*c/(2d0*qi*sqrtg*hctrvr(3)*bmod**2)*(&      ! Om_tB/v**2
          -(2d0-eta*bmod)*bmod*hder(1)&
          +2d0*(1d0-eta*bmod)*hctrvr(3)*&
-           (dBthcovds+q*dBphcovds)&
-     !         +Bphcov*dqds)& TODO: add extra term!
-    )
+           (dBthcovds+q*dBphcovds+Bphcov*dqds))
 
     ydot(1) = y(2)*hctrvr(3)                                    ! theta
     ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
@@ -235,7 +233,7 @@ contains
        pass = .true.
     end if
 
-    n = 500
+    n = 100
     rootstate = -1
     
     y = y0
@@ -284,8 +282,8 @@ contains
        end if
     end do
     if (rootstate < 0) then
-       print *, "ERROR: findroot did not converge in 500 iterations"
-       print *, eta
+       print *, "ERROR: findroot did not converge in 100 iterations"
+       print *, eta, etamin, etamax
        !print *, ti
        !print *, y(1)
     end if
@@ -430,7 +428,12 @@ contains
        etamin2 = etatp*(1d0+1d-8)
        etamax2 = etadt*(1d0-1d-8)
     end if
+
     eta = etamin2
+    !if (.not. nobdrift) then
+    !   eta = etamax2
+    !end if
+
     if(driftorbit_nroot(1, etamin2, etamax2) == 0) then
        print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
        print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
@@ -443,7 +446,7 @@ contains
        res = mph*Omph + mth*Omth
 
        !if (k>0) then
-       !   print *, "driftorbit_root: ", k, res, tol, eta
+       !   print *, "driftorbit_root: ", k, res, tol, etamin, eta
        !end if
        
        driftorbit_root(1) = eta
@@ -609,12 +612,16 @@ contains
     
     flux_integral = 0d0
 
-    v0 = v
-    eta0 = eta
+    !v0 = v
+    !eta0 = eta
     
     ! Integral contribution
     v = vr
-    eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
+    if (abs(M_t) > 1d-12) then
+       eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
+    else
+       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),etamin,etamax)
+    end if
     eta = eta_res(1)
     dresdeta = eta_res(2)
 
@@ -629,8 +636,8 @@ contains
     !call disp("flux_integral: ds/dr = ", dpsidreff)
     !call disp("flux_integral: Dp    = ", Dp)
     
-    v = v0
-    eta = eta0
+    !v = v0
+    !eta = eta0
   end function flux_integral
 
   
@@ -657,8 +664,8 @@ contains
 
     fsa = 2*pi*fsa
 
-    call disp('init_fsa: iota       = ', iota)
-    call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
+   ! call disp('init_fsa: iota       = ', iota)
+   ! call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
   end subroutine init_fsa
   
@@ -700,9 +707,13 @@ contains
     real(8) :: integrand_v
     real(8) :: eta_res(2)
     v = vx
-    eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
+    if (abs(M_t) > 1d-12) then
+       eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
+    else
+       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),etamin,etamax)
+    end if
     eta = eta_res(1)
-    integrand_v = integrand(v, eta_res(1))*1d0/abs(eta_res(2))  
+    integrand_v = integrand(v, eta_res(1))*1d0/abs(eta_res(2))
   end function integrand_v
   
   function flux_integral2(vmin, vmax)
@@ -713,8 +724,8 @@ contains
     
     flux_integral2 = 0d0
 
-    v0 = v
-    eta0 = eta
+    !v0 = v
+    !eta0 = eta
     
     ! Integral contribution
     v = vmin + (vmax-vmin)*1d-10
@@ -732,7 +743,7 @@ contains
     !call disp("flux_integral: ds/dr = ", dpsidreff)
     !call disp("flux_integral: Dp    = ", Dp)
     
-    v = v0
-    eta = eta0
+    !v = v0
+    !eta = eta0
   end function flux_integral2
 end module driftorbit
