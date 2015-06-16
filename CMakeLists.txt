@@ -53,6 +53,11 @@ target_link_libraries(
   quadpack
 )
 
+### Copy files
+configure_file(neo.in neo.in COPYONLY)
+configure_file(tok-synch2-n0.bc tok-synch2-n0.bc COPYONLY)
+
+
 ### For make install
 # install (TARGETS ${PROJECT_EXE_NAME} DESTINATION /temp/gernot_k/)
 # set_property(TARGET ${PROJECT_EXE_NAME} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
