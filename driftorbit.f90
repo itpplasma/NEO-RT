@@ -11,7 +11,7 @@ module driftorbit
   implicit none
   save
 
-  integer, parameter :: nvar = 5
+  integer, parameter :: nvar = 6
 
   ! Orbit parameters
   real(8) :: v, eta
@@ -30,13 +30,14 @@ module driftorbit
   real(8) :: Omth_pass_spl_coeff(netaspl_pass-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
-  integer :: m0, mph
-  integer :: mth
-  logical :: nobdrift 
-  logical :: nopassing 
+  integer :: m0, mph      ! Boozer toroidal and poloidal perturbation mode
+  integer :: mth          ! canonical poloidal mode
+  logical :: nobdrift     ! neglect magnetic drift (for drift-orbit res.)
+  logical :: nopassing    ! neglect passing particles
+  logical :: calcflux     ! calculation based on flux instead of torque
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
-  real(8) :: fsa, B0, a, etadt, etatp
+  real(8) :: fsa, B0, etadt, etatp
   real(8) :: etamin, etamax
 
   ! Check if init is done
@@ -58,7 +59,7 @@ contains
     
     real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
     integer :: k
-    real(8) :: a, b, delta
+    real(8) :: aa, b, delta
     
     v = vth    
     etamin = etatp
@@ -66,11 +67,11 @@ contains
 
     delta = 1d-8   ! smallest relative distance to etamin
     b = log(delta)
-    a = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
+    aa = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
     
     do k = netaspl-1, 0, -1
        !eta = etamin * (1d0 + (k/(netaspl-1d0))**4*(etamax/etamin-1d0))
-       eta = etamin*(1d0 + exp(a*k+b))
+       eta = etamin*(1d0 + exp(aa*k+b))
        etarange(k+1) = eta
        if (k == netaspl-1) then
           call bounce
@@ -92,7 +93,7 @@ contains
     ! Initialise splines for canonical frequencies of passing orbits
     
     real(8) :: etarange(netaspl_pass), Omth_v(netaspl_pass)
-    real(8) :: delta, a, b
+    real(8) :: delta, aa, b
     integer :: k
     
     v = vth    
@@ -103,11 +104,11 @@ contains
     
     delta = 1d-9   ! smallest relative distance to etamin
     b = log((etamax-etamin)/etamax)
-    a = 1d0/(netaspl_pass-1d0)*(log(delta) - b)
+    aa = 1d0/(netaspl_pass-1d0)*(log(delta) - b)
     
     do k = netaspl_pass-1, 0, -1
        !eta = etamin * (1d0 + k/(netaspl_pass-1d0)*(etamax/etamin-1d0))
-       eta = etamax * (1d0 - exp(a*k+b))
+       eta = etamax * (1d0 - exp(aa*k+b))
        etarange(k+1) = eta
        if (k == netaspl_pass-1) then
           call bounce
@@ -129,7 +130,7 @@ contains
     x(3) = 0d0
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     B0 = bmod
-    a = 4.6d1
+    ! a = 4.6d1
     ! eta deeply trapped and trapped passing limits
     etadt = 1d0/bmod
     x(3) = pi
@@ -200,14 +201,16 @@ contains
                cos((m0+mph/iota)*y(1)-mth*(t-t0)*Omth) ! Re Hmn
           ydot(5) = (2d0 - eta*bmod)*&
                sin((m0+mph/iota)*y(1)-mth*(t-t0)*Omth) ! Im Hmn
+          ydot(6) = 0d0
        else
           ydot(4) = (2d0 - eta*bmod)*&
                cos((m0+mph/iota)*y(1)-(mth+mph/iota)*t*Omth) ! Re Hmn
           ydot(5) = (2d0 - eta*bmod)*&
                sin((m0+mph/iota)*y(1)-(mth+mph/iota)*t*Omth) ! Im Hmn
+          ydot(6) = 1d0/(bmod*y(2))                          ! Passing term
        end if
     else
-       ydot(4:5) = 0d0
+       ydot(4:6) = 0d0
     end if
   end subroutine timestep
 
@@ -581,6 +584,10 @@ contains
     real(8) :: vmin, vmax, eta0
     real(8) :: Omth, dOmthdv, dOmthdeta
 
+    if (mth == 0) then
+       return
+    end if
+    
     if (.not. nobdrift) then
        vmin = find_vmin(vmin, vmax)
        return
@@ -606,7 +613,7 @@ contains
   end subroutine find_vlim_t
   
   function flux_integral(vr)
-    real(8) :: vr, v0, eta0
+    real(8) :: vr
     real(8) :: flux_integral
     real(8) :: eta_res(2), Dp, dpsidreff, dresdeta
     
@@ -697,8 +704,15 @@ contains
 !    integrand =  pi/(2d0*n0)*(2*pi)**3/fsa*mph**2*c/(qi*iota*psi_pr)*&
 !         taub*mi**3*v**3*c/(qi*2d0*pi)*(mi*v**2/2d0)**2*abs(bounceavg(4))**2*&
 !         maxres(1)
-    integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
-         *mph**2*v**7*taub*Hmn2*maxres(1)*mi**3/n0
+
+    if (calcflux) then
+       integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
+            *mph*v**7*taub*Hmn2*maxres(1)*mi**3/n0&
+            *(mph - (mth+q*mph)*Bphcov*Omth*bounceavg(6))
+    else          
+       integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
+            *mph**2*v**7*taub*Hmn2*maxres(1)*mi**3/n0
+    end if
     ! TODO: factor of 2
   end function integrand
 
@@ -710,14 +724,15 @@ contains
     if (abs(M_t) > 1d-12) then
        eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
     else
-       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),etamin,etamax)
+       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
+            etamin, etamax)
     end if
     eta = eta_res(1)
     integrand_v = integrand(v, eta_res(1))*1d0/abs(eta_res(2))
   end function integrand_v
   
   function flux_integral2(vmin, vmax)
-    real(8) :: vmin, vmax, v0, eta0
+    real(8) :: vmin, vmax
     real(8) :: flux_integral2, err
     real(8) :: Dp, dpsidreff
     integer :: neval, ier

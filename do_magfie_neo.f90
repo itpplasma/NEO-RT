@@ -20,6 +20,8 @@ module do_magfie_mod
   real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds,&
        iota, R0, eps
 
+  real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius a changeable
+
 contains
   
   subroutine do_magfie_init
