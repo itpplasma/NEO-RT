@@ -1,5 +1,8 @@
 ### Basic settings
-cmake_minimum_required (VERSION 2.6)
+cmake_minimum_required (VERSION 2.8.6)
+#project(fortranc Fortran C)
+#include(FortranCInterface)
+#FortranCInterface_HEADER(FC.h MACRO_NAMESPACE "FC_")
 enable_testing()
 
 ### Define the project
@@ -19,11 +22,13 @@ set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
 
 ### External modules
 add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
-add_subdirectory("../contrib/rkf45" "rkf45")
+#add_subdirectory("../contrib/rkf45" "rkf45")
 add_subdirectory("../spline" "spline")
 add_subdirectory("../contrib/quadpack" "quadpack")
+add_subdirectory("../contrib/odepack" "odepack")
+add_subdirectory("../contrib/vode" "vode")
 
-set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O2 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I rkf45/OBJS -I quadpack/OBJS")
+set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O2 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I rkf45/OBJS -I quadpack/OBJS -I vode/OBJS -I odepack/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -33,24 +38,29 @@ add_executable(${PROJECT_EXE_NAME}
 add_library("driftorbit"
   common.f90
   driftorbit.f90
+  #do_magfie_standalone.f90
   do_magfie_neo.f90
 )
 
 add_dependencies(driftorbit boozer_magfie)
-add_dependencies(driftorbit rkf45)
+#add_dependencies(driftorbit rkf45)
 add_dependencies(driftorbit spline)
 add_dependencies(driftorbit quadpack)
+add_dependencies(driftorbit odepack)
+add_dependencies(driftorbit vode)
 
 ### Linking
 target_link_libraries(
   ${PROJECT_EXE_NAME}
   driftorbit
-  lapack
-  blas
   boozer_magfie
-  rkf45
+  #rkf45
+  odepack
+  vode
   spline
   quadpack
+  openblas
+  pthread
 )
 
 ### Copy files

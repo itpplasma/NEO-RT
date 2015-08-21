@@ -1,14 +1,17 @@
-PROGRAM main
+program main
   use driftorbit
   use do_magfie_mod
-  use rkf45
+  !use rkf45
+  use dvode_f90_m
   implicit none
 
-  integer :: mthnum
-  character(len=32) :: arg
-  call get_command_argument(1, arg)
-  read(arg, *) s
-  
+  integer :: Mtnum, mthnum
+  real(8) :: Mtmin, Mtmax
+  !character(len=32) :: arg
+  !call get_command_argument(1, arg)
+  !read(arg, *) s
+
+  call read_control
   call init_test
   call test_magfie
   !call test_bounce
@@ -18,54 +21,40 @@ PROGRAM main
   !call test_driftorbit
   !call test_torfreq_pass
   !call test_machrange
-  call test_integral
+  !call test_integral
   !call test_machrange2
   !call test_supban
+  call test_intstep
+  !call test_Hmn
 contains
 
-  subroutine init_test
-    !s = .16406d0   ! flux surface no. 10
-    !s = 5.4688d-2  ! flux surface no. 3
-    !s = 1.578d-5   ! eps=1e-3 / A = 1000
-    !s = 1.563d-3   ! eps=1e-2 / A =  100
-    !s = .1546      ! eps=1e-1 / A =   10
-    !s = .3161      !            A =    7
-    !s = .461       !            A =  5.8
-    !s = .9633      ! eps=0.25 / A =    4
-    !s = .3
-    !s = 0.531      ! near resonant surface q = 1.333
-    !s = 0.27       ! trapped and passing about the same for m=-4,n=3
-    ! Two test cases with m=-4,n=3
-    !   s = 0.268 (A = 7.6)
-    !   s = 0.461 (A = 5.8)
-    !   TODO: artificially set safety factor q
+  subroutine read_control
+    character(1)          :: dummy
     
-    !M_t = -3.2d-2 ! set Mach number M_t = Om_tE*R0/vth
-    !M_t = 0.2d-2 ! set Mach number M_t = Om_tE*R0/vth
-    !M_t = 5.6d-5
-    !M_t = 1d-5
-    !M_t = 0.02
-    M_t = 0.1
-    !M_t = 0d0    ! no electric drift
-    
-    !M_t = 2.8d-2   ! set Mach number M_t = Om_tE*R0/vth
-    n0 = 1d22       ! particle density
-    !vth = 1d8
-    vth = 2.255607593E+04 ! vth for M_t = 1d-5
+    open(unit=9,file='driftorbit.in',status='old',form='formatted')
+    read (9,*) dummy
+    read (9,*) dummy
+    read (9,*) dummy
+    read (9,*) s
+    read (9,*) M_t
+    read (9,*) n0
+    read (9,*) vth
+    read (9,*) epsmn
+    read (9,*) m0
+    read (9,*) mph   
+    read (9,*) mth   
+    read (9,*) mthnum   
+    read (9,*) Mtmin   
+    read (9,*) Mtmax  
+    read (9,*) Mtnum    
+    read (9,*) nobdrift   
+    read (9,*) nopassing  
+    read (9,*) calcflux
+    read (9,*) noshear
+end subroutine read_control
 
-    m0 = -4  ! m0
-    mph = 3  ! n0
-
-
-
-    !!!!!!!
-    mth = -1
-    mthnum = 10
-
-    nobdrift = .true.
-    nopassing = .false.
-    calcflux = .false.
-
+subroutine init_test
+  
     call init
     if ((abs(M_t) > 1d-12) .and. (.not. nobdrift)) then
        ! set thermal velocity so that ExB = reference toroidal drift
@@ -136,9 +125,21 @@ contains
 
     integer :: k, state
     !integer :: iwork(1000)
-    real(8) :: t, y(nvar), yp(nvar), abserr, relerr
+    real(8) :: t, y(nvar)
     !real(8) :: rwork(1000)
 
+    real(8) :: atol(nvar), rtol, tout
+    integer :: neq, itask, istate
+    type (vode_opts) :: options
+
+    neq = nvar
+    t = 0.0d0
+    rtol = 1d-9
+    atol = 1d-10
+    itask = 1
+    istate = 1
+    options = set_normal_opts(abserr_vector=atol, relerr=rtol)
+    
     mth = -1
     
     print *, "test_bounce"
@@ -167,9 +168,12 @@ contains
     write(9, *) t, y(1)
     state = 1
     do k = 2,n
-       relerr = 1d-9
-       abserr = 1d-10
-       call r8_rkf45 ( timestep, nvar, y, yp, t, t+dt, relerr, abserr, state )
+       !relerr = 1d-9
+       !abserr = 1d-10
+       !call r8_rkf45 ( timestep, nvar, y, yp, t, t+dt, relerr, abserr, state)
+
+       tout = t+dt
+       call dvode_f90(timestep2, neq, y, t, tout, itask, istate, options)
        write(9, *) t, y(1), y(4), y(5)
     end do
     close(unit=9)
@@ -192,7 +196,7 @@ contains
     call disp("test_torfreq: Om_tB_ref  = ", c*mi*vth**2/(2*qi*psi_pr))
 
     etamin = etatp*(1d-6)
-    etamax = etatp*(1-1d-7) 
+    etamax = etadt*(1-1d-7) 
         
     !eta = etamax*(1d0-1d-7)
     call Om_th(Omth, dOmthdv, dOmthdeta)
@@ -234,7 +238,7 @@ contains
     real(8) :: etarest(2), etaresp(2)
 
     vmin = 1d-6*vth
-    vmax = 1d0*vth
+    vmax = 2d1*vth
     !vmax = 5d0*vth
     !vmin = 1d-10*vth
     !vmax = 3.5d1*vth
@@ -271,7 +275,7 @@ contains
   end subroutine test_resline
   
   subroutine test_flux
-    Integer, parameter :: n = 500
+    integer, parameter :: n = 500
     integer :: k
     real(8) :: vrange(n), fluxintp(n), fluxintt(n)
     real(8) :: vmin, vmax, dv
@@ -285,7 +289,7 @@ contains
     fluxintt = 0d0
     
     vmin = 1d-6*vth
-    vmax = 1d2*vth
+    vmax = 2d1*vth
     !vmax = 5d0*vth
 
     call find_vlim(vmin, vmax)
@@ -447,51 +451,54 @@ contains
 
   
    subroutine test_integral   
-    integer, parameter :: mthmin = -10, mthmax = 10
+    integer mthmin, mthmax
     integer :: j
-    real(8) :: fluxresp(mthmax-mthmin+1), fluxrest(mthmax-mthmin+1)
+    real(8), allocatable :: fluxresp(:), fluxrest(:)
     real(8) :: vminp, vmaxp, vmint, vmaxt
     real(8) :: rhol, Dp, Drp
+    
+    mthmin = -25
+    mthmax = 26
 
+    allocate(fluxresp(mthmax-mthmin+1))
+    allocate(fluxrest(mthmax-mthmin+1))
+    
     fluxrest = 0d0
     fluxresp = 0d0
     
-    call disp("test_integral: Mach num Mt   = ", M_t)
-    call disp("test_integral: Poloidal m0   = ", 1d0*m0)
-    call disp("test_integral: Toroidal n0   = ", 1d0*mph)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
     rhol = vth*mi*c/(B0*qi)
     Drp = sqrt(pi)*mph*(1/iota)**2*(1/eps)**2*vth*rhol**2/(4*R0)
     
-    call disp("test_integral: Drp/Dp           = ", Drp/Dp)
-    
     open(unit=9, file='test_integral.dat', recl=1024)
     do j = 1, mthmax-mthmin
        mth = (-mthmin - j + 1)*int(sign(1d0,M_t))
-       if (mth == 0) then
-          cycle
-       end if
+       !if (mth == 0) then
+       !   cycle
+       !end if
        
        vminp = 1d-6*vth
        vmaxp = 1d2*vth
        vmint = 1d-6*vth
        vmaxt = 1d2*vth
 
-       call find_vlim_p(vminp, vmaxp)
-       call find_vlim_t(vmint, vmaxt)
-
        ! passing resonance (passing)
-       if ((.not. nopassing) .and. (vmaxp > 0)) then
+       if ((.not. nopassing) .and. &
+           (M_t < 0 .and. mth > -mph*q) .or. (M_t > 0 .and. mth < -mph*q)) then
+          call find_vlim_p(vminp, vmaxp)
           etamin = 1d-7*etatp
           etamax = (1-1d-7)*etatp
-          fluxresp(j) = flux_integral2(vminp, vmaxp)
+          fluxresp(j) = flux_integral3(vminp, vmaxp)
        end if
           
        ! trapped resonance (trapped)
-       etamin = (1+1d-8)*etatp
-       etamax = (1-1d-8)*etadt
-       fluxrest(j) = flux_integral2(vmint, vmaxt)
-          
+       if (mth*mph*M_t < 0) then
+          call find_vlim_t(vmint, vmaxt)
+          etamin = (1+1d-8)*etatp
+          etamax = (1-1d-8)*etadt
+          fluxrest(j) = flux_integral3(vmint, vmaxt)
+       end if
+       
        !call disp("test_integral: D11/Dp pass  = ", fluxresp(j))
        !call disp("test_integral: D11/Dp trap  = ", fluxrest(j))
        !call disp("test_integral: D11/Dp total = ", fluxrest(j) + fluxresp(j))
@@ -501,52 +508,54 @@ contains
     end do
     !write(9, *) Drp/Dp, 0d0, 0d0, 0d0
     close(unit=9)
-    call disp("test_integral: Dp total = ", sum(fluxrest + fluxresp))
+    call disp("test_integral: Mach num Mt   = ", M_t)
+    call disp("test_integral: Poloidal m0   = ", 1d0*m0)
+    call disp("test_integral: Toroidal n0   = ", 1d0*mph)
+    call disp("test_integral: Drp/Dp        = ", Drp/Dp)
+    call disp("test_integral: D11/Dp total  = ", sum(fluxrest + fluxresp))
   end subroutine test_integral
 
   subroutine test_machrange2  
-    integer, parameter :: n = 101
     integer :: j, k
     real(8) :: fluxresp(mthnum), fluxrest(mthnum)
     real(8) :: vminp, vmaxp, vmint, vmaxt
-    real(8) :: Mtmin, Mtmax
-
-    Mtmin = 0d0
-    Mtmax = 1d-1
             
     open(unit=9, file='test_machrange2.dat', recl=1024)
-    do k = 1, n
-       if (k == 1) then
-          M_t = -1d-5
-       else
-          M_t = -mtmin - (k-1)*(mtmax-mtmin)/(n-1)
-       end if
+    do k = 1, Mtnum
+       M_t = Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1)
+       
        Om_tE = vth*M_t/R0
        fluxrest = 0d0
        fluxresp = 0d0
        do j = 1, mthnum
-          mth = j-1
+
+          if (M_t < 0) then
+             mth = ceiling(-mph*q) + (j-1)
+          else
+             mth = -j
+          end if
 
           vminp = 1d-6*vth
           vmaxp = 2d1*vth
           vmint = 1d-6*vth
           vmaxt = 2d1*vth
 
-          call find_vlim_p(vminp, vmaxp)
-          call find_vlim_t(vmint, vmaxt)
-
           ! passing resonance (passing)
-          if ((.not. nopassing) .and. (vmaxp > 0)) then
+          if ((.not. nopassing) .and. &
+               (M_t < 0 .and. mth > -mph*q) .or.&
+               (M_t > 0 .and. mth < -mph*q)) then
+             call find_vlim_p(vminp, vmaxp)
              etamin = 1d-7*etatp
              etamax = (1-1d-7)*etatp
-             fluxresp(j) = flux_integral2(vminp, vmaxp)
+             fluxresp(j) = flux_integral3(vminp, vmaxp)
           end if
 
           ! trapped resonance (trapped)
-          if (mth /= 0) then
+          if (M_t*mth < 0) then
+             call find_vlim_t(vmint, vmaxt)
              etamin = (1+1d-8)*etatp
              etamax = (1-1d-8)*etadt
-             fluxrest(j) = flux_integral2(vmint, vmaxt)
+             fluxrest(j) = flux_integral3(vmint, vmaxt)
           end if
 
           print *, "test_flux: Mt = ", M_t, ", mth = ", mth, ", D11/Dp = ",&
@@ -571,8 +580,162 @@ contains
     call find_vlim(vmin, vmax)
 
     D11dp = 0d0
-    D11dp = flux_integral2(vmin,vmax)
+    D11dp = flux_integral3(vmin,vmax)
     
     print *, s, eps, q, D11dp, dqds
   end subroutine test_supban
-end PROGRAM main
+  
+  subroutine test_intstep
+    real(8) :: sk, ds, eta_res(2)
+    real(8) :: D11, Dp, Drp
+    integer :: ks, ns
+
+    real(8) :: y(3), t, tout, rtol(3), atol(3), rwork(128)
+    integer :: neq, itask, istate, iopt, itol, iwork(32), jroot(4), ng, jt
+    
+    call disp("test_intstep: Mach num Mt   = ", M_t)
+        
+    neq = 3
+    ng = 4
+    y(1) = 1d0-1d-15
+    y(2) = 1d-15
+    y(3) = 0d0
+    itol = 4
+    t = 0.0d0
+    rtol(1) = 1d-13
+    rtol(2) = 1d-13
+    rtol(3) = 1d-10
+    atol(1) = 1d-13
+    atol(2) = 1d-13
+    atol(3) = 1d-10
+    itask = 1
+    istate = 1
+    iopt = 0
+    jt = 2
+    
+    ns = 100
+    ds = 2d0/ns
+    sk = 0d0
+    
+    vmin2 = 1d-1*vth
+    vmax2 = 10*vth
+
+    ! trapped
+    !etamin = (1+1d-8)*etatp
+    !etamax = (1-1d-8)*etadt
+    !call find_vlim_t(vmin2, vmax2)
+
+    ! passing
+    etamin = 1d-8*etatp
+    etamax = (1-1d-8)*etatp
+    call find_vlim_p(vmin2, vmax2)
+    
+    vmin2 = vmin2 + 1d-7*(vmax2-vmin2)
+    vmax2 = vmax2 - 1d-7*(vmax2-vmin2)
+
+    print *, vmin2/vth, etamin
+    print *, vmax2/vth, etamax
+    
+    v = vmax2
+
+    if (mth /= 0) then
+       if (etamin < etatp) then
+          y(2) = 1d0 - 1d-15
+       else
+          y(2) = 1d-15
+       end if
+    else
+       eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
+       y(2) = (eta_res(1)-etamin)/(etamax-etamin)
+    end if
+    print *, y
+    
+    open(unit=9, file='test_intstep.dat', recl=1024)
+    do ks = 1, ns
+       tout = t+ds
+       call DLSODAR (intstep, neq, y, t, tout, ITOL, RTOL, ATOL, ITASK,&
+            ISTATE, IOPT, RWORK, size(rwork), IWORK, size(iwork), dummyjac,&
+            jt, bbox, ng, jroot)
+       !call dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
+       if (istate == 3) then
+          print *, 'reached boundary: ', jroot
+          print *, 'y = ', y
+          D11 = (2d0/a*sqrt(s))**-2*y(3) 
+          Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+          print *, 'D11/Dp (ODE)      = ', D11/Dp
+          print *, 'D11/Dp (integral) = ', flux_integral3(vmin2, vmax2)
+          exit
+       end if
+       v = vmin2 + y(1)*(vmax2-vmin2)
+       eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
+       write(9, *) t, y(1), y(2), y(3), &
+            (vmin2 + (vmax2-vmin2)*y(1))/vth, etamin + (etamax-etamin)*y(2), &
+            (eta_res(1)-etamin)/(etamax-etamin),&
+            (etamin + (etamax-etamin)*y(2)-eta_res(1))/eta_res(1)
+       flush(9)
+    end do
+    close(unit=9)
+  end subroutine test_intstep
+
+  SUBROUTINE dummyjac
+  end SUBROUTINE dummyjac
+
+  subroutine bbox (NEQ, T, Y, NG, GOUT)
+     integer, intent(in) :: NEQ, NG
+     real(8), intent(in) :: T, Y(neq)
+     real(8), intent(out) :: GOUT(ng)
+     GOUT(1) = Y(1)
+     GOUT(2) = 1d0 - Y(1)
+     GOUT(3) = Y(2)
+     GOUT(4) = 1d0 - Y(2)
+     return
+   end subroutine bbox
+
+   
+   subroutine test_Hmn
+     integer :: keta, neta
+     real(8) :: vmin2, vmax2
+     real(8) :: eta_res(2), H2mean
+     !real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+
+     neta = 1000
+     
+     v = vth
+
+
+     vmin2 = 1d-6*vth
+     vmax2 = 1d1*vth
+     call find_vlim_p(vmin2, vmax2)
+     print *, vmin2/vth, vmax2/vth
+     vmin2 = 1d-6*vth
+     vmax2 = 1d1*vth
+     call find_vlim_t(vmin2, vmax2)
+     print *, vmin2/vth, vmax2/vth
+
+     !etamin = 1d-6*etadt
+     etamin = etatp*(1+1d-6)
+     etamax = etadt*(1-1d-6)
+     !etamax = etatp*(1-1d-6)
+     eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
+            etamin, etamax)
+     print *, (eta_res(1)-etatp)/(etadt-etatp)
+     call bounce
+
+     H2mean = 1/(mph*q)*q**2*R0**2/(v**2*taub**2)*epsmn**2/&
+          sqrt(eta_res(1)**2*eps**2*B0**2 - (eta_res(1)*B0-1)**2)
+
+     print *, taub
+     
+     !print *, 'eta res: Hmn = ', H2mean, bounceavg(4)**2+bounceavg(5)**2
+    
+     open(unit=9, file='test_Hmn.dat', recl=1024)
+     do keta = 1, neta
+        eta = etamin + (etamax-etamin)/(neta-1)*(keta-1)
+        call bounce
+        write(9, *) (eta-etatp)/(etadt-etatp), bounceavg(4)**2+bounceavg(5)**2,&
+             H2mean
+        flush(9)
+     end do
+     close(unit=9)
+  end subroutine test_Hmn
+end program main
