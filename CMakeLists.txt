@@ -38,8 +38,8 @@ add_executable(${PROJECT_EXE_NAME}
 add_library("driftorbit"
   common.f90
   driftorbit.f90
-  #do_magfie_standalone.f90
-  do_magfie_neo.f90
+  do_magfie_standalone.f90
+  #do_magfie_neo.f90
 )
 
 add_dependencies(driftorbit boozer_magfie)

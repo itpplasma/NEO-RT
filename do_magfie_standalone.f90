@@ -7,7 +7,7 @@ module do_magfie_mod
   save
 
   real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-       q, dqds, iota, R0, a, eps
+       q, dqds, iota, R0, a, eps, B0, B00
   
   real(8), protected :: config0(6), config(6)
   real(8), allocatable, protected :: params0(:,:), modes0(:,:,:)  
@@ -32,7 +32,7 @@ contains
        allocate(eps_spl(nflux-1, 5))
     end if
     
-    !B0mn = 1.0d4*modes0(:,:,6)
+    B00 = 1.0d4*modes0(1,1,6)
     
     ! calculate spline coefficients
     do k=1,5
@@ -83,6 +83,8 @@ contains
        B0mn(j) = 1d4*spl_val(1)
        dB0dsmn(j) = 1d4*spl_val(2)
     end do
+    B0 = B0mn(1)
+    
     bmod = sum(B0mn*cos(modes0(1,:,1)*x(3)))
     sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2
     bder(1) = sum(dB0dsmn*cos(modes0(1,:,1)*x(3)))/bmod

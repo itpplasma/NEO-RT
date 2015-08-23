@@ -6,8 +6,8 @@
 
 clear;
 
-dorun = false;
-dorunshaing = true;
+dorun = true;
+dorunshaing = false;
 
 testcase = 'Mt1em5';
 
@@ -23,10 +23,10 @@ smax = 0.86;
 
 if dorun
     outfile = fopen(['../',filename],'w');
-    fprintf(outfile, '%s\tr/R0\tq\tD11/Dp\n');
+    fprintf(outfile, '%%s\tr/R0\tq\tD11/Dp\n');
     fclose(outfile);
 
-    n = 100;
+    n = 2;
     srange = linspace(sqrt(smin), sqrt(smax), n).^2;
 
     for s = srange

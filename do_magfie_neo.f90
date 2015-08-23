@@ -8,10 +8,10 @@ module do_magfie_mod
        boozer_psi_pr_hat, boozer_sqrtg11, boozer_isqrg, boozer_iota,&
        boozer_iota_s
   use nrtype, only: twopi
-  USE partpa_mod,  ONLY : bmod0
+  use partpa_mod,  ONLY : bmod0
   use neo_magfie_mod, only: boozer_curr_tor_hat, boozer_curr_pol_hat,&
        boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat,&
-       boozer_sqrtg11, boozer_isqrg
+       boozer_sqrtg11, boozer_isqrg, B0
   use neo_input, only: bmnc
   
   implicit none
@@ -27,7 +27,11 @@ contains
   subroutine do_magfie_init
     real(8) :: bmod, bmod1, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
+    !! VERY DANGEROUS: CHANGING Q MANUALLY
+    !boozer_iota      = 1d0/3d0
+    
     bmod0 = 1d-4
+    !print *, bmod0
     magfie_spline = 1
 
     if (.not. allocated(magfie_sarray)) then
@@ -53,6 +57,8 @@ contains
     real(8), dimension(size(x)), intent(out)        :: hcovar
     real(8), dimension(size(x)), intent(out)        :: hctrvr
     real(8), dimension(size(x)), intent(out)        :: hcurl
+    !! VERY DANGEROUS: CHANGING Q MANUALLY
+    boozer_iota      = 1d0/3d0
     call magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     bmod      = 1d4*bmod
     sqrtg     = abs(sqrtg)
@@ -62,6 +68,8 @@ contains
     dBthcovds = boozer_curr_tor_hat_s
     dBphcovds = boozer_curr_pol_hat_s
     iota      = boozer_iota
+    !! VERY DANGEROUS: CHANGING Q MANUALLY
+    !iota      = 1d0/3d0
     q         = 1d0/iota
     dqds      = -boozer_iota_s/iota**2
     R0        = 1d2*rt0
