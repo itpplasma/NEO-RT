@@ -39,7 +39,7 @@ module driftorbit
   logical :: calcflux     ! calculation based on flux instead of torque
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
-  real(8) :: fsa, B0, etadt, etatp
+  real(8) :: fsa, etadt, etatp
   real(8) :: etamin, etamax
   real(8) :: vmin2, vmax2 ! permanent vmin vmax for integration bracketing
 
@@ -132,13 +132,15 @@ contains
     x(2) = 0d0
     x(3) = 0d0
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    B0 = bmod
+    ! B0 = bmod
     ! a = 4.6d1
     ! eta deeply trapped and trapped passing limits
     etadt = 1d0/bmod
     x(3) = pi
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     etatp = 1d0/bmod
+
+    !B0 = 1d0/2d0*(1d0/etadt + 1d0/etatp)
   end subroutine init_misc
   
   function Jperp()

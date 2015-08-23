@@ -22,9 +22,9 @@ program main
   !call test_torfreq_pass
   !call test_machrange
   !call test_integral
-  !call test_machrange2
+   call test_machrange2
   !call test_supban
-  call test_intstep
+  !call test_intstep
   !call test_Hmn
 contains
 
@@ -90,7 +90,7 @@ subroutine init_test
     call disp("test_magfie: A         = ", 1/eps)
     call disp("test_magfie: psi_pr    = ", psi_pr)
     call disp("test_magfie: B0        = ", B0)
-    !call disp("test_magfie: Bmod0     = ", bmnc(1,1)*1d4)
+    call disp("test_magfie: B00       = ", B00)
     call disp("test_magfie: Bthcov    = ", Bthcov)
     call disp("test_magfie: Bphcov    = ", Bphcov)
     call disp("test_magfie: dBthcovds = ", dBthcovds)
@@ -718,13 +718,13 @@ subroutine init_test
      !etamax = etatp*(1-1d-6)
      eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
             etamin, etamax)
-     print *, (eta_res(1)-etatp)/(etadt-etatp)
+     print *, 'eta_res_bar = ', (eta_res(1)-etatp)/(etadt-etatp)
      call bounce
 
-     H2mean = 1/(mph*q)*q**2*R0**2/(v**2*taub**2)*epsmn**2/&
+     H2mean = 8*pi/mph*q*R0**2/(v**2*taub**2)*epsmn**2/&
           sqrt(eta_res(1)**2*eps**2*B0**2 - (eta_res(1)*B0-1)**2)
 
-     print *, taub
+     print *, taub, (1/(eta_res(1)*B0) - 1d0)**2/eps**2
      
      !print *, 'eta res: Hmn = ', H2mean, bounceavg(4)**2+bounceavg(5)**2
     
