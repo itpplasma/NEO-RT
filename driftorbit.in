@@ -1,0 +1,18 @@
+# Input file for DRIFTORBIT - Version 1.1
+# 
+#
+1d-5		    M_t		       - Mach number (for single Mach no. run)
+1d19		    n0		       - particle density
+2.255607593E+04     vth		       - thermal velocity
+1		    epsmn	       - perturbation amplitude B1/B0
+0		    m		       - poroidal perturbation mode
+3 		    n		       - toroidal perturbation mode (MUST BE > 0)
+0		    mth		       - poloidal canonical mode (for single Mach no. run)
+10		    mthnum	       - poloidal canonical mode count
+1d-5		    Mtmin	       - minimum Mach number
+0.1		    Mtmax	       - maximum Mach number
+30                  Mtnum              - Mach number count
+F		    nobdrift	       - neglect magnetic drift (drift-orbit resonances)
+T		    nopassing	       - neglect passing particles
+F		    calcflux	       - calculate flux directly instead via flux-force relation
+F		    noshear	       - neglect magnetic shear term with dqds

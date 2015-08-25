@@ -45,15 +45,18 @@ module driftorbit
 
   ! Check if init is done
   logical :: init_done
+
+  ! TODO: better B0 calculation (average magnetic field on flux surface)
+  real(8) :: B0
 contains
 
   subroutine init
     init_done = .false.
     call do_magfie_init
+    call init_fsa
     call init_misc
     call init_Om_spl
     call init_Om_pass_spl
-    call init_fsa
     init_done = .true.
   end subroutine init
 
@@ -200,7 +203,7 @@ contains
     x(2) = 0d0
     x(3) = y(1)
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    !call Om_th(Omth, dOmthdv, dOmthdeta)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
 
     shearterm = Bphcov*dqds
     if (noshear) then
@@ -220,25 +223,25 @@ contains
        if (eta > etatp) then
           !t0 = 0.25*2*pi/Omth ! Quarter of bounce time to set phase 0 at tips
           t0 = 0d0
-!!$          ydot(4) = (2d0 - eta*bmod)*epsmn*&
-!!$               cos((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Re Hmn
-!!$          ydot(5) = (2d0 - eta*bmod)*epsmn*&
-!!$               sin((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Im Hmn
           ydot(4) = (2d0 - eta*bmod)*epsmn*&
-               cos((m0+q*mph)*y(1)+mph*Om_tE*(t-t0)) ! Re Hmn
+               cos((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Re Hmn
           ydot(5) = (2d0 - eta*bmod)*epsmn*&
-               sin((m0+q*mph)*y(1)+mph*Om_tE*(t-t0)) ! Im Hmn
-          ydot(6) = 0d0
+               sin((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Im Hmn
+!!$          ydot(4) = (2d0 - eta*bmod)*epsmn*&
+!!$               cos((m0+q*mph)*y(1)+mph*Om_tE*(t-t0)) ! Re Hmn
+!!$          ydot(5) = (2d0 - eta*bmod)*epsmn*&
+!!$               sin((m0+q*mph)*y(1)+mph*Om_tE*(t-t0)) ! Im Hmn
+!!$         ydot(6) = 0d0
        else
-!!$          ydot(4) = (2d0 - eta*bmod)*epsmn*&
-!!$               cos((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Re Hmn
-!!$          ydot(5) = (2d0 - eta*bmod)*epsmn*&
-!!$               sin((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Im Hmn
           ydot(4) = (2d0 - eta*bmod)*epsmn*&
-               cos((m0+q*mph)*y(1)+mph*Om_tE*t) ! Re Hmn
+               cos((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Re Hmn
           ydot(5) = (2d0 - eta*bmod)*epsmn*&
-               sin((m0+q*mph)*y(1)+mph*Om_tE*t) ! Im Hmn
-          ydot(6) = 1d0/(bmod*y(2))                    ! Passing term
+               sin((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Im Hmn
+!!$          ydot(4) = (2d0 - eta*bmod)*epsmn*&
+!!$               cos((m0+q*mph)*y(1)+mph*Om_tE*t) ! Re Hmn
+!!$          ydot(5) = (2d0 - eta*bmod)*epsmn*&
+!!$               sin((m0+q*mph)*y(1)+mph*Om_tE*t) ! Im Hmn
+!!$          ydot(6) = 1d0/(bmod*y(2))             ! Passing term
        end if
     else
        ydot(4:6) = 0d0
@@ -647,42 +650,6 @@ contains
     eta = eta0
   end subroutine find_vlim_t
   
-  function flux_integral(vr)
-    real(8) :: vr
-    real(8) :: flux_integral
-    real(8) :: eta_res(2), Dp, dpsidreff, dresdeta
-    
-    flux_integral = 0d0
-
-    !v0 = v
-    !eta0 = eta
-    
-    ! Integral contribution
-    v = vr
-    if (abs(M_t) > 1d-12) then
-       eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
-    else
-       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),etamin,etamax)
-    end if
-    eta = eta_res(1)
-    dresdeta = eta_res(2)
-
-    flux_integral = integrand(vr, eta_res(1))*&
-         1d0/abs(dresdeta)       
-
-    ! Normalisation
-    Dp = pi*q*vth**3/(16d0*R0*(qi*B0/(mi*c))**2)
-    dpsidreff = 2d0/a*sqrt(s)
-    flux_integral = dpsidreff**(-2)*flux_integral/Dp
-
-    !call disp("flux_integral: ds/dr = ", dpsidreff)
-    !call disp("flux_integral: Dp    = ", Dp)
-    
-    !v = v0
-    !eta = eta0
-  end function flux_integral
-
-  
   subroutine init_fsa
     ! Calculate the flux surface areas
     integer, parameter :: nth = 1000
@@ -697,103 +664,23 @@ contains
     x(3) = 0d0
     
     fsa = 0d0
+    B0  = 0d0
     do k = 1,nth
        x(3) = thrange(k)
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        fsa = fsa + sqrtg*dth
+       B0  = B0  + bmod*dth
        !fsa = fsa + psi_pr*(iota*hcovar(3)+hcovar(2))/bmod*dth
     end do
 
-    fsa = 2*pi*fsa
+    fsa = 2d0*pi*fsa
+    B0  = B0/(2d0*pi)
 
    ! call disp('init_fsa: iota       = ', iota)
    ! call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
   end subroutine init_fsa
   
-  function maxwellian(vrange)
-    real(8) :: vrange(:)
-    real(8) :: maxwellian(size(vrange))
-    real(8) :: T
-
-    T = mi*vth**2/2d0
-    maxwellian = n0/(2d0*pi*mi*T)**(3d0/2d0)*exp(-(vrange/vth)**2)
-  end function maxwellian
-
-  function integrand(vx, etax)
-    real(8) :: integrand
-    real(8) :: vx, etax
-    real(8) :: vr(1), maxres(1)
-    real(8) :: Omth, dummy, dummy2
-    real(8) :: Hmn2
-    
-    v = vx
-    vr(1) = vx
-    eta = etax
-    maxres = maxwellian(vr)
-    call Om_th(Omth, dummy, dummy2)
-    call bounce(2d0*pi/Omth)
-    Hmn2 = bounceavg(4)**2 + bounceavg(5)**2
-    !print *, bounceavg(4), bounceavg(5)
-    !Hmn2 = bounceavg(4)**2
-!    integrand =  pi/(2d0*n0)*(2*pi)**3/fsa*mph**2*c/(qi*iota*psi_pr)*&
-!         taub*mi**3*v**3*c/(qi*2d0*pi)*(mi*v**2/2d0)**2*abs(bounceavg(4))**2*&
-!         maxres(1)
-
-    if (calcflux) then
-       integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
-            *mph*v**7*taub*Hmn2*maxres(1)*mi**3/n0&
-            *(mph - (mth+q*mph)*Bphcov*Omth*bounceavg(6))
-    else          
-       integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
-            *mph**2*v**7*taub*Hmn2*maxres(1)*mi**3/n0
-    end if
-    ! TODO: factor of 2
-  end function integrand
-
-!!$  function integrand_v(vx)
-!!$    real(8) :: vx
-!!$    real(8) :: integrand_v
-!!$    real(8) :: eta_res(2)
-!!$    v = vx
-!!$    if (abs(M_t) > 1d-12) then
-!!$       eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
-!!$    else
-!!$       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
-!!$            etamin, etamax)
-!!$    end if
-!!$    eta = eta_res(1)
-!!$    integrand_v = integrand(v, eta_res(1))*1d0/abs(eta_res(2))
-!!$  end function integrand_v
-  
-!!$  function flux_integral2(vmin, vmax)
-!!$    real(8) :: vmin, vmax
-!!$    real(8) :: flux_integral2, err
-!!$    real(8) :: Dp, dpsidreff
-!!$    integer :: neval, ier
-!!$    
-!!$    flux_integral2 = 0d0
-!!$
-!!$    !v0 = v
-!!$    !eta0 = eta
-!!$    
-!!$    ! Integral contribution
-!!$        call qag(integrand_v,&
-!!$         vmin+(vmax-vmin)*1d-10, vmax-(vmax-vmin)*1d-10,&
-!!$         1d0, 1d-5, 6, flux_integral2, err, neval, ier)       
-!!$
-!!$    ! Normalisation
-!!$    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-!!$    dpsidreff = 2d0/a*sqrt(s)
-!!$    flux_integral2 = dpsidreff**(-2)*flux_integral2/Dp
-!!$
-!!$    !call disp("flux_integral: ds/dr = ", dpsidreff)
-!!$    !call disp("flux_integral: Dp    = ", Dp)
-!!$    
-!!$    !v = v0
-!!$    !eta = eta0
-!!$  end function flux_integral2
-
   function D11int(ux, etax)
     real(8) :: D11int
     real(8) :: ux, etax
@@ -806,20 +693,43 @@ contains
     call bounce(2d0*pi/Omth)
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
-    !if (calcflux) then
-    !   integrand = (pi*mi*c/(2d0*qi))**2*pi/(iota*psi_pr*fsa)&
-    !        *mph*v**7*taub*Hmn2*maxres(1)*mi**3/n0&
-    !        *(mph - (mth+q*mph)*Bphcov*Omth*bounceavg(6))
-    !else          
-    D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
+    if (calcflux) then
+       D11int = pi**(3d0/2d0)*mph*c**2*q*vth/&
+            (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+            taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))
+    else          
+       D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
-    !end if
+    end if
   end function D11int
   
-  function integrand_u(ux)
+  function D12int(ux, etax)
+    real(8) :: D12int
+    real(8) :: ux, etax
+    real(8) :: Omth, dummy, dummy2
+    real(8) :: Hmn2
+    
+    v = ux*vth
+    eta = etax
+    call Om_th(Omth, dummy, dummy2)
+    call bounce(2d0*pi/Omth)
+    Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
+
+    if (calcflux) then
+       D12int = pi**(3d0/2d0)*mph*c**2*q*vth/&
+            (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+            taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))*ux**2
+    else          
+       D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
+         (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+         taub*Hmn2*ux**2
+    end if
+  end function D12int
+  
+  function D11int_u(ux)
     real(8) :: ux
-    real(8) :: integrand_u
+    real(8) :: D11int_u
     real(8) :: eta_res(2)
     v = ux*vth
     if (abs(M_t) > 1d-12) then
@@ -829,37 +739,51 @@ contains
             etamin, etamax)
     end if
     eta = eta_res(1)
-    integrand_u = D11int(ux, eta_res(1))*1d0/abs(eta_res(2))
-  end function integrand_u
+    D11int_u = D11int(ux, eta_res(1))*1d0/abs(eta_res(2))
+  end function D11int_u
   
-  function flux_integral3(vmin, vmax)
+  function D12int_u(ux)
+    real(8) :: ux
+    real(8) :: D12int_u
+    real(8) :: eta_res(2)
+    v = ux*vth
+    if (abs(M_t) > 1d-12) then
+       eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
+    else
+       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
+            etamin, etamax)
+    end if
+    eta = eta_res(1)
+    D12int_u = D12int(ux, eta_res(1))*1d0/abs(eta_res(2))
+  end function D12int_u
+  
+  function flux_integral(vmin, vmax)
     real(8) :: vmin, vmax
-    real(8) :: flux_integral3, err
+    real(8) :: flux_integral(2), err
     real(8) :: Dp, dpsidreff
     integer :: neval, ier
-    
-    flux_integral3 = 0d0
-
-    !v0 = v
-    !eta0 = eta
-    
-    ! Integral contribution
-        call qag(integrand_u ,&
+      
+    flux_integral = 0d0
+      
+    call qag(D11int_u ,&
          (vmin+(vmax-vmin)*1d-10)/vth, (vmax-(vmax-vmin)*1d-10)/vth,&
-         1d-9, 1d-3, 6, flux_integral3, err, neval, ier)       
+         1d-9, 1d-3, 6, flux_integral(1), err, neval, ier)       
 
-    ! Normalisation
-        
+    call qag(D12int_u ,&
+         (vmin+(vmax-vmin)*1d-10)/vth, (vmax-(vmax-vmin)*1d-10)/vth,&
+         1d-9, 1d-3, 6, flux_integral(2), err, neval, ier)   
+      
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
     dpsidreff = 2d0/a*sqrt(s)
-    flux_integral3 = dpsidreff**(-2)*flux_integral3/Dp
+    flux_integral = dpsidreff**(-2)*flux_integral/Dp
 
-    !call disp("flux_integral: ds/dr = ", dpsidreff)
-    !call disp("flux_integral: Dp    = ", Dp)
-    
-    !v = v0
-    !eta = eta0
-  end function flux_integral3
+  end function flux_integral
+
+
+!------------------------------------------------------------------------------!
+!------------------------------------------------------------------------------!
+! WIP: integration with ODEs                                                   !
+!------------------------------------------------------------------------------!
   
   subroutine intstep(neq, t, y, ydot)
     !
@@ -920,26 +844,6 @@ contains
     !end if
   end subroutine intstep
 
-  !subroutine flux_integral_ode(vmin2, vmax2)
-  !  real(8) :: atol(3), rtol, t, tout, y(3), rstats(22)
-  !  integer :: neq, itask, istate
-  !  type (vode_opts) :: options
-            
-  !  neq = 3
-  !  y(1) = 1d0
-  !  y(2) = 0d0
-  !  y(3) = 0d0
-  !  t = 0.0d0
-  !  rtol = 1d-15
-  !  atol(1) = 1d-16
-  !  atol(2) = 1d-16
-  !  atol(3) = 1d-16
-  !  itask = 1
-  !  istate = 1
-  !  options = set_normal_opts(abserr_vector=atol, relerr=rtol)    
-    
-   ! flux_integral_ode = pi**(3d0/2d0)*mph**2*c**2*q*vth/(qi**2*fsa*psi_pr)*y(3)
-  !end subroutine flux_integral_ode
   
   function D11_ode()
     real(8) :: D11_ode
@@ -954,34 +858,4 @@ contains
          (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
   end function D11_ode
-  
-!!$  function flux_integral3(vmin, vmax)
-!!$    real(8) :: vmin, vmax
-!!$    real(8) :: flux_integral3, err
-!!$    real(8) :: Dp, dpsidreff
-!!$    real(8) :: y(3)
-!!$    integer :: neval, ier
-!!$    
-!!$    flux_integral3 = 0d0
-!!$    
-!!$
-!!$    !v0 = v
-!!$    !eta0 = eta
-!!$    
-!!$    ! Integral contribution
-!!$    call qag(integrand_v,&
-!!$         vmin+(vmax-vmin)*1d-10, vmax-(vmax-vmin)*1d-10,&
-!!$         1d0, 1d-5, 6, flux_integral2, err, neval, ier)       
-!!$
-!!$    ! Normalisation
-!!$    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-!!$    dpsidreff = 2d0/a*sqrt(s)
-!!$    flux_integral2 = dpsidreff**(-2)*flux_integral2/Dp
-!!$
-!!$    !call disp("flux_integral: ds/dr = ", dpsidreff)
-!!$    !call disp("flux_integral: Dp    = ", Dp)
-!!$    
-!!$    !v = v0
-!!$    !eta = eta0
-!!$  end function flux_integral3
 end module driftorbit

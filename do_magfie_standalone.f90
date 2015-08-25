@@ -7,7 +7,9 @@ module do_magfie_mod
   save
 
   real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-       q, dqds, iota, R0, a, eps, B0, B00
+       q, dqds, iota, R0, a, eps, B0h, B00
+  ! B0h is the 0th theta harmonic of bmod on current flux surface
+  ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
   
   real(8), protected :: config0(6), config(6)
   real(8), allocatable, protected :: params0(:,:), modes0(:,:,:)  
@@ -83,7 +85,7 @@ contains
        B0mn(j) = 1d4*spl_val(1)
        dB0dsmn(j) = 1d4*spl_val(2)
     end do
-    B0 = B0mn(1)
+    B0h = B0mn(1)
     
     bmod = sum(B0mn*cos(modes0(1,:,1)*x(3)))
     sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2

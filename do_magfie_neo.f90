@@ -11,7 +11,7 @@ module do_magfie_mod
   use partpa_mod,  ONLY : bmod0
   use neo_magfie_mod, only: boozer_curr_tor_hat, boozer_curr_pol_hat,&
        boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat,&
-       boozer_sqrtg11, boozer_isqrg, B0
+       boozer_sqrtg11, boozer_isqrg
   use neo_input, only: bmnc
   
   implicit none
@@ -19,6 +19,8 @@ module do_magfie_mod
 
   real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds,&
        iota, R0, eps
+  ! B0h is the 0th theta harmonic of bmod on current flux surface
+  ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
   real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius a changeable
 
