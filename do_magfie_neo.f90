@@ -60,7 +60,7 @@ contains
     real(8), dimension(size(x)), intent(out)        :: hctrvr
     real(8), dimension(size(x)), intent(out)        :: hcurl
     !! VERY DANGEROUS: CHANGING Q MANUALLY
-    boozer_iota      = 1d0/3d0
+    !boozer_iota      = 1d0/3d0
     call magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     bmod      = 1d4*bmod
     sqrtg     = abs(sqrtg)

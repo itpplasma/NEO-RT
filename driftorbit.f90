@@ -5,8 +5,6 @@
 module driftorbit
   use do_magfie_mod
   use spline
-  use dvode_f90_m
-  !use quadpack
   
   implicit none
   save
@@ -81,10 +79,8 @@ contains
        etarange(k+1) = eta
        if (k == netaspl-1) then
           call bounce
-          !print *, k, eta, taub, bounceavg(3)*v**2, 2*pi/taub, '*'
        else
           call bounce(taub)
-          !print *, k, eta, taub, bounceavg(3)*v**2, 2*pi/taub
        end if
        Om_tB_v(k+1) = bounceavg(3)
        Omth_v(k+1) = 2*pi/(v*taub)
@@ -118,10 +114,8 @@ contains
        etarange(k+1) = eta
        if (k == netaspl_pass-1) then
           call bounce
-          !print *, k, eta, taub, '*'
        else
           call bounce(taub)
-          !print *, k, eta, taub
        end if
        Omth_v(k+1) = 2*pi/(v*taub)
     end do
@@ -252,7 +246,7 @@ contains
     !
     !  Finds the root of an orbit after the first turn
     !
-    ! TODO: might use Brent's method
+    use dvode_f90_m
     
     real(8) :: y0(nvar), dt, tol, findroot2(nvar+1)
     integer :: n
@@ -280,7 +274,7 @@ contains
        passing = .true.
     end if
 
-    n = 100
+    n = 500
     rootstate = -1
     
     y = y0
@@ -294,11 +288,8 @@ contains
        tout = ti+dt
        call dvode_f90(timestep2, neq, y, ti, tout, itask, istate, options,&
             g_fcn = bounceroots)
-       !print *, istate
-
        if (istate == 3) then
           if (passing .or. yold(1)<0) then
-             !print *, k
              exit
           end if
           
@@ -307,10 +298,8 @@ contains
        istate = 2
     end do
     if (istate /= 3) then
-       print *, "ERROR: findroot2 did not converge after 100 iterations"
+       print *, "ERROR: findroot2 did not converge after 500 iterations"
        print *, eta, etamin, etamax
-       !print *, ti
-       !print *, y(1)
     end if
     findroot2(1)  = ti
     findroot2(2:) = y
@@ -322,7 +311,6 @@ contains
      real(8), intent(out) :: GOUT(ng)
      GOUT(1) = Y(1)
      GOUT(2) = 2d0*pi - Y(1)
-     !print *, gout
      return
    end subroutine bounceroots
 
@@ -346,7 +334,6 @@ contains
     else
        taub_est = 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
     end if
-    !print *, 2*pi/taub_est
        
     findroot_res = findroot2(y0, taub_est/5d0, 1d-10)
     taub = findroot_res(1)
@@ -432,11 +419,8 @@ contains
 
     res_etamin = mph*Omph_etamin+mth*Omth_etamin
     res_etamax = mph*Omph_etamax+mth*Omth_etamax
-    !print *, v/vth, etamin2, etamax2, res_etamin, res_etamax
     if(sign(1d0,res_etamin) /= sign(1d0,res_etamax)) then
        driftorbit_nroot = 1
-    !else
-       !print *, 'driftorbit_nroot: res_etamin = '
     end if
     if(isnan(res_etamin) .or. isnan(res_etamax)) then
        print *, "ERROR: driftorbit_nroot found NaN value in Om_ph_ba"
@@ -474,6 +458,16 @@ contains
     if(driftorbit_nroot(1, etamin2, etamax2) == 0) then
        print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
        print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
+       eta = etamin2
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       res = mph*Omph + mth*Omth
+       print *, res
+       eta = etamax2
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       res = mph*Omph + mth*Omth
+       print *, res
        return
     end if
     do k = 1,maxit
@@ -481,10 +475,6 @@ contains
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        call Om_th(Omth, dOmthdv, dOmthdeta)
        res = mph*Omph + mth*Omth
-
-       !if (k>0) then
-       !   print *, "driftorbit_root: ", k, res, tol, etamin, eta
-       !end if
        
        driftorbit_root(1) = eta
 
@@ -524,7 +514,7 @@ contains
     integer :: k
     ! Bisection search for smallest possible v
     v0 = v
-    tol = 1d-10*vth
+    tol = 1d-12*vth
     vmin = vmin0
     vmax = vmax0
     
@@ -563,12 +553,10 @@ contains
     eta = etamax
     call Om_th(Omth, dOmthdv, dOmthdeta)
     vmin = max(vmin,-(mph*Om_tE)/(mth*Omth/v))
-    !print *, mph, mth, Om_tE, Omth, v, vmin
 
     eta = etamin
     call Om_th(Omth, dOmthdv, dOmthdeta)
     vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
-    !print *, mph, mth, Om_tE, Omth, v, vmax
 
     ! passing orbits
     etamin = etatp*1d-7
@@ -579,12 +567,10 @@ contains
     if (-(mph*Om_tE)/((q*mph+mth)*Omth/v) > 0) then
        vmin = min(vmin,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
     end if
-    !print *, mph, mth, Om_tE, Omth, v, vmin
     
     eta = etamax
     call Om_th(Omth, dOmthdv, dOmthdeta)
     vmax = max(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
-    !print *, mph, mth, Om_tE, Omth, v, vmax
         
     eta = eta0
   end subroutine find_vlim
@@ -784,6 +770,11 @@ contains
 !------------------------------------------------------------------------------!
 ! WIP: integration with ODEs                                                   !
 !------------------------------------------------------------------------------!
+end module driftorbit
+module lineint
+  use driftorbit
+
+  contains
   
   subroutine intstep(neq, t, y, ydot)
     !
@@ -801,8 +792,6 @@ contains
     real(8) :: G, dGdv, dGdeta, absgradG
     real(8) :: deltatp
     real(8) :: Sveta
-
-    !print *, 'intstep start'
 
     ! check if trapped or passing region
     if (etamin > etatp) then
@@ -826,24 +815,111 @@ contains
     ydot(1) = dGdeta           ! vbar
     ydot(2) = -dGdv            ! etabar
     call bounce(2d0*pi/Omth)
-    ydot(3) = D11_ode()        ! integral
-
-    ydot = ydot/absgradG
-    !print *, ydot
+    ydot(3) = (vmax2-vmin2)*(etamax-etamin)*D11_ode()/vth            ! D11
+    ydot(4) = (vmax2-vmin2)*(etamax-etamin)*D11_ode()*(v/vth)**2/vth ! D12
     
-    !print *, ydot(1), ydot(2), dGdv, dGdeta, G
+    ydot = ydot/absgradG
 
     ! always go in positive velocity direction
     if (etamin > etatp) then
        ydot(1) = -ydot(1)
        ydot(2) = -ydot(2)
     end if
-    !if (mph*M_t < 0 .OR. mth == 0) then
-    !   ydot(1) = -ydot(1)
-    !   ydot(2) = -ydot(2)
-    !end if
   end subroutine intstep
 
+  function flux_integral_ode(vmin, vmax)
+    use dvode_f90_m2
+    real(8) :: flux_integral_ode(2)
+    real(8) :: vmin, vmax
+    
+    real(8) :: sk, ds
+    real(8) :: Dp, dsdreff, eta_res(2)
+    integer :: ks, ns
+
+    real(8) :: y(4), t, tout, rtol(4), atol(4), rwork(1024)
+    integer :: neq, itask, istate, iopt, itol, iwork(1024), ng, jt
+    TYPE(VODE_OPTS) :: OPTIONS
+
+    !vmin2 = vmin + 1d-8*(vmax-vmin)
+    vmax2 = vmax - 1d-8*(vmax-vmin)
+
+    neq = 4
+    ng = 4
+    y(1) = 1d0-1d-15
+    y(2) = 1d-15
+    y(3) = 0d0
+    y(4) = 0d0
+    itol = 4
+    t = 0.0d0
+    rtol(1) = 1d-9
+    rtol(2) = 1d-9
+    rtol(3) = 1d-9
+    rtol(4) = 1d-9
+    atol(1) = 1d-9
+    atol(2) = 1d-9
+    atol(3) = 1d-9
+    atol(4) = 1d-9
+    itask = 1
+    istate = 1
+    iopt = 1
+    jt = 2
+    rwork = 0d0
+    iwork = 0
+    iwork(6) = 10000
+
+    ns = 1000
+    ds = 4d0/ns
+    sk = 0d0
+
+    dsdreff = 2d0/a*sqrt(s)
+    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+    
+    OPTIONS = SET_OPTS(DENSE_J=.TRUE.,RELERR_VECTOR=RTOL, &
+         ABSERR_VECTOR=ATOL,NEVENTS=NG)
+
+    v = vmax2
+    if (mth /= 0) then
+       if (etamin < etatp) then
+          y(2) = 1d0 - 1d-15
+       else
+          y(2) = 1d-15
+       end if
+    else
+       eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
+       y(2) = (eta_res(1)-etamin)/(etamax-etamin)
+    end if    
+    
+    do ks = 1, ns
+       tout = t+ds
+       call dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
+       if (istate == 3) then
+          exit
+       end if
+    end do
+    
+    flux_integral_ode(1) = dsdreff**(-2)*y(3)/Dp 
+    flux_integral_ode(2) = dsdreff**(-2)*y(4)/Dp
+    
+  end function flux_integral_ode
+
+  
+  SUBROUTINE dummyjac
+  end SUBROUTINE dummyjac
+
+  subroutine bbox (NEQ, T, Y, NG, GOUT)
+    integer, intent(in) :: NEQ, NG
+    real(8), intent(in) :: T, Y(neq)
+    real(8), intent(out) :: GOUT(ng)
+    !if (M_t > 0) then
+    !   GOUT(1) = Y(1)
+    !else
+       GOUT(1) = 1d0
+    !end if
+    GOUT(2) = 1d0 - Y(1)
+    GOUT(3) = Y(2)
+    GOUT(4) = 1d0 - Y(2)
+    return
+  end subroutine bbox
   
   function D11_ode()
     real(8) :: D11_ode
@@ -858,4 +934,4 @@ contains
          (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
   end function D11_ode
-end module driftorbit
+end module lineint

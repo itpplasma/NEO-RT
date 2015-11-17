@@ -81,11 +81,6 @@ logicalmkup
 
 
 \begin_inset FormulaMacro
-\newcommand{\eq}{(\ref{=00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D00003D0000231})}
-\end_inset
-
-
-\begin_inset FormulaMacro
 \newcommand{\difp}[2][]{\frac{\partial#1}{\partial#2}}
 \end_inset
 
@@ -340,9 +335,9 @@ Bounce average
 \begin_layout Standard
 The code calculates bounce averages
 \begin_inset Formula 
-\begin{align*}
-\left\langle f(\vartheta_{{\rm orb}}(\tau))\right\rangle _{b} & =\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\, f(\vartheta_{{\rm orb}}(\tau))
-\end{align*}
+\begin{equation}
+\left\langle f(\vartheta_{{\rm orb}}(\tau))\right\rangle _{b}=\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\,f(\vartheta_{{\rm orb}}(\tau))
+\end{equation}
 
 \end_inset
 
@@ -353,19 +348,19 @@ The code calculates bounce averages
 
 , is given by
 \begin_inset Formula 
-\begin{align*}
-\dot{\vartheta}_{{\rm orb}} & =v_{\parallel}h^{\vartheta}
-\end{align*}
+\begin{equation}
+\dot{\vartheta}_{{\rm orb}}=v_{\parallel}h^{\vartheta}
+\end{equation}
 
 \end_inset
 
 and the one of the parallel velocity is 
 \begin_inset Formula 
-\begin{align*}
-\dot{v}_{\parallel} & =-\sigma v\frac{\eta\dot{B}}{2\sqrt{1-\eta B}}\\
- & =-\frac{v^{2}\eta}{2v_{\parallel}}\frac{\partial B}{\partial\vartheta}\dot{\vartheta}_{{\rm orb}}\\
+\begin{align}
+\dot{v}_{\parallel} & =-\sigma v\frac{\eta\dot{B}}{2\sqrt{1-\eta B}}\nonumber \\
+ & =-\frac{v^{2}\eta}{2v_{\parallel}}\frac{\partial B}{\partial\vartheta}\dot{\vartheta}_{{\rm orb}}\nonumber \\
  & =-\frac{v^{2}\eta}{2}h^{\vartheta}\frac{\partial B}{\partial\vartheta}.
-\end{align*}
+\end{align}
 
 \end_inset
 
@@ -402,14 +397,14 @@ Canonical frequencies
 
 \begin_layout Standard
 The canonical poloidal frequency 
-\begin_inset Formula $\Omega^{\vartheta}$
+\begin_inset Formula $\Omega^{2}$
 \end_inset
 
  is the bounce frequency,
 \begin_inset Formula 
-\begin{align*}
-\omega_{b} & =\frac{2\pi}{\tau_{b}}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi v\left(\oint\frac{d\vartheta}{h^{\vartheta}\sigma\sqrt{1-\eta B}}\right)^{-1}.
-\end{align*}
+\begin{equation}
+\omega_{b}=\frac{2\pi}{\tau_{b}}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi v\left(\oint\frac{d\vartheta}{h^{\vartheta}\sigma\sqrt{1-\eta B}}\right)^{-1}.
+\end{equation}
 
 \end_inset
 
@@ -437,24 +432,24 @@ For passing particles, the integral is running between
 
 \begin_layout Standard
 For trapped particles, the canonical toroidal rotation frequency 
-\begin_inset Formula $\Omega^{\varphi}$
+\begin_inset Formula $\Omega^{3}$
 \end_inset
 
  is the bounce averaged sum
 \begin_inset Formula 
-\begin{align*}
-\Omega^{\varphi} & =\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle 
-\end{align*}
+\begin{equation}
+\Omega^{3}=\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle \label{eq:Om_ph}
+\end{equation}
 
 \end_inset
 
- of electric and magnetic drift
+ of electric and magnetic drift (in any flux coordinates)
 \begin_inset Formula 
-\begin{align*}
-\Omega_{tE} & =-\frac{c}{B^{\vartheta}\sqrt{g}}\frac{\partial\Phi}{\partial r_{\varphi}}\\
-\Omega_{tB} & =-\frac{v^{2}(2-\eta B)}{2\omega_{c}B^{\vartheta}\sqrt{g}}\frac{\partial B}{\partial r_{\varphi}}+\frac{v^{2}(1-\eta B)}{\omega_{c}\sqrt{g}B}\left(\frac{\partial B_{\vartheta}}{\partial r_{\varphi}}+q\frac{\partial B_{\varphi}}{\partial r_{\varphi}}+B_{\varphi}\frac{dq}{dr_{\varphi}}\right)\\
- & =\frac{v^{2}}{2\omega_{c}\sqrt{g}h^{\vartheta}B}\left(-(2-\eta B)\frac{\partial B}{\partial r_{\varphi}}+2(1-\eta B)h^{\vartheta}\left(\frac{\partial B_{\vartheta}}{\partial r_{\varphi}}+q\frac{\partial B_{\varphi}}{\partial r_{\varphi}}+B_{\varphi}\frac{dq}{dr_{\varphi}}\right)\right).
-\end{align*}
+\begin{align}
+\Omega_{tE} & =-\frac{c}{B^{\vartheta}\sqrt{g}}\frac{\partial\Phi}{\partial r_{\varphi}}\label{eq:Om_tE}\\
+\Omega_{tB} & =-\frac{v^{2}(2-\eta B)}{2\omega_{c}B^{\vartheta}\sqrt{g}}\frac{\partial B}{\partial r_{\varphi}}+\frac{v^{2}(1-\eta B)}{\omega_{c}\sqrt{g}B}\left(\frac{\partial B_{\vartheta}}{\partial r_{\varphi}}+q\frac{\partial B_{\varphi}}{\partial r_{\varphi}}+B_{\varphi}\frac{dq}{dr_{\varphi}}\right)\nonumber \\
+ & =\frac{v^{2}}{2\omega_{c}\sqrt{g}h^{\vartheta}B}\left(-(2-\eta B)\frac{\partial B}{\partial r_{\varphi}}+2(1-\eta B)h^{\vartheta}\left(\frac{\partial B_{\vartheta}}{\partial r_{\varphi}}+q\frac{\partial B_{\varphi}}{\partial r_{\varphi}}+B_{\varphi}\frac{dq}{dr_{\varphi}}\right)\right).\label{eq:Om_tB}
+\end{align}
 
 \end_inset
 
@@ -462,15 +457,15 @@ The last term with magnetic shear
 \begin_inset Formula $dq/dr$
 \end_inset
 
- is neglected right now.
+ is sometimes neglected in the standard neoclassical approach.
 \end_layout
 
 \begin_layout Standard
 For passing particles, an additional term appears and
 \begin_inset Formula 
-\begin{align*}
-\Omega^{\varphi} & =q(r_{\varphi})\Omega^{\vartheta}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle .
-\end{align*}
+\begin{equation}
+\Omega^{3}=q(r_{\varphi})\Omega^{\vartheta}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle .\label{eq:Om_ph_passing}
+\end{equation}
 
 \end_inset
 
@@ -491,11 +486,11 @@ For a magnetic perturbation
 
 \begin_layout Standard
 \begin_inset Formula 
-\begin{align*}
-\tilde{H}(\vartheta,\varphi) & =\frac{mv^{2}}{2}\frac{2-B_{0}(\vartheta)\eta}{B_{0}(\vartheta)}\tilde{B}(\vartheta,\varphi)\\
- & =\frac{mv^{2}}{2}\left(2-B_{0}(\vartheta)\eta\right)\tilde{b}(\vartheta,\varphi)\\
+\begin{align}
+\tilde{H}(\vartheta,\varphi) & =\frac{mv^{2}}{2}\frac{2-B_{0}(\vartheta)\eta}{B_{0}(\vartheta)}\tilde{B}(\vartheta,\varphi)\nonumber \\
+ & =\frac{mv^{2}}{2}\left(2-B_{0}(\vartheta)\eta\right)\tilde{b}(\vartheta,\varphi)\nonumber \\
  & =\frac{mv^{2}}{2}\left(2-B_{0}(\vartheta)\eta\right)\varepsilon_{m}\exp(im_{0}\vartheta)\exp(in_{0}\varphi)
-\end{align*}
+\end{align}
 
 \end_inset
 
@@ -509,7 +504,7 @@ From rotation_05_15 (2.5) we use expressions for the harmonics of the canonical
 \end_inset
 
  starting from harmonics in Boozer angles, 
-\begin_inset Formula $m_{0},\, n_{0}$
+\begin_inset Formula $m_{0},\,n_{0}$
 \end_inset
 
 .
@@ -539,9 +534,9 @@ For passing particles, we have
 
 \begin_layout Standard
 \begin_inset Formula 
-\begin{align*}
-(f(\vartheta)e^{in_{0}\varphi})_{m_{\vartheta},n_{0}} & =\left\langle f(\vartheta_{{\rm orb}}(\tau))e^{iqn_{0}\vartheta_{{\rm orb}}(\tau)-i(m_{\vartheta}+qn_{0})\tau\Omega^{\vartheta}}\right\rangle _{b}.
-\end{align*}
+\begin{equation}
+(f(\vartheta)e^{in_{0}\varphi})_{m_{\vartheta},n_{0}}=\left\langle f(\vartheta_{{\rm orb}}(\tau))e^{iqn_{0}\vartheta_{{\rm orb}}(\tau)-i(m_{\vartheta}+qn_{0})\tau\Omega^{\vartheta}}\right\rangle _{b}.
+\end{equation}
 
 \end_inset
 
@@ -550,9 +545,9 @@ For trapped particles, we have
 
 \begin_layout Standard
 \begin_inset Formula 
-\begin{align*}
-(f(\vartheta)e^{in_{0}\varphi})_{m_{\vartheta},n_{0}} & =\left\langle f(\vartheta_{{\rm orb}}(\tau))e^{iqn_{0}\left(\vartheta_{{\rm orb}}(\tau)-\vartheta_{0}\right)-im_{\vartheta}\tau\Omega^{\vartheta}}\right\rangle _{b}.
-\end{align*}
+\begin{equation}
+(f(\vartheta)e^{in_{0}\varphi})_{m_{\vartheta},n_{0}}=\left\langle f(\vartheta_{{\rm orb}}(\tau))e^{iqn_{0}\left(\vartheta_{{\rm orb}}(\tau)-\vartheta_{0}\right)-im_{\vartheta}\tau\Omega^{\vartheta}}\right\rangle _{b}.
+\end{equation}
 
 \end_inset
 
@@ -566,17 +561,17 @@ Flux surface average
 \begin_layout Standard
 The flux surface average is defined by
 \begin_inset Formula 
-\begin{align*}
-\left\langle A\right\rangle  & =\left(\int_{0}^{2\pi}d\vartheta\int_{0}^{2\pi}d\varphi\sqrt{g}\right)^{-1}\int_{0}^{2\pi}d\vartheta\int_{0}^{2\pi}d\varphi\sqrt{g}A.
-\end{align*}
+\begin{equation}
+\left\langle A\right\rangle =\left(\int_{0}^{2\pi}d\vartheta\int_{0}^{2\pi}d\varphi\sqrt{g}\right)^{-1}\int_{0}^{2\pi}d\vartheta\int_{0}^{2\pi}d\varphi\sqrt{g}A.
+\end{equation}
 
 \end_inset
 
 The normalisation quantity is denoted by 
 \begin_inset Formula 
-\begin{align*}
-S_{r} & :=\int_{0}^{2\pi}d\vartheta\int_{0}^{2\pi}d\varphi\sqrt{g}.
-\end{align*}
+\begin{equation}
+S_{r}:=\int_{0}^{2\pi}d\vartheta\int_{0}^{2\pi}d\varphi\sqrt{g}.
+\end{equation}
 
 \end_inset
 
@@ -856,7 +851,7 @@ v_{max,p} & \,|\,\eta_{max,p}=\eta_{tp}-\delta_{tp}.
 \end_layout
 
 \begin_layout Subsection*
-Integration
+Integration via ODE formulation
 \end_layout
 
 \begin_layout Standard
@@ -940,7 +935,7 @@ d\eta & =\frac{1}{|\nabla G|}\left(-\frac{\partial G}{\partial\bar{v}}ds+\frac{\
 The transformed integral is
 \begin_inset Formula 
 \begin{align*}
-\int dsdt\,\frac{1}{|\nabla G|}h(\bar{v}(s,0),\bar{\eta}(s,0))\delta(t) & =\int ds\,\frac{1}{|\nabla G|}h(\bar{v}(s,0),\bar{\eta}(s,0)).
+\bar{I}=\int dsdt\,\frac{1}{|\nabla G|}h(\bar{v}(s,0),\bar{\eta}(s,0))\delta(t) & =\int ds\,\frac{1}{|\nabla G|}h(\bar{v}(s,0),\bar{\eta}(s,0)).
 \end{align*}
 
 \end_inset
@@ -990,18 +985,8 @@ Useful formulas
 \begin{align*}
 v_{\parallel} & =\sigma v\sqrt{1-\eta B}\\
 v_{\perp} & =v\sqrt{\eta B}\\
-J_{\perp} & =mv_{\perp}^{2}/(2\omega_{c})=\frac{mv^{2}}{2}\frac{mc}{e}\eta\\
-J_{\perp}\omega_{c} & =\mu B=\frac{mv^{2}}{2}\eta B
-\end{align*}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Formula 
-\begin{align*}
+J_{\perp} & =mc\mu/e=mv_{\perp}^{2}/(2\omega_{c})=\frac{mv^{2}}{2}\frac{mc}{e}\eta\\
+J_{\perp}\omega_{c} & =\mu B=\frac{mv_{\perp}^{2}}{2}=\frac{mv^{2}}{2}\eta B
 \end{align*}
 
 \end_inset
@@ -1063,15 +1048,12 @@ D_{rp} & =\frac{\sqrt{\pi}m_{\varphi}q^{2}A^{2}v_{{\rm th}}\rho_{L}^{2}}{4R}\var
 \end_layout
 
 \begin_layout Section
-Validation with Shaing
+Large aspect ratio (Shaing)
 \end_layout
 
 \begin_layout Standard
-TODO: update this
-\end_layout
-
-\begin_layout Standard
-The resonance function is a normalised drift frequency,
+[TODO: is this still needed or inclueded in other parts?] The resonance
+ function is a normalised drift frequency,
 \begin_inset Formula 
 \begin{align*}
 g(\kappa) & =\Omega_{tE}\frac{e\iota}{mc}\frac{2}{v^{2}\varepsilon^{\prime}}-\left[2\frac{E(\kappa)}{K(\kappa)}-1\right].
@@ -1091,11 +1073,42 @@ The function
 
 \end_inset
 
-With
+
+\end_layout
+
+\begin_layout Section
+Large aspect ratio limit
+\end_layout
+
+\begin_layout Standard
+According to Shaing, we calculate the large aspect ratio limit using Hamada
+ coordinates 
+\begin_inset Formula $(V,\tht,\ph)$
+\end_inset
+
+ where 
+\begin_inset Formula $\sqrt{g}=1$
+\end_inset
+
+ and 
+\begin_inset Formula $B^{\ph}=\psi^{\prime}(V),\,B^{\tht}=\chi^{\prime}(V)$
+\end_inset
+
+ are flux functions.
+ The unperturbed magnetic field is then 
 \begin_inset Formula 
-\begin{align*}
-d\vartheta & =h^{\vartheta}v_{\parallel}dt
-\end{align*}
+\begin{equation}
+B_{0}=B_{a}\left(1-\varepsilon\cos\tht\right).
+\end{equation}
+
+\end_inset
+
+The pitch angle parameter is
+\begin_inset Formula 
+\begin{align}
+\kappa^{2} & =\frac{mv^{2}/2-\mu B_{a}(1-\varepsilon)}{2\mu B_{a}\varepsilon}\nonumber \\
+ & =\frac{1-\eta B_{a}(1-\varepsilon)}{2\eta B_{a}\varepsilon}.\label{eq:kappa2}
+\end{align}
 
 \end_inset
 
@@ -1103,65 +1116,10 @@ d\vartheta & =h^{\vartheta}v_{\parallel}dt
 \end_layout
 
 \begin_layout Subsection*
-Large aspect ratio limit - magnetic field
+Bounce average
 \end_layout
 
 \begin_layout Standard
-We use large aspect ratio 
-\begin_inset Formula 
-\begin{align*}
-B_{0} & =B_{a}\left(1-\varepsilon\cos\tht\right).
-\end{align*}
-
-\end_inset
-
-with 
-\begin_inset Formula $B_{a}$
-\end_inset
-
- on axis and small 
-\begin_inset Formula $\varepsilon$
-\end_inset
-
-.
- The parallel velocity is given by
-\begin_inset Formula 
-\begin{align*}
-v_{\parallel} & =\sigma\sqrt{1-\eta B}\\
- & =\sigma\sqrt{1-\eta B_{a}(1-\varepsilon\cos\vartheta)}
-\end{align*}
-
-\end_inset
-
-In Boozer coordinates,
-\begin_inset Formula 
-\begin{align*}
-B^{\vartheta} & =\frac{\iota B^{2}}{\iota B_{\vartheta}+B_{\varphi}},\\
-h^{\vartheta} & =\frac{\iota B}{\iota B_{\vartheta}+B_{\varphi}}.
-\end{align*}
-
-\end_inset
-
-In Hamada coordinates, 
-\begin_inset Formula $B^{\vartheta}$
-\end_inset
-
- is a flux function.
-\end_layout
-
-\begin_layout Subsection*
-Large aspect ratio limit - bounce integrals
-\end_layout
-
-\begin_layout Standard
-Pitch angle parameter
-\begin_inset Formula 
-\begin{align*}
-\kappa^{2} & =\frac{mv^{2}/2-\mu B_{a}(1-\varepsilon)}{2\mu B_{a}\varepsilon}
-\end{align*}
-
-\end_inset
-
 The parallel kinetic energy is given by
 \begin_inset Formula 
 \begin{align*}
@@ -1177,7 +1135,7 @@ The parallel kinetic energy is given by
 So 
 \begin_inset Formula 
 \begin{align*}
-v_{\parallel}^{2} & =\frac{4\varepsilon\mu B_{a}}{m}\left(\kappa^{2}-\sin^{2}\frac{\vartheta}{2}\right).
+v_{\parallel}^{2} & =\frac{4\varepsilon\mu B_{a}}{m_{\alpha}}\left(\kappa^{2}-\sin^{2}\frac{\vartheta}{2}\right).
 \end{align*}
 
 \end_inset
@@ -1193,82 +1151,160 @@ Turning points are
 Bounce integrals are
 \begin_inset Formula 
 \begin{align*}
-\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}g(\vartheta) & =\sqrt{\frac{m}{\mu B_{a}\varepsilon}}\int_{\vartheta\text{⁻}}^{\vartheta^{+}}\frac{d\vartheta}{h^{\vartheta}\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}g(\vartheta).
+\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}a(\vartheta) & =\frac{1}{2}\sqrt{\frac{m}{\mu B_{a}\varepsilon}}\oint\frac{d\vartheta}{h^{\vartheta}\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}a(\vartheta)\\
+ & =\frac{1}{2}\sqrt{\frac{m}{\mu B_{a}\varepsilon}}\frac{B_{a}}{\chi^{\prime}}\oint d\vartheta\frac{1-\varepsilon\cos\vartheta}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}a(\vartheta).
 \end{align*}
 
 \end_inset
 
-For symmetric functions (like the bounce time with constant 
-\begin_inset Formula $1$
+The bounce time results from 
+\begin_inset Formula $a(\tht)=1$
 \end_inset
 
- as an integrand) we may write
+ and becomes
 \begin_inset Formula 
 \begin{align*}
-\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}g(|\vartheta|) & =4\int_{0}^{\vartheta^{+}}\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}g(|\vartheta|).
+\tau_{b} & =4\sqrt{\frac{m}{\mu B_{a}\varepsilon}}\frac{B_{a}}{\chi^{\prime}}\left(K(\kappa)+\varepsilon(K(\kappa)-2E(\kappa))\right)\\
+ & \approx4K(\kappa)\sqrt{\frac{m}{\mu B_{a}\varepsilon}}\frac{B_{a}}{\chi^{\prime}}
 \end{align*}
 
 \end_inset
 
-In Hamada coodinates, 
-\begin_inset Formula $B^{\vartheta}$
-\end_inset
-
- is a flux function, so cancelling all flux functions, bounce averaging
- may be thus be described as
+for trapped particels and transit time
 \begin_inset Formula 
 \begin{align*}
-\left\langle g(\vartheta)\right\rangle _{b} & =\left(2\int_{0}^{\vartheta^{+}}d\vartheta\frac{1-\varepsilon\cos\vartheta}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}\right)^{-1}\int_{\vartheta\text{⁻}}^{\vartheta^{+}}d\vartheta\frac{1-\varepsilon\cos\vartheta}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}g(\vartheta).\\
- & =\frac{2}{\bar{\tau}_{b}}\int_{\vartheta\text{⁻}}^{\vartheta^{+}}d\vartheta\frac{1-\varepsilon\cos\vartheta}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}g(\vartheta)
+\tau_{b}= & \frac{2K(1/\kappa)}{\kappa}\sqrt{\frac{m}{\mu B_{a}\varepsilon}}\frac{B_{a}}{\chi^{\prime}}
 \end{align*}
 
 \end_inset
 
-Incomplete elliptic integrals of the first kind are given by
+for passing particles with complete elliptic integrals 
+\begin_inset Formula $E(\kappa)$
+\end_inset
+
+ and 
+\begin_inset Formula $K(\kappa)$
+\end_inset
+
+ (see also Kadomtsev 1966).
+ Bounce averaging is then given by
 \begin_inset Formula 
 \begin{align*}
-F(\ph,k) & =\int_{0}^{\ph}\frac{d\theta}{\sqrt{1-k^{2}\sin^{2}(\theta)}}.
+\left\langle a(\vartheta)\right\rangle _{b} & =\frac{1}{4K(\kappa)}\int_{\vartheta\text{⁻}}^{\vartheta^{+}}d\vartheta\frac{a(\vartheta)}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}
 \end{align*}
 
 \end_inset
 
-Complete elliptic integrals set the boundary to 
-\begin_inset Formula $\pi/2$
-\end_inset
-
-, they are
+for trapped and by
 \begin_inset Formula 
 \begin{align*}
-K(k) & =\int_{0}^{\pi/2}\frac{d\theta}{\sqrt{1-k^{2}\sin^{2}(\theta)}}.
+\left\langle a(\vartheta)\right\rangle _{b} & =\frac{\kappa}{4K(1/\kappa)}\int_{0}^{2\pi}d\vartheta\frac{a(\vartheta)}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}
 \end{align*}
 
 \end_inset
 
-We solve the integral for the normalised bounce time
+for passing particles.
+ The integral is only performed over half of the trapped orbit in the first
+ expression.
+\end_layout
+
+\begin_layout Subsection*
+Canonical frequencies
+\end_layout
+
+\begin_layout Standard
+Let us evaluate the third canonical frequency 
+\begin_inset Formula $\Omega^{3}$
+\end_inset
+
+ in this approximation.
+ The original expression is
 \begin_inset Formula 
 \begin{align*}
-\bar{\tau}_{b} & =4\int_{0}^{\vartheta^{+}}d\vartheta\frac{1-\varepsilon\cos\vartheta}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}\\
- & =8\left(K(\kappa)+\varepsilon(K(\kappa)-2E(\kappa))\right).
+\Omega^{3} & =q\omega_{b}\delta_{t-p}+\left\langle v_{g0}^{\varphi_{0}}\right\rangle _{b}
 \end{align*}
 
 \end_inset
 
-Usually (Shaing), one takes the limit 
-\begin_inset Formula $\varepsilon\rightarrow0$
-\end_inset
-
- and just leaves 
-\begin_inset Formula $4K(\kappa)$
-\end_inset
-
-, so
+with
 \begin_inset Formula 
 \begin{align*}
-\left\langle g(\vartheta)\right\rangle _{b} & =\frac{1}{4K(\kappa)}\int_{\vartheta\text{⁻}}^{\vartheta^{+}}d\vartheta\frac{g(\vartheta)}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}.
+v_{g0}^{\varphi_{0}} & =\frac{v_{\parallel}}{\sqrt{g}\omega_{c}}\frac{\partial}{\partial r}\left(\frac{v_{\parallel}}{h^{\vartheta}}\right)=\Omega_{tE}+\Omega_{tB}.
 \end{align*}
 
 \end_inset
 
+Variables are 
+\begin_inset Formula $(J_{\perp},H,p_{\ph})$
+\end_inset
+
+ here, where we can replace derivatives w.r.t.
+ 
+\begin_inset Formula $p_{\ph}$
+\end_inset
+
+ by radial derivatives evaluated at 
+\begin_inset Formula $r=r_{\ph}$
+\end_inset
+
+.
+ We know that 
+\begin_inset Formula 
+\begin{align*}
+\frac{\partial v_{\parallel}}{\partial r} & =\frac{\partial}{\partial r}\left(\sigma\sqrt{H-e\Phi-\omega_{c}J_{\perp}}\right)=\frac{e}{mv_{\parallel}}\left(-\frac{\partial\Phi}{\partial r}-\frac{J_{\perp}}{mc}\frac{\partial B}{\partial r}\right).
+\end{align*}
+
+\end_inset
+
+The electric drift is
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\Omega_{tE} & =-\frac{e\Phi^{\prime}}{m\sqrt{g}\omega_{c}h^{\vartheta}}=-\frac{c\Phi^{\prime}}{\chi^{\prime}}.
+\end{align*}
+
+\end_inset
+
+The magnetic drift is further split into 
+\series bold
+grad
+\series default
+ B drift and curvature drift 
+\begin_inset Formula $\Omega_{tBc}$
+\end_inset
+
+ with
+\begin_inset Formula 
+\begin{align}
+\Omega_{tB} & =-\frac{e}{m\sqrt{g}\omega_{c}h^{\tht}}\left(\frac{J_{\perp}}{mc}\frac{\partial B}{\partial r}\right)+\frac{v_{\parallel}^{2}}{\sqrt{g}\omega_{c}}\frac{\partial}{\partial r}\left(\frac{B}{B^{\vartheta}}\right)\nonumber \\
+ & =-\frac{B^{2}}{m\omega_{c}\chi^{\prime}}\left(\frac{\mu}{B}\frac{\partial B}{\partial r}\right)+\frac{v_{\parallel}^{2}}{\omega_{c}}\frac{\partial}{\partial r}\left(\frac{B}{\chi^{\prime}}\right)\\
+ & =-\frac{B^{2}}{m\omega_{c}\chi^{\prime}}\left(\frac{\mu}{B}\frac{\partial B}{\partial r}\right)+\frac{v_{\parallel}^{2}}{\omega_{c}\chi^{\prime}}\frac{\partial B}{\partial r}-\frac{v_{\parallel}^{2}B}{\omega_{c}}\frac{\chi^{\prime\prime}}{\chi^{\prime2}}\\
+ & =-\frac{B^{2}}{m\omega_{c}\chi^{\prime}}\left(\frac{\mu}{B}\frac{\partial B}{\partial r}\right)+\frac{v_{\parallel}^{2}}{\omega_{c}\chi^{\prime}}\frac{1}{2B}\frac{\partial B^{2}}{\partial r}+...\\
+ & =\frac{B^{2}}{\omega_{c}\chi^{\prime}}\left(\frac{\mu}{mB}+\frac{v_{\parallel}^{2}}{2B^{3}}\right)\frac{\partial B}{\partial r}+\dots.\\
+ & =-\frac{c\mu}{e\chi^{\prime}}\frac{\partial B}{\partial r}+\Omega_{tBc}\nonumber \\
+ & \approx\frac{c\mu}{e\chi^{\prime}}\varepsilon^{\prime}B_{a}\cos\vartheta+\Omega_{tBc}.
+\end{align}
+
+\end_inset
+
+Bounce averaging and neglecting curvature drift yields
+\begin_inset Formula 
+\begin{align*}
+\left\langle \Omega_{tB}\right\rangle  & =-\frac{c\mu B_{a}}{e\chi^{\prime}}\varepsilon^{\prime}\left(\frac{2E(\kappa)}{K(\kappa)}-1\right).
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection*
+Canonical angles
+\end_layout
+
+\begin_layout Standard
 The canonical poloidal angle in the Hamiltonian formalism is the bounce
  phase
 \begin_inset Formula 
@@ -1294,22 +1330,7 @@ with orbit time
 
 \end_inset
 
-In the large aspect ratio limit, we use bar values (TODO correct this.
- Shaing2009_075015 has a strange notation there in (8), though it is mentioned
- that 
-\begin_inset Formula $\eta$
-\end_inset
-
- should run between 
-\begin_inset Formula $-\pi$
-\end_inset
-
- and 
-\begin_inset Formula $\pi$
-\end_inset
-
- over the full bounce trajectory).
- To get from 
+To get from 
 \begin_inset Formula $0$
 \end_inset
 
@@ -1324,7 +1345,7 @@ In the large aspect ratio limit, we use bar values (TODO correct this.
  we need 
 \begin_inset Formula 
 \begin{align*}
-\theta^{2} & =2\pi\frac{\bar{\tau}}{\bar{\tau}_{b}}=\frac{\pi}{4K(\kappa)}\int_{\vartheta_{0}}^{\vartheta}\frac{d\vartheta^{\prime}}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta^{\prime}/2)}}\\
+\theta^{2} & =2\pi\frac{\tau}{\tau_{b}}=\frac{\pi}{4K(\kappa)}\int_{0}^{\vartheta}\frac{d\vartheta^{\prime}}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta^{\prime}/2)}}\\
  & =\frac{\pi}{2\kappa K(\kappa)}F\left(\frac{\vartheta}{2},\frac{1}{\kappa}\right)
 \end{align*}
 
@@ -1415,23 +1436,7 @@ for the way back with
 \end_layout
 
 \begin_layout Standard
-For passing particles, bounce averaging is
-\begin_inset Formula 
-\begin{align*}
-\left\langle g(\vartheta)\right\rangle _{b} & =\left(\int_{0}^{2\pi}d\vartheta\frac{1}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta/2)}}\right)^{-1}\int_{\vartheta_{0}}^{\vartheta}\frac{d\vartheta^{\prime}}{\sqrt{\kappa^{2}-\sin^{2}(\vartheta^{\prime}/2)}}.
-\end{align*}
-
-\end_inset
-
-The normalised transit time in this case is
-\begin_inset Formula 
-\begin{align*}
-\bar{\tau}_{b} & =4K(1/\kappa)/\kappa
-\end{align*}
-
-\end_inset
-
-and the canonical angle
+For passing particles, the canonical angle is given by
 \begin_inset Formula 
 \begin{align*}
 \theta^{2} & =\frac{\pi}{K(1/\kappa)}F\left(\frac{\vartheta}{2},\frac{1}{\kappa}\right).
@@ -1439,11 +1444,15 @@ and the canonical angle
 
 \end_inset
 
+This angle is called 
+\begin_inset Formula $\xi$
+\end_inset
 
+ by Shaing2009-75015.
 \end_layout
 
 \begin_layout Subsection*
-Large aspect ratio limit - superbanana plateau
+Superbanana plateau
 \end_layout
 
 \begin_layout Standard
@@ -1452,15 +1461,154 @@ For the superbanana plateau, we use
 \end_inset
 
 .
- The diffusion coefficient is
+ Only trapped particles can contribute in this case.
+ At large aspect ratio 
+\begin_inset Formula $B_{{\rm min}}\approx B_{{\rm max}}$
+\end_inset
+
+, so most of their kinetic energy lies in the magnetic moment,
 \begin_inset Formula 
 \begin{align*}
-D_{11} & =\frac{\pi^{3/2}n^{2}c^{2}qv_{T}}{e_{\alpha}^{2}\left\langle \left|\nabla s\right|\right\rangle ^{2}\psi_{{\rm tor}}^{a}}\frac{ds}{dV}\int_{0}^{\infty}du\, u^{3/2}e^{-u}\tau_{b}\sum_{n}\left(|H_{n}|^{2}\left|n\frac{\partial\Omega^{3}}{\partial\eta}\right|^{-1}\right).
+\frac{mv^{2}}{2} & \approx\mu B_{0}(\tht).
+\end{align*}
+
+\end_inset
+
+We consider a magnetic perturbation mode
+\begin_inset Formula 
+\begin{align*}
+H_{n} & =\left\langle \left(mv_{\parallel}^{2}+J_{\perp}\omega_{c}\right)\frac{B_{n}(\tht)}{B_{0}(\tht)}e^{inq\tht}\right\rangle _{b}\\
+ & \approx\frac{mv^{2}}{2B_{a}}\left\langle B_{n}(\vartheta)e^{inq\tht}\right\rangle _{b}.
+\end{align*}
+
+\end_inset
+
+Shaing2009-35009 assumes a perturbation of the form
+\begin_inset Formula 
+\begin{align*}
+B_{n}(\tht) & =-B_{a}\varepsilon_{n}(\tht)e^{in\ph_{0}}=-B_{a}\varepsilon_{n}(\tht)e^{in(q\tht-\ph)}.
+\end{align*}
+
+\end_inset
+
+[TODO: Could it be, that the signs are swapped somewhere? We would like
+ 
+\begin_inset Formula $e^{inq\tht}$
+\end_inset
+
+ to cancel, not to become twice the frequency.
+ In this case:] The Hamiltonian perturbation follows as
+\begin_inset Formula 
+\begin{align*}
+H_{n} & =\frac{mv^{2}}{2}\left\langle \varepsilon_{n}(\tht)\right\rangle _{b}.
+\end{align*}
+
+\end_inset
+
+Using the notation of Shaing,
+\begin_inset Formula 
+\begin{align*}
+|H_{n}|^{2} & =\left(\frac{mv^{2}}{2}\right)^{2}(\alpha_{n}^{2}+\beta_{n}^{2}).
+\end{align*}
+
+\end_inset
+
+The toroidal drift frequency, neglecting curvature drift and magnetic shear
+ is
+\begin_inset Formula 
+\begin{align*}
+\Omega^{3} & =\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle _{b}\\
+ & \approx-\frac{c\Phi^{\prime}}{\chi^{\prime}}+\frac{c\mu B_{a}}{e\chi^{\prime}}\varepsilon^{\prime}\left[\frac{2E(\kappa)}{K(\kappa)}-1\right]\\
+ & \approx-\frac{c\Phi^{\prime}}{\chi^{\prime}}+\frac{c\varepsilon^{\prime}}{e\chi^{\prime}}\frac{mv^{2}}{2}\left[\frac{2E(\kappa)}{K(\kappa)}-1\right]
+\end{align*}
+
+\end_inset
+
+And the function 
+\begin_inset Formula 
+\begin{align*}
+g(\kappa^{2}) & =-\frac{e\chi^{\prime}}{mc}\frac{2}{v^{2}\varepsilon^{\prime}}\Omega^{3}.
+\end{align*}
+
+\end_inset
+
+Eta is
+\begin_inset Formula 
+\begin{align*}
+\eta & =\left(2\varepsilon B_{a}\kappa^{2}+B_{a}(1-\varepsilon)\right)^{-1}
+\end{align*}
+
+\end_inset
+
+and the derivative
+\begin_inset Formula 
+\begin{align*}
+\frac{d\eta}{d\kappa^{2}} & =-2B_{a}\varepsilon\eta^{2}.
+\end{align*}
+
+\end_inset
+
+The derivative of normalised 
+\begin_inset Formula $g$
+\end_inset
+
+ w.r.t.
+ 
+\begin_inset Formula $\kappa^{2}$
+\end_inset
+
+ becomes 
+\begin_inset Formula 
+\begin{align*}
+\frac{\partial g}{\partial\kappa^{2}} & =\frac{e\chi^{\prime}}{mc}\frac{2}{v^{2}\varepsilon^{\prime}}2B_{a}\varepsilon\eta^{2}\frac{\partial\Omega^{3}}{\partial\eta},
+\end{align*}
+
+\end_inset
+
+or using 
+\begin_inset Formula $\eta\approx1/B_{a}$
+\end_inset
+
+ and assuming 
+\begin_inset Formula $\chi^{\prime}/B_{a}$
+\end_inset
+
+ positive 
+\begin_inset Formula 
+\[
+\left|\frac{\partial\Omega^{3}}{\partial\eta}\right|^{-1}=\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\frac{2}{c}\left|e_{\alpha}\frac{\varepsilon}{\varepsilon^{\prime}}\right|\frac{\chi^{\prime}}{B_{a}}\frac{2}{mv^{2}}.
+\]
+
+\end_inset
+
+The diffusion coefficient is (
+\begin_inset Formula $x=u^{2},\,dx=2u\,du,\,du=\frac{1}{2}x^{-1/2}dx$
+\end_inset
+
+)
+\begin_inset Formula 
+\begin{align*}
+D_{11} & =\frac{\pi^{3/2}n^{2}c^{2}qv_{T}}{e_{\alpha}^{2}\left\langle \left|\nabla s\right|\right\rangle ^{2}\psi_{{\rm tor}}^{a}}\frac{ds}{dV}\int_{0}^{\infty}du\,u^{3}e^{-u^{2}}\tau_{b}|H_{n}|^{2}\left|n\frac{\partial\Omega^{3}}{\partial\eta}\right|^{-1}\\
+ & =\frac{m\pi^{3/2}n^{2}c^{2}v_{T}^{3}}{4|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}4K(\kappa)\sqrt{\frac{m}{\mu B_{a}\varepsilon}}(\alpha_{n}^{2}+\beta_{n}^{2})\frac{1}{|n|}\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\frac{2}{c}\left|\frac{\varepsilon}{\varepsilon^{\prime}}\right|\\
+ & =\frac{m\pi^{3/2}cv_{T}^{3}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{\varepsilon}}{|\varepsilon^{\prime}|}\sqrt{\frac{m}{\mu B_{a}}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\\
+ & =\frac{m\pi^{3/2}cv_{T}^{2}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{2\varepsilon}}{|\varepsilon^{\prime}|}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}
+\end{align*}
+
+\end_inset
+
+It should be
+\begin_inset Formula 
+\begin{align*}
+D_{11} & =-\frac{\pi}{4}\sqrt{2\varepsilon}\frac{2}{\varepsilon^{\prime}}\frac{cm}{e\chi^{\prime}}\frac{nv_{t}^{2}}{\pi^{3/2}}\eta_{1}
 \end{align*}
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Subsection*
+Large aspect ratio limit - resonant plateau (drift-orbit resonances)
 \end_layout
 
 \begin_layout Standard
@@ -1565,6 +1713,28 @@ superbanana
 \series bold
 \size normal
 TBD
+\end_layout
+
+\begin_layout Subsection*
+\begin_inset Flex Code
+status open
+
+\begin_layout Plain Layout
+test_intstep2
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Integral along the resonance line by Grabenwarter Method.
+ 
+\series bold
+\size normal
+2015-09-17: Still some discrepancies when using small amount of points at
+ ODE integration -> interpolation at root finding?
 \end_layout
 
 \begin_layout Subsection*

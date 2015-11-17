@@ -1,8 +1,7 @@
 program main
   use driftorbit
+  use lineint
   use do_magfie_mod
-  !use rkf45
-  use dvode_f90_m
   implicit none
 
   integer :: Mtnum, mthnum
@@ -21,13 +20,15 @@ program main
   !call test_driftorbit
   !call test_torfreq_pass
   !call test_machrange
-  !call test_integral
   if (nobdrift) then
      call test_machrange2
+     !call test_integral
   else
-     call test_supban
+     !call test_supban
+     !call test_supban2
+     call test_intstep2
+     !call test_integral
   end if
-  !call test_intstep
   !call test_Hmn
 contains
 
@@ -123,6 +124,7 @@ contains
   end subroutine test_magfie
 
   subroutine test_bounce
+    use dvode_f90_m2
     real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     real(8) :: dt
@@ -383,6 +385,54 @@ contains
     close(unit=10)
   end subroutine test_machrange2
 
+  subroutine test_integral
+    real(8) :: eta_res(2)
+    real(8) :: D11, D12, Dp, D11u, vold, dsdreff
+    integer :: ku, nu
+
+    call disp("test_integral: Mach num Mt         = ", M_t)
+    call disp("test_integral: Poloidal mode mth   = ", 1d0*mth)
+
+    nu = 1000
+
+    vmin2 = 1d-1*vth
+    vmax2 = 10*vth
+
+    ! trapped
+    etamin = (1+1d-8)*etatp
+    etamax = (1-1d-8)*etadt
+    call find_vlim_t(vmin2, vmax2)
+    print *, 'vrange: ', vmin2/vth, vmax2/vth
+    
+    ! passing
+    !etamin = 1d-8*etatp
+    !etamax = (1-1d-8)*etatp
+    !call find_vlim_p(vmin2, vmax2)
+
+    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
+    vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
+
+    D11  = 0d0
+    D12  = 0d0
+    D11u = 0d0
+    dsdreff = 2d0/a*sqrt(s)
+    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+        
+    open(unit=10, file='test_integral2.dat', recl=1024)
+    v = vmin2
+    vold = vmin2
+    do ku = 0, nu-1
+       vold = v
+       v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
+       eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
+       D11u = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
+       write(10, *) v/vth, D11u/Dp, (eta_res(1)-etamin)/(etamax-etamin)
+    end do
+    print *, 'D11/Dp (SUM) = ', D11u/Dp
+    close(unit=10)
+  end subroutine test_integral
+
   subroutine test_supban
     real(8) :: vmin, vmax
     real(8) :: D1xDp(2)
@@ -391,7 +441,7 @@ contains
     etamax = (1-1d-8)*etadt
 
     vmin = 1d-6*vth
-    vmax = 5*vth
+    vmax = 10*vth
 
     call find_vlim(vmin, vmax)
 
@@ -401,64 +451,92 @@ contains
     print *, s, eps, q, D1xdp(1), dqds, D1xdp(2)
   end subroutine test_supban
 
-
-  !========================================
-  ! WIP: integration along resonance line
-
   
-  subroutine test_intstep
-    real(8) :: sk, ds, eta_res(2)
-    real(8) :: D11, Dp
-    integer :: ks, ns
+  subroutine test_supban2
+    real(8) :: vmin, vmax
+    real(8) :: D1xDp(2)
 
-    real(8) :: y(3), t, tout, rtol(3), atol(3), rwork(128)
-    integer :: neq, itask, istate, iopt, itol, iwork(32), jroot(4), ng, jt
+    etamin = (1+1d-8)*etatp
+    etamax = (1-1d-8)*etadt
+
+    vmin = 1d-6*vth
+    vmax = 10*vth
+
+    call find_vlim(vmin, vmax)
+
+    D1xdp = 0d0
+    D1xdp = flux_integral_ode(vmin,vmax)
+
+    print *, s, eps, q, D1xdp(1), dqds, D1xdp(2)
+  end subroutine test_supban2
+
+  subroutine test_intstep2
+    use dvode_f90_m2
+    real(8) :: sk, ds, eta_res(2)
+    real(8) :: D11, D12, Dp, D11u, vold, dsdreff
+    integer :: ks, ns, ku, nu
+
+    real(8) :: y(4), t, tout, rtol(4), atol(4), rwork(128)
+    integer :: neq, itask, istate, iopt, itol, iwork(32), ng, jt
+    TYPE(VODE_OPTS) :: OPTIONS
 
     call disp("test_intstep: Mach num Mt   = ", M_t)
 
-    neq = 3
+    neq = 4
     ng = 4
     y(1) = 1d0-1d-15
     y(2) = 1d-15
     y(3) = 0d0
+    y(4) = 0d0
     itol = 4
     t = 0.0d0
-    rtol(1) = 1d-13
-    rtol(2) = 1d-13
-    rtol(3) = 1d-10
-    atol(1) = 1d-13
-    atol(2) = 1d-13
-    atol(3) = 1d-10
+    rtol(1) = 1d-9
+    rtol(2) = 1d-9
+    rtol(3) = 1d-9
+    rtol(4) = 1d-9
+    atol(1) = 1d-9
+    atol(2) = 1d-9
+    atol(3) = 1d-9
+    atol(4) = 1d-9
     itask = 1
     istate = 1
-    iopt = 0
+    iopt = 1
     jt = 2
+    rwork = 0d0
+    iwork = 0
+    iwork(6) = 10000
 
-    ns = 100
-    ds = 2d0/ns
+    ns = 1000
+    ds = 4d0/ns
     sk = 0d0
+
+    nu = 1000
 
     vmin2 = 1d-1*vth
     vmax2 = 10*vth
 
     ! trapped
-    !etamin = (1+1d-8)*etatp
-    !etamax = (1-1d-8)*etadt
-    !call find_vlim_t(vmin2, vmax2)
-
+    etamin = (1+1d-8)*etatp
+    etamax = (1-1d-8)*etadt
+    call find_vlim(vmin2, vmax2)
+    
     ! passing
-    etamin = 1d-8*etatp
-    etamax = (1-1d-8)*etatp
-    call find_vlim_p(vmin2, vmax2)
+    !etamin = 1d-8*etatp
+    !etamax = (1-1d-8)*etatp
+    !call find_vlim_p(vmin2, vmax2)
 
-    vmin2 = vmin2 + 1d-7*(vmax2-vmin2)
-    vmax2 = vmax2 - 1d-7*(vmax2-vmin2)
+    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
+    vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
 
-    print *, vmin2/vth, etamin
-    print *, vmax2/vth, etamax
-
+    D11  = 0d0
+    D12  = 0d0
+    D11u = 0d0
+    dsdreff = 2d0/a*sqrt(s)
+    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+    
     v = vmax2
-
+    vold = vmax2
     if (mth /= 0) then
        if (etamin < etatp) then
           y(2) = 1d0 - 1d-15
@@ -469,50 +547,59 @@ contains
        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
        y(2) = (eta_res(1)-etamin)/(etamax-etamin)
     end if
-    print *, y
+    !print *, y
 
+    
+    open(unit=10, file='test_intstep2.dat', recl=1024)
+    v = vmin2
+    vold = vmin2
+    do ku = 0, nu-1
+       vold = v
+       v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
+       D11u = D11u + (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
+       write(10, *) v/vth, D11u/Dp
+    end do
+    print *, 'D11/Dp (SUM) = ', D11u/Dp
+    close(unit=10)
+
+    OPTIONS = SET_OPTS(DENSE_J=.TRUE.,RELERR_VECTOR=RTOL, &
+       ABSERR_VECTOR=ATOL,NEVENTS=NG)
+    
     open(unit=9, file='test_intstep.dat', recl=1024)
+    !write(9, *)                    't',&
+    !     '                       vbar',&
+    !     '                     etabar',&
+    !     '                          I',&
+    !     '                      v/vth',&
+    !     '                      etark',&
+    !     '                     etabar',&
+    !     '                      error',&
+    !     '                     D11/Dp'   
     do ks = 1, ns
        tout = t+ds
-       call DLSODAR (intstep, neq, y, t, tout, ITOL, RTOL, ATOL, ITASK,&
-            ISTATE, IOPT, RWORK, size(rwork), IWORK, size(iwork), dummyjac,&
-            jt, bbox, ng, jroot)
-       !call dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
+       call dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
        if (istate == 3) then
-          print *, 'reached boundary: ', jroot
+          print *, 'D11/Dp (ODE) = ', D11/Dp, D12/Dp
+          print *, 'reached boundary'
           print *, 'y = ', y
-          D11 = (2d0/a*sqrt(s))**(-2)*y(3) 
-          Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-          print *, 'D11/Dp (ODE)      = ', D11/Dp
-          print *, 'D11/Dp (integral) = ', flux_integral(vmin2, vmax2)
           exit
        end if
+       vold = v
        v = vmin2 + y(1)*(vmax2-vmin2)
        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
+       D11 = dsdreff**(-2)*y(3) 
+       D12 = dsdreff**(-2)*y(4) 
+       D11u = D11u + (v-vold)/vth*D11int_u(v/vth)*dsdreff**(-2)
        write(9, *) t, y(1), y(2), y(3), &
             (vmin2 + (vmax2-vmin2)*y(1))/vth, etamin + (etamax-etamin)*y(2), &
             (eta_res(1)-etamin)/(etamax-etamin),&
-            (etamin + (etamax-etamin)*y(2)-eta_res(1))/eta_res(1)
+            (etamin + (etamax-etamin)*y(2)-eta_res(1))/eta_res(1),&
+            D11/Dp, D12/Dp
        flush(9)
     end do
     close(unit=9)
-  end subroutine test_intstep
-
-  SUBROUTINE dummyjac
-  end SUBROUTINE dummyjac
-
-  subroutine bbox (NEQ, T, Y, NG, GOUT)
-    integer, intent(in) :: NEQ, NG
-    real(8), intent(in) :: T, Y(neq)
-    real(8), intent(out) :: GOUT(ng)
-    GOUT(1) = Y(1)
-    GOUT(2) = 1d0 - Y(1)
-    GOUT(3) = Y(2)
-    GOUT(4) = 1d0 - Y(2)
-    return
-  end subroutine bbox
-
-
+  end subroutine test_intstep2
+  
   subroutine test_Hmn
     integer :: keta, neta
     real(8) :: vmin2, vmax2
