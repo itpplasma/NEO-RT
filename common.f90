@@ -6,6 +6,8 @@ module common
   implicit none
   save
 
+  complex(8), parameter :: imun=(0d0,1d0)
+  
   real(8), parameter, public   :: pi = 4*atan(1d0)
   
   real(8), parameter, public ::  &

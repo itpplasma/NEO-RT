@@ -13,6 +13,9 @@ program main
   call read_control
   call init_test
   call test_magfie
+
+  if (Mtnum < 1) return
+  
   !call test_bounce
   !call test_torfreq
   !call test_resline
@@ -55,6 +58,7 @@ contains
     read (9,*) nopassing  
     read (9,*) calcflux
     read (9,*) noshear
+    read (9,*) pertfile
   end subroutine read_control
 
   subroutine init_test
@@ -76,6 +80,7 @@ contains
     real(8) :: thmin, thmax
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
     real(8) :: Drp
+    complex(8) :: bn
 
     Drp = 4*mph*q/(eps**2*sqrt(pi));
 
@@ -87,6 +92,7 @@ contains
     x(2) = 0d0
     x(3) = 0d0
 
+    write(9,*) "-------------------------"
     write(9,*) "test_magfie: R0        = ", R0
     write(9,*) "test_magfie: a         = ", a
     write(9,*) "test_magfie: eps       = ", eps
@@ -108,16 +114,27 @@ contains
     write(9,*) "test_magfie: m0        = ", 1d0*m0
     write(9,*) "test_magfie: n0        = ", 1d0*mph
     write(9,*) "test_magfie: Drp       = ", Drp
+    write(9,*) "-------------------------"
+    write(9,*) "test_magfie: pertfile  = ", pertfile
+    write(9,*) "-------------------------"
+    
 
     close(unit=9)
+    
     open(unit=9, file='test_magfie.dat', recl=1024)
     do k = 0, nth-1
        x(3) = thmin + k*(thmax-thmin)/(nth-1)
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+       if (pertfile) then
+          call neo_magfie_pert_amp( x, bn )
+          bn = bn/bmod
+       else
+          bn = epsmn*exp(imun*m0*x(3))
+       end if
        write(9,*) x(3), bmod, sqrtg, hder(1), hder(2), hder(3), hcovar(1),&
-            hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3)!,&
-       !boozer_curr_pol_hat_s
-       !print *, sqrtg*bmod*hctrvr(3), psi_pr/q, psi_pr*s/q
+            hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&  ! 8
+            real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),& !13
+            aimag(epsmn*exp(imun*m0*x(3))) !16
     end do
 
     close(unit=9)

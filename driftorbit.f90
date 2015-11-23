@@ -4,6 +4,8 @@
 
 module driftorbit
   use do_magfie_mod
+  use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert,&
+       neo_init_spline_pert, neo_magfie_pert_amp, ixn_pert
   use spline
   
   implicit none
@@ -35,6 +37,7 @@ module driftorbit
   logical :: nopassing    ! neglect passing particles
   logical :: noshear      ! neglect magnetic shear
   logical :: calcflux     ! calculation based on flux instead of torque
+  logical :: pertfile     ! read perturbation from file with neo_magfie_pert
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
   real(8) :: fsa, etadt, etatp
@@ -51,6 +54,12 @@ contains
   subroutine init
     init_done = .false.
     call do_magfie_init
+    if (pertfile) then
+       call neo_read_pert_control
+       call neo_read_pert
+       call neo_init_spline_pert
+       mph = ixn_pert(1)
+    end if
     call init_fsa
     call init_misc
     call init_Om_spl
@@ -192,12 +201,21 @@ contains
     real(8) :: Omth, dOmthdv, dOmthdeta
     real(8) :: t0
     real(8) :: shearterm
-
+    complex(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
+                           ! and Hamiltonian Hn = (H - H0)_n
+    
     x(1) = s
     x(2) = 0d0
     x(3) = y(1)
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     call Om_th(Omth, dOmthdv, dOmthdeta)
+    
+    if (pertfile) then
+       call neo_magfie_pert_amp( x, epsn )
+       epsn = epsn/bmod
+    else
+       epsn = epsmn*exp(imun*m0*y(1))
+    end if
 
     shearterm = Bphcov*dqds
     if (noshear) then
@@ -217,26 +235,20 @@ contains
        if (eta > etatp) then
           !t0 = 0.25*2*pi/Omth ! Quarter of bounce time to set phase 0 at tips
           t0 = 0d0
-          ydot(4) = (2d0 - eta*bmod)*epsmn*&
-               cos((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Re Hmn
-          ydot(5) = (2d0 - eta*bmod)*epsmn*&
-               sin((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Im Hmn
-!!$          ydot(4) = (2d0 - eta*bmod)*epsmn*&
-!!$               cos((m0+q*mph)*y(1)+mph*Om_tE*(t-t0)) ! Re Hmn
-!!$          ydot(5) = (2d0 - eta*bmod)*epsmn*&
-!!$               sin((m0+q*mph)*y(1)+mph*Om_tE*(t-t0)) ! Im Hmn
-!!$         ydot(6) = 0d0
+          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*y(1)-mth*(t-t0)*Omth))
+          !ydot(4) = (2d0 - eta*bmod)*epsmn*&
+          !     cos((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Re Hn
+          !ydot(5) = (2d0 - eta*bmod)*epsmn*&
+          !     sin((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Im Hn
        else
-          ydot(4) = (2d0 - eta*bmod)*epsmn*&
-               cos((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Re Hmn
-          ydot(5) = (2d0 - eta*bmod)*epsmn*&
-               sin((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Im Hmn
-!!$          ydot(4) = (2d0 - eta*bmod)*epsmn*&
-!!$               cos((m0+q*mph)*y(1)+mph*Om_tE*t) ! Re Hmn
-!!$          ydot(5) = (2d0 - eta*bmod)*epsmn*&
-!!$               sin((m0+q*mph)*y(1)+mph*Om_tE*t) ! Im Hmn
-!!$          ydot(6) = 1d0/(bmod*y(2))             ! Passing term
+          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*y(1)-(mth+q*mph)*t*Omth))
+          !ydot(4) = (2d0 - eta*bmod)*epsmn*&
+          !     cos((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Re Hn
+          !ydot(5) = (2d0 - eta*bmod)*epsmn*&
+          !     sin((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Im Hn
        end if
+       ydot(4) = real(Hn)
+       ydot(5) = aimag(Hn)
     else
        ydot(4:6) = 0d0
     end if

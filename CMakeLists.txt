@@ -9,6 +9,9 @@ enable_testing()
 project (driftorbit)
 enable_language(Fortran)
 
+### Define paths to external libraries (load external file)
+include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
+
 ### Specify paths
 set(CMAKE_BINARY_DIR ./OBJS)
 set(EXECUTABLE_OUTPUT_PATH .)
@@ -19,6 +22,20 @@ set(PROJECT_EXE_NAME "driftorbit_test")                  # Define the name
 
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
+
+### Find libraries
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+find_library(SuperLU_lib superlu_4.1 ${SUPERLU_DIR}lib NO_DEFAULT_PATH)
+find_library(Umfpack_lib umfpack ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+find_library(Amd_lib amd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+find_library(Cholmod_lib cholmod ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+find_library(Colamd_lib colamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+find_library(Camd_lib camd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+find_library(Metis_lib metis ${SUITESPARSE_DIR}lib ${METIS_PATH} NO_DEFAULT_PATH)
+find_library(Ccolamd_lib ccolamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+
+### Source files (load external file)
+include (CMakeSources.txt)
 
 ### External modules
 add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
@@ -40,6 +57,8 @@ add_library("driftorbit"
   driftorbit.f90
   #do_magfie_standalone.f90
   do_magfie_neo.f90
+  ${SUITESPARSE_SRC_FILES}
+  ${SUPERLU_SRC_FILES}
 )
 
 add_dependencies(driftorbit boozer_magfie)
@@ -54,12 +73,15 @@ target_link_libraries(
   ${PROJECT_EXE_NAME}
   driftorbit
   boozer_magfie
+  ${SuperLU_lib}
+  ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
   #rkf45
   #odepack
   vode
   spline
   quadpack
-  openblas
+  blas
+  lapack
   pthread
 )
 
