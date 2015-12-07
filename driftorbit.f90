@@ -40,7 +40,7 @@ module driftorbit
   logical :: pertfile     ! read perturbation from file with neo_magfie_pert
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
-  real(8) :: fsa, etadt, etatp
+  real(8) :: dVds, etadt, etatp
   real(8) :: etamin, etamax
   real(8) :: vmin2, vmax2 ! permanent vmin vmax for integration bracketing
 
@@ -76,7 +76,7 @@ contains
     
     v = vth    
     etamin = etatp
-    etamax = etadt*(1d0-1d-9)
+    etamax = etatp + (etadt-etatp)*(1d0-1d-3)
 
     delta = 1d-8   ! smallest relative distance to etamin
     b = log(delta)
@@ -222,11 +222,18 @@ contains
        shearterm = 0
     end if
 
-    Om_tB_v = mi*c/(2d0*qi*sqrtg*hctrvr(3)*bmod**2)*(&      ! Om_tB/v**2
+!!$    Om_tB_v = mi*c/(2d0*qi*sqrtg*hctrvr(3)*bmod**2)*(&      ! Om_tB/v**2
+!!$         -(2d0-eta*bmod)*bmod*hder(1)&
+!!$         +2d0*(1d0-eta*bmod)*hctrvr(3)*&
+!!$         (dBthcovds+q*dBphcovds+shearterm))
+
+    Om_tB_v = mi*c*q/(2d0*qi*psi_pr*bmod)*(&      ! Om_tB/v**2
          -(2d0-eta*bmod)*bmod*hder(1)&
          +2d0*(1d0-eta*bmod)*hctrvr(3)*&
-           (dBthcovds+q*dBphcovds+shearterm))
+         (dBthcovds+q*dBphcovds+shearterm))
 
+    !print *, c*mi*vth**2/(2*qi*psi_pr), Om_tB_v*vth**2
+   
     ydot(1) = y(2)*hctrvr(3)                                    ! theta
     ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
     ydot(3) = Om_tB_v                                           ! v_ph
@@ -300,6 +307,7 @@ contains
        tout = ti+dt
        call dvode_f90(timestep2, neq, y, ti, tout, itask, istate, options,&
             g_fcn = bounceroots)
+       !print *, ti
        if (istate == 3) then
           if (passing .or. yold(1)<0) then
              exit
@@ -313,6 +321,7 @@ contains
        print *, "ERROR: findroot2 did not converge after 500 iterations"
        print *, eta, etamin, etamax
     end if
+    
     findroot2(1)  = ti
     findroot2(2:) = y
   end function findroot2
@@ -340,6 +349,7 @@ contains
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     y0 = 1d-15
     y0(2) = vpar(bmod)
+    y0(3) = 0d0
 
     if (present(taub_estimate)) then
        taub_est = taub_estimate
@@ -348,6 +358,7 @@ contains
     end if
        
     findroot_res = findroot2(y0, taub_est/5d0, 1d-10)
+    !print *, taub
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
   end subroutine bounce
@@ -433,6 +444,9 @@ contains
     res_etamax = mph*Omph_etamax+mth*Omth_etamax
     if(sign(1d0,res_etamin) /= sign(1d0,res_etamax)) then
        driftorbit_nroot = 1
+    !else
+       !print *, "driftorbit_nroot: ", v/vth,(etamin-etatp)/(etadt-etatp),&
+       !     (etamax-etatp)/(etadt-etatp), res_etamin, res_etamax
     end if
     if(isnan(res_etamin) .or. isnan(res_etamax)) then
        print *, "ERROR: driftorbit_nroot found NaN value in Om_ph_ba"
@@ -656,23 +670,29 @@ contains
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     thrange = -pi + (/(k*2*pi/nth,k=1,nth)/)
+    
     dth = thrange(2) - thrange(1) 
     x(1) = s
     x(2) = 0d0
     x(3) = 0d0
     
-    fsa = 0d0
+    dVds = 0d0
     B0  = 0d0
-    do k = 1,nth
+    print *, "eps orig: ", eps
+    eps = 0d0
+    do k = 1, nth
        x(3) = thrange(k)
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-       fsa = fsa + sqrtg*dth
-       B0  = B0  + bmod*dth
+       dVds = dVds + sqrtg*dth
+       B0   = B0  + bmod*dth
+       eps  = eps - cos(x(3))*bmod*dth
        !fsa = fsa + psi_pr*(iota*hcovar(3)+hcovar(2))/bmod*dth
     end do
 
-    fsa = 2d0*pi*fsa
-    B0  = B0/(2d0*pi)
+    dVds = 2d0*pi*dVds
+    B0   = B0/(2d0*pi)
+    eps  = eps/(B0*pi)
+    print *, "eps calc: ", eps
 
    ! call disp('init_fsa: iota       = ', iota)
    ! call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
@@ -693,11 +713,11 @@ contains
 
     if (calcflux) then
        D11int = pi**(3d0/2d0)*mph*c**2*q*vth/&
-            (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+            (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
             taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))
     else          
        D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
-         (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+         (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
     end if
   end function D11int
@@ -716,11 +736,11 @@ contains
 
     if (calcflux) then
        D12int = pi**(3d0/2d0)*mph*c**2*q*vth/&
-            (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+            (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
             taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))*ux**2
     else          
        D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
-         (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+         (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2*ux**2
     end if
   end function D12int
@@ -758,7 +778,7 @@ contains
   function flux_integral(vmin, vmax)
     real(8) :: vmin, vmax
     real(8) :: flux_integral(2), err
-    real(8) :: Dp, dpsidreff
+    real(8) :: Dp, dsdreff
     integer :: neval, ier
       
     flux_integral = 0d0
@@ -772,8 +792,8 @@ contains
          1d-9, 1d-3, 6, flux_integral(2), err, neval, ier)   
       
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-    dpsidreff = 2d0/a*sqrt(s)
-    flux_integral = dpsidreff**(-2)*flux_integral/Dp
+    dsdreff = 2d0/a*sqrt(s)
+    flux_integral = dsdreff**(-2)*flux_integral/Dp
 
   end function flux_integral
 
@@ -943,7 +963,7 @@ module lineint
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
     
     D11_ode = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
-         (qi**2*fsa*psi_pr)*ux**3*exp(-ux**2)*&
+         (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
   end function D11_ode
 end module lineint

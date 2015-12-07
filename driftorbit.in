@@ -1,0 +1,23 @@
+# Input file for DRIFTORBIT - Version 1.3
+# 
+#
+0.053739669         s                  - Radial coordinate s
+0.093869938	    M_t		       - Mach number (for single Mach no. run)
+1d0                 qs                 - species charge in elem. charges
+2.014d0             ms                 - species mass in u
+1d19		    n0		       - particle density
+56107985.0          vth		       - thermal velocity
+1e-3		    epsmn	       - perturbation amplitude B1/B0 (when pertfile==F)
+0		    m		       - poroidal perturbation mode (when pertfile==F)
+2 		    n		       - toroidal perturbation mode (when pertfile==F, MUST BE > 0)
+-1		    mth		       - poloidal canonical mode (for single Mach no. run)
+10        	    mthnum	       - poloidal canonical mode count
+0d0	    	    Mtmin	       - minimum Mach number
+0d0	    	    Mtmax	       - maximum Mach number
+1                   Mtnum              - Mach number count
+F		    nobdrift	       - neglect magnetic drift (calculate drift-orbit resonances)
+F		    nopassing	       - neglect passing particles
+F		    calcflux	       - calculate flux directly instead via flux-force relation
+F		    noshear	       - neglect magnetic shear term with dqds
+F		    pertfile	       - read perturbation from file with neo_magfie_pert
+

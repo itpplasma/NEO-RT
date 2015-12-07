@@ -12,14 +12,13 @@ module common
   
   real(8), parameter, public ::  &
        qe  = 4.803204d-10,       & ! elementary charge
-       qi  = qe,                 & ! ion charge
-       me  = 9.109382d-28,       & ! electron mass,
+       !me  = 9.109382d-28,       & ! electron mass,
        mu  = 1.660538d-24,       & ! 1u
-       mi  = mu,                 & ! ion mass
        c   = 2.997925d+10,       & ! speed of light
-       kb  = 1.381649d-16,       & ! Boltzmann constant
+       !kb  = 1.381649d-16,       & ! Boltzmann constant
        eV  = 1.602176d-12          ! 1 electron volt
 
+  real(8), public :: qi, mi
   contains
     
   subroutine disp(str, val)

@@ -6,9 +6,9 @@ program main
 
   integer :: Mtnum, mthnum
   real(8) :: Mtmin, Mtmax
-  character(len=32) :: arg
-  call get_command_argument(1, arg)
-  read(arg, *) s
+  character(len=1024) :: controlfile
+  
+  call get_command_argument(1, controlfile)
 
   call read_control
   call init_test
@@ -23,13 +23,15 @@ program main
   !call test_driftorbit
   !call test_torfreq_pass
   !call test_machrange
+  call test_boundaries
   if (nobdrift) then
-     call test_machrange2
+     !call test_machrange2
      !call test_integral
   else
+     !call test_machrange2
      !call test_supban
      !call test_supban2
-     call test_intstep2
+     !call test_torfreq
      !call test_integral
   end if
   !call test_Hmn
@@ -37,13 +39,16 @@ contains
 
   subroutine read_control
     character(1)          :: dummy
+    real(8)               :: qs, ms
 
-    open(unit=9,file='driftorbit.in',status='old',form='formatted')
+    open(unit=9,file=controlfile,status='old',form='formatted')
     read (9,*) dummy
     read (9,*) dummy
     read (9,*) dummy
-    !read (9,*) s
+    read (9,*) s
     read (9,*) M_t
+    read (9,*) qs
+    read (9,*) ms
     read (9,*) n0
     read (9,*) vth
     read (9,*) epsmn
@@ -59,15 +64,20 @@ contains
     read (9,*) calcflux
     read (9,*) noshear
     read (9,*) pertfile
+
+    qi = qs*qe
+    mi = ms*mu
   end subroutine read_control
 
   subroutine init_test
 
     call init
-    if ((abs(M_t) > 1d-12) .and. (.not. nobdrift)) then
-       ! set thermal velocity so that ExB = reference toroidal drift
-       vth = abs(2*M_t*qi*psi_pr/(mi*c*R0)) ! thermal velocity
-    end if
+    !if ((abs(M_t) > 1d-12) .and. (.not. nobdrift)) then
+    ! set thermal velocity so that ExB = reference toroidal drift
+       !print *, "Set vth from: ", vth
+       !vth = abs(2*M_t*qi*psi_pr/(mi*c*R0)) ! thermal velocity
+       !print *, "Set vth to: ", vth
+    !end if
     Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
 
     etamin = (1+1d-7)*etatp
@@ -110,7 +120,7 @@ contains
     write(9,*) "test_magfie: M_t       = ", M_t
     write(9,*) "test_magfie: Om_tE     = ", Om_tE
     write(9,*) "test_magfie: vth       = ", vth
-    write(9,*) "test_magfie: T [eV]    = ", mi/2*vth**2*eV
+    write(9,*) "test_magfie: T [eV]    = ", mi/2*vth**2/eV
     write(9,*) "test_magfie: m0        = ", 1d0*m0
     write(9,*) "test_magfie: n0        = ", 1d0*mph
     write(9,*) "test_magfie: Drp       = ", Drp
@@ -145,11 +155,11 @@ contains
     real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     real(8) :: dt
-    integer, parameter :: n = 1000
+    integer, parameter :: n = 5000
 
     integer :: k, state
     !integer :: iwork(1000)
-    real(8) :: t, y(nvar)
+    real(8) :: t, y(nvar), y2(nvar), y2dot(nvar)
     !real(8) :: rwork(1000)
 
     real(8) :: atol(nvar), rtol, tout
@@ -175,36 +185,44 @@ contains
     x(3) = 0d0
     call do_magfie( x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl ) 
 
-    v   = 1d8
+    v   = vth
     !eta = (1d0-1.86727d-1)/bmod
     !eta = etatp*(1+1d-2)
-    eta = etatp*(1+1d-7)
+    !eta = etatp*(1+1d-7)
+    eta = etadt*(1-1d-2)
     call bounce
+    call disp("bounce: Om_tB = ", vth**2*bounceavg(3))
+    call disp("bounce: taub  = ", taub)
+    call disp("bounce: bmod  = ", bmod)
 
-    print *, taub
-    print *, bmod
 
+    taub = taub
     y = 0d0
     y(2) = vpar(bmod)
+    y2 = 0d0
+    y2(2) = vpar(bmod)
     t = 0d0
     dt = taub/(n-1)
-    print *, "taub = ", taub
+    print *, "taub_est = ", 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
+    print *, "taub     = ", taub
     write(9, *) t, y(1)
     state = 1
     do k = 2,n
        !relerr = 1d-9
        !abserr = 1d-10
        !call r8_rkf45 ( timestep, nvar, y, yp, t, t+dt, relerr, abserr, state)
-
+       call timestep(t, y2, y2dot)
+       y2 = y2 + y2dot*dt
        tout = t+dt
        call dvode_f90(timestep2, neq, y, t, tout, itask, istate, options)
-       write(9, *) t, y(1), y(4), y(5)
+       write(9, *) t/taub, y(1)/taub, y(3)*vth**2/taub,&
+            y2(1)/taub, y2(3)*vth**2/taub
     end do
     close(unit=9)
   end subroutine test_bounce
 
   subroutine test_torfreq
-    integer, parameter :: n = 200
+    integer, parameter :: n = 400
     integer :: k
     real(8) :: Omph, dOmphdv, dOmphdeta
     real(8) :: Omth, dOmthdv, dOmthdeta
@@ -212,15 +230,20 @@ contains
 
     !v = vth*1.7571463448202738
 
-    v = 0.1*vth
+    v = 10*vth
 
     call disp("test_torfreq: vth        = ", vth)
     call disp("test_torfreq: v/vth      = ", v/vth)
     call disp("test_torfreq: Om_tE      = ", Om_tE)
     call disp("test_torfreq: Om_tB_ref  = ", c*mi*vth**2/(2*qi*psi_pr))
+    call bounce
+    call disp("test_torfreq: Om_tB_ba   = ", vth**2*bounceavg(3))
 
-    etamin = etatp*(1d-6)
+    !etamin = 0d0
+    !etamax = etadt 
+    etamin = etatp*(1+1d-8)
     etamax = etadt*(1-1d-7) 
+    !etamax = etadt*(1-1d-7) 
 
     !eta = etamax*(1d0-1d-7)
     call Om_th(Omth, dOmthdv, dOmthdeta)
@@ -234,18 +257,13 @@ contains
 
     open(unit=9, file='test_torfreq.dat', recl=1024)
     do k = 0, n-1
-       eta = etamin + k/(n-1d0)*(etamax-etamin)
-       !eta = etamin*(1d0 + exp(a*k+b))
+       !eta = etamin + k/(n-1d0)*(etamax-etamin)
+       eta = etamin*(1d0 + exp(a*k+b))
        !print *, etamin, etamax, eta
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        call Om_th(Omth, dOmthdv, dOmthdeta)
-       write(9, *) (eta-etatp)/(etadt-etatp), mph*Omph + mth*Omth, Omth,&
-            v*iota*sqrt(1-B0*eta)/R0, dOmthdeta,&
-            -v*B0/(2*q*R0*sqrt(1-eta*B0))
-       !write(9, *) log((eta-etamin)/(etamax-etamin)), mph*(Omph-Om_tE),&
-       !     mph*Om_tE, mth*Omth, mph*Omph + mth*Omth
-       !write(9, *) log(eta-etamin), log(mph*dOmphdeta), log(mth*dOmthdeta),&
-       !     log(mph*dOmphdeta + mth*dOmthdeta)
+       write(9, *) (eta-etatp)/(etadt-etatp), Omph, &
+            c*mi*vth**2/(2*qi*psi_pr)
     end do
     close(unit=9)
   end subroutine test_torfreq
@@ -262,7 +280,7 @@ contains
     real(8) :: etarest(2), etaresp(2)
 
     vmin = 1d-6*vth
-    vmax = 2d1*vth
+    vmax = 5d0*vth
     !vmax = 5d0*vth
     !vmin = 1d-10*vth
     !vmax = 3.5d1*vth
@@ -342,11 +360,15 @@ contains
     integer :: j, k
     real(8) :: fluxresp(2,mthnum), fluxrest(2,mthnum)
     real(8) :: vminp, vmaxp, vmint, vmaxt
+    character(1024) :: tmp, fn1, fn2
 
-    open(unit=9, file='test_machrange2.dat', recl=1024)
-    open(unit=10, file='test_integral.dat', recl=1024)
+    write(tmp, *) s
+    write(fn1, *) 'driftorbit_'//trim(adjustl(tmp))//'.out'
+    write(fn2, *) 'driftorbit_integral_'//trim(adjustl(tmp))//'.out'
+
+    open(unit=10, file=trim(adjustl(fn2)), recl=1024)
     do k = 1, Mtnum
-       M_t = Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1)
+       if (Mtnum > 1) M_t = Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1)
 
        Om_tE = vth*M_t/R0
        fluxrest = 0d0
@@ -364,6 +386,17 @@ contains
           vmint = 1d-6*vth
           vmaxt = 2d1*vth
 
+          if (.not. nobdrift) then
+             mth = 0
+             vmint = 1d-6*vth
+             vmaxt = 5d0*vth
+             call find_vlim(vmint, vmaxt)
+             print *, vmint/vth, vmaxt/vth
+             etamin = (1+1d-8)*etatp
+             etamax = (1-1d-8)*etadt
+             fluxrest(:,j) = flux_integral(vmint, vmaxt)
+          end if
+          
           ! passing resonance (passing)
           if ((.not. nopassing) .and. &
                (M_t < 0 .and. mth > -mph*q) .or.&
@@ -387,16 +420,26 @@ contains
           print *, fluxresp(1,j), fluxrest(1,j), fluxresp(1,j)+fluxrest(1,j)
           print *, fluxresp(2,j), fluxrest(2,j), fluxresp(2,j)+fluxrest(2,j)
 
+          if (k == 1 .and. j == 1) then
+             open(unit=10, file=trim(adjustl(fn2)), recl=1024)
+          end if
           write(10, *) M_t, mth, fluxresp(1,j), fluxrest(1,j),&
                fluxresp(1,j) + fluxrest(1,j), fluxresp(2,j), fluxrest(2,j),&
                fluxresp(2,j) + fluxrest(2,j)
+          flush(10)
+          
+          if (.not. nobdrift) then
+             exit
+          end if
        end do
+       if (k == 1) then
+          open(unit=9, file=trim(adjustl(fn1)), recl=1024)
+       end if
        write(9, *) M_t, sum(fluxresp(1,:)), sum(fluxrest(1,:)),&
             sum(fluxresp(1,:) + fluxrest(1,:)),&
             sum(fluxresp(2,:)), sum(fluxrest(2,:)),&
             sum(fluxresp(2,:) + fluxrest(2,:))
        flush(9)
-       flush(10)
     end do
     close(unit=9)
     close(unit=10)
@@ -404,21 +447,22 @@ contains
 
   subroutine test_integral
     real(8) :: eta_res(2)
-    real(8) :: D11, D12, Dp, D11u, vold, dsdreff
+    real(8) :: D11, D12, Dp, vold, dsdreff, D11sum, D12sum
     integer :: ku, nu
+    real(8) :: xs, kappa2s
 
     call disp("test_integral: Mach num Mt         = ", M_t)
     call disp("test_integral: Poloidal mode mth   = ", 1d0*mth)
 
-    nu = 1000
+    nu = 500
 
-    vmin2 = 1d-1*vth
-    vmax2 = 10*vth
+    vmin2 = 1d-6*vth
+    vmax2 = 5*vth
 
     ! trapped
     etamin = (1+1d-8)*etatp
     etamax = (1-1d-8)*etadt
-    call find_vlim_t(vmin2, vmax2)
+    call find_vlim(vmin2, vmax2)
     print *, 'vrange: ', vmin2/vth, vmax2/vth
     
     ! passing
@@ -426,27 +470,42 @@ contains
     !etamax = (1-1d-8)*etatp
     !call find_vlim_p(vmin2, vmax2)
 
-    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
 
     D11  = 0d0
     D12  = 0d0
-    D11u = 0d0
+    D11sum = 0d0
+    D12sum = 0d0
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         
     open(unit=10, file='test_integral2.dat', recl=1024)
-    v = vmin2
-    vold = vmin2
+    v = vmax2
+    vold = vmax2
     do ku = 0, nu-1
        vold = v
        v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
-       D11u = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
-       write(10, *) v/vth, D11u/Dp, (eta_res(1)-etamin)/(etamax-etamin)
+       D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
+       D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
+       if ((ku == 1) .OR. (ku == nu-1)) then
+          D11 = D11/2d0
+          D12 = D12/2d0
+       end if
+       D11sum = D11sum + D11
+       D12sum = D12sum + D12
+
+       xs = (v/vth)**2
+       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+       
+       write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
+            (eta_res(1)-etamin)/(etamax-etamin),&
+            vth, B0, xs, kappa2s
     end do
-    print *, 'D11/Dp (SUM) = ', D11u/Dp
+    print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
     close(unit=10)
   end subroutine test_integral
 
@@ -527,9 +586,9 @@ contains
     ds = 4d0/ns
     sk = 0d0
 
-    nu = 1000
+    nu = 1
 
-    vmin2 = 1d-1*vth
+    vmin2 = 1d-2*vth
     vmax2 = 10*vth
 
     ! trapped
@@ -542,9 +601,12 @@ contains
     !etamax = (1-1d-8)*etatp
     !call find_vlim_p(vmin2, vmax2)
 
-    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    call disp("test_intstep: vmin/vt= ", vmin2/vth)
+    call disp("test_intstep: vmax/vt= ", vmax2/vth)
+    
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
-    vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
+    vmax2 = vmax2 - 1d-8*(vmax2-vmin2)
 
     D11  = 0d0
     D12  = 0d0
@@ -663,4 +725,34 @@ contains
     end do
     close(unit=9)
   end subroutine test_Hmn
+
+  subroutine test_boundaries
+    real(8) :: v1, v2, disc
+    real(8) :: pe, qe, dtp
+    real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: Om_tB_bar, Om_tE_bar, Om_th_bar
+
+    dtp = 0d0
+    eta = etatp*(1+1d-3)
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+  
+    Om_tB_bar = (Omph - Om_tE)/v**2
+    Om_tE_bar = Om_tE
+    Om_th_bar = Omth/v
+    
+    pe = (mth + mph*q*dtp)*Om_th_bar/Om_tB_bar
+    qe = mph*Om_tE_bar/Om_tB_bar
+
+    disc = pe**2/4d0 - qe
+    print *, pe, qe, disc, Om_tB_bar
+    if (disc < 0) then
+       print *, 'test_boundaries: discriminant < 0'
+    else
+       v1 = -pe/2d0 - sqrt(disc)
+       v2 = -pe/2d0 + sqrt(disc)
+       print *, 'test_boundaries: v1 = ', v1, ', v2 = ', v2
+    end if
+  end subroutine test_boundaries
 end program main
