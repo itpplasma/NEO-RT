@@ -16,7 +16,7 @@
 0d0	    	    Mtmax	       - maximum Mach number
 1                   Mtnum              - Mach number count
 F                   supban             - calculate superbanana plateau
-T		    magdrift	       - consider magnetic drift
+F		    magdrift	       - consider magnetic drift
 F		    nopassing	       - neglect passing particles
 F		    calcflux	       - calculate flux directly instead via flux-force relation
 T		    noshear	       - neglect magnetic shear term with dqds

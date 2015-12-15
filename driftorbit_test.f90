@@ -13,21 +13,21 @@ program main
 
   call read_control
   call init_test
-  call test_magfie
+  !call test_magfie
 
   if (Mtnum < 1) return
   
   !call test_bounce
   !call test_boundaries
   !call test_torfreq
-  !call test_resline
+  call test_resline
   !call test_flux
   !call test_driftorbit
   !call test_torfreq_pass
   !call test_machrange
   !call test_boundaries
   !call test_Hmn
-  call test_integral
+  !CALL test_integral
   !call test_machrange2
 contains
 
@@ -285,7 +285,7 @@ contains
   end subroutine test_Om_spline
 
   subroutine test_resline
-    integer, parameter :: n = 100
+    integer, parameter :: n = 500
     integer :: k
     real(8) :: vmin, vmax
     real(8) :: etarest(2), etaresp(2)
@@ -293,7 +293,7 @@ contains
     integer :: nroots, kr
 
     vmin = 1d-6*vth
-    vmax = 1d0*vth
+    vmax = 5d0*vth
     !vmax = 5d0*vth
     !vmin = 1d-10*vth
     !vmax = 3.5d1*vth
@@ -329,7 +329,8 @@ contains
        !print *, "trapped roots: ", v/vth, nroots
        do kr = 1,nroots
           etarest = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
-          write(9, *) v/vth, kr, roots(kr,1), roots(kr,2), etarest(1)
+          write(9, *) v/vth, kr, roots(kr,1), roots(kr,2),&
+               (etarest(1)-etatp)/(etadt-etatp)
        end do
        !etarest=driftorbit_root(1d-8*abs(Om_tE),(1+epst)*etatp,(1-epst)*etadt)
        
@@ -432,11 +433,8 @@ contains
              etamin = (1+100*epst)*etatp
              etamax = etatp + (1-100*epst)*(etadt-etatp)
              call find_vlim(vmint, vmaxt)
-             print *, "VLIM: ", vmint/vth, vmaxt/vth
-             vmint = 1.1111*vmint
-             vmaxt = 0.9999*vmaxt
-             etamin = (1+10*epst)*etatp
-             etamax = (1-10*epst)*etadt
+             etamin = (1+epst)*etatp
+             etamax = (1-epst)*etadt
              if (odeint) then
                 fluxrest = flux_integral_ode(vmint, vmaxt)
              else
@@ -540,7 +538,7 @@ contains
     !call find_vlim_p(vmin2, vmax2)
 
     print *, 'vrange: ', vmin2/vth, vmax2/vth
-    
+
     print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
     !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
@@ -564,11 +562,11 @@ contains
        if (nroots == 0) cycle
 
        do kr = 1,nroots
-          eta_res = driftorbit_root2(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
+          eta_res = driftorbit_root2(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
           eta = eta_res(1)
           D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
           D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
-          if ((ku == 1) .OR. (ku == nu-1)) then
+          if ((ku == 1) .or. (ku == nu-1)) then
              D11 = D11/2d0
              D12 = D12/2d0
           end if
@@ -632,7 +630,7 @@ contains
 
     real(8) :: y(4), t, tout, rtol(4), atol(4), rwork(128)
     integer :: neq, itask, istate, iopt, itol, iwork(32), ng, jt
-    TYPE(VODE_OPTS) :: OPTIONS
+    type(VODE_OPTS) :: OPTIONS
 
     call disp("test_intstep: Mach num Mt   = ", M_t)
 
@@ -719,7 +717,7 @@ contains
     print *, 'D11/Dp (SUM) = ', D11u/Dp
     close(unit=10)
 
-    OPTIONS = SET_OPTS(DENSE_J=.TRUE.,RELERR_VECTOR=RTOL, &
+    OPTIONS = SET_OPTS(DENSE_J=.true.,RELERR_VECTOR=RTOL, &
        ABSERR_VECTOR=ATOL,NEVENTS=NG)
     
     open(unit=9, file='test_intstep.dat', recl=1024)
