@@ -55,10 +55,14 @@ module driftorbit
   real(8) :: B0
   real(8) :: Bmin, Bmax, th0
 
-  real(8), parameter :: epst_spl=1d-6, epsp_spl=1d-6
-  real(8), parameter :: epsst_spl=1d-3, epssp_spl=1d-3 ! smallest distance to dt 
+  real(8), parameter :: epst_spl=1d-6, epsp_spl=1d-6   ! dist to tpb for spline
+  real(8), parameter :: epsst_spl=1d-3, epssp_spl=1d-3 ! dist to deep for spline
   real(8), parameter :: epst=1d-8, epsp=1d-8 ! smallest eta distance to tp bound
   real(8) :: k_taub_p, d_taub_p, k_taub_t, d_taub_t ! extrapolation at tp bound
+  real(8) :: k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t ! extrapolation at tp bound
+
+  ! Number of levels for coarse root finding
+  integer, parameter :: nlev = 100
 contains
 
   subroutine init
@@ -83,12 +87,14 @@ contains
     real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
     integer :: k
     real(8) :: aa, b
-    real(8) :: taub0, taub1, leta0, leta1
+    real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
     
     taub0 = 0d0
     taub1 = 0d0
     leta0 = 0d0
     leta1 = 0d0
+    OmtB0 = 0d0
+    OmtB1 = 0d0
     
     v = vth    
     etamin = etatp
@@ -111,18 +117,26 @@ contains
        if (k==0) then
           leta0 = log(eta-etatp)
           taub0 = v*taub
+          if (magdrift) OmtB0 = Om_tB_v(k+1)/Omth_v(k+1)
        end if
        if (k==1) then
           leta1 = log(eta-etatp)
           taub1 = v*taub
+          if (magdrift) OmtB1 = Om_tB_v(k+1)/Omth_v(k+1)
        end if
     end do
     
     k_taub_t = (taub1-taub0)/(leta1-leta0)
     d_taub_t = taub0 - k_taub_t*leta0
-        
-    if (magdrift) OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
     Omth_spl_coeff = spline_coeff(etarange, Omth_v)
+        
+    if (magdrift) then
+       k_OmtB_t = (OmtB1-OmtB0)/(leta1-leta0)
+       d_OmtB_t = OmtB0 - k_OmtB_t*leta0
+       OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
+    end if
+
+    
   end subroutine init_Om_spl
   
   subroutine init_Om_pass_spl
@@ -131,11 +145,13 @@ contains
     real(8) :: etarange(netaspl_pass), Om_tB_v(netaspl_pass), Omth_v(netaspl_pass)
     real(8) :: aa, b
     integer :: k
-    real(8) :: leta0, leta1, taub0, taub1
+    real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
     taub0 = 0d0
     taub1 = 0d0
     leta0 = 0d0
     leta1 = 0d0
+    OmtB0 = 0d0
+    OmtB1 = 0d0
     
     v = vth
     !etamin = etatp*1d-9
@@ -160,18 +176,24 @@ contains
        if (k==netaspl_pass-2) then
           leta0 = log(etatp-eta)
           taub0 = v*taub
+          if (magdrift) OmtB0 = Om_tB_v(k+1)/Omth_v(k+1)
        end if
        if (k==netaspl_pass-1) then
           leta1 = log(etatp-eta)
           taub1 = v*taub
+          if (magdrift) OmtB1 = Om_tB_v(k+1)/Omth_v(k+1)
        end if
     end do
 
     k_taub_p = (taub1-taub0)/(leta1-leta0)
     d_taub_p = taub0 - k_taub_p*leta0
-    
-    if (magdrift) OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
     Omth_pass_spl_coeff = spline_coeff(etarange, Omth_v)
+    
+    if (magdrift) then
+       k_OmtB_p = (OmtB1-OmtB0)/(leta1-leta0)
+       d_OmtB_p = OmtB0 - k_OmtB_p*leta0
+       OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
+    end if
   end subroutine init_Om_pass_spl
 
   subroutine init_misc
@@ -396,18 +418,33 @@ contains
   end subroutine bounce
   
   subroutine Om_tB(OmtB, dOmtBdv, dOmtBdeta)
-    ! returns canonical toroidal frequency
+    ! returns bounce averaged toroidal magnetic drift frequency
     ! and derivatives w.r.t. v and eta
     real(8), intent(out) :: OmtB, dOmtBdv, dOmtBdeta
     real(8) :: splineval(3)
+    real(8) :: Omth, dOmthdv, dOmthdeta
     if (eta > etatp) then
-       splineval = spline_val_0(OmtB_spl_coeff, eta)*v**2
+       if (eta > etatp*(1+epst_spl)) then
+          splineval = spline_val_0(OmtB_spl_coeff, eta)
+       else ! extrapolation
+          call Om_th(Omth, dOmthdv, dOmthdeta)
+          splineval(1) = (k_OmtB_t*log(eta-etatp) + d_OmtB_t)*Omth/v
+          splineval(2) = Omth/v*k_OmtB_t/(eta-etatp) +&
+               dOmthdeta/v*(k_OmtB_t*log(eta-etatp) + d_OmtB_t)
+       end if
     else
-       splineval = spline_val_0(OmtB_pass_spl_coeff, eta)*v**2
+       if (eta < etatp*(1-epsp_spl)) then
+          splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
+       else ! extrapolation
+          call Om_th(Omth, dOmthdv, dOmthdeta)
+          splineval(1) = (k_OmtB_p*log(etatp-eta) + d_OmtB_p)*Omth/v
+          splineval(2) = Omth/v*k_OmtB_p/(eta-etatp) +&
+               dOmthdeta/v*(k_OmtB_p*log(etatp-eta) + d_OmtB_p)
+       end if
     end if
-    OmtB = splineval(1)
-    dOmtBdv = 2d0*splineval(1)/v
-    dOmtBdeta = splineval(2)
+    OmtB = splineval(1)*v**2
+    dOmtBdv = 2d0*splineval(1)*v
+    dOmtBdeta = splineval(2)*v**2
   end subroutine Om_tB
     
   subroutine Om_ph(Omph, dOmphdv, dOmphdeta)
@@ -424,20 +461,20 @@ contains
        if (magdrift) then
           call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
           Omph = Omph + OmtB
-          dOmtBdv = dOmphdv + dOmtBdv
-          dOmtBdeta = dOmphdeta + dOmtBdeta
+          dOmphdv = dOmphdv + dOmtBdv
+          dOmphdeta = dOmphdeta + dOmtBdeta
        end if
     else
        call Om_th(Omth, dOmthdv, dOmthdeta)
        Omph = Om_tE + Omth/iota
        dOmphdv = dOmthdv/iota
        dOmphdeta = dOmthdeta/iota
-    end if
-    if (magdrift) then
-       call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
-       Omph = Omph + OmtB
-       dOmtBdv = dOmphdv + dOmtBdv
-       dOmtBdeta = dOmphdeta + dOmtBdeta
+       if (magdrift) then
+          call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+          Omph = Omph + OmtB
+          dOmphdv = dOmphdv + dOmtBdv
+          dOmphdeta = dOmphdeta + dOmtBdeta
+       end if
     end if
   end subroutine Om_ph
 
@@ -466,9 +503,44 @@ contains
     dOmthdv = splineval(1)
     dOmthdeta = splineval(2)*v
   end subroutine Om_th
+
+  subroutine driftorbit_coarse(eta_min, eta_max, roots, nroots)
+    real(8), intent(in) :: eta_min, eta_max
+    real(8), intent(out) :: roots(:,:)
+    real(8) :: deta
+    real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: res, dresdv, dresdeta
+    real(8) :: resold, dresdvold, dresdetaold
+    integer :: k, ninterv, nroots
+
+    ninterv = size(roots,1)
+    
+    deta = (eta_max-eta_min)*1d0/ninterv
+    nroots = 0
+    
+    do k = 0,ninterv
+       eta = eta_min + k*deta
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       res = mth*Omth + mph*Omph
+       dresdv = mth*dOmthdv + mph*dOmphdv
+       dresdeta = mth*dOmthdeta + mph*dOmphdeta
+       if (k>0) then
+          if (sign(1d0,res) /= sign(1d0,resold)) then
+             nroots = nroots+1
+             roots(nroots, 1) = eta - deta
+             roots(nroots, 2) = eta
+          end if
+       end if
+       resold = res
+       dresdvold = dresdv
+       dresdetaold = dresdeta
+    end do
+  end subroutine driftorbit_coarse
   
-  function driftorbit_nroot(maxlevel, eta_min, eta_max)
-    integer :: driftorbit_nroot, maxlevel
+  function driftorbit_nroot(nlev, eta_min, eta_max)
+    integer :: driftorbit_nroot, nlev
     real(8), optional :: eta_min, eta_max
     real(8) :: etamin2, etamax2
     real(8) :: Omph_etamin, Omph_etamax, dummy, dummy2, &
@@ -578,10 +650,83 @@ contains
     if (state < 0) then
        driftorbit_root(1) = 0
        driftorbit_root(2) = 0
-       print *, "ERROR: driftorbit_root did not converge in 100 iterations"  
+       print *, "ERROR: driftorbit_root did not converge in 100 iterations"
+       print *, "v/vth = ", v/vth, "mth = ", mth, "mph = ", mph
     end if
     eta = eta0
   end function driftorbit_root
+
+  function driftorbit_root2(tol, eta_min, eta_max)
+    real(8) :: driftorbit_root2(2)
+    real(8) :: tol, res, res_old, eta0, eta_old
+    real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    integer :: maxit, k, state
+    real(8), intent(in) :: eta_min, eta_max
+    real(8) :: etamin2, etamax2
+    logical :: slope_pos
+    
+    maxit = 100
+    state = -2
+    eta0 = eta
+    eta_old = 0d0
+    res = 0d0
+
+    etamin2 = eta_min
+    etamax2 = eta_max
+
+    eta = etamin2
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    res = mph*Omph + mth*Omth
+    
+    eta = etamax2
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    if(mph*Omph + mth*Omth - res > 0) then
+       slope_pos = .true.
+    else
+       slope_pos = .false.
+    end if
+   
+    if(driftorbit_nroot(1, etamin2, etamax2) == 0) then
+       print *, "ERROR: driftorbit_root2 couldn't bracket 0 for v/vth = ", v/vth
+       print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
+       
+       return
+    end if
+    
+    do k = 1,maxit
+       res_old = res
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       res = mph*Omph + mth*Omth
+       
+       driftorbit_root2(1) = eta
+
+       if (abs(res) < tol) then
+          state = 1
+          driftorbit_root2(2) = mph*dOmphdeta + mth*dOmthdeta
+          exit
+       elseif ((slope_pos .and. res > 0) .or. &
+               ((.not. slope_pos) .and. res < 0)) then
+          etamax2 = eta
+          eta_old = eta
+          eta = (eta+etamin2)/2d0
+       else
+          etamin2 = eta
+          eta_old = eta
+          eta = (eta+etamax2)/2d0
+       end if
+    end do
+    if (state < 0) then
+       driftorbit_root2(1) = 0
+       driftorbit_root2(2) = 0
+       print *, "ERROR: driftorbit_root did not converge in 100 iterations"
+       print *, "v/vth = ", v/vth, "mth = ", mth, "mph = ", mph
+    end if
+    eta = eta0
+  end function driftorbit_root2
   
   function find_vmin(vmin0, vmax0)
     real(8) :: find_vmin, tol, vmin0, vmax0, vmin, vmax, v0
@@ -841,30 +986,47 @@ contains
     real(8) :: ux
     real(8) :: D11int_u
     real(8) :: eta_res(2)
+    real(8) :: roots(nlev, 3)
+    integer :: nroots, kr
+    
     v = ux*vth
-    if (abs(M_t) > 1d-12) then
-       eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
-    else
-       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
-            etamin, etamax)
-    end if
-    eta = eta_res(1)
-    D11int_u = D11int(ux, eta_res(1))*1d0/abs(eta_res(2))
+    D11int_u = 0d0
+
+    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    if(nroots == 0) return
+    
+    !if (abs(M_t) > 1d-12) then
+    !   eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
+    !else
+    !   eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
+    !        etamin, etamax)
+    !end if
+    
+    do kr = 1,nroots
+       eta_res = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+       eta = eta_res(1)
+       D11int_u = D11int_u + D11int(ux, eta_res(1))*1d0/abs(eta_res(2))
+    end do
+    
   end function D11int_u
   
   function D12int_u(ux)
     real(8) :: ux
     real(8) :: D12int_u
     real(8) :: eta_res(2)
+    real(8) :: roots(nlev, 3)
+    integer :: nroots, kr
     v = ux*vth
-    if (abs(M_t) > 1d-12) then
-       eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
-    else
-       eta_res=driftorbit_root(1d-8*abs(c*mi*vth**2/(2*qi*psi_pr)),&
-            etamin, etamax)
-    end if
-    eta = eta_res(1)
-    D12int_u = D12int(ux, eta_res(1))*1d0/abs(eta_res(2))
+    D12int_u = 0d0
+    
+    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    if(nroots == 0) return
+    
+    do kr = 1,nroots       
+       eta_res = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+       eta = eta_res(1)
+       D12int_u = D12int_u + D12int(ux, eta_res(1))*1d0/abs(eta_res(2))
+    end do
   end function D12int_u
   
   function flux_integral(vmin, vmax)
@@ -963,7 +1125,7 @@ module lineint
     integer :: neq, itask, istate, iopt, itol, iwork(1024), ng, jt
     TYPE(VODE_OPTS) :: OPTIONS
 
-    !vmin2 = vmin + 1d-8*(vmax-vmin)
+    vmin2 = vmin + 1d-8*(vmax-vmin)
     vmax2 = vmax - 1d-8*(vmax-vmin)
 
     neq = 4
@@ -1013,16 +1175,18 @@ module lineint
     end if    
     
     do ks = 1, ns
+       print *, ks, y(2)
        tout = t+ds
        call dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
        if (istate == 3) then
           exit
        end if
+       print *, ks
     end do
     
     flux_integral_ode(1) = dsdreff**(-2)*y(3)/Dp 
     flux_integral_ode(2) = dsdreff**(-2)*y(4)/Dp
-    
+    print *, flux_integral_ode
   end function flux_integral_ode
 
   
