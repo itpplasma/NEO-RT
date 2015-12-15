@@ -5,7 +5,7 @@
 module driftorbit
   use do_magfie_mod
   use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert,&
-       neo_init_spline_pert, neo_magfie_pert_amp, ixn_pert
+       neo_init_spline_pert, neo_magfie_pert_amp, m_phi
   use spline
   
   implicit none
@@ -21,19 +21,23 @@ module driftorbit
   real(8) :: Om_tE, vth, M_t, n0
 
   ! For splining in the trapped eta region
-  integer, parameter :: netaspl = 300
-  real(8) :: Omph_spl_coeff(netaspl-1, 5)
+  integer, parameter :: netaspl = 100
+  real(8) :: OmtB_spl_coeff(netaspl-1, 5)
   real(8) :: Omth_spl_coeff(netaspl-1, 5)
+  real(8) :: vres_spl_coeff(netaspl-1, 5)
 
   ! For splining in the passing eta region
-  integer, parameter :: netaspl_pass = 300
+  integer, parameter :: netaspl_pass = 100
+  real(8) :: OmtB_pass_spl_coeff(netaspl_pass-1, 5)
   real(8) :: Omth_pass_spl_coeff(netaspl_pass-1, 5)
+  real(8) :: vres_pass_spl_coeff(netaspl-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
   real(8) :: epsmn        ! perturbation amplitude B1/B0
   integer :: m0, mph      ! Boozer toroidal and poloidal perturbation mode
   integer :: mth          ! canonical poloidal mode
-  logical :: nobdrift     ! neglect magnetic drift (for drift-orbit res.)
+  logical :: supban       ! calculate superbanana plateau
+  logical :: magdrift     ! consider magnetic drift 
   logical :: nopassing    ! neglect passing particles
   logical :: noshear      ! neglect magnetic shear
   logical :: calcflux     ! calculation based on flux instead of torque
@@ -49,6 +53,12 @@ module driftorbit
 
   ! TODO: better B0 calculation (average magnetic field on flux surface)
   real(8) :: B0
+  real(8) :: Bmin, Bmax, th0
+
+  real(8), parameter :: epst_spl=1d-6, epsp_spl=1d-6
+  real(8), parameter :: epsst_spl=1d-3, epssp_spl=1d-3 ! smallest distance to dt 
+  real(8), parameter :: epst=1d-8, epsp=1d-8 ! smallest eta distance to tp bound
+  real(8) :: k_taub_p, d_taub_p, k_taub_t, d_taub_t ! extrapolation at tp bound
 contains
 
   subroutine init
@@ -58,7 +68,7 @@ contains
        call neo_read_pert_control
        call neo_read_pert
        call neo_init_spline_pert
-       mph = ixn_pert(1)
+       mph = m_phi
     end if
     call init_fsa
     call init_misc
@@ -72,14 +82,19 @@ contains
     
     real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
     integer :: k
-    real(8) :: aa, b, delta
+    real(8) :: aa, b
+    real(8) :: taub0, taub1, leta0, leta1
+    
+    taub0 = 0d0
+    taub1 = 0d0
+    leta0 = 0d0
+    leta1 = 0d0
     
     v = vth    
     etamin = etatp
-    etamax = etatp + (etadt-etatp)*(1d0-1d-3)
+    etamax = etatp + (etadt-etatp)*(1d0-epsst_spl)
 
-    delta = 1d-8   ! smallest relative distance to etamin
-    b = log(delta)
+    b = log(epst_spl)
     aa = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
     
     do k = netaspl-1, 0, -1
@@ -91,31 +106,45 @@ contains
        else
           call bounce(taub)
        end if
-       Om_tB_v(k+1) = bounceavg(3)
+       if (magdrift) Om_tB_v(k+1) = bounceavg(3)
        Omth_v(k+1) = 2*pi/(v*taub)
+       if (k==0) then
+          leta0 = log(eta-etatp)
+          taub0 = v*taub
+       end if
+       if (k==1) then
+          leta1 = log(eta-etatp)
+          taub1 = v*taub
+       end if
     end do
     
-    Omph_spl_coeff = spline_coeff(etarange, Om_tB_v)
+    k_taub_t = (taub1-taub0)/(leta1-leta0)
+    d_taub_t = taub0 - k_taub_t*leta0
+        
+    if (magdrift) OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
     Omth_spl_coeff = spline_coeff(etarange, Omth_v)
   end subroutine init_Om_spl
-
   
   subroutine init_Om_pass_spl
     ! Initialise splines for canonical frequencies of passing orbits
     
-    real(8) :: etarange(netaspl_pass), Omth_v(netaspl_pass)
-    real(8) :: delta, aa, b
+    real(8) :: etarange(netaspl_pass), Om_tB_v(netaspl_pass), Omth_v(netaspl_pass)
+    real(8) :: aa, b
     integer :: k
+    real(8) :: leta0, leta1, taub0, taub1
+    taub0 = 0d0
+    taub1 = 0d0
+    leta0 = 0d0
+    leta1 = 0d0
     
-    v = vth    
+    v = vth
     !etamin = etatp*1d-9
     !etamax = etatp*(1d0-1d-9)
-    etamin = etatp*1d-9
-    etamax = etatp*(1d0-1d-9)
+    etamin = etatp*epssp_spl
+    etamax = etatp
     
-    delta = 1d-9   ! smallest relative distance to etamin
     b = log((etamax-etamin)/etamax)
-    aa = 1d0/(netaspl_pass-1d0)*(log(delta) - b)
+    aa = 1d0/(netaspl_pass-1d0)*(log(epsp_spl) - b)
     
     do k = netaspl_pass-1, 0, -1
        !eta = etamin * (1d0 + k/(netaspl_pass-1d0)*(etamax/etamin-1d0))
@@ -126,27 +155,29 @@ contains
        else
           call bounce(taub)
        end if
+       if (magdrift) Om_tB_v(k+1) = bounceavg(3)
        Omth_v(k+1) = 2*pi/(v*taub)
+       if (k==netaspl_pass-2) then
+          leta0 = log(etatp-eta)
+          taub0 = v*taub
+       end if
+       if (k==netaspl_pass-1) then
+          leta1 = log(etatp-eta)
+          taub1 = v*taub
+       end if
     end do
+
+    k_taub_p = (taub1-taub0)/(leta1-leta0)
+    d_taub_p = taub0 - k_taub_p*leta0
     
+    if (magdrift) OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
     Omth_pass_spl_coeff = spline_coeff(etarange, Omth_v)
   end subroutine init_Om_pass_spl
 
   subroutine init_misc
-    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-    x(1) = s
-    x(2) = 0d0
-    x(3) = 0d0
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    ! B0 = bmod
-    ! a = 4.6d1
-    ! eta deeply trapped and trapped passing limits
-    etadt = 1d0/bmod
-    x(3) = pi
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    etatp = 1d0/bmod
-
-    !B0 = 1d0/2d0*(1d0/etadt + 1d0/etatp)
+    ! TODO: fine search for minima and maxima
+    etatp = 1d0/Bmax
+    etadt = 1d0/Bmin
   end subroutine init_misc
   
   function Jperp()
@@ -242,13 +273,13 @@ contains
        if (eta > etatp) then
           !t0 = 0.25*2*pi/Omth ! Quarter of bounce time to set phase 0 at tips
           t0 = 0d0
-          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*y(1)-mth*(t-t0)*Omth))
+          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*(y(1))-mth*(t-t0)*Omth))
           !ydot(4) = (2d0 - eta*bmod)*epsmn*&
           !     cos((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Re Hn
           !ydot(5) = (2d0 - eta*bmod)*epsmn*&
           !     sin((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Im Hn
        else
-          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*y(1)-(mth+q*mph)*t*Omth))
+          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*(y(1))-(mth+q*mph)*t*Omth))
           !ydot(4) = (2d0 - eta*bmod)*epsmn*&
           !     cos((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Re Hn
           !ydot(5) = (2d0 - eta*bmod)*epsmn*&
@@ -309,7 +340,7 @@ contains
             g_fcn = bounceroots)
        !print *, ti
        if (istate == 3) then
-          if (passing .or. yold(1)<0) then
+          if (passing .or. (yold(1)-th0)<0) then
              exit
           end if
           
@@ -330,8 +361,8 @@ contains
      integer, intent(in) :: NEQ, NG
      real(8), intent(in) :: T, Y(neq)
      real(8), intent(out) :: GOUT(ng)
-     GOUT(1) = Y(1)
-     GOUT(2) = 2d0*pi - Y(1)
+     GOUT(1) = Y(1) - th0
+     GOUT(2) = 2d0*pi - (Y(1) - th0)
      return
    end subroutine bounceroots
 
@@ -345,9 +376,10 @@ contains
 
     x(1) = s
     x(2) = 0d0
-    x(3) = 0d0
+    x(3) = th0
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     y0 = 1d-15
+    y0(1) = th0
     y0(2) = vpar(bmod)
     y0(3) = 0d0
 
@@ -368,9 +400,13 @@ contains
     ! and derivatives w.r.t. v and eta
     real(8), intent(out) :: OmtB, dOmtBdv, dOmtBdeta
     real(8) :: splineval(3)
-    splineval = spline_val_0(Omph_spl_coeff, eta)*v**2
+    if (eta > etatp) then
+       splineval = spline_val_0(OmtB_spl_coeff, eta)*v**2
+    else
+       splineval = spline_val_0(OmtB_pass_spl_coeff, eta)*v**2
+    end if
     OmtB = splineval(1)
-    dOmtBdv = 2*splineval(1)/v
+    dOmtBdv = 2d0*splineval(1)/v
     dOmtBdeta = splineval(2)
   end subroutine Om_tB
     
@@ -379,23 +415,29 @@ contains
     ! and derivatives w.r.t. v and eta
     real(8), intent(out) :: Omph, dOmphdv, dOmphdeta
     real(8) :: Omth, dOmthdv, dOmthdeta
-    real(8) :: splineval(3)
-    if (nobdrift) then      ! magnetic drift switch PoP 2014 paper
-       if (eta > etatp) then
-          Omph = Om_tE
-          dOmphdv = 0d0
-          dOmphdeta = 0d0
-       else
-          call Om_th(Omth, dOmthdv, dOmthdeta)
-          Omph = Om_tE + Omth/iota
-          dOmphdv = dOmthdv/iota
-          dOmphdeta = dOmthdeta/iota
+    real(8) :: OmtB, dOmtBdv, dOmtBdeta
+
+    if (eta > etatp) then
+       Omph = Om_tE
+       dOmphdv = 0d0
+       dOmphdeta = 0d0
+       if (magdrift) then
+          call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+          Omph = Omph + OmtB
+          dOmtBdv = dOmphdv + dOmtBdv
+          dOmtBdeta = dOmphdeta + dOmtBdeta
        end if
     else
-       splineval = spline_val_0(Omph_spl_coeff, eta)
-       Omph = splineval(1)*v**2 + Om_tE
-       dOmphdv = 2d0*splineval(1)*v
-       dOmphdeta = splineval(2)*v**2
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       Omph = Om_tE + Omth/iota
+       dOmphdv = dOmthdv/iota
+       dOmphdeta = dOmthdeta/iota
+    end if
+    if (magdrift) then
+       call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+       Omph = Omph + OmtB
+       dOmtBdv = dOmphdv + dOmtBdv
+       dOmtBdeta = dOmphdeta + dOmtBdeta
     end if
   end subroutine Om_ph
 
@@ -406,9 +448,19 @@ contains
     real(8) :: splineval(3)
 
     if (eta > etatp) then
-       splineval = spline_val_0(Omth_spl_coeff, eta)
+       if (eta > etatp*(1+epst_spl)) then
+          splineval = spline_val_0(Omth_spl_coeff, eta)
+       else ! extrapolation
+          splineval(1) = 2d0*pi/(k_taub_t*log(eta-etatp) + d_taub_t)
+          splineval(2) = -splineval(1)**2/(2d0*pi) * k_taub_t/(eta-etatp)
+       end if
     else
-       splineval = spline_val_0(Omth_pass_spl_coeff, eta)
+       if (eta < etatp*(1-epsp_spl)) then
+          splineval = spline_val_0(Omth_pass_spl_coeff, eta)
+       else ! extrapolation
+          splineval(1) = 2d0*pi/(k_taub_p*log(etatp-eta) + d_taub_p)
+          splineval(2) = -splineval(1)**2/(2d0*pi) * k_taub_p/(eta-etatp)
+       end if
     end if
     Omth = splineval(1)*v
     dOmthdv = splineval(1)
@@ -427,8 +479,8 @@ contains
        etamax2 = eta_max
     else
        ! default behavior for trapped particles
-       etamin2 = etatp*(1d0+1d-8)
-       etamax2 = etadt*(1d0-1d-8)
+       etamin2 = etatp*(1d0+epst)
+       etamax2 = etadt*(1d0-epst)
     end if
 
     driftorbit_nroot = 0
@@ -472,15 +524,12 @@ contains
        etamax2 = eta_max
     else
        ! default behavior for trapped particles
-       etamin2 = etatp*(1d0+1d-8)
-       etamax2 = etadt*(1d0-1d-8)
+       etamin2 = etatp*(1d0+epst)
+       etamax2 = etadt*(1d0-epst)
     end if
 
     eta = etamin2
-    !if (.not. nobdrift) then
-    !   eta = etamax2
-    !end if
-
+   
     if(driftorbit_nroot(1, etamin2, etamax2) == 0) then
        print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
        print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
@@ -563,17 +612,17 @@ contains
     real(8) :: vmin, vmax, eta0
     real(8) :: Omth, dOmthdv, dOmthdeta
 
-    if (.not. nobdrift) then
+    if (supban) then
        vmin = find_vmin(vmin, vmax)
        return
     end if
 
-    ! if nobdrift is set for drift-orbit resonances,
+    ! if doing drift-orbit resonances,
     ! there is both a minimum and a maximum frequency
     eta0 = eta
     
-    etamin = etatp*(1d0+1d-7)
-    etamax = etadt*(1d0-1d-7)
+    etamin = etatp*(1d0+epst)
+    etamax = etadt*(1d0-epst)
 
     ! trapped orbits
     eta = etamax
@@ -585,8 +634,8 @@ contains
     vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
 
     ! passing orbits
-    etamin = etatp*1d-7
-    etamax = etatp*(1d0-1d-7)
+    etamin = etatp*epsp
+    etamax = etatp*(1d0-epsp)
     
     eta = etamin
     call Om_th(Omth, dOmthdv, dOmthdeta)
@@ -600,27 +649,56 @@ contains
         
     eta = eta0
   end subroutine find_vlim
+
+  subroutine find_mthlim_t
+  end subroutine find_mthlim_t
+
+  subroutine find_mthlim_p
+  end subroutine find_mthlim_p
   
- subroutine find_vlim_p(vmin, vmax)
+!!$  subroutine find_vlim_p_magdrift(vmin, vmax)
+!!$    real(8) :: vmin, vmax, eta0
+!!$    real(8) :: Omth, dOmthdv, dOmthdeta
+!!$    real(8) :: OmtB, dOmtBdv, dOmtBdeta
+!!$    real(8) :: splineval(3)
+!!$    real(8) :: k
+!!$
+!!$    do k = 1:
+!!$       
+!!$    
+!!$    splineval = spline_val_0(OmtB_spl_coeff, eta)*v**2
+!!$    OmtB = splineval(1)
+!!$    dOmtBdv = 2*splineval(1)/v
+!!$    dOmtBdeta = splineval(2)
+!!$           
+!!$  end subroutine find_vlim_p_magdrift
+
+  
+  subroutine find_vlim_p(vmin, vmax)
     real(8) :: vmin, vmax, eta0
     real(8) :: Omth, dOmthdv, dOmthdeta
 
-    if (.not. nobdrift) then
+    if (supban) then
        vmin = find_vmin(vmin, vmax)
        return
     end if
 
-    ! if nobdrift is set for drift-orbit resonances,
+    !if (magdrift) then
+    !   find_vlim_p_magdrift(vmin, vmax)
+    !   return
+    !end if
+
+    ! for drift-orbit resonances,
     ! there is both a minimum and a maximum frequency
     eta0 = eta
 
     ! passing orbits
-    etamin = etatp*1d-7
-    etamax = etatp*(1d0-1d-7)
+    etamin = etatp*epsp
+    etamax = etatp*(1d0-epsp)
     
     eta = etamin
     call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmin = max(vmin,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
+    vmin = max(vmin,-Om_tE/((mth*1d0/mph+q)*Omth/v))
     
     eta = etamax
     call Om_th(Omth, dOmthdv, dOmthdeta)
@@ -638,17 +716,17 @@ contains
        return
     end if
     
-    if (.not. nobdrift) then
+    if (supban) then
        vmin = find_vmin(vmin, vmax)
        return
     end if
 
-    ! if nobdrift is set for drift-orbit resonances,
+    ! if not supban (drift-orbit resonances),
     ! there is both a minimum and a maximum frequency
     eta0 = eta
     
-    etamin = etatp*(1d0+1d-7)
-    etamax = etadt*(1d0-1d-7)
+    etamin = etatp*(1d0+epst)
+    etamax = etadt*(1d0-epst)
 
     ! trapped orbits
     eta = etamax
@@ -680,19 +758,33 @@ contains
     B0  = 0d0
     print *, "eps orig: ", eps
     eps = 0d0
+
+    Bmin = -1d0
+    Bmax = 0d0
+    
     do k = 1, nth
        x(3) = thrange(k)
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        dVds = dVds + sqrtg*dth
        B0   = B0  + bmod*dth
        eps  = eps - cos(x(3))*bmod*dth
-       !fsa = fsa + psi_pr*(iota*hcovar(3)+hcovar(2))/bmod*dth
+
+       ! TODO: do fine search
+       if ((Bmin < 0) .or. (bmod < Bmin)) then
+          Bmin = bmod
+          th0 = x(3)
+       end if
+       if (bmod > Bmax) Bmax = bmod
     end do
+
+    print *, th0
+    !th0 = 0d0 ! TODO remove this
 
     dVds = 2d0*pi*dVds
     B0   = B0/(2d0*pi)
     eps  = eps/(B0*pi)
-    print *, "eps calc: ", eps
+    print *, "eps calc:  ", eps
+    print *, "Bmin,Bmax: ", Bmin, Bmax
 
    ! call disp('init_fsa: iota       = ', iota)
    ! call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
@@ -796,7 +888,6 @@ contains
     flux_integral = dsdreff**(-2)*flux_integral/Dp
 
   end function flux_integral
-
 
 !------------------------------------------------------------------------------!
 !------------------------------------------------------------------------------!
@@ -966,4 +1057,5 @@ module lineint
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
   end function D11_ode
+
 end module lineint

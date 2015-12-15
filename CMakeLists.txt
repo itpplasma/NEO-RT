@@ -45,7 +45,7 @@ add_subdirectory("../contrib/quadpack" "quadpack")
 #add_subdirectory("../contrib/odepack" "odepack")
 add_subdirectory("../contrib/vode" "vode")
 
-set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O2 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I quadpack/OBJS -I vode/OBJS")
+set(CMAKE_Fortran_FLAGS "-g -Wall -Wno-unused-dummy-argument -O3 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -64,7 +64,7 @@ add_library("driftorbit"
 add_dependencies(driftorbit boozer_magfie)
 #add_dependencies(driftorbit rkf45)
 add_dependencies(driftorbit spline)
-add_dependencies(driftorbit quadpack)
+#add_dependencies(driftorbit quadpack)
 #add_dependencies(driftorbit odepack)
 add_dependencies(driftorbit vode)
 
