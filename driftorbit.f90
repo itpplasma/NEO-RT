@@ -2,92 +2,92 @@
 ! in the action-angle formalism
 ! Christopher Albert, 2015
 
-MODULE driftorbit
-  USE do_magfie_mod
-  USE neo_magfie_perturbation, ONLY: neo_read_pert_control, neo_read_pert,&
+module driftorbit
+  use do_magfie_mod
+  use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert,&
        neo_init_spline_pert, neo_magfie_pert_amp, m_phi
-  USE spline
+  use spline
   
-  IMPLICIT NONE
-  SAVE
+  implicit none
+  save
 
-  INTEGER, PARAMETER :: nvar = 6
+  integer, parameter :: nvar = 6
 
   ! Orbit parameters
-  REAL(8) :: v, eta
-  REAL(8) :: taub, bounceavg(nvar)
+  real(8) :: v, eta
+  real(8) :: taub, bounceavg(nvar)
 
   ! Plasma parameters
-  REAL(8) :: Om_tE, vth, M_t, n0
+  real(8) :: Om_tE, vth, M_t, n0
 
   ! For splining in the trapped eta region
-  INTEGER, PARAMETER :: netaspl = 100
-  REAL(8) :: OmtB_spl_coeff(netaspl-1, 5)
-  REAL(8) :: Omth_spl_coeff(netaspl-1, 5)
-  REAL(8) :: vres_spl_coeff(netaspl-1, 5)
+  integer, parameter :: netaspl = 100
+  real(8) :: OmtB_spl_coeff(netaspl-1, 5)
+  real(8) :: Omth_spl_coeff(netaspl-1, 5)
+  real(8) :: vres_spl_coeff(netaspl-1, 5)
 
   ! For splining in the passing eta region
-  INTEGER, PARAMETER :: netaspl_pass = 100
-  REAL(8) :: OmtB_pass_spl_coeff(netaspl_pass-1, 5)
-  REAL(8) :: Omth_pass_spl_coeff(netaspl_pass-1, 5)
-  REAL(8) :: vres_pass_spl_coeff(netaspl-1, 5)
+  integer, parameter :: netaspl_pass = 100
+  real(8) :: OmtB_pass_spl_coeff(netaspl_pass-1, 5)
+  real(8) :: Omth_pass_spl_coeff(netaspl_pass-1, 5)
+  real(8) :: vres_pass_spl_coeff(netaspl-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
-  REAL(8) :: epsmn        ! perturbation amplitude B1/B0
-  INTEGER :: m0, mph      ! Boozer toroidal and poloidal perturbation mode
-  INTEGER :: mth          ! canonical poloidal mode
-  LOGICAL :: supban       ! calculate superbanana plateau
-  LOGICAL :: magdrift     ! consider magnetic drift 
-  LOGICAL :: nopassing    ! neglect passing particles
-  LOGICAL :: noshear      ! neglect magnetic shear
-  LOGICAL :: calcflux     ! calculation based on flux instead of torque
-  LOGICAL :: pertfile     ! read perturbation from file with neo_magfie_pert
+  real(8) :: epsmn        ! perturbation amplitude B1/B0
+  integer :: m0, mph      ! Boozer toroidal and poloidal perturbation mode
+  integer :: mth          ! canonical poloidal mode
+  logical :: supban       ! calculate superbanana plateau
+  logical :: magdrift     ! consider magnetic drift 
+  logical :: nopassing    ! neglect passing particles
+  logical :: noshear      ! neglect magnetic shear
+  logical :: calcflux     ! calculation based on flux instead of torque
+  logical :: pertfile     ! read perturbation from file with neo_magfie_pert
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
-  REAL(8) :: dVds, etadt, etatp
-  REAL(8) :: etamin, etamax
-  REAL(8) :: vmin2, vmax2 ! permanent vmin vmax for integration bracketing
+  real(8) :: dVds, etadt, etatp
+  real(8) :: etamin, etamax
+  real(8) :: vmin2, vmax2 ! permanent vmin vmax for integration bracketing
 
   ! Check if init is done
-  LOGICAL :: init_done
+  logical :: init_done
 
   ! TODO: better B0 calculation (average magnetic field on flux surface)
-  REAL(8) :: B0
-  REAL(8) :: Bmin, Bmax, th0
+  real(8) :: B0
+  real(8) :: Bmin, Bmax, th0
 
-  REAL(8), PARAMETER :: epst_spl=1d-6, epsp_spl=1d-6   ! dist to tpb for spline
-  REAL(8), PARAMETER :: epsst_spl=1d-3, epssp_spl=1d-3 ! dist to deep for spline
-  REAL(8), PARAMETER :: epst=1d-8, epsp=1d-8 ! smallest eta distance to tp bound
-  REAL(8) :: k_taub_p, d_taub_p, k_taub_t, d_taub_t ! extrapolation at tp bound
-  REAL(8) :: k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t ! extrapolation at tp bound
+  real(8), parameter :: epst_spl=1d-6, epsp_spl=1d-6   ! dist to tpb for spline
+  real(8), parameter :: epsst_spl=1d-3, epssp_spl=1d-3 ! dist to deep for spline
+  real(8), parameter :: epst=1d-8, epsp=1d-8 ! smallest eta distance to tp bound
+  real(8) :: k_taub_p, d_taub_p, k_taub_t, d_taub_t ! extrapolation at tp bound
+  real(8) :: k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t ! extrapolation at tp bound
 
   ! Number of levels for coarse root finding
-  INTEGER, PARAMETER :: nlev = 100
-CONTAINS
+  integer, parameter :: nlev = 100
+contains
 
-  SUBROUTINE init
-    init_done = .FALSE.
-    CALL do_magfie_init
-    IF (pertfile) THEN
-       CALL neo_read_pert_control
-       CALL neo_read_pert
-       CALL neo_init_spline_pert
+  subroutine init
+    init_done = .false.
+    call do_magfie_init
+    if (pertfile) then
+       call neo_read_pert_control
+       call neo_read_pert
+       call neo_init_spline_pert
        mph = m_phi
-    END IF
-    CALL init_fsa
-    CALL init_misc
-    CALL init_Om_spl
-    CALL init_Om_pass_spl
-    init_done = .TRUE.
-  END SUBROUTINE init
+    end if
+    call init_fsa
+    call init_misc
+    call init_Om_spl
+    call init_Om_pass_spl
+    init_done = .true.
+  end subroutine init
 
-  SUBROUTINE init_Om_spl
+  subroutine init_Om_spl
     ! Initialise splines for canonical frequencies of trapped orbits
     
-    REAL(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
-    INTEGER :: k
-    REAL(8) :: aa, b
-    REAL(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
+    real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
+    integer :: k
+    real(8) :: aa, b
+    real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
     
     taub0 = 0d0
     taub1 = 0d0
@@ -100,52 +100,52 @@ CONTAINS
     etamin = etatp
     etamax = etatp + (etadt-etatp)*(1d0-epsst_spl)
 
-    b = LOG(epst_spl)
-    aa = 1d0/(netaspl-1d0)*(LOG(etamax/etamin - 1d0) - b)
+    b = log(epst_spl)
+    aa = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
     
-    DO k = netaspl-1, 0, -1
+    do k = netaspl-1, 0, -1
        !eta = etamin * (1d0 + (k/(netaspl-1d0))**4*(etamax/etamin-1d0))
-       eta = etamin*(1d0 + EXP(aa*k+b))
+       eta = etamin*(1d0 + exp(aa*k+b))
        etarange(k+1) = eta
-       IF (k == netaspl-1) THEN
-          CALL bounce
-       ELSE
-          CALL bounce(taub)
-       END IF
-       IF (magdrift) Om_tB_v(k+1) = bounceavg(3)
+       if (k == netaspl-1) then
+          call bounce
+       else
+          call bounce(taub)
+       end if
+       if (magdrift) Om_tB_v(k+1) = bounceavg(3)
        Omth_v(k+1) = 2*pi/(v*taub)
-       IF (k==0) THEN
-          leta0 = LOG(eta-etatp)
+       if (k==0) then
+          leta0 = log(eta-etatp)
           taub0 = v*taub
-          IF (magdrift) OmtB0 = Om_tB_v(k+1)/Omth_v(k+1)
-       END IF
-       IF (k==1) THEN
-          leta1 = LOG(eta-etatp)
+          if (magdrift) OmtB0 = Om_tB_v(k+1)/Omth_v(k+1)
+       end if
+       if (k==1) then
+          leta1 = log(eta-etatp)
           taub1 = v*taub
-          IF (magdrift) OmtB1 = Om_tB_v(k+1)/Omth_v(k+1)
-       END IF
-    END DO
+          if (magdrift) OmtB1 = Om_tB_v(k+1)/Omth_v(k+1)
+       end if
+    end do
     
     k_taub_t = (taub1-taub0)/(leta1-leta0)
     d_taub_t = taub0 - k_taub_t*leta0
     Omth_spl_coeff = spline_coeff(etarange, Omth_v)
         
-    IF (magdrift) THEN
+    if (magdrift) then
        k_OmtB_t = (OmtB1-OmtB0)/(leta1-leta0)
        d_OmtB_t = OmtB0 - k_OmtB_t*leta0
        OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
-    END IF
+    end if
 
     
-  END SUBROUTINE init_Om_spl
+  end subroutine init_Om_spl
   
-  SUBROUTINE init_Om_pass_spl
+  subroutine init_Om_pass_spl
     ! Initialise splines for canonical frequencies of passing orbits
     
-    REAL(8) :: etarange(netaspl_pass), Om_tB_v(netaspl_pass), Omth_v(netaspl_pass)
-    REAL(8) :: aa, b
-    INTEGER :: k
-    REAL(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
+    real(8) :: etarange(netaspl_pass), Om_tB_v(netaspl_pass), Omth_v(netaspl_pass)
+    real(8) :: aa, b
+    integer :: k
+    real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
     taub0 = 0d0
     taub1 = 0d0
     leta0 = 0d0
@@ -159,85 +159,85 @@ CONTAINS
     etamin = etatp*epssp_spl
     etamax = etatp
     
-    b = LOG((etamax-etamin)/etamax)
-    aa = 1d0/(netaspl_pass-1d0)*(LOG(epsp_spl) - b)
+    b = log((etamax-etamin)/etamax)
+    aa = 1d0/(netaspl_pass-1d0)*(log(epsp_spl) - b)
     
-    DO k = netaspl_pass-1, 0, -1
+    do k = netaspl_pass-1, 0, -1
        !eta = etamin * (1d0 + k/(netaspl_pass-1d0)*(etamax/etamin-1d0))
-       eta = etamax * (1d0 - EXP(aa*k+b))
+       eta = etamax * (1d0 - exp(aa*k+b))
        etarange(k+1) = eta
-       IF (k == netaspl_pass-1) THEN
-          CALL bounce
-       ELSE
-          CALL bounce(taub)
-       END IF
-       IF (magdrift) Om_tB_v(k+1) = bounceavg(3)
+       if (k == netaspl_pass-1) then
+          call bounce
+       else
+          call bounce(taub)
+       end if
+       if (magdrift) Om_tB_v(k+1) = bounceavg(3)
        Omth_v(k+1) = 2*pi/(v*taub)
-       IF (k==netaspl_pass-2) THEN
-          leta0 = LOG(etatp-eta)
+       if (k==netaspl_pass-2) then
+          leta0 = log(etatp-eta)
           taub0 = v*taub
-          IF (magdrift) OmtB0 = Om_tB_v(k+1)/Omth_v(k+1)
-       END IF
-       IF (k==netaspl_pass-1) THEN
-          leta1 = LOG(etatp-eta)
+          if (magdrift) OmtB0 = Om_tB_v(k+1)/Omth_v(k+1)
+       end if
+       if (k==netaspl_pass-1) then
+          leta1 = log(etatp-eta)
           taub1 = v*taub
-          IF (magdrift) OmtB1 = Om_tB_v(k+1)/Omth_v(k+1)
-       END IF
-    END DO
+          if (magdrift) OmtB1 = Om_tB_v(k+1)/Omth_v(k+1)
+       end if
+    end do
 
     k_taub_p = (taub1-taub0)/(leta1-leta0)
     d_taub_p = taub0 - k_taub_p*leta0
     Omth_pass_spl_coeff = spline_coeff(etarange, Omth_v)
     
-    IF (magdrift) THEN
+    if (magdrift) then
        k_OmtB_p = (OmtB1-OmtB0)/(leta1-leta0)
        d_OmtB_p = OmtB0 - k_OmtB_p*leta0
        OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
-    END IF
-  END SUBROUTINE init_Om_pass_spl
+    end if
+  end subroutine init_Om_pass_spl
 
-  SUBROUTINE init_misc
+  subroutine init_misc
     ! TODO: fine search for minima and maxima
     etatp = 1d0/Bmax
     etadt = 1d0/Bmin
-  END SUBROUTINE init_misc
+  end subroutine init_misc
   
-  FUNCTION Jperp()
-    REAL(8) :: Jperp
+  function Jperp()
+    real(8) :: Jperp
     Jperp = mi**2*c/(2d0*qi)*eta*v**2
-  END FUNCTION Jperp
+  end function Jperp
   
-  FUNCTION vpar(bmod)
+  function vpar(bmod)
     !   parallel velocity
-    REAL(8) :: bmod, vpar
-    vpar = v*SQRT(1 - eta*bmod)
-    IF (isnan(vpar)) THEN
+    real(8) :: bmod, vpar
+    vpar = v*sqrt(1 - eta*bmod)
+    if (isnan(vpar)) then
        vpar = 0d0
-    END IF
-  END FUNCTION vpar
+    end if
+  end function vpar
   
-  FUNCTION vperp(bmod)
+  function vperp(bmod)
     !   perpendicular velocity
-    REAL(8) :: bmod, vperp
-    vperp = v*SQRT(eta*bmod)
-    IF (isnan(vperp)) THEN
+    real(8) :: bmod, vperp
+    vperp = v*sqrt(eta*bmod)
+    if (isnan(vperp)) then
        vperp = 0d0
-    END IF
-  END FUNCTION vperp
+    end if
+  end function vperp
   
-  SUBROUTINE jac 
-  END SUBROUTINE jac
+  subroutine jac 
+  end subroutine jac
 
-  SUBROUTINE timestep2(neq, t, y, ydot)
-    INTEGER, INTENT (in) :: neq
-    REAL(8), INTENT (in) :: t
-    REAL(8), INTENT (in) :: y(neq)
-    REAL(8), INTENT (out) :: ydot(neq)
+  subroutine timestep2(neq, t, y, ydot)
+    integer, intent (in) :: neq
+    real(8), intent (in) :: t
+    real(8), intent (in) :: y(neq)
+    real(8), intent (out) :: ydot(neq)
 
-    CALL timestep(t, y, ydot)
-  END SUBROUTINE timestep2
+    call timestep(t, y, ydot)
+  end subroutine timestep2
   
-  SUBROUTINE timestep(t, y, ydot)
+  subroutine timestep(t, y, ydot)
     !
     !  Timestep function for orbit integration.
     !  Includes poloidal angle theta and parallel velocity.
@@ -245,35 +245,35 @@ CONTAINS
     !
 
     !integer, intent (in) :: neq
-    REAL(8), INTENT (in) :: t
-    REAL(8), INTENT (in) :: y(*)
-    REAL(8), INTENT (out) :: ydot(*)
+    real(8), intent (in) :: t
+    real(8), intent (in) :: y(*)
+    real(8), intent (out) :: ydot(*)
     
-    REAL(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-    REAL(8) :: Om_tB_v
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
-    REAL(8) :: t0
-    REAL(8) :: shearterm
-    COMPLEX(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
+    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    real(8) :: Om_tB_v
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: t0
+    real(8) :: shearterm
+    complex(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
                            ! and Hamiltonian Hn = (H - H0)_n
     
     x(1) = s
     x(2) = 0d0
     x(3) = y(1)
-    CALL do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+    call Om_th(Omth, dOmthdv, dOmthdeta)
     
-    IF (pertfile) THEN
-       CALL neo_magfie_pert_amp( x, epsn )
+    if (pertfile) then
+       call neo_magfie_pert_amp( x, epsn )
        epsn = epsn/bmod
-    ELSE
-       epsn = epsmn*EXP(imun*m0*y(1))
-    END IF
+    else
+       epsn = epsmn*exp(imun*m0*y(1))
+    end if
 
     shearterm = Bphcov*dqds
-    IF (noshear) THEN
+    if (noshear) then
        shearterm = 0
-    END IF
+    end if
 
 !!$    Om_tB_v = mi*c/(2d0*qi*sqrtg*hctrvr(3)*bmod**2)*(&      ! Om_tB/v**2
 !!$         -(2d0-eta*bmod)*bmod*hder(1)&
@@ -291,47 +291,47 @@ CONTAINS
     ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
     ydot(3) = Om_tB_v                                           ! v_ph
 
-    IF (init_done) THEN
-       IF (eta > etatp) THEN
+    if (init_done) then
+       if (eta > etatp) then
           !t0 = 0.25*2*pi/Omth ! Quarter of bounce time to set phase 0 at tips
           t0 = 0d0
-          Hn = (2d0-eta*bmod)*epsn*EXP(imun*(q*mph*(y(1))-mth*(t-t0)*Omth))
+          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*(y(1))-mth*(t-t0)*Omth))
           !ydot(4) = (2d0 - eta*bmod)*epsmn*&
           !     cos((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Re Hn
           !ydot(5) = (2d0 - eta*bmod)*epsmn*&
           !     sin((m0+q*mph)*y(1)-mth*(t-t0)*Omth) ! Im Hn
-       ELSE
-          Hn = (2d0-eta*bmod)*epsn*EXP(imun*(q*mph*(y(1))-(mth+q*mph)*t*Omth))
+       else
+          Hn = (2d0-eta*bmod)*epsn*exp(imun*(q*mph*(y(1))-(mth+q*mph)*t*Omth))
           !ydot(4) = (2d0 - eta*bmod)*epsmn*&
           !     cos((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Re Hn
           !ydot(5) = (2d0 - eta*bmod)*epsmn*&
           !     sin((m0+q*mph)*y(1)-(mth+q*mph)*t*Omth) ! Im Hn
-       END IF
-       ydot(4) = REAL(Hn)
-       ydot(5) = AIMAG(Hn)
-    ELSE
+       end if
+       ydot(4) = real(Hn)
+       ydot(5) = aimag(Hn)
+    else
        ydot(4:6) = 0d0
-    END IF
-  END SUBROUTINE timestep
+    end if
+  end subroutine timestep
   
-  FUNCTION findroot2(y0, dt, tol)
+  function findroot2(y0, dt, tol)
     !
     !  Finds the root of an orbit after the first turn
     !
-    USE dvode_f90_m
+    use dvode_f90_m
     
-    REAL(8) :: y0(nvar), dt, tol, findroot2(nvar+1)
-    INTEGER :: n
+    real(8) :: y0(nvar), dt, tol, findroot2(nvar+1)
+    integer :: n
 
-    INTEGER :: k, state, rootstate
-    REAL(8) :: ti, told
-    REAL(8) :: y(nvar), yold(nvar)
+    integer :: k, state, rootstate
+    real(8) :: ti, told
+    real(8) :: y(nvar), yold(nvar)
 
-    LOGICAL :: passing
+    logical :: passing
     
-    REAL(8) :: atol(nvar), rtol, tout
-    INTEGER :: neq, itask, istate
-    TYPE (vode_opts) :: options
+    real(8) :: atol(nvar), rtol, tout
+    integer :: neq, itask, istate
+    type (vode_opts) :: options
 
     neq = nvar
     rtol = 1d-9
@@ -341,10 +341,10 @@ CONTAINS
     options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
     
     ! check for passing orbit
-    passing = .FALSE.
-    IF (eta < etatp) THEN
-       passing = .TRUE.
-    END IF
+    passing = .false.
+    if (eta < etatp) then
+       passing = .true.
+    end if
 
     n = 500
     rootstate = -1
@@ -353,318 +353,318 @@ CONTAINS
     yold = y0
     ti = 0d0
     state = 1
-    DO k = 2,n
+    do k = 2,n
        yold = y
        told = ti
 
        tout = ti+dt
-       CALL dvode_f90(timestep2, neq, y, ti, tout, itask, istate, options,&
+       call dvode_f90(timestep2, neq, y, ti, tout, itask, istate, options,&
             g_fcn = bounceroots)
        !print *, ti
-       IF (istate == 3) THEN
-          IF (passing .OR. (yold(1)-th0)<0) THEN
-             EXIT
-          END IF
+       if (istate == 3) then
+          if (passing .or. (yold(1)-th0)<0) then
+             exit
+          end if
           
-       END IF
+       end if
 
        istate = 2
-    END DO
-    IF (istate /= 3) THEN
-       PRINT *, "ERROR: findroot2 did not converge after 500 iterations"
-       PRINT *, eta, etamin, etamax
-    END IF
+    end do
+    if (istate /= 3) then
+       print *, "ERROR: findroot2 did not converge after 500 iterations"
+       print *, eta, etamin, etamax
+    end if
     
     findroot2(1)  = ti
     findroot2(2:) = y
-  END FUNCTION findroot2
+  end function findroot2
   
-  SUBROUTINE bounceroots (NEQ, T, Y, NG, GOUT)
-     INTEGER, INTENT(in) :: NEQ, NG
-     REAL(8), INTENT(in) :: T, Y(neq)
-     REAL(8), INTENT(out) :: GOUT(ng)
+  subroutine bounceroots (NEQ, T, Y, NG, GOUT)
+     integer, intent(in) :: NEQ, NG
+     real(8), intent(in) :: T, Y(neq)
+     real(8), intent(out) :: GOUT(ng)
      GOUT(1) = Y(1) - th0
      GOUT(2) = 2d0*pi - (Y(1) - th0)
-     RETURN
-   END SUBROUTINE bounceroots
+     return
+   end subroutine bounceroots
 
-  SUBROUTINE bounce(taub_estimate)
+  subroutine bounce(taub_estimate)
     ! calculate all bounce averages
-    REAL(8) :: findroot_res(nvar+1)
-    REAL(8), OPTIONAL :: taub_estimate
-    REAL(8) :: taub_est
-    REAL(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-    REAL(8) :: y0(nvar)
+    real(8) :: findroot_res(nvar+1)
+    real(8), optional :: taub_estimate
+    real(8) :: taub_est
+    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    real(8) :: y0(nvar)
 
     x(1) = s
     x(2) = 0d0
     x(3) = th0
-    CALL do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     y0 = 1d-15
     y0(1) = th0
     y0(2) = vpar(bmod)
     y0(3) = 0d0
 
-    IF (PRESENT(taub_estimate)) THEN
+    if (present(taub_estimate)) then
        taub_est = taub_estimate
-    ELSE
-       taub_est = 2.0*pi/(vperp(bmod)*iota/R0*SQRT(eps/2d0))
-    END IF
+    else
+       taub_est = 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
+    end if
        
     findroot_res = findroot2(y0, taub_est/5d0, 1d-10)
     !print *, taub
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
-  END SUBROUTINE bounce
+  end subroutine bounce
   
-  SUBROUTINE Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+  subroutine Om_tB(OmtB, dOmtBdv, dOmtBdeta)
     ! returns bounce averaged toroidal magnetic drift frequency
     ! and derivatives w.r.t. v and eta
-    REAL(8), INTENT(out) :: OmtB, dOmtBdv, dOmtBdeta
-    REAL(8) :: splineval(3)
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
-    IF (eta > etatp) THEN
-       IF (eta > etatp*(1+epst_spl)) THEN
+    real(8), intent(out) :: OmtB, dOmtBdv, dOmtBdeta
+    real(8) :: splineval(3)
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    if (eta > etatp) then
+       if (eta > etatp*(1+epst_spl)) then
           splineval = spline_val_0(OmtB_spl_coeff, eta)
-       ELSE ! extrapolation
-          CALL Om_th(Omth, dOmthdv, dOmthdeta)
-          splineval(1) = (k_OmtB_t*LOG(eta-etatp) + d_OmtB_t)*Omth/v
+       else ! extrapolation
+          call Om_th(Omth, dOmthdv, dOmthdeta)
+          splineval(1) = (k_OmtB_t*log(eta-etatp) + d_OmtB_t)*Omth/v
           splineval(2) = Omth/v*k_OmtB_t/(eta-etatp) +&
-               dOmthdeta/v*(k_OmtB_t*LOG(eta-etatp) + d_OmtB_t)
-       END IF
-    ELSE
-       IF (eta < etatp*(1-epsp_spl)) THEN
+               dOmthdeta/v*(k_OmtB_t*log(eta-etatp) + d_OmtB_t)
+       end if
+    else
+       if (eta < etatp*(1-epsp_spl)) then
           splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
-       ELSE ! extrapolation
-          CALL Om_th(Omth, dOmthdv, dOmthdeta)
-          splineval(1) = (k_OmtB_p*LOG(etatp-eta) + d_OmtB_p)*Omth/v
+       else ! extrapolation
+          call Om_th(Omth, dOmthdv, dOmthdeta)
+          splineval(1) = (k_OmtB_p*log(etatp-eta) + d_OmtB_p)*Omth/v
           splineval(2) = Omth/v*k_OmtB_p/(eta-etatp) +&
-               dOmthdeta/v*(k_OmtB_p*LOG(etatp-eta) + d_OmtB_p)
-       END IF
-    END IF
+               dOmthdeta/v*(k_OmtB_p*log(etatp-eta) + d_OmtB_p)
+       end if
+    end if
     OmtB = splineval(1)*v**2
     dOmtBdv = 2d0*splineval(1)*v
     dOmtBdeta = splineval(2)*v**2
-  END SUBROUTINE Om_tB
+  end subroutine Om_tB
     
-  SUBROUTINE Om_ph(Omph, dOmphdv, dOmphdeta)
+  subroutine Om_ph(Omph, dOmphdv, dOmphdeta)
     ! returns canonical toroidal frequency
     ! and derivatives w.r.t. v and eta
-    REAL(8), INTENT(out) :: Omph, dOmphdv, dOmphdeta
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
-    REAL(8) :: OmtB, dOmtBdv, dOmtBdeta
+    real(8), intent(out) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: OmtB, dOmtBdv, dOmtBdeta
 
-    IF (eta > etatp) THEN
+    if (eta > etatp) then
        Omph = Om_tE
        dOmphdv = 0d0
        dOmphdeta = 0d0
-       IF (magdrift) THEN
-          CALL Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+       if (magdrift) then
+          call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
           Omph = Omph + OmtB
           dOmphdv = dOmphdv + dOmtBdv
           dOmphdeta = dOmphdeta + dOmtBdeta
-       END IF
-    ELSE
-       CALL Om_th(Omth, dOmthdv, dOmthdeta)
+       end if
+    else
+       call Om_th(Omth, dOmthdv, dOmthdeta)
        Omph = Om_tE + Omth/iota
        dOmphdv = dOmthdv/iota
        dOmphdeta = dOmthdeta/iota
-       IF (magdrift) THEN
-          CALL Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+       if (magdrift) then
+          call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
           Omph = Omph + OmtB
           dOmphdv = dOmphdv + dOmtBdv
           dOmphdeta = dOmphdeta + dOmtBdeta
-       END IF
-    END IF
-  END SUBROUTINE Om_ph
+       end if
+    end if
+  end subroutine Om_ph
 
-  SUBROUTINE Om_th(Omth, dOmthdv, dOmthdeta)
+  subroutine Om_th(Omth, dOmthdv, dOmthdeta)
     ! returns canonical poloidal frequency
     ! and derivatives w.r.t. v and eta
-    REAL(8), INTENT(out) :: Omth, dOmthdv, dOmthdeta
-    REAL(8) :: splineval(3)
+    real(8), intent(out) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: splineval(3)
 
-    IF (eta > etatp) THEN
-       IF (eta > etatp*(1+epst_spl)) THEN
+    if (eta > etatp) then
+       if (eta > etatp*(1+epst_spl)) then
           splineval = spline_val_0(Omth_spl_coeff, eta)
-       ELSE ! extrapolation
-          splineval(1) = 2d0*pi/(k_taub_t*LOG(eta-etatp) + d_taub_t)
+       else ! extrapolation
+          splineval(1) = 2d0*pi/(k_taub_t*log(eta-etatp) + d_taub_t)
           splineval(2) = -splineval(1)**2/(2d0*pi) * k_taub_t/(eta-etatp)
-       END IF
-    ELSE
-       IF (eta < etatp*(1-epsp_spl)) THEN
+       end if
+    else
+       if (eta < etatp*(1-epsp_spl)) then
           splineval = spline_val_0(Omth_pass_spl_coeff, eta)
-       ELSE ! extrapolation
-          splineval(1) = 2d0*pi/(k_taub_p*LOG(etatp-eta) + d_taub_p)
+       else ! extrapolation
+          splineval(1) = 2d0*pi/(k_taub_p*log(etatp-eta) + d_taub_p)
           splineval(2) = -splineval(1)**2/(2d0*pi) * k_taub_p/(eta-etatp)
-       END IF
-    END IF
+       end if
+    end if
     Omth = splineval(1)*v
     dOmthdv = splineval(1)
     dOmthdeta = splineval(2)*v
-  END SUBROUTINE Om_th
+  end subroutine Om_th
 
-  SUBROUTINE driftorbit_coarse(eta_min, eta_max, roots, nroots)
-    REAL(8), INTENT(in) :: eta_min, eta_max
-    REAL(8), INTENT(out) :: roots(:,:)
-    REAL(8) :: deta
-    REAL(8) :: Omph, dOmphdv, dOmphdeta
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
-    REAL(8) :: res, dresdv, dresdeta
-    REAL(8) :: resold, dresdvold, dresdetaold
-    INTEGER :: k, ninterv, nroots
+  subroutine driftorbit_coarse(eta_min, eta_max, roots, nroots)
+    real(8), intent(in) :: eta_min, eta_max
+    real(8), intent(out) :: roots(:,:)
+    real(8) :: deta
+    real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: res, dresdv, dresdeta
+    real(8) :: resold, dresdvold, dresdetaold
+    integer :: k, ninterv, nroots
 
-    ninterv = SIZE(roots,1)
+    ninterv = size(roots,1)
     
     deta = (eta_max-eta_min)*1d0/ninterv
     nroots = 0
     
-    DO k = 0,ninterv
+    do k = 0,ninterv
        eta = eta_min + k*deta
-       CALL Om_th(Omth, dOmthdv, dOmthdeta)
-       CALL Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
        res = mth*Omth + mph*Omph
        dresdv = mth*dOmthdv + mph*dOmphdv
        dresdeta = mth*dOmthdeta + mph*dOmphdeta
-       IF (k>0) THEN
-          IF (SIGN(1d0,res) /= SIGN(1d0,resold)) THEN
+       if (k>0) then
+          if (sign(1d0,res) /= sign(1d0,resold)) then
              nroots = nroots+1
              roots(nroots, 1) = eta - deta
              roots(nroots, 2) = eta
-          END IF
-       END IF
+          end if
+       end if
        resold = res
        dresdvold = dresdv
        dresdetaold = dresdeta
-    END DO
-  END SUBROUTINE driftorbit_coarse
+    end do
+  end subroutine driftorbit_coarse
   
-  FUNCTION driftorbit_nroot(nlev, eta_min, eta_max)
-    INTEGER :: driftorbit_nroot, nlev
-    REAL(8), OPTIONAL :: eta_min, eta_max
-    REAL(8) :: etamin2, etamax2
-    REAL(8) :: Omph_etamin, Omph_etamax, dummy, dummy2, &
+  function driftorbit_nroot(nlev, eta_min, eta_max)
+    integer :: driftorbit_nroot, nlev
+    real(8), optional :: eta_min, eta_max
+    real(8) :: etamin2, etamax2
+    real(8) :: Omph_etamin, Omph_etamax, dummy, dummy2, &
          Omth_etamin, Omth_etamax, res_etamin, res_etamax
     
-    IF (PRESENT(eta_min) .AND. PRESENT(eta_max)) THEN
+    if (present(eta_min) .and. present(eta_max)) then
        etamin2 = eta_min
        etamax2 = eta_max
-    ELSE
+    else
        ! default behavior for trapped particles
        etamin2 = etatp*(1d0+epst)
        etamax2 = etadt*(1d0-epst)
-    END IF
+    end if
 
     driftorbit_nroot = 0
     ! TODO: return number of possible roots instead of 0 and 1
     eta = etamax2
-    CALL Om_ph(Omph_etamin, dummy, dummy2)
-    CALL Om_th(Omth_etamin, dummy, dummy2)
+    call Om_ph(Omph_etamin, dummy, dummy2)
+    call Om_th(Omth_etamin, dummy, dummy2)
     eta = etamin2
-    CALL Om_ph(Omph_etamax, dummy, dummy2)
-    CALL Om_th(Omth_etamax, dummy, dummy2)
+    call Om_ph(Omph_etamax, dummy, dummy2)
+    call Om_th(Omth_etamax, dummy, dummy2)
 
     res_etamin = mph*Omph_etamin+mth*Omth_etamin
     res_etamax = mph*Omph_etamax+mth*Omth_etamax
-    IF(SIGN(1d0,res_etamin) /= SIGN(1d0,res_etamax)) THEN
+    if(sign(1d0,res_etamin) /= sign(1d0,res_etamax)) then
        driftorbit_nroot = 1
     !else
        !print *, "driftorbit_nroot: ", v/vth,(etamin-etatp)/(etadt-etatp),&
        !     (etamax-etatp)/(etadt-etatp), res_etamin, res_etamax
-    END IF
-    IF(isnan(res_etamin) .OR. isnan(res_etamax)) THEN
-       PRINT *, "ERROR: driftorbit_nroot found NaN value in Om_ph_ba"
-       RETURN
-    END IF
-  END FUNCTION driftorbit_nroot
+    end if
+    if(isnan(res_etamin) .or. isnan(res_etamax)) then
+       print *, "ERROR: driftorbit_nroot found NaN value in Om_ph_ba"
+       return
+    end if
+  end function driftorbit_nroot
 
-  FUNCTION driftorbit_root(tol, eta_min, eta_max)
-    REAL(8) :: driftorbit_root(2)
-    REAL(8) :: tol, res, res_old, eta0, eta_old
-    REAL(8) :: Omph, dOmphdv, dOmphdeta
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
-    INTEGER :: maxit, k, state
-    REAL(8), OPTIONAL:: eta_min, eta_max
-    REAL(8) :: etamin2, etamax2
+  function driftorbit_root(tol, eta_min, eta_max)
+    real(8) :: driftorbit_root(2)
+    real(8) :: tol, res, res_old, eta0, eta_old
+    real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    integer :: maxit, k, state
+    real(8), optional:: eta_min, eta_max
+    real(8) :: etamin2, etamax2
     maxit = 100
     state = -2
     eta0 = eta
     eta_old = 0d0
     res = 0d0
-    IF (PRESENT(eta_min) .AND. PRESENT(eta_max)) THEN
+    if (present(eta_min) .and. present(eta_max)) then
        etamin2 = eta_min
        etamax2 = eta_max
-    ELSE
+    else
        ! default behavior for trapped particles
        etamin2 = etatp*(1d0+epst)
        etamax2 = etadt*(1d0-epst)
-    END IF
+    end if
 
     eta = etamin2
    
-    IF(driftorbit_nroot(1, etamin2, etamax2) == 0) THEN
-       PRINT *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
-       PRINT *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
+    if(driftorbit_nroot(1, etamin2, etamax2) == 0) then
+       print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
+       print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
        eta = etamin2
-       CALL Om_ph(Omph, dOmphdv, dOmphdeta)
-       CALL Om_th(Omth, dOmthdv, dOmthdeta)
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
        res = mph*Omph + mth*Omth
-       PRINT *, res
+       print *, res
        eta = etamax2
-       CALL Om_ph(Omph, dOmphdv, dOmphdeta)
-       CALL Om_th(Omth, dOmthdv, dOmthdeta)
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
        res = mph*Omph + mth*Omth
-       PRINT *, res
-       RETURN
-    END IF
-    DO k = 1,maxit
+       print *, res
+       return
+    end if
+    do k = 1,maxit
        res_old = res
-       CALL Om_ph(Omph, dOmphdv, dOmphdeta)
-       CALL Om_th(Omth, dOmthdv, dOmthdeta)
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
        res = mph*Omph + mth*Omth
        
        driftorbit_root(1) = eta
 
-       IF (ABS(res) < tol) THEN
+       if (abs(res) < tol) then
           state = 1
           driftorbit_root(2) = mph*dOmphdeta + mth*dOmthdeta
           !eta = eta*(1+1d-10)
           !call Om_ph(Omph, dOmphdv, dOmphdeta)
           !call Om_th(Omth, dOmthdv, dOmthdeta)
           !driftorbit_root(2) = (mph*Omph + mth*Omth - res)/(eta*1d-10)
-          EXIT
+          exit
        ! TODO: better condition based on slope of function
-       ELSEIF ((mth >= 0 .AND. res > 0 .AND. eta > etatp)      .OR.&
-               (mth >= -mph*q .AND. res < 0 .AND. eta < etatp) .OR.&
-               (mth < 0 .AND. res < 0 .AND. eta > etatp)       .OR.&
-               (mth < -mph*q .AND. res > 0 .AND. eta < etatp)) THEN
+       elseif ((mth >= 0 .and. res > 0 .and. eta > etatp)      .or.&
+               (mth >= -mph*q .and. res < 0 .and. eta < etatp) .or.&
+               (mth < 0 .and. res < 0 .and. eta > etatp)       .or.&
+               (mth < -mph*q .and. res > 0 .and. eta < etatp)) then
           etamax2 = eta
           eta_old = eta
           eta = (eta+etamin2)/2d0
-       ELSE
+       else
           etamin2 = eta
           eta_old = eta
           eta = (eta+etamax2)/2d0
-       END IF
-    END DO
-    IF (state < 0) THEN
+       end if
+    end do
+    if (state < 0) then
        driftorbit_root(1) = 0
        driftorbit_root(2) = 0
-       PRINT *, "ERROR: driftorbit_root did not converge in 100 iterations"
-       PRINT *, "v/vth = ", v/vth, "mth = ", mth, "mph = ", mph
-    END IF
+       print *, "ERROR: driftorbit_root did not converge in 100 iterations"
+       print *, "v/vth = ", v/vth, "mth = ", mth, "mph = ", mph
+    end if
     eta = eta0
-  END FUNCTION driftorbit_root
+  end function driftorbit_root
 
-  FUNCTION driftorbit_root2(tol, eta_min, eta_max)
-    REAL(8) :: driftorbit_root2(2)
-    REAL(8) :: tol, res, res_old, eta0, eta_old
-    REAL(8) :: Omph, dOmphdv, dOmphdeta
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
-    INTEGER :: maxit, k, state
-    REAL(8), INTENT(in) :: eta_min, eta_max
-    REAL(8) :: etamin2, etamax2
-    LOGICAL :: slope_pos
+  function driftorbit_root2(tol, eta_min, eta_max)
+    real(8) :: driftorbit_root2(2)
+    real(8) :: tol, res, res_old, eta0, eta_old
+    real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    integer :: maxit, k, state
+    real(8), intent(in) :: eta_min, eta_max
+    real(8) :: etamin2, etamax2
+    logical :: slope_pos
     
     maxit = 100
     state = -2
@@ -676,91 +676,92 @@ CONTAINS
     etamax2 = eta_max
 
     eta = etamin2
-    CALL Om_ph(Omph, dOmphdv, dOmphdeta)
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
     res = mph*Omph + mth*Omth
     
     eta = etamax2
-    CALL Om_ph(Omph, dOmphdv, dOmphdeta)
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    IF(mph*Omph + mth*Omth - res > 0) THEN
-       slope_pos = .TRUE.
-    ELSE
-       slope_pos = .FALSE.
-    END IF
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    if(mph*Omph + mth*Omth - res > 0) then
+       slope_pos = .true.
+    else
+       slope_pos = .false.
+    end if
    
-    IF(driftorbit_nroot(1, etamin2, etamax2) == 0) THEN
-       PRINT *, "ERROR: driftorbit_root2 couldn't bracket 0 for v/vth = ", v/vth
-       PRINT *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
+    if(driftorbit_nroot(1, etamin2, etamax2) == 0) then
+       print *, "ERROR: driftorbit_root2 couldn't bracket 0 for v/vth = ", v/vth
+       print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
        
-       RETURN
-    END IF
+       return
+    end if
     
-    DO k = 1,maxit
+    do k = 1,maxit
        res_old = res
-       CALL Om_ph(Omph, dOmphdv, dOmphdeta)
-       CALL Om_th(Omth, dOmthdv, dOmthdeta)
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call Om_th(Omth, dOmthdv, dOmthdeta)
        res = mph*Omph + mth*Omth
        
        driftorbit_root2(1) = eta
 
-       IF (ABS(res) < tol) THEN
+       if (abs(res) < tol) then
           state = 1
           driftorbit_root2(2) = mph*dOmphdeta + mth*dOmthdeta
-          EXIT
-       ELSEIF ((slope_pos .AND. res > 0) .OR. &
-               ((.NOT. slope_pos) .AND. res < 0)) THEN
+          exit
+       elseif ((slope_pos .and. res > 0) .or. &
+               ((.not. slope_pos) .and. res < 0)) then
           etamax2 = eta
           eta_old = eta
           eta = (eta+etamin2)/2d0
-       ELSE
+       else
           etamin2 = eta
           eta_old = eta
           eta = (eta+etamax2)/2d0
-       END IF
-    END DO
-    IF (state < 0) THEN
-       driftorbit_root2(1) = 0
-       driftorbit_root2(2) = 0
-       PRINT *, "ERROR: driftorbit_root did not converge in 100 iterations"
-       PRINT *, "v/vth = ", v/vth, "mth = ", mth, "mph = ", mph
-    END IF
+       end if
+    end do
+    if (state < 0) then
+       !driftorbit_root2(1) = 0
+       !driftorbit_root2(2) = 0
+       driftorbit_root2(2) = mph*dOmphdeta + mth*dOmthdeta
+       print *, "ERROR: driftorbit_root2 did not converge in 100 iterations"
+       print *, "v/vth = ", v/vth, "mth = ", mth, "mph = ", mph
+    end if
     eta = eta0
-  END FUNCTION driftorbit_root2
+  end function driftorbit_root2
   
-  FUNCTION find_vmin(vmin0, vmax0)
-    REAL(8) :: find_vmin, tol, vmin0, vmax0, vmin, vmax, v0
-    INTEGER, PARAMETER :: nit = 100
-    INTEGER :: k
+  function find_vmin(vmin0, vmax0)
+    real(8) :: find_vmin, tol, vmin0, vmax0, vmin, vmax, v0
+    integer, parameter :: nit = 100
+    integer :: k
     ! Bisection search for smallest possible v
     v0 = v
     tol = 1d-12*vth
     vmin = vmin0
     vmax = vmax0
     
-    DO k=1,nit
-       IF(ABS(vmax-vmin) < tol) THEN
-          EXIT
-       END IF
+    do k=1,nit
+       if(abs(vmax-vmin) < tol) then
+          exit
+       end if
        v = (vmax + vmin)/2d0
-       IF (driftorbit_nroot(1) /= 0) THEN
+       if (driftorbit_nroot(1) /= 0) then
           vmax = v
-       ELSE
+       else
           vmin = v
-       END IF
-    END DO
+       end if
+    end do
     v = v0
     find_vmin = vmax
-  END FUNCTION find_vmin
+  end function find_vmin
   
-  SUBROUTINE find_vlim(vmin, vmax)
-    REAL(8) :: vmin, vmax, eta0
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
+  subroutine find_vlim(vmin, vmax)
+    real(8) :: vmin, vmax, eta0
+    real(8) :: Omth, dOmthdv, dOmthdeta
 
-    IF (supban) THEN
+    if (supban) then
        vmin = find_vmin(vmin, vmax)
-       RETURN
-    END IF
+       return
+    end if
 
     ! if doing drift-orbit resonances,
     ! there is both a minimum and a maximum frequency
@@ -771,35 +772,35 @@ CONTAINS
 
     ! trapped orbits
     eta = etamax
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    vmin = MAX(vmin,-(mph*Om_tE)/(mth*Omth/v))
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmin = max(vmin,-(mph*Om_tE)/(mth*Omth/v))
 
     eta = etamin
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = MIN(vmax,-(mph*Om_tE)/(mth*Omth/v))
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
 
     ! passing orbits
     etamin = etatp*epsp
     etamax = etatp*(1d0-epsp)
     
     eta = etamin
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    IF (-(mph*Om_tE)/((q*mph+mth)*Omth/v) > 0) THEN
-       vmin = MIN(vmin,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
-    END IF
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    if (-(mph*Om_tE)/((q*mph+mth)*Omth/v) > 0) then
+       vmin = min(vmin,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
+    end if
     
     eta = etamax
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = MAX(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmax = max(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
         
     eta = eta0
-  END SUBROUTINE find_vlim
+  end subroutine find_vlim
 
-  SUBROUTINE find_mthlim_t
-  END SUBROUTINE find_mthlim_t
+  subroutine find_mthlim_t
+  end subroutine find_mthlim_t
 
-  SUBROUTINE find_mthlim_p
-  END SUBROUTINE find_mthlim_p
+  subroutine find_mthlim_p
+  end subroutine find_mthlim_p
   
 !!$  subroutine find_vlim_p_magdrift(vmin, vmax)
 !!$    real(8) :: vmin, vmax, eta0
@@ -819,14 +820,14 @@ CONTAINS
 !!$  end subroutine find_vlim_p_magdrift
 
   
-  SUBROUTINE find_vlim_p(vmin, vmax)
-    REAL(8) :: vmin, vmax, eta0
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
+  subroutine find_vlim_p(vmin, vmax)
+    real(8) :: vmin, vmax, eta0
+    real(8) :: Omth, dOmthdv, dOmthdeta
 
-    IF (supban) THEN
+    if (supban) then
        vmin = find_vmin(vmin, vmax)
-       RETURN
-    END IF
+       return
+    end if
 
     !if (magdrift) then
     !   find_vlim_p_magdrift(vmin, vmax)
@@ -842,29 +843,29 @@ CONTAINS
     etamax = etatp*(1d0-epsp)
     
     eta = etamin
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    vmin = MAX(vmin,-Om_tE/((mth*1d0/mph+q)*Omth/v))
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmin = max(vmin,-Om_tE/((mth*1d0/mph+q)*Omth/v))
     
     eta = etamax
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = MIN(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmax = min(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
         
     eta = eta0
-  END SUBROUTINE find_vlim_p
+  end subroutine find_vlim_p
   
   
-  SUBROUTINE find_vlim_t(vmin, vmax)
-    REAL(8) :: vmin, vmax, eta0
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
+  subroutine find_vlim_t(vmin, vmax)
+    real(8) :: vmin, vmax, eta0
+    real(8) :: Omth, dOmthdv, dOmthdeta
 
-    IF (mth == 0) THEN
-       RETURN
-    END IF
+    if (mth == 0) then
+       return
+    end if
     
-    IF (supban) THEN
+    if (supban) then
        vmin = find_vmin(vmin, vmax)
-       RETURN
-    END IF
+       return
+    end if
 
     ! if not supban (drift-orbit resonances),
     ! there is both a minimum and a maximum frequency
@@ -875,22 +876,22 @@ CONTAINS
 
     ! trapped orbits
     eta = etamax
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    vmin = MAX(vmin,-(mph*Om_tE)/(mth*Omth/v))
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmin = max(vmin,-(mph*Om_tE)/(mth*Omth/v))
 
     eta = etamin
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = MIN(vmax,-(mph*Om_tE)/(mth*Omth/v))
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
         
     eta = eta0
-  END SUBROUTINE find_vlim_t
+  end subroutine find_vlim_t
   
-  SUBROUTINE init_fsa
+  subroutine init_fsa
     ! Calculate the flux surface areas
-    INTEGER, PARAMETER :: nth = 1000
-    INTEGER :: k
-    REAL(8) :: thrange(nth), dth
-    REAL(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    integer, parameter :: nth = 1000
+    integer :: k
+    real(8) :: thrange(nth), dth
+    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     thrange = -pi + (/(k*2*pi/nth,k=1,nth)/)
     
@@ -901,99 +902,99 @@ CONTAINS
     
     dVds = 0d0
     B0  = 0d0
-    PRINT *, "eps orig: ", eps
+    print *, "eps orig: ", eps
     eps = 0d0
 
     Bmin = -1d0
     Bmax = 0d0
     
-    DO k = 1, nth
+    do k = 1, nth
        x(3) = thrange(k)
-       CALL do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+       call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        dVds = dVds + sqrtg*dth
        B0   = B0  + bmod*dth
-       eps  = eps - COS(x(3))*bmod*dth
+       eps  = eps - cos(x(3))*bmod*dth
 
        ! TODO: do fine search
-       IF ((Bmin < 0) .OR. (bmod < Bmin)) THEN
+       if ((Bmin < 0) .or. (bmod < Bmin)) then
           Bmin = bmod
           th0 = x(3)
-       END IF
-       IF (bmod > Bmax) Bmax = bmod
-    END DO
+       end if
+       if (bmod > Bmax) Bmax = bmod
+    end do
 
-    PRINT *, th0
+    print *, th0
     !th0 = 0d0 ! TODO remove this
 
     dVds = 2d0*pi*dVds
     B0   = B0/(2d0*pi)
     eps  = eps/(B0*pi)
-    PRINT *, "eps calc:  ", eps
-    PRINT *, "Bmin,Bmax: ", Bmin, Bmax
+    print *, "eps calc:  ", eps
+    print *, "Bmin,Bmax: ", Bmin, Bmax
 
    ! call disp('init_fsa: iota       = ', iota)
    ! call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
-  END SUBROUTINE init_fsa
+  end subroutine init_fsa
   
-  FUNCTION D11int(ux, etax)
-    REAL(8) :: D11int
-    REAL(8) :: ux, etax
-    REAL(8) :: Omth, dummy, dummy2
-    REAL(8) :: Hmn2
+  function D11int(ux, etax)
+    real(8) :: D11int
+    real(8) :: ux, etax
+    real(8) :: Omth, dummy, dummy2
+    real(8) :: Hmn2
     
     v = ux*vth
     eta = etax
-    CALL Om_th(Omth, dummy, dummy2)
-    CALL bounce(2d0*pi/Omth)
+    call Om_th(Omth, dummy, dummy2)
+    call bounce(2d0*pi/Omth)
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
-    IF (calcflux) THEN
+    if (calcflux) then
        D11int = pi**(3d0/2d0)*mph*c**2*q*vth/&
-            (qi**2*dVds*psi_pr)*ux**3*EXP(-ux**2)*&
+            (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
             taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))
-    ELSE          
+    else          
        D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
-         (qi**2*dVds*psi_pr)*ux**3*EXP(-ux**2)*&
+         (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
-    END IF
-  END FUNCTION D11int
+    end if
+  end function D11int
   
-  FUNCTION D12int(ux, etax)
-    REAL(8) :: D12int
-    REAL(8) :: ux, etax
-    REAL(8) :: Omth, dummy, dummy2
-    REAL(8) :: Hmn2
+  function D12int(ux, etax)
+    real(8) :: D12int
+    real(8) :: ux, etax
+    real(8) :: Omth, dummy, dummy2
+    real(8) :: Hmn2
     
     v = ux*vth
     eta = etax
-    CALL Om_th(Omth, dummy, dummy2)
-    CALL bounce(2d0*pi/Omth)
+    call Om_th(Omth, dummy, dummy2)
+    call bounce(2d0*pi/Omth)
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
-    IF (calcflux) THEN
+    if (calcflux) then
        D12int = pi**(3d0/2d0)*mph*c**2*q*vth/&
-            (qi**2*dVds*psi_pr)*ux**3*EXP(-ux**2)*&
+            (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
             taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))*ux**2
-    ELSE          
+    else          
        D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
-         (qi**2*dVds*psi_pr)*ux**3*EXP(-ux**2)*&
+         (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2*ux**2
-    END IF
-  END FUNCTION D12int
+    end if
+  end function D12int
   
-  FUNCTION D11int_u(ux)
-    REAL(8) :: ux
-    REAL(8) :: D11int_u
-    REAL(8) :: eta_res(2)
-    REAL(8) :: roots(nlev, 3)
-    INTEGER :: nroots, kr
+  function D11int_u(ux)
+    real(8) :: ux
+    real(8) :: D11int_u
+    real(8) :: eta_res(2)
+    real(8) :: roots(nlev, 3)
+    integer :: nroots, kr
     
     v = ux*vth
     D11int_u = 0d0
 
-    CALL driftorbit_coarse(etamin, etamax, roots, nroots)
-    IF(nroots == 0) RETURN
+    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    if(nroots == 0) return
     
     !if (abs(M_t) > 1d-12) then
     !   eta_res = driftorbit_root(1d-8*abs(Om_tE), etamin, etamax)
@@ -1002,128 +1003,128 @@ CONTAINS
     !        etamin, etamax)
     !end if
     
-    DO kr = 1,nroots
-       eta_res = driftorbit_root2(1d-8*ABS(Om_tE), roots(kr,1), roots(kr,2))
+    do kr = 1,nroots
+       eta_res = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
        eta = eta_res(1)
-       D11int_u = D11int_u + D11int(ux, eta_res(1))*1d0/ABS(eta_res(2))
-    END DO
+       D11int_u = D11int_u + D11int(ux, eta_res(1))*1d0/abs(eta_res(2))
+    end do
     
-  END FUNCTION D11int_u
+  end function D11int_u
   
-  FUNCTION D12int_u(ux)
-    REAL(8) :: ux
-    REAL(8) :: D12int_u
-    REAL(8) :: eta_res(2)
-    REAL(8) :: roots(nlev, 3)
-    INTEGER :: nroots, kr
+  function D12int_u(ux)
+    real(8) :: ux
+    real(8) :: D12int_u
+    real(8) :: eta_res(2)
+    real(8) :: roots(nlev, 3)
+    integer :: nroots, kr
     v = ux*vth
     D12int_u = 0d0
     
-    CALL driftorbit_coarse(etamin, etamax, roots, nroots)
-    IF(nroots == 0) RETURN
+    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    if(nroots == 0) return
     
-    DO kr = 1,nroots       
-       eta_res = driftorbit_root2(1d-8*ABS(Om_tE), roots(kr,1), roots(kr,2))
+    do kr = 1,nroots       
+       eta_res = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
        eta = eta_res(1)
-       D12int_u = D12int_u + D12int(ux, eta_res(1))*1d0/ABS(eta_res(2))
-    END DO
-  END FUNCTION D12int_u
+       D12int_u = D12int_u + D12int(ux, eta_res(1))*1d0/abs(eta_res(2))
+    end do
+  end function D12int_u
   
-  FUNCTION flux_integral(vmin, vmax)
-    REAL(8) :: vmin, vmax
-    REAL(8) :: flux_integral(2), err
-    REAL(8) :: Dp, dsdreff
-    INTEGER :: neval, ier
+  function flux_integral(vmin, vmax)
+    real(8) :: vmin, vmax
+    real(8) :: flux_integral(2), err
+    real(8) :: Dp, dsdreff
+    integer :: neval, ier
       
     flux_integral = 0d0
       
-    CALL qag(D11int_u ,&
+    call qag(D11int_u ,&
          (vmin+(vmax-vmin)*1d-10)/vth, (vmax-(vmax-vmin)*1d-10)/vth,&
          1d-9, 1d-3, 6, flux_integral(1), err, neval, ier)       
 
-    CALL qag(D12int_u ,&
+    call qag(D12int_u ,&
          (vmin+(vmax-vmin)*1d-10)/vth, (vmax-(vmax-vmin)*1d-10)/vth,&
          1d-9, 1d-3, 6, flux_integral(2), err, neval, ier)   
       
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-    dsdreff = 2d0/a*SQRT(s)
+    dsdreff = 2d0/a*sqrt(s)
     flux_integral = dsdreff**(-2)*flux_integral/Dp
 
-  END FUNCTION flux_integral
+  end function flux_integral
 
 !------------------------------------------------------------------------------!
 !------------------------------------------------------------------------------!
 ! WIP: integration with ODEs                                                   !
 !------------------------------------------------------------------------------!
-END MODULE driftorbit
-MODULE lineint
-  USE driftorbit
+end module driftorbit
+module lineint
+  use driftorbit
 
-  CONTAINS
+  contains
   
-  SUBROUTINE intstep(neq, t, y, ydot)
+  subroutine intstep(neq, t, y, ydot)
     !
     !  Timestep function for orbit integration.
     !  Includes poloidal angle theta and parallel velocity.
     !  More integrands may be added starting from y(3)
     !
-    INTEGER, INTENT (in) :: neq
-    REAL(8), INTENT (in) :: t
-    REAL(8), INTENT (in) :: y(neq)
-    REAL(8), INTENT (out) :: ydot(neq)
+    integer, intent (in) :: neq
+    real(8), intent (in) :: t
+    real(8), intent (in) :: y(neq)
+    real(8), intent (out) :: ydot(neq)
 
-    REAL(8) :: Omph, dOmphdv, dOmphdeta
-    REAL(8) :: Omth, dOmthdv, dOmthdeta
-    REAL(8) :: G, dGdv, dGdeta, absgradG
-    REAL(8) :: deltatp
-    REAL(8) :: Sveta
+    real(8) :: Omph, dOmphdv, dOmphdeta
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: G, dGdv, dGdeta, absgradG
+    real(8) :: deltatp
+    real(8) :: Sveta
 
     ! check if trapped or passing region
-    IF (etamin > etatp) THEN
+    if (etamin > etatp) then
        deltatp = 0d0
-    ELSE
+    else
        deltatp = 1d0
-    END IF
+    end if
 
     Sveta = (vmax2-vmin2)*(etamax-etamin)
 
     v = vmin2 + y(1)*(vmax2-vmin2)
     eta = etamin + y(2)*(etamax-etamin)
     
-    CALL Om_ph(Omph, dOmphdv, dOmphdeta)
-    CALL Om_th(Omth, dOmthdv, dOmthdeta)
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
     G = (mph*q*deltatp + mth)*Omth + mph*Omph
     dGdv = ((mph*q*deltatp + mth)*dOmthdv + mph*dOmphdv)*(vmax2-vmin2)
     dGdeta = ((mph*q*deltatp + mth)*dOmthdeta + mph*dOmphdeta)*(etamax-etamin)
-    absgradG = SQRT(dGdv**2 + dGdeta**2)
+    absgradG = sqrt(dGdv**2 + dGdeta**2)
     
     ydot(1) = dGdeta           ! vbar
     ydot(2) = -dGdv            ! etabar
-    CALL bounce(2d0*pi/Omth)
+    call bounce(2d0*pi/Omth)
     ydot(3) = (vmax2-vmin2)*(etamax-etamin)*D11_ode()/vth            ! D11
     ydot(4) = (vmax2-vmin2)*(etamax-etamin)*D11_ode()*(v/vth)**2/vth ! D12
     
     ydot = ydot/absgradG
 
     ! always go in positive velocity direction
-    IF (etamin > etatp) THEN
+    if (etamin > etatp) then
        ydot(1) = -ydot(1)
        ydot(2) = -ydot(2)
-    END IF
-  END SUBROUTINE intstep
+    end if
+  end subroutine intstep
 
-  FUNCTION flux_integral_ode(vmin, vmax)
-    USE dvode_f90_m2
-    REAL(8) :: flux_integral_ode(2)
-    REAL(8) :: vmin, vmax
+  function flux_integral_ode(vmin, vmax)
+    use dvode_f90_m2
+    real(8) :: flux_integral_ode(2)
+    real(8) :: vmin, vmax
     
-    REAL(8) :: sk, ds
-    REAL(8) :: Dp, dsdreff, eta_res(2)
-    INTEGER :: ks, ns
+    real(8) :: sk, ds
+    real(8) :: Dp, dsdreff, eta_res(2)
+    integer :: ks, ns
 
-    REAL(8) :: y(4), t, tout, rtol(4), atol(4), rwork(1024)
-    INTEGER :: neq, itask, istate, iopt, itol, iwork(1024), ng, jt
-    TYPE(VODE_OPTS) :: OPTIONS
+    real(8) :: y(4), t, tout, rtol(4), atol(4), rwork(1024)
+    integer :: neq, itask, istate, iopt, itol, iwork(1024), ng, jt
+    type(VODE_OPTS) :: OPTIONS
 
     vmin2 = vmin + 1d-8*(vmax-vmin)
     vmax2 = vmax - 1d-8*(vmax-vmin)
@@ -1156,47 +1157,47 @@ MODULE lineint
     ds = 4d0/ns
     sk = 0d0
 
-    dsdreff = 2d0/a*SQRT(s)
+    dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
     
-    OPTIONS = SET_OPTS(DENSE_J=.TRUE.,RELERR_VECTOR=RTOL, &
+    OPTIONS = SET_OPTS(DENSE_J=.true.,RELERR_VECTOR=RTOL, &
          ABSERR_VECTOR=ATOL,NEVENTS=NG)
 
     v = vmax2
-    IF (mth /= 0) THEN
-       IF (etamin < etatp) THEN
+    if (mth /= 0) then
+       if (etamin < etatp) then
           y(2) = 1d0 - 1d-15
-       ELSE
+       else
           y(2) = 1d-15
-       END IF
-    ELSE
-       eta_res = driftorbit_root(MAX(1d-9*ABS(Om_tE),1d-12), etamin, etamax)
+       end if
+    else
+       eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
        y(2) = (eta_res(1)-etamin)/(etamax-etamin)
-    END IF    
+    end if    
     
-    DO ks = 1, ns
-       PRINT *, ks, y(2)
+    do ks = 1, ns
+       print *, ks, y(2)
        tout = t+ds
-       CALL dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
-       IF (istate == 3) THEN
-          EXIT
-       END IF
-       PRINT *, ks
-    END DO
+       call dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
+       if (istate == 3) then
+          exit
+       end if
+       print *, ks
+    end do
     
     flux_integral_ode(1) = dsdreff**(-2)*y(3)/Dp 
     flux_integral_ode(2) = dsdreff**(-2)*y(4)/Dp
-    PRINT *, flux_integral_ode
-  END FUNCTION flux_integral_ode
+    print *, flux_integral_ode
+  end function flux_integral_ode
 
   
-  SUBROUTINE dummyjac
-  END SUBROUTINE dummyjac
+  subroutine dummyjac
+  end subroutine dummyjac
 
-  SUBROUTINE bbox (NEQ, T, Y, NG, GOUT)
-    INTEGER, INTENT(in) :: NEQ, NG
-    REAL(8), INTENT(in) :: T, Y(neq)
-    REAL(8), INTENT(out) :: GOUT(ng)
+  subroutine bbox (NEQ, T, Y, NG, GOUT)
+    integer, intent(in) :: NEQ, NG
+    real(8), intent(in) :: T, Y(neq)
+    real(8), intent(out) :: GOUT(ng)
     !if (M_t > 0) then
     !   GOUT(1) = Y(1)
     !else
@@ -1205,21 +1206,21 @@ MODULE lineint
     GOUT(2) = 1d0 - Y(1)
     GOUT(3) = Y(2)
     GOUT(4) = 1d0 - Y(2)
-    RETURN
-  END SUBROUTINE bbox
+    return
+  end subroutine bbox
   
-  FUNCTION D11_ode()
-    REAL(8) :: D11_ode
-    REAL(8) :: ux
-    REAL(8) :: Hmn2
+  function D11_ode()
+    real(8) :: D11_ode
+    real(8) :: ux
+    real(8) :: Hmn2
     
     ux = v/vth
     
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
     
     D11_ode = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
-         (qi**2*dVds*psi_pr)*ux**3*EXP(-ux**2)*&
+         (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
-  END FUNCTION D11_ode
+  end function D11_ode
 
-END MODULE lineint
+end module lineint

@@ -20,15 +20,15 @@ program main
   !call test_bounce
   !call test_boundaries
   !call test_torfreq
-  call test_resline
+  !call test_resline
   !call test_flux
   !call test_driftorbit
   !call test_torfreq_pass
   !call test_machrange
   !call test_boundaries
   !call test_Hmn
-  !CALL test_integral
-  !call test_machrange2
+  !call test_integral
+  call test_machrange2
 contains
 
   subroutine read_control
@@ -218,7 +218,7 @@ contains
   end subroutine test_bounce
 
   subroutine test_torfreq
-    integer, parameter :: n = 1000
+    integer, parameter :: n = 100
     integer :: k
     real(8) :: Omph, dOmphdv, dOmphdeta
     real(8) :: Omth, dOmthdv, dOmthdeta
@@ -228,7 +228,7 @@ contains
     !v = vth*1.7571463448202738
 
     !mth = 2
-    v = .25*vth
+    v = 5*vth
 
     call disp("test_torfreq: vth        = ", vth)
     call disp("test_torfreq: v/vth      = ", v/vth)
@@ -239,18 +239,20 @@ contains
     call bounce
     call disp("test_torfreq: Om_tB_ba   = ", vth**2*bounceavg(3))
 
-    !etamin = etatp*(1-10*epst_spl)
+    etamin = etatp*(1-10*epst_spl)
     !etamax = etatp*(1+10*epst_spl)
     !etamin = etatp*(1+epst)
     !etamax = etatp*(1+10*epst_spl)
-    !etamin = etatp*(1-10*epst_spl)
-    !etamax = etatp*(1-epst)
-    etamin = etatp*(1+epst)
-    etamax = etadt*(1-epst)
+    !etamin = etatp*epssp_spl
+    etamax = etatp
+    b = log((etamax-etamin)/etamax)
+    a = 1d0/(n-1d0)*(log(epsp) - b)
+    !etamin = etatp*(1+epst)
+    !etamax = etadt*(1-epst)
     !etamin = etatp*(1-2*epst)
     !etamax = etatp*(1+2*epst)
-    call disp("test_torfreq: etamin = ", etamin/etadt)
-    call disp("test_torfreq: etamin = ", etamax/etadt)
+    call disp("test_torfreq: etamin = ", etamin/etatp)
+    call disp("test_torfreq: etamax = ", etamax/etatp)
     !etamax = etadt*(1-1d-7) 
 
     !eta = etamax*(1d0-1d-7)
@@ -259,14 +261,14 @@ contains
     call disp("test_torfreq: Om_th_approx    = ", v/(q*R0*sqrt(2d0/eps)))
     call disp("test_torfreq: Om_th_deeptrap  = ", Omth)
 
-    delta = 1d-9   ! smallest relative distance to etamin
-    b = log(delta)
-    a = 1d0/(n-1d0)*(log(etamax/etamin - 1d0) - b)
+    !delta = 1d-9   ! smallest relative distance to etamin
+    !b = log(delta)
+    !a = 1d0/(n-1d0)*(log(etamax/etamin - 1d0) - b)
 
     open(unit=9, file='test_torfreq.dat', recl=1024)
     do k = 0, n-1
-       eta = etamin + k/(n-1d0)*(etamax-etamin)
-       !eta = etamin*(1d0 + exp(a*k+b))
+       !eta = etamin + k/(n-1d0)*(etamax-etamin)
+       eta = etamax*(1d0 - exp(a*k+b))
        !print *, etamin, etamax, eta
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        call Om_th(Omth, dOmthdv, dOmthdeta)
@@ -320,7 +322,7 @@ contains
           call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
           do kr = 1,nroots
              etaresp = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
-             !write(9, *) v/vth, kr, roots(kr,1), roots(kr,2), etaresp(1)
+             write(9, *) v/vth, kr, roots(kr,1), roots(kr,2), etaresp(1)
           end do
        end if
        
@@ -329,8 +331,8 @@ contains
        !print *, "trapped roots: ", v/vth, nroots
        do kr = 1,nroots
           etarest = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
-          write(9, *) v/vth, kr, roots(kr,1), roots(kr,2),&
-               (etarest(1)-etatp)/(etadt-etatp)
+          !write(9, *) v/vth, kr, roots(kr,1), roots(kr,2),&
+          !     (etarest(1)-etatp)/(etadt-etatp)
        end do
        !etarest=driftorbit_root(1d-8*abs(Om_tE),(1+epst)*etatp,(1-epst)*etadt)
        
@@ -523,23 +525,23 @@ contains
 
     !mth = 2
     
-    vmin2 = .1*vth
+    vmin2 = 1d-3*vth
     vmax2 = 5*vth
 
     ! trapped
-    etamin = (1+epst)*etatp
-    etamax = (1-epst)*etadt
+    !etamin = (1+epst)*etatp
+    !etamax = (1-epst)*etadt
     !call find_vlim_t(vmin2, vmax2)
     !print *, 'vrange: ', vmin2/vth, vmax2/vth
     
     ! passing
-    !etamin = epsp*etatp
-    !etamax = (1-epsp)*etatp
+    etamin = epsp*etatp
+    etamax = (1-epsp)*etatp
     !call find_vlim_p(vmin2, vmax2)
 
     print *, 'vrange: ', vmin2/vth, vmax2/vth
 
-    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
     !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
