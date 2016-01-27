@@ -63,6 +63,8 @@ module driftorbit
 
   ! Number of levels for coarse root finding
   integer, parameter :: nlev = 100
+
+  real(8) :: sigv
 contains
 
   subroutine init
@@ -262,6 +264,7 @@ contains
     x(3) = y(1)
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     call Om_th(Omth, dOmthdv, dOmthdeta)
+    Omth = abs(Omth)
     
     if (pertfile) then
        call neo_magfie_pert_amp( x, epsn )
@@ -309,6 +312,11 @@ contains
        end if
        ydot(4) = real(Hn)
        ydot(5) = aimag(Hn)
+       if(calcflux .and. eta < etatp) then
+          ydot(6) = 1d0/(bmod*y(2))
+       else
+          ydot(6) = 0
+       end if
     else
        ydot(4:6) = 0d0
     end if
@@ -372,7 +380,7 @@ contains
     end do
     if (istate /= 3) then
        print *, "ERROR: findroot2 did not converge after 500 iterations"
-       print *, eta, etamin, etamax
+       print *, eta, etamin, etamax, y(1)
     end if
     
     findroot2(1)  = ti
@@ -404,6 +412,9 @@ contains
     y0(1) = th0
     y0(2) = vpar(bmod)
     y0(3) = 0d0
+    y0(4) = 0d0
+    y0(5) = 0d0
+    y0(6) = 0d0
 
     if (present(taub_estimate)) then
        taub_est = taub_estimate
@@ -415,6 +426,9 @@ contains
     !print *, taub
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
+    if (eta > etatp) then ! ba of 1/(B*v_par) is zero for trapped
+       bounceavg(6) = 0
+    end if
   end subroutine bounce
   
   subroutine Om_tB(OmtB, dOmtBdv, dOmtBdeta)
@@ -499,9 +513,9 @@ contains
           splineval(2) = -splineval(1)**2/(2d0*pi) * k_taub_p/(eta-etatp)
        end if
     end if
-    Omth = splineval(1)*v
-    dOmthdv = splineval(1)
-    dOmthdeta = splineval(2)*v
+    Omth = sigv*splineval(1)*v
+    dOmthdv = sigv*splineval(1)
+    dOmthdeta = sigv*splineval(2)*v
   end subroutine Om_th
 
   subroutine driftorbit_coarse(eta_min, eta_max, roots, nroots)
@@ -754,47 +768,47 @@ contains
     find_vmin = vmax
   end function find_vmin
   
-  subroutine find_vlim(vmin, vmax)
-    real(8) :: vmin, vmax, eta0
-    real(8) :: Omth, dOmthdv, dOmthdeta
-
-    if (supban) then
-       vmin = find_vmin(vmin, vmax)
-       return
-    end if
-
-    ! if doing drift-orbit resonances,
-    ! there is both a minimum and a maximum frequency
-    eta0 = eta
-    
-    etamin = etatp*(1d0+epst)
-    etamax = etadt*(1d0-epst)
-
-    ! trapped orbits
-    eta = etamax
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmin = max(vmin,-(mph*Om_tE)/(mth*Omth/v))
-
-    eta = etamin
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
-
-    ! passing orbits
-    etamin = etatp*epsp
-    etamax = etatp*(1d0-epsp)
-    
-    eta = etamin
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    if (-(mph*Om_tE)/((q*mph+mth)*Omth/v) > 0) then
-       vmin = min(vmin,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
-    end if
-    
-    eta = etamax
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = max(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
-        
-    eta = eta0
-  end subroutine find_vlim
+!!$  subroutine find_vlim(vmin, vmax)
+!!$    real(8) :: vmin, vmax, eta0
+!!$    real(8) :: Omth, dOmthdv, dOmthdeta
+!!$
+!!$    if (supban) then
+!!$       vmin = find_vmin(vmin, vmax)
+!!$       return
+!!$    end if
+!!$
+!!$    ! if doing drift-orbit resonances,
+!!$    ! there is both a minimum and a maximum frequency
+!!$    eta0 = eta
+!!$    
+!!$    etamin = etatp*(1d0+epst)
+!!$    etamax = etadt*(1d0-epst)
+!!$
+!!$    ! trapped orbits
+!!$    eta = etamax
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    vmin = max(vmin,-(mph*Om_tE)/(mth*Omth/v))
+!!$
+!!$    eta = etamin
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
+!!$
+!!$    ! passing orbits
+!!$    etamin = etatp*epsp
+!!$    etamax = etatp*(1d0-epsp)
+!!$    
+!!$    eta = etamin
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    if (-(mph*Om_tE)/((q*mph+mth)*Omth/v) > 0) then
+!!$       vmin = min(vmin,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
+!!$    end if
+!!$    
+!!$    eta = etamax
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    vmax = max(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
+!!$        
+!!$    eta = eta0
+!!$  end subroutine find_vlim
 
   subroutine find_mthlim_t
   end subroutine find_mthlim_t
@@ -820,71 +834,71 @@ contains
 !!$  end subroutine find_vlim_p_magdrift
 
   
-  subroutine find_vlim_p(vmin, vmax)
-    real(8) :: vmin, vmax, eta0
-    real(8) :: Omth, dOmthdv, dOmthdeta
-
-    if (supban) then
-       vmin = find_vmin(vmin, vmax)
-       return
-    end if
-
-    !if (magdrift) then
-    !   find_vlim_p_magdrift(vmin, vmax)
-    !   return
-    !end if
-
-    ! for drift-orbit resonances,
-    ! there is both a minimum and a maximum frequency
-    eta0 = eta
-
-    ! passing orbits
-    etamin = etatp*epsp
-    etamax = etatp*(1d0-epsp)
-    
-    eta = etamin
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmin = max(vmin,-Om_tE/((mth*1d0/mph+q)*Omth/v))
-    
-    eta = etamax
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = min(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
-        
-    eta = eta0
-  end subroutine find_vlim_p
-  
-  
-  subroutine find_vlim_t(vmin, vmax)
-    real(8) :: vmin, vmax, eta0
-    real(8) :: Omth, dOmthdv, dOmthdeta
-
-    if (mth == 0) then
-       return
-    end if
-    
-    if (supban) then
-       vmin = find_vmin(vmin, vmax)
-       return
-    end if
-
-    ! if not supban (drift-orbit resonances),
-    ! there is both a minimum and a maximum frequency
-    eta0 = eta
-    
-    etamin = etatp*(1d0+epst)
-    etamax = etadt*(1d0-epst)
-
-    ! trapped orbits
-    eta = etamax
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmin = max(vmin,-(mph*Om_tE)/(mth*Omth/v))
-
-    eta = etamin
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
-        
-    eta = eta0
-  end subroutine find_vlim_t
+!!$  subroutine find_vlim_p(vmin, vmax)
+!!$    real(8) :: vmin, vmax, eta0
+!!$    real(8) :: Omth, dOmthdv, dOmthdeta
+!!$
+!!$    if (supban) then
+!!$       vmin = find_vmin(vmin, vmax)
+!!$       return
+!!$    end if
+!!$
+!!$    !if (magdrift) then
+!!$    !   find_vlim_p_magdrift(vmin, vmax)
+!!$    !   return
+!!$    !end if
+!!$
+!!$    ! for drift-orbit resonances,
+!!$    ! there is both a minimum and a maximum frequency
+!!$    eta0 = eta
+!!$
+!!$    ! passing orbits
+!!$    etamin = etatp*epsp
+!!$    etamax = etatp*(1d0-epsp)
+!!$    
+!!$    eta = etamin
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    vmin = max(vmin,-Om_tE/((mth*1d0/mph+q)*Omth/v))
+!!$    
+!!$    eta = etamax
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    vmax = min(vmax,-(mph*Om_tE)/((q*mph+mth)*Omth/v))
+!!$        
+!!$    eta = eta0
+!!$  end subroutine find_vlim_p
+!!$  
+!!$  
+!!$  subroutine find_vlim_t(vmin, vmax)
+!!$    real(8) :: vmin, vmax, eta0
+!!$    real(8) :: Omth, dOmthdv, dOmthdeta
+!!$
+!!$    if (mth == 0) then
+!!$       return
+!!$    end if
+!!$    
+!!$    if (supban) then
+!!$       vmin = find_vmin(vmin, vmax)
+!!$       return
+!!$    end if
+!!$
+!!$    ! if not supban (drift-orbit resonances),
+!!$    ! there is both a minimum and a maximum frequency
+!!$    eta0 = eta
+!!$    
+!!$    etamin = etatp*(1d0+epst)
+!!$    etamax = etadt*(1d0-epst)
+!!$
+!!$    ! trapped orbits
+!!$    eta = etamax
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    vmin = max(vmin,-(mph*Om_tE)/(mth*Omth/v))
+!!$
+!!$    eta = etamin
+!!$    call Om_th(Omth, dOmthdv, dOmthdeta)
+!!$    vmax = min(vmax,-(mph*Om_tE)/(mth*Omth/v))
+!!$        
+!!$    eta = eta0
+!!$  end subroutine find_vlim_t
   
   subroutine init_fsa
     ! Calculate the flux surface areas
@@ -946,13 +960,14 @@ contains
     v = ux*vth
     eta = etax
     call Om_th(Omth, dummy, dummy2)
-    call bounce(2d0*pi/Omth)
+    call bounce(2d0*pi/abs(Omth))
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
     if (calcflux) then
        D11int = pi**(3d0/2d0)*mph*c**2*q*vth/&
             (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
-            taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))
+            taub*Hmn2*(mph-(mth+q*mph)*Bphcov*abs(Omth*bounceavg(6)))
+       ! TODO: CHECK ABS(...)
     else          
        D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
@@ -969,13 +984,14 @@ contains
     v = ux*vth
     eta = etax
     call Om_th(Omth, dummy, dummy2)
-    call bounce(2d0*pi/Omth)
+    call bounce(2d0*pi/abs(Omth))
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
     if (calcflux) then
        D12int = pi**(3d0/2d0)*mph*c**2*q*vth/&
             (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
-            taub*Hmn2*(mph-(mth+q*mph)*Bphcov*Omth*bounceavg(6))*ux**2
+            taub*Hmn2*(mph-(mth+q*mph)*Bphcov*abs(Omth*bounceavg(6)))*ux**2
+       ! TODO: CHECK ABS(...)
     else          
        D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
