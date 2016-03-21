@@ -245,12 +245,8 @@ contains
     real(8) :: OmtB, dOmtBdv, dOmtBdeta
     real(8) :: a, b
 
-    !v = vth*1.7571463448202738
-
-    !mth = 2
-    !v = 5*vth
-    v = 3*vth
-    sigv = -1
+    v = 3.62*vth
+    sigv = 1
 
     call disp("test_torfreq: vth        = ", vth)
     call disp("test_torfreq: v/vth      = ", v/vth)
@@ -416,7 +412,6 @@ contains
     write(fn1, *) runname//'.out'
     write(fn2, *) runname//'_integral.out'
 
-    open(unit=10, file=trim(adjustl(fn2)), recl=1024)
     do k = 1, Mtnum
        ! absolute tolerances for integrals
        tol0 = 1d-9
@@ -531,31 +526,25 @@ contains
                fluxrest(2), fluxrespco(2) + fluxrespctr(2) + fluxrest(2),&
                vmaxp/vth, vmaxt/vth
 
-          if (k == 1 .and. mth == mthmin) then
-             open(unit=10, file=trim(adjustl(fn2)), recl=1024)
-          end if
+          open(unit=10, file=trim(adjustl(fn2)), recl=1024, position="append") 
           write(10, *) M_t, mth, fluxrespco(1), fluxrespctr(1), fluxrest(1),&
                fluxrespco(1)+fluxrespctr(1)+fluxrest(1),&
                fluxrespco(2), fluxrespctr(2), fluxrest(2),&
                fluxrespco(2)+fluxrespctr(2)+fluxrest(2),vminp/vth,vmaxp/vth,&
                vmint/vth, vmaxt/vth
-          flush(10)
+          close(unit=10)
 
           if (supban) then
              exit
           end if
        end do
-       if (k == 1) then
-          open(unit=9, file=trim(adjustl(fn1)), recl=1024)
-       end if
+       open(unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
        write(9, *) M_t, fluxpco(1), fluxpctr(1), fluxt(1),&
             fluxpco(1) + fluxpctr(1) + fluxt(1),&
             fluxpco(2), fluxpctr(2), fluxt(2),&
             fluxpco(2) + fluxpctr(2) + fluxt(2)
-       flush(9)
+       close(unit=9)
     end do
-    close(unit=9)
-    close(unit=10)
   end subroutine test_machrange2
 
   subroutine test_integral
