@@ -442,18 +442,18 @@ contains
           splineval = spline_val_0(OmtB_spl_coeff, eta)
        else ! extrapolation
           call Om_th(Omth, dOmthdv, dOmthdeta)
-          splineval(1) = (k_OmtB_t*log(eta-etatp) + d_OmtB_t)*Omth/v
-          splineval(2) = Omth/v*k_OmtB_t/(eta-etatp) +&
-               dOmthdeta/v*(k_OmtB_t*log(eta-etatp) + d_OmtB_t)
+          splineval(1) = sigv*(k_OmtB_t*log(eta-etatp) + d_OmtB_t)*Omth/v
+          splineval(2) = sigv*(Omth/v*k_OmtB_t/(eta-etatp) +&
+               dOmthdeta/v*(k_OmtB_t*log(eta-etatp) + d_OmtB_t))
        end if
     else
        if (eta < etatp*(1-epsp_spl)) then
           splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
        else ! extrapolation
           call Om_th(Omth, dOmthdv, dOmthdeta)
-          splineval(1) = (k_OmtB_p*log(etatp-eta) + d_OmtB_p)*Omth/v
-          splineval(2) = Omth/v*k_OmtB_p/(eta-etatp) +&
-               dOmthdeta/v*(k_OmtB_p*log(etatp-eta) + d_OmtB_p)
+          splineval(1) = sigv*(k_OmtB_p*log(etatp-eta) + d_OmtB_p)*Omth/v
+          splineval(2) = sigv*(Omth/v*k_OmtB_p/(eta-etatp) +&
+               dOmthdeta/v*(k_OmtB_p*log(etatp-eta) + d_OmtB_p))
        end if
     end if
     OmtB = splineval(1)*v**2
@@ -679,6 +679,7 @@ contains
     real(8), intent(in) :: eta_min, eta_max
     real(8) :: etamin2, etamax2
     logical :: slope_pos
+    real(8) :: resmin, resmax
     
     maxit = 100
     state = -2
@@ -693,11 +694,13 @@ contains
     call Om_ph(Omph, dOmphdv, dOmphdeta)
     call Om_th(Omth, dOmthdv, dOmthdeta)
     res = mph*Omph + mth*Omth
+    resmin = res
     
     eta = etamax2
     call Om_ph(Omph, dOmphdv, dOmphdeta)
     call Om_th(Omth, dOmthdv, dOmthdeta)
-    if(mph*Omph + mth*Omth - res > 0) then
+    resmax = mph*Omph + mth*Omth
+    if(resmax - resmin > 0) then
        slope_pos = .true.
     else
        slope_pos = .false.
@@ -738,7 +741,10 @@ contains
        !driftorbit_root2(2) = 0
        driftorbit_root2(2) = mph*dOmphdeta + mth*dOmthdeta
        print *, "ERROR: driftorbit_root2 did not converge in 100 iterations"
-       print *, "v/vth = ", v/vth, "mth = ", mth, "mph = ", mph
+       print *, "v/vth  = ", v/vth,   "mth    = ", mth,     "sigv= ", sigv
+       print *, "etamin = ", eta_min, "etamax = ", eta_max, "eta = ", eta
+       print *, "resmin = ", resmin,  "resmax = ", resmax,  "res = ", res
+       print *, "resold = ", res_old, "res    = ", res
     end if
     eta = eta0
   end function driftorbit_root2
@@ -1046,8 +1052,9 @@ contains
     end do
   end function D12int_u
   
-  function flux_integral(vmin, vmax)
+  function flux_integral(vmin, vmax, tol)
     real(8) :: vmin, vmax
+    real(8) :: tol(2)
     real(8) :: flux_integral(2), err
     real(8) :: Dp, dsdreff
     integer :: neval, ier
@@ -1056,11 +1063,11 @@ contains
       
     call qag(D11int_u ,&
          (vmin+(vmax-vmin)*1d-10)/vth, (vmax-(vmax-vmin)*1d-10)/vth,&
-         1d-9, 1d-3, 6, flux_integral(1), err, neval, ier)       
+         tol(1), 1d-3, 6, flux_integral(1), err, neval, ier)       
 
     call qag(D12int_u ,&
          (vmin+(vmax-vmin)*1d-10)/vth, (vmax-(vmax-vmin)*1d-10)/vth,&
-         1d-9, 1d-3, 6, flux_integral(2), err, neval, ier)   
+         tol(2), 1d-3, 6, flux_integral(2), err, neval, ier)   
       
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
     dsdreff = 2d0/a*sqrt(s)

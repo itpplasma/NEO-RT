@@ -17,14 +17,29 @@ program main
 
   call read_control
   call init_test
-  call test_magfie
 
-  if (Mtnum < 1) return
+  !if (test_profile) then
+  !   call test_profile
+  !   return
+  !end if
+  
+  call test_magfie
+  call test_resline
+
+  if (mthnum < 1) then
+     call test_torfreq
+     return
+  end if
+  
+  if (Mtnum < 1) then
+     call test_integral
+     return
+  end if
   
   !call test_bounce
   !call test_boundaries
   !call test_torfreq
-  call test_resline
+  !call test_resline
   !call test_flux
   !call test_driftorbit
   !call test_torfreq_pass
@@ -82,6 +97,7 @@ contains
 
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
+    sigv = 1
   end subroutine init_test
 
   subroutine test_magfie
@@ -232,7 +248,9 @@ contains
     !v = vth*1.7571463448202738
 
     !mth = 2
-    v = 5*vth
+    !v = 5*vth
+    v = 3*vth
+    sigv = -1
 
     call disp("test_torfreq: vth        = ", vth)
     call disp("test_torfreq: v/vth      = ", v/vth)
@@ -243,20 +261,23 @@ contains
     call bounce
     call disp("test_torfreq: Om_tB_ba   = ", vth**2*bounceavg(3))
 
-    etamin = etatp*(1-10*epst_spl)
+    !etamin = etatp*(1-10*epst_spl)
     !etamax = etatp*(1+10*epst_spl)
     !etamin = etatp*(1+epst)
     !etamax = etatp*(1+10*epst_spl)
     !etamin = etatp*epssp_spl
-    etamax = etatp
+    !etamax = etatp
+    etamin = 4.9232887359263873E-005
+    etamax = 4.9730189246758441E-005
+
     b = log((etamax-etamin)/etamax)
     a = 1d0/(n-1d0)*(log(epsp) - b)
     !etamin = etatp*(1+epst)
     !etamax = etadt*(1-epst)
     !etamin = etatp*(1-2*epst)
     !etamax = etatp*(1+2*epst)
-    call disp("test_torfreq: etamin = ", etamin/etatp)
-    call disp("test_torfreq: etamax = ", etamax/etatp)
+    call disp("test_torfreq: etamin = ", etamin)
+    call disp("test_torfreq: etamax = ", etamax)
     !etamax = etadt*(1-1d-7) 
 
     !eta = etamax*(1d0-1d-7)
@@ -282,6 +303,7 @@ contains
             Omth, dOmthdv, dOmthdeta,&
             Omph, dOmphdv, dOmphdeta, mph*Omph+mth*Omth
     end do
+    
     close(unit=9)
   end subroutine test_torfreq
 
@@ -300,21 +322,10 @@ contains
 
     vmin = 1d-6*vth
     vmax = 5d0*vth
-    !vmax = 5d0*vth
-    !vmin = 1d-10*vth
-    !vmax = 3.5d1*vth
-    !vmax = 4d-3*vth
-
-    !call find_vlim(vmin, vmax)
-    !vmax = (1+1d-3)*vmin
-    !call disp("test_resline: vmin/vth              = ", vmin/vth)
-    !call disp("test_resline: vmax/vth              = ", vmax/vth)
-
-    !vmax = min(3.5d0*vth, vmax)
-    !vmax = 2*vth
 
     etaresp = etatp
     etarest = etatp
+    sigv = 1
     
     open(unit=9, file=runname//'_resline_p.out', recl=1024)
     open(unit=10, file=runname//'_resline_t.out', recl=1024)
@@ -323,7 +334,6 @@ contains
        
        if (.not. nopassing) then
           ! resonance (passing)
-
           call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
           do kr = 1,nroots
              etaresp = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
@@ -396,6 +406,8 @@ contains
     integer :: mth0co, mth0ctr, mth0t, mthco, mthctr, mtht ! mode counters
     character(1024) :: fn1, fn2
 
+    real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
+
     fluxpco = 0d0
     fluxpctr = 0d0
     fluxt = 0d0
@@ -406,12 +418,19 @@ contains
 
     open(unit=10, file=trim(adjustl(fn2)), recl=1024)
     do k = 1, Mtnum
-       if (Mtnum > 1) M_t = Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1)
+       ! absolute tolerances for integrals
+       tol0 = 1d-9
+       tolpco = tol0
+       tolpctr = tol0
+       tolt = tol0
 
-       Om_tE = vth*M_t/R0
        fluxpco = 0d0
        fluxpctr = 0d0
        fluxt = 0d0
+       
+       if (Mtnum > 1) M_t = Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1)
+
+       Om_tE = vth*M_t/R0
 
        if (supban) then
           mthmin = 0
@@ -451,7 +470,7 @@ contains
              if (odeint) then
                 fluxrest = flux_integral_ode(vmint, vmaxt)
              else
-                fluxrest = flux_integral(vmint, vmaxt)
+                fluxrest = flux_integral(vmint, vmaxt, tol0)
              end if
              fluxt = fluxt + fluxrest
           else
@@ -463,9 +482,11 @@ contains
                 if (odeint) then
                    fluxrespco = flux_integral_ode(vminp, vmaxp)
                 else
-                   fluxrespco = flux_integral(vminp, vmaxp)
+                   fluxrespco = flux_integral(vminp, vmaxp, tolpco)
                 end if
                 fluxpco = fluxpco + fluxrespco
+                tolpco(1) = max(1d-6*fluxpco(1), tolpco(1)) 
+                tolpco(2) = max(1d-6*fluxpco(2), tolpco(2)) 
              end if
 
              ! passing resonance (counter-passing)
@@ -476,9 +497,11 @@ contains
                 if (odeint) then
                    fluxrespctr = flux_integral_ode(vminp, vmaxp)
                 else
-                   fluxrespctr = flux_integral(vminp, vmaxp)
+                   fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
                 end if
                 fluxpctr = fluxpctr + fluxrespctr
+                tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1)) 
+                tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2)) 
              end if
 
              ! trapped resonance (trapped)
@@ -488,9 +511,15 @@ contains
              if (odeint) then
                 fluxrest = flux_integral_ode(vmint, vmaxt)
              else
-                fluxrest = flux_integral(vmint, vmaxt)
+                if (mth == 0) then
+                   fluxrest = flux_integral(vmint, vmaxt, tol0)
+                else
+                   fluxrest = flux_integral(vmint, vmaxt, tolt)
+                end if   
              end if
              fluxt = fluxt + fluxrest
+             tolt(1) = max(1d-6*fluxt(1), tolt(1)) 
+             tolt(2) = max(1d-6*fluxt(2), tolt(2))
           end if
 
           print *, ''
@@ -537,6 +566,9 @@ contains
     real(8) :: roots(nlev, 3)
     integer :: nroots, kr
     character(1024) :: fn1, fn2
+    real(8) :: tol0(2)
+
+    tol0 = 1d-9
 
     call disp("test_integral: Mach num Mt         = ", M_t)
     call disp("test_integral: Poloidal mode mth   = ", 1d0*mth)
@@ -544,22 +576,23 @@ contains
     write(fn1, '(A,ES13.7,A)') 'integral_p_', s, '.out'
     write(fn2, '(A,ES13.7,A)') 'integral_t_', s, '.out'
 
-    nu = 300
+    nu = 2
 
     !mth = 2
     
-    vmin2 = 1d-3*vth
-    vmax2 = 5*vth
+    vmin2 = 2.5000005000000001*vth
+    vmax2 = 3*vth
 
     
     ! passing
+    sigv = -1
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
     !call find_vlim_p(vmin2, vmax2)
 
     print *, 'vrange: ', vmin2/vth, vmax2/vth
-
-    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
+    print *, 'etarange: ', etamin, etamax
+    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
     !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
@@ -582,6 +615,7 @@ contains
        if (nroots == 0) cycle
 
        do kr = 1,nroots
+          print *, 'etarange: ', roots(kr,1), roots(kr,2)
           eta_res = driftorbit_root2(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
           eta = eta_res(1)
           D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
@@ -605,10 +639,14 @@ contains
     close(unit=10)
 
     ! trapped
+    sigv = 1d0
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     !call find_vlim_t(vmin2, vmax2)
     !print *, 'vrange: ', vmin2/vth, vmax2/vth
+    
+    print *, 'vrange: ', vmin2/vth, vmax2/vth
+    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
     
     D11  = 0d0
     D12  = 0d0
@@ -654,6 +692,9 @@ contains
   subroutine test_supban
     real(8) :: vmin, vmax
     real(8) :: D1xDp(2)
+    real(8) :: tol0(2)
+
+    tol0 = 1d-30
 
     etamin = (1+1d-8)*etatp
     etamax = (1-1d-8)*etadt
@@ -664,7 +705,7 @@ contains
     call find_vlim(vmin, vmax)
 
     D1xdp = 0d0
-    D1xdp = flux_integral(vmin,vmax)
+    D1xdp = flux_integral(vmin,vmax,tol0)
 
     print *, s, eps, q, D1xdp(1), dqds, D1xdp(2)
   end subroutine test_supban
