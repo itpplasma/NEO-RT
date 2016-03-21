@@ -8,12 +8,12 @@ program main
   real(8) :: Mtmin, Mtmax
   logical :: odeint
   character(len=1024) :: tmp
-  character(len=:), allocatable :: runname
+  character(:), allocatable :: runname
   integer :: tmplen
   
   call get_command_argument(1, tmp, tmplen)
-  allocate(character(len=tmplen) :: runname)  
-  runname = trim(tmp)
+  !allocate(character(len=tmplen) :: runname)  
+  runname = trim(adjustl(tmp))
 
   call read_control
   call init_test
@@ -54,7 +54,7 @@ contains
     character(1)          :: dummy
     real(8)               :: qs, ms
 
-    open(unit=9,file=runname//'.in',status='old',form='formatted')
+    open(unit=9,file=trim(adjustl(runname))//'.in',status='old',form='formatted')
     read (9,*) dummy
     read (9,*) dummy
     read (9,*) dummy
@@ -110,7 +110,7 @@ contains
 
     Drp = 4*mph*q/(eps**2*sqrt(pi));
 
-    open(unit=9, file=runname//'_magfie_param.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//'_magfie_param.out', recl=1024)
 
     thmin = -pi
     thmax = pi
@@ -147,7 +147,7 @@ contains
 
     close(unit=9)
     
-    open(unit=9, file=runname//'_magfie.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//'_magfie.out', recl=1024)
     do k = 0, nth-1
        x(3) = thmin + k*(thmax-thmin)/(nth-1)
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
@@ -323,8 +323,8 @@ contains
     etarest = etatp
     sigv = 1
     
-    open(unit=9, file=runname//'_resline_p.out', recl=1024)
-    open(unit=10, file=runname//'_resline_t.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//'_resline_p.out', recl=1024)
+    open(unit=10, file=trim(adjustl(runname))//'_resline_t.out', recl=1024)
     do k = 0, n-1
        v = vmin + k/(n-1d0)*(vmax-vmin)
        
@@ -409,8 +409,8 @@ contains
     fluxt = 0d0
 
     !write(tmp, *) s
-    write(fn1, *) runname//'.out'
-    write(fn2, *) runname//'_integral.out'
+    write(fn1, *) trim(adjustl(runname))//'.out'
+    write(fn2, *) trim(adjustl(runname))//'_integral.out'
 
     do k = 1, Mtnum
        ! absolute tolerances for integrals
