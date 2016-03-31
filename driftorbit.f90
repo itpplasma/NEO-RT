@@ -961,11 +961,13 @@ contains
     real(8) :: D11int
     real(8) :: ux, etax
     real(8) :: Omth, dummy, dummy2
+    real(8) :: OmtB
     real(8) :: Hmn2
     
     v = ux*vth
     eta = etax
     call Om_th(Omth, dummy, dummy2)
+    call Om_tB(OmtB, dummy, dummy2)
     call bounce(2d0*pi/abs(Omth))
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
@@ -973,7 +975,11 @@ contains
        D11int = pi**(3d0/2d0)*mph*c**2*q*vth/&
             (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
             taub*Hmn2*(mph-(mth+q*mph)*Bphcov*abs(Omth*bounceavg(6)))
-       ! TODO: CHECK ABS(...)
+       
+       ! new definition
+       !D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
+       !     (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
+       !     taub*Hmn2*(Om_tE+OmtB)*Bphcov*bounceavg(6)
     else          
        D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
@@ -985,11 +991,13 @@ contains
     real(8) :: D12int
     real(8) :: ux, etax
     real(8) :: Omth, dummy, dummy2
+    real(8) :: OmtB
     real(8) :: Hmn2
     
     v = ux*vth
     eta = etax
     call Om_th(Omth, dummy, dummy2)
+    call Om_tB(OmtB, dummy, dummy2)
     call bounce(2d0*pi/abs(Omth))
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
@@ -997,7 +1005,11 @@ contains
        D12int = pi**(3d0/2d0)*mph*c**2*q*vth/&
             (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
             taub*Hmn2*(mph-(mth+q*mph)*Bphcov*abs(Omth*bounceavg(6)))*ux**2
-       ! TODO: CHECK ABS(...)
+       
+       ! new definition
+       !D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
+       !     (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
+       !     taub*Hmn2*(Om_tE+OmtB)*Bphcov*bounceavg(6)*ux**2
     else          
        D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&

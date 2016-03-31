@@ -6,6 +6,8 @@ program main
 
   integer :: Mtnum, mthnum
   real(8) :: Mtmin, Mtmax
+  real(8) :: etabar_torfreq ! (eta-etatp)/etatp for torfreq test
+  real(8) :: u_torfreq      ! v/vth for torfreq test
   logical :: odeint
   character(len=1024) :: tmp
   character(:), allocatable :: runname
@@ -79,6 +81,8 @@ contains
     read (9,*) noshear
     read (9,*) pertfile
     read (9,*) odeint
+    !read (9,*) v
+    !read (9,*) etabar
 
     qi = qs*qe
     mi = ms*mu
@@ -286,7 +290,7 @@ contains
     !b = log(delta)
     !a = 1d0/(n-1d0)*(log(etamax/etamin - 1d0) - b)
 
-    open(unit=9, file='test_torfreq.dat', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//'_torfreq.out', recl=1024)
     do k = 0, n-1
        !eta = etamin + k/(n-1d0)*(etamax-etamin)
        eta = etamax*(1d0 - exp(a*k+b))
