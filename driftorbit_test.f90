@@ -6,8 +6,8 @@ program main
 
   integer :: Mtnum, mthnum
   real(8) :: Mtmin, Mtmax
-  real(8) :: etabar_torfreq ! (eta-etatp)/etatp for torfreq test
-  real(8) :: u_torfreq      ! v/vth for torfreq test
+  !real(8) :: etabar_torfreq ! (eta-etatp)/etatp for torfreq test
+  !real(8) :: u_torfreq      ! v/vth for torfreq test
   logical :: odeint
   character(len=1024) :: tmp
   character(:), allocatable :: runname
@@ -77,7 +77,7 @@ contains
     read (9,*) supban
     read (9,*) magdrift
     read (9,*) nopassing  
-    read (9,*) calcflux
+    read (9,*) dummy
     read (9,*) noshear
     read (9,*) pertfile
     read (9,*) odeint
@@ -336,7 +336,7 @@ contains
           ! resonance (passing)
           call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
           do kr = 1,nroots
-             etaresp = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+             etaresp = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
              write(9, *) v/vth, kr, 1-(etarest(1)-etatp)/etatp
           end do
        end if
@@ -345,7 +345,7 @@ contains
        call driftorbit_coarse(etatp*(1+epst), etadt*(1-epst), roots, nroots)
        !print *, "trapped roots: ", v/vth, nroots
        do kr = 1,nroots
-          etarest = driftorbit_root2(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+          etarest = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
           write(10, *) v/vth, kr, (etarest(1)-etatp)/(etadt-etatp)
        end do
        !etarest=driftorbit_root(1d-8*abs(Om_tE),(1+epst)*etatp,(1-epst)*etadt)
@@ -609,7 +609,7 @@ contains
 
        do kr = 1,nroots
           print *, 'etarange: ', roots(kr,1), roots(kr,2)
-          eta_res = driftorbit_root2(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
           eta = eta_res(1)
           D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
           D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
@@ -659,7 +659,7 @@ contains
        if (nroots == 0) cycle
 
        do kr = 1,nroots
-          eta_res = driftorbit_root2(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
           eta = eta_res(1)
           D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
           D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
