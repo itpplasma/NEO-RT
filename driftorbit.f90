@@ -242,7 +242,6 @@ contains
     !  More integrands may be added starting from y(3)
     !
 
-    !integer, intent (in) :: neq
     real(8), intent (in) :: t
     real(8), intent (in) :: y(*)
     real(8), intent (out) :: ydot(*)
@@ -294,7 +293,7 @@ contains
        ydot(4) = real(Hn)
        ydot(5) = aimag(Hn)
     else
-       ydot(4:6) = 0d0
+       ydot(4:5) = 0d0
     end if
   end subroutine timestep
   
