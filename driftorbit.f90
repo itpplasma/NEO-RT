@@ -64,6 +64,7 @@ module driftorbit
   integer, parameter :: nlev = 100
 
   real(8) :: sigv
+
 contains
 
   subroutine init

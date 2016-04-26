@@ -10,17 +10,18 @@
 1e-3		    epsmn	       - perturbation amplitude B1/B0 (if pertfile==F)
 0		    m		       - poroidal perturbation mode (if pertfile==F)
 2 		    n		       - toroidal perturbation mode (if pertfile==F, n>0!)
--1		    mth		       - poloidal canonical mode (for single Mach no. run)
+0		    mth		       - poloidal canonical mode (for single Mach no. run)
 0       	    mthnum	       - poloidal canonical mode count
 0d0	    	    Mtmin	       - minimum Mach number
 0d0	    	    Mtmax	       - maximum Mach number
 0                   Mtnum              - Mach number count
 F                   supban             - calculate superbanana plateau
-F		    magdrift	       - consider magnetic drift
+T		    magdrift	       - consider magnetic drift
 F		    nopassing	       - neglect passing particles
 F		    calcflux	       - calculate flux directly instead via flux-force relation
 T		    noshear	       - neglect magnetic shear term with dqds
 F		    pertfile	       - read perturbation from file with neo_magfie_pert
 F                   odeint             - use ODE integrator for resonance line
+
 
 

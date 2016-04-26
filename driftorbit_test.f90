@@ -6,8 +6,6 @@ program main
 
   integer :: Mtnum, mthnum
   real(8) :: Mtmin, Mtmax
-  !real(8) :: etabar_torfreq ! (eta-etatp)/etatp for torfreq test
-  !real(8) :: u_torfreq      ! v/vth for torfreq test
   logical :: odeint
   character(len=1024) :: tmp
   character(:), allocatable :: runname
@@ -19,14 +17,8 @@ program main
 
   call read_control
   call init_test
-
-  !if (test_profile) then
-  !   call test_profile
-  !   return
-  !end if
   
   call test_magfie
-  call test_resline
 
   if (mthnum < 1) then
      call test_torfreq
@@ -38,17 +30,7 @@ program main
      return
   end if
   
-  !call test_bounce
-  !call test_boundaries
-  !call test_torfreq
-  !call test_resline
-  !call test_flux
-  !call test_driftorbit
-  !call test_torfreq_pass
-  !call test_machrange
-  !call test_boundaries
-  !call test_Hmn
-  !call test_integral
+  call test_resline
   call test_machrange2
 contains
 
@@ -81,8 +63,6 @@ contains
     read (9,*) noshear
     read (9,*) pertfile
     read (9,*) odeint
-    !read (9,*) v
-    !read (9,*) etabar
 
     qi = qs*qe
     mi = ms*mu
@@ -91,12 +71,12 @@ contains
   subroutine init_test
 
     call init
-    !if ((abs(M_t) > 1d-12) .and. (.not. nobdrift)) then
+    if (supban) then
     ! set thermal velocity so that ExB = reference toroidal drift
        !print *, "Set vth from: ", vth
-       !vth = abs(2*M_t*qi*psi_pr/(mi*c*R0)) ! thermal velocity
-       !print *, "Set vth to: ", vth
-    !end if
+       vth = abs(2*M_t*qi*psi_pr/(mi*c*R0)) ! thermal velocity
+       print *, "Set vth to: ", vth
+    end if
     Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
 
     etamin = (1+epst)*etatp
@@ -139,11 +119,14 @@ contains
     write(9,*) "test_magfie: iota      = ", iota
     write(9,*) "test_magfie: M_t       = ", M_t
     write(9,*) "test_magfie: Om_tE     = ", Om_tE
+    write(9,*) "test_magfie: Om_tBref  = ", c*mi*vth**2/(2*qi*psi_pr)
     write(9,*) "test_magfie: vth       = ", vth
     write(9,*) "test_magfie: T [eV]    = ", mi/2*vth**2/eV
     write(9,*) "test_magfie: m0        = ", 1d0*m0
     write(9,*) "test_magfie: n0        = ", 1d0*mph
     write(9,*) "test_magfie: Drp       = ", Drp
+    write(9,*) "test_magfie: etatp     = ", etatp
+    write(9,*) "test_magfie: etadt     = ", etadt
     write(9,*) "-------------------------"
     write(9,*) "test_magfie: pertfile  = ", pertfile
     write(9,*) "-------------------------"
@@ -247,9 +230,17 @@ contains
     real(8) :: Omph, dOmphdv, dOmphdeta
     real(8) :: Omth, dOmthdv, dOmthdeta
     real(8) :: OmtB, dOmtBdv, dOmtBdeta
-    real(8) :: a, b
+    real(8) :: aa, b
 
-    v = 3.62*vth
+    v = vth
+    
+    etamin = etatp
+    etamax = etatp + (etadt-etatp)*(1d0-epsst_spl)
+
+    b = log(epst_spl)
+    aa = 1d0/(n-1d0)*(log(etamax/etamin - 1d0) - b)
+    eta = etamax
+    
     sigv = 1
 
     call disp("test_torfreq: vth        = ", vth)
@@ -260,53 +251,40 @@ contains
     call disp("test_torfreq: Om_tB_ref  = ", c*mi*vth**2/(2*qi*psi_pr))
     call bounce
     call disp("test_torfreq: Om_tB_ba   = ", vth**2*bounceavg(3))
-
-    !etamin = etatp*(1-10*epst_spl)
-    !etamax = etatp*(1+10*epst_spl)
-    !etamin = etatp*(1+epst)
-    !etamax = etatp*(1+10*epst_spl)
-    !etamin = etatp*epssp_spl
-    !etamax = etatp
-    etamin = 4.9232887359263873E-005
-    etamax = 4.9730189246758441E-005
-
-    b = log((etamax-etamin)/etamax)
-    a = 1d0/(n-1d0)*(log(epsp) - b)
-    !etamin = etatp*(1+epst)
-    !etamax = etadt*(1-epst)
-    !etamin = etatp*(1-2*epst)
-    !etamax = etatp*(1+2*epst)
     call disp("test_torfreq: etamin = ", etamin)
     call disp("test_torfreq: etamax = ", etamax)
-    !etamax = etadt*(1-1d-7) 
-
-    !eta = etamax*(1d0-1d-7)
     call Om_th(Omth, dOmthdv, dOmthdeta)
 
     call disp("test_torfreq: Om_th_approx    = ", v/(q*R0*sqrt(2d0/eps)))
     call disp("test_torfreq: Om_th_deeptrap  = ", Omth)
 
-    !delta = 1d-9   ! smallest relative distance to etamin
-    !b = log(delta)
-    !a = 1d0/(n-1d0)*(log(etamax/etamin - 1d0) - b)
-
     open(unit=9, file=trim(adjustl(runname))//'_torfreq.out', recl=1024)
+    write(9, *) '!1:eta                   '//&
+         ' 2:etatp                  '//&
+         ' 3:etadt                  '//&
+         ' 4:Om_tE                  '//&
+         ' 5:OmtB                   '//&
+         ' 6:dOmtbdv                '//&
+         ' 7:dOmtbdeta              '//&
+         ' 8:Omth                   '//&
+         ' 9:dOmthdv                '//&
+         '10:dOmthdeta              '//&
+         '11:Omph                   '//&
+         '12:dOmphdv                '//&
+         '13:dOmphdeta              '
     do k = 0, n-1
-       !eta = etamin + k/(n-1d0)*(etamax-etamin)
-       eta = etamax*(1d0 - exp(a*k+b))
-       !print *, etamin, etamax, eta
+       eta = etamin*(1d0 + exp(aa*k+b))
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        call Om_th(Omth, dOmthdv, dOmthdeta)
        call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
-       write(9, *) (eta-etatp)/(etadt-etatp),&
+       write(9, *) eta, etatp, etadt,&
             Om_tE, OmtB, dOmtbdv, dOmtbdeta,&
             Omth, dOmthdv, dOmthdeta,&
-            Omph, dOmphdv, dOmphdeta, mph*Omph+mth*Omth
+            Omph, dOmphdv, dOmphdeta
     end do
-    
     close(unit=9)
   end subroutine test_torfreq
-
+  
   subroutine test_Om_spline
     ! TODO: write test routine for splined canonical frequencies over eta
     ! Om_tB/v^2 and Omth/v are independent of v and splined in init_Om_tB_spl.
@@ -321,38 +299,43 @@ contains
     integer :: nroots, kr
 
     vmin = 1d-6*vth
-    vmax = 5d0*vth
+    vmax = 10d0*vth
 
     etaresp = etatp
     etarest = etatp
     sigv = 1
     
-    open(unit=9, file=trim(adjustl(runname))//'_resline_p.out', recl=1024)
-    open(unit=10, file=trim(adjustl(runname))//'_resline_t.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//'_resline_pco.out', recl=1024)
+    open(unit=10, file=trim(adjustl(runname))//'_resline_pct.out', recl=1024)
+    open(unit=11, file=trim(adjustl(runname))//'_resline_t.out', recl=1024)
     do k = 0, n-1
        v = vmin + k/(n-1d0)*(vmax-vmin)
        
        if (.not. nopassing) then
           ! resonance (passing)
+          sigv = 1
           call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
           do kr = 1,nroots
-             etaresp = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
-             write(9, *) v/vth, kr, 1-(etarest(1)-etatp)/etatp
+             etaresp = driftorbit_root(1d-8*abs(Om_tE),roots(kr,1),roots(kr,2))
+             write(9, *) v/vth, kr, etaresp(1), 0d0, etatp
+          end do
+          sigv = -1
+          call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
+          do kr = 1,nroots
+             etaresp = driftorbit_root(1d-8*abs(Om_tE),roots(kr,1),roots(kr,2))
+             write(10, *) v/vth, kr, etaresp(1), 0d0, etatp
           end do
        end if
        
        ! resonance (trapped)
+       sigv = 1
        call driftorbit_coarse(etatp*(1+epst), etadt*(1-epst), roots, nroots)
-       !print *, "trapped roots: ", v/vth, nroots
        do kr = 1,nroots
           etarest = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
-          write(10, *) v/vth, kr, (etarest(1)-etatp)/(etadt-etatp)
+          write(11, *) v/vth, kr, etarest(1), etatp, etadt
        end do
-       !etarest=driftorbit_root(1d-8*abs(Om_tE),(1+epst)*etatp,(1-epst)*etadt)
-       
-       !write(9, *) v/vth, (etaresp(1)-etatp)/(etadt-etatp),&
-       !     (etarest(1)-etatp)/(etadt-etatp)
     end do
+    close(unit=11)
     close(unit=10)
     close(unit=9)
   end subroutine test_resline
@@ -558,34 +541,34 @@ contains
     real(8) :: xs, kappa2s
     real(8) :: roots(nlev, 3)
     integer :: nroots, kr
-    character(1024) :: fn1, fn2
+    character(1024) :: fn1, fn2, fn3
     real(8) :: tol0(2)
 
     tol0 = 1d-9
 
     call disp("test_integral: Mach num Mt         = ", M_t)
     call disp("test_integral: Poloidal mode mth   = ", 1d0*mth)
-    
-    write(fn1, '(A,ES13.7,A)') 'integral_p_', s, '.out'
-    write(fn2, '(A,ES13.7,A)') 'integral_t_', s, '.out'
 
-    nu = 2
+    write(fn1,*) trim(adjustl(runname))//'_integral_pco.out'
+    write(fn2,*) trim(adjustl(runname))//'_integral_pct.out'
+    write(fn3,*) trim(adjustl(runname))//'_integral_t.out'  
+    
+    nu = 500
 
     !mth = 2
     
-    vmin2 = 2.5000005000000001*vth
-    vmax2 = 3*vth
+    vmin2 = .1*vth
+    vmax2 = 4*vth
 
     
-    ! passing
-    sigv = -1
+    print *, '==CO-PASSING=='
+    sigv = 1
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
-    !call find_vlim_p(vmin2, vmax2)
 
     print *, 'vrange: ', vmin2/vth, vmax2/vth
     print *, 'etarange: ', etamin, etamax
-    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
+    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
     !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
@@ -608,7 +591,6 @@ contains
        if (nroots == 0) cycle
 
        do kr = 1,nroots
-          print *, 'etarange: ', roots(kr,1), roots(kr,2)
           eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
           eta = eta_res(1)
           D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
@@ -626,21 +608,23 @@ contains
        
        write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
             (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, xs, kappa2s
+            vth, B0, xs, kappa2s, 0d0, etatp
     end do
     print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
     close(unit=10)
 
-    ! trapped
-    sigv = 1d0
-    etamin = (1+epst)*etatp
-    etamax = (1-epst)*etadt
-    !call find_vlim_t(vmin2, vmax2)
-    !print *, 'vrange: ', vmin2/vth, vmax2/vth
-    
+    print *, '==CTR-PASSING=='
+    sigv = -1
+    etamin = epsp*etatp
+    etamax = (1-epsp)*etatp
+
     print *, 'vrange: ', vmin2/vth, vmax2/vth
+    print *, 'etarange: ', etamin, etamax
     print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-    
+    !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
+    vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
+    vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
+
     D11  = 0d0
     D12  = 0d0
     D11sum = 0d0
@@ -676,7 +660,57 @@ contains
        
        write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
             (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, xs, kappa2s
+            vth, B0, xs, kappa2s, 0d0, etatp
+    end do
+    print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
+    close(unit=10)
+    
+    print *, '==TRAPPED=='
+    sigv = 1d0
+    etamin = (1+epst)*etatp
+    etamax = (1-epst)*etadt
+    !call find_vlim_t(vmin2, vmax2)
+    !print *, 'vrange: ', vmin2/vth, vmax2/vth
+    
+    print *, 'vrange: ', vmin2/vth, vmax2/vth
+    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
+    
+    D11  = 0d0
+    D12  = 0d0
+    D11sum = 0d0
+    D12sum = 0d0
+    dsdreff = 2d0/a*sqrt(s)
+    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+        
+    open(unit=10, file=trim(fn3), recl=1024)
+    v = vmax2
+    vold = vmax2
+    do ku = 0, nu-1
+       vold = v
+       v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
+       
+       call driftorbit_coarse(etamin, etamax, roots, nroots)
+       if (nroots == 0) cycle
+
+       do kr = 1,nroots
+          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+          eta = eta_res(1)
+          D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
+          D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
+          if ((ku == 1) .or. (ku == nu-1)) then
+             D11 = D11/2d0
+             D12 = D12/2d0
+          end if
+          D11sum = D11sum + D11
+          D12sum = D12sum + D12
+       end do
+
+       xs = (v/vth)**2
+       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+       
+       write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
+            (eta_res(1)-etamin)/(etamax-etamin),&
+            vth, B0, xs, kappa2s, etatp, etadt
     end do
     print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
     close(unit=10)
