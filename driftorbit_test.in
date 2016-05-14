@@ -22,6 +22,7 @@ F		    calcflux	       - calculate flux directly instead via flux-force relation
 T		    noshear	       - neglect magnetic shear term with dqds
 F		    pertfile	       - read perturbation from file with neo_magfie_pert
 F                   odeint             - use ODE integrator for resonance line
+T		    nonlin	       - do nonlinear calculation
 
 
 

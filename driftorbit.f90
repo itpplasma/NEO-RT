@@ -62,9 +62,10 @@ module driftorbit
 
   ! Number of levels for coarse root finding
   integer, parameter :: nlev = 100
-
   real(8) :: sigv
 
+  ! Nonlinear calculation switch
+  logical :: nonlin
 contains
 
   subroutine init

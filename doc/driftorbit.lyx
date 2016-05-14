@@ -336,7 +336,7 @@ Bounce average
 The code calculates bounce averages
 \begin_inset Formula 
 \begin{equation}
-\left\langle f(\vartheta_{{\rm orb}}(\tau))\right\rangle _{b}=\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\,f(\vartheta_{{\rm orb}}(\tau))
+\left\langle f(\vartheta_{{\rm orb}}(\tau))\right\rangle _{b}=\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\, f(\vartheta_{{\rm orb}}(\tau))
 \end{equation}
 
 \end_inset
@@ -446,9 +446,9 @@ For trapped particles, the canonical toroidal rotation frequency
  of electric and magnetic drift (in any flux coordinates)
 \begin_inset Formula 
 \begin{align}
-\Omega_{tE} & =-\frac{c}{B^{\vartheta}\sqrt{g}}\frac{\partial\Phi}{\partial r_{\varphi}}\label{eq:Om_tE}\\
-\Omega_{tB} & =-\frac{v^{2}(2-\eta B)}{2\omega_{c}B^{\vartheta}\sqrt{g}}\frac{\partial B}{\partial r_{\varphi}}+\frac{v^{2}(1-\eta B)}{\omega_{c}\sqrt{g}B}\left(\frac{\partial B_{\vartheta}}{\partial r_{\varphi}}+q\frac{\partial B_{\varphi}}{\partial r_{\varphi}}+B_{\varphi}\frac{dq}{dr_{\varphi}}\right)\nonumber \\
- & =\frac{v^{2}}{2\omega_{c}\sqrt{g}h^{\vartheta}B}\left(-(2-\eta B)\frac{\partial B}{\partial r_{\varphi}}+2(1-\eta B)h^{\vartheta}\left(\frac{\partial B_{\vartheta}}{\partial r_{\varphi}}+q\frac{\partial B_{\varphi}}{\partial r_{\varphi}}+B_{\varphi}\frac{dq}{dr_{\varphi}}\right)\right).\label{eq:Om_tB}
+\Omega_{tE} & =-\frac{c}{\psi_{{\rm pol}}^{\prime}}\frac{\partial\Phi}{\partial r}\label{eq:Om_tE}\\
+\Omega_{tB} & =-\frac{v^{2}(2-\eta B)}{2\omega_{c}B^{\vartheta}\sqrt{g}}\frac{\partial B}{\partial r}+\frac{v^{2}(1-\eta B)}{\omega_{c}\sqrt{g}B}\left(\frac{\partial B_{\vartheta}}{\partial r}+q\frac{\partial B_{\varphi}}{\partial r}+B_{\varphi}\frac{dq}{dr}\right)\nonumber \\
+ & =\frac{v^{2}}{\psi_{{\rm pol}}^{\prime}}\left(-\frac{2-\eta B}{2\omega_{c}}\frac{\partial B}{\partial r}+\frac{1-\eta B}{\omega_{c}}h^{\vartheta}\left(\frac{\partial B_{\vartheta}}{\partial r}+q\frac{\partial B_{\varphi}}{\partial r}+B_{\varphi}\frac{dq}{dr}\right)\right).\label{eq:Om_tB}
 \end{align}
 
 \end_inset
@@ -457,7 +457,8 @@ The last term with magnetic shear
 \begin_inset Formula $dq/dr$
 \end_inset
 
- is sometimes neglected in the standard neoclassical approach.
+ does not appear in the standard local neoclassical approach but can be
+ important.
 \end_layout
 
 \begin_layout Standard
@@ -504,7 +505,7 @@ From rotation_05_15 (2.5) we use expressions for the harmonics of the canonical
 \end_inset
 
  starting from harmonics in Boozer angles, 
-\begin_inset Formula $m_{0},\,n_{0}$
+\begin_inset Formula $m_{0},\, n_{0}$
 \end_inset
 
 .
@@ -1091,7 +1092,7 @@ According to Shaing, we calculate the large aspect ratio limit using Hamada
 \end_inset
 
  and 
-\begin_inset Formula $B^{\ph}=\psi^{\prime}(V),\,B^{\tht}=\chi^{\prime}(V)$
+\begin_inset Formula $B^{\ph}=\psi^{\prime}(V),\, B^{\tht}=\chi^{\prime}(V)$
 \end_inset
 
  are flux functions.
@@ -1582,16 +1583,16 @@ or using
 \end_inset
 
 The diffusion coefficient is (
-\begin_inset Formula $x=u^{2},\,dx=2u\,du,\,du=\frac{1}{2}x^{-1/2}dx$
+\begin_inset Formula $x=u^{2},\, dx=2u\, du,\, du=\frac{1}{2}x^{-1/2}dx$
 \end_inset
 
 )
 \begin_inset Formula 
 \begin{align*}
-D_{11} & =\frac{\pi^{3/2}n^{2}c^{2}qv_{T}}{e_{\alpha}^{2}\left\langle \left|\nabla s\right|\right\rangle ^{2}\psi_{{\rm tor}}^{a}}\frac{ds}{dV}\int_{0}^{\infty}du\,u^{3}e^{-u^{2}}\tau_{b}|H_{n}|^{2}\left|n\frac{\partial\Omega^{3}}{\partial\eta}\right|^{-1}\\
- & =\frac{m\pi^{3/2}n^{2}c^{2}v_{T}^{3}}{4|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}4K(\kappa)\sqrt{\frac{m}{\mu B_{a}\varepsilon}}(\alpha_{n}^{2}+\beta_{n}^{2})\frac{1}{|n|}\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\frac{2}{c}\left|\frac{\varepsilon}{\varepsilon^{\prime}}\right|\\
- & =\frac{m\pi^{3/2}cv_{T}^{3}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{\varepsilon}}{|\varepsilon^{\prime}|}\sqrt{\frac{m}{\mu B_{a}}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\\
- & =\frac{m\pi^{3/2}cv_{T}^{2}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{2\varepsilon}}{|\varepsilon^{\prime}|}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}
+D_{11} & =\frac{\pi^{3/2}n^{2}c^{2}qv_{T}}{e_{\alpha}^{2}\left\langle \left|\nabla s\right|\right\rangle ^{2}\psi_{{\rm tor}}^{a}}\frac{ds}{dV}\int_{0}^{\infty}du\, u^{3}e^{-u^{2}}\tau_{b}|H_{n}|^{2}\left|n\frac{\partial\Omega^{3}}{\partial\eta}\right|^{-1}\\
+ & =\frac{m\pi^{3/2}n^{2}c^{2}v_{T}^{3}}{4|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\, x^{3/2}e^{-x}4K(\kappa)\sqrt{\frac{m}{\mu B_{a}\varepsilon}}(\alpha_{n}^{2}+\beta_{n}^{2})\frac{1}{|n|}\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\frac{2}{c}\left|\frac{\varepsilon}{\varepsilon^{\prime}}\right|\\
+ & =\frac{m\pi^{3/2}cv_{T}^{3}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{\varepsilon}}{|\varepsilon^{\prime}|}\sqrt{\frac{m}{\mu B_{a}}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\, x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\\
+ & =\frac{m\pi^{3/2}cv_{T}^{2}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{2\varepsilon}}{|\varepsilon^{\prime}|}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\, x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}
 \end{align*}
 
 \end_inset

@@ -63,6 +63,7 @@ contains
     read (9,*) noshear
     read (9,*) pertfile
     read (9,*) odeint
+    read (9,*) nonlin
 
     qi = qs*qe
     mi = ms*mu
