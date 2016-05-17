@@ -53,6 +53,7 @@ add_executable(${PROJECT_EXE_NAME}
 )
 
 add_library("driftorbit"
+  attenuation_factor.f90
   collis_nbi.f90
   polylag_3.f
   common.f90

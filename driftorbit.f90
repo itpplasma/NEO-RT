@@ -297,6 +297,8 @@ contains
        ydot(5) = aimag(Hn)
        if (nonlin) then
           ydot(6) = 1d0/bmod
+       else
+          ydot(6) = 0d0
        end if
     else
        ydot(4:6) = 0d0
@@ -727,7 +729,7 @@ contains
     real(8) :: dummy, dummy2
     real(8) :: OmtB
     real(8) :: Hmn2
-    real(8) :: dpp, dhh, fpeff, dres,& ! for nonlin
+    real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt,& ! for nonlin
          Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr
     
     
@@ -738,6 +740,7 @@ contains
     call bounce(2d0*pi/abs(Omth))
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
+    thatt = 1d0
     if (nonlin) then
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        dOmdv = mth*dOmthdv + mph*dOmphdv
@@ -745,11 +748,14 @@ contains
        Ompr = mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))
        call coleff(ux,dpp,dhh,fpeff)
        dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
+       dnorm = dres*sqrt(abs(Ompr))/abs(Hmn2)**(3d0/2d0)
+       !print *, dnorm
+       call attenuation_factor(dnorm,thatt)
     end if
     
     D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
-         taub*Hmn2
+         taub*Hmn2*thatt
   end function D11int
   
   function D12int(ux, etax)
@@ -759,15 +765,17 @@ contains
     real(8) :: dummy, dummy2
     real(8) :: OmtB
     real(8) :: Hmn2
-    real(8) :: dpp, dhh, fpeff, dres,& ! for nonlin
+    real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt,& ! for nonlin
          Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr
     
     v = ux*vth
     eta = etax
-    call Om_th(Omth, dummy, dummy2)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_tB(OmtB, dummy, dummy2)
     call bounce(2d0*pi/abs(Omth))
+    Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2     
     
+    thatt = 1d0
     if (nonlin) then
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        dOmdv = mth*dOmthdv + mph*dOmphdv
@@ -775,12 +783,13 @@ contains
        Ompr = mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))
        call coleff(ux,dpp,dhh,fpeff)
        dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
+       dnorm = dres*sqrt(abs(Ompr))/abs(Hmn2)**(3d0/2d0)
+       call attenuation_factor(dnorm,thatt)
     end if
      
-    Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2     
     D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
-         taub*Hmn2*ux**2
+         taub*Hmn2*ux**2*thatt
   end function D12int
   
   function D11int_u(ux)

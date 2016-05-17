@@ -90,10 +90,12 @@ contains
     integer :: nplasma, i
     
     v0    = 1d0
+    amb   = 2d0
+    Zb    = 1d0
     ebeam = amb*pmass*v0**2/(2d0*ev)
 
     ! read plasma file
-    open(1,file='plasma.dat')
+    open(1,file='plasma.in')
     read (1,*)
     read (1,*) nplasma,am1,am2,Z1,Z2
     read (1,*)
@@ -119,9 +121,10 @@ contains
     fp=plasma(indu,6)
     call plag1d(s,fp,dxm1,xp,tempe,der)
 
+    print *, amb, am1, am2, Zb, Z1, Z2, densi1, densi2, tempi1, tempi2, tempe, ebeam, v0
+
     call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,&
          ebeam,v0,dchichi,slowrate,dchichi_norm,slowrate_norm)
-
     ! TODO: calculate diffusion coefficients
   end subroutine init_plasma
 
