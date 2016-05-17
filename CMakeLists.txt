@@ -53,6 +53,8 @@ add_executable(${PROJECT_EXE_NAME}
 )
 
 add_library("driftorbit"
+  collis_nbi.f90
+  polylag_3.f
   common.f90
   driftorbit.f90
   #do_magfie_standalone.f90

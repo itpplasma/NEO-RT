@@ -4,6 +4,7 @@
 
 module driftorbit
   use do_magfie_mod
+  use collis_alp
   use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert,&
        neo_init_spline_pert, neo_magfie_pert_amp, m_phi
   use spline
@@ -11,7 +12,7 @@ module driftorbit
   implicit none
   save
 
-  integer, parameter :: nvar = 5
+  integer, parameter :: nvar = 6
 
   ! Orbit parameters
   real(8) :: v, eta
@@ -294,8 +295,11 @@ contains
        end if
        ydot(4) = real(Hn)
        ydot(5) = aimag(Hn)
+       if (nonlin) then
+          ydot(6) = 1d0/bmod
+       end if
     else
-       ydot(4:5) = 0d0
+       ydot(4:6) = 0d0
     end if
   end subroutine timestep
   
@@ -391,6 +395,7 @@ contains
     y0(3) = 0d0
     y0(4) = 0d0
     y0(5) = 0d0
+    y0(6) = 0d0
 
     if (present(taub_estimate)) then
        taub_est = taub_estimate
@@ -718,16 +723,30 @@ contains
   function D11int(ux, etax)
     real(8) :: D11int
     real(8) :: ux, etax
-    real(8) :: Omth, dummy, dummy2
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: dummy, dummy2
     real(8) :: OmtB
     real(8) :: Hmn2
+    real(8) :: dpp, dhh, fpeff, dres,& ! for nonlin
+         Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr
+    
     
     v = ux*vth
     eta = etax
-    call Om_th(Omth, dummy, dummy2)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_tB(OmtB, dummy, dummy2)
     call bounce(2d0*pi/abs(Omth))
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
+
+    if (nonlin) then
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       dOmdv = mth*dOmthdv + mph*dOmphdv
+       dOmdeta = mth*dOmthdeta + mph*dOmphdeta
+       Ompr = mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))
+       call coleff(ux,dpp,dhh,fpeff)
+       dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
+    end if
+    
     D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
@@ -736,15 +755,28 @@ contains
   function D12int(ux, etax)
     real(8) :: D12int
     real(8) :: ux, etax
-    real(8) :: Omth, dummy, dummy2
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: dummy, dummy2
     real(8) :: OmtB
     real(8) :: Hmn2
+    real(8) :: dpp, dhh, fpeff, dres,& ! for nonlin
+         Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr
     
     v = ux*vth
     eta = etax
     call Om_th(Omth, dummy, dummy2)
     call Om_tB(OmtB, dummy, dummy2)
     call bounce(2d0*pi/abs(Omth))
+    
+    if (nonlin) then
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       dOmdv = mth*dOmthdv + mph*dOmphdv
+       dOmdeta = mth*dOmthdeta + mph*dOmphdeta
+       Ompr = mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))
+       call coleff(ux,dpp,dhh,fpeff)
+       dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
+    end if
+     
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2     
     D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&

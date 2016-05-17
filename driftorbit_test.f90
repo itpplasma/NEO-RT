@@ -2,6 +2,7 @@ program main
   use driftorbit
   use lineint
   use do_magfie_mod
+  use polylag_3,  only : mp,indef,plag1d
   implicit none
 
   integer :: Mtnum, mthnum
@@ -16,6 +17,9 @@ program main
   runname = trim(adjustl(tmp))
 
   call read_control
+  if (nonlin) then
+     call init_plasma
+  end if
   call init_test
   
   call test_magfie
@@ -68,6 +72,58 @@ contains
     qi = qs*qe
     mi = ms*mu
   end subroutine read_control
+
+  subroutine init_plasma
+    real(8), parameter :: pi    = 3.14159265358979d0
+    real(8), parameter :: pmass = 1.6726d-24
+    real(8), parameter :: emass = 9.1094d-28
+    real(8), parameter :: e     = 4.8032d-10
+    real(8), parameter :: ev    = 1.6022d-12
+    
+    real(8) :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe, &
+         dchichi,slowrate,dchichi_norm,slowrate_norm
+    real(8) :: v0, ebeam
+    real(8), dimension(:,:), allocatable :: plasma(:,:)
+    integer, dimension(mp) :: indu
+    real(8), dimension(mp) :: xp, fp
+    real(8) :: der, dxm1
+    integer :: nplasma, i
+    
+    v0    = 1d0
+    ebeam = amb*pmass*v0**2/(2d0*ev)
+
+    ! read plasma file
+    open(1,file='plasma.dat')
+    read (1,*)
+    read (1,*) nplasma,am1,am2,Z1,Z2
+    read (1,*)
+    allocate(plasma(nplasma,6))
+    do i=1,nplasma
+       read (1,*) plasma(i,:)
+    enddo
+    dxm1=1.d0/(plasma(2,1)-plasma(1,1))
+    close(1)
+    
+    ! interpolate to s value
+    call indef(s,plasma(1,1),dxm1,nplasma,indu)
+    
+    xp=plasma(indu,1)
+    fp=plasma(indu,2)
+    call plag1d(s,fp,dxm1,xp,densi1,der)
+    fp=plasma(indu,3)
+    call plag1d(s,fp,dxm1,xp,densi2,der)
+    fp=plasma(indu,4)
+    call plag1d(s,fp,dxm1,xp,tempi1,der)
+    fp=plasma(indu,5)
+    call plag1d(s,fp,dxm1,xp,tempi2,der)
+    fp=plasma(indu,6)
+    call plag1d(s,fp,dxm1,xp,tempe,der)
+
+    call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,&
+         ebeam,v0,dchichi,slowrate,dchichi_norm,slowrate_norm)
+
+    ! TODO: calculate diffusion coefficients
+  end subroutine init_plasma
 
   subroutine init_test
 
