@@ -498,6 +498,39 @@ contains
     dOmthdeta = sigv*splineval(2)*v
   end subroutine Om_th
 
+  subroutine d_Om_ds(dOmthds, dOmphds)
+    real(8) :: s0, taub0, bounceavg0(nvar), ds
+    real(8) :: dOmthds, dOmphds, Omth, Omph
+    ! store current flux surface values
+    s0 = s
+    taub0 = taub
+    bounceavg0 = bounceavg
+    
+    ds = 1d-7*s0
+    s = s0 - ds/2d0
+    call bounce(taub0)
+    Omth = 2d0*pi/taub
+    if (eta > etatp) then
+       Omph = bounceavg(3)*v**2+Om_tE
+    else
+       Omph = bounceavg(3)*v**2+Om_tE+Omth/iota
+    end if
+    s = s0 + ds/2d0
+    call bounce(taub0)
+    dOmthds = (2d0*pi/taub - Omth)/ds
+    if (eta > etatp) then
+       dOmphds = (bounceavg(3)*v**2+Om_tE - Omph)/ds
+    else
+       dOmphds = (bounceavg(3)*v**2+Om_tE+(2d0*pi/taub)/iota - Omph)/ds
+    end if
+
+    ! re-set current flux surface values
+    s = s0
+    taub = taub0
+    bounceavg = bounceavg0
+  end subroutine d_Om_ds
+
+  
   subroutine driftorbit_coarse(eta_min, eta_max, roots, nroots)
     real(8), intent(in) :: eta_min, eta_max
     real(8), intent(out) :: roots(:,:)
@@ -730,9 +763,10 @@ contains
     real(8) :: OmtB
     real(8) :: Hmn2
     real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt,& ! for nonlin
-         Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr
+         Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds,&
+         dOmdpph
     
-    
+!ux = 1d0    
     v = ux*vth
     eta = etax
     call Om_th(Omth, dOmthdv, dOmthdeta)
@@ -743,14 +777,27 @@ contains
     thatt = 1d0
     if (nonlin) then
        call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call d_Om_ds(dOmthds, dOmphds)
        dOmdv = mth*dOmthdv + mph*dOmphdv
        dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-       Ompr = mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))
+       dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds+mph*dOmphds)
+!print *,  qi/c*psi_pr, psi_pr, mth*dOmthds+mph*dOmphds
+!pause
+       Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph
+
+!ux = 1d0
+!print *, ux       
        call coleff(ux,dpp,dhh,fpeff)
+       dhh = vth*dhh
+       dpp = vth**3*dpp
        dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
-       dnorm = dres*sqrt(abs(Ompr))/abs(Hmn2)**(3d0/2d0)
-       !print *, dnorm
-       call attenuation_factor(dnorm,thatt)
+       dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
+!print *,mi*(ux*vth)**2/(2*Omth),Ompr,ux*vth/2*dOmdv,eta*dOmdeta,Ompr-dOmdpph,dOmdpph
+!pause
+        call attenuation_factor(dnorm,thatt)
+!print *, ux, dres, dpp*(dOmdv/Ompr)**2, dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
+!print *, dres, dnorm, sqrt(abs(Ompr)), sqrt(abs(Hmn2))**(3d0/2d0)
+!print *, dnorm, thatt
     end if
     
     D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
@@ -766,7 +813,8 @@ contains
     real(8) :: OmtB
     real(8) :: Hmn2
     real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt,& ! for nonlin
-         Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr
+         Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds,&
+         dOmdpph
     
     v = ux*vth
     eta = etax
@@ -778,12 +826,16 @@ contains
     thatt = 1d0
     if (nonlin) then
        call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call d_Om_ds(dOmthds, dOmphds)
        dOmdv = mth*dOmthdv + mph*dOmphdv
        dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-       Ompr = mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))
+       dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds+mph*dOmphds)
+       Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph
        call coleff(ux,dpp,dhh,fpeff)
+       dhh = vth*dhh
+       dpp = vth**3*dpp
        dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
-       dnorm = dres*sqrt(abs(Ompr))/abs(Hmn2)**(3d0/2d0)
+       dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
        call attenuation_factor(dnorm,thatt)
     end if
      

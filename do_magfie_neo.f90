@@ -47,7 +47,7 @@ contains
     R0 = 1d2*rt0
     x(3) = pi
     call do_magfie(x, bmod1, sqrtg, bder, hcovar, hctrvr, hcurl)
-    eps = (bmod1/bmod-1d0)/(bmod1/bmod+1d0)
+    eps = (bmod1/bmod-1d0)/(bmod1/bmod+1d0) ! TODO: make this correct
     
   end subroutine do_magfie_init
   

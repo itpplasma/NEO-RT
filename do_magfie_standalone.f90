@@ -26,7 +26,7 @@ contains
   subroutine do_magfie_init
     integer :: j,k
 
-    call boozer_read('tok-synch2-n0.bc') ! TODO: general filename
+    call boozer_read('in_file') ! TODO: general filename
 
     if (.not. allocated(spl_coeff1)) then
        allocate(spl_coeff1(nflux-1, 5, 5))

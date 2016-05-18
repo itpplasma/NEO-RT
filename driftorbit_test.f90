@@ -89,10 +89,6 @@ contains
     real(8) :: der, dxm1
     integer :: nplasma, i
     
-    v0    = 1d0
-    amb   = 2d0
-    Zb    = 1d0
-    ebeam = amb*pmass*v0**2/(2d0*ev)
 
     ! read plasma file
     open(1,file='plasma.in')
@@ -121,10 +117,24 @@ contains
     fp=plasma(indu,6)
     call plag1d(s,fp,dxm1,xp,tempe,der)
 
+!print *, Z1, am1
+!pause
+    qi    = Z1*qe
+    mi    = am1*mu
+    vth   = sqrt(2d0*tempi1*ev/mi)
+    !v0    = 1d0
+    v0    = vth
+    amb   = 2d0
+    Zb    = 1d0
+    ebeam = amb*pmass*v0**2/(2d0*ev)
+    
     print *, amb, am1, am2, Zb, Z1, Z2, densi1, densi2, tempi1, tempi2, tempe, ebeam, v0
 
     call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,&
          ebeam,v0,dchichi,slowrate,dchichi_norm,slowrate_norm)
+  
+!print *, ebeam*ev, mi*vth**2/2d0, v0, vth, enrat
+!pause
     ! TODO: calculate diffusion coefficients
   end subroutine init_plasma
 
@@ -287,8 +297,8 @@ contains
   subroutine test_torfreq
     integer, parameter :: n = 100
     integer :: k
-    real(8) :: Omph, dOmphdv, dOmphdeta
-    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: Omph, dOmphdv, dOmphdeta, dOmphds
+    real(8) :: Omth, dOmthdv, dOmthdeta, dOmthds
     real(8) :: OmtB, dOmtBdv, dOmtBdeta
     real(8) :: aa, b
 
@@ -329,18 +339,21 @@ contains
          ' 8:Omth                   '//&
          ' 9:dOmthdv                '//&
          '10:dOmthdeta              '//&
-         '11:Omph                   '//&
-         '12:dOmphdv                '//&
-         '13:dOmphdeta              '
+         '11:dOmthds                '//&
+         '12:Omph                   '//&
+         '13:dOmphdv                '//&
+         '14:dOmphdeta              '//&
+         '15:dOmphds                '
     do k = 0, n-1
        eta = etamin*(1d0 + exp(aa*k+b))
        call Om_ph(Omph, dOmphdv, dOmphdeta)
        call Om_th(Omth, dOmthdv, dOmthdeta)
        call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+       call d_Om_ds(dOmthds, dOmphds)
        write(9, *) eta, etatp, etadt,&
             Om_tE, OmtB, dOmtbdv, dOmtbdeta,&
-            Omth, dOmthdv, dOmthdeta,&
-            Omph, dOmphdv, dOmphdeta
+            Omth, dOmthdv, dOmthdeta, dOmthds,&
+            Omph, dOmphdv, dOmphdeta, dOmphds
     end do
     close(unit=9)
   end subroutine test_torfreq
@@ -628,7 +641,7 @@ contains
 
     print *, 'vrange: ', vmin2/vth, vmax2/vth
     print *, 'etarange: ', etamin, etamax
-    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
+    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
     !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
@@ -680,7 +693,7 @@ contains
 
     print *, 'vrange: ', vmin2/vth, vmax2/vth
     print *, 'etarange: ', etamin, etamax
-    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
+    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
     !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
@@ -733,7 +746,7 @@ contains
     !print *, 'vrange: ', vmin2/vth, vmax2/vth
     
     print *, 'vrange: ', vmin2/vth, vmax2/vth
-    print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
+    !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
     
     D11  = 0d0
     D12  = 0d0
