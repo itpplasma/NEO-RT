@@ -59,7 +59,7 @@ add_library("driftorbit"
   common.f90
   driftorbit.f90
   do_magfie_standalone.f90
-  #do_magfie_neo.f90
+  do_magfie_neo.f90
   ${SUITESPARSE_SRC_FILES}
   ${SUPERLU_SRC_FILES}
 )

@@ -1,4 +1,4 @@
-module do_magfie_mod
+module do_magfie_neo_mod
   use common
   use neo_exchange, only: nper,b_min,b_max, &
        theta_bmin,theta_bmax,phi_bmin,phi_bmax,rt0
@@ -29,11 +29,9 @@ contains
   subroutine do_magfie_init
     real(8) :: bmod, bmod1, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
-    !! VERY DANGEROUS: CHANGING Q MANUALLY
-    !boozer_iota      = 1d0/3d0
+print *, "start do_magfie_init"
     
     bmod0 = 1d-4
-    !print *, bmod0
     magfie_spline = 1
 
     if (.not. allocated(magfie_sarray)) then
@@ -43,8 +41,11 @@ contains
 
     x(1) = s
     x(2:3) = 0.0d0
+print *, "before do_magfie"
     call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+print *, "after do_magfie"
     R0 = 1d2*rt0
+print *, R0
     x(3) = pi
     call do_magfie(x, bmod1, sqrtg, bder, hcovar, hctrvr, hcurl)
     eps = (bmod1/bmod-1d0)/(bmod1/bmod+1d0) ! TODO: make this correct
@@ -77,4 +78,26 @@ contains
     R0        = 1d2*rt0
   end subroutine do_magfie
   
-end module do_magfie_mod
+end module do_magfie_neo_mod
+
+module do_magfie_pert_neo_mod
+  use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert,&
+       neo_init_spline_pert, neo_magfie_pert_amp, m_phi
+
+  real(8) :: mph
+
+contains
+  
+  subroutine do_magfie_pert_init
+     call neo_read_pert_control
+     call neo_read_pert
+     call neo_init_spline_pert
+     mph = m_phi
+  end subroutine do_magfie_pert_init
+  
+  subroutine do_magfie_pert_amp(x, bamp)
+    real(8) :: x(3)
+    complex(8) :: bamp
+    call neo_magfie_pert_amp(x, bamp)
+  end subroutine do_magfie_pert_amp  
+end module do_magfie_pert_neo_mod

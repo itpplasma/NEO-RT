@@ -2,7 +2,7 @@
 set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 
 ### Path to the external libraries
-set(PROJLIBS ../libs/)
+set(PROJLIBS /proj/plasma/Libs/)
 
 set(SUPERLU_VER 4.1)
 set(SUPERLU_DIR ${PROJLIBS}SuperLU/SuperLU_${SUPERLU_VER}/)

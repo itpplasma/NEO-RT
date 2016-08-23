@@ -2,6 +2,7 @@ program main
   use driftorbit
   use lineint
   use do_magfie_mod
+  use do_magfie_pert_mod, only : do_magfie_pert_init, do_magfie_pert_amp, mph
   use polylag_3,  only : mp,indef,plag1d
   implicit none
 
@@ -17,12 +18,19 @@ program main
   runname = trim(adjustl(tmp))
 
   call read_control
-  if (nonlin) then
-     call init_plasma
+
+  call do_magfie_init
+  if (pertfile) then
+     call do_magfie_pert_init
   end if
-  call init_test
   
   call test_magfie
+if (mthnum < 1) return
+    
+!  if (nonlin) then
+     call init_plasma
+!  end if
+  call init_test
 
   if (mthnum < 1) then
      call test_torfreq
@@ -69,7 +77,7 @@ contains
     read (9,*) odeint
     read (9,*) nonlin
 
-    qi = qs*qe
+    qi = qs*qe    
     mi = ms*mu
   end subroutine read_control
 
@@ -139,14 +147,13 @@ contains
   end subroutine init_plasma
 
   subroutine init_test
-
     call init
-    if (supban) then
+    !if (supban) then
     ! set thermal velocity so that ExB = reference toroidal drift
-       !print *, "Set vth from: ", vth
-       vth = abs(2*M_t*qi*psi_pr/(mi*c*R0)) ! thermal velocity
-       print *, "Set vth to: ", vth
-    end if
+    !print *, "Set vth from: ", vth
+    !   vth = abs(2*M_t*qi*psi_pr/(mi*c*R0)) ! thermal velocity
+    !   print *, "Set vth to: ", vth
+    !end if
     Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
 
     etamin = (1+epst)*etatp
@@ -155,6 +162,11 @@ contains
   end subroutine init_test
 
   subroutine test_magfie
+!    use do_magfie_neo_mod, only: s_neo => s, do_magfie_neo_init => do_magfie_init,&
+!         do_magfie_neo => do_magfie
+!    use do_magfie_pert_neo_mod, only: do_magfie_pert_neo_init => do_magfie_pert_init,&
+!         do_magfie_pert_neo_amp => do_magfie_pert_amp
+    
     integer, parameter :: nth = 50
     integer :: k
     real(8) :: thmin, thmax
@@ -162,6 +174,12 @@ contains
     real(8) :: Drp
     complex(8) :: bn
 
+! comparison with Neo2 magfie
+!    s_neo = s
+!    call do_magfie_neo_init
+! comparison with Neo2 magfie pert
+!    call do_magfie_pert_neo_init
+    
     Drp = 4*mph*q/(eps**2*sqrt(pi));
 
     open(unit=9, file=trim(adjustl(runname))//'_magfie_param.out', recl=1024)
@@ -205,11 +223,12 @@ contains
     close(unit=9)
     
     open(unit=9, file=trim(adjustl(runname))//'_magfie.out', recl=1024)
+!    open(unit=10, file=trim(adjustl(runname))//'_magfie_neo.out', recl=1024)
     do k = 0, nth-1
        x(3) = thmin + k*(thmax-thmin)/(nth-1)
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        if (pertfile) then
-          call neo_magfie_pert_amp( x, bn )
+          call do_magfie_pert_amp( x, bn )
           bn = bn/bmod
        else
           bn = epsmn*exp(imun*m0*x(3))
@@ -218,8 +237,19 @@ contains
             hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&  ! 8
             real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),& !13
             aimag(epsmn*exp(imun*m0*x(3))) !16
+!       call do_magfie_neo( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+!       if (pertfile) then
+!          call do_magfie_pert_neo_amp( x, bn )
+!          bn = bn/bmod
+!       else
+!          bn = epsmn*exp(imun*m0*x(3))
+!       end if
+!      write(10,*) x(3), bmod, sqrtg, hder(1), hder(2), hder(3), hcovar(1),&
+!           hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&  ! 8
+!            real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),& !13
+!            aimag(epsmn*exp(imun*m0*x(3))) !16
     end do
-
+!    close(unit=10)
     close(unit=9)
   end subroutine test_magfie
 

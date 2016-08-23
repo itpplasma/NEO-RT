@@ -4,9 +4,8 @@
 
 module driftorbit
   use do_magfie_mod
+  use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
   use collis_alp
-  use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert,&
-       neo_init_spline_pert, neo_magfie_pert_amp, m_phi
   use spline
   
   implicit none
@@ -35,7 +34,7 @@ module driftorbit
 
   ! Harmonics TODO: make dynamic, multiple harmonics
   real(8) :: epsmn        ! perturbation amplitude B1/B0
-  integer :: m0, mph      ! Boozer toroidal and poloidal perturbation mode
+  integer :: m0           ! Boozer poloidal perturbation mode
   integer :: mth          ! canonical poloidal mode
   logical :: supban       ! calculate superbanana plateau
   logical :: magdrift     ! consider magnetic drift 
@@ -71,13 +70,6 @@ contains
 
   subroutine init
     init_done = .false.
-    call do_magfie_init
-    if (pertfile) then
-       call neo_read_pert_control
-       call neo_read_pert
-       call neo_init_spline_pert
-       mph = m_phi
-    end if
     call init_fsa
     call init_misc
     call init_Om_spl
@@ -265,7 +257,7 @@ contains
     Omth = abs(Omth)
     
     if (pertfile) then
-       call neo_magfie_pert_amp( x, epsn )
+       call do_magfie_pert_amp( x, epsn )
        epsn = epsn/bmod
     else
        epsn = epsmn*exp(imun*m0*y(1))
