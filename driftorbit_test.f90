@@ -29,18 +29,19 @@ program main
   call init_test
 
   call test_magfie
+  call test_torfreq
   
   if (mthnum < 1) then
-     call test_torfreq
-     return
-  end if
-  
-  if (Mtnum < 1) then
-     call test_integral
      return
   end if
   
   call test_resline
+  call test_integral
+
+  if (Mtnum < 1) then
+     return
+  end if
+  
   call test_machrange2
 contains
 
@@ -227,7 +228,7 @@ contains
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        if (pertfile) then
           call do_magfie_pert_amp( x, bn )
-          bn = bn/bmod
+          bn = epsmn*bn/bmod
        else
           bn = epsmn*exp(imun*m0*x(3))
        end if
@@ -681,7 +682,7 @@ contains
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         
-    open(unit=10, file=trim(fn1), recl=1024)
+    open(unit=10, file=trim(adjustl(fn1)), recl=1024)
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
@@ -733,7 +734,7 @@ contains
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         
-    open(unit=10, file=trim(fn2), recl=1024)
+    open(unit=10, file=trim(adjustl(fn2)), recl=1024)
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
@@ -783,7 +784,7 @@ contains
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         
-    open(unit=10, file=trim(fn3), recl=1024)
+    open(unit=10, file=trim(adjustl(fn3)), recl=1024)
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1

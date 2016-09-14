@@ -258,7 +258,7 @@ contains
     
     if (pertfile) then
        call do_magfie_pert_amp( x, epsn )
-       epsn = epsn/bmod
+       epsn = epsmn*epsn/bmod
     else
        epsn = epsmn*exp(imun*m0*y(1))
     end if
