@@ -498,7 +498,8 @@ contains
     taub0 = taub
     bounceavg0 = bounceavg
     
-    ds = 1d-7*s0
+!    ds = 1d-7*s0
+    ds = 1d-7
     s = s0 - ds/2d0
     call bounce(taub0)
     Omth = 2d0*pi/taub

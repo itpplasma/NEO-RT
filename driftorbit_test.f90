@@ -1,7 +1,8 @@
 program main
   use driftorbit
   use lineint
-  use do_magfie_mod
+  use do_magfie_mod, only : s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
+       q, dqds, iota, R0, a, eps, B0h, B00
   use do_magfie_pert_mod, only : do_magfie_pert_init, do_magfie_pert_amp, mph
   use polylag_3,  only : mp,indef,plag1d
   implicit none
@@ -23,15 +24,12 @@ program main
   if (pertfile) then
      call do_magfie_pert_init
   end if
-  
-  call test_magfie
-if (mthnum < 1) return
-    
-!  if (nonlin) then
-     call init_plasma
-!  end if
+      
+  call init_plasma
   call init_test
 
+  call test_magfie
+  
   if (mthnum < 1) then
      call test_torfreq
      return
