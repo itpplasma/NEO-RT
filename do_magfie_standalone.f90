@@ -26,6 +26,13 @@ contains
   
   subroutine do_magfie_init
     integer :: j,k
+    real(8)                      :: x(3)
+    real(8)                      :: bmod
+    real(8)                      :: sqrtg
+    real(8), dimension(size(x))   :: bder
+    real(8), dimension(size(x))   :: hcovar
+    real(8), dimension(size(x))   :: hctrvr
+    real(8), dimension(size(x))   :: hcurl
 
     ncol1 = 5
     if(inp_swi == 8) ncol2=4 ! tok_circ
@@ -53,7 +60,13 @@ contains
        end do
     end do
 
-    eps_spl = spline_coeff(params0(:,1), abs(modes0(:,2,6)/modes0(:,1,6)))
+    if (inp_swi == 8) eps_spl = spline_coeff(params0(:,1), abs(modes0(:,2,6)/modes0(:,1,6)))
+    if (inp_swi == 9) eps_spl = spline_coeff(params0(:,1), abs(modes0(:,2,9)/modes0(:,1,9)))
+
+    x(1) = s
+    x(2) = 0.0
+    x(3) = 0.0
+    call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
   end subroutine do_magfie_init
   
