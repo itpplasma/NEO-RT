@@ -1,0 +1,28 @@
+### Installation directory
+set (CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
+
+### Path to the external libraries
+set(PROJLIBS /proj/plasma/Libs/)
+
+set(SUPERLU_VER 4.1)
+set(SUPERLU_DIR ${PROJLIBS}SuperLU/SuperLU_${SUPERLU_VER}/)
+set(SUPERLU_HDR ${SUPERLU_DIR}SRC/)
+set(SUPERLU_F90 ${SUPERLU_DIR}FORTRAN/) 
+
+set(SUITESPARSE_DIR ${PROJLIBS}SuiteSparse_libandinclude/)
+set(SUITESPARSE_LIB ${SUITESPARSE_DIR}lib/)
+set(SUITESPARSE_HDR ${SUITESPARSE_DIR}include/)
+set(SUITESPARSE_F90 ${SUITESPARSE_DIR}F90/)
+
+set(METIS_PATH ${PROJLIBS}/metis-4.0)
+
+### Path to the ATLAS libraries
+set(ATLASLIBS /usr/lib/atlas-base/)
+set(LAPACK_LIB ${ATLASLIBS}/atlas/)
+set(F77BLAS_LIB ${ATLASLIBS})
+set(ATLASBLAS_LIB ${ATLASLIBS})
+
+### Path to OpenBLAS
+set(OPEN_BLAS_PATH /usr/lib/openblas-base/)
+set(OPEN_BLAS_LAPACK_LIB ${OPEN_BLAS_PATH})
+set(OPEN_BLAS_LIB ${OPEN_BLAS_PATH})

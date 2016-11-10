@@ -503,18 +503,34 @@ contains
     s = s0 - ds/2d0
     call bounce(taub0)
     Omth = 2d0*pi/taub
-    if (eta > etatp) then
-       Omph = bounceavg(3)*v**2+Om_tE
+    if (magdrift) then
+       if (eta > etatp) then
+          Omph = bounceavg(3)*v**2+Om_tE
+       else
+          Omph = bounceavg(3)*v**2+Om_tE+Omth/iota
+       end if
     else
-       Omph = bounceavg(3)*v**2+Om_tE+Omth/iota
+       if (eta > etatp) then
+          Omph = Om_tE
+       else
+          Omph = Om_tE+Omth/iota
+       end if
     end if
     s = s0 + ds/2d0
     call bounce(taub0)
     dOmthds = (2d0*pi/taub - Omth)/ds
-    if (eta > etatp) then
-       dOmphds = (bounceavg(3)*v**2+Om_tE - Omph)/ds
+    if (magdrift) then
+       if (eta > etatp) then
+          dOmphds = (bounceavg(3)*v**2+Om_tE - Omph)/ds
+       else
+          dOmphds = (bounceavg(3)*v**2+Om_tE+(2d0*pi/taub)/iota - Omph)/ds
+       end if
     else
-       dOmphds = (bounceavg(3)*v**2+Om_tE+(2d0*pi/taub)/iota - Omph)/ds
+       if (eta > etatp) then
+          dOmphds = (Om_tE - Omph)/ds
+       else
+          dOmphds = (Om_tE+(2d0*pi/taub)/iota - Omph)/ds
+       end if
     end if
 
     ! re-set current flux surface values
