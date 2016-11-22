@@ -12,8 +12,9 @@ include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 include_directories(/usr/include)
 
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS_RELEASE "-O2")
+set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -fimplicit-none")
 set(MY_DEBUG_FLAG_LIST
+" -fimplicit-none "
 " -g "
 #  "-ggdb -C -p -pg -fbacktrace " 
 #  "-ffpe-trap=invalid,zero,overflow,underflow " 
@@ -62,7 +63,7 @@ include (CMakeSources.txt)
 
 ### Define executable
 add_executable(${EXE_NAME}
-	${HYDRA_SRC_FILES}   
+	${HYDRA_SRC_FILES}  
 	${NEO_MAGFIE_SRC_FILES} 
   	${SUITESPARSE_SRC_FILES}
 	${SUPERLU_SRC_FILES}

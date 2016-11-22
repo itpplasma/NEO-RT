@@ -342,7 +342,7 @@ CONTAINS
           ! Surface
           !*************************************************************
           IF (write_progress .EQ. 1) THEN
-             PRINT *, 'Initialize Surface, k_es = ',k_es
+             PRINT *, 'Predefined: Initialize Surface, k_es = ',k_es
           END IF
           ALLOCATE ( s_bmnc(mnmax) )
           ALLOCATE ( s_bmnc_s(mnmax) )

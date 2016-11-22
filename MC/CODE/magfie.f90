@@ -48,7 +48,7 @@
          isw_eval_spl2d_der = 1
          ! spline Fourier coefficients radially (1=on; 0=off)
          isw_spl_fourier_cof = 0
-         flux_surf_dist = 10
+         !flux_surf_dist = 10
          ! prepare 3D spline
          magfie_result = 0
          magfie_spline = 1

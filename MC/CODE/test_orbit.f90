@@ -3,36 +3,42 @@
   use collis_alp, only : swcoll,iswmod,ns,efcolf,velrat,enrat,efcolf_arr,velrat_arr,enrat_arr
 !  use odeint_mod, only : adaptive
   USE polylag_3,  ONLY : mp,indef, plag1d
-  use neo_input,  only : flux, pertscale
+  use neo_input,  only : flux
   USE probstart_mod, ONLY : calc_probstart
-  use elefie_mod, only: Mtprofile, rbig, plasma, amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,&
-       tempi2,tempe,v0
-  use constants, only: pi,c,e_charge,e_mass,p_mass,ev
 !
-!  implicit none
+  implicit none
+!
+  double precision, parameter :: pi=3.14159265358979d0
+  double precision,parameter  :: c=2.9979d10
+  double precision,parameter  :: e_charge=4.8032d-10
+  double precision,parameter  :: e_mass=9.1094d-28
+  double precision,parameter  :: p_mass=1.6726d-24
+  double precision,parameter  :: ev=1.6022d-12
 !
   integer          :: ierr,npoiper,i,ntestpart
   integer          :: ipart,icpu,iskip,istep
   real             :: zzg,gauss
   double precision :: dphi,bmod00,rlarm
-  double precision :: dtau,xi,bmod_ref,E_beam
+  double precision :: dtau,xi,v0,bmod_ref,E_beam
   double precision, dimension(5) :: z
   integer,          dimension(:),   allocatable :: ibinsrc_x
   double precision, dimension(:),   allocatable :: s_ionized
-  double precision, dimension(:,:), allocatable :: zstart            
+  double precision, dimension(:,:), allocatable :: zstart
+  double precision :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe             
 !
-  double precision :: bmod,sqrtg
+  double precision :: bmod,sqrtg,rbig
   double precision, dimension(3) :: x,bder,hcovar,hctrvr,hcurl
   integer :: nplasma
+  double precision, dimension(:,:), allocatable :: plasma
   integer,          dimension(mp) :: indu
   double precision, dimension(mp) :: xp,fp
   double precision :: s, der, dxm1
-  
+!
   double precision :: x_nrl
 !
 !
 !  safety:
-  integer, parameter :: nstepmax=1e8 ! TODO: set to original: 1e8
+  integer, parameter :: nstepmax=50000 ! original: 1e8
 !
 !  thermalization:
   double precision, parameter :: vmin_therm=sqrt(1.5d0)
@@ -44,8 +50,6 @@
   
   ! inverse relativistic temperature
   rmu=1d5
-
-print *, b
   
 ! process command line arguments
 
@@ -64,14 +68,11 @@ print *, b
 !                              2 - energy scattering and drag only
 !                              3 - drag only
 !                              4 - pitch-angle scattering only
- endif
- read(1,*) pertscale
+  endif
 1 continue
   close(1)
 !
 !
-
-  
   open(1,file='plasma.dat')
   read (1,*)
   read (1,*) nplasma,am1,am2,Z1,Z2
@@ -82,29 +83,7 @@ print *, b
   enddo
   dxm1=1.d0/(plasma(2,1)-plasma(1,1))
   close(1)
-
-  
-  allocate(Mtprofile(nplasma,3))
-  open(1,file='Mtprofile.dat')
-  do i=1,nplasma
-     read (1,*) Mtprofile(i,:)
-  enddo
-  close(1)
 !
-  call indef(s0,plasma(1,1),dxm1,nplasma,indu)
-
-  xp=plasma(indu,1)
-  fp=plasma(indu,2)
-
-  call plag1d(s0,fp,dxm1,xp,tempi1,der)
-
-  if (i==ns/2) then
-     v0 = sqrt(2.d0*tempi1*ev/(am1*p_mass))
-     amb   = am1
-     Zb    = Z1
-     E_beam = amb*p_mass*v0**2/(2d0*ev)
-  endif
-     
   if(swcoll) then
 !
     do i=1,ns
@@ -132,13 +111,49 @@ print *, b
       fp=plasma(indu,6)
 !
       call plag1d(s,fp,dxm1,xp,tempe,der)
-!if (i==ns/2) print *, v0, tempi1, ev, amb, p_mass
-!if (i==ns/2) print *, amb,am1,am2,Zb,Z1,Z2
-!if (i==ns/2) print *, densi1,densi2,tempi1,tempi2,tempe,E_beam
+
+      if (i==ns/2) then
+         v0 = sqrt(2.d0*tempi1*ev/(am1*p_mass))
+         amb   = am1
+         Zb    = Z1
+         E_beam = amb*p_mass*v0**2/(2d0*ev)
+      endif
+
+   enddo
+   
+    do i=1,ns
+      s=dfloat(i-1)/dfloat(ns-1)
+!
+      call indef(s,plasma(1,1),dxm1,nplasma,indu)
+!
+      xp=plasma(indu,1)
+      fp=plasma(indu,2)
+!
+      call plag1d(s,fp,dxm1,xp,densi1,der)
+!
+      fp=plasma(indu,3)
+!
+      call plag1d(s,fp,dxm1,xp,densi2,der)
+!
+      fp=plasma(indu,4)
+!
+      call plag1d(s,fp,dxm1,xp,tempi1,der)
+!
+      fp=plasma(indu,5)
+!
+      call plag1d(s,fp,dxm1,xp,tempi2,der)
+!
+      fp=plasma(indu,6)
+!
+      call plag1d(s,fp,dxm1,xp,tempe,der)
+      if (i==ns/2) print *, v0, tempi1, ev, amb, p_mass
+      if (i==ns/2) print *, amb,am1,am2,Zb,Z1,Z2
+      if (i==ns/2) print *, densi1,densi2,tempi1,tempi2,tempe,E_beam
       call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,E_beam,v0)
-!if (i==ns/2) print *, v0
-!if (i==ns/2) x_nrl=densi1/tempi1**1.5d0
-!   
+      if (i==ns/2) print *, v0
+      if (i==ns/2) x_nrl=densi1/tempi1**1.5d0
+
+      !   
       efcolf_arr(:,i)=efcolf
       velrat_arr(:,i)=velrat
       enrat_arr(:,i)=enrat
@@ -146,21 +161,9 @@ print *, b
    !
 endif
 !
-s = s0
-
-!do i=1,300
-!p = 1.d-2*i
-!call coleff(s,p,dpp,dhh,fpeff)
-!print *, v0*dpp, v0*dhh
-!if(p.lt.1.d0) then
-!write (1,*) p,dhh*v0,1.4d-7*x_nrl/sqrt(2.d0)*18.d0/p**2 ! 18.d0 - Coulomb logarithm
-!else
-!write (1,*) p,dhh*v0,1.8d-7*x_nrl/sqrt(2.d0)*18.d0/p**3 ! 18.d0 - Coulomb logarithm
-!endif
-!enddo
-!
-  x=0.d0
-  x(1)=1.d-8
+s = .5
+x = 0.d0
+x(1) = 1.d-8
 !
   call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
@@ -169,7 +172,8 @@ s = s0
 !  reference field - one Tesla:
   bmod_ref=1.d4
   bmod00=1.d0
- 
+!
+!
   v0=sqrt(2.d0*E_beam*ev/(amb*p_mass))
 !
 !  Larmor radius:
@@ -177,14 +181,12 @@ s = s0
   rlarm=v0*amb*p_mass*c/(Zb*e_charge*bmod_ref)
   ro0=rlarm*bmod00
   print *, rlarm
-!
 
 !  orbit integration time step:
   dphi=2.d0*pi/npoiper
   dtau=dphi*rbig
 !
 !
-  
   if (icpu==0) then
      open(1,file='nbi_torque.log')
      write (1,*) 'npoiper = ',npoiper
@@ -195,18 +197,14 @@ s = s0
      write (1,*) 'dtau = ',dtau
      write (1,*) 'E_beam = ',E_beam
      write (1,*) 'swcoll = ',swcoll
-     write (1,*) 'rbig = ',rbig
-     write (1,*) 'flux = ',flux
-     write (1,*) 'psi_pr = ',1.0d8*flux/(2*pi)
      if(swcoll) then
         write (1,*) 'iswmod = ',iswmod
         write (1,*) 'am1 = ',am1
         write (1,*) 'am2 = ',am2
         write (1,*) 'Z1 = ',Z1
         write (1,*) 'Z2 = ',Z2
-        write (1,*) 'tau_c = ', 1.d0/efcolf_arr(1,ns/2)
-        write (1,*) 'tau_max = ', 5.d0/efcolf_arr(1,ns/2)
-        write (1,*) 'factor = ', v0*efcolf_arr(1,ns/2)*0.1
+        write (1,*) 'tau_max = ',5.d0/efcolf_arr(1,ns/2)
+        write (1,*) 'factor = ',v0*efcolf_arr(1,ns/2)*0.1
      endif
      close(1)
   endif
@@ -252,22 +250,15 @@ s = s0
   enddo
 !
 !
-  
   do ipart=1,ntestpart
      print *,ipart,' / ',ntestpart
 !
     z=zstart(:,ipart)
-! TODO: disable next lines
-    z(1) = 0.5
-    z(2) = 0.0
-    z(3) = 0.0
-    z(4) = 1.0
-    z(5) = 0.1
 !
     debugstep = .01d0*5.d0/efcolf_arr(1,ns/2)
     dummy = 0.d0
     do istep=1,nstepmax
-       if (istep*dtau > 5.d0/efcolf_arr(1,ns/2)) exit
+       !if (istep*dtau > 5.d0/efcolf_arr(1,ns/2)) exit
 
        ! TODO: TESTING at half radius
        if (istep*dtau > dummy) then
@@ -283,14 +274,9 @@ s = s0
        endif
 
        call regst(z,dtau,ierr)
-       !
-       ! TODO: enable collision line again
+!
        call stost(z,dtau,iswmod,ierr)
-
-       !if(mod(istep,nstepmax/40000)==0) then
-       !   write(3000,*) istep*dtau, z
-       !endif
-       
+       write(3000,*) istep*dtau, z
    enddo
    print *,istep,'  steps'
 !

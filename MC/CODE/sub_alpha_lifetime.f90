@@ -1,5 +1,5 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-      subroutine elefie(x,derphi)
+subroutine elefie(x,derphi)
 !
 ! Computes the derivatives of the electrostatic potential over
 ! coordinates (covariant electric field). Potential is normalized
@@ -11,13 +11,47 @@
 !   Output parameters:
 !             formal:    derphi  -   array of derivatives
 !
-      integer :: ierr
-      double precision, dimension(3) :: x,derphi
-      double precision :: r,phi,z,psi,phi_el,phi_el_pr,phi_el_prpr
-!
-      derphi=0.d0
-      return
-      end
+
+  USE polylag_3, only : mp,indef, plag1d
+  use elefie_mod, only: Mtprofile, v0, Z1, am1, rbig
+  use neo_input, only : flux
+  use constants, only: e_mass, e_charge, p_mass, c, pi
+        
+  implicit none
+  
+  integer :: ierr
+  double precision, dimension(3) :: x,derphi
+  double precision :: bmod,sqrtg
+  double precision, dimension(3) :: bder,hcovar,hctrvr,hcurl
+  double precision :: r,phi,z,psi,phi_el,phi_el_pr,phi_el_prpr
+  double precision :: qsafety
+
+  integer,          dimension(mp) :: indu
+  double precision, dimension(mp) :: xp,fp
+  double precision :: s, der, dxm1
+  double precision :: Mt, vth
+
+  !   
+  derphi=0.d0
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
+  qsafety = hctrvr(3)/hctrvr(2)
+
+  s = x(1)
+  
+  dxm1=1.d0/(Mtprofile(2,1)-Mtprofile(1,1))
+  call indef(s,Mtprofile(1,1),dxm1,size(Mtprofile,1),indu)
+  
+  xp=Mtprofile(indu,1)
+  fp=Mtprofile(indu,2)
+  call plag1d(s,fp,dxm1,xp,Mt,der)
+  
+  fp=Mtprofile(indu,3)
+  call plag1d(s,fp,dxm1,xp,vth,der)
+  
+  derphi(1) = -(1.0d8*flux/(2.0d0*pi))*Mt*vth/(qsafety*c*rbig)
+  derphi(1) = derphi(1)*Z1*e_charge/(am1*p_mass*v0**2/2.d0) ! normalization
+  return
+end
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine velo(tau,z,vz)
 !

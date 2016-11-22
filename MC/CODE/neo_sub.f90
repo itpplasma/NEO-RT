@@ -21,9 +21,11 @@ SUBROUTINE neo_init(npsi)
   IMPLICIT NONE
   INTEGER, INTENT(out)       :: npsi
   INTEGER                    :: imn
+  
 ! **********************************************************************
 ! Read input from data file and allocate necessary arrays
-! **********************************************************************
+  ! **********************************************************************
+  print *, w_us
   IF (write_progress .NE. 0) WRITE (w_us,*) 'before neo_filenames'
   CALL neo_filenames
   IF (write_progress .NE. 0) WRITE (w_us,*) 'after  neo_filenames'
@@ -1420,6 +1422,7 @@ SUBROUTINE neo_read
            READ(r_u1,*) ixm(j),ixn(j),                                    &
                 rmnc(i,j),zmnc(i,j),lmnc(i,j),                            &
                 bmnc(i,j)
+           if (ixn(j) /= 0) bmnc(i,j) = pertscale*bmnc(i,j) ! Chris
            !print *, 'ixm,ixn: ',ixm(j),ixn(j)
         END DO
      END DO
