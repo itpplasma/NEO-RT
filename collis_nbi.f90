@@ -53,7 +53,7 @@
   dhh=dhh/plim**2
 !
   return
-  end
+  end subroutine coleff
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -90,7 +90,7 @@
   endif
 !
   return
-  end
+  end subroutine onseff
 !
 !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !      FUNCTION ERF(X)
@@ -189,7 +189,7 @@
 !  slowrate_norm=abs(fpeff)
 !
   return
-  end
+  end subroutine loacol_nbi
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 
