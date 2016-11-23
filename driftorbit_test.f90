@@ -32,14 +32,14 @@ program main
   call test_torfreq
   
   if (mthnum < 1) then
-     return
+     stop
   end if
   
   call test_resline
   call test_integral
 
   if (Mtnum < 1) then
-     return
+     stop
   end if
   
   call test_machrange2
