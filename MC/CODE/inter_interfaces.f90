@@ -10,7 +10,7 @@ MODULE inter_interfaces
 
   INTERFACE lubksb
      SUBROUTINE lubksb_a(a,indx,b)
-       USE nrtype
+       USE neo_nrtype
        REAL(DP),     DIMENSION(:,:), INTENT(IN)    :: a
        INTEGER(I4B), DIMENSION(:),   INTENT(IN)    :: indx
        REAL(DP),     DIMENSION(:),   INTENT(INOUT) :: b

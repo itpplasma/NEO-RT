@@ -1,4 +1,4 @@
-MODULE nrtype
+MODULE neo_nrtype
 ! Definition of types taken from Numerical Recipes
   INTEGER, PARAMETER :: I4B = SELECTED_INT_KIND(9)
   INTEGER, PARAMETER :: I2B = SELECTED_INT_KIND(4)
@@ -28,19 +28,19 @@ MODULE nrtype
      INTEGER(I4B), DIMENSION(:), POINTER :: irow
      INTEGER(I4B), DIMENSION(:), POINTER :: jcol
   END TYPE sprs2_dp
-END MODULE nrtype
+END MODULE neo_nrtype
 
 MODULE neo_precision
-  USE nrtype
+  USE neo_nrtype
 END MODULE neo_precision
 
 MODULE inter_precision
-  USE nrtype
+  USE neo_nrtype
 END MODULE inter_precision
 
 MODULE neo_parameters
   USE neo_precision
-  USE nrtype
+  USE neo_nrtype
 END MODULE neo_parameters
 
 MODULE neo_input
