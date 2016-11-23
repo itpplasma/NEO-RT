@@ -24,8 +24,7 @@ SUBROUTINE neo_init(npsi)
   
 ! **********************************************************************
 ! Read input from data file and allocate necessary arrays
-  ! **********************************************************************
-  print *, w_us
+! **********************************************************************
   IF (write_progress .NE. 0) WRITE (w_us,*) 'before neo_filenames'
   CALL neo_filenames
   IF (write_progress .NE. 0) WRITE (w_us,*) 'after  neo_filenames'
@@ -1479,6 +1478,11 @@ SUBROUTINE neo_read
            READ(r_u1,*) ixm(j),ixn(j),                                    &
                 rmnc(i,j),rmns(i,j),zmnc(i,j),zmns(i,j),                  &
                 lmnc(i,j),lmns(i,j),bmnc(i,j),bmns(i,j)
+           if (ixn(j) /= 0) then ! Chris
+              bmnc(i,j) = pertscale*bmnc(i,j)
+              bmns(i,j) = pertscale*bmns(i,j)
+           endif
+           
            !print *, 'ixm,ixn: ',ixm(j),ixn(j)
            !PRINT *,'rmnc,rmns: ',rmnc(i,j),rmns(i,j)
         END DO

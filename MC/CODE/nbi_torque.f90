@@ -26,26 +26,24 @@
   integer :: nplasma
   integer,          dimension(mp) :: indu
   double precision, dimension(mp) :: xp,fp
-  double precision :: s, der, dxm1
+  double precision :: s0, s, der, dxm1
+  integer :: ks0 ! index of starting flux surface
   
-  double precision :: x_nrl
+!  double precision :: x_nrl
 !
 !
 !  safety:
-  integer, parameter :: nstepmax=1e8 ! TODO: set to original: 1e8
+  integer, parameter :: nstepmax=100000000 ! TODO: set to original: 100000000
 !
 !  thermalization:
   double precision, parameter :: vmin_therm=sqrt(1.5d0)
 !
-  double precision :: dummy, debugstep
-  double precision :: p,dpp,dhh,fpeff
+  double precision :: dummy, taumax, runtime
 
   character(len=20) :: buffer
   
   ! inverse relativistic temperature
   rmu=1d5
-
-print *, b
   
 ! process command line arguments
 
@@ -58,14 +56,14 @@ print *, b
   read (1,*) npoiper           !number of points per period 
   read (1,*) ntestpart         !number of test particles
   read (1,*,end=1) swcoll      !collision switch: .true. - collisions on
-  if(swcoll) then
-    read (1,*) iswmod        !switch of the collision mode:
+  read (1,*) iswmod        !switch of the collision mode:
 !                              1 - full operator (pitch-angle and energy scattering and drag)
 !                              2 - energy scattering and drag only
 !                              3 - drag only
 !                              4 - pitch-angle scattering only
- endif
  read(1,*) pertscale
+ read(1,*) s0
+ read(1,*) runtime
 1 continue
   close(1)
 !
@@ -83,6 +81,8 @@ print *, b
   dxm1=1.d0/(plasma(2,1)-plasma(1,1))
   close(1)
 
+  amb=am1
+  Zb=Z1
   
   allocate(Mtprofile(nplasma,3))
   open(1,file='Mtprofile.dat')
@@ -94,17 +94,14 @@ print *, b
   call indef(s0,plasma(1,1),dxm1,nplasma,indu)
 
   xp=plasma(indu,1)
-  fp=plasma(indu,2)
+  fp=plasma(indu,4)
 
   call plag1d(s0,fp,dxm1,xp,tempi1,der)
 
-  if (i==ns/2) then
-     v0 = sqrt(2.d0*tempi1*ev/(am1*p_mass))
-     amb   = am1
-     Zb    = Z1
-     E_beam = amb*p_mass*v0**2/(2d0*ev)
-  endif
-     
+  v0 = sqrt(2.d0*tempi1*ev/(am1*p_mass))
+  E_beam = amb*p_mass*v0**2/(2d0*ev)
+print *, v0, tempi1, ev, amb, p_mass
+  
   if(swcoll) then
 !
     do i=1,ns
@@ -132,7 +129,10 @@ print *, b
       fp=plasma(indu,6)
 !
       call plag1d(s,fp,dxm1,xp,tempe,der)
-!if (i==ns/2) print *, v0, tempi1, ev, amb, p_mass
+      if (abs(s0-s)<0.5d0/dfloat(ns-1)) then
+         ks0 = i
+         print *, v0, tempi1, ev, amb, p_mass
+      end if
 !if (i==ns/2) print *, amb,am1,am2,Zb,Z1,Z2
 !if (i==ns/2) print *, densi1,densi2,tempi1,tempi2,tempe,E_beam
       call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,E_beam,v0)
@@ -169,8 +169,9 @@ s = s0
 !  reference field - one Tesla:
   bmod_ref=1.d4
   bmod00=1.d0
- 
+print *, v0, tempi1, ev, amb, p_mass
   v0=sqrt(2.d0*E_beam*ev/(amb*p_mass))
+print *, v0, tempi1, ev, amb, p_mass
 !
 !  Larmor radius:
   print *, v0,amb,Zb,bmod_ref,bmod00
@@ -231,7 +232,7 @@ s = s0
      !
      !ibinsrc_x(ipart)=i
      ! coordinates: z(1) = s, z(2) = phi, z(3) = theta
-     zstart(1,ipart)=0.5
+     zstart(1,ipart)=s0
      xi=zzg()
      zstart(2,ipart)=xi*2.d0*pi
      xi=zzg()
@@ -247,7 +248,7 @@ s = s0
      !  pitch:
      ! starting pitch z(5)=v_\parallel / v:
      xi=zzg()
-     zstart(5,ipart)=xi
+     zstart(5,ipart) = 2.0d0*xi-1.0d0
      print *, ipart, zstart(:,ipart)
   enddo
 !
@@ -258,23 +259,26 @@ s = s0
 !
     z=zstart(:,ipart)
 ! TODO: disable next lines
-    z(1) = 0.5
-    z(2) = 0.0
-    z(3) = 0.0
-    z(4) = 1.0
-    z(5) = 0.1
+!    z(1) = s0
+!    z(2) = 0.0
+!    z(3) = 0.0
+!    z(4) = 1.0
+!    z(5) = 0.1
 !
-    debugstep = .01d0*5.d0/efcolf_arr(1,ns/2)
+    taumax = 1.0d0
+    if(swcoll) taumax = runtime/efcolf_arr(1,ks0)
+    
     dummy = 0.d0
     do istep=1,nstepmax
-       if (istep*dtau > 5.d0/efcolf_arr(1,ns/2)) exit
+       if(swcoll) then
+          if (istep*dtau > taumax) exit
 
-       ! TODO: TESTING at half radius
-       if (istep*dtau > dummy) then
-          write(2000+icpu,*) ipart, istep, istep*dtau/(5.d0/efcolf_arr(1,ns/2)), z(1),&
-               (z(1)-0.5)**2, z(2), z(3)
-          dummy = dummy + debugstep
-       endif
+          if (istep*dtau > dummy) then
+             write(2000+icpu,*) ipart, istep, istep*dtau/efcolf_arr(1,ks0), z(1),&
+                  (z(1)-s0)**2, z(2), z(3)
+             dummy = dummy + .005d0*taumax
+          endif
+       endif     
 
        if (z(1)<0.d0 .OR. z(1)>1.d0) then
           print *, "particle lost:"
@@ -285,8 +289,9 @@ s = s0
        call regst(z,dtau,ierr)
        !
        ! TODO: enable collision line again
-       call stost(z,dtau,iswmod,ierr)
-
+       if(swcoll) then
+          call stost(z,dtau,iswmod,ierr)
+       endif
        !if(mod(istep,nstepmax/40000)==0) then
        !   write(3000,*) istep*dtau, z
        !endif

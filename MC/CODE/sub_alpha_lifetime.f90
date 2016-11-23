@@ -47,9 +47,13 @@ subroutine elefie(x,derphi)
   
   fp=Mtprofile(indu,3)
   call plag1d(s,fp,dxm1,xp,vth,der)
-  
+
+! TODO enable this again
   derphi(1) = -(1.0d8*flux/(2.0d0*pi))*Mt*vth/(qsafety*c*rbig)
   derphi(1) = derphi(1)*Z1*e_charge/(am1*p_mass*v0**2/2.d0) ! normalization
+
+  derphi(1) = -derphi(1) ! TODO check if this is correct sign
+!  derphi(1) = 0.1d0 ! TODO remove this test
   return
 end
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

@@ -27,7 +27,9 @@
       USE magfield_mod, ONLY : ierrfield
       USE neo_magfie_mod, ONLY: neo_magfie, magfie_result, magfie_spline
       USE spline_settings, ONLY : isw_spl_fourier_cof, isw_eval_spl2d_der, &
-       isw_eval_bcovars, flux_surf_dist  
+           isw_eval_bcovars, flux_surf_dist
+!
+      implicit integer (i-n), double precision (a-h,o-z)    
 !
       INTEGER isw_neo_magfie
 !

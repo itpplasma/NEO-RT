@@ -16,6 +16,7 @@ SUBROUTINE field(rrr,pp,zzz,Brad,Bphi,Bzet,dBrdR,dBrdp,dBrdZ  &
   USE polylag_3, ONLY : mp,indef, plag3d
 !
   IMPLICIT DOUBLE PRECISION (a-h,o-z)
+  implicit integer (i-n)
 !
 ! 22.11.2008  parameter (mp=4) ! power of Lagrange's polynomial =3
 ! 01.11.2015  parameter (mp=6) ! power of Lagrange's polynomial =5
