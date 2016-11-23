@@ -135,7 +135,7 @@ contains
     Zb    = 1d0
     ebeam = amb*pmass*v0**2/(2d0*ev)
     
-    print *, amb, am1, am2, Zb, Z1, Z2, densi1, densi2, tempi1, tempi2, tempe, ebeam, v0
+!    print *, amb, am1, am2, Zb, Z1, Z2, densi1, densi2, tempi1, tempi2, tempe, ebeam, v0
 
     call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,&
          ebeam,v0,dchichi,slowrate,dchichi_norm,slowrate_norm)
@@ -170,7 +170,8 @@ contains
     integer :: k
     real(8) :: thmin, thmax
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-    real(8) :: Drp
+    real(8) :: Dp, Drp
+    real(8) :: ux,dpp,dhh,fpeff
     complex(8) :: bn
 
 ! comparison with Neo2 magfie
@@ -179,7 +180,12 @@ contains
 ! comparison with Neo2 magfie pert
 !    call do_magfie_pert_neo_init
     
+    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2);
     Drp = 4*mph*q/(eps**2*sqrt(pi));
+
+    call coleff(ux,dpp,dhh,fpeff)
+    dhh = vth*dhh
+    dpp = vth**3*dpp    
 
     open(unit=9, file=trim(adjustl(runname))//'_magfie_param.out', recl=1024)
 
@@ -211,12 +217,18 @@ contains
     write(9,*) "test_magfie: T [eV]    = ", mi/2*vth**2/eV
     write(9,*) "test_magfie: m0        = ", 1d0*m0
     write(9,*) "test_magfie: n0        = ", 1d0*mph
+    write(9,*) "test_magfie: Dp        = ", Dp
     write(9,*) "test_magfie: Drp       = ", Drp
     write(9,*) "test_magfie: etatp     = ", etatp
     write(9,*) "test_magfie: etadt     = ", etadt
     write(9,*) "-------------------------"
     write(9,*) "test_magfie: pertfile  = ", pertfile
     write(9,*) "-------------------------"
+    write(9,*) "test_magfie: dpp       = ", dpp
+    write(9,*) "test_magfie: dhh       = ", dhh
+    write(9,*) "test_magfie: dfpeff    = ", fpeff
+    write(9,*) "-------------------------"
+
     
 
     close(unit=9)

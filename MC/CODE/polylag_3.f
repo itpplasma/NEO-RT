@@ -17,8 +17,9 @@
 ! the power 3 of polinomial is fixed strictly:
 !
       implicit double precision (a-h,o-z)
+      implicit integer (i-n)
 !
-      integer indu(mp)  
+      integer indu(mp)
                              
       indu(1) = int((u-umin)*dum1)
       if( indu(1) .le. 0 ) indu(1) = 1
@@ -46,7 +47,9 @@
 !    indu(mp) - relative index of stencil points
 
 ! the power 3 of polinomial is fixed strictly:
-      integer indu(mp)  
+      implicit integer (i-n)
+!
+      integer indu(mp)
                              
       indu(1) = index - 1
       if( indu(1) .le. 0 ) indu(1) = 1
@@ -77,6 +80,7 @@
 ! poly1x - its derivative
 !
       implicit double precision (a-h,o-z)
+      implicit integer (i-n)
 !
       dimension cx(mp),xp(mp),cx1(mp),fp(mp)
 !
@@ -99,6 +103,7 @@
      $     ,polyl3d,poly1x,poly1y,poly1z)
 !
       implicit double precision (a-h,o-z)
+      implicit integer (i-n)
 !
 ! 3D interpolation by means of Lagrange polynomial
 ! the power 3 is fixed strictly:

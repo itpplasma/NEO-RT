@@ -1,5 +1,6 @@
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       SUBROUTINE tj2vvo(RT0,R0i,L1i,cbfi,BY0i,bf0)
+      implicit integer (i-n), real (a-h,o-z)
       double precision rt0,r0i,cbfi,by0i,bf0
 c 22.09.2010
 c      real*8 facr

@@ -1,5 +1,7 @@
 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine random_num(ur)
+      real(KIND(1.0)) ur
+      real(KIND(1.0)) zzg
       ur=zzg()
       return
       END
@@ -13,6 +15,8 @@ c
 c  Input parameters: irand - 0 for continious, 1 for +1 -1,
 c  Output parameters: ur   - random number
 c
+      integer irand
+      real(KIND(1.0)) ur
       call random_num(ur)
 c
       if(irand.eq.0) then

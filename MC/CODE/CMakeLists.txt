@@ -12,7 +12,7 @@ include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 include_directories(/usr/include)
 
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -fimplicit-none")
+set(CMAKE_Fortran_FLAGS_RELEASE " -fimplicit-none")
 set(MY_DEBUG_FLAG_LIST
 " -fimplicit-none "
 " -g "

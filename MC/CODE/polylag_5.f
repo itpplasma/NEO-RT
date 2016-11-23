@@ -16,6 +16,7 @@
 !
 ! the power 5 of polinomial is fixed strictly:
 !
+      implicit integer (i-n)
       implicit double precision (a-h,o-z)
 !
       integer indu(mp)  
@@ -45,6 +46,7 @@
 ! Output:
 !    indu(mp) - relative index of stencil points
 
+      implicit integer (i-n)
 ! the power 3 of polinomial is fixed strictly:
       integer indu(mp)  
                              
@@ -76,6 +78,7 @@
 ! polyl1d - polynomial itself
 ! poly1x - its derivative
 !
+      implicit integer (i-n)
       implicit double precision (a-h,o-z)
 !
       dimension cx(mp),xp(mp),cx1(mp),fp(mp)
@@ -98,6 +101,7 @@
       subroutine plag3d(x,y,z,fp,dxm1,dym1,dzm1,xp,yp,zp
      $     ,polyl3d,poly1x,poly1y,poly1z)
 !
+      implicit integer (i-n)
       implicit double precision (a-h,o-z)
 !
 ! 3D interpolation by means of Lagrange polynomial
