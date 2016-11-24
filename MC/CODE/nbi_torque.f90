@@ -187,7 +187,7 @@ print *, v0, tempi1, ev, amb, p_mass
 !
   
   if (icpu==0) then
-     open(1,file='nbi_torque.log')
+     open(1,file='nbi_torque.log', recl=1024)
      write (1,*) 'npoiper = ',npoiper
      write (1,*) 'ntestpart = ',ntestpart
      write (1,*) 'dphi = ',dphi
@@ -253,6 +253,8 @@ print *, v0, tempi1, ev, amb, p_mass
   enddo
 !
 !
+
+  open(2000+icpu,recl=1024)
   
   do ipart=1,ntestpart
      print *,ipart,' / ',ntestpart
@@ -298,6 +300,7 @@ print *, v0, tempi1, ev, amb, p_mass
        
    enddo
    print *,istep,'  steps'
+   close(2000+icpu)
 !
   
 enddo
