@@ -300,11 +300,11 @@ print *, v0, tempi1, ev, amb, p_mass
        
    enddo
    print *,istep,'  steps'
-   close(2000+icpu)
 !
   
 enddo
+close(2000+icpu)
 ! 
 !
 !
-  end
+end program
