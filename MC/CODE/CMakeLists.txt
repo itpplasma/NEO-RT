@@ -12,22 +12,23 @@ include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 include_directories(/usr/include)
 
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS_RELEASE " -fimplicit-none")
+set(CMAKE_Fortran_FLAGS_RELEASE " -implicitnone -mkl")
 set(MY_DEBUG_FLAG_LIST
-" -fimplicit-none "
+# " -fimplicit-none "
 " -g "
+" -mkl "
 #  "-ggdb -C -p -pg -fbacktrace " 
 #  "-ffpe-trap=invalid,zero,overflow,underflow " 
 #  "-Werror " 
 #  "-fmem-report " 
 #  "-Waliasing -Wampersand  -Wline-truncation " 
 #  "-Wnonstd-intrinsics  -Wsurprising -Wno-tabs -Wunderflow " 
-  "-Wall " 
+#  "-Wall " 
 #  "-Wunused-parameter -Wconversion -Wimplicit-interface -Wcharacter-truncation " 
   )
 string(REPLACE ";" "" MY_DEBUG_FLAG  ${MY_DEBUG_FLAG_LIST})
 set(CMAKE_Fortran_FLAGS_DEBUG "${MY_DEBUG_FLAG}") 
-set(CFLAGS "-O2 -DDOUBLE_APPEND_FORTRAN")
+set(CFLAGS "-mkl -O2 -DDOUBLE_APPEND_FORTRAN")
 
 ### Define container for *.o and *.mod files
 set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
@@ -41,22 +42,18 @@ ELSE()
   set(EXE_NAME "nbi_torque.x")
 ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
 
-
 ### Find libraries
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-find_library(SuperLU_lib superlu_4.1 ${SUPERLU_DIR}lib NO_DEFAULT_PATH)
-find_library(Umfpack_lib umfpack ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Amd_lib amd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Cholmod_lib cholmod ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Colamd_lib colamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Camd_lib camd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Metis_lib metis ${SUITESPARSE_DIR}lib ${METIS_PATH} NO_DEFAULT_PATH)
-find_library(Ccolamd_lib ccolamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(lapack_lib lapack ${LAPACK_LIB} NO_DEFAULT_PATH)
-find_library(f77blas_lib f77blas ${F77BLAS_LIB} NO_DEFAULT_PATH)
-find_library(atlas_lib atlas ${ATLASBLAS_LIB} NO_DEFAULT_PATH)
-find_library(open_blas_lapack_lib lapack ${OPEN_BLAS_LAPACK_LIB} NO_DEFAULT_PATH)
-find_library(open_blas_lib blas ${OPEN_BLAS_LIB} NO_DEFAULT_PATH)
+find_library(SuperLU_lib superlu ${SUPERLU_DIR}SRC NO_DEFAULT_PATH)
+find_library(Umfpack_lib umfpack ${SUITESPARSE_DIR}/UMFPACK/Lib NO_DEFAULT_PATH)
+find_library(Amd_lib amd ${SUITESPARSE_DIR}AMD/Lib NO_DEFAULT_PATH)
+find_library(Cholmod_lib cholmod ${SUITESPARSE_DIR}CHOLMOD/Lib NO_DEFAULT_PATH)
+find_library(Colamd_lib colamd ${SUITESPARSE_DIR}COLAMD/Lib NO_DEFAULT_PATH)
+find_library(Camd_lib camd ${SUITESPARSE_DIR}CAMD/Lib NO_DEFAULT_PATH)
+find_library(Metis_lib metis ${METIS_PATH} NO_DEFAULT_PATH)
+find_library(Ccolamd_lib ccolamd ${SUITESPARSE_DIR}CCOLAMD/Lib NO_DEFAULT_PATH)
+find_library(SuiteSparse_config_lib suitesparseconfig ${SUITESPARSE_DIR}SuiteSparse_config NO_DEFAULT_PATH)
+
 
 ### Source files (load external file)
 include (CMakeSources.txt)
@@ -73,10 +70,11 @@ add_executable(${EXE_NAME}
 target_link_libraries(${EXE_NAME} 
         ${SuperLU_lib}
         ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
-	lapack
+	${SuiteSparse_config_lib}
+	#lapack
 	#${lapack_lib}
 	#${open_blas_lapack_lib}
-	blas
+	#blas
 	#${f77blas_lib} ${atlas_lib}
 	#${open_blas_lib}
 	debug efence
