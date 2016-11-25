@@ -12,11 +12,13 @@ include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 include_directories(/usr/include)
 
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS_RELEASE " -implicitnone -mkl")
+set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -mkl")
 set(MY_DEBUG_FLAG_LIST
-# " -fimplicit-none "
+" -implicitnone "
 " -g "
+" -traceback "
 " -mkl "
+" -O3 "
 #  "-ggdb -C -p -pg -fbacktrace " 
 #  "-ffpe-trap=invalid,zero,overflow,underflow " 
 #  "-Werror " 
@@ -28,7 +30,7 @@ set(MY_DEBUG_FLAG_LIST
   )
 string(REPLACE ";" "" MY_DEBUG_FLAG  ${MY_DEBUG_FLAG_LIST})
 set(CMAKE_Fortran_FLAGS_DEBUG "${MY_DEBUG_FLAG}") 
-set(CFLAGS "-mkl -O2 -DDOUBLE_APPEND_FORTRAN")
+set(CFLAGS "-mkl -O3 -DDOUBLE_APPEND_FORTRAN")
 
 ### Define container for *.o and *.mod files
 set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)

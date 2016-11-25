@@ -66,6 +66,7 @@ MODULE neo_input
   REAL(kind=dp) :: flux, psi_pr
 
   REAL(kind=dp) :: pertscale=1.d0 ! Chris
+  REAL(kind=dp) :: bscale=1.d0 ! Chris
   
   INTEGER  :: m0b, n0b
   INTEGER  :: ns, mnmax, nfp

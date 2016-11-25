@@ -3,13 +3,14 @@
   use collis_alp, only : swcoll,iswmod,ns,efcolf,velrat,enrat,efcolf_arr,velrat_arr,enrat_arr
 !  use odeint_mod, only : adaptive
   USE polylag_3,  ONLY : mp,indef, plag1d
-  use neo_input,  only : flux, pertscale
+  use neo_input,  only : flux, pertscale, bscale
   USE probstart_mod, ONLY : calc_probstart
   use elefie_mod, only: Mtprofile, rbig, plasma, amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,&
-       tempi2,tempe,v0
+       tempi2,tempe,v0,escale
   use constants, only: pi,c,e_charge,e_mass,p_mass,ev
+  use spline_settings, only: flux_surf_dist
 !
-!  implicit none
+  implicit none
 !
   integer          :: ierr,npoiper,i,ntestpart
   integer          :: ipart,icpu,iskip,istep
@@ -19,7 +20,9 @@
   double precision, dimension(5) :: z
   integer,          dimension(:),   allocatable :: ibinsrc_x
   double precision, dimension(:),   allocatable :: s_ionized
-  double precision, dimension(:,:), allocatable :: zstart            
+  double precision, dimension(:,:), allocatable :: zstart     
+  double precision, dimension(:), allocatable :: savg, ds2avg
+  integer :: iout
 !
   double precision :: bmod,sqrtg
   double precision, dimension(3) :: x,bder,hcovar,hctrvr,hcurl
@@ -62,8 +65,11 @@
 !                              3 - drag only
 !                              4 - pitch-angle scattering only
  read(1,*) pertscale
+ read(1,*) bscale
+ read(1,*) escale
  read(1,*) s0
  read(1,*) runtime
+ read(1,*) flux_surf_dist
 1 continue
   close(1)
 !
@@ -224,6 +230,7 @@ print *, v0, tempi1, ev, amb, p_mass
   enddo
 !
   allocate(zstart(5,ntestpart),ibinsrc_x(ntestpart),s_ionized(ntestpart))
+
 !
   do ipart=1,ntestpart
      ! determine the starting point:
@@ -254,7 +261,13 @@ print *, v0, tempi1, ev, amb, p_mass
 !
 !
 
-  open(2000+icpu,recl=1024)
+!  open(2000+icpu,recl=1024)
+
+  ! TODO: con't hardcode 200 steps
+  allocate(savg(200),ds2avg(200))
+
+  savg = 0.0
+  ds2avg = 0.0
   
   do ipart=1,ntestpart
      print *,ipart,' / ',ntestpart
@@ -271,13 +284,18 @@ print *, v0, tempi1, ev, amb, p_mass
     if(swcoll) taumax = runtime/efcolf_arr(1,ks0)
     
     dummy = 0.d0
+    iout = 1
     do istep=1,nstepmax
        if(swcoll) then
           if (istep*dtau > taumax) exit
 
           if (istep*dtau > dummy) then
-             write(2000+icpu,*) ipart, istep, istep*dtau/efcolf_arr(1,ks0), z(1),&
-                  (z(1)-s0)**2, z(2), z(3)
+             !write(2000+icpu,*) ipart, istep, istep*dtau/efcolf_arr(1,ks0), z(1),&
+             !     (z(1)-s0)**2, z(2), z(3)
+
+             savg(iout) = savg(iout) + z(1)/ntestpart
+             ds2avg(iout) = ds2avg(iout) + (z(1)-s0)**2/ntestpart
+             iout = iout + 1             
              dummy = dummy + .005d0*taumax
           endif
        endif     
@@ -290,7 +308,6 @@ print *, v0, tempi1, ev, amb, p_mass
 
        call regst(z,dtau,ierr)
        !
-       ! TODO: enable collision line again
        if(swcoll) then
           call stost(z,dtau,iswmod,ierr)
        endif
@@ -303,7 +320,14 @@ print *, v0, tempi1, ev, amb, p_mass
 !
   
 enddo
-close(2000+icpu)
+!close(2000+icpu)
+
+open(4000+icpu,recl=1024)
+do iout=1,200
+   write(4000+icpu,*) savg(iout), ds2avg(iout)
+enddo
+close(4000+icpu)
+
 ! 
 !
 !

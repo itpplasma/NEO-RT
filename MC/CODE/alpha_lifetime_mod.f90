@@ -16,6 +16,7 @@
     double precision, dimension(:,:), allocatable :: Mtprofile
     double precision, dimension(:,:), allocatable :: plasma
     double precision :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,v0
+    double precision :: escale=1.0
   end module elefie_mod
 
   module constants
