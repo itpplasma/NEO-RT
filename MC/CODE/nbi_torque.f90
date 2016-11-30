@@ -3,7 +3,7 @@
   use collis_alp, only : swcoll,iswmod,ns,efcolf,velrat,enrat,efcolf_arr,velrat_arr,enrat_arr
 !  use odeint_mod, only : adaptive
   USE polylag_3,  ONLY : mp,indef, plag1d
-  use neo_input,  only : flux, pertscale, bscale
+  use neo_input,  only : flux, pertscale
   USE probstart_mod, ONLY : calc_probstart
   use elefie_mod, only: Mtprofile, rbig, plasma, amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,&
        tempi2,tempe,v0,escale
@@ -41,7 +41,7 @@
 !  thermalization:
   double precision, parameter :: vmin_therm=sqrt(1.5d0)
 !
-  double precision :: dummy, taumax, runtime
+  double precision :: dummy, taumax, runtime, bscale
 
   character(len=20) :: buffer
   
@@ -173,7 +173,7 @@ s = s0
 !  major radius:
   rbig=hcovar(2)
 !  reference field - one Tesla:
-  bmod_ref=1.d4
+  bmod_ref=1.d4*bscale
   bmod00=1.d0
 print *, v0, tempi1, ev, amb, p_mass
   v0=sqrt(2.d0*E_beam*ev/(amb*p_mass))
@@ -262,7 +262,7 @@ print *, v0, tempi1, ev, amb, p_mass
 !
 
 !  open(2000+icpu,recl=1024)
-
+!open(3000+icpu,recl=1024)
   ! TODO: con't hardcode 200 steps
   allocate(savg(200),ds2avg(200))
 
@@ -312,7 +312,7 @@ print *, v0, tempi1, ev, amb, p_mass
           call stost(z,dtau,iswmod,ierr)
        endif
        !if(mod(istep,nstepmax/40000)==0) then
-       !   write(3000,*) istep*dtau, z
+          !write(3000,*) istep*dtau, z
        !endif
        
    enddo
@@ -321,6 +321,7 @@ print *, v0, tempi1, ev, amb, p_mass
   
 enddo
 !close(2000+icpu)
+!close(3000+icpu)
 
 open(4000+icpu,recl=1024)
 do iout=1,200

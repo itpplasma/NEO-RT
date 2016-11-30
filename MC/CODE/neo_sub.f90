@@ -1416,8 +1416,8 @@ SUBROUTINE neo_read
              pprime(i),sqrtg00(i)
         READ(r_u1,*) dummy
 
-        curr_pol(i) = curr_pol(i)*bscale ! Chris
-        curr_tor(i) = curr_tor(i)*bscale ! Chris
+        !curr_pol(i) = curr_pol(i)*bscale ! Chris
+        !curr_tor(i) = curr_tor(i)*bscale ! Chris
         
         DO j=1,mnmax
            !print *, 'j: ',j
@@ -1425,7 +1425,7 @@ SUBROUTINE neo_read
                 rmnc(i,j),zmnc(i,j),lmnc(i,j),                            &
                 bmnc(i,j)
            if (ixn(j) /= 0) bmnc(i,j) = pertscale*bmnc(i,j) ! Chris
-           bmnc(i,j) = bscale*bmnc(i,j) ! Chris
+           !bmnc(i,j) = bscale*bmnc(i,j) ! Chris
            !print *, 'ixm,ixn: ',ixm(j),ixn(j)
         END DO
      END DO
@@ -1477,8 +1477,8 @@ SUBROUTINE neo_read
              pprime(i),sqrtg00(i)
         READ(r_u1,*) dummy
         
-        curr_pol(i) = curr_pol(i)*bscale ! Chris
-        curr_tor(i) = curr_tor(i)*bscale ! Chris      
+        !curr_pol(i) = curr_pol(i)*bscale ! Chris
+        !curr_tor(i) = curr_tor(i)*bscale ! Chris      
         
         DO j=1,mnmax
            !print *, 'j: ',j
@@ -1490,8 +1490,8 @@ SUBROUTINE neo_read
               bmns(i,j) = pertscale*bmns(i,j)
            endif
 
-           bmnc(i,j) = bscale*bmnc(i,j)
-           bmns(i,j) = bscale*bmns(i,j)
+           !bmnc(i,j) = bscale*bmnc(i,j)
+           !bmns(i,j) = bscale*bmns(i,j)
            
            !print *, 'ixm,ixn: ',ixm(j),ixn(j)
            !PRINT *,'rmnc,rmns: ',rmnc(i,j),rmns(i,j)
