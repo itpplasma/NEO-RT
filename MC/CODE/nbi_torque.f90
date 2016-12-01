@@ -261,6 +261,8 @@ print *, v0, tempi1, ev, amb, p_mass
 !
 !
 
+  open(4000+icpu)
+  close(4000+icpu, status="delete")
 !  open(2000+icpu,recl=1024)
 !open(3000+icpu,recl=1024)
   ! TODO: con't hardcode 200 steps
@@ -293,8 +295,8 @@ print *, v0, tempi1, ev, amb, p_mass
              !write(2000+icpu,*) ipart, istep, istep*dtau/efcolf_arr(1,ks0), z(1),&
              !     (z(1)-s0)**2, z(2), z(3)
 
-             savg(iout) = savg(iout) + z(1)/ntestpart
-             ds2avg(iout) = ds2avg(iout) + (z(1)-s0)**2/ntestpart
+             savg(iout) = (savg(iout)*(ipart-1.d0) + z(1))*1.d0/ipart
+             ds2avg(iout) = (ds2avg(iout)*(ipart-1.d0) + (z(1)-s0)**2)/ipart
              iout = iout + 1             
              dummy = dummy + .005d0*taumax
           endif
@@ -318,16 +320,18 @@ print *, v0, tempi1, ev, amb, p_mass
    enddo
    print *,istep,'  steps'
 !
-  
+   if(mod(ipart,ntestpart/100)==0) then
+      open(4000+icpu, recl=1024)
+      do iout=1,200
+         write(4000+icpu,*) savg(iout), ds2avg(iout), ipart
+      enddo
+      close(4000+icpu)
+   endif
 enddo
 !close(2000+icpu)
 !close(3000+icpu)
 
-open(4000+icpu,recl=1024)
-do iout=1,200
-   write(4000+icpu,*) savg(iout), ds2avg(iout)
-enddo
-close(4000+icpu)
+
 
 ! 
 !
