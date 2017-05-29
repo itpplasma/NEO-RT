@@ -13,7 +13,7 @@ subroutine elefie(x,derphi)
 !
 
   USE polylag_3, only : mp,indef, plag1d
-  use elefie_mod, only: Mtprofile, v0, Z1, am1, rbig, escale
+  use elefie_mod, only: Mtprofile, v0, Z1, am1, rbig, escale, bscale
   use neo_input, only : flux
   use constants, only: e_mass, e_charge, p_mass, c, pi
         
@@ -34,8 +34,8 @@ subroutine elefie(x,derphi)
   !   
   derphi=0.d0
   call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
-  qsafety = hctrvr(3)/hctrvr(2)
-
+  qsafety = hctrvr(2)/hctrvr(3)
+  
   s = x(1)
   
   dxm1=1.d0/(Mtprofile(2,1)-Mtprofile(1,1))
@@ -48,8 +48,9 @@ subroutine elefie(x,derphi)
   fp=Mtprofile(indu,3)
   call plag1d(s,fp,dxm1,xp,vth,der)
 
-! TODO enable this again
-  derphi(1) = -(1.0d8*flux/(2.0d0*pi))*Mt*vth/(qsafety*c*rbig)
+  Mt = Mt/bscale
+  
+  derphi(1) = -(1.0d8*flux*bscale/(2.0d0*pi))*Mt*vth/(qsafety*c*rbig)
   derphi(1) = derphi(1)*Z1*e_charge/(am1*p_mass*v0**2/2.d0) ! normalization
 
   derphi(1) = -escale*derphi(1) ! TODO check if this is correct sign

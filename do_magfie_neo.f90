@@ -22,7 +22,7 @@ module do_magfie_neo_mod
   ! B0h is the 0th theta harmonic of bmod on current flux surface
   ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
-  real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius a changeable
+  real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius changeable
 
 contains
   

@@ -2,7 +2,7 @@ program main
   use driftorbit
   use lineint
   use do_magfie_mod, only : s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-       q, dqds, iota, R0, a, eps, B0h, B00
+       q, dqds, iota, R0, a, eps, B0h, B00, inp_swi
   use do_magfie_pert_mod, only : do_magfie_pert_init, do_magfie_pert_amp, mph
   use polylag_3,  only : mp,indef,plag1d
   implicit none
@@ -13,9 +13,9 @@ program main
   character(len=1024) :: tmp
   character(:), allocatable :: runname
   integer :: tmplen
+  logical :: plasmafile
   
   call get_command_argument(1, tmp, tmplen)
-  !allocate(character(len=tmplen) :: runname)  
   runname = trim(adjustl(tmp))
 
   call read_control
@@ -24,22 +24,31 @@ program main
   if (pertfile) then
      call do_magfie_pert_init
   end if
-      
-  call init_plasma
+
+  inquire(file='plasma.in', exist=plasmafile)
+
+  if (plasmafile) then
+     call init_plasma
+  else
+     if (nonlin) then
+        stop 'need plasma.in for nonlinear calculation'
+     end if
+  end if
   call init_test
 
   call test_magfie
   call test_torfreq
   
   if (mthnum < 1) then
-     stop
+     call test_bounce
+     stop 'mthnum < 1'
   end if
   
   call test_resline
   call test_integral
 
   if (Mtnum < 1) then
-     stop
+     stop 'Mtnum < 1'
   end if
   
   call test_machrange2
@@ -75,7 +84,11 @@ contains
     read (9,*) pertfile
     read (9,*) odeint
     read (9,*) nonlin
+    read (9,*) bfac
+    read (9,*) efac
+    read (9,*) inp_swi
 
+    M_t = M_t*efac/bfac
     qi = qs*qe    
     mi = ms*mu
   end subroutine read_control
@@ -97,7 +110,7 @@ contains
     integer :: nplasma, i
     
 
-    ! read plasma file
+    ! read plasma file    
     open(1,file='plasma.in')
     read (1,*)
     read (1,*) nplasma,am1,am2,Z1,Z2
@@ -154,7 +167,7 @@ contains
     !   print *, "Set vth to: ", vth
     !end if
     Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
-
+    
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     sigv = 1
@@ -185,7 +198,7 @@ contains
 
     call coleff(ux,dpp,dhh,fpeff)
     dhh = vth*dhh
-    dpp = vth**3*dpp    
+    dpp = vth**3*dpp
 
     open(unit=9, file=trim(adjustl(runname))//'_magfie_param.out', recl=1024)
 
@@ -515,7 +528,7 @@ contains
 
     do k = 1, Mtnum
        ! absolute tolerances for integrals
-       tol0 = 1d-9
+       tol0 = 1d-15
        tolpco = tol0
        tolpctr = tol0
        tolt = tol0
@@ -524,7 +537,7 @@ contains
        fluxpctr = 0d0
        fluxt = 0d0
        
-       if (Mtnum > 1) M_t = Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1)
+       if (Mtnum > 1) M_t = efac/bfac*(Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1))
 
        Om_tE = vth*M_t/R0
 
@@ -556,11 +569,9 @@ contains
 
           ! superbanana resonance
           if (supban) then
+             sigv = 1
              vmint = 0.01*vth
              vmaxt = 5*vth
-             etamin = (1+100*epst)*etatp
-             etamax = etatp + (1-100*epst)*(etadt-etatp)
-             !call find_vlim(vmint, vmaxt)
              etamin = (1+epst)*etatp
              etamax = (1-epst)*etadt
              if (odeint) then
@@ -667,7 +678,7 @@ contains
     write(fn2,*) trim(adjustl(runname))//'_integral_pct.out'
     write(fn3,*) trim(adjustl(runname))//'_integral_t.out'  
     
-    nu = 500
+    nu = 1000
 
     !mth = 2
     

@@ -18,7 +18,7 @@ module driftorbit
   real(8) :: taub, bounceavg(nvar)
 
   ! Plasma parameters
-  real(8) :: Om_tE, vth, M_t, n0
+  real(8) :: Om_tE, vth, M_t, efac, n0
 
   ! For splining in the trapped eta region
   integer, parameter :: netaspl = 100
@@ -780,7 +780,7 @@ contains
     eta = etax
     call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_tB(OmtB, dummy, dummy2)
-    call bounce(2d0*pi/abs(Omth))
+    call bounce(2d0*pi/abs(Omth)) ! TODO: use full orbit here
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
     thatt = 1d0
@@ -916,11 +916,12 @@ contains
 
   end function flux_integral
 
+end module driftorbit
+
 !------------------------------------------------------------------------------!
 !------------------------------------------------------------------------------!
 ! WIP: integration with ODEs                                                   !
 !------------------------------------------------------------------------------!
-end module driftorbit
 module lineint
   use driftorbit
 

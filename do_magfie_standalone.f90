@@ -7,7 +7,7 @@ module do_magfie_mod
   save
 
   real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-       q, dqds, iota, R0, a, eps, B0h, B00
+       q, dqds, iota, R0, a, eps, B0h, B00, bfac
   ! B0h is the 0th theta harmonic of bmod on current flux surface
   ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
   
@@ -21,7 +21,7 @@ module do_magfie_mod
                                       ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
   integer :: ncol1, ncol2 ! number of columns in input file
 
-  integer, parameter :: inp_swi = 9 ! type of input file, TODO: don't hardcode this
+  integer :: inp_swi ! type of input file, TODO: don't hardcode this
 contains
   
   subroutine do_magfie_init
@@ -45,7 +45,7 @@ contains
        allocate(eps_spl(nflux-1, 5))
     end if
     
-    B00 = 1.0d4*modes0(1,1,6)
+    B00 = 1.0d4*modes0(1,1,6)*bfac
     
     ! calculate spline coefficients
     do k=1,ncol1
@@ -84,11 +84,11 @@ contains
     real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
 
     spl_val = spline_val_0(spl_coeff1(:,:,3), s)
-    Bthcov = -ItoB*spl_val(1)
-    dBthcovds = -ItoB*spl_val(2)
+    Bthcov = -ItoB*spl_val(1)*bfac
+    dBthcovds = -ItoB*spl_val(2)*bfac
     spl_val = spline_val_0(spl_coeff1(:,:,2), s)
-    Bphcov = -ItoB*spl_val(1)
-    dBphcovds = -ItoB*spl_val(2)
+    Bphcov = -ItoB*spl_val(1)*bfac
+    dBphcovds = -ItoB*spl_val(2)*bfac
     spl_val = spline_val_0(spl_coeff1(:,:,1), s)
     iota = spl_val(1)
     q = 1/iota
@@ -100,8 +100,8 @@ contains
     if (inp_swi == 8) then
        do j=1,nmode
           spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), s)
-          B0mnc(j) = 1d4*spl_val_c(1)
-          dB0dsmnc(j) = 1d4*spl_val_c(2)
+          B0mnc(j) = 1d4*spl_val_c(1)*bfac
+          dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
        end do
        B0h = B0mnc(1)
 
@@ -117,11 +117,11 @@ contains
        dBphcovds = -dBphcovds
        do j=1,nmode
           spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), s)
-          B0mnc(j) = 1d4*spl_val_c(1)
-          dB0dsmnc(j) = 1d4*spl_val_c(2)
+          B0mnc(j) = 1d4*spl_val_c(1)*bfac
+          dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
           spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), s)
-          B0mns(j) = 1d4*spl_val_s(1)
-          dB0dsmns(j) = 1d4*spl_val_s(2)
+          B0mns(j) = 1d4*spl_val_s(1)*bfac
+          dB0dsmns(j) = 1d4*spl_val_s(2)*bfac
        end do
        B0h = B0mnc(1)
 
@@ -154,7 +154,7 @@ contains
     read(18, *) m0b, n0b, nflux, nfp, flux, a, R0
     a = 100*a   ! m -> cm
     R0 = 100*R0 ! m -> cm
-    psi_pr = 1.0d8*abs(flux)/(2*pi) ! T -> Gauss, m -> cm
+    psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
     nmode = (m0b+1)*(n0b+1)
     allocate(params0(nflux, ncol1+1))
     allocate(modes0(nflux, nmode, ncol2+2))
@@ -177,7 +177,7 @@ module do_magfie_pert_mod
     
   use common
   use spline
-  use do_magfie_mod, only: s
+  use do_magfie_mod, only: s, bfac
   
   implicit none
   save
@@ -239,15 +239,15 @@ contains
        stop
        do j=1,nmode
           spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), s)
-          Bmnc(j) = 1d4*spl_val_c(1)
+          Bmnc(j) = 1d4*spl_val_c(1)*bfac
        end do
        bamp = sum(Bmnc*cos(modes(1,:,1)*x(3)))
     else if (inp_swi == 9) then
        do j=1,nmode
           spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), s)
-          Bmnc(j) = 1d4*spl_val_c(1)
+          Bmnc(j) = 1d4*spl_val_c(1)*bfac
           spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), s)
-          Bmns(j) = 1d4*spl_val_s(1)
+          Bmns(j) = 1d4*spl_val_s(1)*bfac
        end do
 
        bamp = sum((Bmnc-imun*Bmns)*exp(imun*modes(1,:,1)*x(3)))

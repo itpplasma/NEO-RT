@@ -45,14 +45,20 @@ add_subdirectory("../contrib/quadpack" "quadpack")
 #add_subdirectory("../contrib/odepack" "odepack")
 add_subdirectory("../contrib/vode" "vode")
 
-set(CMAKE_Fortran_FLAGS "-mkl -O3 -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
+set(CMAKE_Fortran_FLAGS "-mkl -O2 -g -traceback -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
   driftorbit_test.f90
 )
 
+add_executable(orbit_test
+  orbit_test.f90
+)
+
+
 add_library("driftorbit"
+  orbit.f90
   attenuation_factor.f90
   collis_nbi.f90
   polylag_3.f

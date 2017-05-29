@@ -1,20 +1,20 @@
 # Input file for DRIFTORBIT - Version 1.2
 # 
 #
-0.99               s                  - Radial coordinate s
--0.036   	    M_t		       - Mach number (for single Mach no. run)
+0.5                 s                  - Radial coordinate s
+0.036   	    M_t		       - Mach number (for single Mach no. run)
 1d0                 qi                 - Particle charge / elem. charge
 2.014               mi                 - Particle mass / 1u
 1d19		    n0		       - particle density
 40000000.0          vth		       - thermal velocity
-0.02		    epsmn	       - perturbation amplitude B1/B0 (if pertfile==F)
+0.001		    epsmn	       - perturbation amplitude B1/B0 (if pertfile==F)
 0		    m		       - poroidal perturbation mode (if pertfile==F)
-3 		    n		       - toroidal perturbation mode (if pertfile==F, n>0!)
+1 		    n		       - toroidal perturbation mode (if pertfile==F, n>0!)
 0		    mth		       - poloidal canonical mode (for single Mach no. run)
-0       	    mthnum	       - poloidal canonical mode count
+10       	    mthnum	       - poloidal canonical mode count
 0d0	    	    Mtmin	       - minimum Mach number
 0d0	    	    Mtmax	       - maximum Mach number
-0                   Mtnum              - Mach number count
+1                   Mtnum              - Mach number count
 F                   supban             - calculate superbanana plateau
 T		    magdrift	       - consider magnetic drift
 F		    nopassing	       - neglect passing particles
@@ -22,4 +22,7 @@ F		    calcflux	       - calculate flux directly instead via flux-force relation
 T		    noshear	       - neglect magnetic shear term with dqds
 T		    pertfile	       - read perturbation from file with do_magfie_pert
 F                   odeint             - use ODE integrator for resonance line
-T		    nonlin	       - do nonlinear calculation
+F		    nonlin	       - do nonlinear calculation
+1.0
+1.0
+9
