@@ -25,27 +25,30 @@ set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
 
 ### Find libraries
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-find_library(SuperLU_lib superlu_4.1 ${SUPERLU_DIR}lib NO_DEFAULT_PATH)
-find_library(Umfpack_lib umfpack ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Amd_lib amd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Cholmod_lib cholmod ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Colamd_lib colamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Camd_lib camd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-find_library(Metis_lib metis ${SUITESPARSE_DIR}lib ${METIS_PATH} NO_DEFAULT_PATH)
-find_library(Ccolamd_lib ccolamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+#find_library(SuperLU_lib superlu_4.1 ${SUPERLU_DIR}lib NO_DEFAULT_PATH)
+#find_library(Umfpack_lib umfpack ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+#find_library(Amd_lib amd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+#find_library(Cholmod_lib cholmod ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+#find_library(Colamd_lib colamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+#find_library(Camd_lib camd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+#find_library(Metis_lib metis ${SUITESPARSE_DIR}lib ${METIS_PATH} NO_DEFAULT_PATH)
+#find_library(Ccolamd_lib ccolamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+#find_library(SuiteSparseConfig_lib suitesparseconfig ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
 
 ### Source files (load external file)
 include (CMakeSources.txt)
 
 ### External modules
-add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
+#add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
 #add_subdirectory("../contrib/rkf45" "rkf45")
 add_subdirectory("../spline" "spline")
 add_subdirectory("../contrib/quadpack" "quadpack")
 #add_subdirectory("../contrib/odepack" "odepack")
 add_subdirectory("../contrib/vode" "vode")
 
-set(CMAKE_Fortran_FLAGS "-mkl -O2 -g -traceback -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
+#set(CMAKE_Fortran_FLAGS " -O2 -g -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS") # INTEL
+#set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
+set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -65,12 +68,12 @@ add_library("driftorbit"
   common.f90
   driftorbit.f90
   do_magfie_standalone.f90
-  do_magfie_neo.f90
-  ${SUITESPARSE_SRC_FILES}
-  ${SUPERLU_SRC_FILES}
+#  do_magfie_neo.f90
+#  ${SUITESPARSE_SRC_FILES}
+#  ${SUPERLU_SRC_FILES}
 )
 
-add_dependencies(driftorbit boozer_magfie)
+#add_dependencies(driftorbit boozer_magfie)
 #add_dependencies(driftorbit rkf45)
 add_dependencies(driftorbit spline)
 #add_dependencies(driftorbit quadpack)
@@ -81,9 +84,10 @@ add_dependencies(driftorbit vode)
 target_link_libraries(
   ${PROJECT_EXE_NAME}
   driftorbit
-  boozer_magfie
-  ${SuperLU_lib}
-  ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
+#  boozer_magfie
+#  ${SuperLU_lib}
+#  ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
+#  ${SuiteSparseConfig_lib}
   #rkf45
   #odepack
   vode
@@ -95,8 +99,8 @@ target_link_libraries(
 )
 
 ### Copy files
-configure_file(neo.in neo.in COPYONLY)
-configure_file(tok-synch2-n0.bc tok-synch2-n0.bc COPYONLY)
+#configure_file(neo.in neo.in COPYONLY)
+#configure_file(tok-synch2-n0.bc tok-synch2-n0.bc COPYONLY)
 
 
 ### For make install

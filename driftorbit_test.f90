@@ -2,8 +2,11 @@ program main
   use driftorbit
   use lineint
   use do_magfie_mod, only : s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-       q, dqds, iota, R0, a, eps, B0h, B00, inp_swi
+       q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
   use do_magfie_pert_mod, only : do_magfie_pert_init, do_magfie_pert_amp, mph
+  !use do_magfie_neo_mod, only : s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
+  !     q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
+  !use do_magfie_pert_neo_mod, only : do_magfie_pert_init, do_magfie_pert_amp, mph
   use polylag_3,  only : mp,indef,plag1d
   implicit none
 
@@ -14,7 +17,7 @@ program main
   character(:), allocatable :: runname
   integer :: tmplen
   logical :: plasmafile
-  
+
   call get_command_argument(1, tmp, tmplen)
   runname = trim(adjustl(tmp))
 
@@ -22,35 +25,36 @@ program main
 
   call do_magfie_init
   if (pertfile) then
-     call do_magfie_pert_init
+    call do_magfie_pert_init
   end if
 
   inquire(file='plasma.in', exist=plasmafile)
 
   if (plasmafile) then
-     call init_plasma
+    call init_plasma
   else
-     if (nonlin) then
-        stop 'need plasma.in for nonlinear calculation'
-     end if
+    if (nonlin) then
+      stop 'need plasma.in for nonlinear calculation'
+    end if
   end if
   call init_test
 
-  call test_magfie
+  !call test_magfie
   call test_torfreq
-  
+
   if (mthnum < 1) then
-     call test_bounce
+     !call test_bounce
      stop 'mthnum < 1'
   end if
-  
+
+  call test_bounce
   call test_resline
   call test_integral
 
   if (Mtnum < 1) then
      stop 'Mtnum < 1'
   end if
-  
+
   call test_machrange2
 contains
 
@@ -70,15 +74,15 @@ contains
     read (9,*) vth
     read (9,*) epsmn
     read (9,*) m0
-    read (9,*) mph   
-    read (9,*) mth   
-    read (9,*) mthnum   
-    read (9,*) Mtmin   
-    read (9,*) Mtmax  
-    read (9,*) Mtnum    
+    read (9,*) mph
+    read (9,*) mth
+    read (9,*) mthnum
+    read (9,*) Mtmin
+    read (9,*) Mtmax
+    read (9,*) Mtnum
     read (9,*) supban
     read (9,*) magdrift
-    read (9,*) nopassing  
+    read (9,*) nopassing
     read (9,*) dummy
     read (9,*) noshear
     read (9,*) pertfile
@@ -87,19 +91,22 @@ contains
     read (9,*) bfac
     read (9,*) efac
     read (9,*) inp_swi
+    read (9,*) orbit_mode_avg
+    read (9,*) orbit_mode_transp
+    read (9,*) vsteps
 
     M_t = M_t*efac/bfac
-    qi = qs*qe    
+    qi = qs*qe
     mi = ms*mu
   end subroutine read_control
 
   subroutine init_plasma
-    real(8), parameter :: pi    = 3.14159265358979d0
+!    real(8), parameter :: pi    = 3.14159265358979d0
     real(8), parameter :: pmass = 1.6726d-24
-    real(8), parameter :: emass = 9.1094d-28
-    real(8), parameter :: e     = 4.8032d-10
+!    real(8), parameter :: emass = 9.1094d-28
+!    real(8), parameter :: e     = 4.8032d-10
     real(8), parameter :: ev    = 1.6022d-12
-    
+
     real(8) :: amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe, &
          dchichi,slowrate,dchichi_norm,slowrate_norm
     real(8) :: v0, ebeam
@@ -108,9 +115,9 @@ contains
     real(8), dimension(mp) :: xp, fp
     real(8) :: der, dxm1
     integer :: nplasma, i
-    
 
-    ! read plasma file    
+
+    ! read plasma file
     open(1,file='plasma.in')
     read (1,*)
     read (1,*) nplasma,am1,am2,Z1,Z2
@@ -121,10 +128,10 @@ contains
     enddo
     dxm1=1.d0/(plasma(2,1)-plasma(1,1))
     close(1)
-    
+
     ! interpolate to s value
     call indef(s,plasma(1,1),dxm1,nplasma,indu)
-    
+
     xp=plasma(indu,1)
     fp=plasma(indu,2)
     call plag1d(s,fp,dxm1,xp,densi1,der)
@@ -147,12 +154,12 @@ contains
     amb   = 2d0
     Zb    = 1d0
     ebeam = amb*pmass*v0**2/(2d0*ev)
-    
+
 !    print *, amb, am1, am2, Zb, Z1, Z2, densi1, densi2, tempi1, tempi2, tempe, ebeam, v0
 
     call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,densi1,densi2,tempi1,tempi2,tempe,&
          ebeam,v0,dchichi,slowrate,dchichi_norm,slowrate_norm)
-  
+
 !print *, ebeam*ev, mi*vth**2/2d0, v0, vth, enrat
 !pause
     ! TODO: calculate diffusion coefficients
@@ -167,7 +174,7 @@ contains
     !   print *, "Set vth to: ", vth
     !end if
     Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
-    
+
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     sigv = 1
@@ -178,7 +185,7 @@ contains
 !         do_magfie_neo => do_magfie
 !    use do_magfie_pert_neo_mod, only: do_magfie_pert_neo_init => do_magfie_pert_init,&
 !         do_magfie_pert_neo_amp => do_magfie_pert_amp
-    
+
     integer, parameter :: nth = 50
     integer :: k
     real(8) :: thmin, thmax
@@ -191,8 +198,10 @@ contains
 !    s_neo = s
 !    call do_magfie_neo_init
 ! comparison with Neo2 magfie pert
-!    call do_magfie_pert_neo_init
-    
+!    if (pertfile) then
+!       call do_magfie_pert_neo_init
+!    end if
+
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2);
     Drp = 4*mph*q/(eps**2*sqrt(pi));
 
@@ -242,10 +251,10 @@ contains
     write(9,*) "test_magfie: dfpeff    = ", fpeff
     write(9,*) "-------------------------"
 
-    
+
 
     close(unit=9)
-    
+
     open(unit=9, file=trim(adjustl(runname))//'_magfie.out', recl=1024)
 !    open(unit=10, file=trim(adjustl(runname))//'_magfie_neo.out', recl=1024)
     do k = 0, nth-1
@@ -258,8 +267,9 @@ contains
           bn = epsmn*exp(imun*m0*x(3))
        end if
        write(9,*) x(3), bmod, sqrtg, hder(1), hder(2), hder(3), hcovar(1),&
-            hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&  ! 8
-            real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),& !13
+            hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&
+            hcurl(1), hcurl(2), hcurl(3), &
+            real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),&
             aimag(epsmn*exp(imun*m0*x(3))) !16
 !       call do_magfie_neo( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
 !       if (pertfile) then
@@ -269,8 +279,9 @@ contains
 !          bn = epsmn*exp(imun*m0*x(3))
 !       end if
 !      write(10,*) x(3), bmod, sqrtg, hder(1), hder(2), hder(3), hcovar(1),&
-!           hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&  ! 8
-!            real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),& !13
+!           hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&
+!            hcurl(1), hcurl(2), hcurl(3), &
+!            real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),&
 !            aimag(epsmn*exp(imun*m0*x(3))) !16
     end do
 !    close(unit=10)
@@ -279,72 +290,114 @@ contains
 
   subroutine test_bounce
     use dvode_f90_m2
+    use orbit
+
     real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     real(8) :: dt
-    integer, parameter :: n = 5000
+    integer, parameter :: n = 1000
 
-    integer :: k, state
-    !integer :: iwork(1000)
-    real(8) :: t, y(nvar), y2(nvar), y2dot(nvar)
-    !real(8) :: rwork(1000)
+    integer :: k
+    real(8) :: t, y0(4), y(4)
+!    real(8) :: pphi
 
-    real(8) :: atol(nvar), rtol, tout
+    real(8) :: atol(4), rtol, tout
     integer :: neq, itask, istate
     type (vode_opts) :: options
 
-    neq = nvar
+    neq = 4
     t = 0.0d0
     rtol = 1d-9
     atol = 1d-10
-    itask = 1
-    istate = 1
     options = set_normal_opts(abserr_vector=atol, relerr=rtol)
 
     !mth = -1
 
     print *, "test_bounce"
-    open(unit=9, file='test_bounce.dat', recl=1024)
 
     !s = .16406d0
     x(1) = s
     x(2) = 0d0
     x(3) = 0d0
-    call do_magfie( x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl ) 
+    call do_magfie( x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
 
-    v   = vth
+    v = vth
     !eta = (1d0-1.86727d-1)/bmod
     !eta = etatp*(1+1d-2)
+    eta = etatp + (etadt-etatp)/4d0
+    !eta = etatp*1.1
     !eta = etatp*(1+1d-7)
-    eta = etadt*(1-1d-2)
+    !eta = etadt*(1-1d-2)
     call bounce
-    call disp("bounce: Om_tB = ", vth**2*bounceavg(3))
-    call disp("bounce: taub  = ", taub)
-    call disp("bounce: bmod  = ", bmod)
+    call disp("bounce: Om_tB     = ", v**2*bounceavg(3))
+    call disp("bounce: taub      = ", taub)
+    call disp("bounce: taub_est  = ", 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0)))
+    call disp("bounce: bmod      = ", bmod)
 
-
-    taub = taub
-    y = 0d0
-    y(2) = vpar(bmod)
-    y2 = 0d0
-    y2(2) = vpar(bmod)
-    t = 0d0
     dt = taub/(n-1)
-    print *, "taub_est = ", 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
-    print *, "taub     = ", taub
-    write(9, *) t, y(1)
-    state = 1
+
+    ! go until banana tip or inboard side
+    t = 0d0
+    y(1:3) = x
+    y(4) = vpar(bmod)
+    itask = 1
+    istate = 1
+    if(eta>etatp) then
+       tout = -taub/4.0
+    else
+       tout = -taub/2.0
+    end if
+    call dvode_f90(step_zeroorder, neq, y, t, tout, itask, istate, options)
+    y0 = y
+
+    t = 0d0
+    y = y0
+    y(2) = 0.0 ! reset toroidal angle
+    itask = 1
+    istate = 1
+    open(unit=9, file=trim(adjustl(runname))//'_bounce_zeroorder.out', recl=1024)
     do k = 2,n
-       !relerr = 1d-9
-       !abserr = 1d-10
-       !call r8_rkf45 ( timestep, nvar, y, yp, t, t+dt, relerr, abserr, state)
-       call timestep(t, y2, y2dot)
-       y2 = y2 + y2dot*dt
+       call do_magfie(y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
+       write(9, *) t/taub, y, q, taub, v**2*bounceavg(3), y(1)+c*mi*y(4)*hcovar(2)*q/(qi*psi_pr)
        tout = t+dt
-       call dvode_f90(timestep2, neq, y, t, tout, itask, istate, options)
-       write(9, *) t/taub, y(1)/taub, y(3)*vth**2/taub,&
-            y2(1)/taub, y2(3)*vth**2/taub
+       call dvode_f90(step_zeroorder, neq, y, t, tout, itask, istate, options)
     end do
+    call do_magfie( y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
+    write(9, *) t/taub, y, q, taub, v**2*bounceavg(3), y(1)+c*mi*y(4)*hcovar(2)*q/(qi*psi_pr)
+    close(unit=9)
+
+    t = 0d0
+    y = y0
+    y(2) = 0.0 ! reset toroidal angle
+    y(1) = y(1) + c*mi*y0(4)*hcovar(2)*q/(qi*psi_pr)
+    itask = 1
+    istate = 1
+    open(unit=9, file=trim(adjustl(runname))//'_bounce_full.out', recl=1024)
+    do k = 2,n
+       call do_magfie( y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
+       write(9, *) t/taub, y, q, taub, v**2*bounceavg(3)
+       tout = t+dt
+       call dvode_f90(step_full, neq, y, t, tout, itask, istate, options)
+    end do
+    call do_magfie( y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
+    write(9, *) t/taub, y, q, taub, v**2*bounceavg(3)
+    close(unit=9)
+
+    t = 0d0
+    y = y0
+    y(2) = 0.0 ! reset toroidal angle
+    y(1) = y(1) + c*mi*y0(4)*hcovar(2)*q/(qi*psi_pr)
+    itask = 1
+    istate = 1
+    open(unit=9, file=trim(adjustl(runname))//'_bounce_rela.out', recl=1024)
+    do k = 2,n
+       call do_magfie( y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
+       write(9, *) t/taub, y, q, taub, v**2*bounceavg(3)
+       tout = t+dt
+       call dvode_f90(step_rela, neq, y, t, tout, itask, istate, options)
+    end do
+    call do_magfie( y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
+    write(9, *) t/taub, y, q, taub, v**2*bounceavg(3)
     close(unit=9)
   end subroutine test_bounce
 
@@ -357,14 +410,14 @@ contains
     real(8) :: aa, b
 
     v = vth
-    
+
     etamin = etatp
     etamax = etatp + (etadt-etatp)*(1d0-epsst_spl)
 
     b = log(epst_spl)
     aa = 1d0/(n-1d0)*(log(etamax/etamin - 1d0) - b)
     eta = etamax
-    
+
     sigv = 1
 
     call disp("test_torfreq: vth        = ", vth)
@@ -411,7 +464,7 @@ contains
     end do
     close(unit=9)
   end subroutine test_torfreq
-  
+
   subroutine test_Om_spline
     ! TODO: write test routine for splined canonical frequencies over eta
     ! Om_tB/v^2 and Omth/v are independent of v and splined in init_Om_tB_spl.
@@ -431,13 +484,13 @@ contains
     etaresp = etatp
     etarest = etatp
     sigv = 1
-    
+
     open(unit=9, file=trim(adjustl(runname))//'_resline_pco.out', recl=1024)
     open(unit=10, file=trim(adjustl(runname))//'_resline_pct.out', recl=1024)
     open(unit=11, file=trim(adjustl(runname))//'_resline_t.out', recl=1024)
     do k = 0, n-1
        v = vmin + k/(n-1d0)*(vmax-vmin)
-       
+
        if (.not. nopassing) then
           ! resonance (passing)
           sigv = 1
@@ -453,7 +506,7 @@ contains
              write(10, *) v/vth, kr, etaresp(1), 0d0, etatp
           end do
        end if
-       
+
        ! resonance (trapped)
        sigv = 1
        call driftorbit_coarse(etatp*(1+epst), etadt*(1-epst), roots, nroots)
@@ -507,7 +560,7 @@ contains
     close(unit=9)
   end subroutine test_driftorbit
 
-  subroutine test_machrange2  
+  subroutine test_machrange2
     integer :: j, k
     real(8) :: fluxrespco(2), fluxrespctr(2),&
          fluxrest(2), fluxpco(2), fluxpctr(2), fluxt(2)
@@ -517,6 +570,10 @@ contains
     character(1024) :: fn1, fn2
 
     real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
+
+    logical :: firstloop
+
+    firstloop = .true.
 
     fluxpco = 0d0
     fluxpctr = 0d0
@@ -536,7 +593,7 @@ contains
        fluxpco = 0d0
        fluxpctr = 0d0
        fluxt = 0d0
-       
+
        if (Mtnum > 1) M_t = efac/bfac*(Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1))
 
        Om_tE = vth*M_t/R0
@@ -563,9 +620,9 @@ contains
           fluxrespctr = 0d0
 
           vminp = 1d-6*vth
-          vmaxp = 5d0*vth
+          vmaxp = 3d0*vth
           vmint = 1d-6*vth
-          vmaxt = 5d0*vth
+          vmaxt = 3d0*vth
 
           ! superbanana resonance
           if (supban) then
@@ -592,8 +649,8 @@ contains
                    fluxrespco = flux_integral(vminp, vmaxp, tolpco)
                 end if
                 fluxpco = fluxpco + fluxrespco
-                tolpco(1) = max(1d-6*fluxpco(1), tolpco(1)) 
-                tolpco(2) = max(1d-6*fluxpco(2), tolpco(2)) 
+                tolpco(1) = max(1d-6*fluxpco(1), tolpco(1))
+                tolpco(2) = max(1d-6*fluxpco(2), tolpco(2))
              end if
 
              ! passing resonance (counter-passing)
@@ -607,8 +664,8 @@ contains
                    fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
                 end if
                 fluxpctr = fluxpctr + fluxrespctr
-                tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1)) 
-                tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2)) 
+                tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
+                tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
              end if
 
              ! trapped resonance (trapped)
@@ -622,10 +679,10 @@ contains
                    fluxrest = flux_integral(vmint, vmaxt, tol0)
                 else
                    fluxrest = flux_integral(vmint, vmaxt, tolt)
-                end if   
+                end if
              end if
              fluxt = fluxt + fluxrest
-             tolt(1) = max(1d-6*fluxt(1), tolt(1)) 
+             tolt(1) = max(1d-6*fluxt(1), tolt(1))
              tolt(2) = max(1d-6*fluxt(2), tolt(2))
           end if
 
@@ -638,7 +695,11 @@ contains
                fluxrest(2), fluxrespco(2) + fluxrespctr(2) + fluxrest(2),&
                vmaxp/vth, vmaxt/vth
 
-          open(unit=10, file=trim(adjustl(fn2)), recl=1024, position="append") 
+          if (firstloop) then
+             open(unit=10, file=trim(adjustl(fn2)), recl=1024, status="replace")
+          else
+             open(unit=10, file=trim(adjustl(fn2)), recl=1024, position="append")
+          end if
           write(10, *) M_t, mth, fluxrespco(1), fluxrespctr(1), fluxrest(1),&
                fluxrespco(1)+fluxrespctr(1)+fluxrest(1),&
                fluxrespco(2), fluxrespctr(2), fluxrest(2),&
@@ -650,12 +711,17 @@ contains
              exit
           end if
        end do
-       open(unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
+       if (firstloop) then
+          open(unit=9, file=trim(adjustl(fn1)), recl=1024, status="replace")
+       else
+          open(unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
+       end if
        write(9, *) M_t, fluxpco(1), fluxpctr(1), fluxt(1),&
             fluxpco(1) + fluxpctr(1) + fluxt(1),&
             fluxpco(2), fluxpctr(2), fluxt(2),&
             fluxpco(2) + fluxpctr(2) + fluxt(2)
        close(unit=9)
+       firstloop = .false.
     end do
   end subroutine test_machrange2
 
@@ -676,16 +742,14 @@ contains
 
     write(fn1,*) trim(adjustl(runname))//'_integral_pco.out'
     write(fn2,*) trim(adjustl(runname))//'_integral_pct.out'
-    write(fn3,*) trim(adjustl(runname))//'_integral_t.out'  
-    
+    write(fn3,*) trim(adjustl(runname))//'_integral_t.out'
+
     nu = 1000
 
-    !mth = 2
-    
     vmin2 = .1*vth
     vmax2 = 4*vth
 
-    
+
     print *, '==CO-PASSING=='
     sigv = 1
     etamin = epsp*etatp
@@ -704,14 +768,14 @@ contains
     D12sum = 0d0
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-        
+
     open(unit=10, file=trim(adjustl(fn1)), recl=1024)
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
        vold = v
        v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
-       
+
        call driftorbit_coarse(etamin, etamax, roots, nroots)
        if (nroots == 0) cycle
 
@@ -730,7 +794,7 @@ contains
 
        xs = (v/vth)**2
        kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
-       
+
        write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
             (eta_res(1)-etamin)/(etamax-etamin),&
             vth, B0, xs, kappa2s, 0d0, etatp
@@ -756,14 +820,14 @@ contains
     D12sum = 0d0
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-        
+
     open(unit=10, file=trim(adjustl(fn2)), recl=1024)
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
        vold = v
        v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
-       
+
        call driftorbit_coarse(etamin, etamax, roots, nroots)
        if (nroots == 0) cycle
 
@@ -782,38 +846,38 @@ contains
 
        xs = (v/vth)**2
        kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
-       
+
        write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
             (eta_res(1)-etamin)/(etamax-etamin),&
             vth, B0, xs, kappa2s, 0d0, etatp
     end do
     print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
     close(unit=10)
-    
+
     print *, '==TRAPPED=='
     sigv = 1d0
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     !call find_vlim_t(vmin2, vmax2)
     !print *, 'vrange: ', vmin2/vth, vmax2/vth
-    
+
     print *, 'vrange: ', vmin2/vth, vmax2/vth
     !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-    
+
     D11  = 0d0
     D12  = 0d0
     D11sum = 0d0
     D12sum = 0d0
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-        
+
     open(unit=10, file=trim(adjustl(fn3)), recl=1024)
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
        vold = v
        v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
-       
+
        call driftorbit_coarse(etamin, etamax, roots, nroots)
        if (nroots == 0) cycle
 
@@ -832,7 +896,7 @@ contains
 
        xs = (v/vth)**2
        kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
-       
+
        write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
             (eta_res(1)-etamin)/(etamax-etamin),&
             vth, B0, xs, kappa2s, etatp, etadt
@@ -862,7 +926,7 @@ contains
     print *, s, eps, q, D1xdp(1), dqds, D1xdp(2)
   end subroutine test_supban
 
-  
+
   subroutine test_supban2
     real(8) :: vmin, vmax
     real(8) :: D1xDp(2)
@@ -930,7 +994,7 @@ contains
     etamin = (1+1d-8)*etatp
     etamax = (1-1d-8)*etadt
     call find_vlim(vmin2, vmax2)
-    
+
     ! passing
     !etamin = 1d-8*etatp
     !etamax = (1-1d-8)*etatp
@@ -939,7 +1003,7 @@ contains
     !print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2)
     call disp("test_intstep: vmin/vt= ", vmin2/vth)
     call disp("test_intstep: vmax/vt= ", vmax2/vth)
-    
+
     vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     vmax2 = vmax2 - 1d-8*(vmax2-vmin2)
 
@@ -948,7 +1012,7 @@ contains
     D11u = 0d0
     dsdreff = 2d0/a*sqrt(s)
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-    
+
     v = vmax2
     vold = vmax2
     if (mth /= 0) then
@@ -963,7 +1027,7 @@ contains
     end if
     !print *, y
 
-    
+
     open(unit=10, file='test_intstep2.dat', recl=1024)
     v = vmin2
     vold = vmin2
@@ -978,7 +1042,7 @@ contains
 
     OPTIONS = SET_OPTS(DENSE_J=.true.,RELERR_VECTOR=RTOL, &
        ABSERR_VECTOR=ATOL,NEVENTS=NG)
-    
+
     open(unit=9, file='test_intstep.dat', recl=1024)
     !write(9, *)                    't',&
     !     '                       vbar',&
@@ -988,7 +1052,7 @@ contains
     !     '                      etark',&
     !     '                     etabar',&
     !     '                      error',&
-    !     '                     D11/Dp'   
+    !     '                     D11/Dp'
     do ks = 1, ns
        tout = t+ds
        call dvode_f90(intstep,neq,y,t,tout,itask,istate,options,g_fcn=bbox)
@@ -1001,8 +1065,8 @@ contains
        vold = v
        v = vmin2 + y(1)*(vmax2-vmin2)
        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), etamin, etamax)
-       D11 = dsdreff**(-2)*y(3) 
-       D12 = dsdreff**(-2)*y(4) 
+       D11 = dsdreff**(-2)*y(3)
+       D12 = dsdreff**(-2)*y(4)
        D11u = D11u + (v-vold)/vth*D11int_u(v/vth)*dsdreff**(-2)
        write(9, *) t, y(1), y(2), y(3), &
             (vmin2 + (vmax2-vmin2)*y(1))/vth, etamin + (etamax-etamin)*y(2), &
@@ -1013,7 +1077,7 @@ contains
     end do
     close(unit=9)
   end subroutine test_intstep2
-  
+
   subroutine test_Hmn
     integer :: keta, neta
     real(8) :: vmin2, vmax2
@@ -1070,33 +1134,33 @@ contains
 
     print *
     write(*,'(A)') 'test_boundaries:'
-    
+
     dtp = 1d0
     mth = int(-sign(1d0, Om_tE)*ceiling(abs(mph*q)))
 
     write(*,'(A,I5)') 'mth = ', mth
-    
+
     v1 = 1d-3*vth
     v2 = 1d3*vth
     call find_vlim_t(v1, v2)
     write(*,'(A,2ES10.2)') 'vlim_trap = ', v1/vth, v2/vth
-  
+
     v1 = 1d-3*vth
     v2 = 1d3*vth
     call find_vlim_p(v1, v2)
     write(*,'(A,2ES10.2)') 'vlim_pass = ', v1/vth, v2/vth
-    
+
     !eta = etatp*(1+1d-2)
     !eta = (etatp+etadt)/2d0
     eta = etatp*(1-1d-7)
     !eta = etatp*(1d-5)
     call Om_ph(Omph, dOmphdv, dOmphdeta)
     call Om_th(Omth, dOmthdv, dOmthdeta)
-  
+
     Om_tB_bar = (Omph - Om_tE)/v**2
     Om_tE_bar = Om_tE
     Om_th_bar = Omth/v
-    
+
     ae = Om_tB_bar
     be = (mth/mph+q*dtp)*Om_th_bar
     ce = Om_tE_bar

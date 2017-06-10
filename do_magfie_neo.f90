@@ -6,7 +6,7 @@ module do_magfie_neo_mod
   use neo_magfie_mod, only: magfie_spline, magfie_sarray, boozer_curr_tor_hat,&
        boozer_curr_pol_hat, boozer_curr_tor_hat_s, boozer_curr_pol_hat_s,&
        boozer_psi_pr_hat, boozer_sqrtg11, boozer_isqrg, boozer_iota,&
-       boozer_iota_s
+       boozer_iota_s, inp_swi
   use nrtype, only: twopi
   use partpa_mod,  ONLY : bmod0
   use neo_magfie_mod, only: boozer_curr_tor_hat, boozer_curr_pol_hat,&
@@ -18,7 +18,7 @@ module do_magfie_neo_mod
   save
 
   real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds,&
-       iota, R0, eps
+       iota, R0, eps, bfac ! TODO: implement bfac
   ! B0h is the 0th theta harmonic of bmod on current flux surface
   ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
@@ -76,6 +76,8 @@ print *, R0
     q         = 1d0/iota
     dqds      = -boozer_iota_s/iota**2
     R0        = 1d2*rt0
+    ! set B_r to zero for now
+    hctrvr(1) = 0
   end subroutine do_magfie
   
 end module do_magfie_neo_mod

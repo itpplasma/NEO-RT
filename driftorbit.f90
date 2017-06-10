@@ -1,10 +1,12 @@
-! Resonant regimes in tokamaks
+! Resonant transport regimes in tokamaks
 ! in the action-angle formalism
-! Christopher Albert, 2015
+! Christopher Albert, 2015-2017
 
 module driftorbit
   use do_magfie_mod
   use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
+  !use do_magfie_neo_mod
+  !use do_magfie_pert_neo_mod, only: do_magfie_pert_amp, mph
   use collis_alp
   use spline
   
@@ -66,6 +68,9 @@ module driftorbit
 
   ! Nonlinear calculation switch
   logical :: nonlin
+
+  ! Orbit modes: 0 ... zeroth order, 1 ... first order, 2 ... full orbit
+  real :: orbit_mode_avg, orbit_mode_transp, vsteps
 contains
 
   subroutine init
@@ -203,7 +208,7 @@ contains
   function vpar(bmod)
     !   parallel velocity
     real(8) :: bmod, vpar
-    vpar = v*sqrt(1 - eta*bmod)
+    vpar = v*sqrt(1d0 - eta*bmod)
     if (isnan(vpar)) then
        vpar = 0d0
     end if
@@ -215,7 +220,7 @@ contains
     vperp = v*sqrt(eta*bmod)
     if (isnan(vperp)) then
        vperp = 0d0
-    end if
+    end if 
   end function vperp
   
   subroutine jac 
@@ -256,12 +261,6 @@ contains
     call Om_th(Omth, dOmthdv, dOmthdeta)
     Omth = abs(Omth)
     
-    if (pertfile) then
-       call do_magfie_pert_amp( x, epsn )
-       epsn = epsmn*epsn/bmod
-    else
-       epsn = epsmn*exp(imun*m0*y(1))
-    end if
 
     shearterm = Bphcov*dqds
     if (noshear) then
@@ -275,9 +274,23 @@ contains
    
     ydot(1) = y(2)*hctrvr(3)                                    ! theta
     ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
-    ydot(3) = Om_tB_v                                           ! v_ph
+    ydot(3) = Om_tB_v                                           ! v_ph  
 
     if (init_done) then
+       if (orbit_mode_avg == 1) then
+          ! use first order radial orbit width 
+          x(1) = s+c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
+          call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+       end if
+       
+       ! evaluate orbit averages of Hamiltonian perturbation
+       if (pertfile) then
+          call do_magfie_pert_amp( x, epsn )
+          epsn = epsmn*epsn/bmod
+       else
+          epsn = epsmn*exp(imun*m0*y(1))
+       end if
+    
        if (eta > etatp) then
           !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
           t0 = 0d0
@@ -287,10 +300,17 @@ contains
        end if
        ydot(4) = real(Hn)
        ydot(5) = aimag(Hn)
+       
+       ! evaluate orbit averages for nonlinear attenuation
        if (nonlin) then
           ydot(6) = 1d0/bmod
        else
           ydot(6) = 0d0
+       end if
+       if (orbit_mode_avg == 1) then
+          ! reset original values
+          x(1) = s
+          call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        end if
     else
        ydot(4:6) = 0d0

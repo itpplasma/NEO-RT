@@ -1,8 +1,8 @@
 module do_magfie_mod
-  
+
   use common
   use spline
-  
+
   implicit none
   save
 
@@ -10,10 +10,10 @@ module do_magfie_mod
        q, dqds, iota, R0, a, eps, B0h, B00, bfac
   ! B0h is the 0th theta harmonic of bmod on current flux surface
   ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
-  
-  real(8), allocatable, protected :: params0(:,:), modes0(:,:,:)  
+
+  real(8), allocatable, protected :: params0(:,:), modes0(:,:,:)
   integer, protected :: m0b, n0b, nflux, nfp, nmode
-  
+
   real(8), allocatable, protected :: spl_coeff1(:,:,:), spl_coeff2(:,:,:,:)
   real(8), allocatable, protected :: eps_spl(:,:)
 
@@ -21,9 +21,9 @@ module do_magfie_mod
                                       ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
   integer :: ncol1, ncol2 ! number of columns in input file
 
-  integer :: inp_swi ! type of input file, TODO: don't hardcode this
+  integer :: inp_swi ! type of input file
 contains
-  
+
   subroutine do_magfie_init
     integer :: j,k
     real(8)                      :: x(3)
@@ -44,15 +44,15 @@ contains
        allocate(spl_coeff2(nflux-1, 5, ncol2, nmode))
        allocate(eps_spl(nflux-1, 5))
     end if
-    
+
     B00 = 1.0d4*modes0(1,1,6)*bfac
-    
+
     ! calculate spline coefficients
     do k=1,ncol1
        ! first column is s, so start with second column
        spl_coeff1(:, :, k) = spline_coeff(params0(:,1), params0(:,k+1))
     end do
-    
+
     do j=1,nmode
        do k=1,ncol2
           ! first two columns are mode numbers, so start with third column
@@ -69,7 +69,7 @@ contains
     call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
   end subroutine do_magfie_init
-  
+
   subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     real(8), dimension(:),       intent(in)         :: x
     real(8),                     intent(out)        :: bmod
@@ -82,24 +82,31 @@ contains
     integer :: j
     real(8) :: spl_val(3), spl_val_c(3), spl_val_s(3)
     real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
+    real(8) :: sqgbmod2 ! sqg*B^2
 
-    spl_val = spline_val_0(spl_coeff1(:,:,3), s)
+    real(8) :: x1
+
+    ! safety measure in order not to extrapolate
+    x1 = max(params0(1,1),x(1))
+    x1 = min(params0(nflux,1),x1)
+
+    spl_val = spline_val_0(spl_coeff1(:,:,3), x1)
     Bthcov = -ItoB*spl_val(1)*bfac
     dBthcovds = -ItoB*spl_val(2)*bfac
-    spl_val = spline_val_0(spl_coeff1(:,:,2), s)
+    spl_val = spline_val_0(spl_coeff1(:,:,2), x1)
     Bphcov = -ItoB*spl_val(1)*bfac
     dBphcovds = -ItoB*spl_val(2)*bfac
-    spl_val = spline_val_0(spl_coeff1(:,:,1), s)
+    spl_val = spline_val_0(spl_coeff1(:,:,1), x1)
     iota = spl_val(1)
     q = 1/iota
     dqds = -spl_val(2)/iota**2
-    spl_val = spline_val_0(eps_spl, s)
+    spl_val = spline_val_0(eps_spl, x1)
     eps = spl_val(1)
 
     ! calculate B-field from modes
     if (inp_swi == 8) then
        do j=1,nmode
-          spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), s)
+          spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), x1)
           B0mnc(j) = 1d4*spl_val_c(1)*bfac
           dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
        end do
@@ -108,7 +115,7 @@ contains
        bmod = sum(B0mnc*cos(modes0(1,:,1)*x(3)))
        sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2
        bder(1) = sum(dB0dsmnc*cos(modes0(1,:,1)*x(3)))/bmod
-       bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed 
+       bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
        bder(3) = sum(-modes0(1,:,1)*B0mnc*sin(modes0(1,:,1)*x(3)))/bmod
     else if (inp_swi == 9) then
        Bthcov = -Bthcov
@@ -116,10 +123,10 @@ contains
        Bphcov = -Bphcov
        dBphcovds = -dBphcovds
        do j=1,nmode
-          spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), s)
+          spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
           B0mnc(j) = 1d4*spl_val_c(1)*bfac
           dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
-          spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), s)
+          spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), x1)
           B0mns(j) = 1d4*spl_val_s(1)*bfac
           dB0dsmns(j) = 1d4*spl_val_s(2)*bfac
        end do
@@ -128,23 +135,29 @@ contains
        bmod = sum(B0mnc*cos(modes0(1,:,1)*x(3))+B0mns*sin(modes0(1,:,1)*x(3)))
        sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2
        bder(1) = sum(dB0dsmnc*cos(modes0(1,:,1)*x(3))+dB0dsmns*sin(modes0(1,:,1)*x(3)))/bmod
-       bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed 
+       bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
        bder(3) = sum(-modes0(1,:,1)*B0mnc*sin(modes0(1,:,1)*x(3))&
             +modes0(1,:,1)*B0mns*cos(modes0(1,:,1)*x(3)))/bmod
     end if
 
-    
+    sqgbmod2 = psi_pr*(Bphcov+iota*Bthcov)
+
     hcovar(1) = 0d0 ! TODO 2: get this from geometry
     hcovar(2) = Bphcov/bmod
     hcovar(3) = Bthcov/bmod
+
     hctrvr(1) = 0d0
     hctrvr(2) = psi_pr/(sqrtg*bmod)
     hctrvr(3) = iota*psi_pr/(sqrtg*bmod)
-    hcurl(1) = 0d0 ! TODO
-    hcurl(2) = 0d0 ! TODO
-    hcurl(3) = 0d0 ! TODO
-  end subroutine do_magfie  
-  
+
+    ! Common factor bmod since bder(k) = (dB/dx(k))/bmod
+    hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)*bmod/sqgbmod2
+    hcurl(3) = (-dBphcovds+bder(1)*Bphcov)*bmod/sqgbmod2 ! TODO: B_s
+    hcurl(2) = (dBthcovds-bder(1)*Bthcov)*bmod/sqgbmod2 ! TODO: B_s
+
+    
+  end subroutine do_magfie
+
   subroutine boozer_read(filename)
     integer :: ksurf, kmode
     real(8) :: flux
@@ -167,33 +180,31 @@ contains
        end do
     end do
     close(unit=18)
-    ! Set R0 to first harmonic 
+    ! Set R0 to first harmonic
     R0 = modes0(1,1,3)*100
   end subroutine boozer_read
-  
+
 end module do_magfie_mod
 
 module do_magfie_pert_mod
-    
+
   use common
   use spline
-  use do_magfie_mod, only: s, bfac
-  
+  use do_magfie_mod, only: s, bfac, inp_swi
+
   implicit none
   save
 
   real(8), allocatable, protected :: params(:,:),  modes(:,:,:)
   integer, protected :: mb, nb, nflux, nfp, nmode
-  
+
   real(8), allocatable, protected :: spl_coeff1(:,:,:), spl_coeff2(:,:,:,:)
   real(8), allocatable, protected :: eps_spl(:,:)
 
   integer :: ncol1, ncol2 ! number of columns in input file
   real(8) :: mph ! toroidal perturbation mode
-
-  integer, parameter :: inp_swi = 9 ! type of input file, TODO: don't hardcode this
 contains
-  
+
   subroutine do_magfie_pert_init
     integer :: j,k
 
@@ -209,13 +220,13 @@ contains
        allocate(spl_coeff2(nflux-1, 5, ncol2, nmode))
        allocate(eps_spl(nflux-1, 5))
     end if
-    
+
     ! calculate spline coefficients
     do k=1,ncol1
        ! first column is s, so start with second column
        spl_coeff1(:, :, k) = spline_coeff(params(:,1), params(:,k+1))
     end do
-    
+
     do j=1,nmode
        do k=1,ncol2
           ! first two columns are mode numbers, so start with third column
@@ -224,7 +235,7 @@ contains
     end do
 
   end subroutine do_magfie_pert_init
-  
+
   subroutine do_magfie_pert_amp(x, bamp)
     real(8), dimension(:),       intent(in)         :: x
     complex(8),                  intent(out)        :: bamp
@@ -232,32 +243,36 @@ contains
     integer :: j
     real(8) :: spl_val_c(3), spl_val_s(3)
     real(8) :: Bmnc(nmode), Bmns(nmode)
+    real(8) :: x1
+
+    ! safety measure in order not to extrapolate
+    x1   = max(params(1,1),x(1))
+    x1   = min(params(nflux,1),x1  )
 
     ! calculate B-field from modes
     if (inp_swi == 8) then
-       print *, "NOT TESTED"
-       stop
-       do j=1,nmode
-          spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), s)
+        do j=1,nmode
+          spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), x1)
           Bmnc(j) = 1d4*spl_val_c(1)*bfac
        end do
        bamp = sum(Bmnc*cos(modes(1,:,1)*x(3)))
     else if (inp_swi == 9) then
        do j=1,nmode
-          spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), s)
+          spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
           Bmnc(j) = 1d4*spl_val_c(1)*bfac
-          spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), s)
+          spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), x1)
           Bmns(j) = 1d4*spl_val_s(1)*bfac
        end do
 
        bamp = sum((Bmnc-imun*Bmns)*exp(imun*modes(1,:,1)*x(3)))
     end if
-  end subroutine do_magfie_pert_amp  
-  
+  end subroutine do_magfie_pert_amp
+
   subroutine boozer_read_pert(filename)
     integer :: ksurf, kmode
     real(8) :: flux, dummy
     character(len=*) :: filename
+    character(len=128) :: buffer
     open (unit=18, file=filename)
     read(18, '(////)')
     read(18, *) mb, nb, nflux, nfp, flux, dummy, dummy
