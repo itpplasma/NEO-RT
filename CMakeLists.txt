@@ -50,6 +50,13 @@ add_subdirectory("../contrib/vode" "vode")
 #set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
 set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
 
+IF(WIN32)
+  set(CMAKE_Fortran_FLAGS "/Qmkl /O3 /I spling/OBJS -I vode/OBJS")
+ELSE()
+#  set(CMAKE_Fortran_FLAGS "-mkl -O3 -init=snan,arrays -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
+  set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
+ENDIF()
+
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
   driftorbit_test.f90
@@ -95,7 +102,7 @@ target_link_libraries(
   quadpack
 #  blas
 #  lapack
-  pthread
+#  pthread
 )
 
 ### Copy files

@@ -70,7 +70,31 @@ module driftorbit
   logical :: nonlin
 
   ! Orbit modes: 0 ... zeroth order, 1 ... first order, 2 ... full orbit
-  real :: orbit_mode_avg, orbit_mode_transp, vsteps
+  integer :: orbit_mode_avg, orbit_mode_transp
+
+  ! Number of integration steps in v, set 0 for adaptive integration by quadpack
+  integer :: vsteps
+
+  ! Box boundaries of s levels where to check intersections of orbits
+  real(8), allocatable :: sbox(:)
+  real(8) :: s1, snext, sprev ! first order correction to s
+
+  ! Integrals for radial boxes
+  real(8), allocatable :: fluxint_box(:,:)
+  real(8), allocatable :: torque_int_box(:)
+  real(8), allocatable :: taubins(:)
+
+  ! Do torque computation directly instead of transport coefficients D11 and D12
+  logical :: comptorque
+
+  ! Plasma parameters
+  real(8) ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds
+
+  ! Thermodynamic forces in radial variable s
+  real(8) A1, A2
+
+  ! Output integral quantities and resonance line
+  logical :: intoutput
 contains
 
   subroutine init
@@ -257,10 +281,7 @@ contains
     x(1) = s
     x(2) = 0d0
     x(3) = y(1)
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    Omth = abs(Omth)
-    
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )    
 
     shearterm = Bphcov*dqds
     if (noshear) then
@@ -277,9 +298,11 @@ contains
     ydot(3) = Om_tB_v                                           ! v_ph  
 
     if (init_done) then
+       call Om_th(Omth, dOmthdv, dOmthdeta)
+       Omth = abs(Omth)
        if (orbit_mode_avg == 1) then
           ! use first order radial orbit width 
-          x(1) = s+c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
+          x(1) = s+sigv*c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
           call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        end if
        
@@ -374,8 +397,8 @@ contains
        istate = 2
     end do
     if (istate /= 3) then
-       print *, "ERROR: findroot2 did not converge after 500 iterations"
-       print *, eta, etamin, etamax, y(1)
+       write(0,*) "ERROR: findroot2 did not converge after 500 iterations"
+       write(0,*) eta, etamin, etamax, y(1)
     end if
     
     findroot2(1)  = ti
@@ -421,6 +444,12 @@ contains
     !print *, taub
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
+
+    x(1) = s
+    x(2) = 0d0
+    x(3) = th0
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+    
   end subroutine bounce
   
   subroutine Om_tB(OmtB, dOmtBdv, dOmtBdeta)
@@ -795,12 +824,11 @@ contains
          Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds,&
          dOmdpph
     
-!ux = 1d0    
     v = ux*vth
     eta = etax
     call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_tB(OmtB, dummy, dummy2)
-    call bounce(2d0*pi/abs(Omth)) ! TODO: use full orbit here
+    call bounce(2d0*pi/abs(Omth)) 
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
     thatt = 1d0
@@ -810,23 +838,13 @@ contains
        dOmdv = mth*dOmthdv + mph*dOmphdv
        dOmdeta = mth*dOmthdeta + mph*dOmphdeta
        dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds+mph*dOmphds)
-!print *,  qi/c*psi_pr, psi_pr, mth*dOmthds+mph*dOmphds
-!pause
-       Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph
-
-!ux = 1d0
-!print *, ux       
+       Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph    
        call coleff(ux,dpp,dhh,fpeff)
        dhh = vth*dhh
        dpp = vth**3*dpp
        dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
        dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
-!print *,mi*(ux*vth)**2/(2*Omth),Ompr,ux*vth/2*dOmdv,eta*dOmdeta,Ompr-dOmdpph,dOmdpph
-!pause
         call attenuation_factor(dnorm,thatt)
-!print *, ux, dres, dpp*(dOmdv/Ompr)**2, dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
-!print *, dres, dnorm, sqrt(abs(Ompr)), sqrt(abs(Hmn2))**(3d0/2d0)
-!print *, dnorm, thatt
     end if
     
     D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/&
@@ -912,6 +930,104 @@ contains
        D12int_u = D12int_u + D12int(ux, eta_res(1))*1d0/abs(eta_res(2))
     end do
   end function D12int_u
+
+
+  function Tphi_int(ux, etax)
+    real(8) :: Tphi_int
+    real(8) :: ux, etax(2)
+    real(8) :: Omth, dOmthdv, dOmthdeta
+    real(8) :: dummy, dummy2
+    real(8) :: OmtB
+    real(8) :: Hmn2
+    real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt,& ! for nonlin
+         Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds,&
+         dOmdpph
+    
+    v = ux*vth
+    eta = etax(1)
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    call Om_tB(OmtB, dummy, dummy2)
+    call bounce(2d0*pi/abs(Omth)) 
+    Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
+
+    thatt = 1d0
+    if (intoutput .or. nonlin) then
+       call Om_ph(Omph, dOmphdv, dOmphdeta)
+       call d_Om_ds(dOmthds, dOmphds)
+       dOmdv = mth*dOmthdv + mph*dOmphdv
+       dOmdeta = mth*dOmthdeta + mph*dOmphdeta
+       dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds+mph*dOmphds)
+       Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph
+       if (intoutput) then
+          write(11, *) sqrt(Hmn2), Ompr, dOmdv, dOmdeta, dOmdpph
+       end if
+       if (nonlin) then
+          call coleff(ux,dpp,dhh,fpeff)
+          dhh = vth*dhh
+          dpp = vth**3*dpp
+          dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6)-eta)*(dOmdeta/Ompr)**2
+          dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
+          call attenuation_factor(dnorm,thatt)
+       end if
+    end if
+    
+    Tphi_int = -pi**(3d0/2d0)*mph*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1+A2*ux**2)*1d0/abs(etax(2))
+  end function Tphi_int
+  
+  function Tphi_int_u(ux)
+    real(8) :: ux
+    real(8) :: Tphi_int_u, dTphi_int_u
+    real(8) :: eta_res(2)
+    real(8) :: roots(nlev, 3)
+    integer :: nroots, kr
+    
+    v = ux*vth
+    Tphi_int_u = 0d0
+    
+    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    if(nroots == 0) return
+    
+    do kr = 1,nroots
+       eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+       eta = eta_res(1)
+       dTphi_int_u = Tphi_int(ux, eta_res)
+       Tphi_int_u = Tphi_int_u + dTphi_int_u
+       
+       if(orbit_mode_transp>0) then
+          call taurel
+          torque_int_box = torque_int_box + dTphi_int_u*taubins
+       end if
+    end do
+    
+  end function Tphi_int_u
+
+  
+  function torque_integral_mid(vmin, vmax)
+    ! compute flux integral via midpoint rule
+    real(8) :: vmin, vmax
+    real(8) :: torque_integral_mid, err
+    real(8) :: ux, du
+    integer :: ku
+    real(8) :: dD11, dD12
+
+    if(orbit_mode_transp>0) then
+       torque_int_box = 0d0
+    end if   
+      
+    torque_integral_mid = 0d0
+    du = (vmax-vmin)/(vsteps*vth)
+    ux = vmin/vth + du/2d0
+
+    do ku = 1, vsteps
+       torque_integral_mid = torque_integral_mid + Tphi_int_u(ux)*du
+       ux = ux + du
+    enddo 
+    
+    if(orbit_mode_transp>0) then
+       torque_int_box = torque_int_box*du
+    end if
+
+  end function torque_integral_mid
   
   function flux_integral(vmin, vmax, tol)
     real(8) :: vmin, vmax
@@ -935,6 +1051,191 @@ contains
     flux_integral = dsdreff**(-2)*flux_integral/Dp
 
   end function flux_integral
+
+  subroutine taurel
+    ! test box counting
+    use dvode_f90_m2
+    
+    real(8) :: tol
+    integer :: n
+
+    integer :: k, state
+    real(8) :: ti
+    real(8) :: y(2), ydot(2), yold(2)
+    
+    real(8) :: atol(nvar), rtol, tout, rstats(22)
+    integer :: neq, itask, istate, istats(31), numevents
+    type (vode_opts) :: options
+    
+    real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
+
+    real(8) :: s1old, told, s1dot, sbound
+    integer :: sind, sind0 ! s index
+
+    integer :: jroots(2)
+
+    x(1) = s
+    x(2) = 0d0
+    x(3) = 0d0
+    call do_magfie( x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
+
+    call bounce
+
+    neq = 2
+    rtol = 1d-12
+    atol = 1d-13
+    itask = 1
+    istate = 1
+    numevents = 2
+    options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=numevents)
+
+    n = 3*size(sbox)
+    taubins = 0d0
+    
+    y(1) = 0d0
+    y(2) = sigv*vpar(bmod)
+    ti = 0d0
+    
+    s1 = s+c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
+    sind = size(sbox)+1
+    sprev = -1e5
+    snext = 1e5
+    do k = 1,size(sbox)
+       if(sbox(k)>s1) then
+          sind = k
+          snext = sbox(k)
+          if(k>1) sprev = sbox(k-1)
+          exit
+       end if
+    enddo
+    sind0 = sind
+
+    told = 0d0
+    do k = 2,n
+       yold = y
+       s1old = s1
+       tout = taub
+       call dvode_f90(tsorb, neq, y, ti, tout, itask, istate, options,&
+            g_fcn = sroots)
+       if (istate == 2) exit
+       if (istate == 3) then
+          taubins(sind) = taubins(sind) + ti-told
+          told = ti
+          call get_stats(rstats, istats, numevents, jroots)
+          if (jroots(2)) then
+             sind = sind + 1 ! moving outwards
+             sprev = snext
+             if (sind == size(sbox)+1) then
+                snext = 1e5
+             else
+                snext = sbox(sind)                
+             end if
+          end if
+          if (jroots(1)) then
+             sind = sind - 1 ! moving inwards
+             snext = sprev
+             if (sind == 1) then
+                sprev = -1e5
+             else
+                sprev = sbox(sind-1)                
+             end if
+          end if
+       end if
+    end do
+    !if (sind /= sind0) then
+    !   write(0,*) s, s1, sind0, sind, v, eta, etatp, etadt
+    !   write(0,*) 'START AND END RADIUS OF ORBIT ARE NOT THE SAME'
+    !end if
+    
+    taubins(sind) = taubins(sind) + taub-told
+
+    taubins = taubins/taub
+  end subroutine taurel
+
+  
+  function flux_integral_mid(vmin, vmax)
+    ! compute flux integral via midpoint rule
+    real(8) :: vmin, vmax
+    real(8) :: tol(2)
+    real(8) :: flux_integral_mid(2), err
+    real(8) :: Dp, dsdreff
+    real(8) :: ux, du
+    integer :: ku
+    real(8) :: dD11, dD12
+
+    if(orbit_mode_transp>0) then
+       fluxint_box = 0d0
+    end if
+      
+    flux_integral_mid = 0d0
+    du = (vmax-vmin)/(vsteps*vth)
+    ux = vmin/vth + du/2d0
+
+    do ku = 1, vsteps
+       dD11 = D11int_u(ux)*du
+       dD12 = D12int_u(ux)*du
+       flux_integral_mid(1) = flux_integral_mid(1) + dD11
+       flux_integral_mid(2) = flux_integral_mid(2) + dD12
+       if(orbit_mode_transp>0) then
+          call taurel
+          fluxint_box(1,:) = fluxint_box(1,:) + taubins*dD11
+          fluxint_box(2,:) = fluxint_box(2,:) + taubins*dD12
+       end if
+       ux = ux + du
+    enddo 
+    
+    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+    dsdreff = 2d0/a*sqrt(s)
+    flux_integral_mid = dsdreff**(-2)*flux_integral_mid/Dp
+    
+    if(orbit_mode_transp>0) then
+       fluxint_box = dsdreff**(-2)*fluxint_box/Dp
+    end if
+
+  end function flux_integral_mid
+  
+  subroutine tsorb(neq, t, y, ydot)
+    !
+    !  Timestep function for orbit only.
+    !  used for radial boxes
+    !
+
+    integer, intent (in) :: neq
+    real(8), intent (in) :: t
+    real(8), intent (in) :: y(neq)
+    real(8), intent (out) :: ydot(neq)
+    
+    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    
+    x(1) = s
+    x(2) = 0d0
+    x(3) = y(1)
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+   
+    ydot(1) = y(2)*hctrvr(3)                                    ! theta
+    ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+          
+    !s1 = s+c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
+    !print *, ti/taub, y, s1
+  end subroutine tsorb
+
+  subroutine sroots (neq, t, y, ng, gout)
+    integer, intent(in) :: neq, ng
+    real(8), intent(in) :: t, y(neq)
+    real(8), intent(out) :: gout(ng)
+    
+    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    
+    x(1) = s
+    x(2) = 0d0
+    x(3) = y(1)
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+
+    s1 = s+c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
+
+    gout(1) = s1 - sprev
+    gout(2) = s1 - snext
+  end subroutine sroots
 
 end module driftorbit
 
@@ -1103,5 +1404,5 @@ module lineint
          (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)*&
          taub*Hmn2
   end function D11_ode
-
+   
 end module lineint

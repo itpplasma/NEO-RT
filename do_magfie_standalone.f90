@@ -244,10 +244,10 @@ contains
     real(8) :: spl_val_c(3), spl_val_s(3)
     real(8) :: Bmnc(nmode), Bmns(nmode)
     real(8) :: x1
-
+    
     ! safety measure in order not to extrapolate
     x1   = max(params(1,1),x(1))
-    x1   = min(params(nflux,1),x1  )
+    x1   = min(params(nflux,1),x1)
 
     ! calculate B-field from modes
     if (inp_swi == 8) then

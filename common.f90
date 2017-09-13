@@ -36,4 +36,32 @@ module common
     delta = (b-a)/(cnt-1)
     linspace = a + delta*(/(i,i=0,cnt-1)/)
   end function linspace
+
+  subroutine readdata(filename,ncol,data)
+    character(*), intent(in) :: filename
+    integer, intent(in) :: ncol
+    real(8), allocatable, intent(out) :: data(:,:)
+    real(8) :: buf(ncol)
+    integer :: unit, nrow, io, k
+
+    unit = 11
+
+    open(unit,file=filename)
+    nrow = 0
+    do
+       read(unit,*,iostat=io) buf
+       if (io/=0) exit
+       nrow = nrow + 1
+    end do
+
+    rewind(unit)
+    
+    allocate(data(nrow,2))
+
+    do k=1,nrow
+       read(unit,*) data(k,:)
+    end do
+
+    close(unit)
+  end subroutine readdata
 end module common
