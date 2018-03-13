@@ -46,15 +46,17 @@ add_subdirectory("../contrib/quadpack" "quadpack")
 #add_subdirectory("../contrib/odepack" "odepack")
 add_subdirectory("../contrib/vode" "vode")
 
+#set(CMAKE_Fortran_FLAGS "-O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS") # GNU
 #set(CMAKE_Fortran_FLAGS " -O2 -g -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS") # INTEL
 #set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
-set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
+#set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
 
 IF(WIN32)
   set(CMAKE_Fortran_FLAGS "/Qmkl /O3 /I spling/OBJS -I vode/OBJS")
 ELSE()
 #  set(CMAKE_Fortran_FLAGS "-mkl -O3 -init=snan,arrays -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
-  set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
+   #set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
+   set(CMAKE_Fortran_FLAGS "-O3 -I spline/OBJS -I vode/OBJS") #GNU
 ENDIF()
 
 ### Define executable
@@ -100,6 +102,7 @@ target_link_libraries(
   vode
   spline
   quadpack
+  openblas
 #  blas
 #  lapack
 #  pthread

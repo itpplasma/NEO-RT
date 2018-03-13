@@ -13,14 +13,14 @@ module driftorbit
   implicit none
   save
 
-  integer, parameter :: nvar = 6
+  integer, parameter :: nvar = 7
 
   ! Orbit parameters
   real(8) :: v, eta
   real(8) :: taub, bounceavg(nvar)
 
   ! Plasma parameters
-  real(8) :: Om_tE, vth, M_t, efac, n0
+  real(8) :: Om_tE, dOm_tEds, vth, M_t, dM_tds, efac, n0
 
   ! For splining in the trapped eta region
   integer, parameter :: netaspl = 100
@@ -95,6 +95,10 @@ module driftorbit
 
   ! Output integral quantities and resonance line
   logical :: intoutput
+
+  ! For splining electric precession frequency
+  real(8), allocatable :: Mt_spl_coeff(:,:)
+  
 contains
 
   subroutine init
@@ -327,8 +331,9 @@ contains
        ! evaluate orbit averages for nonlinear attenuation
        if (nonlin) then
           ydot(6) = 1d0/bmod
+          ydot(7) = bmod
        else
-          ydot(6) = 0d0
+          ydot(6:7) = 0d0
        end if
        if (orbit_mode_avg == 1) then
           ! reset original values
@@ -336,7 +341,7 @@ contains
           call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
        end if
     else
-       ydot(4:6) = 0d0
+       ydot(4:7) = 0d0
     end if
   end subroutine timestep
   
@@ -541,7 +546,7 @@ contains
 
   subroutine d_Om_ds(dOmthds, dOmphds)
     real(8) :: s0, taub0, bounceavg0(nvar), ds
-    real(8) :: dOmthds, dOmphds, Omth, Omph
+    real(8) :: dOmthds, dOmphds, Omth, Omph_noE
     ! store current flux surface values
     s0 = s
     taub0 = taub
@@ -554,15 +559,15 @@ contains
     Omth = 2d0*pi/taub
     if (magdrift) then
        if (eta > etatp) then
-          Omph = bounceavg(3)*v**2+Om_tE
+          Omph_noE = bounceavg(3)*v**2
        else
-          Omph = bounceavg(3)*v**2+Om_tE+Omth/iota
+          Omph_noE = bounceavg(3)*v**2+Omth/iota
        end if
     else
        if (eta > etatp) then
-          Omph = Om_tE
+          Omph_noE = 0d0
        else
-          Omph = Om_tE+Omth/iota
+          Omph_noE = Omth/iota
        end if
     end if
     s = s0 + ds/2d0
@@ -570,15 +575,15 @@ contains
     dOmthds = (2d0*pi/taub - Omth)/ds
     if (magdrift) then
        if (eta > etatp) then
-          dOmphds = (bounceavg(3)*v**2+Om_tE - Omph)/ds
+          dOmphds = dOm_tEds + (bounceavg(3)*v**2 - Omph_noE)/ds
        else
-          dOmphds = (bounceavg(3)*v**2+Om_tE+(2d0*pi/taub)/iota - Omph)/ds
+          dOmphds = dOm_tEds + (bounceavg(3)*v**2 + (2d0*pi/taub)/iota - Omph_noE)/ds
        end if
     else
        if (eta > etatp) then
-          dOmphds = (Om_tE - Omph)/ds
+          dOmphds = dOm_tEds
        else
-          dOmphds = (Om_tE+(2d0*pi/taub)/iota - Omph)/ds
+          dOmphds = dOm_tEds + ((2d0*pi/taub)/iota - Omph_noE)/ds
        end if
     end if
 
@@ -877,7 +882,9 @@ contains
        dOmdv = mth*dOmthdv + mph*dOmphdv
        dOmdeta = mth*dOmthdeta + mph*dOmphdeta
        dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds+mph*dOmphds)
+              
        Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph
+       
        call coleff(ux,dpp,dhh,fpeff)
        dhh = vth*dhh
        dpp = vth**3*dpp
@@ -942,6 +949,8 @@ contains
     real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt,& ! for nonlin
          Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds,&
          dOmdpph
+    real(8) :: ma, mb, mc, md, me, mf
+    real(8) :: dvdJ, detadJ
     
     v = ux*vth
     eta = etax(1)
@@ -957,9 +966,28 @@ contains
        dOmdv = mth*dOmthdv + mph*dOmphdv
        dOmdeta = mth*dOmthdeta + mph*dOmphdeta
        dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds+mph*dOmphds)
-       Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph
+       
+       ma = mi*(ux*vth)*mi*c/qi*eta
+       mb = mi*(ux*vth)**2/2*mi*c/qi
+       mc = mi/(2d0*Omth)*(ux*vth)*(1d0-eta*bounceavg(7))
+       md = mi*(ux*vth)**2/2d0*Omth
+       me = -mth/mph
+       mf = 1d0/mph
+
+       dvdJ = mb*me/(ma*md*mf-mb*mc*mf)
+       detadJ = ma*me/(mb*mc*mf-ma*md*mf)
+       
+       !Ompr=mth*(eta*dOmdeta-ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth))+dOmdpph
+
+       Ompr = dOmdv*dvdJ + dOmdeta*detadJ + mph*dOmdpph
+       
        if (intoutput) then
-          write(11, *) sqrt(Hmn2), Ompr, dOmdv, dOmdeta, dOmdpph
+          ! 0:n, 1:l, 2:Eth, 3:Jperp_tp, 4:drphi/dpphi, 5:E/Eth, 6:Jperp/Jperp_tp, 7:rphi,
+          ! 8:|Hmn|, 9:Omth, 10:Omph, 11:Ombarprime, 12:dOmdv, 13:dOmdeta, 14:dOmdpphi, 15:sigma
+          ! 16:iota=1/q, 17: Om_tE, 18: dOmthds, 19: dOmphds
+          write(11, *) mth, mph, mi*vth**2/2d0, mi*(ux*vth)**2/2d0*mi*c/qi*etatp,&
+               -(qi/c*iota*psi_pr)**(-1), ux**2, eta/etatp, s, sqrt(Hmn2), Omth, Omph,&
+               Ompr, dOmdv, dOmdeta, dOmdpph, sigv, iota, Om_tE, dOmthds, dOmphds
        end if
        if (nonlin) then
           call coleff(ux,dpp,dhh,fpeff)
@@ -1122,7 +1150,7 @@ contains
           taubins(sind) = taubins(sind) + ti-told
           told = ti
           call get_stats(rstats, istats, numevents, jroots)
-          if (jroots(2)) then
+          if (jroots(2).ne.0) then
              sind = sind + 1 ! moving outwards
              sprev = snext
              if (sind == size(sbox)+1) then
@@ -1131,7 +1159,7 @@ contains
                 snext = sbox(sind)                
              end if
           end if
-          if (jroots(1)) then
+          if (jroots(1).ne.0) then
              sind = sind - 1 ! moving inwards
              snext = sprev
              if (sind == 1) then

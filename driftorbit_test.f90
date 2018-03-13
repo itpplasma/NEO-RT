@@ -7,7 +7,7 @@ program main
   !use do_magfie_neo_mod, only : s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
   !     q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
   !use do_magfie_pert_neo_mod, only : do_magfie_pert_init, do_magfie_pert_amp, mph
-  use polylag_3,  only : mp,indef,plag1d
+  use polylag_3,  only : mp, indef, plag1d
   implicit none
 
   integer :: Mtnum, mthnum
@@ -28,12 +28,18 @@ program main
      call do_magfie_pert_init
   end if
   
+  inquire(file='profile.in', exist=profilefile)
   if (orbit_mode_transp>0) then
-     inquire(file='profile.in', exist=profilefile)
      if (profilefile) then
         call init_profile
      else
         stop 'need profile.in for finite orbit width transport'
+     end if
+  elseif (intoutput .or. nonlin) then
+     if (profilefile) then
+        call init_profile
+     else
+        stop 'need profile.in for integral output or nonlinear calculation'
      end if
   end if
 
@@ -46,6 +52,8 @@ program main
       stop 'need plasma.in for nonlinear or torque calculation'
     end if
   end if
+
+ 
   call init_test
 
   call test_magfie
@@ -126,9 +134,18 @@ contains
   subroutine init_profile
     ! Init s profile for finite orbit width boxes in radial s
     real(8), allocatable :: data(:,:)
+    real(8) :: splineval(3)
     integer :: k
     
     call readdata('profile.in', 3, data)
+
+    allocate(Mt_spl_coeff(size(data(:,1)),5))
+
+    Mt_spl_coeff = spline_coeff(data(:,1), data(:,2))
+    splineval = spline_val_0(Mt_spl_coeff, s)
+
+    M_t = splineval(1)*efac/bfac
+    dM_tds = splineval(2)*efac/bfac
     
     if(orbit_mode_transp>0) then
        allocate(sbox(size(data,1)+1))
@@ -210,6 +227,7 @@ contains
     !   print *, "Set vth to: ", vth
     !end if
     Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
+    dOm_tEds = vth*dM_tds/R0
 
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
@@ -536,7 +554,7 @@ contains
           taubins(sind) = taubins(sind) + ti-told
           told = ti
           call get_stats(rstats, istats, numevents, jroots)
-          if (jroots(2)) then
+          if (jroots(2).ne.0) then
              sind = sind + 1 ! moving outwards
              sprev = snext
              if (sind == size(sbox)+1) then
@@ -545,7 +563,7 @@ contains
                 snext = sbox(sind)                
              end if
           end if
-          if (jroots(1)) then
+          if (jroots(1).ne.0) then
              sind = sind - 1 ! moving inwards
              snext = sprev
              if (sind == 1) then
@@ -724,6 +742,7 @@ contains
        if (Mtnum > 1) M_t = efac/bfac*(Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1))
 
        Om_tE = vth*M_t/R0
+       dOm_tEds = vth*dM_tds/R0
 
        if (supban) then
           mthmin = 0
@@ -1239,6 +1258,7 @@ contains
        if (Mtnum > 1) M_t = efac/bfac*(Mtmin + (k-1)*(Mtmax-Mtmin)/(Mtnum-1))
 
        Om_tE = vth*M_t/R0
+       dOm_tEds = vth*dM_tds/R0
 
        if (supban) then
           mthmin = 0
@@ -1255,14 +1275,20 @@ contains
        mthctr = 0
        mtht = 0
 
+       if (intoutput) open(unit=11, file=trim(adjustl(runname))//'_intoutput.out', recl=1024)
        do j = mthmin, mthmax
           mth = j
 
-          vminp = 1d-6*vth
-          vmaxp = 3d0*vth
-          vmint = 1d-6*vth
-          vmaxt = 3d0*vth
+          !vminp = 1d-6*vth
+          !vmaxp = 3d0*vth
+          !vmint = 1d-6*vth
+          !vmaxt = 3d0*vth
 
+          vminp = sqrt(2d0*1e-3*ev/mi)
+          vmaxp = sqrt(2d0*(15e3+1e-3)*ev/mi)
+          vmint = vminp
+          vmaxt = vmaxp
+          
           ! superbanana resonance
           if (supban) then
              sigv = 1
@@ -1334,6 +1360,7 @@ contains
        write(9, *) s, dVds, M_t, Tco, Tctr, Tt
        close(unit=9)
     end do
+    if (intoutput) close(unit=11)
   end subroutine compute_torque
 
     subroutine test_profile
