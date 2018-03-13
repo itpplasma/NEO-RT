@@ -13,15 +13,15 @@ enable_language(Fortran)
 include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 
 ### Specify paths
-set(CMAKE_BINARY_DIR ./OBJS)
-set(EXECUTABLE_OUTPUT_PATH .)
+set(CMAKE_BINARY_DIR ${PROJECT_BINARY_DIR}/OBJS)
+set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
 ### Define the name of the executable
 set(PROJECT_EXE_NAME "driftorbit_test")                  # Define the name
 
 ### Set compiler flags
-set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
+set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 
 ### Find libraries
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
@@ -52,11 +52,11 @@ add_subdirectory("../contrib/vode" "vode")
 #set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
 
 IF(WIN32)
-  set(CMAKE_Fortran_FLAGS "/Qmkl /O3 /I spling/OBJS -I vode/OBJS")
+  set(CMAKE_Fortran_FLAGS "/Qmkl /O3")
 ELSE()
 #  set(CMAKE_Fortran_FLAGS "-mkl -O3 -init=snan,arrays -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
    #set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
-   set(CMAKE_Fortran_FLAGS "-O3 -I spline/OBJS -I vode/OBJS") #GNU
+   set(CMAKE_Fortran_FLAGS "-O3") #GNU
 ENDIF()
 
 ### Define executable
