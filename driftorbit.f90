@@ -105,8 +105,8 @@ contains
     init_done = .false.
     call init_fsa
     call init_misc
-    call init_Om_spl
-    call init_Om_pass_spl
+    call init_Om_spl       ! frequencies of trapped orbits
+    call init_Om_pass_spl  ! frequencies of passing orbits
     init_done = .true.
   end subroutine init
 
@@ -129,6 +129,7 @@ contains
     etamin = etatp
     etamax = etatp + (etadt-etatp)*(1d0-epsst_spl)
 
+    ! logspace for eta
     b = log(epst_spl)
     aa = 1d0/(netaspl-1d0)*(log(etamax/etamin - 1d0) - b)
     
@@ -255,6 +256,7 @@ contains
   end subroutine jac
 
   subroutine timestep2(neq, t, y, ydot)
+   ! Wrapper routine for timestep to work with VODE
     integer, intent (in) :: neq
     real(8), intent (in) :: t
     real(8), intent (in) :: y(neq)
@@ -422,29 +424,36 @@ contains
   subroutine bounce(taub_estimate)
     ! calculate all bounce averages
     real(8) :: findroot_res(nvar+1)
-    real(8), optional :: taub_estimate
-    real(8) :: taub_est
+    real(8), optional :: taub_estimate  ! estimated bounce time (user input)
+    real(8) :: taub_est                 ! estimated bounce time (computed)
     real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
     real(8) :: y0(nvar)
 
+    ! Initialize bounce-averated quantities y0. Their meaning
+    ! is defined inside subroutine timestep (thin orbit integration)
     x(1) = s
     x(2) = 0d0
     x(3) = th0
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
     y0 = 1d-15
-    y0(1) = th0
-    y0(2) = vpar(bmod)
-    y0(3) = 0d0
-    y0(4) = 0d0
-    y0(5) = 0d0
-    y0(6) = 0d0
+    y0(1) = th0         ! poloidal angle theta
+    y0(2) = vpar(bmod)  ! parallel velocity vpar
+    y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
+    y0(4) = 0d0         ! perturbed Hamiltonian real part
+    y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
+    y0(6) = 0d0         ! 1/abs(B)
+    ! y0(7) = 0d0       ! abs(B)
 
+    ! If bounce time estimate exists (elliptic integrals),
+    ! initialize taub with it, owtherwise estimate here.
     if (present(taub_estimate)) then
        taub_est = taub_estimate
     else
        taub_est = 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
     end if
        
+    ! Look for exactly one orbit turn via root-finding.
+    ! Start by looking for 5 points per turn.
     findroot_res = findroot2(y0, taub_est/5d0, 1d-10)
     !print *, taub
     taub = findroot_res(1)
@@ -768,7 +777,7 @@ contains
   end function find_vmin
   
   subroutine init_fsa
-    ! Calculate the flux surface areas
+    ! Calculate the flux surface areas for normalization
     integer, parameter :: nth = 1000
     integer :: k
     real(8) :: thrange(nth), dth

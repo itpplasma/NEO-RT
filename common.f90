@@ -37,6 +37,31 @@ module common
     linspace = a + delta*(/(i,i=0,cnt-1)/)
   end function linspace
 
+  ! From http://fortranwiki.org/fortran/show/newunit
+  ! This is a simple function to search for an available unit.
+  ! LUN_MIN and LUN_MAX define the range of possible LUNs to check.
+  ! The UNIT value is returned by the function, and also by the optional
+  ! argument. This allows the function to be used directly in an OPEN
+  ! statement, and optionally save the result in a local variable.
+  ! If no units are available, -1 is returned.
+  integer function newunit(unit)
+    integer, intent(out), optional :: unit
+  ! local
+    integer, parameter :: LUN_MIN=100, LUN_MAX=1000
+    logical :: opened
+    integer :: lun
+  ! begin
+    newunit=-1
+    do lun=LUN_MIN,LUN_MAX
+      inquire(unit=lun,opened=opened)
+      if (.not. opened) then
+        newunit=lun
+        exit
+      end if
+    end do
+    if (present(unit)) unit=newunit
+  end function newunit
+
   subroutine readdata(filename,ncol,data)
     character(*), intent(in) :: filename
     integer, intent(in) :: ncol
@@ -64,4 +89,12 @@ module common
 
     close(unit)
   end subroutine readdata
+
+  subroutine clearfile(filename)
+    character(*), intent(in) :: filename
+    integer :: stat, lun
+
+    open(unit=newunit(lun), iostat=stat, file=filename, status='old')
+    if (stat == 0) close(lun, status='delete')
+  end subroutine
 end module common

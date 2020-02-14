@@ -477,15 +477,17 @@ subroutine test_magfie
 end subroutine test_magfie
 
 subroutine test_orbit
-  integer, parameter :: orbitsteps = 100000
+  integer, parameter :: orbitsteps = 2000000
   
   z(1)=s0
   z(2)=0.0
+  !z(3)=0.0
   z(3)=0.0
   x=z(1:3)
   call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
   ! normalized velocity module z(4) = v / v_0:
   z(4)=1.38
+  !z(4)=0.0
   ! pitch z(5)=v_\parallel / v:
   z(5)=0.001
   
@@ -499,7 +501,7 @@ subroutine test_orbit
      endif
 
      call regst(z,dtau,ierr)
-     if(mod(istep,orbitsteps/50000)==0) then
+     if(mod(istep,100)==0) then
         write(3000,*) istep*dtau, z
      endif
   enddo

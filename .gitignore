@@ -1,0 +1,6 @@
+.DS_Store
+\#*
+*.out
+in_file*
+CONDOR/
+*~

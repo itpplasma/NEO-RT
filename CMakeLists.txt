@@ -15,10 +15,10 @@ include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 ### Specify paths
 set(CMAKE_BINARY_DIR ${PROJECT_BINARY_DIR}/OBJS)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
-set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
+set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
 ### Define the name of the executable
-set(PROJECT_EXE_NAME "driftorbit_test")                  # Define the name
+set(PROJECT_EXE_NAME "neo-rt.x")                  # Define the name
 
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
@@ -51,17 +51,17 @@ add_subdirectory("../contrib/vode" "vode")
 #set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
 #set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
 
-IF(WIN32)
-  set(CMAKE_Fortran_FLAGS "/Qmkl /O3")
-ELSE()
+#IF(WIN32)
+#  set(CMAKE_Fortran_FLAGS "/Qmkl /O3")
+#ELSE()
 #  set(CMAKE_Fortran_FLAGS "-mkl -O3 -init=snan,arrays -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
    #set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
-   set(CMAKE_Fortran_FLAGS "-O3") #GNU
-ENDIF()
+set(CMAKE_Fortran_FLAGS "-O3") #GNU
+#ENDIF()
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
-  driftorbit_test.f90
+  main.f90
 )
 
 add_executable(orbit_test
@@ -69,7 +69,7 @@ add_executable(orbit_test
 )
 
 
-add_library("driftorbit"
+add_library("neo-rt" SHARED
   orbit.f90
   attenuation_factor.f90
   collis_nbi.f90
@@ -82,27 +82,31 @@ add_library("driftorbit"
 #  ${SUPERLU_SRC_FILES}
 )
 
-#add_dependencies(driftorbit boozer_magfie)
-#add_dependencies(driftorbit rkf45)
-add_dependencies(driftorbit spline)
-#add_dependencies(driftorbit quadpack)
-#add_dependencies(driftorbit odepack)
-add_dependencies(driftorbit vode)
+#add_dependencies(neo-rt boozer_magfie)
+#add_dependencies(neo-rt rkf45)
+add_dependencies(neo-rt spline)
+#add_dependencies(neo-rt quadpack)
+#add_dependencies(neo-rt odepack)
+add_dependencies(neo-rt vode)
+
+target_link_libraries(
+  neo-rt
+  vode
+  spline
+  quadpack
+  openblas
+)
 
 ### Linking
 target_link_libraries(
   ${PROJECT_EXE_NAME}
-  driftorbit
+  neo-rt
 #  boozer_magfie
 #  ${SuperLU_lib}
 #  ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
 #  ${SuiteSparseConfig_lib}
   #rkf45
   #odepack
-  vode
-  spline
-  quadpack
-  openblas
 #  blas
 #  lapack
 #  pthread
@@ -118,4 +122,4 @@ target_link_libraries(
 # set_property(TARGET ${PROJECT_EXE_NAME} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 ### Tests
-add_test( test_magfie driftorbit_test )
+add_test( test_magfie neo-rt )

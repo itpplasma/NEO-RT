@@ -25,6 +25,8 @@ module do_magfie_mod
 contains
 
   subroutine do_magfie_init
+  ! Initializes spline and Fourier coefficients for later evaluation of
+  ! unperturbed axisymmetric magnetic field in do_magfie
     integer :: j,k
     real(8)                      :: x(3)
     real(8)                      :: bmod
@@ -71,6 +73,7 @@ contains
   end subroutine do_magfie_init
 
   subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+  ! Evaluate unperturbed axisymmetric magnetic field in point x = (s, th, ph) 
     real(8), dimension(:),       intent(in)         :: x
     real(8),                     intent(out)        :: bmod
     real(8),                     intent(out)        :: sqrtg

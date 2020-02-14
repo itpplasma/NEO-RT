@@ -12,12 +12,12 @@ include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 include_directories(/usr/include)
 
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS_RELEASE "-O3 -mkl")
+set(CMAKE_Fortran_FLAGS_RELEASE "-O3")
 set(MY_DEBUG_FLAG_LIST
 " -implicitnone "
 " -g "
 " -traceback "
-" -mkl "
+#" -mkl "
 " -O3 "
 #  "-ggdb -C -p -pg -fbacktrace " 
 #  "-ffpe-trap=invalid,zero,overflow,underflow " 
@@ -30,7 +30,7 @@ set(MY_DEBUG_FLAG_LIST
   )
 string(REPLACE ";" "" MY_DEBUG_FLAG  ${MY_DEBUG_FLAG_LIST})
 set(CMAKE_Fortran_FLAGS_DEBUG "${MY_DEBUG_FLAG}") 
-set(CFLAGS "-mkl -O3 -DDOUBLE_APPEND_FORTRAN")
+set(CFLAGS "-O3 -DDOUBLE_APPEND_FORTRAN")
 
 ### Define container for *.o and *.mod files
 set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
@@ -71,12 +71,12 @@ add_executable(${EXE_NAME}
 ### Add libraries linked with executable
 target_link_libraries(${EXE_NAME} 
         ${SuperLU_lib}
-        ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
+        ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Metis_lib} ${Camd_lib} ${Ccolamd_lib}
 	${SuiteSparse_config_lib}
-	#lapack
+	lapack
 	#${lapack_lib}
 	#${open_blas_lapack_lib}
-	#blas
+	blas
 	#${f77blas_lib} ${atlas_lib}
 	#${open_blas_lib}
 	debug efence
