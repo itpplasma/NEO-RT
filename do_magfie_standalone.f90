@@ -7,7 +7,8 @@ module do_magfie_mod
   save
 
   real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-       q, dqds, iota, R0, a, eps, B0h, B00, bfac
+       q, dqds, iota, R0, a, eps, B0h, B00
+  real(8), public :: bfac = 1.0d0
   ! B0h is the 0th theta harmonic of bmod on current flux surface
   ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 

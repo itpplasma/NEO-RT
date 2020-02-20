@@ -18,7 +18,7 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
 ### Define the name of the executable
-set(PROJECT_EXE_NAME "neo-rt.x")                  # Define the name
+set(PROJECT_EXE_NAME "neo_rt.x")                  # Define the name
 
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
@@ -69,7 +69,7 @@ add_executable(orbit_test
 )
 
 
-add_library("neo-rt" SHARED
+add_library("neo_rt" SHARED
   orbit.f90
   attenuation_factor.f90
   collis_nbi.f90
@@ -84,13 +84,13 @@ add_library("neo-rt" SHARED
 
 #add_dependencies(neo-rt boozer_magfie)
 #add_dependencies(neo-rt rkf45)
-add_dependencies(neo-rt spline)
+add_dependencies(neo_rt spline)
 #add_dependencies(neo-rt quadpack)
 #add_dependencies(neo-rt odepack)
-add_dependencies(neo-rt vode)
+add_dependencies(neo_rt vode)
 
 target_link_libraries(
-  neo-rt
+  neo_rt
   vode
   spline
   quadpack
@@ -100,7 +100,7 @@ target_link_libraries(
 ### Linking
 target_link_libraries(
   ${PROJECT_EXE_NAME}
-  neo-rt
+  neo_rt
 #  boozer_magfie
 #  ${SuperLU_lib}
 #  ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
@@ -122,4 +122,4 @@ target_link_libraries(
 # set_property(TARGET ${PROJECT_EXE_NAME} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 ### Tests
-add_test( test_magfie neo-rt )
+add_test( test_magfie neo_rt )
