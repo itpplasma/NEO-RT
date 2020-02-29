@@ -33,14 +33,14 @@
 !
       INTEGER isw_neo_magfie
 !
-      DOUBLE PRECISION x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
+      DOUBLE PRECISION x(:),bmod,sqrtg,bder(:),hcovar(:),hctrvr(:),hcurl(:)
       DOUBLE PRECISION hr,hf,hz
 !
       DOUBLE PRECISION ri,fii,zi,br,bf,bz, &
       BRR,BRF,BRZ,BFR,BFF,BFZ,BZR,BZF,BZZ, &
       BRK,BZK,BRRK,BRZK,BZRK,BZZK
 !
-      DIMENSION x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
+!      DIMENSION x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
 !
       isw_neo_magfie = 1
       IF(isw_neo_magfie .EQ. 1) THEN

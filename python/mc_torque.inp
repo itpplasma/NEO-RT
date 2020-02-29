@@ -1,0 +1,11 @@
+320      npoiper           !number of points per period 
+1        ntestparticles    !number of test particles        
+.false.  swcoll            !collision switch: .true. - collisions on, .false. - collisions off
+1        iswmod            !switch of collision mode: 1 - full, 2 - no p.a. scattering, 3 - drag only, 4 - p.a. scatt. only
+1.0      pertscale         !scale factor for perturbation amplitude
+1.0      bscale            !scale factor for magnetic field
+1.0      escale            !scale factor for electric field
+0.15     s0                !radial starting position
+2.0      runtime           !runtime in collision times
+1        flux_surf_dist
+

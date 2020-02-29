@@ -47,6 +47,5 @@ set(HYDRA_SRC_FILES
 	./collis_nbi.f90
 	./rng.f
 	./probstart_mod.f90
-	./nbi_torque.f90 
 )
 set_source_files_properties(${HYDRA_SRC_FILES} PROPERTIES COMPILE_FLAGS "${DEBUGFLAG} ${FFLAG_DEBUG} ${FFLAGS}")

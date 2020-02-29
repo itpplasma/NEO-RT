@@ -15,13 +15,13 @@ message("CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message("PROJLIBS = ${PROJLIBS}")
 
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS_RELEASE "-O2")
+set(CMAKE_Fortran_FLAGS "-O3 -g -fbacktrace")
 set(MY_DEBUG_FLAG_LIST
 " -implicitnone "
 " -g "
 " -traceback "
 #" -mkl "
-" -O2 "
+" -O0 "
 #  "-ggdb -C -p -pg -fbacktrace " 
 #  "-ffpe-trap=invalid,zero,overflow,underflow " 
 #  "-Werror " 
@@ -55,23 +55,27 @@ find_package(SuperLU REQUIRED)
 ### Source files (load external file)
 include (CMakeSources.txt)
 
-### Define executable
 add_executable(${EXE_NAME}
+	nbi_torque.f90 
+)
+
+### Define executable
+add_library("neo_rt_mc" SHARED
 	${HYDRA_SRC_FILES}  
 	${NEO_MAGFIE_SRC_FILES} 
   	${SUITESPARSE_SRC_FILES}
 	${SUPERLU_SRC_FILES}
 )
 
-### Add libraries linked with executable
-target_link_libraries(${EXE_NAME} 
+target_link_libraries(neo_rt_mc
 	${SUPERLU_LIBRARIES}
 	${SUITESPARSE_LIBRARIES}
 	lapack
-	#${lapack_lib}
-	#${open_blas_lapack_lib}
 	blas
-	#${f77blas_lib} ${atlas_lib}
-	#${open_blas_lib}
-	debug efence
-        )
+)
+
+### Add libraries linked with executable
+target_link_libraries(${EXE_NAME} 
+	neo_rt_mc
+)
+

@@ -21,3 +21,6 @@ _*.o
 *.png
 *.pdf
 out.txt
+fort.*
+*.log
+
