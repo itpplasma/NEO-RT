@@ -1,13 +1,13 @@
 #%%
 import numpy as np
 import matplotlib.pyplot as plt
-from neo_rt_fffi import libneo_rt, magfie, magfie_pert
+from neo_rt_fffi import libneo_rt, magfie#, magfie_pert
 
 # %%
-magfie.inp_swi = 9
+magfie.inp_swi = 8
 magfie.s = 0.15
 magfie.do_magfie_init()
-magfie_pert.do_magfie_pert_init()
+# magfie_pert.do_magfie_pert_init()
 
 # %%
 x = np.zeros(3)

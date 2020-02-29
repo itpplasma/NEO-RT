@@ -1,7 +1,7 @@
 ### SUPERLU ###
 set(SUPERLU_SRC_FILES
-        ${SUPERLU_F90}c_fortran_dgssv.c
-        ${SUPERLU_F90}c_fortran_zgssv.c
+        ${CMAKE_SOURCE_DIR}/../../../contrib/c_fortran_dgssv.c
+        ${CMAKE_SOURCE_DIR}/../../../contrib/c_fortran_zgssv.c
 )
 set(SUPERLU_FLAGS "${CFLAGS_DEBUG} ${CFLAGS} -I${SUPERLU_HDR}")
 set_source_files_properties(${SUPERLU_SRC_FILES} PROPERTIES COMPILE_FLAGS ${SUPERLU_FLAGS})
@@ -40,7 +40,7 @@ set(HYDRA_SRC_FILES
 	./field.f90
 	./vvnqiwkas.f	
 	./magfie.f90
-	./odeint_allroutines.f
+	${CMAKE_SOURCE_DIR}/../../../contrib/numerical_recipes/odeint_allroutines_MC.f
 	./chamb.f90
 	./sub_alpha_lifetime.f90
 	./zzg.f90

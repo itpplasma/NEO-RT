@@ -1,6 +1,7 @@
 from fffi import fortran_library, fortran_module
 
-libneo_rt = fortran_library('neo_rt', path='/home/calbert/build/NEO-RT/')
+#libneo_rt = fortran_library('neo_rt', path='/home/calbert/build/NEO-RT/')
+libneo_rt = fortran_library('neo_rt', path='/Users/ert/build/NEO-RT/')
 
 magfie = fortran_module(libneo_rt, name='do_magfie_mod')
 magfie.fdef("""
@@ -26,9 +27,22 @@ magfie_pert = fortran_module(libneo_rt, name='do_magfie_pert_mod')
 magfie_pert.fdef("""
   subroutine do_magfie_pert_init
   end
+
+  subroutine do_magfie_pert_amp(x, bamp)
+    real(8), dimension(:),       intent(in)         :: x
+    complex(8),                  intent(out)        :: bamp
+  end
+
+  subroutine do_magfie_pert(x, bmod)
+    real(8), dimension(:),       intent(in)         :: x
+    complex(8),                  intent(out)        :: bmod
+  end
 """)
 
 driftorb = fortran_module(libneo_rt, name='driftorbit')
+#driftorb.fdef("""
+#	
+#""")
 
 libneo_rt.compile(verbose=1)
 magfie.load()

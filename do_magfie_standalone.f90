@@ -272,6 +272,16 @@ contains
     end if
   end subroutine do_magfie_pert_amp
 
+  subroutine do_magfie_pert(x, bmod)
+   real(8), dimension(:),       intent(in)         :: x
+   real(8),                     intent(out)        :: bmod
+   complex(8)                                      :: bamp
+
+   call do_magfie_pert_amp(x, bamp)
+   bmod = real(sum(bamp*exp(imun*modes(1,:,2))))
+
+  end subroutine do_magfie_pert
+
   subroutine boozer_read_pert(filename)
     integer :: ksurf, kmode
     real(8) :: flux, dummy

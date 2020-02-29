@@ -1,24 +1,27 @@
 ### Initialize CMake (some internal stuff)
 cmake_minimum_required(VERSION 2.6)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}")
 
 project(NBI-TORQUE)
 enable_language(Fortran)
 
-message("CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 ### Define paths to external libraries (load external file)
 include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
 include_directories(/usr/include)
 
+message("CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
+message("PROJLIBS = ${PROJLIBS}")
+
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS_RELEASE "-O3")
+set(CMAKE_Fortran_FLAGS_RELEASE "-O2")
 set(MY_DEBUG_FLAG_LIST
 " -implicitnone "
 " -g "
 " -traceback "
 #" -mkl "
-" -O3 "
+" -O2 "
 #  "-ggdb -C -p -pg -fbacktrace " 
 #  "-ffpe-trap=invalid,zero,overflow,underflow " 
 #  "-Werror " 
@@ -30,7 +33,7 @@ set(MY_DEBUG_FLAG_LIST
   )
 string(REPLACE ";" "" MY_DEBUG_FLAG  ${MY_DEBUG_FLAG_LIST})
 set(CMAKE_Fortran_FLAGS_DEBUG "${MY_DEBUG_FLAG}") 
-set(CFLAGS "-O3 -DDOUBLE_APPEND_FORTRAN")
+set(CFLAGS "-O2 -DDOUBLE_APPEND_FORTRAN")
 
 ### Define container for *.o and *.mod files
 set(CMAKE_Fortran_MODULE_DIRECTORY ./OBJS)
@@ -45,16 +48,8 @@ ELSE()
 ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
 
 ### Find libraries
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-find_library(SuperLU_lib superlu ${SUPERLU_DIR}SRC NO_DEFAULT_PATH)
-find_library(Umfpack_lib umfpack ${SUITESPARSE_DIR}/UMFPACK/Lib NO_DEFAULT_PATH)
-find_library(Amd_lib amd ${SUITESPARSE_DIR}AMD/Lib NO_DEFAULT_PATH)
-find_library(Cholmod_lib cholmod ${SUITESPARSE_DIR}CHOLMOD/Lib NO_DEFAULT_PATH)
-find_library(Colamd_lib colamd ${SUITESPARSE_DIR}COLAMD/Lib NO_DEFAULT_PATH)
-find_library(Camd_lib camd ${SUITESPARSE_DIR}CAMD/Lib NO_DEFAULT_PATH)
-find_library(Metis_lib metis ${METIS_PATH} NO_DEFAULT_PATH)
-find_library(Ccolamd_lib ccolamd ${SUITESPARSE_DIR}CCOLAMD/Lib NO_DEFAULT_PATH)
-find_library(SuiteSparse_config_lib suitesparseconfig ${SUITESPARSE_DIR}SuiteSparse_config NO_DEFAULT_PATH)
+find_package(SuiteSparse REQUIRED)
+find_package(SuperLU REQUIRED)
 
 
 ### Source files (load external file)
@@ -70,9 +65,8 @@ add_executable(${EXE_NAME}
 
 ### Add libraries linked with executable
 target_link_libraries(${EXE_NAME} 
-        ${SuperLU_lib}
-        ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Metis_lib} ${Camd_lib} ${Ccolamd_lib}
-	${SuiteSparse_config_lib}
+	${SUPERLU_LIBRARIES}
+	${SUITESPARSE_LIBRARIES}
 	lapack
 	#${lapack_lib}
 	#${open_blas_lapack_lib}
