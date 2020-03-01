@@ -1,7 +1,7 @@
+from os.path import expanduser
 from fffi import fortran_library, fortran_module
 
-#libneo_rt = fortran_library('neo_rt', path='/home/calbert/build/NEO-RT/')
-libneo_rt = fortran_library('neo_rt', path='/Users/ert/build/NEO-RT/')
+libneo_rt = fortran_library('neo_rt', path=expanduser('~/build/NEO-RT/'))
 
 magfie = fortran_module(libneo_rt, name='do_magfie_mod')
 magfie.fdef("""
@@ -50,7 +50,7 @@ magfie_pert.load()
 driftorb.load()
 
 
-libneo_rt_mc = fortran_library('neo_rt_mc', path='/Users/ert/build/MC/')
+libneo_rt_mc = fortran_library('neo_rt_mc', path=expanduser('~/build/MC/'))
 libneo_rt_mc.fdef("""\
   subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     double precision, dimension(:),       intent(in)         :: x
