@@ -84,8 +84,8 @@ z[4] = 0.00  # pitch v_\parallel / v:
 x[0:3] = z[0:3]
 libneo_rt_mc.magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
-nt = 1000
-dtau = 0.01
+nt = 10000
+dtau = 1.0
 
 z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
 
@@ -100,9 +100,9 @@ def velo(t, y):
 
 times = np.linspace(0, nt*dtau, nt)
 
-sol = solve_ivp(velo, [times[0], times[-1]], z0, t_eval=times)
+sol = solve_ivp(velo, [times[0], times[-1]], z0, t_eval=times, method='LSODA')
 zs = sol.y
 #%%
 plt.figure()
-plt.plot(zs[:,0]*np.cos(zs[:,2]), zs[:,0]*np.sin(zs[:,2]))
+plt.plot(zs[0,:]*np.cos(zs[2,:]), zs[0,:]*np.sin(zs[2,:]))
 plt.show()
