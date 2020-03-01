@@ -40,9 +40,9 @@ magfie_pert.fdef("""
 """)
 
 driftorb = fortran_module(libneo_rt, name='driftorbit')
-#driftorb.fdef("""
-#	
-#""")
+# driftorb.fdef("""
+#
+# """)
 
 libneo_rt.compile(verbose=1)
 magfie.load()
@@ -53,14 +53,30 @@ driftorb.load()
 libneo_rt_mc = fortran_library('neo_rt_mc', path=expanduser('~/build/MC/'))
 libneo_rt_mc.fdef("""\
   subroutine magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-    double precision, dimension(:),       intent(in)         :: x
+    double precision, dimension(3),       intent(in)         :: x
     double precision,                     intent(out)        :: bmod
     double precision,                     intent(out)        :: sqrtg
-    double precision, dimension(:),       intent(out)        :: bder
-    double precision, dimension(:),       intent(out)        :: hcovar
-    double precision, dimension(:),       intent(out)        :: hctrvr
-    double precision, dimension(:),       intent(out)        :: hcurl
+    double precision, dimension(3),       intent(out)        :: bder
+    double precision, dimension(3),       intent(out)        :: hcovar
+    double precision, dimension(3),       intent(out)        :: hctrvr
+    double precision, dimension(3),       intent(out)        :: hcurl
+  end
+
+  subroutine velo(tau, z, vz)
+    double precision              ,       intent(in)         :: tau
+    double precision, dimension(3),       intent(in)         :: z
+    double precision, dimension(3),       intent(out)        :: vz
   end
 """)
+
+
+parmot_mod = fortran_module(libneo_rt_mc, name='parmot_mod')
+parmot_mod.fdef("""\
+  double precision :: rmu,ro0
+""")
+
 libneo_rt_mc.compile(verbose=1)
 libneo_rt_mc.load()
+parmot_mod.load()
+
+print(libneo_rt_mc.csource)

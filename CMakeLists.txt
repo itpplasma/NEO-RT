@@ -23,17 +23,9 @@ set(PROJECT_EXE_NAME "neo_rt.x")                  # Define the name
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 
-### Find libraries
-set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-#find_library(SuperLU_lib superlu_4.1 ${SUPERLU_DIR}lib NO_DEFAULT_PATH)
-#find_library(Umfpack_lib umfpack ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-#find_library(Amd_lib amd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-#find_library(Cholmod_lib cholmod ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-#find_library(Colamd_lib colamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-#find_library(Camd_lib camd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-#find_library(Metis_lib metis ${SUITESPARSE_DIR}lib ${METIS_PATH} NO_DEFAULT_PATH)
-#find_library(Ccolamd_lib ccolamd ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
-#find_library(SuiteSparseConfig_lib suitesparseconfig ${SUITESPARSE_DIR}lib NO_DEFAULT_PATH)
+### Find libraries for NEO-2 field routines
+#find_package(SuiteSparse REQUIRED)
+#find_package(SuperLU REQUIRED)
 
 ### Source files (load external file)
 include (CMakeSources.txt)
@@ -77,6 +69,7 @@ add_library("neo_rt" SHARED
   common.f90
   driftorbit.f90
   do_magfie_standalone.f90
+# For NEO-2 field routines
 #  do_magfie_neo.f90
 #  ${SUITESPARSE_SRC_FILES}
 #  ${SUPERLU_SRC_FILES}

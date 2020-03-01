@@ -5,7 +5,7 @@
 1.0      pertscale         !scale factor for perturbation amplitude
 1.0      bscale            !scale factor for magnetic field
 1.0      escale            !scale factor for electric field
-0.15     s0                !radial starting position
-2.0      runtime           !runtime in collision times
+0.4      s0                !radial starting position
+0.1      runtime           !runtime in collision times
 1        flux_surf_dist
 

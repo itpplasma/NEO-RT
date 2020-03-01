@@ -15,7 +15,7 @@ message("CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 message("PROJLIBS = ${PROJLIBS}")
 
 ### Define flags for Fortran/C compiler
-set(CMAKE_Fortran_FLAGS "-O3 -g -fbacktrace")
+set(CMAKE_Fortran_FLAGS "-Og -g -fbacktrace")
 set(MY_DEBUG_FLAG_LIST
 " -implicitnone "
 " -g "

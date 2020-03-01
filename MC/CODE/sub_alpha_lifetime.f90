@@ -1,5 +1,15 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine elefie(x,derphi)
+!
+! For testing: zero electric field
+!
+subroutine elefie(x, derphi)
+  double precision, dimension(3) :: x,derphi
+  derphi = 0d0
+end subroutine elefie
+
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+subroutine elefie_mtprofile(x,derphi)
 !
 ! Computes the derivatives of the electrostatic potential over
 ! coordinates (covariant electric field). Potential is normalized
@@ -56,7 +66,7 @@ subroutine elefie(x,derphi)
   derphi(1) = -escale*derphi(1) ! TODO check if this is correct sign
 !  derphi(1) = 0.1d0 ! TODO remove this test
   return
-end
+end subroutine elefie_mtprofile
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       subroutine velo(tau,z,vz)
 !
@@ -96,7 +106,8 @@ end
 !
       integer :: i
 !
-      double precision tau,z,vz
+      double precision, intent(in)  :: tau, z
+      double precision, intent(out) :: vz
       double precision x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl
       double precision derphi
       double precision p,alambd,p2,ovmu,gamma2,gamma,ppar,vpa,coala
@@ -105,7 +116,7 @@ end
       double precision s_hc,hpstar,phidot,blodot,bra
       double precision pardeb
 !
-      dimension z(5),vz(5)
+      dimension z(5), vz(5)
       dimension x(3),bder(3),hcovar(3),hctrvr(3),hcurl(3)
       dimension derphi(3)
       dimension a_phi(3),a_b(3),a_c(3),hstar(3)

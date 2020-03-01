@@ -181,7 +181,8 @@ print *, v0, tempi1, ev, amb, p_mass
   print *, v0,amb,Zb,bmod_ref,bmod00
   rlarm=v0*amb*p_mass*c/(Zb*e_charge*bmod_ref)
   ro0=rlarm*bmod00
-  print *, rlarm
+  print *, 'rlarm: ', rlarm
+  print *, 'ro0: ', ro0
 !
 
 !  orbit integration time step:
@@ -214,6 +215,7 @@ print *, v0, tempi1, ev, amb, p_mass
      close(1)
      call test_magfie
      call test_orbit
+     stop
   endif
 !
   do iskip=1,icpu+1
@@ -477,19 +479,19 @@ subroutine test_magfie
 end subroutine test_magfie
 
 subroutine test_orbit
-  integer, parameter :: orbitsteps = 2000000
+  integer, parameter :: orbitsteps = 10000
   
   z(1)=s0
   z(2)=0.0
   !z(3)=0.0
-  z(3)=0.0
+  z(3)=0.7*pi
   x=z(1:3)
   call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
   ! normalized velocity module z(4) = v / v_0:
-  z(4)=1.38
+  z(4)=1.38d0
   !z(4)=0.0
   ! pitch z(5)=v_\parallel / v:
-  z(5)=0.001
+  z(5)=0.0d0
   
   open(unit=3000, recl=1024)
   do istep=1,orbitsteps
