@@ -4,6 +4,24 @@ import matplotlib.pyplot as plt
 from neo_rt_fffi import libneo_rt_mc, parmot_mod
 from scipy.integrate import solve_ivp
 
+#
+# Normalized time variable tau of integrator is given in units of length !
+# 
+# Physical time t = tau/v0
+# where v0 is the thermal velocity (or some reference velocity)
+#
+# This means that after tau=1 a particle with velocity v0 
+# has passed one unit length (1 cm if v0 is in CGS units)
+#
+# Reason: Can easily estimate integration steps for "worst case" strongly 
+# passing particles that have the fastest timescale for doing one turn.
+# A strongly passing particle with v0 requires time t = 2*pi*R/v0 to run in 
+# a circle of cylinder radius R (e.g. the major radius of the device).
+# In terms of tau it takes tau = 2*pi*R, independently from thermal velocity v0.
+# Then we can set e.g. dtau = tau/N to be sure we have at least N
+# integation points per turn (in-between we can also integrate adaptively) 
+#
+
 s0 = 0.4  # Starting radial position
 
 # %% Variables for magnetic field
@@ -56,56 +74,80 @@ e_mass = 9.1094e-28
 p_mass = 1.6726e-24
 ev = 1.6022e-12
 
-parmot_mod.rmu = 1e5  # Inverse relativistic temperature
+# Inverse relativistic temperature, set >=1e5 to neglect relativistic effects
+parmot_mod.rmu = 1e5  
 
 # This will translate to dimensionless units via parmot_mod.ro0
+# Here we translate an input file in Tesla to computation in Gauss/CGS
 bmod_ref = 1e4            # 1 Tesla in Gauss
 bmod00 = 1.0              # 1 Tesla in Tesla
 tempi1 = 0.17549561306e4  # ion temperature
-am1 = 2                   # Atomic mass 2 of deuterium ions
-Zb = 1                    # Charge 1 of deuterium ions
-amb = am1                 # Same ions test (beam) particles and main plasma
+am = 2                    # Atomic mass 2 of deuterium ions
+Zb = 1                    # Atomic charge 1 of deuterium ions
 
-v0 = np.sqrt(2.0*tempi1*ev/(am1*p_mass))       # Reference (thermal) velocity
+v0 = np.sqrt(2.0*tempi1*ev/(am*p_mass))        # Reference (thermal) velocity
 # Reference Larmor radius of thermal particles
-rlarm = v0*amb*p_mass*c/(Zb*e_charge*bmod_ref)
+rlarm = v0*am*p_mass*c/(Zb*e_charge*bmod_ref)  # Larmor radius in bmod_ref
 parmot_mod.ro0 = rlarm*bmod00                  # Rescaled Larmor radius
 
 print('ro0: {}'.format(parmot_mod.ro0))
 
+# %% Integrate with a given number of timesteps
 # Initial conditions
 z = libneo_rt_mc._ffi.new('double[5]')
-z[0] = s0
-z[1] = 0.0
-z[2] = 0.7*np.pi
-z[3] = 1.38  # normalized velocity module  v / v_0
-z[4] = 0.00  # pitch v_\parallel / v:
+z[0] = s0         # s = psi_tor/psi_tor_a
+z[1] = 0.0        # varphi
+z[2] = 0.7*np.pi  # vartheta
+z[3] = 1.0        # normalized velocity module  v / v_0
+z[4] = 0.00       # pitch v_\parallel / v:
 
-x[0:3] = z[0:3]
+x[0:3] = z[0:3]   # Initial conditions in space
+# Testing if magnetic field works for initial conditions
 libneo_rt_mc.magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
-nt = 10000
-dtau = 1.0
+nt = 10000  # Number of timesteps
+dtau = 1.0  # Maximum timestep, just setting empirically here
+# usually, use estimate with major radius, as described above
 
+# create numpy array with data at memory location of vz
 z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
 
+# Horrible global variables, just for testing fast.
 tau = libneo_rt_mc.new('double', 0.0)
+vz = libneo_rt_mc._ffi.new('double[5]')  # future: vz = np.zeros(5)
 
-# Horrible global variable, just for testing fast.
-vz = libneo_rt_mc._ffi.new('double[5]')
 def velo(t, y):
+    """ To translate Fortran velo for use with numpy arrays"""
     z[0:5] = y[:]
     libneo_rt_mc.velo(tau, z, vz)
+    # create numpy array with data at memory location of vz
     return np.frombuffer(libneo_rt_mc._ffi.buffer(vz), dtype=np.float64)
+    # return vz  ... future usage when fffi will be better
 
 times = np.linspace(0, nt*dtau, nt)
 
 sol = solve_ivp(velo, [times[0], times[-1]], z0, t_eval=times, method='LSODA')
-#%%
+
+# %%  Plot orbit in the poloidal and toroidal plane
 zs = sol.y
-plt.figure()
-plt.plot(zs[0,:]*np.cos(zs[2,:]), zs[0,:]*np.sin(zs[2,:]))
-# %% Check for banana tips
+# Plot with "pseudo-toroidal" radius r_tor = sqrt(s), as the toroidal
+# flux roughly scales with r^2. # Pretend major R0=2 for visualization
+R0 = 2.0
+rho_tor = np.sqrt(zs[0,:])
+varphi = zs[1,:]
+vartheta = zs[2,:]
+R = R0 + rho_tor*np.cos(vartheta)
+Z = rho_tor*np.sin(vartheta)
+X = R*np.cos(varphi)
+Y = R*np.sin(varphi)
+
+plt.figure()  # poloidal projection
+plt.plot(R, Z)
+
+plt.figure()  # toroidal projection
+plt.plot(X, Y)
+
+# %% Integrate with events: banana tips and circular crossings of varphi=2*pi
 
 def event_banantip(t, z):
     """ Trapped orbit - banana tip at vpar=0 """
@@ -118,13 +160,15 @@ def event_circ(t, z):
     """ Passing orbit - full turn at varphi=2pi """
     return z[2] - 2*np.pi
 
+event_circ.terminal = True
+
 def run_bananas(s):
     # Initial conditions
     z[0] = s
     z[1] = 0.0
     z[2] = -0.7*np.pi
     z[3] = 1.38   # normalized velocity module  v / v_0
-    z[4] = 1e-15  # pitch v_\parallel / v:
+    z[4] = 1e-15  # pitch v_\parallel / v, be careful with events !!
     z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
 
     integ = solve_ivp(
@@ -133,14 +177,21 @@ def run_bananas(s):
 
     print(integ.t_events)
 
-    ts = integ.t
     zs = integ.y
     plt.plot(np.sqrt(zs[0,:])*np.cos(zs[2,:]), np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
  
-    omb = v0/integ.t_events[0][0]
-    Om_tB = omb*integ.y_events[0][0][1]/2*np.pi
-    # Return om_b, Om^phi = 2pi/phi(1 bounce)
-    return [omb, Om_tB] 
+    # Om^th = om_b = 2*pi/t_bounce = 2*pi*v0/tau_bounce
+    omb = 2*np.pi*v0/integ.t_events[0][0]
+    
+    # Toroidal precession frequency
+    Omphi = omb*integ.y_events[0][0][1]/(2*np.pi)
+    # Om^ph = om_b*varphi(t_bounce)/theta_canonical(t_bounce)
+    # Reason: During bounce, theta_canonical changes by 2*pi.
+    # Ratio of precession and bounce frequency is ratio 
+    # between change in varphi to change in theta_canonical.
+    # see Diss_Albert for detailed explanation
+    
+    return [omb, Omphi] 
 
 parmot_mod.ro0 = rlarm*bmod00  # Actual Larmor radius
 plt.figure(figsize=(4.0, 4.0))
