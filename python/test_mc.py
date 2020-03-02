@@ -101,8 +101,93 @@ def velo(t, y):
 times = np.linspace(0, nt*dtau, nt)
 
 sol = solve_ivp(velo, [times[0], times[-1]], z0, t_eval=times, method='LSODA')
-zs = sol.y
 #%%
+zs = sol.y
 plt.figure()
 plt.plot(zs[0,:]*np.cos(zs[2,:]), zs[0,:]*np.sin(zs[2,:]))
-plt.show()
+# %% Check for banana tips
+
+def event_banantip(t, z):
+    """ Trapped orbit - banana tip at vpar=0 """
+    return z[4]
+
+event_banantip.direction = 1.0
+event_banantip.terminal = True
+
+def event_circ(t, z):
+    """ Passing orbit - full turn at varphi=2pi """
+    return z[2] - 2*np.pi
+
+def run_bananas(s):
+    # Initial conditions
+    z[0] = s
+    z[1] = 0.0
+    z[2] = -0.7*np.pi
+    z[3] = 1.38   # normalized velocity module  v / v_0
+    z[4] = 1e-15  # pitch v_\parallel / v:
+    z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
+
+    integ = solve_ivp(
+        velo, (0, 5e4*dtau), z0, events=(event_banantip,event_circ), 
+        max_step=10*dtau, method='LSODA')
+
+    print(integ.t_events)
+
+    ts = integ.t
+    zs = integ.y
+    plt.plot(np.sqrt(zs[0,:])*np.cos(zs[2,:]), np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
+ 
+    omb = v0/integ.t_events[0][0]
+    Om_tB = omb*integ.y_events[0][0][1]/2*np.pi
+    # Return om_b, Om^phi = 2pi/phi(1 bounce)
+    return [omb, Om_tB] 
+
+parmot_mod.ro0 = rlarm*bmod00  # Actual Larmor radius
+plt.figure(figsize=(4.0, 4.0))
+freqs = []
+srange = np.array([0.005, 0.01, 0.02, 0.03, 0.12, 0.22, 0.32, 0.52, 0.72])
+for sk in srange:
+    freqs.append(run_bananas(sk))
+plt.xlabel(r'$\rho_\mathrm{tor}\,\cos\vartheta_\mathrm{B}$')
+plt.ylabel(r'$\rho_\mathrm{tor}\,\sin\vartheta_\mathrm{B}$')
+plt.title("Drift orbits")
+plt.xlim([-1.0, 1.0])
+plt.ylim([-1.0, 1.0])
+
+parmot_mod.ro0 = 1e-3*rlarm*bmod00  # Smaller Larmor radius
+plt.figure(figsize=(4.0, 4.0))
+freqs_thin = []
+for sk in srange:
+    freqs_thin.append(run_bananas(sk))
+plt.xlabel(r'$\rho_\mathrm{tor}\,\cos\vartheta_\mathrm{B}$')
+plt.ylabel(r'$\rho_\mathrm{tor}\,\sin\vartheta_\mathrm{B}$')
+plt.title("Thin orbit approximation")
+plt.xlim([-1.0, 1.0])
+plt.ylim([-1.0, 1.0])
+# %%
+freqs = np.array(freqs)
+freqs_thin = np.array(freqs_thin)
+
+
+plt.figure()
+plt.plot(np.sqrt(srange), freqs_thin[:,0] , 'k--', zorder=10)
+plt.plot(np.sqrt(srange), freqs[:,0], color='tab:red')
+plt.xlabel(r'$\rho_\mathrm{tor}$')
+plt.ylabel(r'$\omega_b / \mathrm{s}^{-1}$')
+plt.title("Bounce frequency")
+plt.xlim([0, 0.9])
+plt.legend(['thin', 'full'])
+
+plt.figure()
+# Rescale by factor 1e-3 due to other Larmor radius
+plt.plot(np.sqrt(srange), freqs_thin[:,1]/1e-3, 'k--', zorder=10)
+plt.plot(np.sqrt(srange), freqs[:,1], color='tab:red')
+plt.xlabel(r'$\rho_\mathrm{tor}$')
+plt.ylabel(r'$\Omega_{\mathrm{tB}} / \mathrm{s}^{-1}$')
+plt.title("Toroidal precession frequency (magnetic)")
+plt.xlim([0, 0.9])
+plt.legend(['thin', 'full'])
+
+# %%
+
+
