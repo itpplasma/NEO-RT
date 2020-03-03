@@ -118,12 +118,13 @@ MODULE sparse_mod
           sparse_solveComplex_b1,sparse_solveComplex_b2,sparse_solveComplex_A_b1,sparse_solveComplex_A_b2
   END INTERFACE sparse_solve
 
-  PUBLIC sparse_solve_superlu
-  INTERFACE sparse_solve_superlu
-     !MODULE PROCEDURE sparse_solve_superlu_b1,sparse_solve_superlu_b2
-     MODULE PROCEDURE sparse_solve_superlu_b1,sparse_solve_superlu_b2_loop, &
-          sparse_solve_superluComplex_b1, sparse_solve_superluComplex_b2_loop
-  END INTERFACE sparse_solve_superlu
+  ! UNCOMMENT FOR SUPERLU
+!   PUBLIC sparse_solve_superlu
+!   INTERFACE sparse_solve_superlu
+!      !MODULE PROCEDURE sparse_solve_superlu_b1,sparse_solve_superlu_b2
+!      MODULE PROCEDURE sparse_solve_superlu_b1,sparse_solve_superlu_b2_loop, &
+!           sparse_solve_superluComplex_b1, sparse_solve_superluComplex_b2_loop
+!   END INTERFACE sparse_solve_superlu
 
 !!$  !ToDo: Please uncomment, when PARDISO is desired 
 !!$  PUBLIC sparse_solve_pardiso
@@ -881,11 +882,13 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement   
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -904,11 +907,13 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -930,11 +935,13 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       IF (pcol_modified) THEN
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
-       ELSE
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
-       END IF
+      print *, 'SuperLU disabled'
+      STOP
+      ! IF (pcol_modified) THEN
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
+      !  ELSE
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      !  END IF
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        IF (pcol_modified) THEN
@@ -998,11 +1005,13 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -1021,11 +1030,13 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -1047,11 +1058,13 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       IF (pcol_modified) THEN
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
-       ELSE
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
-       END IF
+      print *, 'SuperLU disabled'
+      STOP
+      !  IF (pcol_modified) THEN
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
+      !  ELSE
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      !  END IF
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        IF (pcol_modified) THEN
@@ -1114,11 +1127,13 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -1137,11 +1152,13 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -1163,11 +1180,13 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       IF (pcol_modified) THEN
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
-       ELSE
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
-       END IF
+      print *, 'SuperLU disabled'
+      STOP
+      !  IF (pcol_modified) THEN
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
+      !  ELSE
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      !  END IF
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        IF (pcol_modified) THEN
@@ -1231,11 +1250,13 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,3)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -1254,11 +1275,13 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          IF (pcol_modified) THEN
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
-          ELSE
-             CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
-          END IF
+         print *, 'SuperLU disabled'
+         STOP
+         !  IF (pcol_modified) THEN
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,1)
+         !  ELSE
+         !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         !  END IF
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           IF (pcol_modified) THEN
@@ -1280,11 +1303,13 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       IF (pcol_modified) THEN
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
-       ELSE
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
-       END IF
+      print *, 'SuperLU disabled'
+      STOP
+      !  IF (pcol_modified) THEN
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcoln,val,b,iopt)
+      !  ELSE
+      !     CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      !  END IF
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        IF (pcol_modified) THEN
@@ -1342,7 +1367,9 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,3)
@@ -1353,7 +1380,9 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,1)
@@ -1367,7 +1396,9 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      print *, 'SuperLU disabled'
+      STOP
+      !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,iopt)
@@ -1420,7 +1451,9 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,3)
@@ -1431,7 +1464,9 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,1)
@@ -1445,7 +1480,9 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      print *, 'SuperLU disabled'
+      STOP
+      !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,iopt)
@@ -1497,7 +1534,9 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,3)
@@ -1508,7 +1547,9 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,1)
@@ -1522,7 +1563,9 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      print *, 'SuperLU disabled'
+      STOP
+      !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,iopt)
@@ -1575,7 +1618,9 @@ CONTAINS
     ! check about existing factorization
     IF (factorization_exists .AND. iopt .EQ. 1) THEN ! free memory first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,3)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,3)
@@ -1586,7 +1631,9 @@ CONTAINS
     END IF
     IF (.NOT. factorization_exists .AND. iopt .EQ. 2) THEN ! factorize first
        IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-          CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
+         print *, 'SuperLU disabled'
+         STOP
+         !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,1)
           ! SuiteSparse (with (=2) or without (=3)) iterative refinement
        ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
           CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,1)
@@ -1600,7 +1647,9 @@ CONTAINS
     IF (iopt .EQ. 3) factorization_exists = .FALSE.
 
     IF (sparse_solve_method .EQ. 1) THEN ! SuperLU
-       CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
+      print *, 'SuperLU disabled'
+      STOP
+      !  CALL sparse_solve_superlu(nrow,ncol,nz,irow,pcol,val,b,iopt)
        ! SuiteSparse (with (=2) or without (=3)) iterative refinement
     ELSE IF ( (sparse_solve_method .EQ. 2) .OR. (sparse_solve_method .EQ. 3) ) THEN 
        CALL sparse_solve_suitesparse(nrow,ncol,nz,irow,pcol,val,b,iopt)
@@ -1619,168 +1668,172 @@ CONTAINS
   END SUBROUTINE sparse_solveComplex_A_b2
   !-------------------------------------------------------------------------------
 
-  !-------------------------------------------------------------------------------
-  ! solves A*x = b for sparse A and 1-D vector b
-  ! A is specified through nrow,ncol,nz,irow,pcol,val
-  ! results are returned in b
-  ! Routines from SuperLU-Distribution
-  SUBROUTINE sparse_solve_superlu_b1(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
-    INTEGER, INTENT(in) :: nrow,ncol,nz
-    INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
-    REAL(kind=dp), DIMENSION(:), INTENT(in) :: val
-    REAL(kind=dp), DIMENSION(:), INTENT(inout) :: b
-    INTEGER, INTENT(in) :: iopt_in
+!!!!! UNCOMMENT FOR SUPERLU
+!   !-------------------------------------------------------------------------------
+!   ! solves A*x = b for sparse A and 1-D vector b
+!   ! A is specified through nrow,ncol,nz,irow,pcol,val
+!   ! results are returned in b
+!   ! Routines from SuperLU-Distribution
+!   SUBROUTINE sparse_solve_superlu_b1(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
+!     INTEGER, INTENT(in) :: nrow,ncol,nz
+!     INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
+!     REAL(kind=dp), DIMENSION(:), INTENT(in) :: val
+!     REAL(kind=dp), DIMENSION(:), INTENT(inout) :: b
+!     INTEGER, INTENT(in) :: iopt_in
 
-    INTEGER :: nrhs,ldb,n,info,iopt
-    INTEGER :: talk
+!     INTEGER :: nrhs,ldb,n,info,iopt
+!     INTEGER :: talk
 
-    IF (SIZE(pcol,1) .NE. ncol+1) THEN
-       PRINT *, 'Wrong pcol'
-       STOP
-    END IF
+!     IF (SIZE(pcol,1) .NE. ncol+1) THEN
+!        PRINT *, 'Wrong pcol'
+!        STOP
+!     END IF
 
-    n = nrow
-    nrhs = 1
-    ldb = n
+!     n = nrow
+!     nrhs = 1
+!     ldb = n
 
-    IF (sparse_talk) THEN
-       talk = 1
-    ELSE
-       talk = 0
-    END IF
+!     IF (sparse_talk) THEN
+!        talk = 1
+!     ELSE
+!        talk = 0
+!     END IF
 
-    info = 0
+!     info = 0
 
-    ! First, factorize the matrix. The factors are stored in *factors* handle.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
-       iopt = 1
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
-
-
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Factorization succeeded'
-          ELSE
-             PRINT *, 'INFO from factorization = ', info
-          ENDIF
-       END IF
-    END IF
-
-    ! Second, solve the system using the existing factors.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
-       iopt = 2
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
-
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Solve succeeded'
-             ! WRITE(*,*) (b(i), i=1, n)
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
-
-    ! Last, free the storage allocated inside SuperLU
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
-       iopt = 3
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Free succeeded'
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
-
-    RETURN
-  END SUBROUTINE sparse_solve_superlu_b1
-  !-------------------------------------------------------------------------------
-
-  !-------------------------------------------------------------------------------
-  ! solves A*x = b for complex sparse A and 1-D vector b
-  ! A is specified through nrow,ncol,nz,irow,pcol,val
-  ! results are returned in b
-  ! Routines from SuperLU-Distribution
-  SUBROUTINE sparse_solve_superluComplex_b1(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
-    INTEGER, INTENT(in) :: nrow,ncol,nz
-    INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
-    COMPLEX(kind=dp), DIMENSION(:), INTENT(in) :: val
-    COMPLEX(kind=dp), DIMENSION(:), INTENT(inout) :: b
-    INTEGER, INTENT(in) :: iopt_in
-
-    INTEGER :: nrhs,ldb,n,info,iopt
-    INTEGER :: talk
-
-    IF (SIZE(pcol,1) .NE. ncol+1) THEN
-       PRINT *, 'Wrong pcol'
-       STOP
-    END IF
-
-    n = nrow
-    nrhs = 1
-    ldb = n
-
-    IF (sparse_talk) THEN
-       talk = 1
-    ELSE
-       talk = 0
-    END IF
-
-    info = 0
-
-    ! First, factorize the matrix. The factors are stored in *factors* handle.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
-       iopt = 1
-       CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
+!     ! First, factorize the matrix. The factors are stored in *factors* handle.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
+!        iopt = 1
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
 
 
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Factorization succeeded'
-          ELSE
-             PRINT *, 'INFO from factorization = ', info
-          ENDIF
-       END IF
-    END IF
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Factorization succeeded'
+!           ELSE
+!              PRINT *, 'INFO from factorization = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-    ! Second, solve the system using the existing factors.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
-       iopt = 2
-       CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
+!     ! Second, solve the system using the existing factors.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
+!        iopt = 2
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
 
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Solve succeeded'
-             ! WRITE(*,*) (b(i), i=1, n)
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Solve succeeded'
+!              ! WRITE(*,*) (b(i), i=1, n)
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-    ! Last, free the storage allocated inside SuperLU
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
-       iopt = 3
-       CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Free succeeded'
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
+!     ! Last, free the storage allocated inside SuperLU
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
+!        iopt = 3
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Free succeeded'
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-    RETURN
-  END SUBROUTINE sparse_solve_superluComplex_b1
+!     RETURN
+!   END SUBROUTINE sparse_solve_superlu_b1
+!   !-------------------------------------------------------------------------------
+
+!   !-------------------------------------------------------------------------------
+!   ! solves A*x = b for complex sparse A and 1-D vector b
+!   ! A is specified through nrow,ncol,nz,irow,pcol,val
+!   ! results are returned in b
+!   ! Routines from SuperLU-Distribution
+!   SUBROUTINE sparse_solve_superluComplex_b1(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
+!     INTEGER, INTENT(in) :: nrow,ncol,nz
+!     INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
+!     COMPLEX(kind=dp), DIMENSION(:), INTENT(in) :: val
+!     COMPLEX(kind=dp), DIMENSION(:), INTENT(inout) :: b
+!     INTEGER, INTENT(in) :: iopt_in
+
+!     INTEGER :: nrhs,ldb,n,info,iopt
+!     INTEGER :: talk
+
+!     IF (SIZE(pcol,1) .NE. ncol+1) THEN
+!        PRINT *, 'Wrong pcol'
+!        STOP
+!     END IF
+
+!     n = nrow
+!     nrhs = 1
+!     ldb = n
+
+!     IF (sparse_talk) THEN
+!        talk = 1
+!     ELSE
+!        talk = 0
+!     END IF
+
+!     info = 0
+
+!     ! First, factorize the matrix. The factors are stored in *factors* handle.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
+!        iopt = 1
+!        CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
+
+
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Factorization succeeded'
+!           ELSE
+!              PRINT *, 'INFO from factorization = ', info
+!           ENDIF
+!        END IF
+!     END IF
+
+!     ! Second, solve the system using the existing factors.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
+!        iopt = 2
+!        CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
+
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Solve succeeded'
+!              ! WRITE(*,*) (b(i), i=1, n)
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
+
+!     ! Last, free the storage allocated inside SuperLU
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
+!        iopt = 3
+!        CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Free succeeded'
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
+
+!     RETURN
+!   END SUBROUTINE sparse_solve_superluComplex_b1
+!!!!!! END UNCOMMENT FOR SUPERLU
+
+
   !-------------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------------
@@ -2255,85 +2308,87 @@ CONTAINS
   END SUBROUTINE sparse_solve_suitesparseComplex_b1
   !-------------------------------------------------------------------------------
 
-  !-------------------------------------------------------------------------------
-  ! solves A*x = b for sparse A and 2-D array b
-  ! A is specified through nrow,ncol,nz,irow,pcol,val
-  ! results are returned in b
-  ! Routines from SuperLU-Distribution
-  SUBROUTINE sparse_solve_superlu_b2(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
-    INTEGER, INTENT(in) :: nrow,ncol,nz
-    INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
-    REAL(kind=dp), DIMENSION(:), INTENT(in) :: val
-    REAL(kind=dp), DIMENSION(:,:), INTENT(inout) :: b
-    INTEGER, INTENT(in) :: iopt_in
 
-    INTEGER :: nrhs,ldb,n,info,iopt
-    INTEGER :: talk
+  !!!! UNCOMMENT FOR SUPERLU
+!   !-------------------------------------------------------------------------------
+!   ! solves A*x = b for sparse A and 2-D array b
+!   ! A is specified through nrow,ncol,nz,irow,pcol,val
+!   ! results are returned in b
+!   ! Routines from SuperLU-Distribution
+!   SUBROUTINE sparse_solve_superlu_b2(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
+!     INTEGER, INTENT(in) :: nrow,ncol,nz
+!     INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
+!     REAL(kind=dp), DIMENSION(:), INTENT(in) :: val
+!     REAL(kind=dp), DIMENSION(:,:), INTENT(inout) :: b
+!     INTEGER, INTENT(in) :: iopt_in
 
-    IF (SIZE(pcol,1) .NE. ncol+1) THEN
-       PRINT *, 'Wrong pcol'
-       STOP
-    END IF
+!     INTEGER :: nrhs,ldb,n,info,iopt
+!     INTEGER :: talk
 
-    n = nrow
-    nrhs = SIZE(b,2)
-    ldb = n
+!     IF (SIZE(pcol,1) .NE. ncol+1) THEN
+!        PRINT *, 'Wrong pcol'
+!        STOP
+!     END IF
 
-    IF (sparse_talk) THEN
-       talk = 1
-    ELSE
-       talk = 0
-    END IF
+!     n = nrow
+!     nrhs = SIZE(b,2)
+!     ldb = n
 
-    info = 0
+!     IF (sparse_talk) THEN
+!        talk = 1
+!     ELSE
+!        talk = 0
+!     END IF
 
-    ! First, factorize the matrix. The factors are stored in *factors* handle.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
-       iopt = 1
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
+!     info = 0
 
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Factorization succeeded'
-          ELSE
-             PRINT *, 'INFO from factorization = ', info
-          ENDIF
-       END IF
-    END IF
+!     ! First, factorize the matrix. The factors are stored in *factors* handle.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
+!        iopt = 1
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
 
-    ! Second, solve the system using the existing factors.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
-       iopt = 2
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Factorization succeeded'
+!           ELSE
+!              PRINT *, 'INFO from factorization = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Solve succeeded'
-             ! WRITE(*,*) (b(i), i=1, n)
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
+!     ! Second, solve the system using the existing factors.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
+!        iopt = 2
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
 
-    ! Last, free the storage allocated inside SuperLU
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
-       iopt = 3
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            b, ldb, factors, info )
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Free succeeded'
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Solve succeeded'
+!              ! WRITE(*,*) (b(i), i=1, n)
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-    RETURN
-  END SUBROUTINE sparse_solve_superlu_b2
+!     ! Last, free the storage allocated inside SuperLU
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
+!        iopt = 3
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             b, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Free succeeded'
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
+
+!     RETURN
+!   END SUBROUTINE sparse_solve_superlu_b2
   !-------------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------------
@@ -2446,214 +2501,216 @@ CONTAINS
 !!$  END SUBROUTINE sparse_solve_pardiso_b2
   !-------------------------------------------------------------------------------
 
-  !-------------------------------------------------------------------------------
-  ! solves A*x = b for sparse A and 2-D array b
-  ! A is specified through nrow,ncol,nz,irow,pcol,val
-  ! results are returned in b
-  ! Routines from SuperLU-Distribution
-  SUBROUTINE sparse_solve_superlu_b2_loop(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
-    INTEGER, INTENT(in) :: nrow,ncol,nz
-    INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
-    REAL(kind=dp), DIMENSION(:), INTENT(in) :: val
-    REAL(kind=dp), DIMENSION(:,:), INTENT(inout) :: b
-    INTEGER, INTENT(in) :: iopt_in
 
-    INTEGER :: nrhs,ldb,n,info,iopt
-    INTEGER :: i
-    INTEGER :: talk
-    INTEGER :: info_store
+  !!! UNCOMMENT FOR SUPERLU
+!   !-------------------------------------------------------------------------------
+!   ! solves A*x = b for sparse A and 2-D array b
+!   ! A is specified through nrow,ncol,nz,irow,pcol,val
+!   ! results are returned in b
+!   ! Routines from SuperLU-Distribution
+!   SUBROUTINE sparse_solve_superlu_b2_loop(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
+!     INTEGER, INTENT(in) :: nrow,ncol,nz
+!     INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
+!     REAL(kind=dp), DIMENSION(:), INTENT(in) :: val
+!     REAL(kind=dp), DIMENSION(:,:), INTENT(inout) :: b
+!     INTEGER, INTENT(in) :: iopt_in
 
-    REAL(kind=dp), DIMENSION(:), ALLOCATABLE :: bloc
+!     INTEGER :: nrhs,ldb,n,info,iopt
+!     INTEGER :: i
+!     INTEGER :: talk
+!     INTEGER :: info_store
 
-    IF (SIZE(pcol,1) .NE. ncol+1) THEN
-       PRINT *, 'Wrong pcol'
-       STOP
-    END IF
+!     REAL(kind=dp), DIMENSION(:), ALLOCATABLE :: bloc
 
-    n = nrow
-    nrhs = 1
-    ldb = n
+!     IF (SIZE(pcol,1) .NE. ncol+1) THEN
+!        PRINT *, 'Wrong pcol'
+!        STOP
+!     END IF
 
-    IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
-    ALLOCATE(bloc(nrow))
-    bloc = 0.0_dp
+!     n = nrow
+!     nrhs = 1
+!     ldb = n
 
-    IF (sparse_talk) THEN
-       talk = 1
-    ELSE
-       talk = 0
-    END IF
+!     IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
+!     ALLOCATE(bloc(nrow))
+!     bloc = 0.0_dp
 
-    info_store = 0
-    info = 0
+!     IF (sparse_talk) THEN
+!        talk = 1
+!     ELSE
+!        talk = 0
+!     END IF
 
-    ! First, factorize the matrix. The factors are stored in *factors* handle.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
-       iopt = 1
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            bloc, ldb, factors, info )
+!     info_store = 0
+!     info = 0
 
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Factorization succeeded'
-          ELSE
-             PRINT *, 'INFO from factorization = ', info
-          ENDIF
-       END IF
-    END IF
+!     ! First, factorize the matrix. The factors are stored in *factors* handle.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
+!        iopt = 1
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             bloc, ldb, factors, info )
 
-    ! Second, solve the system using the existing factors.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
-       iopt = 2
-       DO i = 1,SIZE(b,2)
-          bloc = b(:,i)
-          CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-               bloc, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Factorization succeeded'
+!           ELSE
+!              PRINT *, 'INFO from factorization = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-          IF (sparse_talk) THEN
-             IF (info .EQ. 0) THEN
-                !PRINT *, 'Solve succeeded',i
-                ! WRITE(*,*) (b(i), i=1, n)
-             ELSE
-                info_store = info_store + info
-                PRINT *, 'INFO from triangular solve = ', info
-             ENDIF
-          END IF
+!     ! Second, solve the system using the existing factors.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
+!        iopt = 2
+!        DO i = 1,SIZE(b,2)
+!           bloc = b(:,i)
+!           CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!                bloc, ldb, factors, info )
 
-          b(:,i) = bloc
-       END DO
+!           IF (sparse_talk) THEN
+!              IF (info .EQ. 0) THEN
+!                 !PRINT *, 'Solve succeeded',i
+!                 ! WRITE(*,*) (b(i), i=1, n)
+!              ELSE
+!                 info_store = info_store + info
+!                 PRINT *, 'INFO from triangular solve = ', info
+!              ENDIF
+!           END IF
 
-       IF (sparse_talk) THEN
-          IF (info_store .EQ. 0) THEN
-             PRINT *, 'Solve succeeded'
-          ELSE
-             PRINT *, 'INFO from triangular solve: failed ', info_store, ' times'
-          ENDIF
-       END IF
-    END IF
+!           b(:,i) = bloc
+!        END DO
 
-    ! Last, free the storage allocated inside SuperLU
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
-       iopt = 3
-       CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            bloc, ldb, factors, info )
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Free succeeded'
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
+!        IF (sparse_talk) THEN
+!           IF (info_store .EQ. 0) THEN
+!              PRINT *, 'Solve succeeded'
+!           ELSE
+!              PRINT *, 'INFO from triangular solve: failed ', info_store, ' times'
+!           ENDIF
+!        END IF
+!     END IF
 
-    IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
-    RETURN
-  END SUBROUTINE sparse_solve_superlu_b2_loop
-  !-------------------------------------------------------------------------------
+!     ! Last, free the storage allocated inside SuperLU
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
+!        iopt = 3
+!        CALL c_fortran_dgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             bloc, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Free succeeded'
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-  !-------------------------------------------------------------------------------
-  ! solves A*x = b for sparse A and 2-D array b
-  ! A is specified through nrow,ncol,nz,irow,pcol,val
-  ! results are returned in b
-  ! Routines from SuperLU-Distribution
-  SUBROUTINE sparse_solve_superluComplex_b2_loop(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
-    INTEGER, INTENT(in) :: nrow,ncol,nz
-    INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
-    COMPLEX(kind=dp), DIMENSION(:), INTENT(in) :: val
-    COMPLEX(kind=dp), DIMENSION(:,:), INTENT(inout) :: b
-    INTEGER, INTENT(in) :: iopt_in
+!     IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
+!     RETURN
+!   END SUBROUTINE sparse_solve_superlu_b2_loop
+!   !-------------------------------------------------------------------------------
 
-    INTEGER :: nrhs,ldb,n,info,iopt
-    INTEGER :: i
-    INTEGER :: talk
-    INTEGER :: info_store
+!   !-------------------------------------------------------------------------------
+!   ! solves A*x = b for sparse A and 2-D array b
+!   ! A is specified through nrow,ncol,nz,irow,pcol,val
+!   ! results are returned in b
+!   ! Routines from SuperLU-Distribution
+!   SUBROUTINE sparse_solve_superluComplex_b2_loop(nrow,ncol,nz,irow,pcol,val,b,iopt_in)
+!     INTEGER, INTENT(in) :: nrow,ncol,nz
+!     INTEGER, DIMENSION(:), INTENT(in) :: irow,pcol
+!     COMPLEX(kind=dp), DIMENSION(:), INTENT(in) :: val
+!     COMPLEX(kind=dp), DIMENSION(:,:), INTENT(inout) :: b
+!     INTEGER, INTENT(in) :: iopt_in
 
-    COMPLEX(kind=dp), DIMENSION(:), ALLOCATABLE :: bloc
+!     INTEGER :: nrhs,ldb,n,info,iopt
+!     INTEGER :: i
+!     INTEGER :: talk
+!     INTEGER :: info_store
 
-    IF (SIZE(pcol,1) .NE. ncol+1) THEN
-       PRINT *, 'Wrong pcol'
-       STOP
-    END IF
+!     COMPLEX(kind=dp), DIMENSION(:), ALLOCATABLE :: bloc
 
-    n = nrow
-    nrhs = 1
-    ldb = n
+!     IF (SIZE(pcol,1) .NE. ncol+1) THEN
+!        PRINT *, 'Wrong pcol'
+!        STOP
+!     END IF
 
-    IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
-    ALLOCATE(bloc(nrow))
-    bloc = 0.0_dp
+!     n = nrow
+!     nrhs = 1
+!     ldb = n
 
-    IF (sparse_talk) THEN
-       talk = 1
-    ELSE
-       talk = 0
-    END IF
+!     IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
+!     ALLOCATE(bloc(nrow))
+!     bloc = 0.0_dp
 
-    info_store = 0
-    info = 0
+!     IF (sparse_talk) THEN
+!        talk = 1
+!     ELSE
+!        talk = 0
+!     END IF
 
-    ! First, factorize the matrix. The factors are stored in *factors* handle.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
-       iopt = 1
-       CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            bloc, ldb, factors, info )
+!     info_store = 0
+!     info = 0
 
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Factorization succeeded'
-          ELSE
-             PRINT *, 'INFO from factorization = ', info
-          ENDIF
-       END IF
-    END IF
+!     ! First, factorize the matrix. The factors are stored in *factors* handle.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 1) THEN
+!        iopt = 1
+!        CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             bloc, ldb, factors, info )
 
-    ! Second, solve the system using the existing factors.
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
-       iopt = 2
-       DO i = 1,SIZE(b,2)
-          bloc = b(:,i)
-          CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-               bloc, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Factorization succeeded'
+!           ELSE
+!              PRINT *, 'INFO from factorization = ', info
+!           ENDIF
+!        END IF
+!     END IF
 
-          IF (sparse_talk) THEN
-             IF (info .EQ. 0) THEN
-                !PRINT *, 'Solve succeeded',i
-                ! WRITE(*,*) (b(i), i=1, n)
-             ELSE
-                info_store = info_store + info
-                PRINT *, 'INFO from triangular solve = ', info
-             ENDIF
-          END IF
+!     ! Second, solve the system using the existing factors.
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 2) THEN
+!        iopt = 2
+!        DO i = 1,SIZE(b,2)
+!           bloc = b(:,i)
+!           CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!                bloc, ldb, factors, info )
 
-          b(:,i) = bloc
-       END DO
+!           IF (sparse_talk) THEN
+!              IF (info .EQ. 0) THEN
+!                 !PRINT *, 'Solve succeeded',i
+!                 ! WRITE(*,*) (b(i), i=1, n)
+!              ELSE
+!                 info_store = info_store + info
+!                 PRINT *, 'INFO from triangular solve = ', info
+!              ENDIF
+!           END IF
 
-       IF (sparse_talk) THEN
-          IF (info_store .EQ. 0) THEN
-             PRINT *, 'Solve succeeded'
-          ELSE
-             PRINT *, 'INFO from triangular solve: failed ', info_store, ' times'
-          ENDIF
-       END IF
-    END IF
+!           b(:,i) = bloc
+!        END DO
 
-    ! Last, free the storage allocated inside SuperLU
-    IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
-       iopt = 3
-       CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
-            bloc, ldb, factors, info )
-       IF (sparse_talk) THEN
-          IF (info .EQ. 0) THEN
-             PRINT *, 'Free succeeded'
-          ELSE
-             PRINT *, 'INFO from triangular solve = ', info
-          ENDIF
-       END IF
-    END IF
+!        IF (sparse_talk) THEN
+!           IF (info_store .EQ. 0) THEN
+!              PRINT *, 'Solve succeeded'
+!           ELSE
+!              PRINT *, 'INFO from triangular solve: failed ', info_store, ' times'
+!           ENDIF
+!        END IF
+!     END IF
 
-    IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
-    RETURN
-  END SUBROUTINE sparse_solve_superluComplex_b2_loop
+!     ! Last, free the storage allocated inside SuperLU
+!     IF (iopt_in .EQ. 0 .OR. iopt_in .EQ. 3) THEN
+!        iopt = 3
+!        CALL c_fortran_zgssv( iopt, n, nz, nrhs, val, irow, pcol, & 
+!             bloc, ldb, factors, info )
+!        IF (sparse_talk) THEN
+!           IF (info .EQ. 0) THEN
+!              PRINT *, 'Free succeeded'
+!           ELSE
+!              PRINT *, 'INFO from triangular solve = ', info
+!           ENDIF
+!        END IF
+!     END IF
+
+!     IF (ALLOCATED(bloc)) DEALLOCATE(bloc)
+!     RETURN
+!   END SUBROUTINE sparse_solve_superluComplex_b2_loop
   !-------------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------------

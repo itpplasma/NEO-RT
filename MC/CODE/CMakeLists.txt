@@ -49,7 +49,7 @@ ENDIF(CMAKE_BUILD_TYPE MATCHES DEBUG)
 
 ### Find libraries
 find_package(SuiteSparse REQUIRED)
-find_package(SuperLU REQUIRED)
+# find_package(SuperLU REQUIRED)
 
 
 ### Source files (load external file)
@@ -64,14 +64,13 @@ add_library("neo_rt_mc" SHARED
 	${HYDRA_SRC_FILES}  
 	${NEO_MAGFIE_SRC_FILES} 
   	${SUITESPARSE_SRC_FILES}
-	${SUPERLU_SRC_FILES}
+#	${SUPERLU_SRC_FILES}
 )
 
 target_link_libraries(neo_rt_mc
-	${SUPERLU_LIBRARIES}
+#	${SUPERLU_LIBRARIES}
 	${SUITESPARSE_LIBRARIES}
-	lapack
-	blas
+	openblas
 )
 
 ### Add libraries linked with executable

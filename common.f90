@@ -69,7 +69,7 @@ module common
     real(8) :: buf(ncol)
     integer :: unit, nrow, io, k
 
-    unit = 11
+    call newunit(unit)
 
     open(unit,file=filename)
     nrow = 0
