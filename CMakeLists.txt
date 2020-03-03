@@ -87,8 +87,7 @@ target_link_libraries(
   vode
   spline
   quadpack
-  blas
-  lapack
+  openblas
 )
 
 ### Linking
