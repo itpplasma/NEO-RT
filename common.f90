@@ -67,27 +67,25 @@ module common
     integer, intent(in) :: ncol
     real(8), allocatable, intent(out) :: data(:,:)
     real(8) :: buf(ncol)
-    integer :: unit, nrow, io, k
+    integer :: lun, nrow, io, k
 
-    call newunit(unit)
-
-    open(unit,file=filename)
+    open(unit=newunit(lun),file=filename)
     nrow = 0
     do
-       read(unit,*,iostat=io) buf
+       read(lun,*,iostat=io) buf
        if (io/=0) exit
        nrow = nrow + 1
     end do
 
-    rewind(unit)
+    rewind(lun)
     
     allocate(data(nrow,2))
 
     do k=1,nrow
-       read(unit,*) data(k,:)
+       read(lun,*) data(k,:)
     end do
 
-    close(unit)
+    close(lun)
   end subroutine readdata
 
   subroutine clearfile(filename)
