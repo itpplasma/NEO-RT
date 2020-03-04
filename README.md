@@ -2,6 +2,10 @@
 Calculates NTV torque in resonant transport regimes using a Hamiltonian approach
 
 ## Building
+* Clone latest NEO-RT version from github
+```bash
+git clone https://github.com/itpplasma/NEO-RT
+```
 * Prerequisites: In the directory where the NEO-RT folder is located, run
 ```bash
 git clone https://github.com/itpplasma/spline
