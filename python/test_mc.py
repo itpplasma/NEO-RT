@@ -81,7 +81,7 @@ parmot_mod.rmu = 1e5
 # Here we translate an input file in Tesla to computation in Gauss/CGS
 bmod_ref = 1e4            # 1 Tesla in Gauss
 bmod00 = 1.0              # 1 Tesla in Tesla
-tempi1 = 0.17549561306e4  # ion temperature
+tempi1 = 1.7549561306e3   # ion temperature
 am = 2                    # Atomic mass 2 of deuterium ions
 Zb = 1                    # Atomic charge 1 of deuterium ions
 
@@ -97,7 +97,7 @@ print('ro0: {}'.format(parmot_mod.ro0))
 z = libneo_rt_mc._ffi.new('double[5]')
 z[0] = s0         # s = psi_tor/psi_tor_a
 z[1] = 0.0        # varphi
-z[2] = 0.7*np.pi  # vartheta
+z[2] = 0.9*np.pi  # vartheta
 z[3] = 1.0        # normalized velocity module  v / v_0
 z[4] = 0.00       # pitch v_\parallel / v:
 
@@ -166,19 +166,19 @@ def run_bananas(s):
     # Initial conditions
     z[0] = s
     z[1] = 0.0
-    z[2] = -0.7*np.pi
+    z[2] = -0.9*np.pi
     z[3] = 1.38   # normalized velocity module  v / v_0
-    z[4] = 1e-15  # pitch v_\parallel / v, be careful with events !!
+    z[4] = 1e-13  # pitch v_\parallel / v, be careful with events !!
     z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
 
     integ = solve_ivp(
-        velo, (0, 5e4*dtau), z0, events=(event_banantip,event_circ), 
-        max_step=10*dtau, method='LSODA')
+        velo, (0, 5e5*dtau), z0, events=(event_banantip,event_circ), 
+        max_step=5*dtau, method='LSODA', rtol=1e-6, atol=1e-8)
 
     print(integ.t_events)
 
     zs = integ.y
-    plt.plot(np.sqrt(zs[0,:])*np.cos(zs[2,:]), np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
+    plt.plot(np.sqrt(zs[0,:])*np.cos(zs[2,:]), np.sqrt(zs[0,:])*np.sin(zs[2,:]))
  
     # Om^th = om_b = 2*pi/t_bounce = 2*pi*v0/tau_bounce
     omb = 2*np.pi*v0/integ.t_events[0][0]
@@ -193,10 +193,14 @@ def run_bananas(s):
     
     return [omb, Omphi] 
 
-parmot_mod.ro0 = rlarm*bmod00  # Actual Larmor radius
+fac1 = 2.0
+fac2 = 1e-2
+
+parmot_mod.ro0 = rlarm*bmod00*fac1 # Bigger Larmor radius
 plt.figure(figsize=(4.0, 4.0))
 freqs = []
-srange = np.array([0.005, 0.01, 0.02, 0.03, 0.12, 0.22, 0.32, 0.52, 0.72])
+srange = np.linspace(0.001, 0.7, 200)**2
+#srange = np.array([0.002, 0.005, 0.01, 0.02, 0.03, 0.12, 0.22, 0.32, 0.52, 0.72])*0.7
 for sk in srange:
     freqs.append(run_bananas(sk))
 plt.xlabel(r'$\rho_\mathrm{tor}\,\cos\vartheta_\mathrm{B}$')
@@ -205,7 +209,7 @@ plt.title("Drift orbits")
 plt.xlim([-1.0, 1.0])
 plt.ylim([-1.0, 1.0])
 
-parmot_mod.ro0 = 1e-3*rlarm*bmod00  # Smaller Larmor radius
+parmot_mod.ro0 = fac2*rlarm*bmod00  # Smaller Larmor radius
 plt.figure(figsize=(4.0, 4.0))
 freqs_thin = []
 for sk in srange:
@@ -231,7 +235,7 @@ plt.legend(['thin', 'full'])
 
 plt.figure()
 # Rescale by factor 1e-3 due to other Larmor radius
-plt.plot(np.sqrt(srange), freqs_thin[:,1]/1e-3, 'k--', zorder=10)
+plt.plot(np.sqrt(srange), freqs_thin[:,1]*fac1/fac2, 'k--', zorder=10)
 plt.plot(np.sqrt(srange), freqs[:,1], color='tab:red')
 plt.xlabel(r'$\rho_\mathrm{tor}$')
 plt.ylabel(r'$\Omega_{\mathrm{tB}} / \mathrm{s}^{-1}$')
@@ -241,4 +245,4 @@ plt.legend(['thin', 'full'])
 
 # %%
 
-
+plt.show()
