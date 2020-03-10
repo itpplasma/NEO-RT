@@ -23,4 +23,6 @@ _*.o
 out.txt
 fort.*
 *.log
+*.tar.gz
+*.asc
 
