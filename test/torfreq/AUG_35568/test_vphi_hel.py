@@ -28,13 +28,12 @@ with open(filename) as f:
 # Split the first line, which contains some usefull (e.g. nw, nh) and
 # some not so usefull information (e.g. unknownvaluestr and signtodiscard).
 linespl = lines[0].split()
-nw = linespl[-1]
+nw = linespl[-2]
 nh = linespl[-1] 
 
 nw = int(nw) # Number of horizontal R grid points
 nh = int(nh) # Number of vertical z grid points
 
-d = 15
 # First few (four) lines contain specific values.
 rdim, zdim, rcentr, rleft, zmid = [lines[1][i:i+16] for i in range(0,5*16,16)]
 rmaxis, zmaxis, simag, sibry, bcentr = [lines[2][i:i+16] for i in range(0,5*16,16)]
