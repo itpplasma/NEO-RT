@@ -34,7 +34,7 @@ hctrvr = libneo_rt_mc._ffi.new('double[3]')
 hcurl = libneo_rt_mc._ffi.new('double[3]')
 
 
-# %% Initialize magnetic field
+# %% Initialize axisymmetric magnetic field from in_file
 x[0] = 1e-8      # s
 x[1] = 0.0       # theta
 x[2] = 0.0       # phi
@@ -193,7 +193,11 @@ def run_bananas(s):
     
     return [omb, Omphi] 
 
-fac1 = 2.0
+# Factor of larmor radius to check thin bananas
+# TODO: compare to other thin orbit formula from NEO-RT driftorbit.f90
+# TODO: passing orbits
+
+fac1 = 1.0
 fac2 = 1e-2
 
 parmot_mod.ro0 = rlarm*bmod00*fac1 # Bigger Larmor radius
