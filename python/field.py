@@ -65,13 +65,18 @@ class BoozerField(Field):
         self.psi_pr = 0.0  # TODO
 
     def evaluate(self, x):
-        """Evaluates field at position x in Boozer coordinates s, \vartheta, \varphi
+        """Evaluates field at position x = (s, \vartheta, \varphi) in Boozer coordinates
         and stores result in class members"""
         
-        self.A[0] = 0.0
-        self.A[1] = -self.psi_pr*x[0]**2  # TODO, check if this
+        # In any flux coordinates, A_s = 0, A_th = A_th(s), A_ph = A_ph(s) are
+        # independent of flux angles th and ph.
+
+        self.A[0] = 0.0                # A_s = 0, since flux coordinates
+        self.A[1] = -self.psi_pr*x[0]  # A_\vartheta = -psi_tor, see d'haeseleer
         # TODO: implement A_\varphi via spline antiderivative to integrate and
-        # \psi_{pol} = \int psi_pol_pr ds = \int iota*psi_pr ds.
+        # \psi_{pol} = \int d\psi_{pol}/ds ds 
+        #            = \int d\psi_{tor}/ds * d\psi_{pol}/d\psi_{tor} ds.
+        #            = \int psi_pr*iota ds
         # \psi_{pol}(s=0) should vanish.
         # Acov[2] = ...
 
