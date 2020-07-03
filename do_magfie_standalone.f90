@@ -162,6 +162,8 @@ contains
   end subroutine do_magfie
 
   subroutine boozer_read(filename)
+    ! Reads Boozer in_file and converts SI to CGS
+
     integer :: ksurf, kmode
     real(8) :: flux
     character(len=*) :: filename
@@ -170,7 +172,12 @@ contains
     read(18, *) m0b, n0b, nflux, nfp, flux, a, R0
     a = 100*a   ! m -> cm
     R0 = 100*R0 ! m -> cm
+
+    ! psi_pr = dpsi_tor/ds = psi_tor/s is constantly spaced
+    ! psi_tor = psi_pr*s	
+    ! A_theta = -psi_tor
     psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
+    
     nmode = (m0b+1)*(n0b+1)
     allocate(params0(nflux, ncol1+1))
     allocate(modes0(nflux, nmode, ncol2+2))
