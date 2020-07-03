@@ -7,6 +7,8 @@ from neo_rt_fffi import libneo_rt, magfie  # , magfie_pert
 magfie.inp_swi = 8
 magfie.s = 0.15
 magfie.do_magfie_init()
+psipr = magfie.psi_pr
+
 # magfie_pert.do_magfie_pert_init()
 
 # %%
@@ -66,7 +68,7 @@ plt.title(r'$s = {}$'.format(magfie.s))
 #     for kph in np.arange(nph):
 #         x[1] = th[kth]
 #         x[2] = ph[kph]
-#         magfie.do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+#         magfie.do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl, psipr)
 #         B[kph, kth] = bmod[0]
 #         Bpert[kph, kth] = bmod[0]
 # # %%

@@ -462,7 +462,7 @@ contains
     x(1) = s
     x(2) = 0d0
     x(3) = th0
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
     
   end subroutine bounce
   

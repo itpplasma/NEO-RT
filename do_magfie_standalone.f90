@@ -158,7 +158,6 @@ contains
     hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)*bmod/sqgbmod2
     hcurl(3) = (-dBphcovds+bder(1)*Bphcov)*bmod/sqgbmod2 ! TODO: B_s
     hcurl(2) = (dBthcovds-bder(1)*Bthcov)*bmod/sqgbmod2 ! TODO: B_s
-
     
   end subroutine do_magfie
 
