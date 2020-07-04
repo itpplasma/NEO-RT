@@ -255,7 +255,7 @@ def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'
     
     # Plot the orbit:
     if plotting == True:
-        plt.plot(100*np.sqrt(zs[0,:])*np.cos(zs[2,:]), 100*np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
+        plt.plot(100*np.sqrt(zs[0,:])*np.cos(zs[2,:]), 100*np.sqrt(zs[0,:])*np.sin(zs[2,:]))
         plt.title('Poloidal Projection (flux coord. field)')
         plt.xlabel('r / cm')
         plt.ylabel('z / cm')
@@ -270,7 +270,9 @@ def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'
         omb = 2*np.pi/time_events[1][0]
         Omphi = omb*y_events[1][0][1]/(2*np.pi)
 
-
+    lambda_0 = mu*bmod[0]/H    
+    r_av = np.mean(abs(zs[0,:]))
+    
     if method != 'thin':
         omb = omb*v0
         Omphi = Omphi*v0
@@ -278,8 +280,7 @@ def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'
         # If orbit width != 0: classify orbit type according to paper:
         # "Lagrangian neoclassical transport theory applied to the region near 
         # the magnetic axis" by Satake et al. (2002)
-        lambda_0 = mu*bmod[0]/H    
-        r_av = np.mean(abs(zs[0,:]))
+        
         thdot = np.zeros(len(time))
         for k in range(len(time)):
             thdot[k] = velo(time[k],zs[:,k])[2]
@@ -297,6 +298,8 @@ def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'
             if np.sign(sigma_par[0]) == 1:                orbit_type=4; print('Orbit type: outer circulating')
             else:                                         orbit_type=5; print('Orbit type: inner circulating')
         else:                                             orbit_type=9; print('No classification possible')
+    else:                                                 
+        orbit_type=9; print('No classification for thin orbits')
     
     return [omb, Omphi, pphi, H, mu, orbit_type, lambda_0, r_av]  
 
@@ -320,14 +323,13 @@ for k in range(nr_bananas):
     if k%10 == 0:
         plotting = True
         print(k)
-    plotting = True
     
     # Randomize initial conditions
     va = 1.3; vb = 1.5
     v_v0 = (vb - va)*random() + va
-    vpa = 0.1; vpb = 0.2
+    vpa = 0.1; vpb = 0.15
     vpar_v0 = (vpb - vpa)*random() + vpa
-    r0a = 0.03; r0b = 0.6
+    r0a = 0.03; r0b = 0.1
     r0 = (r0b - r0a)*random() + r0a
     
     # Store [omb, Omphi, pphi, H, mu, orbit_type, lambda_0, r_av] in 'solution'
