@@ -3,18 +3,13 @@ import numpy as np
 from random import random
 import matplotlib.pyplot as plt
 from neo_rt_fffi import libneo_rt_mc, parmot_mod
-<<<<<<< HEAD
 from scipy.interpolate import UnivariateSpline
-from scipy.integrate import solve_ivp
 from interpolation import interpol, suppvec2
-=======
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import Rbf, splrep, splev, sproot, InterpolatedUnivariateSpline
 from scipy.integrate import solve_ivp
 from IPython import get_ipython
-
->>>>>>> aad2d764422055e66f93807f045cb476d3e64f6f
 
 #
 # Normalized time variable tau of integrator is given in units of length !
@@ -193,82 +188,6 @@ rho_tor = np.sqrt(zs[0,:])
 
 # %% Integrate with events: banana tips and circular crossings of varphi=2*pi
 
-<<<<<<< HEAD
-#def run_bananas(s):
-#    # Initial conditions
-#    z[0] = s
-#    z[1] = 0.0
-#    z[2] = -0.7*np.pi
-#    z[3] = 1.38   # normalized velocity module  v / v_0
-#    z[4] = 1e-15  # pitch v_\parallel / v, be careful with events !!
-#    z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
-#
-#    integ = solve_ivp(
-#        velo, (0, 5e4*dtau), z0, events=(event_bananatip,event_circ), 
-#        max_step=10*dtau, method='LSODA')
-#
-#    print(integ.t_events)
-#
-#    zs = integ.y
-#    plt.plot(np.sqrt(zs[0,:])*np.cos(zs[2,:]), np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
-# 
-#    # Om^th = om_b = 2*pi/t_bounce = 2*pi*v0/tau_bounce
-#    omb = 2*np.pi*v0/integ.t_events[0][0]
-#    
-#    # Toroidal precession frequency
-#    Omphi = omb*integ.y_events[0][0][1]/(2*np.pi)
-#    
-#    return [omb, Omphi] 
-
-#parmot_mod.ro0 = rlarm*bmod00  # Actual Larmor radius
-#plt.figure(figsize=(4.0, 4.0))
-#freqs = []
-#srange = np.array([0.005, 0.01, 0.02, 0.03, 0.12, 0.22, 0.32, 0.52, 0.72])
-#for sk in srange:
-#    freqs.append(run_bananas(sk))
-#plt.xlabel(r'$\rho_\mathrm{tor}\,\cos\vartheta_\mathrm{B}$')
-#plt.ylabel(r'$\rho_\mathrm{tor}\,\sin\vartheta_\mathrm{B}$')
-#plt.title("Drift orbits")
-#plt.xlim([-1.0, 1.0])
-#plt.ylim([-1.0, 1.0])
-#
-#parmot_mod.ro0 = 1e-3*rlarm*bmod00  # Smaller Larmor radius
-#plt.figure(figsize=(4.0, 4.0))
-#freqs_thin = []
-#for sk in srange:
-#    freqs_thin.append(run_bananas(sk))
-#plt.xlabel(r'$\rho_\mathrm{tor}\,\cos\vartheta_\mathrm{B}$')
-#plt.ylabel(r'$\rho_\mathrm{tor}\,\sin\vartheta_\mathrm{B}$')
-#plt.title("Thin orbit approximation")
-#plt.xlim([-1.0, 1.0])
-#plt.ylim([-1.0, 1.0])
-## %%
-#freqs = np.array(freqs)
-#freqs_thin = np.array(freqs_thin)
-#
-#
-#plt.figure()
-#plt.plot(np.sqrt(srange), freqs_thin[:,0] , 'k--', zorder=10)
-#plt.plot(np.sqrt(srange), freqs[:,0], color='tab:red')
-#plt.xlabel(r'$\rho_\mathrm{tor}$')
-#plt.ylabel(r'$\omega_b / \mathrm{s}^{-1}$')
-#plt.title("Bounce frequency")
-#plt.xlim([0, 0.9])
-#plt.legend(['thin', 'full'])
-#
-#plt.figure()
-## Rescale by factor 1e-3 due to other Larmor radius
-#plt.plot(np.sqrt(srange), freqs_thin[:,1]/1e-3, 'k--', zorder=10)
-#plt.plot(np.sqrt(srange), freqs[:,1], color='tab:red')
-#plt.xlabel(r'$\rho_\mathrm{tor}$')
-#plt.ylabel(r'$\Omega_{\mathrm{tB}} / \mathrm{s}^{-1}$')
-#plt.title("Toroidal precession frequency (magnetic)")
-#plt.xlim([0, 0.9])
-#plt.legend(['thin', 'full'])
-#
-
-=======
->>>>>>> aad2d764422055e66f93807f045cb476d3e64f6f
 def event_bananatip(t, z):
     """ Trapped orbit - banana tip at vpar=0 """
     return z[4]
@@ -277,64 +196,51 @@ def event_circ(t, z):
     """ Passing orbit - full turn at theta=2pi """
     return z[2] - 2*np.pi
 
-<<<<<<< HEAD
+
 def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'):
     """ 
     Calculate [omb, Omphi, pphi, H, mu, orbit_type]
     Methods: {'full', 'thin'} 
     """
-    global psi_pol
-=======
-def run_bananas(s):
->>>>>>> aad2d764422055e66f93807f045cb476d3e64f6f
-    # Initial conditions
+    
+    # Initial values
     z = libneo_rt_mc._ffi.new('double[5]')
-    z[0] = r0       # s
-    z[1] = 0.       # varphi
-    z[2] = th0      # vartheta
-    z[3] = v        # normalized velocity module (v/v0)
-    z[4] = vpar     # normalized parallel velocity (vpar/v)
+    z[0] = r0           # s
+    z[1] = 0.           # varphi
+    z[2] = th0          # vartheta
+    z[3] = v            # normalized velocity module (v/v0)
+    z[4] = vpar         # normalized parallel velocity (vpar/v)
     z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
-<<<<<<< HEAD
     
     # Calculate constants of motion
     libneo_rt_mc.magfie(z[0:3], bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-    v = v*v0; vpar = z[4]*v; vperp = np.sqrt(v**2 - vpar**2)   
-    mu = am*p_mass*vperp**2/(2*bmod[0]*ev)  # eV/T    
-    H = am*p_mass*v**2/(2*ev)               # eV
-    lambda_0 = mu*bmod[0]/H
+    v = v*v0; vpar = z[4]*v; vperp = np.sqrt(v**2 - vpar**2)    # cm/s
+    mu = am*p_mass*vperp**2/(2*bmod[0]*ev)                      # eV/T    
+    H = am*p_mass*v**2/(2*ev)                                   # eV
     
-    # Integrate equ. of motion:
+    # Integrate equations of motion for thin or full orbits:
     if method == 'thin':
-        eta = vperp**2/(v**2*bmod[0])       # T^(-1)
+        eta = vperp**2/(v**2*bmod[0])     # T^(-1)
         zdot = lambda t, y: velo_thin(t,y,v,eta)
         integ = solve_ivp(zdot, (0, 1e5*dtau/v0), z0, events=(event_bananatip,event_circ), 
                           max_step=10*dtau/v0, method='LSODA')
     else:
         integ = solve_ivp(velo, (0, 5e5*dtau), z0, events=(event_bananatip,event_circ), 
                           max_step=10*dtau, method='LSODA')
-=======
 
-    integ = solve_ivp(
-        velo, (0, 5e4*dtau), z0, events=(event_bananatip,event_circ), 
-        max_step=10*dtau, method='LSODA')
-
-    print(integ.t_events)
-
->>>>>>> aad2d764422055e66f93807f045cb476d3e64f6f
     zs = integ.y
-    rphi = zs[0,-1]                 # tip radius
+    time = integ.t
+    y_events = integ.y_events               
     time_events = integ.t_events
-    y_events = integ.y_events               # [s, varphi, vartheta, v/v0, vpar/v] at event
+    rphi = zs[0,-1]                         # tip radius
     pphi = - Zb*e_charge*psi_pol(rphi)/c    # eVs/cm
-    t = integ.t
-    # Integrate again from tip for a complete orbit:
+    
+    
+    # Integrate again from tip or theta=0 for a complete orbit:
     if len(time_events[1])==0:
         zs2 = zs[:,-1]
-
         zs2[2] = zs2[2]%(2*np.pi)   
-        if zs2[2] > np.pi: zs2[2] = -(2*np.pi - zs2[2])     # project angle theta back in (-pi,pi) 
-                                                            # (as to not wrongly trigger event_circ)
+        if zs2[2] > np.pi: zs2[2] = -(2*np.pi - zs2[2])     # project angle theta back in (-pi,pi) (as to not wrongly trigger event_circ)
         zs2[4] = 1e-15                                      # set vpar to numerical zero at tip
         if method == 'thin':
             integ2 = solve_ivp(zdot, (0, 1e5*dtau/v0), zs2, events=(event_bananatip,event_circ), 
@@ -342,74 +248,58 @@ def run_bananas(s):
         else:
             integ2 = solve_ivp(velo, (0, 5e5*dtau), zs2, events=(event_bananatip,event_circ), 
                                max_step=10*dtau, method='LSODA')
-            
         time_events = integ2.t_events
-        t = integ2.t
+        time = integ2.t
         y_events = integ2.y_events
         zs = integ2.y   
     
-<<<<<<< HEAD
-    # zs --- solutions
-    # t -- times
-    
-
     # Plot the orbit:
     if plotting == True:
-#        fig, ax = plt.subplots()
         plt.plot(100*np.sqrt(zs[0,:])*np.cos(zs[2,:]), 100*np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
-#        plt.plot(np.sqrt(r0)*np.cos(th0), np.sqrt(r0)*np.sin(th0),'rx')
         plt.title('Poloidal Projection (flux coord. field)')
         plt.xlabel('r / cm')
         plt.ylabel('z / cm')
-#        if method == 'thin':
-#            plt.title('Thin Orbits $r_0$ = ' + str(r) + ', $\\theta_0 = $' + str(th) 
-#            + ', v/v0 = ' + str(z0[3]) + ', vpar/v = ' + str(z0[4]))
-#        else:
-#            plt.title('Full Orbits $r_0$ = ' + str(r) + ', $\\theta_0 = $' + str(th) 
-#            + ', v/v0 = ' + str(z0[3]) + ', vpar/v = ' + str(z0[4]))
         plt.axis('equal')
 #        plt.show()
 
-    # Calculate orbit type (passing (0), trapped (1), potato (2)):
-    orbit_type = 0                                  # passing orbit
+    # Calculate bounce/drift frequency
     if len(time_events[0])>0:
-        orbit_type = 1                              # trapped orbit
-        omb = 2*np.pi/time_events[0][0]          # bounce frequency 
+        omb = 2*np.pi/time_events[0][0]             # bounce frequency 
         Omphi = omb*y_events[0][0][1]/(2*np.pi)     # toroidal precession frequency
     else:
         omb = 2*np.pi/time_events[1][0]
         Omphi = omb*y_events[1][0][1]/(2*np.pi)
-    if any(abs(zs[0,:]<1e-4)):
-        orbit_type = 2                              # potato orbit
+
 
     if method != 'thin':
         omb = omb*v0
         Omphi = Omphi*v0
-        thdot = np.zeros(len(t))
-        for k in range(len(t)):
-            thdot[k] = velo(t[k],zs[:,k])[2]
         
+        # If orbit width != 0: classify orbit type according to paper:
+        # "Lagrangian neoclassical transport theory applied to the region near 
+        # the magnetic axis" by Satake et al. (2002)
+        lambda_0 = mu*bmod[0]/H    
+        r_av = np.mean(abs(zs[0,:]))
+        thdot = np.zeros(len(time))
+        for k in range(len(time)):
+            thdot[k] = velo(time[k],zs[:,k])[2]
+            
         sigma_par = zs[4,:]/abs(zs[4,:])
         sigma_theta = thdot/abs(thdot)
         turns_sigma_par = len(np.where(np.diff(np.append(sigma_par,sigma_par[0]))!=0)[0])
         turns_sigma_theta = len(np.where(np.diff(np.append(sigma_theta,sigma_theta[0]))!=0)[0])    
-        if turns_sigma_par==0 and turns_sigma_theta==0: orbit_type=0;   print('Orbit type: passing')
+        
+        if turns_sigma_par==0 and turns_sigma_theta==0:   orbit_type=0; print('Orbit type: passing')
         elif turns_sigma_par==2 and turns_sigma_theta==2: orbit_type=1; print('Orbit type: banana')
         elif turns_sigma_par==2 and turns_sigma_theta==0: orbit_type=2; print('Orbit type: kidney')
         elif turns_sigma_par==2 and turns_sigma_theta==4: orbit_type=3; print('Orbit type: concave kidney')
         elif turns_sigma_par==0 and turns_sigma_theta==2: 
-            if np.sign(sigma_par[0]) == -1:               orbit_type=4; print('Orbit type: outer circulating')
+            if np.sign(sigma_par[0]) == 1:                orbit_type=4; print('Orbit type: outer circulating')
             else:                                         orbit_type=5; print('Orbit type: inner circulating')
-        else: orbit_type=101
-        
-#    plt.show()
-#    plt.plot(t, zs[2,:]) 
-#    plt.xlabel('time / s')
-#    plt.ylabel('$\\theta$(t) / rad')
-#    plt.show()
-        
-    r_av = np.mean(abs(zs[0,:]))
+        else:                                             orbit_type=9; print('No classification possible')
+    
     return [omb, Omphi, pphi, H, mu, orbit_type, lambda_0, r_av]  
+
 
 event_bananatip.direction = 1.
 event_bananatip.terminal = True
@@ -418,6 +308,7 @@ nr_bananas = 100
 
 
 """ Orbit Run """
+
 solution = np.zeros([nr_bananas,8])
 init_val = np.zeros([nr_bananas,4])
 solution_thin = np.zeros([nr_bananas,8])
@@ -426,10 +317,12 @@ th0 = -0.2*np.pi
 #r0 = 0.04
 
 for k in range(nr_bananas):
-#    if k%1 == 0:
-#        plotting = True
-#        print(k)
+    if k%10 == 0:
+        plotting = True
+        print(k)
     plotting = True
+    
+    # Randomize initial conditions
     va = 1.3; vb = 1.5
     v_v0 = (vb - va)*random() + va
     vpa = 0.1; vpb = 0.2
@@ -437,13 +330,12 @@ for k in range(nr_bananas):
     r0a = 0.03; r0b = 0.6
     r0 = (r0b - r0a)*random() + r0a
     
+    # Store [omb, Omphi, pphi, H, mu, orbit_type, lambda_0, r_av] in 'solution'
     solution[k,:] = orbit(r0=r0, th0=th0, v=v_v0, vpar=vpar_v0, plotting=plotting, method='full')
     init_val[k,:] = [r0, th0, v_v0, vpar_v0]
-    
     solution_thin[k,:] = orbit(r0=r0, th0=th0, v=v_v0, vpar=vpar_v0, plotting=False, method='thin')
     plotting = False
     
-   
 plt.show()
 
 #np.savetxt('solution_r_fixed.csv', solution, delimiter=',')
@@ -466,372 +358,3 @@ plt.show()
 #    libneo_rt_mc.magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 #
 ##orbit(plotting=True, vpar=0.9, method='full')
-=======
-    # Toroidal precession frequency
-    Omphi = omb*integ.y_events[0][0][1]/(2*np.pi)
-    
-    return [omb, Omphi] 
-
-#parmot_mod.ro0 = rlarm*bmod00  # Actual Larmor radius
-#plt.figure(figsize=(4.0, 4.0))
-#freqs = []
-#srange = np.array([0.005, 0.01, 0.02, 0.03, 0.12, 0.22, 0.32, 0.52, 0.72])
-#for sk in srange:
-#    freqs.append(run_bananas(sk))
-#plt.xlabel(r'$\rho_\mathrm{tor}\,\cos\vartheta_\mathrm{B}$')
-#plt.ylabel(r'$\rho_\mathrm{tor}\,\sin\vartheta_\mathrm{B}$')
-#plt.title("Drift orbits")
-#plt.xlim([-1.0, 1.0])
-#plt.ylim([-1.0, 1.0])
-#
-#parmot_mod.ro0 = 1e-3*rlarm*bmod00  # Smaller Larmor radius
-#plt.figure(figsize=(4.0, 4.0))
-#freqs_thin = []
-#for sk in srange:
-#    freqs_thin.append(run_bananas(sk))
-#plt.xlabel(r'$\rho_\mathrm{tor}\,\cos\vartheta_\mathrm{B}$')
-#plt.ylabel(r'$\rho_\mathrm{tor}\,\sin\vartheta_\mathrm{B}$')
-#plt.title("Thin orbit approximation")
-#plt.xlim([-1.0, 1.0])
-#plt.ylim([-1.0, 1.0])
-## %%
-#freqs = np.array(freqs)
-#freqs_thin = np.array(freqs_thin)
-#
-#
-#plt.figure()
-#plt.plot(np.sqrt(srange), freqs_thin[:,0] , 'k--', zorder=10)
-#plt.plot(np.sqrt(srange), freqs[:,0], color='tab:red')
-#plt.xlabel(r'$\rho_\mathrm{tor}$')
-#plt.ylabel(r'$\omega_b / \mathrm{s}^{-1}$')
-#plt.title("Bounce frequency")
-#plt.xlim([0, 0.9])
-#plt.legend(['thin', 'full'])
-#
-#plt.figure()
-## Rescale by factor 1e-3 due to other Larmor radius
-#plt.plot(np.sqrt(srange), freqs_thin[:,1]/1e-3, 'k--', zorder=10)
-#plt.plot(np.sqrt(srange), freqs[:,1], color='tab:red')
-#plt.xlabel(r'$\rho_\mathrm{tor}$')
-#plt.ylabel(r'$\Omega_{\mathrm{tB}} / \mathrm{s}^{-1}$')
-#plt.title("Toroidal precession frequency (magnetic)")
-#plt.xlim([0, 0.9])
-#plt.legend(['thin', 'full'])
-#
-
-
-def full_orbit(r=0.7, th=-0.5*np.pi, v=1.38, vpar=0.5, plotting = False):
-
-    # Initial conditions
-    z[0] = r        # s
-    z[1] = 0.0      # varphi
-    z[2] = th0      # vartheta
-    z[3] = v        # normalized velocity module  v / v_0
-    z[4] = vpar     # pitch v_\parallel / v, be careful with events !!
-    z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64) 
-    
-    v=v_v0*v0
-    vpar = z[4]*v
-    vperp = np.sqrt(v**2 - vpar**2)       
-        
-    # Calculate constants of motion
-    libneo_rt_mc.magfie(z[0:3], bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-    mu = am*p_mass*vperp**2/(2*bmod[0])
-    mu = mu/ev
-    H = am*p_mass*v**2/2
-    H = H/ev
-    pphi = 0 
-    r0 = z0[0]
-        
-    # Run FullOrbit:
-    z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
-    integ = solve_ivp(
-        velo, (0, 5e4*dtau), z0, events=(event_bananatip,event_circ), 
-        max_step=10*dtau, method='LSODA')
-    zs = integ.y
-    time_events = integ.t_events
-    y_events = integ.y_events
-    
-    if len(time_events[1])==0:
-        # integrate again from tip for a complete orbit
-        z02 = zs[:,-1]  
-        z02[2] = z02[2]%(2*np.pi)   
-        if z02[2] > np.pi: z02[2] = -(2*np.pi - z02[2])     # project angle theta back in (-pi,pi) (as to not wrongly trigger event_circ)
-        z02[4] = 1e-15                                      # set vpar to numerical zero at tip
-        integ2 = solve_ivp(velo, (0, 5e4*dtau), z02, events=(event_bananatip,event_circ), max_step=1*dtau, method='LSODA')
-        time_events = integ2.t_events
-        y_events = integ2.y_events
-        zs = integ2.y      
-    
-    orbit_type = 0
-    if plotting == True:
-        plt.figure()
-        plt.plot(np.sqrt(zs[0,:])*np.cos(zs[2,:]), np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
-        plt.title('Thin Orbits $r_0$ = ' + str(r0) + ', $\\theta_0 = $' + str(z0[2]) + ', v/v0 = ' + str(z0[3]) + ', vpar/v = ' + str(z0[4]))
-        plt.show()
-
-    
-    if len(time_events[0])>0:
-        orbit_type = 1
-        omb = 2*np.pi*v0/time_events[0][0]           # Bounce frequency 
-        Omphi = omb*y_events[0][0][1]/(2*np.pi)      # Toroidal precession frequency
-    
-    else:
-        omb = 2*np.pi*v0/time_events[1][0]
-        Omphi = omb*y_events[1][0][1]/(2*np.pi)
-        
-    return [omb, Omphi, pphi, H, mu, orbit_type]
-
-
-   
-def zdot_thin(t,y,v,eta):
-    ret = np.zeros(5)
-    libneo_rt_mc.magfie([y[0],y[1],y[2]], bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-    ret[0] = 0
-    ret[1] = y[4]*v*hctrvr[1]               # varphi
-    ret[2] = y[4]*v*hctrvr[2]               # vartheta
-    ret[3] = 0  
-    ret[4] = -eta*v*hctrvr[2]*bder[2]     # vpar/v
-    return ret
-
-def thin_orbit(r=0.7, th=-0.5*np.pi, v=1.38, vpar=0.5, plotting = False):
-    
-    
-    # Initial conditions
-    z = libneo_rt_mc._ffi.new('double[5]')
-    z[0] = r      # s
-    z[1] = 0.0    # varphi
-    z[2] = th     # vartheta
-    z[3] = v      # normalized velocity module  v / v_0
-    z[4] = vpar   # pitch v_\parallel / v, be careful with events !!
-    z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64) 
-
-    v = v_v0*v0
-    vpar = z[4]*v
-    vperp = np.sqrt(v**2 - vpar**2)       
-    eta = vperp**2/(v**2*bmod[0])           # 1/T
-    zdot = lambda t, y: zdot_thin(t,y,v,eta)
-    
-    # Run FullOrbit:
-    integ = solve_ivp(zdot, (0, 1e5*dtau/v0), z0, events=(event_bananatip,event_circ), 
-        max_step=10*dtau/v0, method='LSODA')
-    zs = integ.y
-    time_events = integ.t_events
-    y_events = integ.y_events
-    
-    if len(time_events[1])==0:
-        # integrate again from tip for a complete orbit
-        z02 = zs[:,-1]  
-        z02[2] = z02[2]%(2*np.pi)   
-        if z02[2] > np.pi: z02[2] = -(2*np.pi - z02[2])     # project angle theta back in (-pi,pi) (as to not wrongly trigger event_circ)
-        z02[4] = 1e-15                                      # set vpar to numerical zero at tip
-        integ2 = solve_ivp(zdot, (0, 1e5*dtau/v0), z02, events=(event_bananatip,event_circ), max_step=10*dtau/v0, method='LSODA')
-        time_events = integ2.t_events
-        y_events = integ2.y_events
-        zs = integ2.y   
-
-    
-    # Calculate constants of motion
-    libneo_rt_mc.magfie(z[0:3], bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-    
-    mu = am*p_mass*vperp**2/(2*bmod[0])     # erg/T
-    mu = mu/ev                              # eV/T 
-    H = am*p_mass*v**2/2                    # erg
-    H = H/ev                                # eV  
-    pphi = 0
-    r0 = z0[0]
-
-    # Plotting 
-    if plotting == True:
-        plt.figure()
-        plt.plot(np.sqrt(zs[0,:])*np.cos(zs[2,:]), np.sqrt(zs[0,:])*np.sin(zs[2,:]), ',')
-        plt.title('Thin Orbits $r_0$ = ' + str(r0) + ', $\\theta_0 = $' + str(z0[2]) + ', v/v0 = ' + str(z0[3]) + ', vpar/v = ' + str(z0[4]))
-        plt.show()
-        
-    orbit_type = 0
-    if len(time_events[0])>0:
-        orbit_type = 1
-        omb = 2*np.pi/time_events[0][0]                     # Bounce frequency 
-        Omphi = omb*y_events[0][0][1]/(2*np.pi)  # Toroidal precession frequency
-    
-    else:
-        omb = 2*np.pi/time_events[1][0]
-        Omphi = omb*y_events[1][0][1]/(2*np.pi)  # Toroidal precession frequency
-        
-
-    return [omb, Omphi, pphi, H, mu, orbit_type]
-
-
-
-def interpol(solution):
-    """
-    Interpolate bounce or drift frequency over constants of motion (pph, H)
-    for nr random initial values
-    """
-    x = solution[:,2]       # pphi
-    y = solution[:,3]       # H
-    z = solution[:,4]       # mu
-    w = solution[:,0]       # w_bounce
-    
-    type_ = solution[:,5]   # orbit type (passing=0/trapped=1)
-    idx_pas = np.where(type_ == 0)
-    idx_tr = np.where(type_ == 1)
-    
-    # New values for interpolation
-    yi = np.linspace(min(y),max(y),200)
-    zi = np.linspace(min(z),max(z),200)
-    Yi,Zi = np.meshgrid(yi,zi)
-    
-    # 2D Rbf interpolation in H and mu
-    rbf_lin = Rbf(y,z,w)#/np.sqrt(y))#,function='linear')
-    W_rbf_lin = rbf_lin(Yi,Zi)
-    
-    ### Plotting ###
-    
-    # 2D plot (H, mu, w_bounce)
-    plt.ticklabel_format(style='sci', scilimits=(0,0))
-    plt.title('Radial Basis Functions for $\omega_b$ for $r_0$ = ' + str(r0) + ', $th_0$ = ' + str(th0))
-    plt.pcolor(Yi,Zi,W_rbf_lin,cmap=cm.jet)
-    plt.xlabel('H \ eV')
-    plt.ylabel('$\mu$ \ eV/T')
-    plt.colorbar()
-    plt.show()
-    
-    # 3D plot (H,mu,w_bounce)
-    fig = plt.figure()
-    ax = Axes3D(fig)
-    ax.set_xlabel('$H \ eV$')
-    ax.set_ylabel('$\mu$ \ eV/T')
-    ax.set_zlabel('$\omega_b$ \ Hz')
-    ax.ticklabel_format(style='sci', scilimits=(0,0))
-    if len(idx_pas[0]) != 0:
-        ax.scatter(y[idx_pas], z[idx_pas], w[idx_pas], marker='^', label='Passing Orbits')
-    ax.scatter(y[idx_tr], z[idx_tr], w[idx_tr], marker='.', label='Trapped Orbits')
-    ax.legend()
-    plt.title(plt.title('$r_0$ = ' + str(r0) + ', $th_0$ = ' + str(th0)))
-    plt.show()
-
-#    # 3D plot - heatmap (pphi, H, mu, w_bounce)
-#    fig = plt.figure()
-#    ax = Axes3D(fig)
-#    ax.set_xlabel('$p_\phi$')
-#    ax.set_ylabel('H \ eV')
-#    ax.set_zlabel('$\mu$ \ eV/T')
-#    ax.ticklabel_format(style='sci', scilimits=(0,0))
-#    if len(idx_pas[0]) != 0:
-#        img11 = ax.scatter(x[idx_pas], y[idx_pas], z[idx_pas], c=w[idx_pas], marker='^', cmap='winter', label='Passing Orbits')
-#        fig.colorbar(img11)
-#    img12 = ax.scatter(x[idx_tr], y[idx_tr], z[idx_tr], c=w[idx_tr],  marker='.',  cmap='autumn', label='Trapped Orbits')
-#    fig.colorbar(img12)
-#    ax.legend()
-#    plt.title(plt.title('$r_0$ = ' + str(r0) + ', $ th_0$ = ' + str(th0)))
-#    plt.show()
-    
-    
-    # 2D plot - heatmap (pphi, mu, w_bounce (trapped/passing))
-    fig, ax = plt.subplots()
-    if len(idx_pas[0]) != 0:
-        img = ax.scatter(y[idx_pas], z[idx_pas], c=w[idx_pas], marker='^', cmap='winter', label='Passing Orbits')#/np.sqrt(y[idx_pas]), marker='^', cmap='winter', label='Passing Orbits')
-        fig.colorbar(img)
-    img2 = ax.scatter(y[idx_tr], z[idx_tr], c=w[idx_tr], marker='.', cmap='autumn', label='Trapped Orbits')#/np.sqrt(y[idx_tr]), marker='.', cmap='autumn', label='Trapped Orbits')
-    plt.xlim([min(y) - (max(y)-min(y))*0.1, max(y) + (max(y)-min(y))*0.1])
-    plt.ylim([min(z) - (max(z)-min(z))*0.1, max(z) + (max(z)-min(z))*0.1])
-    plt.xlabel('H \ eV')
-    plt.ylabel('$\mu$ \ eV/T')
-    plt.title('$\omega_b$ \ Hz for $r_0$ = ' + str(r0) + ', $\\theta_0$ = ' + str(th0))
-    fig.colorbar(img2)
-    ax.legend()
-    plt.show()
-    
-
-event_bananatip.direction = 1.0
-event_bananatip.terminal = True
-event_circ.terminal = True
-nr_bananas = 100
-    
-# Initial conditions for fixed r0
-#    th0a = -np.pi*0.05; th0b = -np.pi*0.5
-#    th0 = (th0b - th0a)*random() + th0a
-r0 = 0.5
-th0 = -0.4*np.pi
-
-
-
-""" Orbit Run """
-solution = np.zeros([nr_bananas,6])
-init_val = np.zeros([nr_bananas,4])
-solution_thin = np.zeros([nr_bananas,6])
-init_val_thin = np.zeros([nr_bananas,4])
-plotting = False
-for k in range(nr_bananas):
-    if k%20 == 0:
-        plotting = True
-        print(k)
-    va = 1.3; vb = 1.5     
-    v_v0 = (vb - va)*random() + va
-    vpa = 0.05; vpb = 0.3
-    vpar_v0 = (vpb - vpa)*random() + vpa
-    
-    [omb, Omphi, pphi, H, mu, orbit_type] = full_orbit(r=r0, th=th0, v=v_v0, vpar=vpar_v0, plotting=plotting)
-    solution[k,:] = [omb, Omphi, pphi, H, mu, orbit_type]
-    init_val[k,:] = [r0, th0, v_v0, vpar_v0]
-    
-    [omb, Omphi, pphi, H, mu, orbit_type] = thin_orbit(r=r0, th=th0, v=v_v0, vpar=vpar_v0, plotting=plotting)
-    solution_thin[k,:] = [omb, Omphi, pphi, H, mu, orbit_type]
-    init_val_thin[k,:] = [r0, th0, v_v0, vpar_v0]
-    plotting = False
-    
-    
-plt.show()
-
-
-
-#get_ipython().run_line_magic('matplotlib', 'qt')
-interpol(solution_thin)
-interpol(solution)
-
-idx_trapped_full = np.where(solution[:,5]==1)[0]
-idx_passing_full = np.where(solution[:,5]==0)[0]
-idx_trapped_thin = np.where(solution_thin[:,5]==1)[0]
-idx_passing_thin = np.where(solution_thin[:,5]==0)[0]
-
-fig = plt.figure()
-plt.plot(solution[idx_trapped_full,4],solution[idx_trapped_full,0],'rx', label='Full Orbits trapped')
-plt.plot(solution_thin[idx_trapped_thin,4],solution_thin[idx_trapped_thin,0],'bx', label='Thin Orbits trapped')
-plt.plot(solution[idx_passing_full,4],solution[idx_passing_full,0],'r.', label='Full Orbits passing')
-plt.plot(solution_thin[idx_passing_thin,4],solution_thin[idx_passing_thin,0],'b.', label='Thin Orbits passing')
-plt.title('Bounce frequency $\omega_b$ for full and thin orbits for $r_0$ = ' + str(r0) + ', $\\theta_0$ = ' + str(th0))
-plt.xlabel('$\mu$ \ eV/T')
-plt.ylabel('$\omega_b$ \ Hz')
-plt.legend()
-fig.show()
-
-fig2 = plt.figure()
-plt.plot(solution[idx_trapped_full,3],solution[idx_trapped_full,0],'rx',label='Full Orbits trapped')
-plt.plot(solution_thin[idx_trapped_thin,3],solution_thin[idx_trapped_thin,0],'bx', label='Thin Orbits trapped')
-plt.plot(solution[idx_passing_full,3],solution[idx_passing_full,0],'r.',label='Full Orbits passing')
-plt.plot(solution_thin[idx_passing_thin,3],solution_thin[idx_passing_thin,0],'b.', label='Thin Orbits passing')
-plt.title('Bounce frequency $\omega_b$ for full and thin orbits for $r_0$ = ' + str(r0) + ', $\\theta_0$ = ' + str(th0))
-plt.xlabel('H \ eV')
-plt.ylabel('$\omega_b$ \ Hz')
-plt.legend()
-fig2.show()
-
-
-fig, ax = plt.subplots()
-ax.set_xlabel('H \ eV')
-ax.set_ylabel('$\mu$ \ eV/T')
-ax.ticklabel_format(style='sci', scilimits=(0,0))
-ax.scatter(solution[idx_trapped_full,3], solution[idx_trapped_full,4], c=solution[idx_trapped_full,0], marker='x', cmap='Reds', label='trapped')
-img=ax.scatter(solution[idx_passing_full,3], solution[idx_passing_full,4], c=solution[idx_passing_full,0], marker='.', cmap='Reds', label='passing')
-cbar3 = fig.colorbar(img)
-cbar3.set_label('Full Orbits')
-ax.scatter(solution_thin[idx_trapped_thin,3],solution_thin[idx_trapped_thin,4],c=solution_thin[idx_trapped_thin,0], marker='x', cmap='Blues')
-img2=ax.scatter(solution_thin[idx_passing_thin,3], solution_thin[idx_passing_thin,4], c=solution_thin[idx_passing_thin,0], marker='.', cmap='Blues')
-cbar4 = fig.colorbar(img2)
-cbar4.set_label('Thin Orbits')
-ax.legend()
-plt.title('Bounce frequency in Hz for full and thin orbits for $r_0$ = ' + str(r0) + ', $\\theta_0$ = ' + str(th0))
-plt.show()
->>>>>>> aad2d764422055e66f93807f045cb476d3e64f6f
-
