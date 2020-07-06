@@ -3,11 +3,8 @@ import numpy as np
 from random import random
 import matplotlib.pyplot as plt
 from neo_rt_fffi import libneo_rt_mc, parmot_mod
-<<<<<<< Updated upstream
 from scipy.interpolate import UnivariateSpline
 from interpolation import interpol, suppvec2
-=======
->>>>>>> Stashed changes
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import Rbf, splrep, splev, sproot, InterpolatedUnivariateSpline
@@ -17,10 +14,6 @@ from scipy.interpolate import UnivariateSpline
 from IPython import get_ipython
 import os
 
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
 #
 # Normalized time variable tau of integrator is given in units of length !
 #
@@ -206,7 +199,6 @@ def event_circ(t, z):
     """ Passing orbit - full turn at theta=2pi """
     return z[2] - 2*np.pi
 
-<<<<<<< Updated upstream
 
 def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'):
     """
@@ -215,10 +207,6 @@ def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'
     """
 
     # Initial values
-=======
-def run_bananas(s):
-    # Initial conditions
->>>>>>> Stashed changes
     z = libneo_rt_mc._ffi.new('double[5]')
     z[0] = r0           # s
     z[1] = 0.           # varphi
