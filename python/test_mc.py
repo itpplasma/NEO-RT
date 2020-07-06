@@ -3,30 +3,40 @@ import numpy as np
 from random import random
 import matplotlib.pyplot as plt
 from neo_rt_fffi import libneo_rt_mc, parmot_mod
+<<<<<<< Updated upstream
 from scipy.interpolate import UnivariateSpline
 from interpolation import interpol, suppvec2
+=======
+>>>>>>> Stashed changes
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import Rbf, splrep, splev, sproot, InterpolatedUnivariateSpline
 from scipy.integrate import solve_ivp
+from scipy.interpolate import UnivariateSpline
+#from interpolation import interpol, suppvec2
 from IPython import get_ipython
+import os
 
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes
 #
 # Normalized time variable tau of integrator is given in units of length !
-# 
+#
 # Physical time t = tau/v0
 # where v0 is the thermal velocity (or some reference velocity)
 #
-# This means that after tau=1 a particle with velocity v0 
+# This means that after tau=1 a particle with velocity v0
 # has passed one unit length (1 cm if v0 is in CGS units)
 #
-# Reason: Can easily estimate integration steps for "worst case" strongly 
+# Reason: Can easily estimate integration steps for "worst case" strongly
 # passing particles that have the fastest timescale for doing one turn.
-# A strongly passing particle with v0 requires time t = 2*pi*R/v0 to run in 
+# A strongly passing particle with v0 requires time t = 2*pi*R/v0 to run in
 # a circle of cylinder radius R (e.g. the major radius of the device).
 # In terms of tau it takes tau = 2*pi*R, independently from thermal velocity v0.
 # Then we can set e.g. dtau = tau/N to be sure we have at least N
-# integation points per turn (in-between we can also integrate adaptively) 
+# integation points per turn (in-between we can also integrate adaptively)
 #
 s0 = 0.4  # Starting radial position
 
@@ -45,7 +55,7 @@ data_s_iota = np.empty((0,2),float)     # [s, iota]
 line_nr = -1
 line_nr_flux = -1
 idx = 0
-with open('/home/hanna/src/NEO-RT/python/in_file', 'r') as file:
+with open(os.path.expanduser('~/src/NEO-RT/python/in_file'), 'r') as file:
     for k in range(4): next(file)
     for line, data in enumerate(file):
         data = data.split()
@@ -93,7 +103,7 @@ plt.figure()
 plt.plot(th/np.pi, B)
 plt.grid()
 plt.xlabel(r'$\vartheta/\pi$')
-plt.ylabel(r'$B / \mathrm{G}$')
+plt.ylabel(r'$B / \mathrm{T}$')
 plt.title(r'$s = {}$'.format(x[0]))
 plt.show()
 
@@ -101,11 +111,11 @@ plt.show()
 c = 2.9979e10           # cm/s
 e_charge = 4.8032e-10   # franklin ( = 3.336e-10C)
 e_mass = 9.1094e-28     # g
-p_mass = 1.6726e-24     # g 
+p_mass = 1.6726e-24     # g
 ev = 1.6022e-12         # erg ( = 1e-7J)
 
 # Inverse relativistic temperature, set >=1e5 to neglect relativistic effects
-parmot_mod.rmu = 1e5  
+parmot_mod.rmu = 1e5
 
 # This will translate to dimensionless units via parmot_mod.ro0
 # Here we translate an input file in Tesla to computation in Gauss/CGS
@@ -161,7 +171,7 @@ def velo_thin(t,y,v,eta):
     ret[0] = 0
     ret[1] = y[4]*v*hctrvr[1]               # varphi
     ret[2] = y[4]*v*hctrvr[2]               # vartheta
-    ret[3] = 0  
+    ret[3] = 0
     ret[4] = -eta*v*hctrvr[2]*bder[2]       # vpar/v
     return ret
 
@@ -196,14 +206,19 @@ def event_circ(t, z):
     """ Passing orbit - full turn at theta=2pi """
     return z[2] - 2*np.pi
 
+<<<<<<< Updated upstream
 
 def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'):
-    """ 
-    Calculate [omb, Omphi, pphi, H, mu, orbit_type]
-    Methods: {'full', 'thin'} 
     """
-    
+    Calculate [omb, Omphi, pphi, H, mu, orbit_type]
+    Methods: {'full', 'thin'}
+    """
+
     # Initial values
+=======
+def run_bananas(s):
+    # Initial conditions
+>>>>>>> Stashed changes
     z = libneo_rt_mc._ffi.new('double[5]')
     z[0] = r0           # s
     z[1] = 0.           # varphi
@@ -211,48 +226,50 @@ def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'
     z[3] = v            # normalized velocity module (v/v0)
     z[4] = vpar         # normalized parallel velocity (vpar/v)
     z0 = np.frombuffer(libneo_rt_mc._ffi.buffer(z), dtype=np.float64)
-    
+
+
     # Calculate constants of motion
     libneo_rt_mc.magfie(z[0:3], bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     v = v*v0; vpar = z[4]*v; vperp = np.sqrt(v**2 - vpar**2)    # cm/s
-    mu = am*p_mass*vperp**2/(2*bmod[0]*ev)                      # eV/T    
+    mu = am*p_mass*vperp**2/(2*bmod[0]*ev)                      # eV/T
     H = am*p_mass*v**2/(2*ev)                                   # eV
-    
+
     # Integrate equations of motion for thin or full orbits:
     if method == 'thin':
         eta = vperp**2/(v**2*bmod[0])     # T^(-1)
         zdot = lambda t, y: velo_thin(t,y,v,eta)
-        integ = solve_ivp(zdot, (0, 1e5*dtau/v0), z0, events=(event_bananatip,event_circ), 
+        integ = solve_ivp(zdot, (0, 1e5*dtau/v0), z0, events=(event_bananatip,event_circ),
                           max_step=10*dtau/v0, method='LSODA')
     else:
-        integ = solve_ivp(velo, (0, 5e5*dtau), z0, events=(event_bananatip,event_circ), 
+        integ = solve_ivp(velo, (0, 5e5*dtau), z0, events=(event_bananatip,event_circ),
                           max_step=10*dtau, method='LSODA')
+
 
     zs = integ.y
     time = integ.t
-    y_events = integ.y_events               
+    y_events = integ.y_events
     time_events = integ.t_events
     rphi = zs[0,-1]                         # tip radius
     pphi = - Zb*e_charge*psi_pol(rphi)/c    # eVs/cm
-    
-    
+
+
     # Integrate again from tip or theta=0 for a complete orbit:
     if len(time_events[1])==0:
         zs2 = zs[:,-1]
-        zs2[2] = zs2[2]%(2*np.pi)   
+        zs2[2] = zs2[2]%(2*np.pi)
         if zs2[2] > np.pi: zs2[2] = -(2*np.pi - zs2[2])     # project angle theta back in (-pi,pi) (as to not wrongly trigger event_circ)
         zs2[4] = 1e-15                                      # set vpar to numerical zero at tip
         if method == 'thin':
-            integ2 = solve_ivp(zdot, (0, 1e5*dtau/v0), zs2, events=(event_bananatip,event_circ), 
+            integ2 = solve_ivp(zdot, (0, 1e5*dtau/v0), zs2, events=(event_bananatip,event_circ),
                                max_step=10*dtau/v0, method='LSODA')
         else:
-            integ2 = solve_ivp(velo, (0, 5e5*dtau), zs2, events=(event_bananatip,event_circ), 
+            integ2 = solve_ivp(velo, (0, 5e5*dtau), zs2, events=(event_bananatip,event_circ),
                                max_step=10*dtau, method='LSODA')
         time_events = integ2.t_events
         time = integ2.t
         y_events = integ2.y_events
-        zs = integ2.y   
-    
+        zs = integ2.y
+
     # Plot the orbit:
     if plotting == True:
         plt.plot(100*np.sqrt(zs[0,:])*np.cos(zs[2,:]), 100*np.sqrt(zs[0,:])*np.sin(zs[2,:]))
@@ -264,44 +281,44 @@ def orbit(r0=0.3, th0=-0.5*np.pi, v=1.38, vpar=0., plotting=False, method='thin'
 
     # Calculate bounce/drift frequency
     if len(time_events[0])>0:
-        omb = 2*np.pi/time_events[0][0]             # bounce frequency 
+        omb = 2*np.pi/time_events[0][0]             # bounce frequency
         Omphi = omb*y_events[0][0][1]/(2*np.pi)     # toroidal precession frequency
     else:
         omb = 2*np.pi/time_events[1][0]
         Omphi = omb*y_events[1][0][1]/(2*np.pi)
 
-    lambda_0 = mu*bmod[0]/H    
+    lambda_0 = mu*bmod[0]/H
     r_av = np.mean(abs(zs[0,:]))
-    
+
     if method != 'thin':
         omb = omb*v0
         Omphi = Omphi*v0
-        
+
         # If orbit width != 0: classify orbit type according to paper:
-        # "Lagrangian neoclassical transport theory applied to the region near 
+        # "Lagrangian neoclassical transport theory applied to the region near
         # the magnetic axis" by Satake et al. (2002)
-        
+
         thdot = np.zeros(len(time))
         for k in range(len(time)):
             thdot[k] = velo(time[k],zs[:,k])[2]
-            
+
         sigma_par = zs[4,:]/abs(zs[4,:])
         sigma_theta = thdot/abs(thdot)
         turns_sigma_par = len(np.where(np.diff(np.append(sigma_par,sigma_par[0]))!=0)[0])
-        turns_sigma_theta = len(np.where(np.diff(np.append(sigma_theta,sigma_theta[0]))!=0)[0])    
-        
+        turns_sigma_theta = len(np.where(np.diff(np.append(sigma_theta,sigma_theta[0]))!=0)[0])
+
         if turns_sigma_par==0 and turns_sigma_theta==0:   orbit_type=0; print('Orbit type: passing')
         elif turns_sigma_par==2 and turns_sigma_theta==2: orbit_type=1; print('Orbit type: banana')
         elif turns_sigma_par==2 and turns_sigma_theta==0: orbit_type=2; print('Orbit type: kidney')
         elif turns_sigma_par==2 and turns_sigma_theta==4: orbit_type=3; print('Orbit type: concave kidney')
-        elif turns_sigma_par==0 and turns_sigma_theta==2: 
+        elif turns_sigma_par==0 and turns_sigma_theta==2:
             if np.sign(sigma_par[0]) == 1:                orbit_type=4; print('Orbit type: outer circulating')
             else:                                         orbit_type=5; print('Orbit type: inner circulating')
         else:                                             orbit_type=9; print('No classification possible')
-    else:                                                 
+    else:
         orbit_type=9; print('No classification for thin orbits')
-    
-    return [omb, Omphi, pphi, H, mu, orbit_type, lambda_0, r_av]  
+
+    return [omb, Omphi, pphi, H, mu, orbit_type, lambda_0, r_av]
 
 
 event_bananatip.direction = 1.
@@ -315,15 +332,15 @@ nr_bananas = 100
 solution = np.zeros([nr_bananas,8])
 init_val = np.zeros([nr_bananas,4])
 solution_thin = np.zeros([nr_bananas,8])
-plotting = False   
-th0 = -0.2*np.pi   
+plotting = False
+th0 = -0.2*np.pi
 #r0 = 0.04
 
 for k in range(nr_bananas):
     if k%10 == 0:
         plotting = True
         print(k)
-    
+
     # Randomize initial conditions
     va = 1.3; vb = 1.5
     v_v0 = (vb - va)*random() + va
@@ -331,19 +348,19 @@ for k in range(nr_bananas):
     vpar_v0 = (vpb - vpa)*random() + vpa
     r0a = 0.03; r0b = 0.1
     r0 = (r0b - r0a)*random() + r0a
-    
+
     # Store [omb, Omphi, pphi, H, mu, orbit_type, lambda_0, r_av] in 'solution'
     solution[k,:] = orbit(r0=r0, th0=th0, v=v_v0, vpar=vpar_v0, plotting=plotting, method='full')
     init_val[k,:] = [r0, th0, v_v0, vpar_v0]
     solution_thin[k,:] = orbit(r0=r0, th0=th0, v=v_v0, vpar=vpar_v0, plotting=False, method='thin')
     plotting = False
-    
+
 plt.show()
 
 #np.savetxt('solution_r_fixed.csv', solution, delimiter=',')
 #np.savetxt('solution_thin_r_fixed.csv', solution_thin, delimiter=',')
 #np.savetxt('init_val_r_fixed', init_val, delimiter=',')
-    
+
 
 #""" Magnetic field """
 #stest = np.linspace(0,1,20)
@@ -356,7 +373,7 @@ plt.show()
 #for k in range(len(stest)):
 #    x[0] = stest[k]      # s
 #    x[1] = thtest[k]      # theta
-#    
+#
 #    libneo_rt_mc.magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 #
 ##orbit(plotting=True, vpar=0.9, method='full')

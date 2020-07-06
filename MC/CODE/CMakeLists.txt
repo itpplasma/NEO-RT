@@ -70,7 +70,8 @@ add_library("neo_rt_mc" SHARED
 target_link_libraries(neo_rt_mc
 #	${SUPERLU_LIBRARIES}
 	${SUITESPARSE_LIBRARIES}
-	openblas
+	blas
+        lapack
 )
 
 ### Add libraries linked with executable

@@ -51,6 +51,7 @@ plt.grid()
 plt.xlabel(r'$\vartheta/\pi$')
 plt.ylabel(r'$B / \mathrm{G}$')
 plt.title(r'$s = {}$'.format(magfie.s))
+plt.show()
 
 # %% For 2D plots
 #
