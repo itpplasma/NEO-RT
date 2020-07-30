@@ -62,6 +62,11 @@ libneo_rt_mc.fdef("""\
     double precision, dimension(3),       intent(out)        :: hcurl
   end
 
+  subroutine cyl_coord(x, x_cyl)
+    double precision, dimension(3),       intent(in)         :: x
+    double precision, dimension(3),       intent(out)        :: x_cyl
+  end
+
   subroutine velo(tau, z, vz)
     double precision              ,       intent(in)         :: tau
     double precision, dimension(3),       intent(in)         :: z

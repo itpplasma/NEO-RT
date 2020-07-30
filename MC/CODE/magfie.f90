@@ -9,8 +9,11 @@
 ! field direction                                               - hcovar,
 ! contravariant components of this vector                       - hctrvr,
 ! contravariant component of the curl of this vector            - hcurl
-! Order of coordinates is the following: x(1)=R (big radius), 
+! Now: Order of coordinates is x(1) = s, x(2) = phi, x(3) = theta
+!      (Boozer coordinates from neo_magfie)
+! Original: Order of coordinates is the following: x(1)=R (big radius),
 ! x(2)=phi (toroidal angle), x(3)=Z (altitude).
+!
 !
 !  Input parameters:
 !            formal:  x                -    array of coordinates
@@ -22,14 +25,14 @@
 !                     hctrvr
 !                     hcurl
 !
-!  Called routines:  GBhs,GBRZd 
+!  Called routines:  GBhs,GBRZd
 !
       USE magfield_mod, ONLY : ierrfield
       USE neo_magfie_mod, ONLY: neo_magfie, magfie_result, magfie_spline
       USE spline_settings, ONLY : isw_spl_fourier_cof, isw_eval_spl2d_der, &
            isw_eval_bcovars, flux_surf_dist
 !
-      implicit integer (i-n), double precision (a-h,o-z)    
+      implicit integer (i-n), double precision (a-h,o-z)
 !
       INTEGER isw_neo_magfie
 !
@@ -107,3 +110,17 @@
       RETURN
       END
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+subroutine cyl_coord(x, x_cyl)
+
+      use neo_magfie_mod, only: neo_cyl_coord => cyl_coord
+
+      implicit none
+
+      real(8), intent(in) :: x(3)       ! Flux coordinates s, phi and theta
+      real(8), intent(out) :: x_cyl(3)  ! Cylindrical coordinates R, PHI, Z
+
+      real(8) :: jacobian(3,3)          ! Jacobian, not used here
+
+      call neo_cyl_coord(x, x_cyl, jacobian)  ! Call internal routine from neo_magfie.f90
+end subroutine cyl_coord

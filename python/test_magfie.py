@@ -21,8 +21,8 @@ hctrvr = np.zeros(3)
 hcurl = np.zeros(3)
 
 x[0] = magfie.s  # s
-x[1] = 0.0       # theta
-x[2] = 0.0       # phi
+x[1] = 0.0       # phi
+x[2] = 0.0       # theta
 
 magfie.do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 

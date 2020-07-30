@@ -4,7 +4,7 @@ from random import random
 import matplotlib.pyplot as plt
 from neo_rt_fffi import libneo_rt_mc, parmot_mod
 from scipy.interpolate import UnivariateSpline
-from interpolation import interpol, suppvec2
+#from interpolation import interpol, suppvec2
 from matplotlib import cm
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.interpolate import Rbf, splrep, splev, sproot, InterpolatedUnivariateSpline
@@ -35,6 +35,7 @@ s0 = 0.4  # Starting radial position
 
 # %% Variables for magnetic field
 x = libneo_rt_mc._ffi.new('double[3]')
+x_cyl = libneo_rt_mc._ffi.new('double[3]')
 bmod = libneo_rt_mc.new('double', 0.0)
 sqrtg = libneo_rt_mc.new('double', 0.0)
 bder = libneo_rt_mc._ffi.new('double[3]')
@@ -84,6 +85,9 @@ libneo_rt_mc.magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 nth = 100
 th = np.linspace(-np.pi, np.pi, nth)
 B = np.empty_like(th)
+R = np.empty_like(th)
+P = np.empty_like(th)
+Z = np.empty_like(th)
 
 x[0] = s0        # s
 x[1] = 0.0       # varphi
@@ -91,6 +95,10 @@ for kth in np.arange(nth):
     x[2] = th[kth]
     libneo_rt_mc.magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     B[kth] = bmod[0]
+    libneo_rt_mc.cyl_coord(x, x_cyl)
+    R[kth] = x_cyl[0]
+    P[kth] = x_cyl[1]
+    Z[kth] = x_cyl[2]
 
 plt.figure()
 plt.plot(th/np.pi, B)
@@ -98,6 +106,17 @@ plt.grid()
 plt.xlabel(r'$\vartheta/\pi$')
 plt.ylabel(r'$B / \mathrm{T}$')
 plt.title(r'$s = {}$'.format(x[0]))
+plt.show()
+
+#%%
+plt.figure()
+plt.plot(th/np.pi, R-150)
+plt.plot(th/np.pi, 1e3*P)
+plt.plot(th/np.pi, Z)
+plt.grid()
+plt.xlabel(r'$\vartheta/\pi$')
+plt.title(r'$s = {}$'.format(x[0]))
+plt.legend(['R - 150cm', '1e3*PHI', 'Z'])
 plt.show()
 
 # %% Test orbit integration
