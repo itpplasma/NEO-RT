@@ -2,11 +2,11 @@
 from numpy import *
 from matplotlib.pyplot import *
 
-def f(x, y): return x**2 + (y-0.5)**2 - 0.2
-def gradf(x, y): return array((2.0*x, 2.0*(y-0.5)))
+def f(x, y): return x**2 + y**2 - 1.0
+def gradf(x, y): return array((2.0*x, 2.0*y))
 
-x = linspace(-.5, .5, 30)
-y = linspace(0, 1, 30)
+x = linspace(-1.2, 1.2, 30)
+y = linspace(-1.2, 1.2, 30)
 
 X, Y = np.meshgrid(x, y)
 Z = f(X, Y)
@@ -38,11 +38,11 @@ def find_coarse(f, smin, smax, tol, maxit):
 find_coarse(lambda s: f(0.2, s), smin=0.5, smax=1.0, tol=1e-3, maxit=100)
 
 #%% Explicit Euler
-dt = 0.03
+dt = 0.1
 nt = 100
 
 w = empty((nt+1, 2))
-w[0, :] = (0.2, 0.9)
+w[0, :] = (1.0, 0.0)
 
 for k in range(nt):
     df = gradf(w[k, 0], w[k, 1])
@@ -61,14 +61,29 @@ def rootfun(w, wprev):
     jac = sqrt(sum(df**2))
     return np.array((
         w[0] - (wprev[0] - dt*df[1]/jac),
-        w[1] - (wprev[1] + dt*df[0]/jac)
+        w[1] - (wprev[1] + dt*df[0]/jac),
+        w[2] - (wprev[2] + 1.0*dt/jac)
     ))
 
-w = empty((nt+1, 2))
-w[0, :] = (0.2, 0.9)
+w = empty((nt+1, 3))
+w[0, :] = (1.0, 0.0, 0.0)
 for k in range(nt):
-    sol = root(rootfun, x0=w[k, :], args=w[k, :])
+    sol = root(rootfun, x0=w[k, :], args=w[k, :], tol=1e-13)
     w[k+1, :] = sol.x
 
 plot(w[:, 0], w[:, 1], 'ks')
 legend(('Expl Euler', 'Midpoint'))
+
+# %%
+figure()
+t = linspace(0, 100*dt, 101)
+plot(w[:, 0]**2 + w[:, 1]**2)
+plot((2*pi*w[:, 2]*dt/t)**2)
+
+# %%
+jac0 = 2.0
+jac0*w[:, 2]/t
+#(w[:, 2]/t)/(sqrt(w[:, 0]**2 + (w[:, 1]-0.5)**2))
+# %%
+
+# %%
