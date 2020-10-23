@@ -2,6 +2,8 @@
 # https://hplgit.github.io/prog4comp/doc/pub/._p4c-solarized-Matlab016.html
 # https://www.sciencedirect.com/science/article/pii/S0021999113002337?via%3Dihub
 # https://arxiv.org/pdf/1706.00840.pdf
+# http://mikity.wdfiles.com/local--files/start/PAP153miki.pdf
+
 
 #%%
 from numpy import *
@@ -208,41 +210,45 @@ scatter_3d(
 
 #%% Step one: find curve on surface by cutting with coordinate plane
 
-x30 = 0.0  # initial level for coordinate plane
 du = 2*pi/40
 dv = 0.1
 nu = 20
-nv = 20
+nv = 10
 
-def rootfun(w, wprev):
-    wmid = (w + wprev)/2.0
-    df = gradf(wmid[0], wmid[1], x30)
-    jac = sqrt(sum(df**2))
-    return np.array((
-        w[0] - wprev[0] + du*df[1]/jac,
-        w[1] - wprev[1] - du*df[0]/jac
-    ))
+w = empty((nu+1, nv, 3))
 
-w = empty((nu+1, 2))
-H = empty((nu+1))
-H[0] = 0
-w[0, :] = (1.0, 0.0)
+for kv in range(nv):
+    x30 = (kv+1)/nv  # initial level for coordinate plane
 
-for ku in range(nu):
-    sol = root(
-        rootfun,
-        x0=w[ku, :],
-        args=w[ku, :], tol=1e-13
-    )
-    w[ku+1, :] = sol.x
-    H[ku+1] = H[ku] + du  # To check if we integrate arc length correctly
+    def rootfun(w, wprev):
+        wmid = (w + wprev)/2.0
+        df = gradf(wmid[0], wmid[1], x30)
+        jac = sqrt(sum(df**2))
+        return np.array((
+            w[0] - wprev[0] + du*df[1]/jac,
+            w[1] - wprev[1] - du*df[0]/jac
+        ))
 
-from plotly.express import *
+    H = empty((nu+1))
+    H[0] = 0
+    w[0, kv, :] = (sqrt(1.0 - x30**2), 0.0, x30)
+    w[:, kv, 2] = x30
+
+    for ku in range(nu):
+        sol = root(
+            rootfun,
+            x0=w[ku, kv, :2],
+            args=w[ku, kv, :2], tol=1e-13
+        )
+        w[ku+1, kv, :2] = sol.x
+        H[ku+1] = H[ku] + du  # To check if we integrate arc length correctly
+
+    from plotly.express import *
 
 scatter_3d(
-    x = w[:,0].flatten(),
-    y = w[:,1].flatten(),
-    z = x30*ones(nu+1)
+    x = w[:,:,0].flatten(),
+    y = w[:,:,1].flatten(),
+    z = w[:,:,2].flatten()
 )
 
 # %%
