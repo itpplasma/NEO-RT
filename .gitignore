@@ -25,7 +25,7 @@ fort.*
 *.log
 *.tar.gz
 *.asc
-
 doc/html/
 doc/latex/
 .vscode/
+*.x

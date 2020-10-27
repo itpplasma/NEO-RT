@@ -10,8 +10,8 @@ from numpy import *
 from matplotlib.pyplot import *
 from plotly.express import *
 
-def f(x, y): return x**2 + y**2 - 1.0
-def gradf(x, y): return array((2.0*x, 2.0*y))
+def f(x, y): return 0.5*y**2 - cos(x) # return x**2 + y**2 - 1.0
+def gradf(x, y): return array((sin(x), y)) # return array((2.0*x, 2.0*y))
 
 x = linspace(-1.2, 1.2, 30)
 y = linspace(-1.2, 1.2, 30)
@@ -60,7 +60,6 @@ for k in range(nt):
 
 plot(w[:, 0], w[:, 1], 'rx')
 
-#%% Implicit midpoint rule
 from scipy.optimize import root
 
 def rootfun(w, wprev):
