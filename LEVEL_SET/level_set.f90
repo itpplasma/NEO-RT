@@ -2,7 +2,7 @@
 ! Implementation
 !
 
-subroutine level_set_step_2D(fun, h, x)
+subroutine level_set_step_2d(fun, h, x)
 !
 ! Input:
 !   fun ... subroutine that yields values and
@@ -13,6 +13,8 @@ subroutine level_set_step_2D(fun, h, x)
 ! Input/Output:
 !   x ...   position that is propagated along level line
 !
+  implicit none
+ 
   external :: fun
   real(8), intent(in) :: h
   real(8), intent(inout) :: x(2)
@@ -24,7 +26,6 @@ subroutine level_set_step_2D(fun, h, x)
   xold = x
   call hybrd1(fcn, 2, x, fvec, tol, info)
   x = 2.0d0*x - xold  ! Update with midpoint: (xold + xnew)/2.0 = xmid
-  !  xnew - xold = xmid*2.0 - xold*2.0 = h*xdot
 
   contains
 
@@ -38,9 +39,36 @@ subroutine level_set_step_2D(fun, h, x)
 
       if (iflag == 1) then
         call fun(xmid, F, dF)
-        jac = abs(sqrt(sum(dF**2)))
+        jac = sqrt(abs(sum(dF**2)))
         fvec2(1) = xmid(1) - xold(1) + 0.5d0*h*dF(2)/jac
         fvec2(2) = xmid(2) - xold(2) - 0.5d0*h*dF(1)/jac
       end if
     end subroutine fcn
-end subroutine level_set_step_2D
+end subroutine level_set_step_2d
+
+!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+subroutine newt_adjust_root_2d(fun,f_lev,err_dist,y)
+!
+! Newton adjustment to exactly hit level surface f=0 
+!
+  implicit none
+!
+  external :: fun
+  double precision :: f_lev,err_dist,f,delRZ,delf
+  double precision, dimension(2) :: y,df
+!
+  do
+!
+    call fun(y,f,df)
+!
+    delf=f-f_lev
+    delRZ=delf/sum(df**2)
+    y=y-delRZ*df
+    if(abs(delRZ*delf).lt.err_dist**2) exit
+  enddo
+!
+  end subroutine newt_adjust_root_2d
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
