@@ -38,7 +38,7 @@ subroutine level_set_step_2D(fun, h, x)
 
       if (iflag == 1) then
         call fun(xmid, F, dF)
-        jac = abs(sum(dF**2))
+        jac = abs(sqrt(sum(dF**2)))
         fvec2(1) = xmid(1) - xold(1) + 0.5d0*h*dF(2)/jac
         fvec2(2) = xmid(2) - xold(2) - 0.5d0*h*dF(1)/jac
       end if
