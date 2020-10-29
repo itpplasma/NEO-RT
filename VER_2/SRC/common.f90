@@ -18,8 +18,12 @@ module common
 
     contains
 
-    subroutine bounce_average(n, fcn)
+    subroutine bounce_average(n, fcn, out)
         integer(4), intent(in) :: n
         external fcn
+        real(8), intent(out) :: out(n)
+
+        ! TODO
+        out = 0.0d0
     end subroutine bounce_average
 end module common

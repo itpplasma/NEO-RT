@@ -4,17 +4,26 @@ module transport
 
   contains
 
-  !> Computes Hamiltonian perturbation harmonic Hmn
-  function Hmn(alpha, mth, mph)
-    complex(8) :: Hmn
-    real(8), intent(in) :: alpha(3)  ! invariants J_perp, p_phi, H
-    real(8), intent(in) :: mth       ! canonical poloidal harmonic number
-    real(8), intent(in) :: mph       ! canonical toroidal harmonic number
+  function Hm(alpha, mth, mph)
+  ! Computes Hamiltonian perturbation harmonic Hmn
+    complex(8) :: Hm                 ! Complex harmonic of H
+    real(8), intent(in) :: alpha(3)  ! Invariants J_perp, p_phi, H
+    real(8), intent(in) :: mth       ! Canonical poloidal harmonic number
+    real(8), intent(in) :: mph       ! Canonical toroidal harmonic number
     real(8) :: HmnReIm(2)
 
+    call bounce_average(2, Hm_integrand, HmnReIm)
 
+    contains
 
-  end function Hmn
+    subroutine Hm_integrand(z, Hmdot)
+      real(8), intent(in)  :: z(5)
+      real(8), intent(out) :: Hmdot(2)
+
+      Hmdot = z(1)
+    end subroutine Hm_integrand
+
+  end function Hm
 
 !   function flux_integrand(alpha, mth, mph)
 !     real(8) :: flux_integrand
