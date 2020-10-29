@@ -17,6 +17,8 @@ module transport
     contains
 
     subroutine Hm_integrand(z, Hmdot)
+      use orbit
+
       real(8), intent(in)  :: z(5)
       real(8), intent(out) :: Hmdot(2)
 
