@@ -31,3 +31,4 @@ doc/latex/
 *.x
 .ninja*
 build.ninja
+_build/
