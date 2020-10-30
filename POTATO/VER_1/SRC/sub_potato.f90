@@ -15,17 +15,17 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_vparzero_line(nline,toten,perpinv,rmin,rmax,zmin,zmax, & 
+  subroutine find_vparzero_line(nline,toten,perpinv,rmin,rmax,zmin,zmax, &
                                 R_line,Z_line,ierr)
 !
 ! Looks for the forbidden line "v_par^2=0" in the box given by "rmin<R<rmax", "zmin<Z<zmax"
 ! for particles with normalized total energy "toten" and perpendicular invariant "perpinv"
 ! Points on the line, "Z_line", are equidistant in Z and are numbered as [-nline:nline].
 ! If this line is outside or crosses HFS boundary R=rmin, ierr=1 - most of the box is occupied
-! by passing orbits, "R_line" is set to "rmin" if the actual line is fully outside the box 
+! by passing orbits, "R_line" is set to "rmin" if the actual line is fully outside the box
 ! (only passing orbits will be computed in the computation box), if actulal line crosses
 ! the inner boundary of the box, this boundary is replaced by the forbidden line.
-! If this line is outside or crosses LFS boundary R=rmax, ierr=2 - most of the box is forbiden, 
+! If this line is outside or crosses LFS boundary R=rmax, ierr=2 - most of the box is forbiden,
 ! no orbits will be computed, "R_line" is set to "rmax" for the points outside the box
 !
   use vparzero_line_mod, only : nzline,hz,Zmid,rline,zline,Z_up
@@ -73,7 +73,7 @@
         cycle
       else
         ierr=1
-        R_line(i)=rmin  
+        R_line(i)=rmin
         cycle
       endif
     endif
@@ -175,7 +175,7 @@
   subroutine stagnation_point(toten,perpinv,rst,zst,ierr)
 !
 ! Finds the point where parallel acceleration $\dot \lambda$ is zero
-! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting 
+! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting
 ! this point (rst,zst) with each of two B^* axes are used as Poincare
 ! cuts for co- and counter-passing particles
 !
@@ -272,7 +272,7 @@
 !
   call velo(dtau,z,vz)
 !
-  alamdot=vz(5) 
+  alamdot=vz(5)
 !
 ! end normal velocity
 !
@@ -369,34 +369,38 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_bounce(dtau,z_eqm,taub,delphi,extraset)
+  subroutine find_bounce(next, dtau,z_eqm,taub,delphi,extraset)
 !
 ! Integrates the orbit over one bounce time (finds this time). If needed
 ! (write_orb=.true.) writes it to the file with unit number "iunit1".
 ! Besides orbit equations integrates along the orbit and extra set of
 ! functions of phase space coordinates.
 ! Agruments:
+! naux           - auxiliary quantities to integrate
 ! dtau           - maximum value of time step (input)
 ! z_eqm(5)       - phase space variables (input/output)
 ! taub           - bounce time (output)
 ! delphi         - toroidal shift per bounce time (output)
 ! extraset(next) - extra integrals along the orbit
 !
-  use orbit_dim_mod, only : neqm,next,ndim,write_orb,iunit1
+  use orbit_dim_mod, only : neqm,write_orb,iunit1
 !
   implicit none
 !
   double precision, parameter :: relerr=1d-10 !8
 !
+  integer :: next
+  integer :: ndim
   double precision :: dtau,taub,delphi
   double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol
   double precision, dimension(neqm) :: z_eqm
   double precision, dimension(next) :: extraset
-  double precision, dimension(ndim) :: z,z_start,vz
+  double precision, dimension(neqm+next) :: z,z_start,vz
 !
   external velo_ext
 !
+  ndim = neqm + next
   z(1:neqm)=z_eqm
   z(neqm+1:ndim)=extraset
 !
@@ -845,7 +849,7 @@
 !
   perpinv=z(4)**2*(1.d0-z(5)**2)/bmod
 !
-  sigma=sign(1.d0,z(5)) 
+  sigma=sign(1.d0,z(5))
 !
   hdif=x(1)*eps_dif
   z=z_start
