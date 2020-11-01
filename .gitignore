@@ -32,3 +32,4 @@ doc/latex/
 .ninja*
 build.ninja
 _build/
+DATA/

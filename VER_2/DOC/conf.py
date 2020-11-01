@@ -186,3 +186,21 @@ import os
 fortran_ext = ['f90', 'F90', 'f95', 'F95']
 fortran_src = [ os.path.abspath('../SRC/'),  ]
 fortran_indent = 2
+
+macros = {
+    'balpha': r'{\boldsymbol{\alpha}}',
+}
+
+mathjax_config = {
+    'TeX': {
+        'Macros': macros
+    }
+}
+
+commands0 = [
+    f'\\newcommand{{\\{it[0]}}}{{{it[1]}}}' for it in macros.items()
+]
+
+latex_elements = {
+    'preamble': '\n'.join(commands0)
+}

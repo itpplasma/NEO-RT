@@ -1,5 +1,7 @@
 from numpy import *
 from matplotlib.pyplot import *
 
-data = loadtxt('fort.99')
-plot(data[:, 1], data[:, 3])
+data = loadtxt('fort.999')
+plot(data[:, 0], data[:, 2])
+
+print(mean(data[:,1]))

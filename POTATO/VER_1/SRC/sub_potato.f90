@@ -5,13 +5,6 @@
     double precision, dimension(:), allocatable :: rline,zline
   end module vparzero_line_mod
 !
-!------------------------------------------------------
-!
-  module orbit_dim_mod
-    integer, parameter  :: neqm=5, next=3, ndim=neqm+next
-    logical             :: write_orb=.false.
-    integer             :: iunit1
-  end module orbit_dim_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -352,24 +345,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine velo_ext(dtau,z,vz)
-!
-  use orbit_dim_mod, only : neqm,next,ndim
-!
-  double precision :: dtau
-  double precision, dimension(ndim) :: z,vz
-!
-  call velo(dtau,z(1:neqm),vz(1:neqm))
-!
-  vz(neqm+1)=z(1)
-  vz(neqm+2)=z(3)
-  vz(neqm+3)=z(4)*z(5)
-!
-  end subroutine velo_ext
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  subroutine find_bounce(next, dtau,z_eqm,taub,delphi,extraset)
+  subroutine find_bounce(next,vext,dtau,z_eqm,taub,delphi,extraset)
 !
 ! Integrates the orbit over one bounce time (finds this time). If needed
 ! (write_orb=.true.) writes it to the file with unit number "iunit1".
@@ -383,7 +359,7 @@
 ! delphi         - toroidal shift per bounce time (output)
 ! extraset(next) - extra integrals along the orbit
 !
-  use orbit_dim_mod, only : neqm,write_orb,iunit1
+  use velo_ext_mod, only : neqm,write_orb,iunit1
 !
   implicit none
 !
@@ -398,7 +374,7 @@
   double precision, dimension(next) :: extraset
   double precision, dimension(neqm+next) :: z,z_start,vz
 !
-  external velo_ext
+  external vext
 !
   ndim = neqm + next
   z(1:neqm)=z_eqm
@@ -408,7 +384,7 @@
 !
   z_start=z
 !
-  call velo_ext(dtau,z,vz)
+  call vext(dtau,z,vz)
 !
   vel_pol=sqrt(vz(1)**2+vz(3)**2)
   RNorm=vz(1)/vel_pol
@@ -418,14 +394,14 @@
 !
   if(write_orb) write (iunit1,*) z(1:neqm),vz(5)
 !
-  call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
+  call odeint_allroutines(z,ndim,tau0,dtau,relerr,vext)
 !
   taub=dtau
   dL2_pol=2.d0*(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
 !
   if(write_orb) then
 !
-    call velo_ext(dtau,z,vz)
+    call vext(dtau,z,vz)
 !
     write (iunit1,*) z(1:neqm),vz(5)
   endif
@@ -434,7 +410,7 @@
     r_prev=z(1)
     z_prev=z(3)
 !
-    call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
+    call odeint_allroutines(z,ndim,tau0,dtau,relerr,vext)
 !
     taub=taub+dtau
     dL2_pol=max(dL2_pol,2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2))
@@ -442,7 +418,7 @@
     if(dL2_pol_start.lt.dL2_pol) exit
     if(write_orb) then
 !
-      call velo_ext(dtau,z,vz)
+      call vext(dtau,z,vz)
 !
       write (iunit1,*) z(1:neqm),vz(5)
     endif
@@ -454,14 +430,14 @@
 !
   do
 !
-    call velo_ext(dtau,z,vz)
+    call vext(dtau,z,vz)
 !
     vnorm=vz(1)*RNorm+vz(3)*ZNorm
     dnorm=(z_start(1)-z(1))*RNorm+(z_start(3)-z(3))*ZNorm
     if(dnorm**2.lt.dL2_pol*relerr) exit
     dtau_newt=dnorm/vnorm
 !
-    call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
+    call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,vext)
 !
     taub=taub+dtau_newt
   enddo
@@ -469,7 +445,7 @@
   extraset=z(neqm+1:ndim)
   if(write_orb) then
 !
-    call velo_ext(dtau,z,vz)
+    call vext(dtau,z,vz)
 !
     write (iunit1,*) z(1:neqm),vz(5)
   endif
@@ -496,10 +472,11 @@
 !
   use field_eq_mod,      only : psif,dpsidr,dpsidz
   use vparzero_line_mod, only : nzline,hz,Zmid
+  use velo_ext_mod,      only : neqm, next, velo_ext
 !
   implicit none
 !
-  integer, parameter :: neqm=5,next=3,n_search=1000
+  integer, parameter :: n_search=1000
   double precision, parameter :: relerr=1d-10 !8
 !
   logical :: trapped,copass,ctrpass,triplet,trigger
@@ -541,7 +518,7 @@
   endif
   extraset=0.d0
 !
-  call find_bounce(dtau,z,taub,delphi,extraset)
+  call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
 !
   sigma=sign(1.d0,extraset(3))
   z(1)=extraset(1)/taub
@@ -568,7 +545,7 @@
     z(5)=sign(sqrt(alam2),sigma)
     extraset=0.d0
 !
-    call find_bounce(dtau,z,taub,delphi,extraset)
+    call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
 !
     z(1)=extraset(1)/taub
     z(2)=0.d0

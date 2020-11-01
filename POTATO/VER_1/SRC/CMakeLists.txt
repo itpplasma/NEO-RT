@@ -22,4 +22,5 @@ target_sources(neo-rt.x PRIVATE
     plag_coeff.f90
     sub_potato.f90
     plot_orbit_set.f90
+    velo_ext.f90
   )

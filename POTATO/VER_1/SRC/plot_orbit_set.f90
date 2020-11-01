@@ -3,7 +3,7 @@
                             trapped,copass,ctrpass,triplet,rst,zst,sigma_x,Z_tp,  &
                             rxpoi,zxpoi,raxis_ctr,zaxis_ctr,raxis_co,zaxis_co)
 !
-  use orbit_dim_mod,     only : neqm,next,write_orb,iunit1
+  use velo_ext_mod,     only : neqm,next,write_orb,iunit1,velo_ext
   use vparzero_line_mod, only : Z_up
 !
   implicit none
@@ -135,7 +135,7 @@
 !
       extraset=0.d0
 !
-      call find_bounce(dtau,z,taub,delphi,extraset)
+      call find_bounce(next,velo_ext,next,dtau,z,taub,delphi,extraset)
 !
       call get_tormom(z,p_phi)
 !
@@ -189,7 +189,7 @@
 !
     extraset=0.d0
 !
-    call find_bounce(dtau,z,taub,delphi,extraset)
+    call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
 !
     call get_tormom(z,p_phi)
 !
