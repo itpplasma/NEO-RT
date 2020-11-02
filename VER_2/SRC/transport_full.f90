@@ -23,7 +23,7 @@ module transport
       real(8), intent(out) :: Hmdot(2)
 
       Hmdot(1) = z(1)
-      Hmdot(2) = z(2)
+      Hmdot(2) = z(3)
     end subroutine Hm_integrand
 
   end subroutine Hm

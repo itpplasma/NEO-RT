@@ -724,21 +724,23 @@ enddo
 ! delphi         - toroidal shift per bounce time (output)
 ! extraset(next) - extra integrals along the orbit
 !
-  use orbit_dim_mod, only : neqm,ndim,write_orb,iunit1,Rorb_max
+  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
 !
   implicit none
 !
   double precision, parameter :: relerr=1d-10 !8
 !
-  integer :: next
+  integer :: next, ndim
   double precision :: dtau,taub,delphi
   double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
   double precision, dimension(neqm) :: z_eqm
   double precision, dimension(next) :: extraset
-  double precision, dimension(ndim) :: z,z_start,vz
+  double precision, dimension(neqm+next) :: z,z_start,vz
 !
   external velo_ext
+!
+  ndim = neqm+next
 !
   z(1:neqm)=z_eqm
   z(neqm+1:ndim)=extraset

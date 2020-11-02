@@ -32,12 +32,14 @@ program neo_rt
   ! Initial conditions
   z(1) = 170.0d0  ! R
   z(2) = 0.0d0    ! PHI
-  z(3) = 50d0     ! Z
+  z(3) = 40d0     ! Z
   z(4) = 1d0      ! v/v0
-  z(5) = 0d0      ! v_par/v
+  z(5) = 0.9d0    ! v_par/v
 
   ! First call for field
   call get_bmod_and_Phi(z(1:3), bmod, phi_elec)
+  print *, 'bmod, phielec:'
+  print *, bmod, phi_elec
 
   print *, z
   call timestep(0.0d0, z, zdot)

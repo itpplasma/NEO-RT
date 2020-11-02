@@ -6,7 +6,6 @@ module orbit
 
   subroutine timestep(tau, z, vz)
   ! See velo for details
-    integer(4) :: n  ! Number of equations
     real(8) :: tau   ! Time
     real(8) :: z(5)  ! Phase-position
     real(8) :: vz(5) ! Phase-velocity
@@ -48,4 +47,7 @@ module orbit
     end subroutine timestep_ext
 
   end subroutine bounce_average
+
+  subroutine bounce_average_box
+  end subroutine bounce_average_box
 end module orbit
