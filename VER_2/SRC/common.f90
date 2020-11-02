@@ -17,7 +17,7 @@ module common
     kb  = 1.381649d-16,       &  ! Boltzmann constant
     eV  = 1.602176d-12           ! 1 electron volt
 
-  real(8), public :: qi, mi
+  real(8), public :: qi, mi      ! Ion charge and mass, must be initialized !
 
   integer(8), parameter :: neqm=5  ! Number of equations of motion
 end module common

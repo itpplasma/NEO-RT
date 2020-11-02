@@ -3,6 +3,30 @@ module transport
   use orbit, only: bounce_average
   implicit none
 
+  integer(4), parameter :: nph = 2      ! Perturbation harmonice
+  real(8), parameter    :: epsn = 5e-3  ! Perturbation amplitude
+
+  contains
+
+  subroutine Hpert(z, res)
+  ! Toroidal harmonic of Hamiltonian perturbation: real and imaginary part
+    real(8), intent(in)  :: z(5)        ! Orbit phase-space variables
+    real(8), intent(out) :: res(2)      ! Output of Hamiltonian perturbation
+
+    real(8) :: bmod, sqrtg
+    real(8), dimension(3) :: bder,hcovar,hctrvr,hcurl
+
+    real(8) :: Jperp_omc0, m_vpar2
+
+    call magfie(z, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+
+    Jperp_omc0 = z(4)*(1.0d0 - z(5)**2)
+    m_vpar2 = 2.0d0*z(4)*z(5)**2
+
+    res(1) = epsn*(Jperp_omc0 + m_vpar2)
+    res(2) = 0d0  ! TODO: Imaginary part is set to zero for test field
+  end subroutine Hpert
+
 !   function flux_integrand(alpha, mth, mph)
 !     real(8) :: flux_integrand
 !     real(8), intent(in) :: alpha(3)  ! invariants J_perp, p_phi, H

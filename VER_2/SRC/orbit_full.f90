@@ -57,6 +57,7 @@ module orbit
       real(8), intent(out)   :: res(next)  ! Complex harmonic of input fn
       external               :: fn         ! Subroutine fn(z, out) to treat
 
+      ! TODO
       call bounce_average(2, z, fn, res)
 
     end subroutine bounce_harmonic

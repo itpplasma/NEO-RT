@@ -1,6 +1,7 @@
 program neo_rt
   use common
   use orbit, only: timestep, bounce_harmonic
+  use transport, only: Hpert
   use parmot_mod, only: rmu, ro0
 
   implicit none
@@ -12,10 +13,6 @@ program neo_rt
   real(8) :: alpha(3)  ! Invariants
   real(8) :: HmReIm(2)
 
-  ! Perturbation
-  integer(4) :: nph                  ! Perturbation harmonice
-  real(8), parameter :: epsn = 5e-3  ! Perturbation amplitude
-
   ! Inverse relativistic temperature, set >=1e5 to neglect relativistic effects
   rmu = 1.0d5
 
@@ -26,6 +23,10 @@ program neo_rt
   tempi1 = 0.17549561306d4     ! ion temperature
   am = 2.0d0                   ! Atomic mass 2 of deuterium ions
   Zb = 1.0d0                   ! Atomic charge 1 of deuterium ions
+
+  ! Initialize common quantities for ions
+  mi = am*mu
+  qi = Zb*qe
 
   v0 = sqrt(2.0*tempi1*ev/(am*mu))     ! Reference (thermal) velocity
   ! Reference Larmor radius of thermal particles
@@ -53,30 +54,8 @@ program neo_rt
   ! toten = z(4)**2 + phi_elec(z)
   ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)
 
-  nph = 2
-  call bounce_harmonic(2, z, 1, nph, HmReIm, Hn)
+  call bounce_harmonic(2, z, 1, 1, HmReIm, Hpert)
 
   print *, 'HmReIm: ', HmReIm
 
-
-  contains
-
-  subroutine Hn(z2, res)
-  ! Toroidal harmonic of Hamiltonian perturbation
-    real(8), intent(in)  :: z2(5)
-    real(8), intent(out) :: res(2)
-
-    real(8) :: bmod0, sqrtg
-    real(8), dimension(3) :: bder,hcovar,hctrvr,hcurl
-
-    real(8) :: Jperp_omc0, mv_par2
-
-    call magfie(z2, bmod0, sqrtg, bder, hcovar, hctrvr, hcurl)
-
-    Jperp_omc0 = qe/(mi*c)*z(4)**(1.0d0 - z(5)**2)
-    m_vpar2 = 
-
-    res(1) = z2(1)
-    res(2) = z2(3)
-  end subroutine Hn
 end program neo_rt

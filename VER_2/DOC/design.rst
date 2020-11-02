@@ -109,7 +109,12 @@ In the non-relativistic case we have
 Hamiltonian perturbation
 ------------------------
 
-In the routine :code:`TODO Hn` we compute according to
+We compute a toroidal harmonic of the Hamiltonian perturbation according to
+
+.. math::
+  H_n = \left(\frac{e_{\alpha}}{m_{\alpha}c}J_{\perp}B_{0}+m_{\alpha}v_{\parallel0}^{2}\right)\frac{B_{n}}{B_{0}}
+
+In :f:subr:`~transport/hpert`, $\bar{H}_n = H_n/T$ is computed with normalization
 
 .. math::
   T	& =\frac{mv_{0}^{\,2}}{2}
