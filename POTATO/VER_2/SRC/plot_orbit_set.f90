@@ -196,7 +196,7 @@
 !
       extraset=0.d0
 !
-      call find_bounce(dtau,z,taub,delphi,extraset)
+      call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
 !
       call get_tormom(z,p_phi)
 !
@@ -325,7 +325,7 @@
 !
     extraset=0.d0
 !
-    call find_bounce(dtau,z,taub,delphi,extraset)
+    call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
 !
     call get_tormom(z,p_phi)
 !
@@ -334,6 +334,23 @@
   enddo
 !
   end subroutine passing_orbits
+!
+!---------------------
+!
+  subroutine velo_ext(dtau2,z2,vz2)
+!
+  use orbit_dim_mod, only : neqm,next,ndim
+!
+  double precision :: dtau2
+  double precision, dimension(ndim) :: z2,vz2
+!
+  call velo(dtau2,z2(1:neqm),vz2(1:neqm))
+!
+  vz2(neqm+1)=z2(1)
+  vz2(neqm+2)=z2(3)
+  vz2(neqm+3)=z2(4)*z2(5)
+!
+  end subroutine velo_ext
 !
 !---------------------
 !

@@ -32,4 +32,5 @@ doc/latex/
 .ninja*
 build.ninja
 _build/
-DATA/
+DATA
+POTATO/VER_2/RUN
