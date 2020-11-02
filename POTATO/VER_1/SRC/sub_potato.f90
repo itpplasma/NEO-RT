@@ -5,20 +5,27 @@
     double precision, dimension(:), allocatable :: rline,zline
   end module vparzero_line_mod
 !
+!------------------------------------------------------
+!
+  module orbit_dim_mod
+    integer, parameter  :: neqm=5, next=3, ndim=neqm+next
+    logical             :: write_orb=.false.
+    integer             :: iunit1
+  end module orbit_dim_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_vparzero_line(nline,toten,perpinv,rmin,rmax,zmin,zmax, &
+  subroutine find_vparzero_line(nline,toten,perpinv,rmin,rmax,zmin,zmax, & 
                                 R_line,Z_line,ierr)
 !
 ! Looks for the forbidden line "v_par^2=0" in the box given by "rmin<R<rmax", "zmin<Z<zmax"
 ! for particles with normalized total energy "toten" and perpendicular invariant "perpinv"
 ! Points on the line, "Z_line", are equidistant in Z and are numbered as [-nline:nline].
 ! If this line is outside or crosses HFS boundary R=rmin, ierr=1 - most of the box is occupied
-! by passing orbits, "R_line" is set to "rmin" if the actual line is fully outside the box
+! by passing orbits, "R_line" is set to "rmin" if the actual line is fully outside the box 
 ! (only passing orbits will be computed in the computation box), if actulal line crosses
 ! the inner boundary of the box, this boundary is replaced by the forbidden line.
-! If this line is outside or crosses LFS boundary R=rmax, ierr=2 - most of the box is forbiden,
+! If this line is outside or crosses LFS boundary R=rmax, ierr=2 - most of the box is forbiden, 
 ! no orbits will be computed, "R_line" is set to "rmax" for the points outside the box
 !
   use vparzero_line_mod, only : nzline,hz,Zmid,rline,zline,Z_up
@@ -66,7 +73,7 @@
         cycle
       else
         ierr=1
-        R_line(i)=rmin
+        R_line(i)=rmin  
         cycle
       endif
     endif
@@ -168,7 +175,7 @@
   subroutine stagnation_point(toten,perpinv,rst,zst,ierr)
 !
 ! Finds the point where parallel acceleration $\dot \lambda$ is zero
-! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting
+! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting 
 ! this point (rst,zst) with each of two B^* axes are used as Poincare
 ! cuts for co- and counter-passing particles
 !
@@ -265,7 +272,7 @@
 !
   call velo(dtau,z,vz)
 !
-  alamdot=vz(5)
+  alamdot=vz(5) 
 !
 ! end normal velocity
 !
@@ -345,38 +352,51 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_bounce(next,vext,dtau,z_eqm,taub,delphi,extraset)
+  subroutine velo_ext(dtau,z,vz)
+!
+  use orbit_dim_mod, only : neqm,next,ndim
+!
+  double precision :: dtau
+  double precision, dimension(ndim) :: z,vz
+!
+  call velo(dtau,z(1:neqm),vz(1:neqm))
+!
+  vz(neqm+1)=z(1)
+  vz(neqm+2)=z(3)
+  vz(neqm+3)=z(4)*z(5)
+!
+  end subroutine velo_ext
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine find_bounce(dtau,z_eqm,taub,delphi,extraset)
 !
 ! Integrates the orbit over one bounce time (finds this time). If needed
 ! (write_orb=.true.) writes it to the file with unit number "iunit1".
 ! Besides orbit equations integrates along the orbit and extra set of
 ! functions of phase space coordinates.
 ! Agruments:
-! naux           - auxiliary quantities to integrate
 ! dtau           - maximum value of time step (input)
 ! z_eqm(5)       - phase space variables (input/output)
 ! taub           - bounce time (output)
 ! delphi         - toroidal shift per bounce time (output)
 ! extraset(next) - extra integrals along the orbit
 !
-  use velo_ext_mod, only : neqm,write_orb,iunit1
+  use orbit_dim_mod, only : neqm,next,ndim,write_orb,iunit1
 !
   implicit none
 !
   double precision, parameter :: relerr=1d-10 !8
 !
-  integer :: next
-  integer :: ndim
   double precision :: dtau,taub,delphi
   double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol
   double precision, dimension(neqm) :: z_eqm
   double precision, dimension(next) :: extraset
-  double precision, dimension(neqm+next) :: z,z_start,vz
+  double precision, dimension(ndim) :: z,z_start,vz
 !
-  external vext
+  external velo_ext
 !
-  ndim = neqm + next
   z(1:neqm)=z_eqm
   z(neqm+1:ndim)=extraset
 !
@@ -384,7 +404,7 @@
 !
   z_start=z
 !
-  call vext(dtau,z,vz)
+  call velo_ext(dtau,z,vz)
 !
   vel_pol=sqrt(vz(1)**2+vz(3)**2)
   RNorm=vz(1)/vel_pol
@@ -394,14 +414,14 @@
 !
   if(write_orb) write (iunit1,*) z(1:neqm),vz(5)
 !
-  call odeint_allroutines(z,ndim,tau0,dtau,relerr,vext)
+  call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
 !
   taub=dtau
   dL2_pol=2.d0*(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
 !
   if(write_orb) then
 !
-    call vext(dtau,z,vz)
+    call velo_ext(dtau,z,vz)
 !
     write (iunit1,*) z(1:neqm),vz(5)
   endif
@@ -410,7 +430,7 @@
     r_prev=z(1)
     z_prev=z(3)
 !
-    call odeint_allroutines(z,ndim,tau0,dtau,relerr,vext)
+    call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
 !
     taub=taub+dtau
     dL2_pol=max(dL2_pol,2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2))
@@ -418,7 +438,7 @@
     if(dL2_pol_start.lt.dL2_pol) exit
     if(write_orb) then
 !
-      call vext(dtau,z,vz)
+      call velo_ext(dtau,z,vz)
 !
       write (iunit1,*) z(1:neqm),vz(5)
     endif
@@ -430,14 +450,14 @@
 !
   do
 !
-    call vext(dtau,z,vz)
+    call velo_ext(dtau,z,vz)
 !
     vnorm=vz(1)*RNorm+vz(3)*ZNorm
     dnorm=(z_start(1)-z(1))*RNorm+(z_start(3)-z(3))*ZNorm
     if(dnorm**2.lt.dL2_pol*relerr) exit
     dtau_newt=dnorm/vnorm
 !
-    call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,vext)
+    call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
 !
     taub=taub+dtau_newt
   enddo
@@ -445,7 +465,7 @@
   extraset=z(neqm+1:ndim)
   if(write_orb) then
 !
-    call vext(dtau,z,vz)
+    call velo_ext(dtau,z,vz)
 !
     write (iunit1,*) z(1:neqm),vz(5)
   endif
@@ -472,11 +492,10 @@
 !
   use field_eq_mod,      only : psif,dpsidr,dpsidz
   use vparzero_line_mod, only : nzline,hz,Zmid
-  use velo_ext_mod,      only : neqm, next, velo_ext
 !
   implicit none
 !
-  integer, parameter :: n_search=1000
+  integer, parameter :: neqm=5,next=3,n_search=1000
   double precision, parameter :: relerr=1d-10 !8
 !
   logical :: trapped,copass,ctrpass,triplet,trigger
@@ -518,7 +537,7 @@
   endif
   extraset=0.d0
 !
-  call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
+  call find_bounce(dtau,z,taub,delphi,extraset)
 !
   sigma=sign(1.d0,extraset(3))
   z(1)=extraset(1)/taub
@@ -545,7 +564,7 @@
     z(5)=sign(sqrt(alam2),sigma)
     extraset=0.d0
 !
-    call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
+    call find_bounce(dtau,z,taub,delphi,extraset)
 !
     z(1)=extraset(1)/taub
     z(2)=0.d0
@@ -826,7 +845,7 @@
 !
   perpinv=z(4)**2*(1.d0-z(5)**2)/bmod
 !
-  sigma=sign(1.d0,z(5))
+  sigma=sign(1.d0,z(5)) 
 !
   hdif=x(1)*eps_dif
   z=z_start
