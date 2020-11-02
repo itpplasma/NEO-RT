@@ -1,7 +1,8 @@
 !
   module vparzero_line_mod
+    logical :: load_psi_line=.true.
     integer :: nvpline,npsib
-    double precision :: rinb,zinb
+    double precision :: rinb,zinb,psi_bound,sigpsi
     double precision, dimension(:),   allocatable :: s_line
     double precision, dimension(:,:), allocatable :: vpar_line,psi_line
   end module vparzero_line_mod
@@ -29,12 +30,12 @@
 ! icase=3 - line is fully inside the volume
 ! icase=4 - line is absent in the volume, all the volume allows for the orbits
 !
-  use vparzero_line_mod, only : nvpline,npsib,s_line,vpar_line,psi_line,rinb,zinb
+  use vparzero_line_mod, only : load_psi_line,npsib,rinb,zinb,psi_bound,sigpsi,psi_line, &
+                                nvpline,s_line,vpar_line
   use field_eq_mod,      only : psif,psi_axis,psi_sep,dpsidr,dpsidz
 !
   implicit none
 !
-  integer, parameter :: nbsrc=10
   double precision, parameter :: relerr=1d-12 !8
 !
   logical :: prop
@@ -43,95 +44,97 @@
   double precision :: err_dist,vpar2,R,Z,dist
   double precision :: vpar2in,vpar2out,gradmod,w
   double precision :: Rin,Rout,delRZ,h_r,h_z,det,delR,delZ
-  double precision :: psi_bound,sigpsi,rss,zss,rse,zse,h_in,h_out,delth_rec
+  double precision :: rss,zss,rse,zse,h_in,h_out,delth_rec
   double precision, dimension(2)            :: gradvpar2,y,yst,dely
   integer, dimension(1) :: indrmin
 !
 ! Find R,Z and psi where psi-contour touches the box:
 !
-  sigpsi=sign(1.d0,psi_sep-psi_axis)
-  psi_bound=psi_sep
+  if(load_psi_line) then
+    load_psi_line=.false.
+    sigpsi=sign(1.d0,psi_sep-psi_axis)
+    psi_bound=psi_sep
 !
-  nr=nline
-  nz=nline
-  h_r=(rmax-rmin)/dble(nr)
-  h_z=(zmax-zmin)/dble(nz)
+    nr=nline
+    nz=nline
+    h_r=(rmax-rmin)/dble(nr)
+    h_z=(zmax-zmin)/dble(nz)
 !
-  do ir=0,nr
-    R=rmin+h_r*dble(ir)
-    Z=zmin
+    do ir=0,nr
+      R=rmin+h_r*dble(ir)
+      Z=zmin
 !
-    call vparzero_vec(R,Z,vpar2in,gradvpar2)
+      call vparzero_vec(R,Z,vpar2in,gradvpar2)
 !
-    if(sigpsi.gt.0.d0) then
-      psi_bound=min(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
+      if(sigpsi.gt.0.d0) then
+        psi_bound=min(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
+      else
+        psi_bound=max(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
       endif
-    else
-      psi_bound=max(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
-      endif
-    endif
-    Z=zmax
+      Z=zmax
 ! 
-    call vparzero_vec(R,Z,vpar2in,gradvpar2)
+      call vparzero_vec(R,Z,vpar2in,gradvpar2)
 ! 
-    if(sigpsi.gt.0.d0) then
-      psi_bound=min(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
+      if(sigpsi.gt.0.d0) then
+        psi_bound=min(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
+      else
+        psi_bound=max(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
       endif
-    else
-      psi_bound=max(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
-      endif
-    endif
-  enddo
+    enddo
 !
-  do iz=0,nz
-    Z=zmin+h_z*dble(iz)
-    R=rmin
+    do iz=0,nz
+      Z=zmin+h_z*dble(iz)
+      R=rmin
 ! 
-    call vparzero_vec(R,Z,vpar2in,gradvpar2)
+      call vparzero_vec(R,Z,vpar2in,gradvpar2)
 ! 
-    if(sigpsi.gt.0.d0) then
-      psi_bound=min(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
+      if(sigpsi.gt.0.d0) then
+        psi_bound=min(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
+      else
+        psi_bound=max(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
       endif
-    else
-      psi_bound=max(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
-      endif
-    endif
-    R=rmax
+      R=rmax
 ! 
-    call vparzero_vec(R,Z,vpar2in,gradvpar2)
+      call vparzero_vec(R,Z,vpar2in,gradvpar2)
 ! 
-    if(sigpsi.gt.0.d0) then
-      psi_bound=min(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
+      if(sigpsi.gt.0.d0) then
+        psi_bound=min(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
+      else
+        psi_bound=max(psi_bound,psif)
+        if(psi_bound.eq.psif) then
+          rss=R
+          zss=Z
+        endif
       endif
-    else
-      psi_bound=max(psi_bound,psif)
-      if(psi_bound.eq.psif) then
-        rss=R
-        zss=Z
-      endif
-    endif
-  enddo
+    enddo
 !
 ! End find R,Z and psi where psi-contour touches the box:
 !
@@ -155,48 +158,49 @@ enddo
 !
 ! Find the contour line psi=psi_bound
 !
-  y(1)=rss
-  y(2)=zss
-  h_in=rmax/dble(nline)
-  delth_rec=6.28d-3
+    y(1)=rss
+    y(2)=zss
+    h_in=rmax/dble(nline)
+    delth_rec=6.28d-3
 !
-  call choose_step(psi_cont,y,delth_rec,h_in,h_out)
+    call choose_step(psi_cont,y,delth_rec,h_in,h_out)
 !
-  err_dist=rmax*relerr
-  yst=y
-!
-  call level_set_step_2D(psi_cont, h_out, y)
-  call newt_adjust_root_2d(psi_cont,psi_bound,err_dist,y)
-!
-  npsib=1
-!
-  do
+    err_dist=rmax*relerr
+    yst=y
 !
     call level_set_step_2D(psi_cont, h_out, y)
     call newt_adjust_root_2d(psi_cont,psi_bound,err_dist,y)
+!
+    npsib=1
+!
+    do
+!
+      call level_set_step_2D(psi_cont, h_out, y)
+      call newt_adjust_root_2d(psi_cont,psi_bound,err_dist,y)
+!
+      npsib=npsib+1
+      if(sum((y-yst)**2).lt.h_out**2*1.25d0) exit
+    enddo
 !
     npsib=npsib+1
-    if(sum((y-yst)**2).lt.h_out**2*1.25d0) exit
-  enddo
+    allocate(psi_line(2,0:npsib))
+    y=yst
 !
-  npsib=npsib+1
-  allocate(psi_line(2,0:npsib))
-  y=yst
+    do i=0,npsib
+      psi_line(:,i)=y
 !
-  do i=0,npsib
-    psi_line(:,i)=y
-!
-    call level_set_step_2D(psi_cont, h_out, y)
-    call newt_adjust_root_2d(psi_cont,psi_bound,err_dist,y)
+      call level_set_step_2D(psi_cont, h_out, y)
+      call newt_adjust_root_2d(psi_cont,psi_bound,err_dist,y)
 !
 !write(101,*) psi_line(:,i)
-  enddo
+    enddo
 !
-  psi_line(:,npsib)=yst
+    psi_line(:,npsib)=yst
 !
-  indrmin=minloc(psi_line(1,:))
-  Rinb=psi_line(1,indrmin(1))
-  Zinb=psi_line(2,indrmin(1))
+    indrmin=minloc(psi_line(1,:))
+    Rinb=psi_line(1,indrmin(1))
+    Zinb=psi_line(2,indrmin(1))
+  endif
 !
 ! End find the countor line psi=psi_bound
 !
@@ -335,7 +339,11 @@ enddo
   enddo
 !
   nvpline=nvpline+1
-  allocate(s_line(0:nvpline),vpar_line(2,0:nvpline))
+  if(allocated(s_line)) then
+    deallocate(s_line,vpar_line)
+  else
+    allocate(s_line(0:nvpline),vpar_line(2,0:nvpline))
+  endif
   y(1)=rss
   y(2)=zss
 !
@@ -514,7 +522,6 @@ enddo
 !
   implicit none
 !
-  integer, parameter :: nbsrc=10
   double precision, parameter :: relerr=1d-10 !8
   logical :: prop
   integer :: icase,ierr,i
