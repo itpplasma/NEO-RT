@@ -14,7 +14,7 @@ add_subdirectory("../../../contrib/vode" "vode")
 add_executable (neo-rt.x main.f90 common.f90)
 
 if (ORBIT_MODE STREQUAL full)
-  add_subdirectory(../../POTATO/VER_1/SRC potato)
+  add_subdirectory(../../POTATO/VER_2/SRC potato)
   target_sources(neo-rt.x PRIVATE orbit_full.f90 transport_full.f90)
 endif()
 
