@@ -20,9 +20,9 @@
 !
   subroutine find_vparzero_line(nline,toten,perpinv,rmin,rmax,zmin,zmax,icase)
 !
-! Looks for the boundary of the "forbidden" region for particles with normalized total
-! energy "toten" and perpendicular invariant "perpinv", i.e. a line "v_par^2=0" within
-! the volume limites by the flux surface psi=psi_bound which touches one of the boundaries
+! Looks for the boundary of the "forbidden" region for particles with normalized total 
+! energy "toten" and perpendicular invariant "perpinv", i.e. a line "v_par^2=0" within 
+! the volume limites by the flux surface psi=psi_bound which touches one of the boundaries 
 ! of the box given by "rmin<R<rmax", "zmin<Z<zmax".
 ! Identifies 4 cases:
 ! icase=1 - line is outside the volume, all the volume is in the forbidden region (no orbits)
@@ -80,9 +80,9 @@
         endif
       endif
       Z=zmax
-!
+! 
       call vparzero_vec(R,Z,vpar2in,gradvpar2)
-!
+! 
       if(sigpsi.gt.0.d0) then
         psi_bound=min(psi_bound,psif)
         if(psi_bound.eq.psif) then
@@ -101,9 +101,9 @@
     do iz=0,nz
       Z=zmin+h_z*dble(iz)
       R=rmin
-!
+! 
       call vparzero_vec(R,Z,vpar2in,gradvpar2)
-!
+! 
       if(sigpsi.gt.0.d0) then
         psi_bound=min(psi_bound,psif)
         if(psi_bound.eq.psif) then
@@ -118,9 +118,9 @@
         endif
       endif
       R=rmax
-!
+! 
       call vparzero_vec(R,Z,vpar2in,gradvpar2)
-!
+! 
       if(sigpsi.gt.0.d0) then
         psi_bound=min(psi_bound,psif)
         if(psi_bound.eq.psif) then
@@ -514,7 +514,7 @@ enddo
                               sst,rst,zst,sst2,rst2,zst2,ierr)
 !
 ! Finds the point where parallel acceleration $\dot \lambda$ is zero
-! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting
+! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting 
 ! this point (rst,zst) with each of two B^* axes are used as Poincare
 ! cuts for co- and counter-passing particles
 !
@@ -630,7 +630,7 @@ enddo
 !
   call velo(dtau,z,vz)
 !
-  alamdot=vz(5)
+  alamdot=vz(5) 
 !
 ! end normal velocity
 !
@@ -710,37 +710,50 @@ enddo
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_bounce(next,velo_ext,dtau,z_eqm,taub,delphi,extraset)
+  subroutine velo_ext(dtau,z,vz)
+!
+  use orbit_dim_mod, only : neqm,next,ndim
+!
+  double precision :: dtau
+  double precision, dimension(ndim) :: z,vz
+!
+  call velo(dtau,z(1:neqm),vz(1:neqm))
+!
+  vz(neqm+1)=z(1)
+  vz(neqm+2)=z(3)
+  vz(neqm+3)=z(4)*z(5)
+!
+  end subroutine velo_ext
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine find_bounce(dtau,z_eqm,taub,delphi,extraset)
 !
 ! Integrates the orbit over one bounce time (finds this time). If needed
 ! (write_orb=.true.) writes it to the file with unit number "iunit1".
 ! Besides orbit equations integrates along the orbit and extra set of
 ! functions of phase space coordinates.
 ! Agruments:
-! velo_ext       - external routine to integrate (input)
 ! dtau           - maximum value of time step (input)
 ! z_eqm(5)       - phase space variables (input/output)
 ! taub           - bounce time (output)
 ! delphi         - toroidal shift per bounce time (output)
 ! extraset(next) - extra integrals along the orbit
 !
-  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
+  use orbit_dim_mod, only : neqm,next,ndim,write_orb,iunit1,Rorb_max
 !
   implicit none
 !
   double precision, parameter :: relerr=1d-10 !8
 !
-  integer :: next, ndim
   double precision :: dtau,taub,delphi
   double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
   double precision, dimension(neqm) :: z_eqm
   double precision, dimension(next) :: extraset
-  double precision, dimension(neqm+next) :: z,z_start,vz
+  double precision, dimension(ndim) :: z,z_start,vz
 !
   external velo_ext
-!
-  ndim = neqm+next
 !
   z(1:neqm)=z_eqm
   z(neqm+1:ndim)=extraset
@@ -920,7 +933,7 @@ enddo
   endif
   extraset=0.d0
 !
-  call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
+  call find_bounce(dtau,z,taub,delphi,extraset)
 !
   sigma=sign(1.d0,extraset(3))
   z(1)=extraset(1)/taub
@@ -956,7 +969,7 @@ enddo
     z(5)=sign(sqrt(alam2),sigma)
     extraset=0.d0
 !
-    call find_bounce(next,velo_ext,dtau,z,taub,delphi,extraset)
+    call find_bounce(dtau,z,taub,delphi,extraset)
 !
     z(1)=extraset(1)/taub
     z(2)=0.d0
@@ -1254,25 +1267,6 @@ enddo
 !
   endif
 !
-  contains
-!
-!---------------------
-!
-  subroutine velo_ext(dtau2,z2,vz2)
-    !
-      use orbit_dim_mod, only : neqm,next,ndim
-    !
-      double precision :: dtau2
-      double precision, dimension(ndim) :: z2,vz2
-    !
-      call velo(dtau2,z2(1:neqm),vz2(1:neqm))
-    !
-      vz2(neqm+1)=z2(1)
-      vz2(neqm+2)=z2(3)
-      vz2(neqm+3)=z2(4)*z2(5)
-    !
-      end subroutine velo_ext
-
   end subroutine find_bstar_axes
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -1360,7 +1354,7 @@ enddo
 !
   perpinv=z(4)**2*(1.d0-z(5)**2)/bmod
 !
-  sigma=sign(1.d0,z(5))
+  sigma=sign(1.d0,z(5)) 
 !
   hdif=x(1)*eps_dif
   z=z_start
