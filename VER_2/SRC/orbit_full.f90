@@ -48,6 +48,16 @@ module orbit
 
   end subroutine bounce_average
 
-  subroutine bounce_average_box
-  end subroutine bounce_average_box
+  subroutine bounce_harmonic(next, z, mb, nph, out, fn)
+    ! Computes bounce harmonic mb of fn
+      integer(4), intent(in) :: next       ! Number of extra integrals
+      real(8), intent(inout) :: z(5)       ! Position on orbit
+      integer(4), intent(in) :: mb         ! Bounce harmonic number
+      integer(4), intent(in) :: nph        ! Toroidal harmonic number
+      real(8), intent(out)   :: out(next)  ! Complex harmonic of input fn
+      external               :: fn         ! Subroutine fn(z, out) to treat
+
+      call bounce_average(2, z, fn, out)
+
+    end subroutine bounce_harmonic
 end module orbit

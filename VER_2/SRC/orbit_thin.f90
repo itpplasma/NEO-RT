@@ -1,4 +1,4 @@
-module orbit
+module orbit_thin
     implicit none
 
     contains
@@ -28,4 +28,4 @@ module orbit
         ydot(4) = 0.0d0                                             ! p
         ydot(5) = -y(4)**2*eta/2d0*hctrvr(3)*hder(3)*bmod           ! v_par
     end subroutine timestep
-end module orbit
+end module orbit_thin

@@ -1,7 +1,6 @@
 program neo_rt
   use common
-  use orbit, only: timestep
-  use transport, only: Hm
+  use orbit, only: timestep, bounce_harmonic
   use parmot_mod, only: rmu, ro0
 
   implicit none
@@ -50,8 +49,19 @@ program neo_rt
   ! toten = z(4)**2 + phi_elec(z)
   ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)
 
-  call Hm(z, 1, 1, HmReIm)
+  call bounce_harmonic(2, z, 1, 1, HmReIm, Hn)
 
   print *, 'HmReIm: ', HmReIm
 
+
+  contains
+
+  subroutine Hn(z2, out)
+
+    real(8), intent(in)  :: z2(5)
+    real(8), intent(out) :: out(2)
+
+    out(1) = z2(1)
+    out(2) = z2(3)
+  end subroutine Hn
 end program neo_rt

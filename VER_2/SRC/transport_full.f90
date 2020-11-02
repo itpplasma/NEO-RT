@@ -3,31 +3,6 @@ module transport
   use orbit, only: bounce_average
   implicit none
 
-  contains
-
-  subroutine Hm(zstart, mth, mph, HmReIm)
-  ! Computes Hamiltonian perturbation harmonic Hmn
-    real(8), intent(out) :: HmReIm(2)  ! Complex harmonic of H
-    real(8), intent(in)  :: zstart(5)  ! Starting position on orbit
-    integer(4), intent(in)  :: mth     ! Canonical poloidal harmonic number
-    integer(4), intent(in)  :: mph     ! Canonical toroidal harmonic number
-
-    call bounce_average(2, zstart, Hm_integrand, HmReIm)
-
-    contains
-
-    subroutine Hm_integrand(z, Hmdot)
-      use orbit
-
-      real(8), intent(in)  :: z(5)
-      real(8), intent(out) :: Hmdot(2)
-
-      Hmdot(1) = z(1)
-      Hmdot(2) = z(3)
-    end subroutine Hm_integrand
-
-  end subroutine Hm
-
 !   function flux_integrand(alpha, mth, mph)
 !     real(8) :: flux_integrand
 !     real(8), intent(in) :: alpha(3)  ! invariants J_perp, p_phi, H
