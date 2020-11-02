@@ -41,6 +41,7 @@ release = ''
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.coverage',
+    'sphinx_math_dollar',
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
@@ -192,6 +193,10 @@ macros = {
 }
 
 mathjax_config = {
+    'tex2jax': {
+        'inlineMath': [ ["\\(","\\)"] ],
+        'displayMath': [["\\[","\\]"] ],
+    },
     'TeX': {
         'Macros': macros
     }
