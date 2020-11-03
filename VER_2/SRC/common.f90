@@ -19,5 +19,18 @@ module common
 
   real(8), public :: qi, mi      ! Ion charge and mass, must be initialized !
 
-  integer(8), parameter :: neqm=5  ! Number of equations of motion
+  integer(4), parameter :: neqm=5  ! Number of equations of motion
+
+  contains
+
+  function linspace(a, b, cnt)
+    integer :: cnt
+    real(8) :: linspace(cnt)
+    integer :: i
+    real(8) :: a, b, delta
+
+    delta = (b-a)/(cnt-1)
+    linspace = a + delta*(/(i,i=0,cnt-1)/)
+  end function linspace
+
 end module common

@@ -1257,7 +1257,7 @@ contains
     !print *, ti/taub, y, s1
   end subroutine tsorb
 
-  subroutine sroots (neq, t, y, ng, gout)
+  subroutine sroots(neq, t, y, ng, gout)
     integer, intent(in) :: neq, ng
     real(8), intent(in) :: t, y(neq)
     real(8), intent(out) :: gout(ng)

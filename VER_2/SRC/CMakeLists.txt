@@ -6,8 +6,15 @@ set(CMAKE_Fortran_FLAGS "-cpp -g -fbacktrace")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 set(ORBIT_MODE "full" CACHE STRING "Orbit approximation (full/thin)")
 
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Orbit type: ${ORBIT_MODE}")
+message(STATUS "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
+message(STATUS "ORBIT_MODE=${ORBIT_MODE}")
+message(STATUS
+"-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+List config using 'cmake -L .'
+and change using 'cmake -DVAR_NAME=VALUE .'
+or edit CMakeCache.txt
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --"
+)
 
 add_subdirectory("../../../contrib/vode" "vode")
 

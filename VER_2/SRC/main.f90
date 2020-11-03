@@ -1,17 +1,23 @@
 program neo_rt
   use common
-  use orbit, only: timestep, bounce_harmonic
+  use orbit, only: timestep, bounce_harmonic, bounce_integral_box
   use transport, only: Hpert
   use parmot_mod, only: rmu, ro0
 
   implicit none
+
 
   real(8) :: z(neqm), zdot(neqm)
   real(8) :: bmod_ref, bmod00, tempi1, am, Zb, v0, rlarm
   real(8) :: bmod, phi_elec
   real(8) :: mth, mph  ! Poloidal and toroidal harmonic numbers
   real(8) :: alpha(3)  ! Invariants
-  real(8) :: HmReIm(2)
+  real(8) :: HmReIm(2), taub
+
+  integer(4), parameter :: nbox = 101
+  real(8) :: sbox(nbox)
+  real(8) :: taubox(nbox)
+  real(8) :: HmReImbox(2, nbox)
 
   ! Inverse relativistic temperature, set >=1e5 to neglect relativistic effects
   rmu = 1.0d5
@@ -36,9 +42,9 @@ program neo_rt
   ! Initial conditions
   z(1) = 170.0d0  ! R
   z(2) = 0.0d0    ! PHI
-  z(3) = 40d0     ! Z
+  z(3) = 20d0     ! Z
   z(4) = 1d0      ! p/p0
-  z(5) = 0.9d0    ! p_par/p
+  z(5) = 1.0d-3   ! p_par/p
 
   ! First call for field
   call get_bmod_and_Phi(z(1:3), bmod, phi_elec)
@@ -57,5 +63,8 @@ program neo_rt
   call bounce_harmonic(2, z, 1, 1, HmReIm, Hpert)
 
   print *, 'HmReIm: ', HmReIm
+
+  sbox = linspace(0d0, 1d0, nbox)
+  call bounce_integral_box(2, z, Hpert, sbox, taubox, HmReImbox)
 
 end program neo_rt
