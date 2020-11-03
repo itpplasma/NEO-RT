@@ -17,7 +17,7 @@ module orbit
   ! Returns bounce average of an quantity via orbit integration
     integer(4), intent(in) :: n  ! Number of components of the integrand
     real(8), intent(in)    :: z(neqm)    ! Starting position
-    external               :: integrand  ! Subroutine fcn(z, ret) to integrate
+    external               :: integrand  ! Routine fcn(t, z, ret) to integrate
     real(8), intent(out)   :: taub       ! Bounce time output
     real(8), intent(out)   :: delphi     ! Change in varphi during bounce time
     real(8), intent(out)   :: ret(n)     ! Bounce average output
@@ -38,7 +38,7 @@ module orbit
       real(8), intent(out) :: dydt(neqm+n)
 
       call timestep(t, y(1:neqm), dydt(1:neqm))
-      call integrand(y(1:neqm), dydt(neqm+1:(neqm+n)))
+      call integrand(t, y(1:neqm), dydt(neqm+1:(neqm+n)))
     end subroutine timestep_ext
 
   end subroutine bounce_average
@@ -193,9 +193,37 @@ module orbit
       real(8), intent(out)   :: taub       ! Bounce time
       real(8), intent(out)   :: delphi     ! Change in varphi during bounce time
 
-
+      real(8) :: omb, omphi
       ! TODO
-      call bounce_average(2, z, fn, taub, delphi, ret)
+      call bounce_average(next, z, fn, taub, delphi, ret)
+
+      omb = 2d0*pi/taub
+      omphi = delphi/taub
+
+      call bounce_average(next, z, integrand, taub, delphi, ret)
+
+      contains
+
+      subroutine integrand(t, y, res)
+        ! Integrand for Fourier integral: real and imaginary part
+          real(8), intent(in)  :: t           ! Orbit time parameter
+          real(8), intent(in)  :: y(5)        ! Orbit phase-space variables
+          real(8), intent(out) :: res(2)      ! Output
+
+          real(8) :: bmod, sqrtg
+          real(8), dimension(3) :: bder,hcovar,hctrvr,hcurl
+
+          real(8) :: fnres(2)
+          complex(8) :: fnval, expfac, resval
+
+          call fn(t, y, fnres)
+          fnval = cmplx(fnres(1), fnres(2))
+          expfac = exp(-imun*(mb*omb*t + nph*(y(2) - omphi*t)))
+          resval = fnval*expfac
+
+          res(1) = real(resval)
+          res(2) = aimag(resval)
+        end subroutine integrand
     end subroutine bounce_harmonic
 
 

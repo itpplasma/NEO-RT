@@ -8,8 +8,9 @@ module transport
 
   contains
 
-  subroutine Hpert(z, res)
+  subroutine Hpert(t, z, res)
   ! Toroidal harmonic of Hamiltonian perturbation: real and imaginary part
+    real(8), intent(in)  :: t           ! Orbit time parameter
     real(8), intent(in)  :: z(5)        ! Orbit phase-space variables
     real(8), intent(out) :: res(2)      ! Output of Hamiltonian perturbation
 

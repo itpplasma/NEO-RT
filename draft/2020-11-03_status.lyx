@@ -127,8 +127,8 @@ The problem to solve
 Particle flux is given via integral
 \begin_inset Formula 
 \begin{align}
-\text{\ensuremath{\Gamma}}_{\mathrm{box}}(r)= & -2\pi^{3}\sum_{mn}\int\d H_{0}\int\d J_{\perp}\int\d p_{\varphi}|H_{mn}|^{2}\delta(m\omega_{b}+n\Omega_{\varphi})\nabla_{mn}f_{0}\nonumber \\
- & \times\frac{\tau_{b}}{2\pi}\int_{0}^{2\pi}\d\theta^{3}\Theta(r-r(R,Z))\nabla_{mn}r(R,Z).
+\text{\ensuremath{\Gamma}}_{\mathrm{box}}(r)= & -2\pi^{3}\sum_{\sigma=\pm}\sum_{mn}\int\d H_{0}\int\d J_{\perp}\int\d p_{\varphi}|H_{mn}|^{2}\delta(m\omega_{b}+n\Omega_{\varphi})\partial_{mn}f_{0}\nonumber \\
+ & \times\int_{0}^{\tau_{b}}\d\tau\,\Theta(r-r(R,Z))\partial_{mn}r(R,Z).
 \end{align}
 
 \end_inset
@@ -144,7 +144,7 @@ Here
  is the toroidal harmonic (symmetry angle) and
 \begin_inset Formula 
 \begin{equation}
-\nabla_{mn}=\mathbf{m}\cdot\nabla_{\mathbf{J}}=m\omega_{b}\frac{\partial}{\partial H_{0}}+n\frac{\partial}{\partial p_{\varphi}}.
+\partial_{mn}a=\mathbf{m}\cdot\nabla_{\mathbf{J}}a=m\omega_{b}\left(\frac{\partial a}{\partial H_{0}}\right)_{\boldsymbol{\theta}}+n\left(\frac{\partial a}{\partial p_{\varphi}}\right)_{\boldsymbol{\theta}}.
 \end{equation}
 
 \end_inset
@@ -189,6 +189,32 @@ Computation of radial fluxes
 
 \begin_deeper
 \begin_layout Enumerate
+Orbit frequencies
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+Can compute orbit frequencies 
+\begin_inset Formula $\omega_{b}$
+\end_inset
+
+ and 
+\begin_inset Formula $\Omega^{\varphi}$
+\end_inset
+
+ from given starting 
+\begin_inset Formula $R,Z$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Enumerate
+TODO: Interpolation over action space for all classes
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
 Level set integrals in phase-space
 \end_layout
 
@@ -221,7 +247,7 @@ Case for splitting orbit between boxes works
 
 \begin_layout Enumerate
 TODO: Integration of 
-\begin_inset Formula $\nabla_{mn}r$
+\begin_inset Formula $\partial_{mn}r$
 \end_inset
 
  term with finite differences
@@ -247,7 +273,7 @@ Bounce averages are working
 \end_layout
 
 \begin_layout Enumerate
-TODO: Add exponential term for canonical harmonics
+TODO: Test exponential term for canonical harmonics
 \end_layout
 
 \end_deeper
@@ -267,24 +293,48 @@ Routine to compute starting position from invariants
 \begin_inset Formula $(J_{\perp},p_{\varphi},H)$
 \end_inset
 
-
+ @Sergei
 \end_layout
 
 \begin_layout Enumerate
-Bounding box for invariants
+Translation Boozer-cylindrical coordinates @Artem
 \end_layout
 
 \begin_layout Enumerate
-Comparison case with old NEO-RT and/or NEO-2, e.g.
+Bounding region for invariants @Sergei, sub_potato.f90 (last closed surface)
+\end_layout
+
+\begin_layout Enumerate
+Interpolation of orbit frequencies over invariants @Sergei
+\end_layout
+
+\begin_layout Enumerate
+Comparison with NEO-RT v1 and/or NEO-2, e.g.
  AUG 30835, 
 \begin_inset Formula $n=2$
 \end_inset
 
  and 
-\begin_inset Formula $B_{n}=5\cdot10^{-3}B_{0}$
+\begin_inset Formula $B_{n}=5\cdot10^{-3}B_{0}\cos\vartheta$
+\end_inset
+
+ or real Boozer @Chris,Rico
+\end_layout
+
+\begin_layout Enumerate
+Literature study: see also Lausanne, Monte-Carlo code VENUS
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+Some day: optimize, e.g.
+ save some bounce evaluations
 \end_layout
 
 \begin_layout Standard
