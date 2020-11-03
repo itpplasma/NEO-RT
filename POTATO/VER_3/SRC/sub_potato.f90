@@ -282,7 +282,7 @@ enddo
       dely=h_out*gradvpar2/gradmod
       y=y-dely
       if(sum(dely**2).lt.err_dist**2) exit
-      if(sigpsi*(psif-psi_bound).lt.0.d0) exit
+      if(sigpsi*(psif-psi_bound).gt.0.d0) exit
     enddo
 !
     vpar2out=vpar2
@@ -831,7 +831,8 @@ enddo
                              sst,rst,zst,sst2,rst2,zst2,dtau,               &
                              trapped,copass,ctrpass,triplet,                &
                              raxis_co,zaxis_co,raxis_ctr,zaxis_ctr,         &
-                             rxpoi,zxpoi,sigma_x,s_tp,ierr)
+                             rxpoi,zxpoi,sigma_x,s_tp,                      &
+                             rxpoi2,zxpoi2,sigma_x2,s_tp2,ierr)
 !
 ! Finds stable points of the orbit map: magnetic axes of B^* field for co-
 ! and counter-passing B^* fields (if exist) and X-point if exists. In case
@@ -852,7 +853,7 @@ enddo
   integer :: icase,ierr,iter,i
   double precision :: toten,perpinv,sst,rst,zst,sst2,rst2,zst2,dtau, &
                       raxis_co,zaxis_co,raxis_ctr,zaxis_ctr, &
-                      rxpoi,zxpoi,sigma_x,s_tp
+                      rxpoi,zxpoi,sigma_x,s_tp,rxpoi2,zxpoi2,sigma_x2,s_tp2
   double precision :: bmod,phi_elec,p2,alam2,taub,delphi,sigma,Rorb_in
   double precision :: h_s,h_R,h_Z,vnorm,vnorm_prev,raxis,zaxis,p_phi
   double precision :: s,dR_ds,dZ_ds,delta_psif,delta_s,err_dist
@@ -1152,6 +1153,7 @@ enddo
   endif
 !
   if(icase.eq.3) then
+    sigma_x2=0.d0
     sigma=-sigma
     trigger=.true.
     h_R=(Rinb-rst2)/dble(n_search**2)
@@ -1190,21 +1192,21 @@ enddo
       else
         if(vnorm*vnorm_prev.lt.0.d0) then
           vnorm_prev=-vnorm_prev
-          rxpoi=z(1)
-          zxpoi=z(3)
-          sigma_x=sigma
+          rxpoi2=z(1)
+          zxpoi2=z(3)
+          sigma_x2=sigma
         endif
       endif
     enddo
 !
-    z(1)=rxpoi
+    z(1)=rxpoi2
     z(2)=0.d0
-    z(3)=zxpoi
+    z(3)=zxpoi2
 !
     call find_axis(toten,perpinv,sigma,z,ierr)
 !
-    rxpoi=z(1)
-    zxpoi=z(3)
+    rxpoi2=z(1)
+    zxpoi2=z(3)
 !
 ! Find trapped-passing boundary on the v_par=0 line:
 !
@@ -1250,7 +1252,7 @@ enddo
       if(abs(delta_s).lt.err_dist) exit
     enddo
 !
-    s_tp=s
+    s_tp2=s
 !
   endif
 !
@@ -1291,6 +1293,8 @@ enddo
   double precision :: err_dist,facnewt,bmod,phi_elec,p2,alam2
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol
   double precision, dimension(ndim) :: z,z_start,vz,z_restart
+!
+  ierr=0
 !
   call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
 !

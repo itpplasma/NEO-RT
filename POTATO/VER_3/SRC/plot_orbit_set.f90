@@ -1,7 +1,8 @@
 !
   subroutine plot_orbit_set(wrorb,iun1,iun2,npoi,npoi_pot,dtau,icase,toten,perpinv,        &
                             trapped,copass,ctrpass,triplet,sst,rst,zst,sst2,rst2,zst2,     &
-                            sigma_x,s_tp,rxpoi,zxpoi,raxis_ctr,zaxis_ctr,raxis_co,zaxis_co)
+                            sigma_x,s_tp,rxpoi,zxpoi,sigma_x2,s_tp2,rxpoi2,zxpoi2,         &
+                            raxis_ctr,zaxis_ctr,raxis_co,zaxis_co)
 !
   use orbit_dim_mod,     only : neqm,next,write_orb,iunit1
   use vparzero_line_mod, only : nvpline,s_line,psi_line,rinb,zinb
@@ -12,8 +13,8 @@
 !
   logical :: wrorb,trapped,copass,ctrpass,triplet
   integer :: icase,i,npoi,npoi_pot,iun1,iun2
-  double precision :: eps,toten,perpinv,sigma_x,s_tp,delL_fixp
-  double precision :: rxpoi,zxpoi,raxis_ctr,zaxis_ctr,raxis_co,zaxis_co
+  double precision :: eps,toten,perpinv,sigma_x,s_tp,sigma_x2,s_tp2,delL_fixp
+  double precision :: rxpoi,zxpoi,rxpoi2,zxpoi2,raxis_ctr,zaxis_ctr,raxis_co,zaxis_co
   double precision :: bmod,phi_elec,p2,sst,rst,zst,sst2,rst2,zst2
   double precision :: alam2,hs,hr,hz,s,dR_ds,dZ_ds,p_phi
   double precision :: dtau,taub,delphi,rbeg,zbeg,rend,zend,sigma,potato
@@ -161,12 +162,24 @@
 !
   if(icase.eq.2) then
     trapped=.true.
-    s_beg=s_tp
+    if(sigma_x.eq.0.d0) then
+      s_beg=sst
+    else
+      s_beg=s_tp
+    endif
     s_end=s_line(nvpline)
   elseif(icase.eq.3) then
     trapped=.true.
-    s_beg=sst
-    s_end=s_tp
+    if(sigma_x.eq.0.d0) then
+      s_beg=sst
+    else
+      s_beg=s_tp
+    endif
+    if(sigma_x2.eq.0.d0) then
+      s_end=sst2
+    else
+      s_end=s_tp2
+    endif
   else
     trapped=.false.
   endif
@@ -179,7 +192,7 @@
 !
     do i=0,npoi
       z(2)=0.d0
-      s=s_beg+hs*(dble(i)+eps)
+      s=s_beg+hs*dble(i)
 !
       call vparzero_line(s,z(1),z(3),dR_ds,dZ_ds)
 !
@@ -211,7 +224,7 @@
 ! End trapped particles
 !
   if(icase.eq.3) then
-    if(sigma_x.lt.0) then
+    if(sigma_x2.lt.0) then
       sigma=1.d0
       open(1,file='co-passing2.dat')
       open(2,file='cut_taub_dephi_co_passing2.dat')
@@ -229,8 +242,8 @@
       sigma=-1.d0
       open(1,file='ctr-passing2.dat')
       open(2,file='cut_taub_dephi_ctr_passing2.dat')
-      rend=rxpoi
-      zend=zxpoi
+      rend=rxpoi2
+      zend=zxpoi2
       e_marg=1.d0
 !
       call passing_orbits(npoi,rbeg,zbeg,rend,zend,sigma,potato)
@@ -305,7 +318,7 @@
   do i=0,npoi
     z(1)=rbeg+hR*dble(i)+del_R*b_marg
     z(2)=0.d0
-    z(3)=zbeg+hZ*dble(i)+del_Z*e_marg
+    z(3)=zbeg+hZ*dble(i)+del_Z*b_marg
 !
     call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
 !

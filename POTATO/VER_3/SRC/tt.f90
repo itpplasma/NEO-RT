@@ -94,6 +94,7 @@
 !perpinv=1.40d0*perpinv
 !perpinv=0.98232d0*perpinv !for ampl=0.25d0
 
+perpinv=0.99d0*perpinv
 !
   nline=200
 !
@@ -140,7 +141,8 @@
                        sst,rst,zst,sst2,rst2,zst2,dtau,       &
                        trapped,copass,ctrpass,triplet,        &
                        raxis_co,zaxis_co,raxis_ctr,zaxis_ctr, &
-                       rxpoi,zxpoi,sigma_x,s_tp,ierr)
+                       rxpoi,zxpoi,sigma_x,s_tp,              &
+                       rxpoi2,zxpoi2,sigma_x2,s_tp2,ierr)
 !
   if(ierr.ne.0) then
     print *,'find_bstar_axes ierr = ',ierr
@@ -148,9 +150,15 @@
   endif
 !
   if(sigma_x.ne.0.d0) then
-    print *,'X-point: ',rxpoi,zxpoi
+    print *,'right X-point: ',rxpoi,zxpoi, 'sigma: ',sigma_x
   else
-    print *,'no X-point'
+    print *,'no right X-point'
+  endif
+!
+  if(sigma_x2.ne.0.d0) then
+    print *,'left X-point: ',rxpoi2,zxpoi2, 'sigma: ',sigma_x2
+  else
+    print *,'no left X-point'
   endif
 !
   open(1,file='invar_axes.dat')
@@ -169,10 +177,18 @@
     print *,'no counter-passing axis'
   endif
 !
-  if(triplet) then
+  if(sigma_x.ne.0.d0) then
     write(1,*) rxpoi,zxpoi
 !
     call vparzero_line(s_tp,z(1),z(3),dR_ds,dZ_ds)
+!
+    write(1,*) z(1),z(3)
+  endif
+!
+  if(sigma_x2.ne.0.d0) then
+    write(1,*) rxpoi2,zxpoi2
+!
+    call vparzero_line(s_tp2,z(1),z(3),dR_ds,dZ_ds)
 !
     write(1,*) z(1),z(3)
   endif
@@ -185,15 +201,16 @@
 !
   eps=1.d-2
 !
-  npoi=515 !15 !0 !0 !2500
+  npoi=15 !15 !0 !0 !2500
   npoi_pot=5
   iun1=1
   iun2=2
-  wrorb=.false. !.true. !.false.
+  wrorb=.true. !.false.
 !
   call plot_orbit_set(wrorb,iun1,iun2,npoi,npoi_pot,dtau,icase,toten,perpinv,        &
                       trapped,copass,ctrpass,triplet,sst,rst,zst,sst2,rst2,zst2,     &
-                      sigma_x,s_tp,rxpoi,zxpoi,raxis_ctr,zaxis_ctr,raxis_co,zaxis_co)
+                      sigma_x,s_tp,rxpoi,zxpoi,sigma_x2,s_tp2,rxpoi2,zxpoi2,         &
+                      raxis_ctr,zaxis_ctr,raxis_co,zaxis_co)
 !
   end program classify_orbits
 !
