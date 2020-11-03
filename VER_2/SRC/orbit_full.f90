@@ -13,15 +13,16 @@ module orbit
     call velo(tau, z, vz)
   end subroutine timestep
 
-  subroutine bounce_average(n, z, integrand, taub, ret)
+  subroutine bounce_average(n, z, integrand, taub, delphi, ret)
   ! Returns bounce average of an quantity via orbit integration
     integer(4), intent(in) :: n  ! Number of components of the integrand
     real(8), intent(in)    :: z(neqm)    ! Starting position
-    external               :: integrand  ! Subroutine
+    external               :: integrand  ! Subroutine fcn(z, ret) to integrate
     real(8), intent(out)   :: taub       ! Bounce time output
+    real(8), intent(out)   :: delphi     ! Change in varphi during bounce time
     real(8), intent(out)   :: ret(n)     ! Bounce average output
 
-    real(8) :: dtau, delphi
+    real(8) :: dtau
 
     dtau = 2.0d0  ! TODO: time step is for strongly passing
 
@@ -181,21 +182,20 @@ module orbit
     end subroutine sroots
   end subroutine bounce_integral_box
 
-
-
-  subroutine bounce_harmonic(next, z, mb, nph, ret, fn)
+  subroutine bounce_harmonic(next, z, fn, mb, nph, taub, delphi, ret)
     ! Computes bounce harmonic mb of fn
       integer(4), intent(in) :: next       ! Number of extra integrals
       real(8), intent(inout) :: z(5)       ! Position on orbit
+      external               :: fn         ! Subroutine fn(z, out) to treat
       integer(4), intent(in) :: mb         ! Bounce harmonic number
       integer(4), intent(in) :: nph        ! Toroidal harmonic number
       real(8), intent(out)   :: ret(next)  ! Complex harmonic of input fn
-      external               :: fn         ! Subroutine fn(z, out) to treat
+      real(8), intent(out)   :: taub       ! Bounce time
+      real(8), intent(out)   :: delphi     ! Change in varphi during bounce time
 
-      real(8) :: taub
 
       ! TODO
-      call bounce_average(2, z, fn, taub, ret)
+      call bounce_average(2, z, fn, taub, delphi, ret)
     end subroutine bounce_harmonic
 
 

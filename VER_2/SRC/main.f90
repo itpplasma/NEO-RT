@@ -12,7 +12,7 @@ program neo_rt
   real(8) :: bmod, phi_elec
   real(8) :: mth, mph  ! Poloidal and toroidal harmonic numbers
   real(8) :: alpha(3)  ! Invariants
-  real(8) :: HmReIm(2), taub
+  real(8) :: HmReIm(2), taub, delphi
 
   integer(4), parameter :: nbox = 101
   real(8) :: sbox(nbox)
@@ -60,7 +60,7 @@ program neo_rt
   ! toten = z(4)**2 + phi_elec(z)
   ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)
 
-  call bounce_harmonic(2, z, 1, 1, HmReIm, Hpert)
+  call bounce_harmonic(2, z, Hpert, 1, 1, taub, delphi, HmReIm)
 
   print *, 'HmReIm: ', HmReIm
 

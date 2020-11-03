@@ -27,6 +27,9 @@ module transport
     res(2) = 0d0  ! TODO: Imaginary part is set to zero for test field
   end subroutine Hpert
 
+!  subroutine TODO for 3 orbits to integrate m*df/dJ
+!  end subroutine
+
 !   function flux_integrand(alpha, mth, mph)
 !     real(8) :: flux_integrand
 !     real(8), intent(in) :: alpha(3)  ! invariants J_perp, p_phi, H

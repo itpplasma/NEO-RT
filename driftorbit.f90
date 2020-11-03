@@ -612,7 +612,7 @@ contains
     real(8) :: Omth, dOmthdv, dOmthdeta
     real(8) :: res, dresdv, dresdeta
     real(8) :: resold, dresdvold, dresdetaold
-    integer :: k, ninterv, nroots
+    integer :: k, ninterv
 
     ninterv = size(roots,1)
 

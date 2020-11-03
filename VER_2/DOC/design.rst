@@ -101,9 +101,23 @@ In the non-relativistic case we have
   \bar{t}_{s}	&=v_{0s}\,t\,,\\
   \bar{\Phi}_{s}	&=\frac{e}{T}\Phi\,,\\
   \bar{p}_{s}	&=\frac{p}{mv_{0s}}=\frac{v}{v_{0s}}=\bar{v}_{s}\\
-  \bar{\mu}_{s}	&=\frac{\bar{p}_{s}^{\,2}(1-\lambda^{2})}{2B}=\frac{p^{\,2}(1-\lambda^{2})}{2m^{2}v_{0}^{\,2}B}
+  \bar{\mu}_{s}	&=\frac{\bar{p}_{s}^{\,2}(1-\lambda^{2})}{2B}
+    =\frac{p^{\,2}(1-\lambda^{2})}{2m^{2}v_{0}^{\,2}B}
     =\frac{p_{\perp}^{\,2}}{4mTB}=\frac{\mu}{2T}\\
   \omega_{c}&=\frac{eB}{mc}=\frac{v_{0s}}{\rho_{0s}}B=\frac{v_{0}}{\rho_{0}}B.
+
+The toroidal canonical momentum $p_{\varphi}$ is normalized to become $\psi^*$,
+i.e.  it is multiplied with $c/e$, and has a dimension of poloidal flux in
+Gaussian units.
+
+.. math::
+  p_{\varphi}
+    &=mv_{\parallel}h_{\varphi}+\frac{e}{c}A_{\varphi}\\
+    &=mv_{0}\frac{v_{\parallel}}{v}\frac{v}{v_{0}}h_{\varphi}+m\frac{v_{0}}{\rho_{0}}A_{\varphi}\\
+    &=\underbrace{\frac{mv_{0}}{\rho_{0}}}_{c/e}
+    \underbrace{
+      \left(\rho_{0}\frac{v}{v_{0}}\lambda h_{\varphi}+A_{\varphi}\right)
+    }_{\bar{p}_\varphi = \psi^*}
 
 
 Hamiltonian perturbation
