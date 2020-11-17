@@ -30,7 +30,7 @@ submodule (orbit) orbit_full
   end procedure bounce_average
 
   module procedure bounce_integral_box
-    use dvode_f90_m
+    use dvode_f90_m, only: vode_opts, set_normal_opts, dvode_f90, get_stats
     use field_eq_mod, only: psif, psi_axis, psi_sep
 
     real(8) :: dtau, taub, delphi
@@ -124,33 +124,33 @@ submodule (orbit) orbit_full
 
     contains
 
-    subroutine timestep_ext_forbounce(t, y2, dydt)
+    subroutine timestep_ext_forbounce(t, yext, dydt)
       real(8), intent(in) :: t
-      real(8), intent(in) :: y2(neqm+n)
+      real(8), intent(in) :: yext(neqm+n)
       real(8), intent(out) :: dydt(neqm+n)
 
-      call timestep(t, y2(1:neqm), dydt(1:neqm))
-      call integrand(y2(1:neqm), dydt(neqm+1:(neqm+n)))
+      call timestep(t, yext(1:neqm), dydt(1:neqm))
+      call integrand(yext(1:neqm), dydt(neqm+1:(neqm+n)))
     end subroutine timestep_ext_forbounce
 
-    subroutine timestep_ext(neq2, t, y2, dydt)
-      integer(4), intent(in) :: neq2
+    subroutine timestep_ext(neqext, t, yext, dydt)
+      integer(4), intent(in) :: neqext
       real(8), intent(in) :: t
-      real(8), intent(in) :: y2(neq2)
-      real(8), intent(out) :: dydt(neq2)
+      real(8), intent(in) :: yext(neqext)
+      real(8), intent(out) :: dydt(neqext)
 
-      call timestep(t, y2(1:neqm), dydt(1:neqm))
-      call integrand(y2(1:neqm), dydt(neqm+1:neq2))
+      call timestep(t, yext(1:neqm), dydt(1:neqm))
+      call integrand(yext(1:neqm), dydt(neqm+1:neqext))
     end subroutine timestep_ext
 
-    subroutine sroots (neq2, t, y2, ng, gout)
+    subroutine sroots(neqext, t, yext, ng, gout)
     ! For finding roots between boxes
 
-      integer, intent(in) :: neq2, ng
-      real(8), intent(in) :: t, y2(neq)
+      integer, intent(in) :: neqext, ng
+      real(8), intent(in) :: t, yext(neqext)
       real(8), intent(out) :: gout(ng)
 
-      call get_bmod_and_Phi(y2(1:3), bmod, phi_elec)
+      call get_bmod_and_Phi(yext(1:3), bmod, phi_elec)
 
       s = abs((psif-psi_axis)/(psi_sep-psi_axis))
 
