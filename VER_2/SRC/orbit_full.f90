@@ -144,7 +144,7 @@ submodule (orbit) orbit_full
     end subroutine timestep_ext
 
     subroutine sroots(neqext, t, yext, ng, gout)
-    ! For finding roots between boxes
+      ! For finding roots between boxes
 
       integer, intent(in) :: neqext, ng
       real(8), intent(in) :: t, yext(neqext)
