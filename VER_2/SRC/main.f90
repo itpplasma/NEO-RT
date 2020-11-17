@@ -1,6 +1,6 @@
 program neo_rt
   use common
-  use orbit, only: timestep, bounce_harmonic, bounce_integral_box
+  use orbit, only: timestep, bounce_harmonic, bounce_integral_box, neqm
   use transport, only: Hpert
   use parmot_mod, only: rmu, ro0
 
