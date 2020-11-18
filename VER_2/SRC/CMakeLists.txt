@@ -18,7 +18,7 @@ or edit CMakeCache.txt
 
 add_subdirectory("../../../contrib/vode" "vode")
 
-add_executable (neo-rt.x main.f90 common.f90 orbit.f90)
+add_executable (neo-rt.x main.f90 common.f90)
 
 if (ORBIT_MODE STREQUAL full)
   target_sources(neo-rt.x PRIVATE orbit_full.f90 transport_full.f90)

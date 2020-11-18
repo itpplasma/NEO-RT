@@ -44,7 +44,7 @@ program neo_rt
   z(2) = 0.0d0    ! PHI
   z(3) = 20d0     ! Z
   z(4) = 1d0      ! p/p0
-  z(5) = 1.0d-3   ! p_par/p
+  z(5) = 0.9d0    ! p_par/p
 
   ! First call for field
   call get_bmod_and_Phi(z(1:3), bmod, phi_elec)
