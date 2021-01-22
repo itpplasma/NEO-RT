@@ -606,7 +606,7 @@ contains
   subroutine driftorbit_coarse(eta_min, eta_max, roots, nroots)
     real(8), intent(in) :: eta_min, eta_max
     real(8), intent(out) :: roots(:,:)
-    real(8), intent(out) :: nroots
+    integer, intent(out) :: nroots
     real(8) :: deta
     real(8) :: Omph, dOmphdv, dOmphdeta
     real(8) :: Omth, dOmthdv, dOmthdeta
