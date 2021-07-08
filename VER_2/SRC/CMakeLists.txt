@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 project(NEO-RT Fortran)
 
-set(CMAKE_Fortran_FLAGS "-cpp -g -fbacktrace")
+set(CMAKE_Fortran_FLAGS "-cpp -g -fbacktrace -std=gnu")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 set(ORBIT_MODE "full" CACHE STRING "Orbit approximation (full/thin)")
 

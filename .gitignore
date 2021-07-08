@@ -35,3 +35,4 @@ _build/
 DATA
 POTATO/VER_2/RUN
 POTATO/VER_3/RUN
+*.smod
