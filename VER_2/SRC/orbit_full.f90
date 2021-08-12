@@ -184,7 +184,7 @@ subroutine bounce_integral_box(n, z, integrand, sbox, tau, ret)
 end subroutine bounce_integral_box
 
 
-module subroutine bounce_harmonic(next, z, fn, mb, nph, taub, delphi, ret)
+subroutine bounce_harmonic(next, z, fn, mb, nph, taub, delphi, ret)
   ! Computes bounce harmonic mb of fn
   integer(4), intent(in) :: next       ! Number of extra integrals
   real(8), intent(inout) :: z(neqm)    ! Position on orbit

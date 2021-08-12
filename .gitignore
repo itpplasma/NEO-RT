@@ -36,3 +36,12 @@ DATA
 POTATO/VER_2/RUN
 POTATO/VER_3/RUN
 *.smod
+POTATO/BOOZER_TO_EFIT/bmod_n.*
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.plist
+*.fls
+POTATO/BOOZER_TO_EFIT/efit.eqdsk
+POTATO/BOOZER_TO_EFIT/convexwall.boz
