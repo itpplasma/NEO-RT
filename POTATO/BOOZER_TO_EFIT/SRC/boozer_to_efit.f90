@@ -34,7 +34,7 @@ program boozer_to_efit
 !
   double precision, parameter :: eps_grad = 1d-4 !1d-9
   double precision, parameter :: eps_newt = 1d-9
-  double precision, parameter :: sigma = 2.d0, rpowmin=1.d-6
+  double precision, parameter :: sigma = 1.d0, rpowmin=1.d-6
 !
   double precision :: s_test, theta_test, phi, htheta, R, Z, dR_ds, dR_dt, dZ_ds, dZ_dt
   double precision :: s_new, theta_new, R_src, Z_src

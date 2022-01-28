@@ -1,0 +1,97 @@
+%% LyX 2.3.2 created this file.  For more info, see http://www.lyx.org/.
+%% Do not edit unless you really know what you are doing.
+\documentclass[17pt,english]{foils}
+\usepackage{tgheros}
+\usepackage{beramono}
+\usepackage[T1]{fontenc}
+\usepackage[latin9]{inputenc}
+\usepackage[landscape,a4paper]{geometry}
+\geometry{verbose,tmargin=2cm,bmargin=3cm,lmargin=1.5cm,rmargin=1.5cm}
+\setcounter{secnumdepth}{1}
+\setcounter{tocdepth}{1}
+\setlength{\parskip}{\smallskipamount}
+\setlength{\parindent}{0pt}
+\usepackage{amsmath}
+\usepackage{babel}
+\begin{document}
+\global\long\def\d{\mathrm{d}}%
+
+
+\MyLogo{~}
+\title{~\\
+~\\
+Status NEO-RT developments}
+\author{Christopher Albert, Sergei Kasilov}
+\maketitle
+
+\foilhead{The problem to solve}
+\begin{enumerate}
+\item Particle flux is given via integral
+\begin{align}
+\text{\ensuremath{\Gamma}}_{\mathrm{box}}(r)= & -2\pi^{3}\sum_{\sigma=\pm}\sum_{mn}\int\d H_{0}\int\d J_{\perp}\int\d p_{\varphi}|H_{mn}|^{2}\delta(m\omega_{b}+n\Omega_{\varphi})\partial_{mn}f_{0}\nonumber \\
+ & \times\int_{0}^{\tau_{b}}\d\tau\,\Theta(r-r(R,Z))\partial_{mn}r(R,Z).
+\end{align}
+Here $m$ is the bounce harmonic, and $n$ is the toroidal harmonic
+(symmetry angle) and
+\begin{equation}
+\partial_{mn}a=\mathbf{m}\cdot\nabla_{\mathbf{J}}a=m\omega_{b}\left(\frac{\partial a}{\partial H_{0}}\right)_{\boldsymbol{\theta}}+n\left(\frac{\partial a}{\partial p_{\varphi}}\right)_{\boldsymbol{\theta}}.
+\end{equation}
+\item Hamiltonian perturbation is given via bounce average
+\begin{equation}
+H_{mn}=\left\langle H_{n}(R,Z)\,e^{-i(m\omega_{b}\tau+n(\varphi-\Omega_{\varphi}\tau))}\right\rangle _{b}
+\end{equation}
+with
+\begin{equation}
+H_{n}(R,Z)=\left(J_{\perp}\omega_{c0}(R,Z)+m_{\alpha}v_{\parallel0}^{2}(R,Z)\right)\frac{B_{n}(R,Z)}{B_{0}(R,Z)}.
+\end{equation}
+\end{enumerate}
+%
+
+\foilhead{Status}
+\begin{enumerate}
+\item Computation of radial fluxes
+\begin{enumerate}
+\item Orbit frequencies
+\begin{enumerate}
+\item Can compute orbit frequencies $\omega_{b}$ and $\Omega^{\varphi}$
+from given starting $R,Z$
+\item TODO: Interpolation over action space for all classes
+\end{enumerate}
+\item Level set integrals in phase-space
+\begin{enumerate}
+\item 1D case works with level set methods to trace ``forbidden region''
+\item TODO: 2D case works in prototype, but not yet applied
+\end{enumerate}
+\item Box counting method
+\begin{enumerate}
+\item Case for splitting orbit between boxes works
+\item TODO: Integration of $\partial_{mn}r$ term with finite differences
+\end{enumerate}
+\end{enumerate}
+\item Hamiltonian perturbation
+\begin{enumerate}
+\item Computation of $H_{n}(R,Z)$ looks correct
+\item Bounce averages are working
+\item TODO: Test exponential term for canonical harmonics
+\end{enumerate}
+\end{enumerate}
+%
+
+\foilhead{Missing ingredients}
+\begin{enumerate}
+\item Routine to compute starting position from invariants $(J_{\perp},p_{\varphi},H)$
+@Sergei
+\item Translation Boozer-cylindrical coordinates @Artem
+\item Bounding region for invariants @Sergei, sub\_potato.f90 (last closed
+surface)
+\item Interpolation of orbit frequencies over invariants @Sergei
+\item Comparison with NEO-RT v1 and/or NEO-2, e.g. AUG 30835, $n=2$ and
+$B_{n}=5\cdot10^{-3}B_{0}\cos\vartheta$ or real Boozer @Chris,Rico
+\item Literature study: see also Lausanne, Monte-Carlo code VENUS
+\end{enumerate}
+~
+
+Some day: optimize, e.g. save some bounce evaluations
+
+
+\end{document}

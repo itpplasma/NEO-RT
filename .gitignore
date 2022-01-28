@@ -45,3 +45,7 @@ POTATO/BOOZER_TO_EFIT/bmod_n.*
 *.fls
 POTATO/BOOZER_TO_EFIT/efit.eqdsk
 POTATO/BOOZER_TO_EFIT/convexwall.boz
+POTATO/VER_8/PLOT/subintegrand94_vsJperp.E10
+POTATO/VER_8/PLOT/subintegrand94_vsJperp.mE10
+POTATO/VER_8/PLOT/subintegrand94_vsJperp.noE10
+POTATO/VER_8/PLOT/subintegrand94_vsJperp.noE20
