@@ -1,5 +1,5 @@
 ### Basic settings
-cmake_minimum_required (VERSION 2.8.6)
+cmake_minimum_required (VERSION 2.8.12)
 #project(fortranc Fortran C)
 #include(FortranCInterface)
 #FortranCInterface_HEADER(FC.h MACRO_NAMESPACE "FC_")

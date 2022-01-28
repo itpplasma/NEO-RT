@@ -20,7 +20,7 @@ T		    magdrift	       - consider magnetic drift
 F		    nopassing	       - neglect passing particles
 F		    calcflux	       - calculate flux directly instead via flux-force relation
 T		    noshear	       - neglect magnetic shear term with dqds
-T		    pertfile	       - read perturbation from file with do_magfie_pert
+F		    pertfile	       - read perturbation from file with do_magfie_pert
 F                   odeint             - use ODE integrator for resonance line
 F		    nonlin	       - do nonlinear calculation
 1.0                 bscale             - scale B field by factor
