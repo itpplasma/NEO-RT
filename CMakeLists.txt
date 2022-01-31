@@ -1,5 +1,5 @@
 ### Basic settings
-cmake_minimum_required (VERSION 2.8.6)
+cmake_minimum_required (VERSION 2.8.12)
 #project(fortranc Fortran C)
 #include(FortranCInterface)
 #FortranCInterface_HEADER(FC.h MACRO_NAMESPACE "FC_")
@@ -82,13 +82,15 @@ add_dependencies(neo_rt spline)
 #add_dependencies(neo-rt odepack)
 add_dependencies(neo_rt vode)
 
+find_package(BLAS)
+find_package(LAPACK)
+
 target_link_libraries(
   neo_rt
   vode
   spline
   quadpack
-  blas
-  lapack
+  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
 )
 
 ### Linking
