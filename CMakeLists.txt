@@ -82,13 +82,15 @@ add_dependencies(neo_rt spline)
 #add_dependencies(neo-rt odepack)
 add_dependencies(neo_rt vode)
 
+find_package(BLAS)
+find_package(LAPACK)
+
 target_link_libraries(
   neo_rt
   vode
   spline
   quadpack
-  blas
-  lapack
+  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
 )
 
 ### Linking
