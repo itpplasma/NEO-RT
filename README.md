@@ -23,13 +23,15 @@ mkdir build
 cmake ..
 make
 ```
-This will create the main binary `driftorbit_test` amongst other files.
+This will create the main binary `neo_rt.x` amongst other files.
 From there on, when changing code, one only needs to run `make` inside `build`.
 
 ## Running
 
-Single run with input file: `driftorbit_test driftorbit.in`.
-An example can be found in `test/base`.
+Single run with input file: `neo_rt.x driftorbit`.
+An example input file can be found in `test/base`.
+Note that the name of the input file is given without file ending, that
+is because this is also the name (prefix) to use for output files.
 
 Script to be called for batch runs on multiple flux surfaces: `run_driftorbit.py`
 
