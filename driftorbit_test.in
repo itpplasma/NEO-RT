@@ -8,7 +8,7 @@
 1d19                n0                 - particle density
 40000000.0          vth                - thermal velocity
 0.001               epsmn              - perturbation amplitude B1/B0 (if pertfile==F)
-0                   m                  - poroidal perturbation mode (if pertfile==F)
+0                   m                  - poloidal perturbation mode (if pertfile==F)
 1                   n                  - toroidal perturbation mode (if pertfile==F, n>0!)
 0                   mth                - poloidal canonical mode (for single Mach no. run)
 10                  mthnum             - poloidal canonical mode count
