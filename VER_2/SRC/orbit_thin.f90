@@ -1,5 +1,7 @@
-module orbit_thin
+module orbit
     implicit none
+
+    integer(4), parameter :: neqm=5  ! Number of equations of motion
 
     contains
 
@@ -28,4 +30,4 @@ module orbit_thin
         ydot(4) = 0.0d0                                             ! p
         ydot(5) = -y(4)**2*eta/2d0*hctrvr(3)*hder(3)*bmod           ! v_par
     end subroutine timestep
-end module orbit_thin
+end module orbit

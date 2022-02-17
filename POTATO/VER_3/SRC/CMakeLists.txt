@@ -1,4 +1,4 @@
-target_sources(neo-rt.x PRIVATE
+target_sources(neo-rt-full PRIVATE
     alpha_lifetime_mod.f90
     chamb_divB0.f90
     magfie_cyl.f90
