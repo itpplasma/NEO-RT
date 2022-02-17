@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.13)
 project(NEO-RT Fortran)
 
 set(CMAKE_Fortran_FLAGS "-cpp -g -fbacktrace -std=gnu")
-set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
+set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 set(ORBIT_MODE "full" CACHE STRING "Orbit approximation (full/thin)")
 
 message(STATUS "CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
@@ -16,16 +16,18 @@ or edit CMakeCache.txt
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --"
 )
 
-add_subdirectory("../../../contrib/vode" "vode")
+add_subdirectory(../../../contrib/vode vode)
+add_subdirectory(../../POTATO/VER_3/SRC potato)
+add_library(neo-rt-common common.f90)
 link_libraries(
+  neo-rt-common
+  potato
   vode
   lapack
 )
 
-add_library(neo-rt-full common.f90 orbit_full.f90 transport_full.f90)
-add_subdirectory(../../POTATO/VER_3/SRC potato)
-
-add_library(neo-rt-thin common.f90 orbit_thin.f90)
+add_library(neo-rt-full orbit_full.f90 transport_full.f90)
+add_library(neo-rt-thin orbit_thin.f90)
 
 add_executable (neo-rt.x main.f90)
 if (ORBIT_MODE STREQUAL full)

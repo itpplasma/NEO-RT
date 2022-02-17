@@ -1,4 +1,5 @@
-target_sources(neo-rt-full PRIVATE
+add_library(potato)
+target_sources(potato PRIVATE
     alpha_lifetime_mod.f90
     chamb_divB0.f90
     magfie_cyl.f90
