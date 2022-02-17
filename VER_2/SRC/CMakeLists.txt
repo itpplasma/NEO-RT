@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.13)
 
 project(NEO-RT Fortran)
 
-set(CMAKE_Fortran_FLAGS "-cpp -g -fbacktrace -std=gnu")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 set(ORBIT_MODE "full" CACHE STRING "Orbit approximation (full/thin)")
 
@@ -15,6 +14,8 @@ and change using 'cmake -DVAR_NAME=VALUE .'
 or edit CMakeCache.txt
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --"
 )
+
+add_compile_options(-cpp -g -fbacktrace -std=f2008)
 
 add_subdirectory(../../../contrib/vode vode)
 add_subdirectory(../../POTATO/VER_3/SRC potato)

@@ -1002,9 +1002,9 @@ enddo
     h_R=(z(1)-rst)/dble(n_search**2)
     h_Z=(z(3)-zst)/dble(n_search**2)
     do i=0,n_search
-      z(1)=rst+h_R*dfloat(i**2)
+      z(1)=rst+h_R*dble(i**2)
       z(2)=0.d0
-      z(3)=zst+h_Z*dfloat(i**2)
+      z(3)=zst+h_Z*dble(i**2)
 !
       call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
 !
@@ -1159,9 +1159,9 @@ enddo
     h_R=(Rinb-rst2)/dble(n_search**2)
     h_Z=(Zinb-zst2)/dble(n_search**2)
     do i=0,n_search
-      z(1)=rst2+h_R*dfloat(i**2)
+      z(1)=rst2+h_R*dble(i**2)
       z(2)=0.d0
-      z(3)=zst2+h_Z*dfloat(i**2)
+      z(3)=zst2+h_Z*dble(i**2)
 !
       call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
 !
