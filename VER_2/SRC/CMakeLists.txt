@@ -15,7 +15,7 @@ or edit CMakeCache.txt
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --"
 )
 
-add_compile_options(-cpp -g -fbacktrace -std=f2008)
+add_compile_options(-Og -cpp -g -fbacktrace -std=f2008)
 
 add_subdirectory(../../../contrib/vode vode)
 add_subdirectory(../../POTATO/VER_3/SRC potato)
