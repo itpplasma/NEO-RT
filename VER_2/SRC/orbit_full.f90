@@ -10,7 +10,7 @@ subroutine timestep(tau, z, vz)
   ! See velo for details
   real(8), intent(in)    :: tau   ! Time
   real(8), intent(in)    :: z(neqm)  ! Phase-position
-  real(8), intent(in)    :: vz(neqm) ! Phase-velocity
+  real(8), intent(out)   :: vz(neqm) ! Phase-velocity
   call velo(tau, z, vz)
 end subroutine timestep
 

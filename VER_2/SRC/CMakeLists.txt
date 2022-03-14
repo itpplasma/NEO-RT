@@ -36,7 +36,7 @@ link_libraries(
 )
 
 add_library(neo-rt-full orbit_full.f90 transport_full.f90)
-add_library(neo-rt-thin orbit_thin.f90)
+add_library(neo-rt-thin orbit_thin.f90 transport_thin.f90)
 
 add_executable (neo-rt.x main.f90)
 if (ORBIT_MODE STREQUAL full)
