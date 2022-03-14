@@ -21,7 +21,7 @@ find_package(BLAS)
 find_package(LAPACK)
 
 add_subdirectory(../../../contrib/vode vode)
-add_subdirectory(../../POTATO/VER_3/SRC potato)
+add_subdirectory(../../POTATO/LATEST/SRC potato)
 add_library(neo-rt-common common.f90)
 
 add_dependencies(neo-rt-common vode)

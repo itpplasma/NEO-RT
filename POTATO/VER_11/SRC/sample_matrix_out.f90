@@ -24,9 +24,9 @@
 !  Module input/output (via module "sample_matrix_out_mod"):
 ! nlagr                (in)    - order of Lagrange polynomial for sampling
 ! n1,n2                (in)    - a_ij(x) matrix size
-! npoi                 (inout) - grid size. On input it is the initital equidistant grid size, 
+! npoi                 (inout) - grid size. On input it is the initital equidistant grid size,
 !                                on output - refined, non-equidistant grid size
-! itermax              (in)    - maximum number of refinement cycles (at each cycle all intervals are checked) 
+! itermax              (in)    - maximum number of refinement cycles (at each cycle all intervals are checked)
 ! icount               (inout) - historic counter of grid points
 ! ind_hist             (out)   - mapper of points from the historic sequence to the increasing sequence in x
 ! x                            - argument of matrix function a_ij(x) (input for called routine "get_matrix")
@@ -46,8 +46,8 @@
   DOUBLE PRECISION :: h,hh
   DOUBLE PRECISION, DIMENSION(:),     ALLOCATABLE :: xold
   DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod
-  DOUBLE COMPLEX,   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
-  DOUBLE COMPLEX,   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
+  COMPLEX(8),   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
+  COMPLEX(8),   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
 !
   external :: get_matrix
 !

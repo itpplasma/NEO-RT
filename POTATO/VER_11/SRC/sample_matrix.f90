@@ -22,8 +22,8 @@
   DOUBLE PRECISION :: h,hh
   DOUBLE PRECISION, DIMENSION(:),     ALLOCATABLE :: xold
   DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod
-  DOUBLE COMPLEX,   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
-  DOUBLE COMPLEX,   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
+  COMPLEX(8),   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
+  COMPLEX(8),   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
 !
   external :: get_matrix
 !
