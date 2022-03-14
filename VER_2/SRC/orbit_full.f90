@@ -1,5 +1,5 @@
 module orbit
-use common
+use util
 implicit none
 
 integer(4), parameter :: neqm=5  ! Number of equations of motion
@@ -30,6 +30,7 @@ subroutine bounce_average(n, z, integrand, taub, delphi, ret)
   ret = 0.0d0
 
   call find_bounce(n, timestep_ext, dtau, z, taub, delphi, ret)
+  ret = ret/taub
 
   contains
 

@@ -11,7 +11,7 @@ end python module orbit__user__routines
 python module orbit ! in
     interface  ! in :orbit
         module orbit ! in :orbit:orbit_full.f90
-            use common
+            use util
             subroutine timestep(tau,z,vz) ! in :orbit:orbit_full.f90:orbit
                 real(kind=8) intent(in) :: tau
                 real(kind=8) dimension(5),intent(in) :: z

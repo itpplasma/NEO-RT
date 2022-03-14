@@ -1,4 +1,4 @@
-module common
+module util
   ! Contains common constants in CGS units,
   ! and some commonly used parameters and subroutines.
 
@@ -28,7 +28,7 @@ module common
     real(8) :: a, b, delta
 
     delta = (b-a)/(cnt-1)
-    linspace = a + delta*(/(i,i=0,cnt-1)/)
+    linspace = a + delta*[(i,i=0,cnt-1)]
   end function linspace
 
-end module common
+end module util

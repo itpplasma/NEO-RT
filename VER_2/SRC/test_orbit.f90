@@ -1,5 +1,5 @@
 program test_orbit
-    use common
+    use util
     use orbit, only: timestep, neqm
 
     implicit none

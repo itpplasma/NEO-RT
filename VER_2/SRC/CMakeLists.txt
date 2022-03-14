@@ -16,20 +16,20 @@ or edit CMakeCache.txt
 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --"
 )
 
-add_compile_options(-Og -cpp -g -fbacktrace -std=f2008)
+add_compile_options(-Og -cpp -g -fbacktrace -Wfatal-errors -std=f2008)
 
 find_package(BLAS)
 find_package(LAPACK)
 
 add_subdirectory(../../../contrib/vode vode)
 add_subdirectory(../../POTATO/LATEST/SRC potato)
-add_library(neo-rt-common common.f90)
+add_library(neo-rt-util util.f90)
 
-add_dependencies(neo-rt-common vode)
+add_dependencies(neo-rt-util vode)
 
 
 link_libraries(
-  neo-rt-common
+  neo-rt-util
   potato
   vode
   ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}

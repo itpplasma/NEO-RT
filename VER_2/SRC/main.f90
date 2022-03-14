@@ -1,23 +1,32 @@
 program neo_rt
-  use common
-  use orbit, only: timestep, bounce_harmonic, bounce_integral_box, neqm
-  use transport, only: Hpert
-  use parmot_mod, only: rmu, ro0
+use util
+use orbit, only: timestep, bounce_average, bounce_harmonic, &
+  bounce_integral_box, neqm
+use transport, only: Hpert
+use parmot_mod, only: rmu, ro0
 
-  implicit none
+implicit none
 
+call main
+
+contains
+
+subroutine main
 
   real(8) :: z(neqm), zdot(neqm)
   real(8) :: bmod_ref, bmod00, tempi1, am, Zb, v0, rlarm
   real(8) :: bmod, phi_elec
   real(8) :: mth, mph  ! Poloidal and toroidal harmonic numbers
   real(8) :: alpha(3)  ! Invariants
-  real(8) :: HmReIm(2), taub, delphi
+  real(8) :: HmReIm(2), taub, delphi, oneout(1)
 
   integer(4), parameter :: nbox = 101
   real(8) :: sbox(nbox)
   real(8) :: taubox(nbox)
   real(8) :: HmReImbox(2, nbox)
+
+  integer :: npoicut
+  real(8) :: rho_pol_max
 
   ! Inverse relativistic temperature, set >=1e5 to neglect relativistic effects
   rmu = 1.0d5
@@ -51,20 +60,37 @@ program neo_rt
   print *, 'bmod, phielec:'
   print *, bmod, phi_elec
 
-  print *, z
+  print *, 'z(t=0)    = ', z
   call timestep(0.0d0, z, zdot)
-  print *, zdot
+  print *, 'zdot(t=0) = ', zdot
 
   ! alpha(z)
   ! perpinv = (1.d0 - z(5)**2)*z(4)**2/bmod(z)
   ! toten = z(4)**2 + phi_elec(z)
-  ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)
+  ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)! Find Poincare cut:
+
+  npoicut=10000     !number of equidistant points for interpolating the cut
+  rho_pol_max=0.8   !maximum value of poloidal radius limiting the cut range
+
+  call find_poicut(rho_pol_max,npoicut)
+
+  call bounce_average(1, z, one, taub, delphi, oneout)
+  print *, '<1>_b     = ', oneout
 
   call bounce_harmonic(2, z, Hpert, 1, 1, taub, delphi, HmReIm)
+  print *, 'H_11      = ', HmReIm
 
-  print *, 'HmReIm: ', HmReIm
+  ! sbox = linspace(0d0, 1d0, nbox)
+  ! call bounce_integral_box(2, z, Hpert, sbox, taubox, HmReImbox)
+end subroutine main
 
-  sbox = linspace(0d0, 1d0, nbox)
-  call bounce_integral_box(2, z, Hpert, sbox, taubox, HmReImbox)
+subroutine one(t, z, res)
+! Toroidal harmonic of Hamiltonian perturbation: real and imaginary part
+  real(8), intent(in)  :: t           ! Orbit time parameter
+  real(8), intent(in)  :: z(5)        ! Orbit phase-space variables
+  real(8), intent(out) :: res(1)      ! Output of Hamiltonian perturbation
+
+  res(1) = 1d0
+end subroutine one
 
 end program neo_rt
