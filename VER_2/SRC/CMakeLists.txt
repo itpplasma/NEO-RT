@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required (VERSION 2.8.12)
 
-project(NEO-RT Fortran)
+project(NEO-RT Fortran C)
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 set(ORBIT_MODE "full" CACHE STRING "Orbit approximation (full/thin)")
@@ -17,14 +17,21 @@ or edit CMakeCache.txt
 
 add_compile_options(-Og -cpp -g -fbacktrace -std=f2008)
 
+find_package(BLAS)
+find_package(LAPACK)
+
 add_subdirectory(../../../contrib/vode vode)
 add_subdirectory(../../POTATO/VER_3/SRC potato)
 add_library(neo-rt-common common.f90)
+
+add_dependencies(neo-rt-common vode)
+
+
 link_libraries(
   neo-rt-common
   potato
   vode
-  lapack
+  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
 )
 
 add_library(neo-rt-full orbit_full.f90 transport_full.f90)
