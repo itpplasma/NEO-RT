@@ -1,6 +1,7 @@
 cmake_minimum_required (VERSION 2.8.12)
 
-project(NEO-RT Fortran C)
+project(NEO-RT)
+enable_language(Fortran)
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 set(ORBIT_MODE "full" CACHE STRING "Orbit approximation (full/thin)")
