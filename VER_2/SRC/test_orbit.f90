@@ -109,6 +109,7 @@ program test_orbit
       use do_magfie_mod, only : inp_swi, s, bfac, do_magfie_init, booz_to_cyl
 
       real(8) :: x(3), r(3)
+      integer :: i, funit
 
       ! Required by do_magfie_mode to be initialized
       inp_swi = 9
@@ -117,9 +118,15 @@ program test_orbit
 
       call do_magfie_init
 
+      open(newunit=funit, file='test_flux_surface.out')
+      write(funit, *) '% s th r z'
       x(1) = s; x(2) = 0.0d0; x(3) = 0.0d0
-      call booz_to_cyl(x, r)
-      print *, 'Cylindrical coordinates: ', r
+      do i = 0, 99
+        x(3) = i*2d0*pi/100
+        call booz_to_cyl(x, r)
+        write(funit, *) x(1), x(3), r(1), r(3)
+      end do
+      close(funit)
     end subroutine
 
   end program test_orbit

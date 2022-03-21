@@ -1,6 +1,5 @@
 module transport
     use util
-    use orbit, only: bounce_average
     implicit none
 
     integer(4), parameter :: nph = 2      ! Perturbation harmonice
