@@ -74,6 +74,8 @@ program test_orbit
       call timestep(0.0d0, z, zdot)
       print *, 'zdot(t=0) = ', zdot
 
+      call test_magfie
+
       ! alpha(z)
       ! perpinv = (1.d0 - z(5)**2)*z(4)**2/bmod(z)
       ! toten = z(4)**2 + phi_elec(z)
@@ -102,5 +104,22 @@ program test_orbit
 
       res(1) = 1d0
     end subroutine one
+
+    subroutine test_magfie()
+      use do_magfie_mod, only : inp_swi, s, bfac, do_magfie_init, booz_to_cyl
+
+      real(8) :: x(3), r(3)
+
+      ! Required by do_magfie_mode to be initialized
+      inp_swi = 9
+      s = 1.0d0
+      bfac = 1.0d0
+
+      call do_magfie_init
+
+      x(1) = s; x(2) = 0.0d0; x(3) = 0.0d0
+      call booz_to_cyl(x, r)
+      print *, 'Cylindrical coordinates: ', r
+    end subroutine
 
   end program test_orbit
