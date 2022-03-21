@@ -121,7 +121,7 @@ program test_orbit
       open(newunit=funit, file='test_flux_surface.out')
       write(funit, *) '% s th r z'
       x(1) = s; x(2) = 0.0d0; x(3) = 0.0d0
-      do i = 0, 99
+      do i = 0, 100
         x(3) = i*2d0*pi/100
         call booz_to_cyl(x, r)
         write(funit, *) x(1), x(3), r(1), r(3)
