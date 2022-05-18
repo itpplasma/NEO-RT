@@ -58,6 +58,12 @@ program test_orbit
       rlarm = v0*am*mu*c/(Zb*qe*bmod_ref)  ! Larmor radius in bmod_ref
       ro0 = rlarm*bmod00                   ! Rescaled Larmor radius
 
+      ! Find Poincare cut:
+      npoicut=10000     !number of equidistant points for interpolating the cut
+      rho_pol_max=0.8d0 !maximum value of poloidal radius limiting the cut range
+
+      call find_poicut(rho_pol_max,npoicut)
+
       call init_z(z)
 
       ! First call for field
@@ -85,13 +91,7 @@ program test_orbit
       ! alpha(z)
       ! perpinv = (1.d0 - z(5)**2)*z(4)**2/bmod(z)
       ! toten = z(4)**2 + phi_elec(z)
-      ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)! Find Poincare cut:
-
-      ! npoicut=10000     !number of equidistant points for interpolating the cut
-      ! rho_pol_max=0.8   !maximum value of poloidal radius limiting the cut range
-
-      ! call find_poicut(rho_pol_max,npoicut)
-
+      ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)
 
       ! call bounce_harmonic(2, z, Hpert, 1, 1, taub, delphi, HmReIm)
       ! print *, 'H_11      = ', HmReIm

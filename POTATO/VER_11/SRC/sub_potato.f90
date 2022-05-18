@@ -17,7 +17,7 @@
 ! integration step, normalized total energy, normalized perpendicular invariant, velocity sign:
     double precision :: dtau,toten,perpinv,sigma
 ! reference energy $\cE_{ref}$, effective potential $\Phi_{eff}$:
-    double precision :: cE_ref,Phi_eff 
+    double precision :: cE_ref,Phi_eff
   end module global_invariants
 !
   module poicut_mod
@@ -43,7 +43,7 @@
       logical :: inner_b,inner_e
 ! number of O- and X-points:
       integer :: n_o,n_x,n_sep
-! cylindrical coordinates of the boundaries of the allowed region vpar2>0: 
+! cylindrical coordinates of the boundaries of the allowed region vpar2>0:
       double precision :: R_b,Z_b,R_e,Z_e
 ! values of normalized canonical momentum $\psi^\ast$ at the boundaries:
       double precision :: psiast_b,psiast_e
@@ -111,11 +111,11 @@
 !
   implicit none
 !
-! nousecut - way to close the orbit during primary search: 
+! nousecut - way to close the orbit during primary search:
 ! .true. - without using Poincare cut, can be used for general Phi distributions
 ! .false. - with using the cut, valid for Phi=Phi(psi) only
-!  logical, parameter :: nousecut=.true. 
-  logical, parameter :: nousecut=.false. 
+!  logical, parameter :: nousecut=.true.
+  logical, parameter :: nousecut=.false.
 !
 ! maximum number of Newton iterations for closing the orbit:
   integer, parameter :: niter=20
@@ -195,7 +195,7 @@
 !
     taub=taub+dtau
     if(nousecut) then
-! check if poloidal distance to the starting point is smaller than 
+! check if poloidal distance to the starting point is smaller than
 ! sqrt(2) of the poloidal length of the step:
       dL2_pol=2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2)
       dL2_pol_start=(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
@@ -273,7 +273,7 @@
 ! R_beg      - starting R on the Poncare cut
 ! Output arguments:
 ! sigma_end  - v_parallel sign after first return
-! R_end      - R on the Poncare cut after first return    
+! R_end      - R on the Poncare cut after first return
 !
   use orbit_dim_mod,     only : neqm
   use global_invariants, only : toten,perpinv,sigma,dtau
@@ -395,9 +395,9 @@
   subroutine get_z45(toten,perpinv,sigma,z,ierr)
 !
 ! Computes momentum module z(4) and pitch parameter z(5)
-! for given coordinates z(1:3), total energy "toten", 
+! for given coordinates z(1:3), total energy "toten",
 ! perpendicular invariant "perpinv" and velocity sign "sigma".
-! Error code "ierr": 0 - OK, 1 - negative kinetic energy, 
+! Error code "ierr": 0 - OK, 1 - negative kinetic energy,
 ! 2 - negative parallel kinetic energy
 !
   implicit none
@@ -579,7 +579,7 @@
 !
   subroutine gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
-! Computes phi component of the vector product of gradient psi with gradient 
+! Computes phi component of the vector product of gradient psi with gradient
 ! of B and the numerical derivatives of this product over R and Z.
 ! Used for finding the Poincare cut which is a line where this product is zero.
 !
@@ -646,9 +646,9 @@
   subroutine find_poicut(rho_pol,npline)
 !
 ! Finds a line where $\nabla \psi \times \nabla B = 0$. Line starts and ends
-! at the separatrix. In up-down symmeric configuration it is reduced to 
-! a midplane poloidal cross-section $Z=0$. This line contains all fixed 
-! (O and X) points of the flow as well as the magnetic axis and can be 
+! at the separatrix. In up-down symmeric configuration it is reduced to
+! a midplane poloidal cross-section $Z=0$. This line contains all fixed
+! (O and X) points of the flow as well as the magnetic axis and can be
 ! used as a Poincare cut.
 !
   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep,rtf
@@ -858,7 +858,7 @@
   enddo
 !
   rmagaxis=R
-  zmagaxis=Z 
+  zmagaxis=Z
   psimagaxis=psif
 !
   if(.true.) then
@@ -872,8 +872,8 @@
 !
   subroutine rhopol_boundary(rho_pol)
 !
-! Finds poloidal flux psi_bou for a given poloidal radius rho_pol and cylindrical 
-! coordinates of LFS and HFS intersections of the Poincare cut with the flux surface 
+! Finds poloidal flux psi_bou for a given poloidal radius rho_pol and cylindrical
+! coordinates of LFS and HFS intersections of the Poincare cut with the flux surface
 ! with given rho_pol. Results are stored in the module poicut_mod
 !
   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep
@@ -947,9 +947,9 @@
 !
   subroutine poltor_field_dir(ifdir_type)
 !
-! Determines mutual direction of poloidal and toroidal fields - 
+! Determines mutual direction of poloidal and toroidal fields -
 ! If $B^\theta*B^\varphi > 0$ (typical AUG case) idir_type=1, otherwise idir_type=2
-! In case 1 the non-vanishing axis (located at the LFS from the magnetic axis) 
+! In case 1 the non-vanishing axis (located at the LFS from the magnetic axis)
 ! corresponds to the counter-passing orbits (vpar<0), in case 2 - for the co-passing (vpar>0)
 !
   use poicut_mod, only : npc,rpc_arr,zpc_arr
@@ -1027,7 +1027,7 @@
 !
   call vparzero1D(rpc_arr(0),vpar2,dummy)
 !
-  if(vpar2.gt.0.d0) then 
+  if(vpar2.gt.0.d0) then
     separin_b=.true.
   else
     separin_b=.false.
@@ -1038,7 +1038,7 @@
 !
   call vparzero1D(rpc_arr(npc),vpar2,dummy)
 !
-  if(vpar2.gt.0.d0) then 
+  if(vpar2.gt.0.d0) then
     separin_e=.true.
   else
     separin_e=.false.
@@ -1074,7 +1074,7 @@
   do i=1,nroots
     R=R_bo(i)
 !
-    call get_poicut(R,Z,dZ_dR)    
+    call get_poicut(R,Z,dZ_dR)
 !
 ! compute poloidal flux psif at the boundary point
 !
@@ -1549,7 +1549,7 @@
     endif
 !
 ! protective margin around separatrix crossings (set by hands after experimenting)
-! needed to exclude the X-point (singular separarix crossing) from the numerical 
+! needed to exclude the X-point (singular separarix crossing) from the numerical
 ! search of regular separatrix crossings
     delR_marg=1.d-6*rpc_arr(npc)
 !
@@ -1717,10 +1717,10 @@
 !
   subroutine classify_extrema(R_b_in,R_e_in)
 !
-! Find all extremum points of psi^* on the Poincare cut in the interval R_b_in < R < R_e_in, 
+! Find all extremum points of psi^* on the Poincare cut in the interval R_b_in < R < R_e_in,
 ! determines their types (X- or O-point). Results - cylindrical coordinates (R,Z), values
 ! of psi^* and types of fixed points - are stored in the arrays R_extr, Z_extr, psiast_extr
-! and opoint_extr (logical array with .true. for O-points and .false. for X-points), respectively. 
+! and opoint_extr (logical array with .true. for O-points and .false. for X-points), respectively.
 ! Dimension of the arrays is nroots.
 !
   implicit none
@@ -1850,7 +1850,7 @@
 !
   end subroutine vparzero_vec
 !
-!------------  
+!------------
 !
   subroutine vparzero1D(R,vpar2,dvpar2_dR)
 !
@@ -1872,7 +1872,7 @@
 !
   end subroutine vparzero1D
 !
-!------------  
+!------------
 !
   subroutine vvert(x,vvrt)
 !
@@ -1898,12 +1898,12 @@
 !
   end subroutine vvert
 !
-!------------  
+!------------
 !
   subroutine get_vvert(x,vvrt,dvvrt_dx)
 !
 ! Computes numerically the derivatives of normal velocity
-! (see above) and the velocity itself for root finiding. 
+! (see above) and the velocity itself for root finiding.
 ! To be used as formal argument in subroutine find_all_roots.
 !
   implicit none
@@ -1925,7 +1925,7 @@
 !
   end subroutine get_vvert
 !
-!------------  
+!------------
 !
   subroutine determine_fixpoint_type(R_in,Z_in,opoint)
 !
@@ -2032,12 +2032,12 @@
 !
   end subroutine determine_fixpoint_type
 !
-!------------  
+!------------
 !
   subroutine sepcross(Rst,delpphi,ddelpphi_dRst)
 !
 ! Roots of this function (delpphi(Rst)) are the values of cut parameter
-! at separatrix crossings with the Poincare cut. To be used as formal 
+! at separatrix crossings with the Poincare cut. To be used as formal
 ! argument in subroutine find_all_roots.
 !
   implicit none
@@ -2058,12 +2058,12 @@
 !
   end subroutine sepcross
 !
-!------------  
+!------------
 !
   subroutine boucross(Rst,delpphi,ddelpphi_dRst)
 !
 ! Roots of this function (delpphi(Rst)) are the values of cut parameter
-! at the "most external with respect to rho_pol" orbit crossings with the 
+! at the "most external with respect to rho_pol" orbit crossings with the
 ! Poincare cut. To be used as formal argument in subroutine find_all_roots.
 !
   implicit none
@@ -2118,7 +2118,7 @@
   do ireg=1,nregions
     do isig=1,2
       if(all_regions(isig,ireg)%within_rhopol) then
-! Number of classes per allowed motion region is number of separatrix crossings 
+! Number of classes per allowed motion region is number of separatrix crossings
 ! (including X-points) plus one:
         nclasses=nclasses+all_regions(isig,ireg)%n_sep+1
       endif
@@ -2347,8 +2347,8 @@
 !
   subroutine get_matrix_doublecount
 !
-! Computation of normalized toroidal moment, normalizaed bounce time, 
-! toroidal displacement per bounce time and bounce integrals as functions 
+! Computation of normalized toroidal moment, normalizaed bounce time,
+! toroidal displacement per bounce time and bounce integrals as functions
 ! of class parameter x for adaptive refinement of interpolation grid over x
 !
   use sample_matrix_mod, only : n1,n2,x,amat
@@ -2421,7 +2421,7 @@
   subroutine sample_class_doublecount(iunit,ierr)
 !
 ! Formation of adaptive grid over class parameter x together with data
-! for adaptive interpolation of normalized toroidal moment, normalizaed bounce time, 
+! for adaptive interpolation of normalized toroidal moment, normalizaed bounce time,
 ! toroidal displacement per bounce time and bounce integrals
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
@@ -2477,8 +2477,8 @@
 !
   subroutine interpolate_class_doublecount(x,vec,dvec)
 !
-! Interpolation on the adaptive grid over class parameter x of normalized toroidal 
-! moment, normalizaed bounce time, toroidal displacement per bounce time and bounce 
+! Interpolation on the adaptive grid over class parameter x of normalized toroidal
+! moment, normalizaed bounce time, toroidal displacement per bounce time and bounce
 ! integrals (vec) and their derivatives (dvec)
 !
   use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr
@@ -2923,7 +2923,7 @@
 !
   subroutine Jperponcut(R,perpinv)
 !
-! Computes maximum possible value of the normalized perpendicular invariant 
+! Computes maximum possible value of the normalized perpendicular invariant
 ! for given total energy and value of cut parameter R_c
 !
   use global_invariants, only : toten
