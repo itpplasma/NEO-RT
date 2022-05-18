@@ -20,9 +20,9 @@
 !
   subroutine find_vparzero_line(nline,toten,perpinv,rmin,rmax,zmin,zmax,icase)
 !
-! Looks for the boundary of the "forbidden" region for particles with normalized total 
-! energy "toten" and perpendicular invariant "perpinv", i.e. a line "v_par^2=0" within 
-! the volume limites by the flux surface psi=psi_bound which touches one of the boundaries 
+! Looks for the boundary of the "forbidden" region for particles with normalized total
+! energy "toten" and perpendicular invariant "perpinv", i.e. a line "v_par^2=0" within
+! the volume limites by the flux surface psi=psi_bound which touches one of the boundaries
 ! of the box given by "rmin<R<rmax", "zmin<Z<zmax".
 ! Identifies 4 cases:
 ! icase=1 - line is outside the volume, all the volume is in the forbidden region (no orbits)
@@ -80,9 +80,9 @@
         endif
       endif
       Z=zmax
-! 
+!
       call vparzero_vec(R,Z,vpar2in,gradvpar2)
-! 
+!
       if(sigpsi.gt.0.d0) then
         psi_bound=min(psi_bound,psif)
         if(psi_bound.eq.psif) then
@@ -101,9 +101,9 @@
     do iz=0,nz
       Z=zmin+h_z*dble(iz)
       R=rmin
-! 
+!
       call vparzero_vec(R,Z,vpar2in,gradvpar2)
-! 
+!
       if(sigpsi.gt.0.d0) then
         psi_bound=min(psi_bound,psif)
         if(psi_bound.eq.psif) then
@@ -118,9 +118,9 @@
         endif
       endif
       R=rmax
-! 
+!
       call vparzero_vec(R,Z,vpar2in,gradvpar2)
-! 
+!
       if(sigpsi.gt.0.d0) then
         psi_bound=min(psi_bound,psif)
         if(psi_bound.eq.psif) then
@@ -514,7 +514,7 @@ enddo
                               sst,rst,zst,sst2,rst2,zst2,ierr)
 !
 ! Finds the point where parallel acceleration $\dot \lambda$ is zero
-! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting 
+! on the forbidden boundary $v_\parallel^2=0$. Straigh lines connecting
 ! this point (rst,zst) with each of two B^* axes are used as Poincare
 ! cuts for co- and counter-passing particles
 !
@@ -630,7 +630,7 @@ enddo
 !
   call velo(dtau,z,vz)
 !
-  alamdot=vz(5) 
+  alamdot=vz(5)
 !
 ! end normal velocity
 !
@@ -1354,7 +1354,7 @@ enddo
 !
   perpinv=z(4)**2*(1.d0-z(5)**2)/bmod
 !
-  sigma=sign(1.d0,z(5)) 
+  sigma=sign(1.d0,z(5))
 !
   hdif=x(1)*eps_dif
   z=z_start

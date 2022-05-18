@@ -1,7 +1,7 @@
 program test_orbit
     use util
     use parmot_mod, only: rmu, ro0
-    use orbit, only: timestep, neqm
+    use orbit, only: timestep, neqm, bounce_average, time_in_box
 
     implicit none
 
@@ -58,12 +58,7 @@ program test_orbit
       rlarm = v0*am*mu*c/(Zb*qe*bmod_ref)  ! Larmor radius in bmod_ref
       ro0 = rlarm*bmod00                   ! Rescaled Larmor radius
 
-      ! Initial conditions
-      z(1) = 170.0d0  ! R
-      z(2) = 1.0d0    ! PHI
-      z(3) = 20d0     ! Z
-      z(4) = 1d0      ! p/p0
-      z(5) = 0.9d0    ! p_par/p
+      call init_z(z)
 
       ! First call for field
       call get_bmod_and_Phi(z(1:3), bmod, phi_elec)
@@ -74,7 +69,18 @@ program test_orbit
       call timestep(0.0d0, z, zdot)
       print *, 'zdot(t=0) = ', zdot
 
+      ! Testing magnetic field routines
       call test_magfie
+
+      ! Testing bounce average
+      call bounce_average(1, z, one, taub, delphi, oneout)
+      print *, '<1>_b     = ', oneout
+
+      ! Testing time spent in box
+      call init_z(z)
+      sbox = linspace(0d0, 1d0, nbox)
+      call time_in_box(z, sbox, taub, taubox)
+      print *, 'taubox = ', taubox
 
       ! alpha(z)
       ! perpinv = (1.d0 - z(5)**2)*z(4)**2/bmod(z)
@@ -86,15 +92,23 @@ program test_orbit
 
       ! call find_poicut(rho_pol_max,npoicut)
 
-      ! call bounce_average(1, z, one, taub, delphi, oneout)
-      ! print *, '<1>_b     = ', oneout
 
       ! call bounce_harmonic(2, z, Hpert, 1, 1, taub, delphi, HmReIm)
       ! print *, 'H_11      = ', HmReIm
 
-      ! sbox = linspace(0d0, 1d0, nbox)
-      ! call bounce_integral_box(2, z, Hpert, sbox, taubox, HmReImbox)
     end subroutine main
+
+    subroutine init_z(z)
+      ! Initial conditions
+      real(8), intent(out) :: z(5)
+
+      z(1) = 170.0d0  ! R
+      z(2) = 1.0d0    ! PHI
+      z(3) = 20d0     ! Z
+      z(4) = 1d0      ! p/p0
+      z(5) = 0.9d0    ! p_par/p
+    end subroutine init_z
+
 
     subroutine one(t, z, res)
     ! Toroidal harmonic of Hamiltonian perturbation: real and imaginary part
