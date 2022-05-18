@@ -1,21 +1,11 @@
 program test_orbit
     use util
     use parmot_mod, only: rmu, ro0
-    use orbit, only: timestep, neqm, bounce_average, time_in_box
+    use orbit, only: timestep, neqm, bounce_average, bounce_harmonic, &
+      time_in_box
+    use transport, only: Hpert
 
     implicit none
-
-    real(8) :: z(neqm), zdot(neqm)
-    real(8) :: bmod_ref, bmod00, tempi1, am, Zb, v0, rlarm
-    real(8) :: bmod, phi_elec
-    real(8) :: mth, mph  ! Poloidal and toroidal harmonic numbers
-    real(8) :: alpha(3)  ! Invariants
-    real(8) :: HmReIm(2), taub, delphi
-
-    integer(4), parameter :: nbox = 101
-    real(8) :: sbox(nbox)
-    real(8) :: taubox(nbox)
-    real(8) :: HmReImbox(2, nbox)
 
     call main
 
@@ -82,19 +72,25 @@ program test_orbit
       call bounce_average(1, z, one, taub, delphi, oneout)
       print *, '<1>_b     = ', oneout
 
+      ! Compute bounce harmonic of constant - should give zero
+      call bounce_harmonic(z, cmplxone, 1, 1, taub, delphi, HmReIm)
+      print *, '1_11      = ', HmReIm
+
+      ! Compute bounce harmonic of H - should give some value
+      call bounce_harmonic(z, Hpert, 1, 1, taub, delphi, HmReIm)
+      print *, 'H_11      = ', HmReIm
+
       ! Testing time spent in box
       call init_z(z)
       sbox = linspace(0d0, 1d0, nbox)
       call time_in_box(z, sbox, taub, taubox)
-      print *, 'taubox = ', taubox
+      write(99) taubox
 
       ! alpha(z)
       ! perpinv = (1.d0 - z(5)**2)*z(4)**2/bmod(z)
       ! toten = z(4)**2 + phi_elec(z)
       ! p_phi = ro0*z(4)*z(5)*hcovar(2) + psif(z)
 
-      ! call bounce_harmonic(2, z, Hpert, 1, 1, taub, delphi, HmReIm)
-      ! print *, 'H_11      = ', HmReIm
 
     end subroutine main
 
@@ -118,6 +114,16 @@ program test_orbit
 
       res(1) = 1d0
     end subroutine one
+
+    subroutine cmplxone(t, z, res)
+    ! Toroidal harmonic of Hamiltonian perturbation: real and imaginary part
+      real(8), intent(in)  :: t           ! Orbit time parameter
+      real(8), intent(in)  :: z(5)        ! Orbit phase-space variables
+      real(8), intent(out) :: res(2)      ! Output of Hamiltonian perturbation
+
+      res(1) = 1d0
+      res(2) = 0d0
+    end subroutine cmplxone
 
     subroutine test_magfie()
       use do_magfie_mod, only : inp_swi, s, bfac, do_magfie_init, booz_to_cyl

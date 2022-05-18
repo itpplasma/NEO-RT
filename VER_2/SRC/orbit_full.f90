@@ -169,9 +169,9 @@ subroutine time_in_box(z, sbox, taub, tau)
 end subroutine time_in_box
 
 
-subroutine bounce_harmonic(next, z, fn, mb, nph, taub, delphi, ret)
-  ! Computes bounce harmonic mb of fn
-  integer(4), intent(in) :: next       ! Number of extra integrals
+subroutine bounce_harmonic(z, fn, mb, nph, taub, delphi, ret)
+  ! Computes bounce harmonic mb of complex fn
+  integer(4), parameter  :: next=2     ! Number of extra integrals
   real(8), intent(inout) :: z(neqm)    ! Position on orbit
   external               :: fn         ! Subroutine fn(z, out) to treat
   integer(4), intent(in) :: mb         ! Bounce harmonic number
@@ -196,15 +196,14 @@ subroutine bounce_harmonic(next, z, fn, mb, nph, taub, delphi, ret)
     real(8), intent(in)  :: y(5)        ! Orbit phase-space variables
     real(8), intent(out) :: res(2)      ! Output
 
-    real(8) :: bmod, sqrtg
-    real(8), dimension(3) :: bder,hcovar,hctrvr,hcurl
-
     real(8) :: fnres(2)
     complex(8) :: fnval, expfac, resval
 
     call fn(t, y, fnres)
-    fnval = cmplx(fnres(1), fnres(2))
-    expfac = exp(-imun*(mb*omb*t + nph*(y(2) - omphi*t)))
+    fnval = cmplx(fnres(1), fnres(2), 8)
+    !expfac = exp(-imun*(mb*omb*t + nph*(y(2) - omphi*t)))
+    expfac = exp(-imun*mb*omb*t)
+    !print *, t/taub
     resval = fnval*expfac
 
     res(1) = real(resval)

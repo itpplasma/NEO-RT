@@ -75,8 +75,8 @@
 !
   module orbit_dim_mod
     integer, parameter  :: neqm=5
-    logical             :: write_orb=.false.
-    integer             :: iunit1,next,numbasef
+    logical             :: write_orb=.true.
+    integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
   end module orbit_dim_mod
 !
