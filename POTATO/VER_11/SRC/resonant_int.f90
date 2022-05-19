@@ -48,11 +48,11 @@
 !
   implicit none
 !
-  double complex, parameter :: imun=(0.d0,1.d0)
+  complex(8), parameter :: imun=(0.d0,1.d0)
 !
   double precision :: dtau,bmod,phi_elec
   double precision, dimension(neqm+next) :: z,vz
-  double complex :: bmod_n,comfac
+  complex(8) :: bmod_n,comfac
 !
   call velo(dtau,z(1:neqm),vz(1:neqm))
   call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
@@ -62,8 +62,8 @@
         *exp(imun*(rm3*z(2)-(twopim2+delphi_new*rm3)*z(6)/taub_new))
 !
   vz(6)=1.d0
-  vz(7)=dble(comfac)
-  vz(8)=dimag(comfac)
+  vz(7)=real(comfac)
+  vz(8)=aimag(comfac)
 !
   end subroutine velo_res
 !
@@ -71,7 +71,7 @@
 !
   subroutine pertham(z,absHn2)
 !
-! Computes modulus squared of the Fourier amplitude of the normalized perturbed 
+! Computes modulus squared of the Fourier amplitude of the normalized perturbed
 ! Hamiltoninan, $|\hat H_\bm|^2$, with $\hat H_\bm$ defined by Eq.(102) (former Eq.(93)).
 !
   use orbit_dim_mod,     only : neqm,next     ,write_orb,iunit1
@@ -81,7 +81,7 @@
 !
   implicit none
 !
-  double complex, parameter :: imun=(0.d0,1.d0)
+  complex(8), parameter :: imun=(0.d0,1.d0)
 !
   double precision :: absHn2,bmod,phi_elec,taub,delphi
   double precision, dimension(neqm) :: z
@@ -237,9 +237,9 @@
 !
   subroutine get_rescond(x,rescond,dresconddx)
 !
-! Computes resonance condition $F(x)=\Delta\varphi_b+2\pi m_2/m_3$ 
+! Computes resonance condition $F(x)=\Delta\varphi_b+2\pi m_2/m_3$
 ! and its derivative $F^\prime(x)$ for $F(x)=0$ root finding.
-! Computes as by-products normalized toroidal momentum $\psi^\ast$, 
+! Computes as by-products normalized toroidal momentum $\psi^\ast$,
 ! bounce time $\tau_b$ and toroidal displacement $\Delta\varphi_b$.
 !
   use sample_matrix_mod, only : n1
@@ -525,7 +525,7 @@
         torque_int_loc=torque_int_loc+respoint(i)%w_res
 ! Quantity torque_int_loc is a contribution of one energy level to the integral torque. Width of energy
 ! interval is already included in the weight.
-! For box counter use the starting coordinates of the orbit at the Poincare cut. They are stored in 
+! For box counter use the starting coordinates of the orbit at the Poincare cut. They are stored in
 ! respoint(i)%z_res(1:5)
 ! Weight of the orbit is stored in
 ! respoint(i)%w_res

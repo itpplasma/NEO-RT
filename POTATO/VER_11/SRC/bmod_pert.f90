@@ -1,5 +1,5 @@
 module bmod_pert_mod
-  logical :: prop = .true.  
+  logical :: prop = .true.
   integer :: nrad,nzet,icp,iunit_bn=1265
   double precision :: hrad,hzet
   integer,          dimension(:),     allocatable  :: imi,ima,jmi,jma
@@ -21,7 +21,7 @@ end module bmod_pert_mod
   integer :: i,ierr
   double precision :: R,Z,rrr,zzz
   double precision :: bmod_re,bmod_im,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
-  double complex   :: bmod_n
+  complex(8)   :: bmod_n
   double precision, dimension(:,:), allocatable :: bmod_n_re,bmod_n_im
 !
   if(prop) then
@@ -81,7 +81,7 @@ end module bmod_pert_mod
 !
   integer :: i,j
   double precision :: R,Z,rrr,zzz
-  double complex   :: bmod_n
+  complex(8)   :: bmod_n
   double precision, dimension(-150:150) :: bre,bim
 !
   do i=0,300
@@ -89,8 +89,8 @@ end module bmod_pert_mod
     do j=-150,150
       Z=-7.3d0+194.d0*dble(j)/300.d0
       call bmod_pert(R,Z,bmod_n)
-      bre(j)=dble(bmod_n)
-      bim(j)=dimag(bmod_n)
+      bre(j)=real(bmod_n)
+      bim(j)=aimag(bmod_n)
     enddo
     write(7001,*) bre
     write(7002,*) bim

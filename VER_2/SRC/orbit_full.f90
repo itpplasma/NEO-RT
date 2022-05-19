@@ -201,8 +201,8 @@ subroutine bounce_harmonic(z, fn, mb, nph, taub, delphi, ret)
 
     call fn(t, y, fnres)
     fnval = cmplx(fnres(1), fnres(2), 8)
-    !expfac = exp(-imun*(mb*omb*t + nph*(y(2) - omphi*t)))
-    expfac = exp(-imun*mb*omb*t)
+    expfac = exp(-imun*(mb*omb*t + nph*(y(2) - omphi*t)))
+    !expfac = exp(-imun*mb*omb*t)
     !print *, t/taub
     resval = fnval*expfac
 

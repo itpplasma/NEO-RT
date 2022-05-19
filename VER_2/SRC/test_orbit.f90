@@ -69,14 +69,17 @@ program test_orbit
       call test_magfie
 
       ! Testing bounce average
+      call init_z(z)
       call bounce_average(1, z, one, taub, delphi, oneout)
       print *, '<1>_b     = ', oneout
 
       ! Compute bounce harmonic of constant - should give zero
+      call init_z(z)
       call bounce_harmonic(z, cmplxone, 1, 1, taub, delphi, HmReIm)
       print *, '1_11      = ', HmReIm
 
       ! Compute bounce harmonic of H - should give some value
+      call init_z(z)
       call bounce_harmonic(z, Hpert, 1, 1, taub, delphi, HmReIm)
       print *, 'H_11      = ', HmReIm
 
@@ -98,11 +101,11 @@ program test_orbit
       ! Initial conditions
       real(8), intent(out) :: z(5)
 
-      z(1) = 170.0d0  ! R
+      z(1) = 130.0d0  ! R
       z(2) = 1.0d0    ! PHI
       z(3) = 20d0     ! Z
       z(4) = 1d0      ! p/p0
-      z(5) = 0.9d0    ! p_par/p
+      z(5) = 0.1d0    ! p_par/p
     end subroutine init_z
 
 
