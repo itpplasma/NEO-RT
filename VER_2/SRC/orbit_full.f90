@@ -191,7 +191,7 @@ subroutine bounce_harmonic(z, fn, mb, nph, taub, deltaphi, ret)
 
   ret_full = 0.0d0
   call find_bounce(next, timestep_ext, dtau, z, taub, deltaphi, ret_full)
-  ret = ret_full(2:next)
+  ret = ret_full(2:next)/taub
 
   contains
 
