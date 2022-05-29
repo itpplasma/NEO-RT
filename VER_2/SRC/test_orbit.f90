@@ -181,9 +181,9 @@ program test_orbit
       call bounce_average(1, z, one, taub, delphi, oneout)
       print *, '<1>_b     = ', oneout
 
-      ! Compute bounce harmonic of constant - should give zero
-      call bounce_harmonic(z, cmplxone, 1, 1, taub, delphi, HmReIm)
-      print *, '1_11      = ', HmReIm
+      ! Compute bounce harmonic of a_n = 1
+      !call bounce_harmonic(z, cmplxone, 1, 1, taub, delphi, HmReIm)
+      !print *, '1_11      = ', HmReIm
 
       ! Compute bounce harmonic of H - should give some value
       call bounce_harmonic(z, Hpert, 1, 1, taub, delphi, HmReIm)
@@ -192,7 +192,7 @@ program test_orbit
       ! Testing time spent in box
       sbox = linspace(0d0, 1d0, nbox)
       call time_in_box(z, sbox, taub, taubox)
-      write(99) taubox
+      write(99,*) taubox
 
       ! alpha(z)
       ! perpinv = (1.d0 - z(5)**2)*z(4)**2/bmod(z)
@@ -210,7 +210,7 @@ program test_orbit
       z(2) = 1.0d0    ! PHI
       z(3) = 20d0     ! Z
       z(4) = 1d0      ! p/p0
-      z(5) = 0.1d0    ! p_par/p
+      z(5) = 0.8d0    ! p_par/p
     end subroutine init_z
 
 

@@ -209,10 +209,11 @@ subroutine bounce_harmonic(z, fn, mb, nph, taub, deltaphi, ret)
     call fn(t, y(1:neqm), fnres)
     fnval = cmplx(fnres(1), fnres(2), 8)
     !expfac = exp(-imun*mb*omb*y(6))
+    !expfac = exp(-imun*((mb*omb+nph*omphi)*y(6)))
     expfac = exp(-imun*((mb*omb+nph*omphi)*y(6) - nph*y(2)))
     resval = fnval*expfac
 
-    ! print *, y(6)*omb/(2d0*pi), y(6)*omphi/(2d0*pi), y(2)
+    write(999,*) y(6)*omb/(2d0*pi), (y(2)-y(6)*omphi)/(2d0*pi)
 
     res(6) = 1d0
     res(7) = real(resval)
