@@ -48,7 +48,7 @@ add_subdirectory("../contrib/vode" "vode")
 #ELSE()
 #  set(CMAKE_Fortran_FLAGS "-mkl -O3 -init=snan,arrays -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
    #set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
-set(CMAKE_Fortran_FLAGS "-O3 -g -fbacktrace -finit-real=nan -ffpe-trap=invalid") #GNU
+set(CMAKE_Fortran_FLAGS " -g -fbacktrace -finit-real=nan -ffpe-trap=invalid") #GNU
 #ENDIF()
 
 ### Define executable

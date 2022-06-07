@@ -7,9 +7,9 @@ module common
   save
 
   complex(8), parameter :: imun=(0d0,1d0)
-  
+
   real(8), parameter, public   :: pi = 4*atan(1d0)
-  
+
   real(8), parameter, public ::  &
        qe  = 4.803204d-10,       & ! elementary charge
        !me  = 9.109382d-28,       & ! electron mass,
@@ -18,9 +18,9 @@ module common
        !kb  = 1.381649d-16,       & ! Boltzmann constant
        eV  = 1.602176d-12          ! 1 electron volt
 
-  real(8), public :: qi, mi
+  real(8), public :: qi = 1d0*qe, mi = 2.014d0*mu
   contains
-    
+
   subroutine disp(str, val)
     character(*) :: str
     real(8)      :: val
@@ -78,7 +78,7 @@ module common
     end do
 
     rewind(lun)
-    
+
     allocate(data(nrow,2))
 
     do k=1,nrow
