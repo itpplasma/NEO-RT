@@ -48,7 +48,7 @@ add_subdirectory("../contrib/vode" "vode")
 #ELSE()
 #  set(CMAKE_Fortran_FLAGS "-mkl -O3 -init=snan,arrays -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
    #set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
-set(CMAKE_Fortran_FLAGS "-O3") #GNU
+set(CMAKE_Fortran_FLAGS "-O3 -g -fbacktrace -finit-real=nan -ffpe-trap=invalid,zero,overflow") #GNU
 #ENDIF()
 
 ### Define executable
@@ -58,6 +58,10 @@ add_executable(${PROJECT_EXE_NAME}
 
 add_executable(orbit_test
   orbit_test.f90
+)
+
+add_executable(test_frequencies
+  test_frequencies.f90
 )
 
 
@@ -106,6 +110,12 @@ target_link_libraries(
 #  blas
 #  lapack
 #  pthread
+)
+
+
+target_link_libraries(
+  test_frequencies
+  neo_rt
 )
 
 ### Copy files

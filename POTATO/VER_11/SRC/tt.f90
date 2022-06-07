@@ -34,7 +34,7 @@
 !  call test_bmodpert
 !
 ! Type of test: 1 - plot orbits, 2 - equilibrium profiles, 3 - resonant torque
-  itest_type=3
+  itest_type=2
 !
   select case(itest_type)
   case(1)
@@ -83,7 +83,7 @@
   npoicut=10000     !number of equidistant points for interpolating the cut
   rho_pol_max=0.8   !maximum value of poloidal radius limiting the cut range
 !  plot_poicut=.true.
-  plot_poicut=.false. 
+  plot_poicut=.false.
 !
   call find_poicut(rho_pol_max,npoicut)
 !
