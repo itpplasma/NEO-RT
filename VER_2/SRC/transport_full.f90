@@ -25,7 +25,7 @@ module transport
     m_vpar2 = 2.0d0*z(4)*z(5)**2
 
     res(1) = epsn*(Jperp_omc0 + m_vpar2)
-    res(2) = 0d0  ! TODO: Imaginary part is set to zero for test field
+    res(2) = 1d0  ! TODO: Imaginary part is set to zero for test field
   end subroutine Hpert
 
 !  subroutine TODO for 3 orbits to integrate m*df/dJ

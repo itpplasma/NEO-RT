@@ -29,7 +29,5 @@ target_sources(potato PRIVATE
     sample_matrix.f90
     sample_matrix_out.f90
     sorting.f90
-    resonant_int.f90
     eqmagprofs.f90
-    bmod_pert.f90
   )

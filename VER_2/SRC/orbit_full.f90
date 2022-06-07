@@ -3,8 +3,14 @@ use util
 implicit none
 
 integer(4), parameter :: neqm=5  ! Number of equations of motion
+real(8) :: dtau=0.0
 
 contains
+
+subroutine orbit_init(a_dtau)
+  real(8) :: a_dtau
+  dtau = a_dtau
+end subroutine orbit_init
 
 subroutine timestep(tau, z, vz)
   ! See velo for details
@@ -32,9 +38,6 @@ subroutine bounce_average(n, z, integrand, taub, delphi, ret)
   real(8), intent(out)   :: taub       ! Bounce time output
   real(8), intent(out)   :: delphi     ! Change in varphi during bounce time
   real(8), intent(out)   :: ret(n)     ! Bounce average output
-  real(8) :: dtau
-
-  dtau = 2.0d0  ! TODO: time step is for strongly passing
 
   ret = 0.0d0
 
@@ -65,7 +68,7 @@ subroutine time_in_box(z, sbox, taub, tau)
   real(8), intent(in)    :: taub     ! Bounce time
   real(8), intent(out)   :: tau(size(sbox))    ! Time in each box
 
-  real(8) :: dtau, delphi
+  real(8) :: delphi
   real(8) :: sprev, snext ! Previous and next flux radius box
   real(8) :: y(neqm)
 
@@ -84,7 +87,6 @@ subroutine time_in_box(z, sbox, taub, tau)
   integer(4) :: jroots(2)
 
   ! TODO make this more efficient
-  dtau = 2.0d0  ! TODO: time step is for strongly passing
   y = z
 
   rtol = 1d-12
@@ -169,46 +171,54 @@ subroutine time_in_box(z, sbox, taub, tau)
 end subroutine time_in_box
 
 
-subroutine bounce_harmonic(z, fn, mb, nph, taub, delphi, ret)
+subroutine bounce_harmonic(z, fn, mb, nph, taub, deltaphi, ret)
   ! Computes bounce harmonic mb of complex fn
-  integer(4), parameter  :: next=2     ! Number of extra integrals
-  real(8), intent(inout) :: z(neqm)    ! Position on orbit
-  external               :: fn         ! Subroutine fn(z, out) to treat
-  integer(4), intent(in) :: mb         ! Bounce harmonic number
-  integer(4), intent(in) :: nph        ! Toroidal harmonic number
-  real(8), intent(out)   :: ret(next)  ! Complex harmonic of input fn
+  integer(4), parameter  :: next=3       ! Number of extra integrals
+  real(8), intent(inout) :: z(neqm)      ! Position on orbit
+  external               :: fn           ! Subroutine fn(z, out) to treat
+  integer(4), intent(in) :: mb           ! Bounce harmonic number
+  integer(4), intent(in) :: nph          ! Toroidal harmonic number
+  real(8), intent(out)   :: ret(next-1)  ! Complex harmonic of input fn
   real(8), intent(out)   :: taub     ! Bounce time
-  real(8), intent(out)   :: delphi   ! Change in varphi during bounce time
-  real(8) :: omb, omphi
-  ! TODO
-  call bounce_average(next, z, fn, taub, delphi, ret)
+  real(8), intent(out)   :: deltaphi   ! Change in varphi during bounce time
+  real(8) :: omb, omphi, ret_full(next)
 
+  ! This includes also variable to track orbit time
+  ret_full = 0.0d0
+  call find_bounce(0, timestep, dtau, z, taub, deltaphi, ret_full)
   omb = 2d0*pi/taub
-  omphi = delphi/taub
+  omphi = deltaphi/taub
 
-  call bounce_average(next, z, integrand, taub, delphi, ret)
+  ret_full = 0.0d0
+  call find_bounce(next, timestep_ext, dtau, z, taub, deltaphi, ret_full)
+  ret = ret_full(2:next)/taub
 
   contains
 
-  subroutine integrand(t, y, res)
+  subroutine timestep_ext(t, y, res)
   ! Integrand for Fourier integral: real and imaginary part
     real(8), intent(in)  :: t           ! Orbit time parameter
-    real(8), intent(in)  :: y(5)        ! Orbit phase-space variables
-    real(8), intent(out) :: res(2)      ! Output
+    real(8), intent(in)  :: y(neqm+next)      ! Orbit phase-space variables
+    real(8), intent(out) :: res(neqm+next)    ! Output
 
     real(8) :: fnres(2)
     complex(8) :: fnval, expfac, resval
 
-    call fn(t, y, fnres)
+    call timestep(t, y(1:neqm), res(1:neqm))
+
+    call fn(t, y(1:neqm), fnres)
     fnval = cmplx(fnres(1), fnres(2), 8)
-    expfac = exp(-imun*(mb*omb*t + nph*(y(2) - omphi*t)))
-    !expfac = exp(-imun*mb*omb*t)
-    !print *, t/taub
+    !expfac = exp(-imun*mb*omb*y(6))
+    !expfac = exp(-imun*((mb*omb+nph*omphi)*y(6)))
+    expfac = exp(-imun*((mb*omb+nph*omphi)*y(6) - nph*y(2)))
     resval = fnval*expfac
 
-    res(1) = real(resval)
-    res(2) = aimag(resval)
-  end subroutine integrand
+    write(999,*) y(6)*omb/(2d0*pi), (y(2)-y(6)*omphi)/(2d0*pi)
+
+    res(6) = 1d0
+    res(7) = real(resval)
+    res(8) = aimag(resval)
+  end subroutine timestep_ext
 end subroutine bounce_harmonic
 
 end module orbit

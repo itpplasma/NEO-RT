@@ -1,11 +1,17 @@
 program test_orbit
-    use util
-    use parmot_mod, only: rmu, ro0
-    use orbit, only: timestep, neqm, bounce_average, bounce_harmonic, &
-      time_in_box
-    use transport, only: Hpert
+  use util
+  use parmot_mod, only: rmu, ro0
+  use orbit_dim_mod, only : write_orb,iunit1,numbasef
+  use get_matrix_mod, only : iclass
+  use orbit, only: timestep, neqm, bounce_average, bounce_harmonic, &
+    time_in_box, orbit_init
+  use transport, only: Hpert
+  use poicut_mod, only : npc,rpc_arr,zpc_arr
+  use form_classes_doublecount_mod, only : nclasses
+  use cc_mod, only : wrbounds,dowrite
+  use global_invariants, only : dtau,toten,perpinv,cE_ref,Phi_eff
 
-    implicit none
+  implicit none
 
     call main
 
@@ -14,11 +20,13 @@ program test_orbit
     subroutine main
 
       real(8) :: z(neqm), zdot(neqm)
-      real(8) :: bmod_ref, bmod00, tempi1, am, Zb, v0, rlarm
+      real(8) :: bmod_ref, bmod00, E_alpha, A_alpha, Z_alpha, v0, rlarm
       real(8) :: bmod, phi_elec
       real(8) :: mth, mph  ! Poloidal and toroidal harmonic numbers
       real(8) :: alpha(3)  ! Invariants
       real(8) :: HmReIm(2), taub, delphi, oneout(1)
+
+      real(8) :: Rmax, ntimstep
 
       integer(4), parameter :: nbox = 101
       real(8) :: sbox(nbox)
@@ -28,31 +36,128 @@ program test_orbit
       integer :: npoicut
       real(8) :: rho_pol_max
 
-      ! Inverse relativistic temperature, set >=1e5 to neglect relativistic effects
-      rmu = 1.0d5
+      integer :: ifdir_type
+      double precision :: rho_pol
+
+      integer :: i, ierr
+      logical :: plot_poicut = .False.
+      logical :: plot_orbits = .True.
+      logical :: classes_talk
+
+      integer :: iunit = 71
+
+
+      double precision, dimension(:,:), allocatable :: resint
+
+
+
+      ! Inverse relativistic temperature, set >=1e5 to neglect relativ. effects
+      rmu = 1.0d30
+
+      E_alpha=5d3                  ! Normalization energy of alpha-species, eV
+      A_alpha=2.d0                 ! Mass number of alpha species: deuterium
+
+      Z_alpha=1.d0                 ! Charge number of alpha species: deuterium
+      v0=sqrt(2.d0*E_alpha*eV/(mu*A_alpha)) ! Normalization velocity, cm/s
 
       ! This will translate to dimensionless units via parmot_mod.ro0
       ! Here we translate an input file in Tesla to computation in Gauss/CGS
       bmod_ref = 1.0d0             ! 1 Gauss in Gauss
-      bmod00 = 1.0d0               ! On-axis magnetic field
-      tempi1 = 0.17549561306d4     ! ion temperature
-      am = 2.0d0                   ! Atomic mass 2 of deuterium ions
-      Zb = 1.0d0                   ! Atomic charge 1 of deuterium ions
 
-      ! Initialize common quantities for ions
-      mi = am*mu
-      qi = Zb*qe
-
-      v0 = sqrt(2.0*tempi1*ev/(am*mu))     ! Reference (thermal) velocity
       ! Reference Larmor radius of thermal particles
-      rlarm = v0*am*mu*c/(Zb*qe*bmod_ref)  ! Larmor radius in bmod_ref
-      ro0 = rlarm*bmod00                   ! Rescaled Larmor radius
+      ro0=v0*mu*A_alpha*c/(qe*Z_alpha*bmod_ref)
+
+      ! Set orbit integration step:
+      Rmax=200.d0
+      ntimstep=30
+      dtau=Rmax/dble(ntimstep)
+
+      call orbit_init(dtau)
 
       ! Find Poincare cut:
       npoicut=10000     !number of equidistant points for interpolating the cut
       rho_pol_max=0.8d0 !maximum value of poloidal radius limiting the cut range
 
       call find_poicut(rho_pol_max,npoicut)
+
+      if(plot_poicut) then
+        open(iunit,file='poicut.dat')
+        do i=0,npc
+          write(iunit,*) rpc_arr(i),zpc_arr(i)
+        enddo
+        close(iunit)
+        stop
+      endif
+
+      ! Determine mutual direction of poloidal and toroidal fields (not used, for curiosity only):
+
+      call poltor_field_dir(ifdir_type)
+
+      if(ifdir_type.eq.1) then
+        print *,'Direction of magnetic field AUG standard: co-passing orbits shifted to the HFS'
+      else
+        print *,'Direction of magnetic field AUG non-standard: co-passing orbits shifted to the LFS'
+      endif
+
+      ! Set outer boundary of the plasma volume where profiles are computed:
+        rho_pol=sqrt(0.3d0) !poloidal radius
+      !  rho_pol=0.8d0 !sqrt(0.3d0) !poloidal radius
+
+      call rhopol_boundary(rho_pol)
+
+      ! Pre-compute profiles of flux surface labels, safety factor, average nabla psi, flux surface area:
+
+        call load_eqmagprofs
+
+      ! Test the interpolation of flux surface labels, safety factor, average nabla psi, flux surface area:
+      !
+      !  call test_eqmagprofs  !WARNING: contains "stop" inside, comment this test out to continue
+      !
+
+      !.......................................
+      !
+      ! Plotting the orbits, frequencies, etc
+      !
+      if(plot_orbits) then
+        print *,'Plotting the orbits'
+
+        numbasef=6 !corresponds to unperturbed profile computation (should be > 0 for integrate_class_doublecount)
+        allocate(resint(numbasef,2))
+
+        ! example from Fig.1 (electric field ampl=1.12d0):
+        toten=1.d0 !1.7521168986242395d0
+        perpinv=4.5d-5 !9.9881139234315119d-5
+
+        ! activate writing:
+        wrbounds=.true. !write vpar^2 and psi^* curves vs cut parameter R_c, extremum and boundary points
+        dowrite=.true. !write canonical frequencies and bounce integrals for adaptive sampling grid and interpolation
+        write_orb=.true. !write orbits during adaptive sampling of classes
+            call find_bounds_fixpoints(ierr)
+
+        classes_talk=.true.
+
+        call form_classes_doublecount(classes_talk,ierr)
+
+        do iclass=1,nclasses
+          ! data is written to fort.* files:
+          iunit1=100+iclass
+
+          call sample_class_doublecount(1000+iclass,ierr)
+
+          close(iunit1)      !orbits
+          close(1000+iclass) !sampled canonical frequencies and bounce integrals
+
+          call integrate_class_doublecount(2000+iclass,resint)
+
+          close(2000+iclass) !interpolated canonical frequencies and bounce integrals
+          close(3000+iclass) !derivatives of interpolated canonical frequencies and bounce integrals
+        enddo
+
+        ! deactivate writing:
+        wrbounds=.false.
+        dowrite=.false.
+        write_orb=.false.
+      endif
 
       call init_z(z)
 
@@ -72,11 +177,12 @@ program test_orbit
       call init_z(z)
       call bounce_average(1, z, one, taub, delphi, oneout)
       print *, '<1>_b     = ', oneout
+      call bounce_average(1, z, one, taub, delphi, oneout)
+      print *, '<1>_b     = ', oneout
 
-      ! Compute bounce harmonic of constant - should give zero
-      call init_z(z)
-      call bounce_harmonic(z, cmplxone, 1, 1, taub, delphi, HmReIm)
-      print *, '1_11      = ', HmReIm
+      ! Compute bounce harmonic of a_n = 1
+      !call bounce_harmonic(z, cmplxone, 1, 1, taub, delphi, HmReIm)
+      !print *, '1_11      = ', HmReIm
 
       ! Compute bounce harmonic of H - should give some value
       call init_z(z)
@@ -84,10 +190,9 @@ program test_orbit
       print *, 'H_11      = ', HmReIm
 
       ! Testing time spent in box
-      call init_z(z)
       sbox = linspace(0d0, 1d0, nbox)
       call time_in_box(z, sbox, taub, taubox)
-      write(99) taubox
+      write(99,*) taubox
 
       ! alpha(z)
       ! perpinv = (1.d0 - z(5)**2)*z(4)**2/bmod(z)
@@ -105,7 +210,7 @@ program test_orbit
       z(2) = 1.0d0    ! PHI
       z(3) = 20d0     ! Z
       z(4) = 1d0      ! p/p0
-      z(5) = 0.1d0    ! p_par/p
+      z(5) = 0.8d0    ! p_par/p
     end subroutine init_z
 
 

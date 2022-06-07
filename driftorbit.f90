@@ -35,14 +35,15 @@ module driftorbit
   real(8) :: vres_pass_spl_coeff(netaspl-1, 5)
 
   ! Harmonics TODO: make dynamic, multiple harmonics
-  real(8) :: epsmn        ! perturbation amplitude B1/B0
-  integer :: m0           ! Boozer poloidal perturbation mode
-  integer :: mth          ! canonical poloidal mode
-  logical :: supban       ! calculate superbanana plateau
-  logical :: magdrift     ! consider magnetic drift
-  logical :: nopassing    ! neglect passing particles
-  logical :: noshear      ! neglect magnetic shear
-  logical :: pertfile     ! read perturbation from file with neo_magfie_pert
+  ! Default values are overridden by config file in driftorbit_test:read_control
+  real(8) :: epsmn = 1d-3           ! perturbation amplitude B1/B0
+  integer :: m0 = 1                 ! Boozer poloidal perturbation mode
+  integer :: mth = 1                ! canonical poloidal mode
+  logical :: supban   = .False.     ! calculate superbanana plateau
+  logical :: magdrift = .True.      ! consider magnetic drift
+  logical :: nopassing = .False.    ! neglect passing particles
+  logical :: noshear = .False.      ! neglect magnetic shear
+  logical :: pertfile = .False.     ! read perturbation from file with neo_magfie_pert
 
   ! Flux surface TODO: make a dynamic, multiple flux surfaces support
   real(8) :: dVds, etadt, etatp
@@ -64,7 +65,7 @@ module driftorbit
 
   ! Number of levels for coarse root finding
   integer, parameter :: nlev = 100
-  real(8) :: sigv
+  real(8) :: sigv = 1d0
 
   ! Nonlinear calculation switch
   logical :: nonlin
