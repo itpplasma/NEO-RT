@@ -30,4 +30,6 @@ target_sources(potato PRIVATE
     sample_matrix_out.f90
     sorting.f90
     eqmagprofs.f90
+    equimoments.f90
+    resonant_int.f90
   )
