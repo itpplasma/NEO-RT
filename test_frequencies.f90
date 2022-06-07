@@ -6,10 +6,11 @@ program test_frequencies
   implicit none
 
   inp_swi = 9
-  s = 0.5
+  !s = 0.5
 
+  !print *, s
   call do_magfie_init
 
-  call init
+  !call init
 
 end program test_frequencies
