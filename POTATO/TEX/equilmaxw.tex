@@ -389,6 +389,106 @@ setting $\omega=0$ in the resonance condition. Subscript $\theta^2$ on derivativ
 subintegrand in~\eq{boxflux} means that those derivatives are computed for fixed $\theta^2$
 rather then $\tau=\tau_b\theta^2/(2\pi)$.
 
+Generalized toroidal momentum balance follows similarly to~\eq{conteq}
+\bea{genmomeq}
+\difp{n_\alpha P_\varphi}{t}
+&\equiv &
+\int\rd^3 J\int\rd^3\theta\; \delta(\br-\br(\btheta,\bJ))\difp{f_0}{t}p_\varphi
+\nonumber \\
+&=&
+-\nabla\cdot\mathbf{\Gamma}_{p_\varphi}+T_\varphi,
+\eea
+where generalized momentum flux density is
+\be{BGammapphi}
+\mathbf{\Gamma}_{p_\varphi}=-\int\rd^3 J\int\rd^3\theta\;
+\sum_\bm \frac{\pi}{2} \left|H_{\bm}\right|^2\delta(m_k\Omega^k-\omega)
+m_j\difp{f_0}{J_j} m_i\difp{\br(\btheta,\bJ)}{J_i}\delta(\br-\br(\btheta,\bJ))
+p_\varphi,
+\ee
+and toroidal torque density is
+\be{Tphi}
+T_\varphi=-m_3\int\rd^3 J\int\rd^3\theta\;
+\sum_\bm \frac{\pi}{2} \left|H_{\bm}\right|^2\delta(m_k\Omega^k-\omega)
+m_j\difp{f_0}{J_j} \delta(\br-\br(\btheta,\bJ)).
+\ee
+Subtracting from~\eq{genmomeq} continuity equation times $e_\alpha A_\varphi/c$
+gives kinematic momentum conservation equation
+\bea{kinmomeq}
+\difp{m_\alpha n_\alpha V_{\varphi}}{t}
+&\equiv &
+\int\rd^3 J\int\rd^3\theta\; \delta(\br-\br(\btheta,\bJ))\difp{f_0}{t}
+\left(p_\varphi-\frac{e_\alpha}{c}A_\varphi\right)
+\nonumber \\
+&=&
+-\nabla\cdot\mathbf{\Gamma}_{m V_\varphi}+T_\varphi-\frac{e_\alpha}{c}
+\mathbf{\Gamma}\cdot \nabla A_\varphi,
+\eea
+%where kinematic momentum flux density is
+%\be{BGammamvphi}
+%\mathbf{\Gamma}_{m V_\varphi}=-m_\alpha \frac{B_\varphi}{B} 
+%\int\rd^3 J\int\rd^3\theta\;
+%\sum_\bm \frac{\pi}{2} \left|H_{\bm}\right|^2\delta(m_k\Omega^k-\omega)
+%m_j\difp{f_0}{J_j} m_i\difp{\br(\btheta,\bJ)}{J_i}\delta(\br-\br(\btheta,\bJ))
+%v_\parallel,
+%\ee
+%and we used guiding center definition of the canonical toroidal momentum
+%$p_\varphi=m_\alpha v_\parallel B_\varphi/B+e_\alpha A_\varphi / c$ with all
+%functions of coordinates evaluated at the guiding center position.
+where kinematic momentum flux density is
+\be{BGammamvphi}
+\mathbf{\Gamma}_{m V_\varphi}=-m_\alpha \int\rd^3 J\int\rd^3\theta\;
+\sum_\bm \frac{\pi}{2} \left|H_{\bm}\right|^2\delta(m_k\Omega^k-\omega)
+m_j\difp{f_0}{J_j} m_i\difp{\br(\btheta,\bJ)}{J_i}\delta(\br-\br(\btheta,\bJ))
+v_\varphi(\btheta,\bJ).
+\ee
+Last term in~\eq{kinmomeq} can also be written as
+$$
+-\frac{e_\alpha}{c}\mathbf{\Gamma}\cdot \nabla A_\varphi
+=
+\frac{e_\alpha}{c}\sqrt{g}B^\vartheta \mathbf{\Gamma}\cdot \nabla r.
+$$
+In analogy to~\eq{boxflux} box averaged kinematic momentum flux density is
+\bea{boxfluxmVphi}
+\Gamma_{m V_\varphi\rm box}(r_0) &=& 
+\int\limits_{V(r)}\rd^3 r\; \mathbf{\Gamma}_{m V_\varphi}\cdot\nabla r
+\nonumber \\
+&=&
+-2\pi^3\sum_\bm \int \rd H_0\int\rd J_\perp\int\rd p_\varphi
+\;\left|H_{\bm}\right|^2\delta(m_2\omega_b+m_3\Omega_\varphi)\;
+\left(m_2\omega_b\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi}\right)
+\nonumber \\
+&\times&
+\int\limits_0^{\tau_b}\rd \tau\;
+\left(
+m_2\omega_b\left(\difp{r(R,Z)}{H_0}\right)_{\theta^2}
++m_3\left(\difp{r(R,Z)}{p_\varphi}\right)_{\theta^2}
+\right)m_\alpha\frac{B_\varphi}{B}v_\parallel\Theta(r_0-r(R,Z)),
+\eea
+where we used guding center expression of $p_\varphi$ to replace
+$v_\varphi \approx v_\parallel B_\varphi/B$. Box-integrated torque
+density has been denoted in our earlier work as an integral torque
+\bea{inttorque}
+T_\varphi^{(int)}(r_0) &=&
+\int\limits_{V(r)}\rd^3 r\; T_\varphi
+\nonumber \\
+&=&
+-2\pi^3\sum_\bm \int \rd H_0\int\rd J_\perp\int\rd p_\varphi
+\;\left|H_{\bm}\right|^2\delta(m_2\omega_b+m_3\Omega_\varphi)\;
+\left(m_2\omega_b\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi}\right)
+\nonumber \\
+&\times&
+m_3 \int\limits_0^{\tau_b}\rd \tau\;
+\Theta(r_0-r(R,Z)).
+\eea
+
+
+
+
+
+
+
+
+
 \subsection{Profile expansion over base functions}
 
 \noindent
@@ -1136,6 +1236,27 @@ F
 \int\limits_0^{\tau_b}\rd \tau\;
 F =\frac{1}{2\pi}\int\limits_0^{2\pi} \rd \theta^2 F.
 \ee
+In the same way we obtain for the integral torque~\eq{inttorque} the following
+expression
+\bea{inttorque_classes_conv}
+T_\varphi^{(int)}(r_0)
+&=&
+-\pi^3\sum_\bm |m_3|
+\int\limits_{e_\alpha\Phi_{\rm min}}^\infty \rd H_0
+\int\limits_0^{J_\perp^{\rm max}(H_0)} \rd J_\perp
+\sum\limits_{k=1}^{N_{\rm cl}}
+\int\limits_{x^{[min]}_k}^{x^{[max]}_k} \rd x
+\left|\difp{p_\varphi}{x}\right|
+\;\left|H_{\bm}\right|^2
+\delta\left(\Delta\varphi_b+\frac{2\pi m_2}{m_3}\right)\;
+\nonumber \\
+&\times&
+\left(
+\tau_b\difp{f_0}{p_\varphi}
+-\Delta\varphi_b\difp{f_0}{H_0}
+\right)
+\tau_b \left\langle \Theta(r_0-r) \right\rangle_b,
+\eea
 Using the following representation of Heaviside function,
 \be{reprTheta}
 \Theta(x)=\frac{1}{2}\frac{\rd}{\rd x}(x+|x|),
@@ -1651,7 +1772,7 @@ results if one takes a difference between two flows computed for the same densit
 profiles but different electric fields. This is seen from green curves which differ
 only by the numerical error.
 
-\subsection{Quasilinear flux}
+\subsection{Quasilinear flux and torque}
 Quasilinear box-integrated flux density~\eq{boxflux_classes_conv}
 takes for the equilibrium Maxwellian distribution
 the following form in the normalized variables,
@@ -1705,6 +1826,36 @@ A^\ast_1(\psi^\ast)=\frac{1}{\bar n_\alpha}
 \qquad
 A^\ast_2(\psi^\ast)=\frac{1}{\hat T_\alpha}\difp{\hat T_\alpha}{\psi^\ast}.
 \ee
+In the similar way~\eq{inttorque_classes_conv} is obtained in normalized variables as
+\bea{inttorque_classes_norm}
+T_\varphi^{(int)}(r_0)
+&=&
+-\frac{\pi^{3/2}}{4} {\cal E}_{\rm ref}\sum_\bm |m_3|
+\int\limits_{\hat\Phi_{\rm min}}^\infty \rd \hat H_0
+\int\limits_0^{\hat J_\perp^{\rm max}(\hat H_0)} \rd \hat J_\perp
+\sum\limits_{k=1}^{N_{\rm cl}}
+\int\limits_{x^{[min]}_k}^{x^{[max]}_k} \rd x
+\left|\difp{\psi^\ast}{x}\right|
+\;\left|\hat H_{\bm}\right|^2
+\delta\left(\Delta\varphi_b+\frac{2\pi m_2}{m_3}\right)\;
+\nonumber \\
+&\times&
+\left(
+\Phi_{\rm eff}
+\left(
+A^\ast_1(\psi^\ast)+
+\frac{\hat H_0-\hat \Phi(\psi^\ast)}{\hat T_\alpha}
+A^\ast_2(\psi^\ast) 
+\right)
+\hat \tau_b
++\frac{1}{\hat T_\alpha}\Delta\varphi_b
+\right)
+\frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
+\exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
+\nonumber \\
+&\times&
+\hat\tau_b \left\langle \Theta(r_0-r) \right\rangle_b.
+\eea
 The normalized bounce average in~\eq{boxflux_classes_norm} can similarly
 to~\eq{bouav_theta} and~\eq{bouav_theta_cx} be presented in the form
 \bea{bouav_theta_norm}
@@ -1830,11 +1981,12 @@ variables is
 \ee
 
 Finally, there are few methods to integrate over phase space
-in Eq.~\eq{boxflux_classes_norm}:
+in Eqs.~\eq{boxflux_classes_norm} and~\eq{inttorque_classes_norm}:
 \begin{itemize}
 \item[1]
-The most straightforward one is to evaluate integral over 
-$x$ in~\eq{boxflux_classes_norm} using the $\delta$-function which gives
+The most straightforward one is to evaluate integrals over 
+$x$ in~\eq{boxflux_classes_norm} and~\eq{inttorque_classes_norm}
+using the $\delta$-function which gives
 \bea{boxflux_classes_norm_evald}
 \Gamma_{\rm box}(r_0) &=&
 -\frac{\pi^{3/2}}{4} v_0
@@ -1868,9 +2020,44 @@ A^\ast_2(\psi^\ast)
 \left(\difp{r}{\psi^\ast}\right)_{\theta^2}
 -\Delta\varphi_b\left(\difp{r}{\hat H_0}\right)_{\psi^\ast,\theta^2}
 \right)\Theta(r_0-r)
+\right\rangle_b
+\eea
+and
+\bea{inttorque_classes_norm_evald}
+T_\varphi^{(int)}(r_0)
+&=&
+-\frac{\pi^{3/2}}{4} {\cal E}_{\rm ref}
+\int\limits_{\hat\Phi_{\rm min}}^\infty \rd \hat H_0
+\int\limits_0^{\hat J_\perp^{\rm max}(\hat H_0)} \rd \hat J_\perp
+\sum\limits_{k=1}^{N_{\rm cl}}
+\sum_\bm |m_3|
+\sum_{x=x^{(\rm res)}_{(\bm,k)}}
+\left|\difp{\psi^\ast}{x}\right|
+\left|\difp{\Delta \varphi_b}{x}\right|^{-1}
+\;\left|\hat H_{\bm}\right|^2
+\nonumber \\
+&\times&
+\left(
+\Phi_{\rm eff}
+\left(
+A^\ast_1(\psi^\ast)+
+\frac{\hat H_0-\hat \Phi(\psi^\ast)}{\hat T_\alpha}
+A^\ast_2(\psi^\ast)
+\right)
+\hat \tau_b
++\frac{1}{\hat T_\alpha}\Delta\varphi_b
+\right)
+\frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
+\exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
+\nonumber \\
+&\times&
+\hat\tau_b 
+\left\langle
+\Theta(r_0-r)
 \right\rangle_b,
 \eea
-where we denote with summation over $x=x^{(\rm res)}_{(\bm,k)}$ sum over
+respectively.
+Here, we denote with summation over $x=x^{(\rm res)}_{(\bm,k)}$ sum over
 all resonant values of $x$ for a given class $k$ and fixed Fourier indices $\bm$,
 and all finctions of $\psi^\ast=\psi^\ast(x)$ resonant values of $x$ are used.
 This method may result in steep behaviour and integrable square root singularities 
@@ -1958,5 +2145,142 @@ integrator which can handle integrable singularities. Usual equidistant integrat
 requires a large number of points (5000 in this example would result in days of run
 for the whole integral). Adaptive integrator should reduce this number by more than 
 an order of magnitude.
+
+
+\subsubsection{Method 2}
+More elegant is the method of Albert and Grabenwarter where a 2D integral
+\be{AG_I}
+I=\int \rd x \int \rd y F(x,y) \delta(s(x,y))
+\ee
+is presented as an integral along the resonant line,
+\be{AG_alongres}
+\frac{\rd I}{\rd t}=\frac{F(x,y)}{|\nabla s(x,y)|},
+\qquad
+|\nabla s(x,y)|=\sqrt{\left(\difp{s(x,y}{x}\right)^2
++\left(\difp{s(x,y}{y}\right)^2},
+\ee
+where line is defined by $x=x(t)$ and $y=y(t)$ which satisfy the ODE set
+\be{AG_line}
+\frac{\rd x}{\rd t}=-\frac{1}{|\nabla s(x,y)|}\difp{s(x,y)}{y},
+\qquad
+\frac{\rd y}{\rd t}=\frac{1}{|\nabla s(x,y)|}\difp{s(x,y)}{x}.
+\ee
+Boundary of the 2D integration region is defined by $x=x_b(l)$ and $y=y_b(l)$
+so that increasing $l$ corresponds to the counter-clockwise direction. Starting
+point of the resonant line at the bondary corresponds to a root $l=l_0$ of $s$,
+\be{AG_start}
+s\left(x_b(l_0),y_b(l_0)\right)=0.
+\ee
+Since there are two roots per resonant line, root corresponding to the entry point
+where $x=x_b$ and $y=y_b$ satisfies the condition
+\be{AG_choice}
+\frac{\rd x_b}{\rd l}\frac{\rd y}{\rd t}-\frac{\rd y_b}{\rd l}\frac{\rd x}{\rd t}
+=\frac{1}{|\nabla s(x,y)|}
+\frac{\rd x_b}{\rd l}\difp{s(x,y)}{x}+\frac{\rd y_b}{\rd l}\difp{s(x,y)}{y}
+=\frac{1}{|\nabla s(x,y)|} \frac{\rd}{\rd l}s\left(x_b(l),y_b(l)\right)>0,
+\ee
+i.e. to the point where $s$ is increasing with $l$.
+
+We apply this method to Eq.~\eq{inttorque_classes_norm} where split integration
+interval over $\hat J_\perp$ into sub-intervals where number of classes 
+$N_{\rm cl}=N_{\rm cl}(\hat J_\perp)$ stays constant, and type class discretization 
+function does not change for any of classes $k$. We introduce global enumeration
+of classes such that classes with the same local index $k$ in 
+Eq.~\eq{inttorque_classes_norm} would have have different class index if they
+belong to different $\hat J_\perp$ interval. We denote this global class index
+as $k_g$ with total number of such globally enumerated classes $N_{\rm cl}^g$.
+Thus we can exchange the order of integration over $\hat J_\perp$ and summation
+over class index $k_g$ which actually enumerates 2D rectangular regions 
+in $(\hat J_\perp,x)$ plane. In addition, we introduce a new dimensionless
+variable $y$ instead of $\hat J_\perp$ in each class iterval 
+$\hat J_{\perp,k_g}^{(min)} < \hat J_\perp < \hat J_{\perp,k_g}^{(max)}$ so that
+$0<y<1$ and
+\be{Jperpofy}
+\hat J_\perp = \hat J_{\perp,k_g}^{(min)}
++(\hat J_{\perp,k_g}^{(max)}-\hat J_{\perp,k_g}^{(min)})\xi_{22}(y)
+\ee
+where function $\xi_{22}(x)$ is defined by~\eq{xifuns}.
+Thus Eq.~\eq{inttorque_classes_norm} transforms to
+\bea{inttorque_contour}
+T_\varphi^{(int)}(r_0)
+&=&
+-\frac{\pi^{3/2}}{4} {\cal E}_{\rm ref}\sum_\bm |m_3|
+\int\limits_{\hat\Phi_{\rm min}}^\infty \rd \hat H_0
+\sum\limits_{k_g=1}^{N_{\rm cl}^g}
+\int\limits_{x^{[min]}_{k_g}}^{x^{[max]}_{k_g}} \rd x
+\int\limits_0^1 \rd y
+\difp{\hat J_\perp}{y}
+\left|\difp{\psi^\ast}{x}\right|
+\;\left|\hat H_{\bm}\right|^2
+\delta\left(\Delta\varphi_b+\frac{2\pi m_2}{m_3}\right)\;
+\nonumber \\
+&\times&
+\left(
+\Phi_{\rm eff}
+\left(
+A^\ast_1(\psi^\ast)+
+\frac{\hat H_0-\hat \Phi(\psi^\ast)}{\hat T_\alpha}
+A^\ast_2(\psi^\ast)
+\right)
+\hat \tau_b
++\frac{1}{\hat T_\alpha}\Delta\varphi_b
+\right)
+\frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
+\exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
+\nonumber \\
+&\times&
+\hat\tau_b \left\langle \Theta(r_0-r) \right\rangle_b.
+\eea
+Thus, integral torque  is presented in terms of Eq.~\eq{AG_I} as
+\be{inttorque_AG}
+T_\varphi^{(int)}(r_0)
+=
+-\frac{\pi^{3/2}}{4} {\cal E}_{\rm ref}\sum_\bm |m_3|
+\int\limits_{\hat\Phi_{\rm min}}^\infty \rd \hat H_0
+\sum\limits_{k_g=1}^{N_{\rm cl}^g} I_{\bm,k_g},
+\ee
+where
+\be{AG_Imkg}
+I_{\bm,k_g}
+= 
+\int\limits_{x^{[min]}_{k_g}}^{x^{[max]}_{k_g}} \rd x
+\int\limits_0^1 \rd y \,
+F_{\bm,k_g}(x,y) \delta(s_{\bm,k_g}(x,y)),
+\ee
+with
+\be{AG_sbmkg}
+s_{\bm,k_g}(x,y)=\Delta\varphi_b+\frac{2\pi m_2}{m_3},
+\ee
+and
+\bea{AG_Fbmkg}
+F_{\bm,k_g}(x,y)
+&=&
+\left(
+\Phi_{\rm eff}
+\left(
+A^\ast_1(\psi^\ast)+
+\frac{\hat H_0-\hat \Phi(\psi^\ast)}{\hat T_\alpha}
+A^\ast_2(\psi^\ast)
+\right)
+\hat \tau_b
++\frac{1}{\hat T_\alpha}\Delta\varphi_b
+\right)
+\frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
+\exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
+\nonumber \\
+&\times&
+\difp{\hat J_\perp}{y}
+\left|\difp{\psi^\ast}{x}\right|
+\;\left|\hat H_{\bm}\right|^2
+\hat\tau_b \left\langle \Theta(r_0-r) \right\rangle_b.
+\eea
+Introducing new parameterization variable 
+$x^\prime=(x-x^{[min]}_{k_g})/(x^{[max]}_{k_g}-x^{[min]}_{k_g})$ 
+such that integration limits in~\eq{AG_Imkg} are $0<x^\prime<1$
+we still have the same expressions for the subintegrands given 
+by~\eq{AG_sbmkg} and~\eq{AG_Fbmkg} if $x$ is replaced with $x^\prime$
+there.
+
+
 
 \end{document}
