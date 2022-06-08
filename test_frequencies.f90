@@ -14,7 +14,7 @@ program test_frequencies
   real(8) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
 
   inp_swi = 9  ! ASDEX Upgrade format
-  s = 0.5      ! Normalized toroidal flux
+  !s = 0.5      ! Normalized toroidal flux
 
   !print *, s
   call do_magfie_init

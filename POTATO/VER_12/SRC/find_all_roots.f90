@@ -178,11 +178,11 @@
     endif
   enddo
 !
-!------------  
+!------------
 !
   contains
 !
-!------------  
+!------------
 !
   subroutine addroot
 !
@@ -192,7 +192,7 @@
 !
 ! extend storage arragy for a new root:
   nroots=nroots+1
-  if(allocated(roots)) then 
+  if(allocated(roots)) then
     allocate(dummy1d(nroots-1))
     dummy1d=roots
     deallocate(roots)
@@ -231,7 +231,7 @@
 !
   end subroutine addroot
 !
-!------------  
+!------------
 !
   end subroutine find_all_roots
 !

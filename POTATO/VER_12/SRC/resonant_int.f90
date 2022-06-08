@@ -10,11 +10,13 @@
       double precision :: toten_res,perpinv_res
       double precision, dimension(:),   allocatable :: w_res
       double precision, dimension(:,:), allocatable :: z_res
+      double precision, dimension(:),   allocatable :: taub
     end type
 !
     type respoint_single
       double precision :: toten_res,perpinv_res,w_res
       double precision, dimension(5) :: z_res
+      double precision :: taub
     end type
 !
     type respoints_fix_jperp
@@ -177,7 +179,8 @@
     respoints_jp(mode,iclass)%perpinv_res=perpinv
     if(nroots.eq.0) cycle
     allocate(respoints_jp(mode,iclass)%w_res(nroots), &
-             respoints_jp(mode,iclass)%z_res(5,nroots))
+             respoints_jp(mode,iclass)%z_res(5,nroots), &
+             respoints_jp(mode,iclass)%taub(nroots))
 !
     do iroot=1,nroots
 !
@@ -224,6 +227,7 @@
       one_res=one_res*rm3*pi32_over4m*cE_ref
 !
       respoints_jp(mode,iclass)%w_res(iroot)=one_res
+      respoints_jp(mode,iclass)%taub(iroot)=taub
       delint_mode(mode)=delint_mode(mode)+one_res
     enddo
   enddo
@@ -383,6 +387,11 @@
   double precision :: xjperp,xenerg,totxint,step_energ
   double precision :: time_beg,time_end
   double precision, dimension(:), allocatable :: torque_int_modes
+
+  ! Number of boxes in radius to localize torque contributions
+  integer, parameter :: nbox = 100
+  double precision :: sbox(nbox)
+  double precision :: taubox(nbox)
 !
   external :: get_matrix_res
 !
@@ -512,6 +521,8 @@
                 *step_energ
               respoint(nrespoints)%z_res &
                 =respoints_all(iperp)%respoints_jp(i,iclass)%z_res(:,k)
+              respoint(nrespoints)%taub &
+                  =respoints_all(iperp)%respoints_jp(i,iclass)%taub(k)
             enddo
           enddo
         enddo
@@ -534,6 +545,9 @@
 ! and
 ! respoint(i)%perpinv_res
 ! respectively
+        call linspace(0d0, 1d0, nbox, sbox)
+        call time_in_box(respoint(i)%z_res(1:5), sbox, &
+          respoint(i)%taub, taubox)
         write(1901,*) respoint(i)%perpinv_res,torque_int_loc
       enddo
       write(1901,*) ' '
