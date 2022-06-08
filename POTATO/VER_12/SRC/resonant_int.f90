@@ -546,9 +546,9 @@
 ! respoint(i)%perpinv_res
 ! respectively
         call linspace(0d0, 1d0, nbox, sbox)
-        call time_in_box(respoint(i)%z_res(1:5), sbox, &
+        call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
           respoint(i)%taub, taubox)
-        write(1901,*) respoint(i)%perpinv_res,torque_int_loc
+        write(1901,*) respoint(i)%perpinv_res,torque_int_loc,taubox/respoint(i)%taub
       enddo
       write(1901,*) ' '
 !

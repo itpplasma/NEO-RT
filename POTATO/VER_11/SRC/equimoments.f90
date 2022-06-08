@@ -89,6 +89,7 @@
 !
   bvec=0.d0
 !
+  !$omp parallel default(firstprivate)
   do ienerg=1,nenerg
 !  do ienerg=20,20 !<=fix energy for debugging
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
@@ -142,6 +143,7 @@ print *,'toten = ',toten
 print *,'perpinv:',iperp,'/',nperp,' toten:',ienerg,'/',nenerg
     enddo
   enddo
+  !$omp end parallel
 !
   bvec=0.5d0*sqrt(pi)*toten_range*bvec/dble(nperp*nenerg)
 !

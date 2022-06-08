@@ -4,7 +4,7 @@ project(POTATO)
 enable_language(Fortran)
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
-add_compile_options(-Og -cpp -g -fbacktrace -Wfatal-errors -std=f2008 -fopenmp)
+add_compile_options(-Og -cpp -g -fbacktrace -Wfatal-errors -std=f2008)
 set(CMAKE_Fortran_FLAGS " -O3 -march=native -mtune=native -g -fbacktrace -finit-real=snan -fsignaling-nans -ffpe-trap=invalid,zero,overflow") #GNU
    # -finit-real=nan -ffpe-trap=invalid,zero,overflow)
 

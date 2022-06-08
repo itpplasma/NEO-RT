@@ -1,13 +1,15 @@
 subroutine linspace(a, b, cnt, out)
   implicit none
 
-  integer :: cnt
-  real(8) :: out(cnt)
-  integer :: i
-  real(8) :: a, b, delta
+  real(8), intent(in) :: a, b
+  integer :: i, cnt
+  real(8), intent(inout) :: out(cnt)
+  real(8) :: delta
 
   delta = (b-a)/(cnt-1)
-  out = a + delta*[(i,i=0,cnt-1)]
+  do i=1,cnt-1
+    out(i) = a + delta*i
+  end do
 end subroutine linspace
 
 subroutine timestep_vode(n, tau, z, vz)
@@ -20,7 +22,7 @@ subroutine timestep_vode(n, tau, z, vz)
   call velo(tau, z, vz)
 end subroutine timestep_vode
 
-subroutine time_in_box(z, sbox, taub, tau)
+subroutine time_in_box(z, cnt, sbox, taub, tau)
   ! Returns time spent in boxes
   use dvode_f90_m, only: vode_opts, set_normal_opts, dvode_f90, get_stats
   use field_eq_mod, only: psif, psi_axis, psi_sep
@@ -28,10 +30,11 @@ subroutine time_in_box(z, sbox, taub, tau)
 
   implicit none
 
-  real(8), intent(in)    :: z(neqm)  ! Starting position
-  real(8), intent(in)    :: sbox(:)  ! Box boundaries
-  real(8), intent(in)    :: taub     ! Bounce time
-  real(8), intent(out)   :: tau(size(sbox))    ! Time in each box
+  real(8), intent(in)    :: z(neqm)    ! Starting position
+  integer, intent(in)    :: cnt        ! Box boundary count
+  real(8), intent(in)    :: sbox(cnt)  ! Box boundaries
+  real(8), intent(in)    :: taub       ! Bounce time
+  real(8), intent(out)   :: tau(cnt)   ! Time in each box
 
   real(8) :: delphi
   real(8) :: sprev, snext ! Previous and next flux radius box

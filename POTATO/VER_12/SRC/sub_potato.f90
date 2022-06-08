@@ -69,6 +69,7 @@
     integer,          dimension(:), allocatable :: ifuntype
 ! class interval limits over cut parameter R_c and parallel velocity sign:
     double precision, dimension(:), allocatable :: R_class_beg,R_class_end,sigma_class
+    !$omp threadprivate(nclasses, ifuntype, R_class_beg,R_class_end,sigma_class)
   end module form_classes_doublecount_mod
 !
 !------------------------------------------------------
