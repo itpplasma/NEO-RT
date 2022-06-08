@@ -441,8 +441,8 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
-!  do ienerg=1,nenerg
-  do ienerg= 20,21 !10,10 !20,20 !<=fix energy for debugging
+  do ienerg=1,nenerg
+!  do ienerg= 20,21 !10,10 !20,20 !<=fix energy for debugging
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
     print *,'toten = ',toten
@@ -548,7 +548,10 @@
         call linspace(0d0, 1d0, nbox, sbox)
         call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
           respoint(i)%taub, taubox)
-        write(1901,*) respoint(i)%perpinv_res,torque_int_loc,taubox/respoint(i)%taub
+        write(1901,*) respoint(i)%toten_res, &
+          respoint(i)%perpinv_res, &
+          ! tormom_of_RZ(respoint(i)%toten_res, respoint(i)%perpinv_res, TODO ), &
+          torque_int_loc,taubox/respoint(i)%taub
       enddo
       write(1901,*) ' '
 !
