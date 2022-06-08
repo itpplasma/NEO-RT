@@ -116,6 +116,10 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
               sprev = sbox(sind-1)
           end if
         end if
+    elseif (istate == -1) then
+      print *, 'Error in VODE: k =', k
+      istate = 1
+      exit
     end if
   end do
 
