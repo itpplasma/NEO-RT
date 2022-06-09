@@ -450,8 +450,7 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
-!  do ienerg=1,nenerg
-  do ienerg=5,nenerg
+  do ienerg=1,nenerg
 !  do ienerg= 20,21 !10,10 !20,20 !<=fix energy for debugging
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
