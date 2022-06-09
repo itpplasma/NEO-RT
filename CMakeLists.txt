@@ -64,9 +64,9 @@ add_library("neo_rt" SHARED
 #  ${SUPERLU_SRC_FILES}
 )
 
-#add_dependencies(neo-rt boozer_magfie)
+#add_dependencies(neo_rt boozer_magfie)
 add_dependencies(neo_rt spline)
-add_dependencies(neo-rt quadpack)
+add_dependencies(neo_rt quadpack)
 add_dependencies(neo_rt vode)
 
 find_package(BLAS)
