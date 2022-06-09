@@ -4,8 +4,10 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   module phielec_of_psi_mod
-    integer, parameter :: npolyphi=3 !2 !1
+    integer, parameter :: npolyphi=3
     double precision, dimension(0:npolyphi) :: polyphi
+    double precision, dimension(0:npolyphi) :: polytemp
+    double precision, dimension(0:npolyphi) :: polydens
   end module phielec_of_psi_mod
 !
   module cc_mod

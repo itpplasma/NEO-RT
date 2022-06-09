@@ -10,6 +10,7 @@
   use cc_mod,                       only : wrbounds,dowrite
   use resint_mod,                   only : nmodes,marr,narr,delint_mode
   use poicut_mod,                   only : npc,rpc_arr,zpc_arr
+  use phielec_of_psi_mod,           only : npolyphi, polyphi, polydens, polytemp
 !
   implicit none
 !
@@ -26,6 +27,8 @@
   double precision :: v0,bmod_ref,E_alpha,A_alpha,Z_alpha
   double precision :: rmax,rho_pol,rho_pol_max
   double precision, dimension(:,:), allocatable :: resint
+
+!
 !
   iunit=71
 !
@@ -34,18 +37,21 @@
 !  call test_bmodpert
 !
 ! Type of test: 1 - plot orbits, 2 - equilibrium profiles, 3 - resonant torque
-  itest_type=3
+  itest_type=2
 !
   select case(itest_type)
   case(1)
+    print *, 'Plot orbits'
     plot_orbits=.true.
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.false.
   case(2)
+    print *, 'Equilibrium profiles'
     plot_orbits=.false.
     compute_equibrium_profiles=.true.
     compute_resonant_torque=.false.
   case(3)
+    print *, 'Resonant torque'
     plot_orbits=.false.
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.true.
@@ -78,6 +84,18 @@
   Rmax=200.d0
   ntimstep=30
   dtau=Rmax/dble(ntimstep)
+
+! Load profiles
+  open(iunit,file='profile_poly.in')
+  read(iunit,*)  ! dummy
+  read(iunit,*)  ! dummy
+  read(iunit,*) polydens
+  read(iunit,*) polytemp  ! dummy
+  read(iunit,*) polytemp
+  read(iunit,*) polyphi
+  close(iunit)
+  polytemp = polytemp/E_alpha
+  polyphi = polyphi*Z_alpha*e_charge/(E_alpha*ev)
 !
 ! Find Poincare cut:
   npoicut=10000     !number of equidistant points for interpolating the cut
