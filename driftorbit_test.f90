@@ -32,19 +32,16 @@ program main
 
   ! Read profile.in in cases where it's needed.
   inquire(file='profile.in', exist=profilefile)
-  if (orbit_mode_transp>0) then
-    if (profilefile) then
-      call init_profile
-    else
+  if (profilefile) then
+    call init_profile
+  else
+    if (orbit_mode_transp>0) then
       stop 'need profile.in for finite orbit width transport'
-    end if
-  elseif (intoutput .or. nonlin) then
-    if (profilefile) then
-      call init_profile
-    else
+    elseif (intoutput .or. nonlin) then
       stop 'need profile.in for integral output or nonlinear calculation'
     end if
   end if
+
 
   ! Read plasma.in in cases where it's needed.
   inquire(file='plasma.in', exist=plasmafile)
