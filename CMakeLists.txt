@@ -35,7 +35,7 @@ add_subdirectory("../contrib/vode" "vode")
 #add_subdirectory(POTATO/LATEST)  # contains also vode
 
 add_compile_options(-cpp -g -fbacktrace -Wfatal-errors)
-add_compile_options(-O3)
+add_compile_options(-O2)
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}

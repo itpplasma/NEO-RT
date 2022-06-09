@@ -16,11 +16,31 @@ add_dependencies(potato vode)
 find_package(BLAS)
 find_package(LAPACK)
 
-link_libraries(potato
-   ${BLAS_LIBRARIES}
-   ${LAPACK_LIBRARIES}
-   vode)
 
 add_executable (potato.x
     SRC/tt.f90
-    )
+)
+target_link_libraries(potato.x
+potato
+${BLAS_LIBRARIES}
+${LAPACK_LIBRARIES}
+vode)
+
+
+add_executable (test_profile.x
+   SRC/test_profile.f90
+)
+target_link_libraries(test_profile.x
+potato
+${BLAS_LIBRARIES}
+${LAPACK_LIBRARIES}
+vode)
+
+add_executable (test_profile_fixed.x
+   SRC/test_profile.f90
+)
+target_link_libraries(test_profile_fixed.x
+potato_fixed
+${BLAS_LIBRARIES}
+${LAPACK_LIBRARIES}
+vode)

@@ -19,11 +19,11 @@
   dPhi_dpsi=0.d0
 
   do i=npolyphi,0,-1
-    phi_elec = phi_elec + polyphi(i)*spol**(npolyphi-i)
+    phi_elec = phi_elec + polyphi(npolyphi-i)*spol**i
   enddo
 
   do i=npolyphi,1,-1
-    dPhi_dpsi = dPhi_dpsi + dble(i)*polyphi(i)*spol**(npolyphi-i-1)
+    dPhi_dpsi = dPhi_dpsi + dble(i)*polyphi(npolyphi-i)*spol**(i-1)
   enddo
   dPhi_dpsi = dPhi_dpsi/psi_sep
 
@@ -54,13 +54,14 @@
   dtemp = 0d0
 
   do i=npolyphi,0,-1
-    dens = dens + polydens(i)*spol**(npolyphi-i)
-    temp = temp + polytemp(i)*spol**(npolyphi-i)
+    dens = dens + polydens(npolyphi-i)*spol**i
+    temp = temp + polytemp(npolyphi-i)*spol**i
   enddo
 
   do i=npolyphi,1,-1
-    ddens = ddens + dble(i)*polydens(i)*spol**(npolyphi-i-1)
-    dtemp = dtemp + dble(i)*polytemp(i)*spol**(npolyphi-i-1)
+    print *, npolyphi-i+1
+    ddens = ddens + dble(i)*polydens(npolyphi-i)*spol**(i-1)
+    dtemp = dtemp + dble(i)*polytemp(npolyphi-i)*spol**(i-1)
   enddo
   ddens = ddens/psi_sep
   dtemp = dtemp/psi_sep
