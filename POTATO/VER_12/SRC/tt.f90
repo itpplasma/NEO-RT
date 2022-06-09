@@ -37,7 +37,7 @@
 !  call test_bmodpert
 !
 ! Type of test: 1 - plot orbits, 2 - equilibrium profiles, 3 - resonant torque
-  itest_type=2
+  itest_type=3
 !
   select case(itest_type)
   case(1)
