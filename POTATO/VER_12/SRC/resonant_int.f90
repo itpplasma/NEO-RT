@@ -197,6 +197,10 @@
         cycle
       endif
 !
+      if(.true.) then
+        write(31415,*) toten,perpinv,psiast,marr(mode),narr(mode)   !<=resonant line for plotting
+      endif
+!
       respoints_jp(mode,iclass)%z_res(:,iroot)=z
 !
       dpsiastdx=dpsiast_dRst*delta_R*dxi_dx     !$\difp{\psi^\ast}{x}$
@@ -393,6 +397,9 @@
   double precision :: sbox(nbox)
   double precision :: taubox(nbox)
 !
+!Distribution of integral torque over boxes:
+  double precision, dimension(nbox) :: torquebox
+!
   external :: get_matrix_res
 !
   adaptive_jperp=.true.    !use adaptive integration over J_perp
@@ -432,6 +439,8 @@
   allocate(torque_int_modes(nmodes))
   torque_int_modes=0.d0
 !
+  torquebox=0.d0
+!
   step_energ=toten_range/dble(nenerg) !integration step over total energy
 !
   if(adaptive_jperp) then
@@ -441,7 +450,8 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
-  do ienerg=1,nenerg
+!  do ienerg=1,nenerg
+  do ienerg=5,nenerg
 !  do ienerg= 20,21 !10,10 !20,20 !<=fix energy for debugging
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
@@ -551,7 +561,10 @@
         write(1901,*) respoint(i)%toten_res, &
           respoint(i)%perpinv_res, &
           ! tormom_of_RZ(respoint(i)%toten_res, respoint(i)%perpinv_res, TODO ), &
-          torque_int_loc,taubox/respoint(i)%taub
+          torque_int_loc    !,taubox/respoint(i)%taub
+!
+        torquebox=torquebox+respoint(i)%w_res*taubox/respoint(i)%taub   !<=sum up resonances in boxes
+!
       enddo
       write(1901,*) ' '
 !
@@ -587,6 +600,7 @@
       nperp=2500 !5000 !100    !size of the integration grid over normalized J_perp
       if(.not.allocated(amat)) allocate(amat(n1,n2))
       icount=0
+      nperp_max=0
       do iperp=1,nperp
         if(iperp.eq.nperp) then
           trapez_fac=0.5d0
@@ -620,6 +634,15 @@
   open(1,file='integral_torque.dat')
   write(1,*) torque_int
   close(1)
+!
+!Write box-counted integral torque:
+  if(adaptive_jperp) then
+    open(1,file='boxcounted_torque.dat')
+    do i=1,nbox
+      write(1,*) torquebox(i)
+    enddo
+    close(1)
+  endif
 !
   end subroutine resonant_torque
 !
