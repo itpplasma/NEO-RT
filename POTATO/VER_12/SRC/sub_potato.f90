@@ -4,7 +4,7 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   module phielec_of_psi_mod
-    integer, parameter :: npolyphi=3
+    integer, parameter :: npolyphi=9
     double precision, dimension(0:npolyphi) :: polyphi
     double precision, dimension(0:npolyphi) :: polytemp
     double precision, dimension(0:npolyphi) :: polydens

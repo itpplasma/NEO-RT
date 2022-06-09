@@ -59,7 +59,6 @@
   enddo
 
   do i=npolyphi,1,-1
-    print *, npolyphi-i+1
     ddens = ddens + dble(i)*polydens(npolyphi-i)*spol**(i-1)
     dtemp = dtemp + dble(i)*polytemp(npolyphi-i)*spol**(i-1)
   enddo
