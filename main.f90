@@ -29,21 +29,18 @@ program main
      ! init non-axisymmetric perturbation of field from infile_pert
      call do_magfie_pert_init
   end if
-  
+
+  ! Init plasma profiles of radial electric field.
+  ! Read profile.in in cases where it's needed.
   inquire(file='profile.in', exist=profilefile)
-  ! init plasma profiles of radial electric field
-  if (orbit_mode_transp>0) then
-     if (profilefile) then
-        call init_profile
-     else
-        stop 'need profile.in for finite orbit width transport'
-     end if
-  elseif (intoutput .or. nonlin) then
-     if (profilefile) then
-        call init_profile
-     else
-        stop 'need profile.in for integral output or nonlinear calculation'
-     end if
+  if (profilefile) then
+    call init_profile
+  else
+    if (orbit_mode_transp>0) then
+      stop 'need profile.in for finite orbit width transport'
+    elseif (intoutput .or. nonlin) then
+      stop 'need profile.in for integral output or nonlinear calculation'
+    end if
   end if
 
   inquire(file='plasma.in', exist=plasmafile)
@@ -56,7 +53,7 @@ program main
     end if
   end if
 
- 
+
   call init_test
 
   call test_magfie
@@ -82,11 +79,11 @@ program main
   end if
 
   if (comptorque) then
-     call compute_torque  
+     call compute_torque
   else
      call test_machrange2
   end if
-  
+
 contains
 
   subroutine read_control
@@ -139,7 +136,7 @@ contains
     real(8), allocatable :: data(:,:)
     real(8) :: splineval(3)
     integer :: k
-    
+
     call readdata('profile.in', 3, data)
 
     allocate(Mt_spl_coeff(size(data(:,1)),5))
@@ -149,7 +146,7 @@ contains
 
     M_t = splineval(1)*efac/bfac
     dM_tds = splineval(2)*efac/bfac
-    
+
     if(orbit_mode_transp>0) then
        allocate(sbox(size(data,1)+1))
        allocate(taubins(size(sbox)+1))
@@ -162,7 +159,7 @@ contains
        allocate(torque_int_box(size(sbox)+1))
     end if
 
-    deallocate(data)    
+    deallocate(data)
   end subroutine init_profile
 
   subroutine init_plasma
@@ -217,7 +214,7 @@ contains
 
     call loacol_nbi(amb,am1,am2,Zb,Z1,Z2,ni1,ni2,Ti1,Ti2,Te,&
          ebeam,v0,dchichi,slowrate,dchichi_norm,slowrate_norm)
-    
+
 
   end subroutine init_plasma
 
@@ -319,7 +316,7 @@ contains
        write(9,*) "test_magfie: dfpeff    = ", fpeff
        write(9,*) "-------------------------"
     end if
- 
+
 
 
     close(unit=9)
@@ -388,7 +385,7 @@ contains
 
     !v = 143730130.234083
     !eta = 4.686503826199121E-005
-    
+
     v = vth
     !eta = (1d0-1.86727d-1)/bmod
     !eta = etatp*(1+1d-2)
@@ -401,7 +398,7 @@ contains
 
     !v = 2.2*vth
     !eta = 0.00003
-    
+
     call bounce
     call disp("test_bounce: Om_tB     = ", v**2*bounceavg(3))
     call disp("test_bounce: taub      = ", taub)
@@ -478,24 +475,24 @@ contains
   subroutine test_box
     ! test box counting
     use dvode_f90_m2
-    
+
     real(8) :: tol
     integer :: n
 
     integer :: k, state
     real(8) :: ti
     real(8) :: y(2), ydot(2), yold(2)
-    
+
     real(8) :: atol(nvar), rtol, tout, rstats(22)
     integer :: neq, itask, istate, istats(31), numevents
     type (vode_opts) :: options
-    
+
     real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     real(8) :: s1old, told, s1dot, sbound
     real(8), allocatable :: taubins(:)
     integer :: sind, sind0 ! s index
-    
+
     integer :: jroots(2)
 
     v = 26399452.5418568
@@ -503,12 +500,12 @@ contains
 
     ! v = vth
     ! eta = etatp*1.01
-    
+
     x(1) = s
     x(2) = 0d0
     x(3) = 0d0
     call do_magfie( x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
-    
+
     call bounce
 
     neq = 2
@@ -522,13 +519,13 @@ contains
     n = 3*size(sbox)
     allocate(taubins(size(sbox)+1))
     taubins = 0d0
-    
+
     y(1) = 0d0
     y(2) = sigv*vpar(bmod)
     ti = 0d0
 
     print *, sbox
-    
+
     s1 = s+c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
     sind = size(sbox)+1
     sprev = -1e5
@@ -542,7 +539,7 @@ contains
        end if
     enddo
     sind0 = sind
-    
+
     print *, y(1), sind, s1
 
     told = 0d0
@@ -563,7 +560,7 @@ contains
              if (sind == size(sbox)+1) then
                 snext = 1e5
              else
-                snext = sbox(sind)                
+                snext = sbox(sind)
              end if
           end if
           if (jroots(1).ne.0) then
@@ -572,7 +569,7 @@ contains
              if (sind == 1) then
                 sprev = -1e5
              else
-                sprev = sbox(sind-1)                
+                sprev = sbox(sind-1)
              end if
           end if
           print *, y(1), sind, s1
@@ -588,7 +585,7 @@ contains
     taubins = taubins/taub
     print *, taubins
     deallocate(taubins)
-    
+
   end subroutine test_box
 
   subroutine test_torfreq
@@ -1033,7 +1030,7 @@ contains
     if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
     if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
     if(orbit_mode_transp>0) print *, fluxint_box(1,:)
-    
+
     D11  = 0d0
     D12  = 0d0
     D11sum = 0d0
@@ -1074,7 +1071,7 @@ contains
     print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
     close(unit=10)
   end subroutine test_integral
-  
+
   subroutine test_torque_integral
     real(8) :: eta_res(2)
     real(8) :: vold, Tphi, dTphidu
@@ -1109,7 +1106,7 @@ contains
     print *, 'etarange: ', etamin, etamax
 
     Tphi = 0d0
-    
+
     open(unit=10, file=trim(adjustl(fn1)), recl=1024)
 
     du = (vmax2 - vmin2)/(vth*nu)
@@ -1154,7 +1151,7 @@ contains
     Tphi = 0d0
 
     open(unit=10, file=trim(adjustl(fn2)), recl=1024)
-    
+
     du = (vmax2 - vmin2)/(vth*nu)
     do ku = 0, nu-1
        ux = vmin2/vth + du/2d0 + ku*du
@@ -1172,7 +1169,7 @@ contains
           Tphi = Tphi + dTphidu*du
        end do
        close(unit=11)
-       
+
        kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
        write(10, *) ux, eta_res(1), dTphidu, &
@@ -1205,7 +1202,7 @@ contains
 
        call driftorbit_coarse(etamin, etamax, roots, nroots)
        if (nroots == 0) cycle
-       
+
        open(unit=11, file=trim(adjustl(runname))//'_int_t.out', recl=8192, position="append")
        do kr = 1,nroots
           eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
@@ -1228,7 +1225,7 @@ contains
 
   subroutine compute_torque
     ! computes torque per radial distance dTphi/ds at s=sphi
-    
+
     integer :: j, k
     real(8) :: Tresco, Tresctr, Trest, Tco, Tctr, Tt
     real(8) :: vminp, vmaxp, vmint, vmaxt
@@ -1293,7 +1290,7 @@ contains
           vmaxp = sqrt(2d0*(15e3+1e-3)*ev/mi)
           vmint = vminp
           vmaxt = vmaxp
-          
+
           ! superbanana resonance
           if (supban) then
              sigv = 1
@@ -1374,9 +1371,9 @@ contains
     real(8), allocatable :: data(:,:)
 
     nrest = 10
-    
+
     print *, 'test_profile'
-    
+
     call readdata('profile.in', 3, data)
 
     open(unit=9, file=trim(adjustl(runname))//'_profile.out', recl=1024)
