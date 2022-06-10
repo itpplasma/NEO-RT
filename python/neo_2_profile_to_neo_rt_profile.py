@@ -27,7 +27,7 @@ def neo_2_profile_to_neo_rt_profile(input_neo2_profile_name: str, input_neo2_out
   they are overwritten.
   """
   import numpy as np
-  from scipy.interpolate import UnivariateSpline
+  from scipy.interpolate import InterpolatedUnivariateSpline as Spline
 
   import hdf5tools
 
@@ -94,13 +94,13 @@ def neo_2_profile_to_neo_rt_profile(input_neo2_profile_name: str, input_neo2_out
 
   # interpolation
   s = np.linspace(s_min, s_max, number_s_points)
-  # ~ mach_number = UnivariateSpline(s_input, mach_number_input)(s)
-  mach_number = UnivariateSpline(s_neo2_output, mach_number_input)(s)
-  density_ion1 = UnivariateSpline(s_input, density_input_ion1)(s)
-  density_ion2 = UnivariateSpline(s_input, density_input_ion2)(s)
-  temperature_ion1 = UnivariateSpline(s_input, temperature_input_ion1)(s)
-  temperature_ion2 = UnivariateSpline(s_input, temperature_input_ion2)(s)
-  temperature_electron = UnivariateSpline(s_input, temperature_input_electron)(s)
+  # ~ mach_number = Spline(s_input, mach_number_input)(s)
+  mach_number = Spline(s_neo2_output, mach_number_input)(s)
+  density_ion1 = Spline(s_input, density_input_ion1)(s)
+  density_ion2 = Spline(s_input, density_input_ion2)(s)
+  temperature_ion1 = Spline(s_input, temperature_input_ion1)(s)
+  temperature_ion2 = Spline(s_input, temperature_input_ion2)(s)
+  temperature_electron = Spline(s_input, temperature_input_electron)(s)
 
   # write files
   with open('profile.in', 'w') as profile, open('plasma.in', 'w') as plasma:
