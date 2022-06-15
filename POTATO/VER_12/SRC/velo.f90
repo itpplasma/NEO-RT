@@ -53,6 +53,7 @@
 !NEW in version 4 =>      use parmot_mod, only : rmu,ro0
       use parmot_mod, only : rmu,ro0,gradpsiast, & !<=NEW in version 4
                              dpsiast_dR,dpsiast_dZ !<=NEW in version 4
+      use field_eq_mod, only : ierrfield
 !
       implicit none
 !
@@ -92,10 +93,12 @@
       call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
 ! TODO: error handling magfie
-!      if(ierrfield.ne.0) then
+      if(ierrfield.ne.0) then
 !        vz=0.d0
 !        return
-!      endif
+         print *,'velo: magfie error',ierrfield
+         stop
+      endif
 ! in elefie: x(i)   - space coords (input, see above)
 !            derphi - derivatives of the dimensionless electric potential
 !                     phihat=e*phi/T over space coords (covar. vector)

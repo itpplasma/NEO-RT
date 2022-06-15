@@ -2774,7 +2774,8 @@
   call denstemp_of_psi(psiast,dens,temp,ddens,dtemp)
   call phielec_of_psi(psiast,phi_elec,dPhi_dpsi)
 !
-  fmaxw=dens*exp(phi_elec-toten)/temp**1.5d0
+!  fmaxw=dens*exp(phi_elec-toten)/temp**1.5d0
+  fmaxw=dens*exp((phi_elec-toten)/temp)/temp**1.5d0
 !
   end subroutine equilmaxw
 !

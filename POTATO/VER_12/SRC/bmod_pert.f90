@@ -70,6 +70,7 @@ end module bmod_pert_mod
               bmod_im,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierr)
 !
   bmod_n=cmplx(bmod_re,bmod_im)
+!bmod_n=cmplx(bmod_re,-bmod_im)
 !
   end subroutine bmod_pert
 !

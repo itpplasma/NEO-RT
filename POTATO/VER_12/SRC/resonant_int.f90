@@ -171,6 +171,8 @@
 !
     if(ierr.ne.0) then
       print *,'integrate_class_resonances: error in find_all_roots'
+      customgrid=.false.
+      deallocate(xcustom)
       return
     endif
 !
@@ -219,7 +221,8 @@
 !
 ! Expression under summation signs except the last line in Eq.(104) (former Eq.(94)):
       one_res=abs(dpsiastdx/dresconddx)*absHn2*fmaxw            &
-             *(Phi_eff*taub*(A1ast+A2ast*(toten-phi_elec)/temp)+delphi/temp)
+!ERROR, SEE in RED=>             *(Phi_eff*taub*(A1ast+A2ast*(toten-phi_elec)/temp)+delphi/temp)
+             *Phi_eff*taub*(A1ast+A2ast*(toten-phi_elec)/temp)  !<=ERROR CORRECTED
 !
 ! emulator of box average (Heaviside function replaced with one in (104) - result is integral torque in
 ! the whole volume normalized by the reference energy $\cE_{ref}$):
@@ -386,10 +389,11 @@
   double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
   double precision :: bmod,phi_elec,phi_elec_min,phi_elec_max
   double precision :: toten_min,toten_max,thermen_max,toten_range
-  double precision :: dens,omdens,trapez_fac,perpinv_max
+  double precision :: omdens,trapez_fac,perpinv_max
   double precision :: torque_int,torque_int_loc
   double precision :: xjperp,xenerg,totxint,step_energ
   double precision :: time_beg,time_end
+  double precision :: dens, temp, ddens, dtemp
   double precision, dimension(:), allocatable :: torque_int_modes
 
   ! Number of boxes in radius to localize torque contributions
@@ -421,13 +425,18 @@
 !
   call find_Phiminmax(phi_elec_min,phi_elec_max)
 !
-  thermen_max=6.d0   !maximum thermal energy (used for upper energy integration limit)
+  thermen_max=6.d0   !maximum kinetic energy in units of temperature on the axis (used for upper energy integration limit)
+!
+  call denstemp_of_psi(psimagaxis, dens, temp, ddens, dtemp)
+!
+  thermen_max=thermen_max*temp  !maximum kinetic energy in units of reference energy
 !
 ! Energy integration limits:
   toten_min=phi_elec_min
   toten_max=thermen_max+phi_elec_max
   toten_range=toten_max-toten_min
 !
+  print *,'maximum kinetic energy = ',thermen_max
   print *,'miminum potential energy = ',phi_elec_min
   print *,'maximum potential energy = ',phi_elec_max
   print *,'miminum total energy = ',toten_min
@@ -442,6 +451,7 @@
   torquebox=0.d0
 !
   step_energ=toten_range/dble(nenerg) !integration step over total energy
+!step_energ=0.22521463755624047d0
 !
   if(adaptive_jperp) then
     open(1901,file='subint_ofH0int_104_vsJperp_fromresp.dat')
@@ -450,10 +460,12 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
-  do ienerg=1,nenerg
-!  do ienerg= 20,21 !10,10 !20,20 !<=fix energy for debugging
+!  do ienerg=1,nenerg
+  do ienerg=2,nenerg
+!  do ienerg= 20,20 !10,10 !20,20 !<=fix energy for debugging
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
+!toten =   -3.1211921097605737d0
     print *,'toten = ',toten
 !
     call cpu_time(time_beg)

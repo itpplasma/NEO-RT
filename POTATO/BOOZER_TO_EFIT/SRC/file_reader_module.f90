@@ -49,6 +49,9 @@ module read_file_module
 !
     allocate(bmn_c(nsurf,0:mpol,-ntor:ntor),bmn_s(nsurf,0:mpol,-ntor:ntor),mvec(0:mpol))
 !
+    bmn_c=0.d0
+    bmn_s=0.d0
+!
     do i=0,mpol
       mvec(i)=i
     enddo

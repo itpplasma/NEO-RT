@@ -40,7 +40,7 @@ program boozer_to_efit
   double precision :: s_new, theta_new, R_src, Z_src
   double precision :: rr, zz, hs, ht, s, theta, s_0, theta_0, a_grad_s, a_grad_t, det_J
   double precision :: power,hmin,dldsmax,smax,del_s,del_t,dist_pol,dist_pol0,det_J0, & !<=NEW
-                      s_out,theta_out,rmax,zmax,psiAxis,psiSep,bt0,rzero,psihat        !<=NEW
+                      s_out,theta_out,rmax,zmax,psiAxis,psiSep,bt0,Rzero,psihat        !<=NEW
   double precision, dimension(0:nder,nplag)     :: coef
   integer,          dimension(:,:),   allocatable :: idummy
   double precision, dimension(:),     allocatable :: rpower, arr_in, arr_out, fpol, dummy1d
@@ -67,10 +67,29 @@ program boozer_to_efit
       power=0.5d0*dble(m_pol_b(m))
       rpower=s_b(1:nsurf)**power
       arr_in=R_mn_c(:,m)/max(rpower,rpowmin)
+if(.false.) then
+print *,m_pol_b(m),n_tor_b(m)
+do i=1,nsurf
+write (301,*) s_b(i),R_mn_c(i,m)
+enddo
+close(301)
+endif
 !
       call gauss_filter(nsurf,sigma,arr_in,arr_out)
 !
       R_mn_c(:,m)=arr_out*rpower
+if(.false.) then
+do i=1,nsurf
+write (311,*) s_b(i),R_mn_c(i,m)
+enddo
+close(311)
+!
+do i=1,nsurf
+write (411,*) arr_in(i),arr_out(i)
+enddo
+close(411)
+read *,i
+endif
       arr_in=R_mn_s(:,m)/max(rpower,rpowmin)
 !
       call gauss_filter(nsurf,sigma,arr_in,arr_out)
@@ -440,9 +459,9 @@ program boozer_to_efit
 !
   call plag_coeff(nplag,nder,0.d0,s_b(1:nplag),coef)
 !
-  bt0=sum(coef(0,:)*B_tor(1:nplag))/rzero
+  bt0=sum(coef(0,:)*B_tor(1:nplag))/Rzero
 !
-! covariant toroidal componet of the magnetic field:
+! covariant toroidal component of the magnetic field:
 !
   allocate(fpol(nwEQD),dummy1d(0:nsurf))
   dummy1d=psi/(psiSep-psiAxis)

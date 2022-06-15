@@ -13,6 +13,7 @@
 \usepackage{exscale}
 %\usepackage{epsfig}
 \usepackage{graphicx}
+\usepackage{xcolor}
 
 %\newcommand{\baselinestretch}{2}
 \newcommand{\be}[1]{\begin{equation} \label{#1}}
@@ -375,12 +376,12 @@ m_i\difp{r(R,Z)}{J_i}\Theta(r_0-r(R,Z))
 &=&
 -2\pi^3\sum_\bm \int \rd H_0\int\rd J_\perp\int\rd p_\varphi
 \;\left|H_{\bm}\right|^2\delta(m_2\omega_b+m_3\Omega_\varphi)\; 
-\left(m_2\omega_b\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi}\right)
+\left({\color{red} m_2\omega_b\difp{f_0}{H_0}}+m_3\difp{f_0}{p_\varphi}\right)
 \nonumber \\
 &\times&
 \int\limits_0^{\tau_b}\rd \tau\;
 \left(
-m_2\omega_b\left(\difp{r(R,Z)}{H_0}\right)_{\theta^2}
+{\color{red} m_2\omega_b\left(\difp{r(R,Z)}{H_0}\right)_{\theta^2}}
 +m_3\left(\difp{r(R,Z)}{p_\varphi}\right)_{\theta^2}
 \right)\Theta(r_0-r(R,Z)),
 \eea
@@ -388,6 +389,27 @@ where the last expression is expressed via quantities available from bounce inte
 setting $\omega=0$ in the resonance condition. Subscript $\theta^2$ on derivatives in the last
 subintegrand in~\eq{boxflux} means that those derivatives are computed for fixed $\theta^2$
 rather then $\tau=\tau_b\theta^2/(2\pi)$.
+
+{\color{red} 
+Here two errors were made when computing derivatives over the actions of two quantities.
+This resulted in extra terms which are 
+missing in reality. Namely, when computing derivatives of $f_0=f_0(H_0,p_\varphi)$ it was missed that $H_0$
+is a function of all actions including $p_\varphi$. Therefore
+$$
+m_j\difp{f_0}{J_j}=m_j\difp{H_0}{J_j}\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi}
+=m_j\Omega^j\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi} \rightarrow m_3\difp{f_0}{p_\varphi},
+$$
+where last expression is valid for the resonance $m_j\Omega^j=0$. Similar error was made also for $r(\btheta,\bJ)$ 
+whose derivative should be computed as follows,
+$$
+m_i\difp{r(\btheta,\bJ)}{J_i} \rightarrow m_3\left(\difp{r(R,Z)}{p_\varphi}\right)_{H_0,\theta^2}.
+$$
+Subscript $H_0,\theta^2$ means that derivative is computed for these two variables fixed.
+Extra terms which appeared in the expressions due to the above error are marked throughout the text in red.
+}
+
+
+
 
 Generalized toroidal momentum balance follows similarly to~\eq{conteq}
 \bea{genmomeq}
@@ -455,12 +477,12 @@ In analogy to~\eq{boxflux} box averaged kinematic momentum flux density is
 &=&
 -2\pi^3\sum_\bm \int \rd H_0\int\rd J_\perp\int\rd p_\varphi
 \;\left|H_{\bm}\right|^2\delta(m_2\omega_b+m_3\Omega_\varphi)\;
-\left(m_2\omega_b\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi}\right)
+\left({\color{red} m_2\omega_b\difp{f_0}{H_0}}+m_3\difp{f_0}{p_\varphi}\right)
 \nonumber \\
 &\times&
 \int\limits_0^{\tau_b}\rd \tau\;
 \left(
-m_2\omega_b\left(\difp{r(R,Z)}{H_0}\right)_{\theta^2}
+{\color{red} m_2\omega_b\left(\difp{r(R,Z)}{H_0}\right)_{\theta^2}}
 +m_3\left(\difp{r(R,Z)}{p_\varphi}\right)_{\theta^2}
 \right)m_\alpha\frac{B_\varphi}{B}v_\parallel\Theta(r_0-r(R,Z)),
 \eea
@@ -474,7 +496,7 @@ T_\varphi^{(int)}(r_0) &=&
 &=&
 -2\pi^3\sum_\bm \int \rd H_0\int\rd J_\perp\int\rd p_\varphi
 \;\left|H_{\bm}\right|^2\delta(m_2\omega_b+m_3\Omega_\varphi)\;
-\left(m_2\omega_b\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi}\right)
+\left({\color{red} m_2\omega_b\difp{f_0}{H_0}}+m_3\difp{f_0}{p_\varphi}\right)
 \nonumber \\
 &\times&
 m_3 \int\limits_0^{\tau_b}\rd \tau\;
@@ -1183,10 +1205,10 @@ which takes the form
 \;\left|H_{\bm}\right|^2\delta(m_2\omega_b+m_3\Omega_\varphi)\;
 \nonumber \\
 &\times&
-\left(m_2\omega_b\difp{f_0}{H_0}+m_3\difp{f_0}{p_\varphi}\right)
+\left({\color{red} m_2\omega_b\difp{f_0}{H_0}}+m_3\difp{f_0}{p_\varphi}\right)
 \int\limits_0^{\tau_b}\rd \tau\;
 \left(
-m_2\omega_b\left(\difp{r}{H_0}\right)_{p_\varphi,\theta^2}
+{\color{red} m_2\omega_b\left(\difp{r}{H_0}\right)_{p_\varphi,\theta^2}}
 +m_3\left(\difp{r}{p_\varphi}\right)_{\theta^2}
 \right)\Theta(r_0-r),
 \eea
@@ -1217,12 +1239,12 @@ we get using the properties of $\delta$-function
 &\times&
 \left(
 \tau_b\difp{f_0}{p_\varphi}
--\Delta\varphi_b\difp{f_0}{H_0}
+-{\color{red}\Delta\varphi_b\difp{f_0}{H_0}}
 \right)
 \left\langle
 \left(
 \tau_b\left(\difp{r}{p_\varphi}\right)_{p_\varphi,\theta^2}    
--\Delta\varphi_b\left(\difp{r}{H_0}\right)_{\theta^2}
+-{\color{red}\Delta\varphi_b\left(\difp{r}{H_0}\right)_{\theta^2}}
 \right)\Theta(r_0-r)
 \right\rangle_b,
 \eea
@@ -1253,7 +1275,7 @@ T_\varphi^{(int)}(r_0)
 &\times&
 \left(
 \tau_b\difp{f_0}{p_\varphi}
--\Delta\varphi_b\difp{f_0}{H_0}
+-{\color{red}\Delta\varphi_b\difp{f_0}{H_0}}
 \right)
 \tau_b \left\langle \Theta(r_0-r) \right\rangle_b,
 \eea
@@ -1796,7 +1818,7 @@ A^\ast_1(\psi^\ast)+
 A^\ast_2(\psi^\ast) 
 \right)
 \hat \tau_b
-+\frac{1}{\hat T_\alpha}\Delta\varphi_b
++{\color{red}\frac{1}{\hat T_\alpha}\Delta\varphi_b}
 \right)
 \frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
 \exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
@@ -1806,7 +1828,7 @@ A^\ast_2(\psi^\ast)
 \left(
 \hat\tau_b \Phi_{\rm eff}
 \left(\difp{r}{\psi^\ast}\right)_{\theta^2}
--\Delta\varphi_b\left(\difp{r}{\hat H_0}\right)_{\psi^\ast,\theta^2}
+-{\color{red}\Delta\varphi_b\left(\difp{r}{\hat H_0}\right)_{\psi^\ast,\theta^2}}
 \right)\Theta(r_0-r)
 \right\rangle_b,
 \eea
@@ -1848,7 +1870,7 @@ A^\ast_1(\psi^\ast)+
 A^\ast_2(\psi^\ast) 
 \right)
 \hat \tau_b
-+\frac{1}{\hat T_\alpha}\Delta\varphi_b
++{\color{red}\frac{1}{\hat T_\alpha}\Delta\varphi_b}
 \right)
 \frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
 \exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
@@ -2008,7 +2030,7 @@ A^\ast_1(\psi^\ast)+
 A^\ast_2(\psi^\ast)
 \right)
 \hat \tau_b
-+\frac{1}{\hat T_\alpha}\Delta\varphi_b
++{\color{red}\frac{1}{\hat T_\alpha}\Delta\varphi_b}
 \right)
 \frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
 \exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
@@ -2018,7 +2040,7 @@ A^\ast_2(\psi^\ast)
 \left(
 \hat\tau_b \Phi_{\rm eff}
 \left(\difp{r}{\psi^\ast}\right)_{\theta^2}
--\Delta\varphi_b\left(\difp{r}{\hat H_0}\right)_{\psi^\ast,\theta^2}
+-{\color{red}\Delta\varphi_b\left(\difp{r}{\hat H_0}\right)_{\psi^\ast,\theta^2}}
 \right)\Theta(r_0-r)
 \right\rangle_b
 \eea
@@ -2045,7 +2067,7 @@ A^\ast_1(\psi^\ast)+
 A^\ast_2(\psi^\ast)
 \right)
 \hat \tau_b
-+\frac{1}{\hat T_\alpha}\Delta\varphi_b
++{\color{red}\frac{1}{\hat T_\alpha}\Delta\varphi_b}
 \right)
 \frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
 \exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
@@ -2223,7 +2245,7 @@ A^\ast_1(\psi^\ast)+
 A^\ast_2(\psi^\ast)
 \right)
 \hat \tau_b
-+\frac{1}{\hat T_\alpha}\Delta\varphi_b
++{\color{red}\frac{1}{\hat T_\alpha}\Delta\varphi_b}
 \right)
 \frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
 \exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
@@ -2263,7 +2285,7 @@ A^\ast_1(\psi^\ast)+
 A^\ast_2(\psi^\ast)
 \right)
 \hat \tau_b
-+\frac{1}{\hat T_\alpha}\Delta\varphi_b
++{\color{red}\frac{1}{\hat T_\alpha}\Delta\varphi_b}
 \right)
 \frac{\bar n_\alpha(\psi^\ast)}{\hat T_\alpha^{3/2}}
 \exp\left(\frac{\hat \Phi(\psi^\ast)-\hat H_0}{\hat T_\alpha}\right)
