@@ -25,7 +25,7 @@
   do i=npolyphi,1,-1
     dPhi_dpsi = dPhi_dpsi + dble(i)*polyphi(npolyphi-i)*spol**(i-1)
   enddo
-  dPhi_dpsi = dPhi_dpsi/psi_sep
+  dPhi_dpsi = dPhi_dpsi/(psi_sep-psi_axis)
 
   end subroutine phielec_of_psi
 !
@@ -62,7 +62,7 @@
     ddens = ddens + dble(i)*polydens(npolyphi-i)*spol**(i-1)
     dtemp = dtemp + dble(i)*polytemp(npolyphi-i)*spol**(i-1)
   enddo
-  ddens = ddens/psi_sep
-  dtemp = dtemp/psi_sep
+  ddens = ddens/(psi_sep-psi_axis)
+  dtemp = dtemp/(psi_sep-psi_axis)
 
 end subroutine denstemp_of_psi

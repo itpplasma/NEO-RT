@@ -26,7 +26,7 @@
   integer          :: npoicut,ifdir_type,ierr,ntimstep,itest_type,m,iunit,i
   double precision :: v0,bmod_ref,E_alpha,A_alpha,Z_alpha
   double precision :: rmax,rho_pol,rho_pol_max
-  double precision :: scalfac_banana
+  double precision :: scalfac_energy, scalfac_efield
   double precision, dimension(:,:), allocatable :: resint
 
 !
@@ -61,13 +61,13 @@
     stop
   end select
 !
-  scalfac_banana=100.d0
+  scalfac_energy=100.d0
+  scalfac_efield=100.d0
 !
 ! inverse relativistic temeprature $m_\alpha c^2 / T_\alpha$:
   rmu=1.d30
 ! Normalization energy of alpha-species, eV:
-  E_alpha=5d3
-  E_alpha=E_alpha/scalfac_banana
+  E_alpha=5d3/scalfac_energy
 ! Mass number of alpha species:
   A_alpha=2.d0   !deuterium
 ! Charge number of alpha species:
@@ -98,8 +98,8 @@
   read(iunit,*) polyphi
   close(iunit)
 !
-  polytemp = polytemp/scalfac_banana
-  polyphi = polyphi/sqrt(scalfac_banana)
+  polytemp = polytemp/scalfac_energy
+  polyphi = polyphi/scalfac_efield
 !  polyphi = polyphi/scalfac_banana
 !
   polytemp = polytemp/E_alpha
@@ -340,7 +340,7 @@ end subroutine test_prfs
 !
   external :: velo
 !
-  enkin_over_temp=2.d0 !1.d0           !<= kinetic energy normalized by local temperature
+  enkin_over_temp=1.d0 !2.d0     !<= kinetic energy normalized by local temperature
   psipol=-6494590.22939024d0     !<= poloidal flux at the outer starting point
 !
   nperpinv=1000
