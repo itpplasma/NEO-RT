@@ -46,7 +46,7 @@ add_executable(orbit_test
   orbit_test.f90
 )
 
-add_executable(test_frequencies
+add_executable(test_frequencies.x
   test_frequencies.f90
 )
 
@@ -73,8 +73,7 @@ add_dependencies(neo_rt vode)
 find_package(BLAS)
 find_package(LAPACK)
 
-target_link_libraries(
-  neo_rt
+target_link_libraries(neo_rt
   vode
   spline
   quadpack
@@ -82,8 +81,7 @@ target_link_libraries(
 )
 
 ### Linking
-target_link_libraries(
-  ${PROJECT_EXE_NAME}
+target_link_libraries(${PROJECT_EXE_NAME}
   neo_rt
 #  boozer_magfie
 #  ${SuperLU_lib}
@@ -93,8 +91,7 @@ target_link_libraries(
 )
 
 
-target_link_libraries(
-  test_frequencies
+target_link_libraries(test_frequencies.x
   neo_rt
 )
 

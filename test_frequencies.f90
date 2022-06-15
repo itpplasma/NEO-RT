@@ -3,35 +3,65 @@ program test_frequencies
   use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
   q, dqds, iota, R0, a, eps, inp_swi, do_magfie_init, do_magfie
   use driftorbit, only: init, epsmn, mph, mth, vth, qi, mi, Jperp, &
-    eta, etadt, etatp, v, Om_th, Om_ph, Om_tE
+    eta, etadt, etatp, v, Om_th, Om_ph, Om_tE, sigv
 
   implicit none
 
-  integer, parameter :: neta = 100     ! Steps in eta
-  real(8), parameter :: M_t = 0.036d0  ! Mach number
+  integer, parameter :: neta = 1000             ! Steps in eta
+  real(8), parameter :: M_t = 0.129884652289d0  ! Unscaled Mach number
 
-  integer :: i
+  integer :: i, fid
   real(8) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
+  real(8), parameter :: scalfac_energy = 100.0d0
+  real(8), parameter :: scalfac_efield = 100.0d0
 
   inp_swi = 9  ! ASDEX Upgrade format
-  !s = 0.5      ! Normalized toroidal flux
+  s = 0.17     ! Normalized toroidal flux
 
   !print *, s
   call do_magfie_init
 
-  mth = 1             ! Canonical poloidal harmonic
-  mph = 2             ! Canonical toroidal harmonic
-  vth = 40000000.0d0  ! Thermal velocity
-  Om_tE = vth*M_t/R0  ! ExB precession frequency
+  mth = 1                  ! Canonical poloidal harmonic
+  mph = 2                  ! Canonical toroidal harmonic
+  vth = 44299218.58052201  ! Unscaled thermal velocity
+  Om_tE = vth*M_t/(R0*scalfac_efield)  ! ExB precession frequency
+  vth = vth/sqrt(scalfac_energy)
 
   call init
 
   v = vth
+
+  open(newunit=fid, file='canonical_freqs_vs_eta_t.dat')
+  write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] trapped'
+  sigv = 1d0
   do i = 1,neta
     eta = etatp + i*(etadt-etatp)/neta
     call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_ph(Omph, dOmphdv, dOmphdeta)
-    write(99,*) Jperp(), Omth, Omph
+    write(fid,*) eta, Omth, Omph
   end do
+  close(fid)
+
+  open(newunit=fid, file='canonical_freqs_vs_eta_pco.dat')
+  write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
+  sigv = 1d0
+  do i = 0,neta-1
+    eta = i*etatp/neta
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    write(fid,*) eta, Omth, Omph
+  end do
+  close(fid)
+
+  open(newunit=fid, file='canonical_freqs_vs_eta_pct.dat')
+  write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
+  sigv = -1d0
+  do i = 0,neta-1
+    eta = i*etatp/neta
+    call Om_th(Omth, dOmthdv, dOmthdeta)
+    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    write(fid,*) eta, -Omth, Omph
+  end do
+  close(fid)
 
 end program test_frequencies
