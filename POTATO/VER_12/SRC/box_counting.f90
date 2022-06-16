@@ -7,8 +7,8 @@ subroutine linspace(a, b, cnt, out)
   real(8) :: delta
 
   delta = (b-a)/(cnt-1)
-  do i=1,cnt-1
-    out(i) = a + delta*i
+  do i=1,cnt
+    out(i) = a + delta*(i-1)
   end do
 end subroutine linspace
 

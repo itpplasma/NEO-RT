@@ -420,6 +420,7 @@
   itermax=5
 !
   numbasef=0 !no extra integrals sampled, pure orbit integration
+  call linspace(1d0/nbox, 1d0, nbox, sbox)
 !
 ! Find minimum and maximum values of electrostatic potential in the computation domain:
 !
@@ -566,7 +567,6 @@
 ! and
 ! respoint(i)%perpinv_res
 ! respectively
-        call linspace(0d0, 1d0, nbox, sbox)
         call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
           respoint(i)%taub, taubox)
         write(1901,*) respoint(i)%toten_res, &
@@ -649,8 +649,9 @@
 !Write box-counted integral torque:
   if(adaptive_jperp) then
     open(1,file='boxcounted_torque.dat')
-    do i=1,nbox
-      write(1,*) torquebox(i)
+    write(1,*) torquebox(1), 0d0, sbox(1)
+    do i=2,nbox
+      write(1,*) torquebox(i), sbox(i), sbox(i+1)
     enddo
     close(1)
   endif

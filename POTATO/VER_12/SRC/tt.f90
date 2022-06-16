@@ -61,8 +61,8 @@
     stop
   end select
 !
-  scalfac_energy=100.d0
-  scalfac_efield=100.d0
+  scalfac_energy=1.d0
+  scalfac_efield=1.d0
 !
 ! inverse relativistic temeprature $m_\alpha c^2 / T_\alpha$:
   rmu=1.d30
@@ -231,7 +231,7 @@
   if(compute_resonant_torque) then
 !call test_prfs
 call plot_canfreqs(v0)
-stop
+!stop
     print *,'Computing the resonant torque'
     nmodes=11
     allocate(marr(nmodes),narr(nmodes),delint_mode(nmodes))
