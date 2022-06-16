@@ -35,7 +35,7 @@ add_subdirectory("../contrib/vode" "vode")
 #add_subdirectory(POTATO/LATEST)  # contains also vode
 
 add_compile_options(-cpp -g -fbacktrace -Wfatal-errors)
-add_compile_options(-O2)
+add_compile_options(-O3 -march=native -mtune=native)
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -44,10 +44,6 @@ add_executable(${PROJECT_EXE_NAME}
 
 add_executable(orbit_test
   orbit_test.f90
-)
-
-add_executable(test_frequencies.x
-  test_frequencies.f90
 )
 
 
@@ -91,7 +87,20 @@ target_link_libraries(${PROJECT_EXE_NAME}
 )
 
 
+
+add_executable(test_frequencies.x
+  test_frequencies.f90
+)
+
 target_link_libraries(test_frequencies.x
+  neo_rt
+)
+
+add_executable(test_reslines.x
+  test_reslines.f90
+)
+
+target_link_libraries(test_reslines.x
   neo_rt
 )
 
