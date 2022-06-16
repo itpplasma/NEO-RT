@@ -9,7 +9,7 @@ program test_reslines
 
   implicit none
 
-  real(8), parameter  :: vnorm = sqrt(0.1)
+  real(8), parameter  :: vnorm = sqrt(0.15)
 
   integer :: fid
 
