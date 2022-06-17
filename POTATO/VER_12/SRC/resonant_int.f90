@@ -651,7 +651,7 @@
     open(1,file='boxcounted_torque.dat')
     write(1,*) torquebox(1), 0d0, sbox(1)
     do i=2,nbox
-      write(1,*) torquebox(i), sbox(i), sbox(i+1)
+      write(1,*) torquebox(i), sbox(i-1), sbox(i)
     enddo
     close(1)
   endif

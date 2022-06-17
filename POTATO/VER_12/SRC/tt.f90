@@ -134,7 +134,7 @@
 !
 ! Set outer boundary of the plasma volume where profiles are computed:
 !  rho_pol=sqrt(0.3d0) !poloidal radius
-  rho_pol=0.75d0 !0.8d0 !sqrt(0.3d0) !poloidal radius
+  rho_pol=0.6d0 !0.5d0 !0.75d0 !0.8d0 !sqrt(0.3d0) !poloidal radius
 !
   call rhopol_boundary(rho_pol)
 !
@@ -229,7 +229,7 @@
 ! Compute resonant torque
 !
   if(compute_resonant_torque) then
-!call test_prfs
+call test_prfs
 call plot_canfreqs(v0)
 !stop
     print *,'Computing the resonant torque'
