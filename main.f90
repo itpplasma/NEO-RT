@@ -876,6 +876,11 @@ contains
              exit
           end if
        end do
+       ! Here D11 and D12 are written - just different names have been used.
+       ! pco is part from co-passing particles, pctr is part from counter
+       ! passing particles, t is part from trapped particles. Sum of all
+       ! three terms is also stored.
+       ! Index 1 is D11, index 2 D12.
        open(unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
        write(9, *) M_t, fluxpco(1), fluxpctr(1), fluxt(1),&
             fluxpco(1) + fluxpctr(1) + fluxt(1),&
