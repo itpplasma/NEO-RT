@@ -85,10 +85,11 @@ def run_single_flux_surface(executable_name: str, template_file_name: str, runna
   sideeffects:
   ------------
   Creates an input file for the executable.
-  Uses commandline to run executable, and thus files are produced.
+  Uses subprocess to run executable, and thus files are produced,
+  including those for standard and error output.
   """
 
-  from subprocess import call
+  from subprocess import run
   import sys
   import re
 
@@ -105,14 +106,10 @@ def run_single_flux_surface(executable_name: str, template_file_name: str, runna
     for line in tempf:
       result = pattern.sub(lambda x: str(dic[x.group()]), line)
       outf.write(result)
-  try:
-    retcode = call('./{} {}'.format(executable_name, runname), shell=True)
-    if retcode < 0:
-      print("Child was terminated by signal", -retcode, file=sys.stderr)
-    else:
-      print("Child returned", retcode, file=sys.stderr)
-  except OSError as e:
-    print("Execution failed: ", e, file=sys.stderr)
+
+  with open(runname+'.log', 'w') as log, open(runname+'.err', 'w') as err:
+    retcode = run('./{} {}'.format(executable_name, runname),
+        shell=True, stdout=log, stderr=err)
 
 
 def run_multiple_flux_surfaces(executable_name: str,
