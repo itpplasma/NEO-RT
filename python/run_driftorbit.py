@@ -115,7 +115,11 @@ def run_single_flux_surface(executable_name: str, template_file_name: str, runna
 def run_multiple_flux_surfaces(executable_name: str,
     profile_file_name: str, template_file_name: str, base_output_file_name: str,
     index_low: int, index_high: int):
-  """
+  """Make simulations for range of flux surfaces.
+
+  Run simulations for a range of flux surfaces from a given profile.
+  For this a template input file is changed according to the
+  corresponding parameters from the profile (file).
 
   input:
   ------
@@ -141,6 +145,8 @@ def run_multiple_flux_surfaces(executable_name: str,
   There is one call to run_single_flux_surface per flux surfaces, so
   same as for those function.
   """
+  # The profile data is assumed to be constant, and thus only needed
+  # once. We ignore the other return values from this call.
   [[s, M_t, vth, epsm], profile_data] = get_profile_data_for_flux_surface(profile_file_name, index_low)
 
   runname = '{}{}'.format(base_output_file_name, index_low)
