@@ -147,6 +147,7 @@ def run_multiple_flux_surfaces(executable_name: str,
   run_single_flux_surface(executable_name, template_file_name, runname, s, M_t, vth, epsm)
 
   for k in range(index_low+1, index_high):
+    print('Processing: index {} of {}'.format(k+1, index_high))
     [s, M_t, vth, epsm] = get_profile_data_from_file_data(profile_data, k)
 
     runname = '{}{}'.format(base_output_file_name, k)
