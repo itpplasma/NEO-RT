@@ -34,9 +34,10 @@ def get_file_lists(pattern: str):
 
   files = os.listdir()
   files = [f for f in files if pattern.match(f)]
-  files2 = [f.replace('torque','magfie_param') for f in files]
+  files2 = [f.replace('torque', 'magfie_param') for f in files]
+  files3 = [f.replace('_torque', '') for f in files]
 
-  return [files, files2]
+  return [files, files2, files3]
 
 
 def load_files_from_lists(files: list, files2: list):
@@ -97,6 +98,41 @@ def load_files_from_lists(files: list, files2: list):
   return [data, q]
 
 
+def load_transport_coefficient_files_from_list(files: list):
+  """Load data froma files, with minor assumptions about content.
+
+  Given a list of filenames, data from these files is loaded.
+  Only assumption about the content, is that first column should be used
+  for sorting.
+
+  input:
+  ------
+  """
+  import numpy as np
+
+  data = []
+
+  for f in files:
+    try:
+      dat = np.loadtxt(f)
+    except OSError as e:
+      continue
+
+    if dat.size == 0:
+      continue
+
+    data.append(dat)
+
+  data = np.array(data)
+
+  # Sort datapoints, file listing uses different order (e.g. 10 before
+  # 2), thus probably required.
+  order = np.argsort(data[:,0])
+  data = data[order,:]
+
+  return data
+
+
 def collect_torque_data(infilepattern: str, outfilename: str):
   """
   Collect torque data from radial scan of neo-rt in hdf5 file.
@@ -133,7 +169,7 @@ def collect_torque_data(infilepattern: str, outfilename: str):
 
   import hdf5tools
 
-  [files, files2] = get_file_lists(pattern = infilepattern)
+  [files, files2, files3] = get_file_lists(pattern = infilepattern)
 
   data = []
   q = []
@@ -143,6 +179,7 @@ def collect_torque_data(infilepattern: str, outfilename: str):
   smax = 1.0e+0
 
   [data, q] = load_files_from_lists(files, files2)
+  data_transport = load_transport_coefficient_files_from_list(files3)
 
   iotaspl = spi.splrep(data[:,0],1.0/q)
   iotaint = spint.quad(lambda x: spi.splev(x, iotaspl), 0.0, 1.0)[0]
@@ -189,6 +226,26 @@ def collect_torque_data(infilepattern: str, outfilename: str):
     h5f.create_dataset('Tphi', data=Tphi)
     h5f['Tphi'].attrs['unit'] = 'Nm/m^3'
     h5f['Tphi'].attrs['comment'] = 'toroidal torque density'
+
+    # Transport coefficients, minus one due to zero based index.
+    h5f.create_dataset('D11_copassing', data=data_transport[:,2-1])
+    h5f['D11_copassing'].attrs['unit'] = '?'
+    h5f.create_dataset('D11_counterpassing', data=data_transport[:,3-1])
+    h5f['D11_counterpassing'].attrs['unit'] = '?'
+    h5f.create_dataset('D11_trapped', data=data_transport[:,4-1])
+    h5f['D11_trapped'].attrs['unit'] = '?'
+    h5f.create_dataset('D11', data=data_transport[:,5-1])
+    h5f['D11'].attrs['unit'] = '?'
+    h5f['D11'].attrs['comment'] = 'sum of co+counter+trapped'
+    h5f.create_dataset('D12_copassing', data=data_transport[:,6-1])
+    h5f['D12_copassing'].attrs['unit'] = '?'
+    h5f.create_dataset('D12_counterpassing', data=data_transport[:,7-1])
+    h5f['D12_counterpassing'].attrs['unit'] = '?'
+    h5f.create_dataset('D12_trapped', data=data_transport[:,8-1])
+    h5f['D12_trapped'].attrs['unit'] = '?'
+    h5f.create_dataset('D12', data=data_transport[:,9-1])
+    h5f['D12'].attrs['unit'] = '?'
+    h5f['D12'].attrs['comment'] = 'sum of co+counter+trapped'
 
 
 if __name__ == "__main__":
