@@ -86,6 +86,8 @@ def load_files_from_lists(files: list, files2: list):
       dat2 = f2.readline()
       q.append(float(dat2.split()[-1]))
 
+  data = np.array(data)
+  q = np.array(q)
   # Sort datapoints, file listing uses different order (e.g. 10 before
   # 2), thus probably required.
   order = np.argsort(data[:,0])
@@ -145,7 +147,7 @@ def collect_torque_data(infilepattern: str, outfilename: str):
   iotaspl = spi.splrep(data[:,0],1.0/q)
   iotaint = spint.quad(lambda x: spi.splev(x, iotaspl), 0.0, 1.0)[0]
 
-  condi = (data[:,0]<smax)*(data[k][:,0]>smin)
+  condi = (data[:,0]<smax)*(data[:,0]>smin)
   data = data[condi]
   q = q[condi]
 
@@ -165,6 +167,7 @@ def collect_torque_data(infilepattern: str, outfilename: str):
   qeval = lambda x: 1.0/spi.splev(x, iotaspl)
 
   with hdf5tools.get_hdf5file_new('neo-rt_out.h5') as h5f:
+    # Torque data (and q)
     h5f.create_dataset('s', data=s)
     h5f['s'].attrs['unit'] = '1'
     h5f.create_dataset('spol', data=rhopol**2)
