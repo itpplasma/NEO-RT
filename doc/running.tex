@@ -9,20 +9,58 @@ It might be followed by a name and a description, but only he value is
 relevant for reading by \neort.
 
 There is a ``template'' form used for doing scans, e.g. over radius.
+An example is given below.
+\begin{verbatim}
+<S_TOKEN>           s                  - Radial coordinate s
+<M_T_TOKEN>         M_t                - Mach number (for single Mach no. run)
+1d0                 qi                 - Particle charge / elem. charge
+2.014               mi                 - Particle mass  [ u ]
+1d19                n0                 - particle density [ 1 / m^3 ]
+<VTH_TOKEN>         vth                - thermal velocity
+<EPSM_TOKEN>        epsmn              - perturbation amplitude B1/B0 (if pertfile==F)
+0                   m                  - poloidal perturbation mode (if pertfile==F)
+3                   n                  - toroidal perturbation mode (if pertfile==F, n>0!)
+-1                  mth                - poloidal canonical mode (for single Mach no. run)
+15                  mthnum             - poloidal canonical mode count
+-1.0d-1             Mtmin              - minimum Mach number
++1.0d-1             Mtmax              - maximum Mach number
+201                 Mtnum              - Mach number count
+F                   supban             - calculate superbanana plateau
+T                   magdrift           - consider magnetic drift
+F                   nopassing          - neglect passing particles
+F                   calcflux           - calculate flux directly instead via flux-force relation
+F                   noshear            - neglect magnetic shear term with dqds
+F                   pertfile           - read perturbation from file with do_magfie_pert
+F                   odeint             - use ODE integrator for resonance line
+F                   nonlin             - do nonlinear calculation
+1.0                 bscale             - scale B field by factor
+1.0                 escale             - scale E field by factor
+8                   inp_swi            - input switch for Boozer file
+0                   orbit_mode_avg     - orbit mode for bounce averaging
+0                   orbit_mode_transp  - orbit mode for transport computation
+0                   vsteps             - integration steps in velocity space
+F                   comptorque         - do torque computation
+F                   intoutput          - output details of integrand
+\end{verbatim}
+To use this as an actual parameter file, replace the brackets $<>$ and
+the text inbetween, with actual values.
+For scans, this replacement is done with the script ``run_driftrbit.py''
+using values from the two profile files described below.
 
 \paragraph{Boozer files for background field and perturbation}
 Boozer type files, i.e. text files with magnetic field data in a
 specific layout. Names are hardcoded(?) as ``in_file'' and
 ``in_file_pert''.
 
-\paragraph{Profile file 1}
+\paragraph{Profile file 1 (profile.in)}
 Text file with data in three columns. First is radial coordinate
-(boozer s). Second is toroidal mach number. Third one (unused?) density? vth?
+(boozer s). Second is toroidal mach number. Third one is thermal
+velocity in ?.
 
-There is an octave script neo2\_to\_neort as part of \neotwo, to
+There is an octave function neo2\_to\_neort as part of \neotwo, to
 create a \neort profile file from a \neotwo flux surface scan output.
 
-\paragraph{Profile file 2}
+\paragraph{Profile file 2 (plasma.in)}
 Text file with special format (and fixed name 'plasma.in'?). First and
 third line are comments (starting with '\%'), indicating quantities in the
 following line(s). Second line contains five values, first is number of
