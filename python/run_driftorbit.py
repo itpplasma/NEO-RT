@@ -22,7 +22,7 @@ def get_profile_data_from_file_data(profile_data, flux_surface_number: int):
   M_t     = profile_data[flux_surface_number,1]
   vth     = profile_data[flux_surface_number,2]
   #epsm    = profile_data[flux_surface_number,3]
-  epsm = 1e-3
+  epsm = 1.0e+0
 
   return [s, M_t, vth, epsm]
 
