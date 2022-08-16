@@ -163,18 +163,14 @@ contains
   end subroutine init_profile
 
   subroutine init_plasma
-!    real(8), parameter :: pi    = 3.14159265358979d0
     real(8), parameter :: pmass = 1.6726d-24
-!    real(8), parameter :: emass = 9.1094d-28
-!    real(8), parameter :: e     = 4.8032d-10
-    real(8), parameter :: ev    = 1.6022d-12
 
     real(8) :: amb,am1,am2,Zb,Z1,Z2,dchichi,slowrate,dchichi_norm,slowrate_norm
     real(8) :: v0, ebeam
     real(8), dimension(:,:), allocatable :: plasma(:,:)
     integer, dimension(mp) :: indu
     real(8), dimension(mp) :: xp, fp
-    real(8) :: der, dxm1
+    real(8) :: dxm1
     integer :: nplasma, i
 
     ! read plasma file
@@ -1079,7 +1075,7 @@ contains
 
   subroutine test_torque_integral
     real(8) :: eta_res(2)
-    real(8) :: vold, Tphi, dTphidu
+    real(8) :: Tphi, dTphidu
     integer :: ku, nu
     real(8) :: kappa2s, du, ux
     real(8) :: roots(nlev, 3)
@@ -1241,8 +1237,6 @@ contains
     real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
 
     logical :: firstloop
-
-    integer :: kb
 
     firstloop = .true.
 
