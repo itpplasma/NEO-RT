@@ -112,9 +112,12 @@ def load_transport_coefficient_files_from_list(files: list):
 
   data = []
 
+  any_found = False
+
   for f in files:
     try:
       dat = np.loadtxt(f)
+      any_found = True
     except OSError as e:
       continue
 
@@ -125,10 +128,11 @@ def load_transport_coefficient_files_from_list(files: list):
 
   data = np.array(data)
 
-  # Sort datapoints, file listing uses different order (e.g. 10 before
-  # 2), thus probably required.
-  order = np.argsort(data[:,0])
-  data = data[order,:]
+  if any_found:
+    # Sort datapoints, file listing uses different order (e.g. 10 before
+    # 2), thus probably required.
+    order = np.argsort(data[:,0])
+    data = data[order,:]
 
   return data
 
@@ -203,7 +207,7 @@ def collect_torque_data(infilepattern: str, outfilename: str):
 
   qeval = lambda x: 1.0/spi.splev(x, iotaspl)
 
-  with hdf5tools.get_hdf5file_new('neo-rt_out.h5') as h5f:
+  with hdf5tools.get_hdf5file_new(outfilename) as h5f:
     # Torque data (and q)
     h5f.create_dataset('s', data=s)
     h5f['s'].attrs['unit'] = '1'
@@ -227,25 +231,26 @@ def collect_torque_data(infilepattern: str, outfilename: str):
     h5f['Tphi'].attrs['unit'] = 'Nm/m^3'
     h5f['Tphi'].attrs['comment'] = 'toroidal torque density'
 
-    # Transport coefficients, minus one due to zero based index.
-    h5f.create_dataset('D11_copassing', data=data_transport[:,2-1])
-    h5f['D11_copassing'].attrs['unit'] = '?'
-    h5f.create_dataset('D11_counterpassing', data=data_transport[:,3-1])
-    h5f['D11_counterpassing'].attrs['unit'] = '?'
-    h5f.create_dataset('D11_trapped', data=data_transport[:,4-1])
-    h5f['D11_trapped'].attrs['unit'] = '?'
-    h5f.create_dataset('D11', data=data_transport[:,5-1])
-    h5f['D11'].attrs['unit'] = '?'
-    h5f['D11'].attrs['comment'] = 'sum of co+counter+trapped'
-    h5f.create_dataset('D12_copassing', data=data_transport[:,6-1])
-    h5f['D12_copassing'].attrs['unit'] = '?'
-    h5f.create_dataset('D12_counterpassing', data=data_transport[:,7-1])
-    h5f['D12_counterpassing'].attrs['unit'] = '?'
-    h5f.create_dataset('D12_trapped', data=data_transport[:,8-1])
-    h5f['D12_trapped'].attrs['unit'] = '?'
-    h5f.create_dataset('D12', data=data_transport[:,9-1])
-    h5f['D12'].attrs['unit'] = '?'
-    h5f['D12'].attrs['comment'] = 'sum of co+counter+trapped'
+    if data_transport.shape != (0,):
+      # Transport coefficients, minus one due to zero based index.
+      h5f.create_dataset('D11_copassing', data=data_transport[:,2-1])
+      h5f['D11_copassing'].attrs['unit'] = '?'
+      h5f.create_dataset('D11_counterpassing', data=data_transport[:,3-1])
+      h5f['D11_counterpassing'].attrs['unit'] = '?'
+      h5f.create_dataset('D11_trapped', data=data_transport[:,4-1])
+      h5f['D11_trapped'].attrs['unit'] = '?'
+      h5f.create_dataset('D11', data=data_transport[:,5-1])
+      h5f['D11'].attrs['unit'] = '?'
+      h5f['D11'].attrs['comment'] = 'sum of co+counter+trapped'
+      h5f.create_dataset('D12_copassing', data=data_transport[:,6-1])
+      h5f['D12_copassing'].attrs['unit'] = '?'
+      h5f.create_dataset('D12_counterpassing', data=data_transport[:,7-1])
+      h5f['D12_counterpassing'].attrs['unit'] = '?'
+      h5f.create_dataset('D12_trapped', data=data_transport[:,8-1])
+      h5f['D12_trapped'].attrs['unit'] = '?'
+      h5f.create_dataset('D12', data=data_transport[:,9-1])
+      h5f['D12'].attrs['unit'] = '?'
+      h5f['D12'].attrs['comment'] = 'sum of co+counter+trapped'
 
 
 if __name__ == "__main__":
