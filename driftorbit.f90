@@ -107,7 +107,7 @@ contains
     call init_fsa
     call init_misc
     call init_Om_spl       ! frequencies of trapped orbits
-    call init_Om_pass_spl  ! frequencies of passing orbits
+    if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
     init_done = .true.
   end subroutine init
 

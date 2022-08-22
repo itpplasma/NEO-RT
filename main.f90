@@ -1098,87 +1098,89 @@ contains
     vmin2 = 0d0
     vmax2 = 3d0*vth
 
-    print *, '==CO-PASSING=='
-    sigv = 1
-    etamin = epsp*etatp
-    etamax = (1-epsp)*etatp
+    if (.not. nopassing) then
+      print *, '==CO-PASSING=='
+      sigv = 1
+      etamin = epsp*etatp
+      etamax = (1-epsp)*etatp
 
-    print *, 'vrange: ', vmin2/vth, vmax2/vth
-    print *, 'etarange: ', etamin, etamax
+      print *, 'vrange: ', vmin2/vth, vmax2/vth
+      print *, 'etarange: ', etamin, etamax
 
-    Tphi = 0d0
+      Tphi = 0d0
 
-    open(unit=10, file=trim(adjustl(fn1)), recl=1024)
+      open(unit=10, file=trim(adjustl(fn1)), recl=1024)
 
-    du = (vmax2 - vmin2)/(vth*nu)
-    do ku = 0, nu-1
-       ux = vmin2/vth + du/2d0 + ku*du
-       v = ux*vth
+      du = (vmax2 - vmin2)/(vth*nu)
+      do ku = 0, nu-1
+         ux = vmin2/vth + du/2d0 + ku*du
+         v = ux*vth
 
-       call driftorbit_coarse(etamin, etamax, roots, nroots)
-       if (nroots == 0) cycle
+         call driftorbit_coarse(etamin, etamax, roots, nroots)
+         if (nroots == 0) cycle
 
-       open(unit=11, file=trim(adjustl(runname))//'_int_cop.out', recl=8192, position="append")
-       do kr = 1,nroots
-          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-          eta = eta_res(1)
-          write(11, '(i3, i3, f8.3, f8.3)') mth, kr, ux, eta_res(1)
-          dTphidu = Tphi_int(ux, eta_res)
-          Tphi = Tphi + dTphidu*du
-       end do
-       close(unit=11)
+         open(unit=11, file=trim(adjustl(runname))//'_int_cop.out', recl=8192, position="append")
+         do kr = 1,nroots
+            eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+            eta = eta_res(1)
+            write(11, '(i3, i3, f8.3, f8.3)') mth, kr, ux, eta_res(1)
+            dTphidu = Tphi_int(ux, eta_res)
+            Tphi = Tphi + dTphidu*du
+         end do
+         close(unit=11)
 
-       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+         kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-       write(10, *) ux, eta_res(1), dTphidu, &
-            (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, kappa2s, 0d0, etatp
-    end do
-    print *, 'Tphi (SUM) = ', Tphi/dVds
-    close(unit=10)
+         write(10, *) ux, eta_res(1), dTphidu, &
+               (eta_res(1)-etamin)/(etamax-etamin),&
+               vth, B0, kappa2s, 0d0, etatp
+      end do
+      print *, 'Tphi (SUM) = ', Tphi/dVds
+      close(unit=10)
 
-    print *, '==CTR-PASSING=='
-    sigv = -1
-    etamin = epsp*etatp
-    etamax = (1-epsp)*etatp
+      print *, '==CTR-PASSING=='
+      sigv = -1
+      etamin = epsp*etatp
+      etamax = (1-epsp)*etatp
 
-    print *, 'vrange: ', vmin2/vth, vmax2/vth
-    print *, 'etarange: ', etamin, etamax
-    !if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-    !if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
-    !if(orbit_mode_transp>0) print *, fluxint_box(1,:)
-    !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
+      print *, 'vrange: ', vmin2/vth, vmax2/vth
+      print *, 'etarange: ', etamin, etamax
+      !if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
+      !if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
+      !if(orbit_mode_transp>0) print *, fluxint_box(1,:)
+      !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
 
-    Tphi = 0d0
+      Tphi = 0d0
 
-    open(unit=10, file=trim(adjustl(fn2)), recl=1024)
+      open(unit=10, file=trim(adjustl(fn2)), recl=1024)
 
-    du = (vmax2 - vmin2)/(vth*nu)
-    do ku = 0, nu-1
-       ux = vmin2/vth + du/2d0 + ku*du
-       v = ux*vth
+      du = (vmax2 - vmin2)/(vth*nu)
+      do ku = 0, nu-1
+         ux = vmin2/vth + du/2d0 + ku*du
+         v = ux*vth
 
-       call driftorbit_coarse(etamin, etamax, roots, nroots)
-       if (nroots == 0) cycle
+         call driftorbit_coarse(etamin, etamax, roots, nroots)
+         if (nroots == 0) cycle
 
-       open(unit=11, file=trim(adjustl(runname))//'_int_ctr.out', recl=8192, position="append")
-       do kr = 1,nroots
-          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-          eta = eta_res(1)
-          write(11, '(i3, i3, f8.3, f8.3)') mth, kr, ux, eta_res(1)
-          dTphidu = Tphi_int(ux, eta_res)
-          Tphi = Tphi + dTphidu*du
-       end do
-       close(unit=11)
+         open(unit=11, file=trim(adjustl(runname))//'_int_ctr.out', recl=8192, position="append")
+         do kr = 1,nroots
+            eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+            eta = eta_res(1)
+            write(11, '(i3, i3, f8.3, f8.3)') mth, kr, ux, eta_res(1)
+            dTphidu = Tphi_int(ux, eta_res)
+            Tphi = Tphi + dTphidu*du
+         end do
+         close(unit=11)
 
-       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+         kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-       write(10, *) ux, eta_res(1), dTphidu, &
-            (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, kappa2s, 0d0, etatp
-    end do
-    print *, 'Tphi (SUM) = ', Tphi/dVds
-    close(unit=10)
+         write(10, *) ux, eta_res(1), dTphidu, &
+               (eta_res(1)-etamin)/(etamax-etamin),&
+               vth, B0, kappa2s, 0d0, etatp
+      end do
+      print *, 'Tphi (SUM) = ', Tphi/dVds
+      close(unit=10)
+    end if
 
     print *, '==TRAPPED=='
     sigv = 1d0
@@ -1276,19 +1278,36 @@ contains
        mthctr = 0
        mtht = 0
 
+       ! Clear output files
+       open(unit=9, file=trim(adjustl(runname))//'_torque_box_co.out', status='replace')
+       close(unit=9)
+       open(unit=9, file=trim(adjustl(runname))//'_torque_box_ctr.out', status='replace')
+       close(unit=9)
+       open(unit=9, file=trim(adjustl(runname))//'_torque_box_t.out', status='replace')
+       close(unit=9)
+       open(unit=10, file=trim(adjustl(fn1)), status='replace')
+       close(unit=10)
+       open(unit=10, file=trim(adjustl(fn2)), status='replace')
+       close(unit=10)
+
        if (intoutput) open(unit=11, file=trim(adjustl(runname))//'_intoutput.out', recl=1024)
+
        do j = mthmin, mthmax
           mth = j
 
-          !vminp = 1d-6*vth
-          !vmaxp = 3d0*vth
-          !vmint = 1d-6*vth
-          !vmaxt = 3d0*vth
+          vminp = 1d-6*vth
+          vmaxp = 5d0*vth
 
-          vminp = sqrt(2d0*1e-3*ev/mi)
-          vmaxp = sqrt(2d0*(15e3+1e-3)*ev/mi)
+          ! Hardcoded alternative up to 15 keV
+          !vminp = sqrt(2d0*1e-3*ev/mi)
+          !vmaxp = sqrt(2d0*(15e3+1e-3)*ev/mi)
+
           vmint = vminp
           vmaxt = vmaxp
+
+          Tresco = 0d0
+          Tresctr = 0d0
+          Trest = 0d0
 
           ! superbanana resonance
           if (supban) then
