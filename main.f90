@@ -1247,6 +1247,10 @@ contains
     write(fn2, *) trim(adjustl(runname))//'_torque_integral.out'
     call clearfile(fn2)
 
+    call clearfile(trim(adjustl(runname))//'_torque_box_co.out')
+    call clearfile(trim(adjustl(runname))//'_torque_box_ctr.out')
+    call clearfile(trim(adjustl(runname))//'_torque_box_t.out')
+
     do k = 1, Mtnum
        ! absolute tolerances for integrals
        tol0 = 1d-15
@@ -1277,18 +1281,6 @@ contains
        mthco = 0
        mthctr = 0
        mtht = 0
-
-       ! Clear output files
-       open(unit=9, file=trim(adjustl(runname))//'_torque_box_co.out', status='replace')
-       close(unit=9)
-       open(unit=9, file=trim(adjustl(runname))//'_torque_box_ctr.out', status='replace')
-       close(unit=9)
-       open(unit=9, file=trim(adjustl(runname))//'_torque_box_t.out', status='replace')
-       close(unit=9)
-       open(unit=10, file=trim(adjustl(fn1)), status='replace')
-       close(unit=10)
-       open(unit=10, file=trim(adjustl(fn2)), status='replace')
-       close(unit=10)
 
        if (intoutput) open(unit=11, file=trim(adjustl(runname))//'_intoutput.out', recl=1024)
 
