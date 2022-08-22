@@ -1288,7 +1288,7 @@ contains
           mth = j
 
           vminp = 1d-6*vth
-          vmaxp = 5d0*vth
+          vmaxp = 4d0*vth
 
           ! Hardcoded alternative up to 15 keV
           !vminp = sqrt(2d0*1e-3*ev/mi)
