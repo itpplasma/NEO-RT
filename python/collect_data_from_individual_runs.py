@@ -40,6 +40,58 @@ def get_file_lists(pattern: str):
   return [files, files2, files3]
 
 
+def read_magfie_param(infilename: str, data_dictionary: dict):
+  """
+  Read a magfie_param file and append data to dictionary.
+
+  Assumptions on magfie_param file:
+  Might combine lines with and without data.
+  Lines without data should have at most 1 whitespace.
+  Data lines must have at least three fields seperated by whitespaces.
+  The first field is ignored, the second field is assumed to be the name
+  of the entry for the dictionary, and the last field is assumed to be
+  the value.
+  Values are converted to floating point values if possible.
+
+  Examples of (data) lines (without the whitespace at the left):
+   test_magfie: T [eV]    =    2129.6338999999939
+   test_magfie: m0        =    0.0000000000000000
+   -------------------------
+   test_magfie: pertfile  =  T
+  Here the third line whould be ignored, as is the first field
+  ("test_magfie:"). 'T', 'm0' and 'pertfile' would be used as names for
+  the fields, while ~2129.63, 0 and 'T' would be appended to the values.
+
+  input:
+  ------
+  infilename: string, name (and path) of the file to read.
+  data_dictionary: dictionary, where the value is a list, to which the
+    data is appended.
+
+  output:
+  -------
+  the modified data_dictionary.
+
+  sideeffects:
+  ------------
+  none
+  """
+  with open(infilename) as f:
+    for line in f:
+      if len(line.split()) >= 3:
+        parts = line.split()
+        try:
+          d = float(parts[-1])
+        except:
+          d = parts[-1]
+        if parts[1] in data_dictionary.keys():
+          data_dictionary[parts[1]].append(d)
+        else:
+          data_dictionary[parts[1]] = [d]
+
+  return data_dictionary
+
+
 def load_files_from_lists(files: list, files2: list):
   """
   Load data from two lists of files, with assumptions about content.
@@ -72,6 +124,7 @@ def load_files_from_lists(files: list, files2: list):
   data = []
   q = []
   kf = -1
+  data_magfie_param = {}
 
   for f in files:
     kf = kf+1
@@ -82,18 +135,17 @@ def load_files_from_lists(files: list, files2: list):
     data.append(dat)
 
     with open(files2[kf]) as f2:
-      for kl in range(12):
-        f2.readline()
-      dat2 = f2.readline()
-      q.append(float(dat2.split()[-1]))
+      read_magfie_param(files2[kf], data_magfie_param)
 
   data = np.array(data)
-  q = np.array(q)
+  q = np.array(data_magfie_param["q"])
   # Sort datapoints, file listing uses different order (e.g. 10 before
   # 2), thus probably required.
   order = np.argsort(data[:,0])
   data = data[order,:]
   q = q[order]
+  for k in data_magfie_param.keys():
+    data_magfie_param[k] = np.array(data_magfie_param[k])[order]
 
   return [data, q]
 
