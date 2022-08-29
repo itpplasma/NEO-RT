@@ -995,10 +995,11 @@ contains
        if (intoutput) then
           ! 0:n, 1:l, 2:Eth, 3:Jperp_tp, 4:drphi/dpphi, 5:E/Eth, 6:Jperp/Jperp_tp, 7:rphi,
           ! 8:|Hmn|, 9:Omth, 10:Omph, 11:Ombarprime, 12:dOmdv, 13:dOmdeta, 14:dOmdpphi, 15:sigma
-          ! 16:iota=1/q, 17: Om_tE, 18: dOmthds, 19: dOmphds
+          ! 16:iota=1/q, 17: Om_tE, 18: dOmthds, 19: dOmphds, 20:Jperp_dt
           write(11, *) mth, mph, mi*vth**2/2d0, mi*(ux*vth)**2/2d0*mi*c/qi*etatp,&
                -(qi/c*iota*psi_pr)**(-1), ux**2, eta/etatp, s, sqrt(Hmn2), Omth, Omph,&
-               Ompr, dOmdv, dOmdeta, dOmdpph, sigv, iota, Om_tE, dOmthds, dOmphds
+               Ompr, dOmdv, dOmdeta, dOmdpph, sigv, iota, Om_tE, dOmthds, dOmphds, &
+               mi*(ux*vth)**2/2d0*mi*c/qi*etadt
        end if
        if (nonlin) then
           call coleff(ux,dpp,dhh,fpeff)
