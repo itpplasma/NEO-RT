@@ -47,6 +47,8 @@ program boozer_to_efit
   double precision, dimension(:,:),   allocatable :: psi_grid
   double precision, dimension(:,:,:), allocatable :: bmod_n_re,bmod_n_im
   double complex,   dimension(:),     allocatable :: amplbn
+
+  character(len=10) :: file_number
 !
   iunit=71
 !  
@@ -491,7 +493,8 @@ endif
 ! write perturbed mod-B files:
 !
   do n=1,ntor
-    open(iunit,form='unformatted',file='bmod_n.'//char(48+n))
+    write(file_number, '(i0.2)') n
+    open(iunit,form='unformatted',file='bmod_n.'//trim(file_number))
     write(iunit) nwEQD,nhEQD
     write(iunit) 1.d2*Rdata,1.d2*Zdata
     write(iunit) 1.d4*bmod_n_re(:,:,n),1.d4*bmod_n_im(:,:,n)
@@ -561,8 +564,9 @@ endif
   close(100)
 !
   do n=1,ntor
-    open(100,file='PLOT/bmod_n_re.'//char(48+n)//'.dat')
-    open(101,file='PLOT/bmod_n_im.'//char(48+n)//'.dat')
+    write(file_number, '(i0.2)') n
+    open(100,file='PLOT/bmod_n_re.'//trim(file_number)//'.dat')
+    open(101,file='PLOT/bmod_n_im.'//trim(file_number)//'.dat')
     do i=0,nr
       write(100,*) bmod_n_re(i,:,n)
       write(101,*) bmod_n_im(i,:,n)
