@@ -88,11 +88,11 @@ module read_file_module
       enddo
       s(i) = s_0
       iota(i) = iota_0
-      Jpol(i) = Jpol_0
+      Jpol(i) = Jpol_0*nper
       Itor(i) = Itor_0
       pprime(i) = pprime_0
-      sqrtg(i) = sqrtg_0
-      B_tor(i) = - (mag_const / (2.d0 * pi)) * Jpol_0
+      sqrtg(i) = sqrtg_0*nper
+      B_tor(i) = - (mag_const / (2.d0 * pi)) * Jpol_0*nper
     enddo
     close(unitNum)
     
