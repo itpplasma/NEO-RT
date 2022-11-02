@@ -74,9 +74,7 @@
       dimension derphi(3)
       dimension a_phi(3),a_b(3),a_c(3),hstar(3)
 !
-      do 1 i=1,3
-        x(i)=z(i)
- 1    continue
+      x(1:3) = z(1:3)
 !
 ! in magfie: x(i)   - set of 3 curvilinear space coordinates (input)
 !            bmod   - dimensionless magnetic field module: bmod=B/B_ref
