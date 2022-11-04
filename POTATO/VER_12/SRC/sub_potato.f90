@@ -108,7 +108,7 @@
 ! z_eqm(5)       - phase space variables (input)
 ! taub           - bounce time (output)
 ! delphi         - toroidal shift per bounce time (output)
-! extraset(next) - extra integrals along the orbit
+! extraset(next) - extra integrals along the orbit (inout)
 !
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
 !
@@ -125,15 +125,19 @@
 !
 ! relative error of orbit integrator:
   double precision, parameter :: relerr=1d-10 !8
-!
+
+  integer, intent(in) :: next
+  double precision, intent(in) :: dtau_in
+  double precision, dimension(neqm), intent(in) :: z_eqm
+  double precision, dimension(next), intent(inout) :: extraset
+  double precision, intent(out) :: taub, delphi
+
   logical :: firstpass
-  integer :: next, ndim, iter
-  double precision :: dtau_in,dtau,taub,delphi
+  integer :: ndim, iter
+  double precision :: dtau
   double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
   double precision :: dZ_dR,sign_delZ,Z_tmp
-  double precision, dimension(neqm) :: z_eqm
-  double precision, dimension(next) :: extraset
   double precision, dimension(neqm+next) :: z,z_start,vz
 !
   external velo_ext
