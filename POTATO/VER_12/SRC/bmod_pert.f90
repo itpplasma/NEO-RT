@@ -26,8 +26,8 @@ end module bmod_pert_mod
 !
   if(prop) then
     prop=.false.
-!
-    open(iunit_bn,form='unformatted',file='bmod_n.dat')
+
+    open(iunit_bn,form='unformatted',file='bmod_n.dat', status='old')
     read(iunit_bn) nrad,nzet
     allocate(rad(nrad),zet(nzet),bmod_n_re(nrad,nzet),bmod_n_im(nrad,nzet))
     read(iunit_bn) rad,zet
