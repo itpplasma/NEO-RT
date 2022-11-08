@@ -106,3 +106,20 @@ Boozer coordinate and
 \subsection{Collecting Results}
 Can be done with the (exectuable) python3 script
 collect\_data\_from\_individual\_runs.py
+
+
+\section{Running Potato}
+\subsection{input}
+Requires a efit file, which can be created from a boozer file via
+program ``boozer\_to\_efit'' (also part of \neort).
+Profile input is needed, this can be created from \neo2 output via a
+script ``convert_profiles.m''. It creates coefficients of a polynomial
+fit to the profiles for various degrees. One should be selected and
+provided as input with name ``profile_poly.in''. We suggest to do this
+by linking the selected file.
+
+\subsection{output}
+File ``eqmagprofs.dat'': first column is poloidal radius, second is
+toroidal radius. Third column is poloidal flux. Fourth column is
+toroidal momentum, fifth is safety factor. Sixth column is averaged
+nabla psi. Seventh column is (flux?) surface area
