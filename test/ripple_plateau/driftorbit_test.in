@@ -1,13 +1,13 @@
 # Input file for DRIFTORBIT - Version 1.2
 #
 #
-0.5                 s                  - Radial coordinate s
-0.036   	    M_t		       - Mach number (for single Mach no. run)
+0.153                 s                  - Radial coordinate s
+0.1   	    M_t		       - Mach number (for single Mach no. run)
 1d0                 qi                 - Particle charge / elem. charge
 2.014               mi                 - Particle mass / 1u
 1d19		    n0		       - particle density
 40000000.0          vth		       - thermal velocity
-0.001		    epsmn	       - perturbation amplitude B1/B0 (if pertfile==F)
+1e-3		    epsmn	       - perturbation amplitude B1/B0 (if pertfile==F)
 0		    m		       - poroidal perturbation mode (if pertfile==F)
 18 		    n		       - toroidal perturbation mode (if pertfile==F, n>0!)
 0		    mth		       - poloidal canonical mode (for single Mach no. run)
@@ -28,6 +28,6 @@ F		    nonlin	       - do nonlinear calculation
 8                   inp_swi            - input switch for Boozer file
 0                   orbit_mode_avg     - orbit mode for bounce averaging
 0                   orbit_mode_transp  - orbit mode for transport computation
-256                 vsteps             - integration steps in velocity space
+4096                 vsteps             - integration steps in velocity space
 F                   comptorque         - do torque computation
 F                   intoutput          - output details of integrand

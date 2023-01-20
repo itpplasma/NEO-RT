@@ -1,0 +1,21 @@
+driftorbit.out
+    M_t, fluxpco(1), fluxpctr(1), fluxt(1),&
+    fluxpco(1) + fluxpctr(1) + fluxt(1),&
+    fluxpco(2), fluxpctr(2), fluxt(2),&
+    fluxpco(2) + fluxpctr(2) + fluxt(2)
+
+    flux(1) ... D11
+    flux(2) ... D12
+
+driftorbit_integral.out
+    M_t, mth, fluxrespco(1), fluxrespctr(1), fluxrest(1),&
+    fluxrespco(1)+fluxrespctr(1)+fluxrest(1),&
+    fluxrespco(2), fluxrespctr(2), fluxrest(2),&
+    fluxrespco(2)+fluxrespctr(2)+fluxrest(2),vminp/vth,vmaxp/vth,&
+    vmint/vth, vmaxt/vth
+
+driftorbit_magfie.out
+    hcovar(2), hcovar(3), hctrvr(1), hctrvr(2), hctrvr(3),&
+    hcurl(1), hcurl(2), hcurl(3), &
+    real(bn), aimag(bn), real(epsmn*exp(imun*m0*x(3))),&
+    aimag(epsmn*exp(imun*m0*x(3))
