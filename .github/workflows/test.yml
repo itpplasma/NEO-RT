@@ -27,7 +27,7 @@ jobs:
     - name: Install build dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran libblas-dev liblapack-dev cmake
+        sudo apt-get install -y build-essential gfortran libblas-dev liblapack-dev cmake python3-numpy
 
     - name: Install custom dependencies
       run: |
