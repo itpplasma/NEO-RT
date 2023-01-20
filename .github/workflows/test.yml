@@ -1,0 +1,35 @@
+name: NEO-RT
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+    - name: Test
+      run: |
+        pwd
+        ls
+    - name: Install build dependencies
+      run: |
+        apt-get update
+        apt-get install -y build-essential gfortran libblas-dev liblapack-dev cmake
+
+    - name: Run tests
+      run: |
+        cd test/ripple_plateau
+        python3 test_ripple_plateau.py
