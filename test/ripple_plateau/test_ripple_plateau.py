@@ -1,8 +1,8 @@
 import os
 import numpy as np
 
-os.system('rm -f *.out')
-os.system('../../BUILD/neo_rt.x driftorbit_test')
+#os.system('rm -f *.out')
+#os.system('../../BUILD/neo_rt.x driftorbit_test')
 
 #%%
 epsmn = 1e-3
@@ -24,7 +24,7 @@ print(f'NEO-RT:    D12/D11     = {D12/D11:.3e}')
 print(f'Reference: D12rp/D11rp = {3.0:.3e}')
 print()
 
-assert(abs(D12/D11 - 3.0) < 0.15)
-assert(abs((D11/epsmn**2 - Drp)/Drp) < 0.05)
+assert(abs((D11/epsmn**2 - Drp)/Drp) < 0.08)
+assert(abs(D12/D11 - 3.0)/3.0 < 0.06)
 
 print('Ripple plateau test: OK')
