@@ -18,7 +18,6 @@ program main
   character(:), allocatable :: runname
   integer :: tmplen
   logical :: plasmafile, profilefile
-  character(len=256) :: boozer_file_axi, boozer_file_nonaxi
 
   call get_command_argument(1, tmp, tmplen)
   runname = trim(adjustl(tmp))
@@ -124,13 +123,7 @@ contains
     read (9,*) vsteps
     read (9,*) comptorque
     read (9,*) intoutput
-    read (9, '(A)') boozer_file_axi
-    read (9, '(A)') boozer_file_nonaxi
     close(unit=9)
-
-    print *, boozer_file_axi
-    print *, boozer_file_nonaxi
-    stop
 
     M_t = M_t*efac/bfac
     qi = qs*qe
