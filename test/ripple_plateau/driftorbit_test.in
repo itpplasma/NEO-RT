@@ -5,7 +5,6 @@
 0.1                   M_t                - Mach number (for single Mach no. run)
 1d0                   qi                 - Particle charge / elem. charge
 2.014                 mi                 - Particle mass / 1u
-1d19                  n0                 - particle density
 40000000.0            vth                - thermal velocity
 1e-3                  epsmn              - perturbation amplitude B1/B0 (if pertfile==F)
 0                     m                  - poroidal perturbation mode (if pertfile==F)

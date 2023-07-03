@@ -20,7 +20,7 @@ module driftorbit
   real(8) :: taub, bounceavg(nvar)
 
   ! Plasma parameters
-  real(8) :: Om_tE, dOm_tEds, vth, M_t, dM_tds, efac, n0
+  real(8) :: Om_tE, dOm_tEds, vth, M_t, dM_tds, efac
 
   ! For splining in the trapped eta region
   integer, parameter :: netaspl = 100

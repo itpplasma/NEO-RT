@@ -99,7 +99,6 @@ contains
     read (9,*) M_t
     read (9,*) qs
     read (9,*) ms
-    read (9,*) n0
     read (9,*) vth
     read (9,*) epsmn
     read (9,*) m0

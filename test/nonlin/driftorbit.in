@@ -1,11 +1,10 @@
 # Input file for DRIFTORBIT - Version 1.2
-# 
+#
 #
 0.153               s                  - Radial coordinate s
 0.05	            M_t		       - Mach number (for single Mach no. run)
 1d0
 2.014
-1d19		    n0		       - particle density
 37280978.0          vth		       - thermal velocity
 1e-2 		    epsmn	       - perturbation amplitude B1/B0 (when pertfile==F)
 0		    m		       - poroidal perturbation mode (when pertfile==F)
@@ -23,4 +22,3 @@ F		    noshear	       - neglect magnetic shear term with dqds
 F		    pertfile	       - read perturbation from file with neo_magfie_pert
 F                   odeint             - use ODE integrator for resonance line
 T		    nonlin	       - nonlinear calculation
-
