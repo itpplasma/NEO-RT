@@ -259,10 +259,10 @@ contains
 !       call do_magfie_pert_neo_init
 !    end if
 
-    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2);
-    Drp = 4*mph*q/(eps**2*sqrt(pi));  ! actually this is Drp/Dp
+    Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+    Drp = 4*mph*q/(eps**2*sqrt(pi))  ! actually this is Drp/Dp
 
-    call coleff(ux,dpp,dhh,fpeff)
+    call coleff(1.0d0,dpp,dhh,fpeff)
     dhh = vth*dhh
     dpp = vth**3*dpp
 

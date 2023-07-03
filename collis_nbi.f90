@@ -49,7 +49,7 @@
 !
     dpp=dpp+dp*efcolf(i)
     dhh=dhh+dh*efcolf(i)
-    fpeff=fpeff+(dpd/plim-2.0*dp*p*enrat(i))*efcolf(i)
+    fpeff=fpeff+(dpd/plim-2.0d0*dp*p*enrat(i))*efcolf(i)
   enddo
 !
   dhh=dhh/plim**2
@@ -71,7 +71,9 @@
   double precision, parameter :: sqp=1.7724538d0
 ! cons=4./(3.*sqrt(pi))
   double precision, parameter :: cons=.75225278d0
-  double precision :: v,dp,dh,dpd,v2,v3,ex,er
+  double precision, intent(in) :: v
+  double precision, intent(out) :: dp,dh,dpd
+  double precision :: v2,v3,ex,er
 !
   v2=v**2
   v3=v2*v
