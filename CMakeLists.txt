@@ -34,8 +34,19 @@ add_subdirectory("../contrib/quadpack" "quadpack")
 add_subdirectory("../contrib/vode" "vode")
 #add_subdirectory(POTATO/LATEST)  # contains also vode
 
-add_compile_options(-cpp -g -fbacktrace -Wfatal-errors)
-add_compile_options(-O3)
+# Set default build type to Release if not specified
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+add_compile_options(-cpp -g -fbacktrace)
+# Set compiler options based on build type
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+  add_compile_options(-O3)
+endif()
+
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}

@@ -119,6 +119,8 @@ contains
     real(8) :: aa, b
     real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
 
+    print *, 'init_Om_spl'
+
     taub0 = 0d0
     taub1 = 0d0
     leta0 = 0d0
@@ -177,6 +179,9 @@ contains
     real(8) :: aa, b
     integer :: k
     real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
+
+    print *, 'init_Om_pass_spl'
+
     taub0 = 0d0
     taub1 = 0d0
     leta0 = 0d0
@@ -815,7 +820,7 @@ contains
        if (bmod > Bmax) Bmax = bmod
     end do
 
-    print *, th0
+    print *, "th0: ", th0
     !th0 = 0d0 ! TODO remove this
 
     dVds = 2d0*pi*dVds
@@ -824,8 +829,8 @@ contains
     print *, "eps calc:  ", eps
     print *, "Bmin,Bmax: ", Bmin, Bmax
 
-   ! call disp('init_fsa: iota       = ', iota)
-   ! call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
+   call disp('init_fsa: iota       = ', iota)
+   !call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
   end subroutine init_fsa
 
