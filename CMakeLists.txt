@@ -43,6 +43,7 @@ add_compile_options(-cpp -g -fbacktrace)
 # Set compiler options based on build type
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
+  add_compile_options(-fbounds-check -finit-real=nan -fcheck=all -Wextra)
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
   add_compile_options(-O3)
 endif()

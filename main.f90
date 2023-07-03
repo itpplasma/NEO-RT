@@ -262,10 +262,6 @@ contains
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
     Drp = 4*mph*q/(eps**2*sqrt(pi))  ! actually this is Drp/Dp
 
-    call coleff(1.0d0,dpp,dhh,fpeff)
-    dhh = vth*dhh
-    dpp = vth**3*dpp
-
     open(unit=9, file=trim(adjustl(runname))//'_magfie_param.out', recl=1024)
 
     thmin = -pi
