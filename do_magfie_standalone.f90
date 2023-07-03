@@ -94,13 +94,13 @@ contains
     x1 = max(params0(1,1),x(1))
     x1 = min(params0(nflux,1),x1)
 
-    spl_val = spline_val_0(spl_coeff1(:,:,3), x1)
+    spl_val = spline_val_0(abs(spl_coeff1(:,:,3)), x1)
     Bthcov = -ItoB*spl_val(1)*bfac
     dBthcovds = -ItoB*spl_val(2)*bfac
-    spl_val = spline_val_0(spl_coeff1(:,:,2), x1)
+    spl_val = spline_val_0(abs(spl_coeff1(:,:,2)), x1)
     Bphcov = -ItoB*spl_val(1)*bfac
     dBphcovds = -ItoB*spl_val(2)*bfac
-    spl_val = spline_val_0(spl_coeff1(:,:,1), x1)
+    spl_val = spline_val_0(abs(spl_coeff1(:,:,1)), x1)
     iota = spl_val(1)
     q = 1/iota
     dqds = -spl_val(2)/iota**2
