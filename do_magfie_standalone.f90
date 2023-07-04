@@ -104,8 +104,8 @@ contains
     iota = spl_val(1)
     q = 1/iota
     dqds = -spl_val(2)/iota**2
-    spl_val = spline_val_0(eps_spl, x1)
-    eps = spl_val(1)
+    ! spl_val = spline_val_0(eps_spl, x1)
+    ! eps = spl_val(1)
 
     ! calculate B-field from modes
     if (inp_swi == 8) then
@@ -241,7 +241,6 @@ module do_magfie_pert_mod
   integer, protected :: mb, nb, nflux, nfp, nmode
 
   real(8), allocatable, protected :: spl_coeff1(:,:,:), spl_coeff2(:,:,:,:)
-  real(8), allocatable, protected :: eps_spl(:,:)
 
   integer :: ncol1, ncol2 ! number of columns in input file
   real(8) :: mph ! toroidal perturbation mode
@@ -260,7 +259,6 @@ contains
     if (.not. allocated(spl_coeff1)) then
        allocate(spl_coeff1(nflux-1, 5, ncol1))
        allocate(spl_coeff2(nflux-1, 5, ncol2, nmode))
-       allocate(eps_spl(nflux-1, 5))
     end if
 
     ! calculate spline coefficients

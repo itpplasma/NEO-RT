@@ -799,7 +799,7 @@ contains
 
     dVds = 0d0
     B0  = 0d0
-    print *, "eps orig: ", eps
+    print *, " eps orig: ", eps
     eps = 0d0
 
     Bmin = -1d0
@@ -820,14 +820,26 @@ contains
        if (bmod > Bmax) Bmax = bmod
     end do
 
-    print *, "th0: ", th0
     !th0 = 0d0 ! TODO remove this
 
     dVds = 2d0*pi*dVds
     B0   = B0/(2d0*pi)
     eps  = eps/(B0*pi)
-    print *, "eps calc:  ", eps
+
+    print *, " eps calc: ", eps
+    print *, "      th0: ", th0
+    print *, "     dVds: ", dVds
+    print *, "       B0: ", B0
     print *, "Bmin,Bmax: ", Bmin, Bmax
+    print *, "        x: ", x
+    print *, "     bmod: ", bmod
+    print *, "    sqrtg: ", sqrtg
+    print *, "     hder: ", hder
+    print *, "   hcovar: ", hcovar
+    print *, "   hctrvr: ", hctrvr
+    print *, "    hcurl: ", hcurl
+
+    stop
 
    call disp('init_fsa: iota       = ', iota)
    !call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
