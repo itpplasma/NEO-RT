@@ -20,15 +20,9 @@ set(PROJECT_EXE_NAME "neo_rt.x")                  # Define the name
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 
-### Find libraries for NEO-2 field routines
-#find_package(SuiteSparse REQUIRED)
-#find_package(SuperLU REQUIRED)
-
-### Source files (load external file)
-include (CMakeSources.txt)
 
 ### External modules
-#add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
+add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
 add_subdirectory("../spline" "spline")
 add_subdirectory("../contrib/quadpack" "quadpack")
 add_subdirectory("../contrib/vode" "vode")
@@ -39,7 +33,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_compile_options(-cpp -g -fbacktrace)
+add_compile_options(-fPIC -cpp -g -fbacktrace)
 # Set compiler options based on build type
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
@@ -58,22 +52,49 @@ add_executable(orbit_test
   orbit_test.f90
 )
 
-
-add_library("neo_rt" SHARED
+set(NEO_RT_SOURCES
   orbit.f90
   attenuation_factor.f90
   collis_nbi.f90
   polylag_3.f
   common.f90
   driftorbit.f90
-  do_magfie_standalone.f90
-# For NEO-2 field routines
-#  do_magfie_neo.f90
-#  ${SUITESPARSE_SRC_FILES}
-#  ${SUPERLU_SRC_FILES}
 )
 
-#add_dependencies(neo_rt boozer_magfie)
+# Set a configuration flag
+option(USE_STANDALONE "Use do_magfie_standalone" ON)
+
+# Add source files based on the configuration flag
+if(USE_STANDALONE)
+  add_library("neo_rt" SHARED
+    ${NEO_RT_SOURCES}
+    do_magfie_standalone.f90
+  )
+else()
+  # For NEO-2 field routines
+
+  ### Source files (load external file)
+  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../NEO-2/COMMON/CMAKE_TOOLS")
+
+  find_package(SuiteSparse REQUIRED)
+  find_package(SuperLU REQUIRED)
+  include(../BOOZER_MAGFIE/CMakeSources.txt)
+  include_directories(BUILD/boozer_magfie/OBJS/)
+
+  add_library("neo_rt" SHARED
+    ${NEO_RT_SOURCES}
+    ${SUPERLU_SRC_FILES}
+    ${SUITESPARSE_SRC_FILES}
+    do_magfie_neo.f90
+  )
+  add_dependencies(neo_rt boozer_magfie)
+  target_link_libraries(neo_rt
+    boozer_magfie
+    ${SUPERLU_LIBRARIES}
+    ${SUITESPARSE_LIBRARIES}
+  )
+endif()
+
 add_dependencies(neo_rt spline)
 add_dependencies(neo_rt quadpack)
 add_dependencies(neo_rt vode)
@@ -91,21 +112,14 @@ target_link_libraries(neo_rt
 ### Linking
 target_link_libraries(${PROJECT_EXE_NAME}
   neo_rt
-#  boozer_magfie
-#  ${SuperLU_lib}
-#  ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
-#  ${SuiteSparseConfig_lib}
-#  pthread
 )
 
-
-
 add_executable(test_frequencies.x
-  test_frequencies.f90
+test_frequencies.f90
 )
 
 target_link_libraries(test_frequencies.x
-  neo_rt
+neo_rt
 )
 
 add_executable(test_reslines.x
