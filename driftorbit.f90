@@ -839,8 +839,6 @@ contains
     print *, "   hctrvr: ", hctrvr
     print *, "    hcurl: ", hcurl
 
-    stop
-
    call disp('init_fsa: iota       = ', iota)
    !call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
