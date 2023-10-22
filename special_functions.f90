@@ -34,13 +34,15 @@ subroutine comelp ( hk, ck, ce )
 !
   implicit none
 
+  real ( kind = 8 ), intent(in) :: hk
+
+  real ( kind = 8 ), intent(out) :: ce
+  real ( kind = 8 ), intent(out) :: ck
+
   real ( kind = 8 ) ae
   real ( kind = 8 ) ak
   real ( kind = 8 ) be
   real ( kind = 8 ) bk
-  real ( kind = 8 ) ce
-  real ( kind = 8 ) ck
-  real ( kind = 8 ) hk
   real ( kind = 8 ) pk
 
   pk = 1.0D+00 - hk * hk

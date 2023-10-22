@@ -695,6 +695,11 @@ contains
     close(unit=9)
   end subroutine test_resline
 
+  !> Do calculation for a range of mach numbers
+  !>
+  !> Range of mach numbers depends on input parameters Mtmin, Mtmax and
+  !> Mtnum.
+  !> Output file names depend on commandline parameter 'runname'.
   subroutine test_machrange2
     integer :: j, k
     real(8) :: fluxrespco(2), fluxrespctr(2),&
