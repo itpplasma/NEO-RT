@@ -32,7 +32,9 @@
   implicit none
 !
   integer i
-  double precision :: p,dpp,dhh,fpeff,plim,xbeta,dp,dh,dpd
+  double precision, intent(in) :: p
+  double precision, intent(out) :: dpp,dhh,fpeff
+  double precision :: plim,xbeta,dp,dh,dpd
   !
   plim=max(p,1.d-8)
 !
@@ -47,7 +49,7 @@
 !
     dpp=dpp+dp*efcolf(i)
     dhh=dhh+dh*efcolf(i)
-    fpeff=fpeff+(dpd/plim-2.0*dp*p*enrat(i))*efcolf(i)
+    fpeff=fpeff+(dpd/plim-2.0d0*dp*p*enrat(i))*efcolf(i)
   enddo
 !
   dhh=dhh/plim**2
@@ -69,7 +71,9 @@
   double precision, parameter :: sqp=1.7724538d0
 ! cons=4./(3.*sqrt(pi))
   double precision, parameter :: cons=.75225278d0
-  double precision :: v,dp,dh,dpd,v2,v3,ex,er
+  double precision, intent(in) :: v
+  double precision, intent(out) :: dp,dh,dpd
+  double precision :: v2,v3,ex,er
 !
   v2=v**2
   v3=v2*v
@@ -126,16 +130,16 @@
 !        formal: v0            - initial alpha particle velocity, cm/s
 !                dchichi       - pitch angle scattering frequency, $D^{\chi\chi}$, of alpha
 !                                particle with initial velocity, 1/s
-!                slowrate      - slowing down rate, $F^v / v_0$, of alpha particle with 
+!                slowrate      - slowing down rate, $F^v / v_0$, of alpha particle with
 !                                initial velocity, 1/s
 !                dchichi_norim - normalized pitch angle scattering frequency, 1/cm
 !                slowrate_norm - normalized slowing down rate, 1/cm
-!        module collis_alp: 
+!        module collis_alp:
 !                efcolf - normalized collision frequencies
 !                velrat - ratio of initial alpha particle velocity v0 to the
 !                         specific background particle thermal velocity $v_{t}=\sqrt(2T/m)$
 !                enrat  - ratio of initial alpha particle energy to the background species
-!                         energy 
+!                         energy
 !
 !
   implicit none

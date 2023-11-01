@@ -1,4 +1,4 @@
-module do_magfie_neo_mod
+module do_magfie_mod
   use common
   use neo_exchange, only: nper,b_min,b_max, &
        theta_bmin,theta_bmax,phi_bmin,phi_bmax,rt0
@@ -13,7 +13,7 @@ module do_magfie_neo_mod
        boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat,&
        boozer_sqrtg11, boozer_isqrg
   use neo_input, only: bmnc
-  
+
   implicit none
   save
 
@@ -25,12 +25,12 @@ module do_magfie_neo_mod
   real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius changeable
 
 contains
-  
+
   subroutine do_magfie_init
     real(8) :: bmod, bmod1, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
 print *, "start do_magfie_init"
-    
+
     bmod0 = 1d-4
     magfie_spline = 1
 
@@ -49,9 +49,9 @@ print *, R0
     x(3) = pi
     call do_magfie(x, bmod1, sqrtg, bder, hcovar, hctrvr, hcurl)
     eps = (bmod1/bmod-1d0)/(bmod1/bmod+1d0) ! TODO: make this correct
-    
+
   end subroutine do_magfie_init
-  
+
   subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     real(8), dimension(:),       intent(in)         :: x
     real(8),                     intent(out)        :: bmod
@@ -79,27 +79,27 @@ print *, R0
     ! set B_r to zero for now
     hctrvr(1) = 0
   end subroutine do_magfie
-  
-end module do_magfie_neo_mod
 
-module do_magfie_pert_neo_mod
+end module do_magfie_mod
+
+module do_magfie_pert_mod
   use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert,&
        neo_init_spline_pert, neo_magfie_pert_amp, m_phi
 
   real(8) :: mph
 
 contains
-  
+
   subroutine do_magfie_pert_init
      call neo_read_pert_control
      call neo_read_pert
      call neo_init_spline_pert
      mph = m_phi
   end subroutine do_magfie_pert_init
-  
+
   subroutine do_magfie_pert_amp(x, bamp)
     real(8) :: x(3)
     complex(8) :: bamp
     call neo_magfie_pert_amp(x, bamp)
-  end subroutine do_magfie_pert_amp  
-end module do_magfie_pert_neo_mod
+  end subroutine do_magfie_pert_amp
+end module do_magfie_pert_mod

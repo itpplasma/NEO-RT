@@ -1,7 +1,9 @@
-#LyX 2.1 created this file. For more info see http://www.lyx.org/
-\lyxformat 474
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
 \begin_document
 \begin_header
+\save_transient_properties true
+\origin unavailable
 \textclass article
 \use_default_options true
 \begin_modules
@@ -12,16 +14,18 @@ logicalmkup
 \language_package default
 \inputencoding auto
 \fontencoding global
-\font_roman default
-\font_sans default
-\font_typewriter default
-\font_math auto
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
 \font_default_family default
 \use_non_tex_fonts false
 \font_sc false
 \font_osf false
-\font_sf_scale 100
-\font_tt_scale 100
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
 \graphics default
 \default_output_format default
 \output_sync 0
@@ -51,6 +55,7 @@ logicalmkup
 \suppress_date false
 \justification true
 \use_refstyle 1
+\use_minted 0
 \index Index
 \shortcut idx
 \color #008000
@@ -59,7 +64,10 @@ logicalmkup
 \tocdepth 3
 \paragraph_separation indent
 \paragraph_indentation default
-\quotes_language english
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
 \papercolumns 1
 \papersides 1
 \paperpagestyle default
@@ -329,14 +337,68 @@ Theory and Implementation
 \end_layout
 
 \begin_layout Subsection*
-Bounce average
+Basic structure
+\end_layout
+
+\begin_layout Standard
+The main steps of the code are done in 
+\family typewriter
+driftorbit_test.f90
+\family default
+ as follows: 
+\end_layout
+
+\begin_layout Itemize
+Read control file, magnetic field, and profile data
+\end_layout
+
+\begin_layout Itemize
+Output some diagnostics of magnetic field in console and 
+\family typewriter
+<runname>_magfie.out
+\family default
+ 
+\end_layout
+
+\begin_layout Itemize
+In case 
+\family typewriter
+mthnum < 1
+\family default
+ is configured, print out profile diagnostics and exit
+\end_layout
+
+\begin_layout Itemize
+In case 
+\family typewriter
+Mtnum < 1
+\family default
+ is configured, do some tests with a single bounce harmonic and Mach number
+ and exit
+\end_layout
+
+\begin_layout Itemize
+Otherwise go to production operation for a single Mach number or some Mach
+ number range
+\end_layout
+
+\begin_layout Subsection*
+Integration in real and phase space
+\end_layout
+
+\begin_layout Standard
+TODO
+\end_layout
+
+\begin_layout Subsection*
+Bounce average for thin orbits
 \end_layout
 
 \begin_layout Standard
 The code calculates bounce averages
 \begin_inset Formula 
 \begin{equation}
-\left\langle f(\vartheta_{{\rm orb}}(\tau))\right\rangle _{b}=\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\, f(\vartheta_{{\rm orb}}(\tau))
+\left\langle f(\vartheta_{{\rm orb}}(\tau))\right\rangle _{b}=\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\,f(\vartheta_{{\rm orb}}(\tau))
 \end{equation}
 
 \end_inset
@@ -505,7 +567,7 @@ From rotation_05_15 (2.5) we use expressions for the harmonics of the canonical
 \end_inset
 
  starting from harmonics in Boozer angles, 
-\begin_inset Formula $m_{0},\, n_{0}$
+\begin_inset Formula $m_{0},\,n_{0}$
 \end_inset
 
 .
@@ -1092,7 +1154,7 @@ According to Shaing, we calculate the large aspect ratio limit using Hamada
 \end_inset
 
  and 
-\begin_inset Formula $B^{\ph}=\psi^{\prime}(V),\, B^{\tht}=\chi^{\prime}(V)$
+\begin_inset Formula $B^{\ph}=\psi^{\prime}(V),\,B^{\tht}=\chi^{\prime}(V)$
 \end_inset
 
  are flux functions.
@@ -1583,16 +1645,16 @@ or using
 \end_inset
 
 The diffusion coefficient is (
-\begin_inset Formula $x=u^{2},\, dx=2u\, du,\, du=\frac{1}{2}x^{-1/2}dx$
+\begin_inset Formula $x=u^{2},\,dx=2u\,du,\,du=\frac{1}{2}x^{-1/2}dx$
 \end_inset
 
 )
 \begin_inset Formula 
 \begin{align*}
-D_{11} & =\frac{\pi^{3/2}n^{2}c^{2}qv_{T}}{e_{\alpha}^{2}\left\langle \left|\nabla s\right|\right\rangle ^{2}\psi_{{\rm tor}}^{a}}\frac{ds}{dV}\int_{0}^{\infty}du\, u^{3}e^{-u^{2}}\tau_{b}|H_{n}|^{2}\left|n\frac{\partial\Omega^{3}}{\partial\eta}\right|^{-1}\\
- & =\frac{m\pi^{3/2}n^{2}c^{2}v_{T}^{3}}{4|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\, x^{3/2}e^{-x}4K(\kappa)\sqrt{\frac{m}{\mu B_{a}\varepsilon}}(\alpha_{n}^{2}+\beta_{n}^{2})\frac{1}{|n|}\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\frac{2}{c}\left|\frac{\varepsilon}{\varepsilon^{\prime}}\right|\\
- & =\frac{m\pi^{3/2}cv_{T}^{3}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{\varepsilon}}{|\varepsilon^{\prime}|}\sqrt{\frac{m}{\mu B_{a}}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\, x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\\
- & =\frac{m\pi^{3/2}cv_{T}^{2}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{2\varepsilon}}{|\varepsilon^{\prime}|}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\, x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}
+D_{11} & =\frac{\pi^{3/2}n^{2}c^{2}qv_{T}}{e_{\alpha}^{2}\left\langle \left|\nabla s\right|\right\rangle ^{2}\psi_{{\rm tor}}^{a}}\frac{ds}{dV}\int_{0}^{\infty}du\,u^{3}e^{-u^{2}}\tau_{b}|H_{n}|^{2}\left|n\frac{\partial\Omega^{3}}{\partial\eta}\right|^{-1}\\
+ & =\frac{m\pi^{3/2}n^{2}c^{2}v_{T}^{3}}{4|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}4K(\kappa)\sqrt{\frac{m}{\mu B_{a}\varepsilon}}(\alpha_{n}^{2}+\beta_{n}^{2})\frac{1}{|n|}\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\frac{2}{c}\left|\frac{\varepsilon}{\varepsilon^{\prime}}\right|\\
+ & =\frac{m\pi^{3/2}cv_{T}^{3}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{\varepsilon}}{|\varepsilon^{\prime}|}\sqrt{\frac{m}{\mu B_{a}}}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}\\
+ & =\frac{m\pi^{3/2}cv_{T}^{2}}{|e_{\alpha}|\left\langle \left|\nabla s\right|\right\rangle ^{2}\chi^{\prime}}2\frac{\sqrt{2\varepsilon}}{|\varepsilon^{\prime}|}\left(\frac{ds}{dV}\right)^{2}\int_{0}^{\infty}dx\,x^{3/2}e^{-x}K(\kappa)|n|(\alpha_{n}^{2}+\beta_{n}^{2})\left|\frac{\partial g}{\partial\kappa^{2}}\right|^{-1}
 \end{align*}
 
 \end_inset

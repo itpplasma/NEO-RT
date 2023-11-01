@@ -1,0 +1,11 @@
+clrs=zeros(10,3);
+clrs(1,:)=[1 0 0];
+clrs(2,:)=[0 1 0];
+clrs(3,:)=clrs(1,:);
+clrs(4,:)=[0 0 1];
+clrs(5,:)=[1 0 1];
+clrs(6,:)=[0 0.8 0.8];
+clrs(7,:)=clrs(1,:);
+clrs(8,:)=clrs(4,:);
+clrs(9,:)=clrs(6,:);
+clrs(10,:)=clrs(2,:);

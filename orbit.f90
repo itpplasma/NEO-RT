@@ -2,10 +2,10 @@ module orbit
   use do_magfie_mod, only: do_magfie, q, iota, psi_pr, Bphcov, Bthcov
   !use do_magfie_neo_mod, only: do_magfie, q, psi_pr
   use driftorbit, only: v, vth, eta, mi, c, qi, Om_tE
-  
+
   implicit none
   save
-  
+
 contains
 
   function vecprod(u,v)
@@ -17,56 +17,56 @@ contains
     vecprod(3) = u(2)*v(1) - u(1)*v(2)
     vecprod(2) = u(1)*v(3) - u(3)*v(1)
   end function vecprod
-  
+
   subroutine step_zeroorder(neq, t, y, ydot)
     integer, intent (in) :: neq
     real(8), intent (in) :: t
     real(8), intent (in) :: y(neq)
     real(8), intent (out) :: ydot(neq)
-    
+
     real(8) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
     call do_magfie(y(1:3), bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
- 
+
     ydot(1) = 0d0                                               ! r
     ydot(2) = y(4)*hctrvr(2)                                    ! phi
     ydot(3) = y(4)*hctrvr(3)                                    ! theta
-    ydot(4) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par     
-    
+    ydot(4) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+
   end subroutine step_zeroorder
-  
-  
+
+
   subroutine step_full(neq, t, y, ydot)
     ! TODO: add gradPhi for fast rotation
-    
+
     integer, intent (in) :: neq
     real(8), intent (in) :: t
     real(8), intent (in) :: y(neq)
     real(8), intent (out) :: ydot(neq)
 
     real(8) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
-    
+
     real(8) :: hstar(3)       ! hstar = h + vpar/(omc)*curl(h)
-    real(8) :: gradH(3)       ! gradH = (mu*gradB + e*gradPhi) 
+    real(8) :: gradH(3)       ! gradH = (mu*gradB + e*gradPhi)
     real(8) :: hstarpar       ! hstar_par = h*hstar
     real(8) :: Er             ! Er = dphi/dr = psi_pr/(q*c)*Om_tE, no fast rotation yet
     real(8) :: sqgbmod2
 
     call do_magfie(y(1:3), bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
     sqgbmod2 = psi_pr*(Bphcov+iota*Bthcov)
-    
+
     hstar = hctrvr + mi*c/(qi*bmod)*y(4)*hcurl
     hstarpar = 1d0 + mi*c/(qi*bmod)*y(4)*sum(hcovar*hcurl)
 
     !Er = psi_pr/(q*c)*Om_tE
     Er = 0.0
     gradH = mi*v**2/2d0*eta*bmod*hder+(/qi*Er,0d0,0d0/)
-    
+
     ydot(1:3) = 1d0/hstarpar*(y(4)*hstar + c/(qi*sqgbmod2)*bmod*vecprod(hcovar,gradH))
     ydot(4) = -1d0/(mi*hstarpar)*sum(ydot(1:3)/y(4)*gradH)
 
     !print *, eta, (1d0-y(4)**2/v**2)/bmod
-    
+
   end subroutine step_full
 
   subroutine step_rela(neq, t, y, ydot)
@@ -75,7 +75,7 @@ contains
     real(8), intent (in) :: y(neq)
     real(8), intent (out) :: ydot(neq)
 
-    real(8) :: tau, z(neq), zdot(neq)
+    real(8) :: tau, z(neq+1), zdot(neq+1)
 
     tau = vth*t
     z(1:3) = y(1:3)
@@ -88,7 +88,7 @@ contains
     ydot(4) = zdot(5)*v*vth
 
   end subroutine step_rela
-  
+
   !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
   subroutine velo(tau,z,vz)
 !
@@ -153,7 +153,7 @@ contains
 !            bmod   - dimensionless magnetic field module: bmod=B/B_ref
 !            sqrtg  - Jacobian of space coordinates (square root of
 !                     metric tensor
-!            bder   - derivatives of logarithm of bmod over space coords 
+!            bder   - derivatives of logarithm of bmod over space coords
 !                     (covariant vector)
 !            hcovar - covariant components of the unit vector along
 !                     the magnetic field
@@ -167,7 +167,7 @@ contains
 !                     phihat=e*phi/T over space coords (covar. vector)
 !
       derphi = 0d0
-!      derphi(1) = psi_pr/(q*c)*Om_tE*qi/(mi*vth**2/2d0) 
+!      derphi(1) = psi_pr/(q*c)*Om_tE*qi/(mi*vth**2/2d0)
 !
       p=z(4)
       alambd=z(5)
@@ -187,7 +187,7 @@ contains
       rosqgb=.5d0*rovsqg/bmod
       rovbm=ro0/bmod
 !
-! minus signs due to right-handed system r,theta,phi = x(1,3,2)      
+! minus signs due to right-handed system r,theta,phi = x(1,3,2)
       a_phi(1)=-(hcovar(2)*derphi(3)-hcovar(3)*derphi(2))*rosqgb
       a_b(1)=-(hcovar(2)*bder(3)-hcovar(3)*bder(2))*rovsqg
       a_phi(2)=-(hcovar(3)*derphi(1)-hcovar(1)*derphi(3))*rosqgb
@@ -225,6 +225,6 @@ contains
 !
 !    print *, mi*v**2/2d0*eta, mi*v**2*(1d0-z(5)**2)/(2d0*bmod)
     end subroutine velo
-   
-   
+
+
 end module orbit

@@ -74,7 +74,7 @@ contains
   end subroutine do_magfie_init
 
   subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-  ! Evaluate unperturbed axisymmetric magnetic field in point x = (s, th, ph) 
+  ! Evaluate unperturbed axisymmetric magnetic field in point x = (s, ph, th)
     real(8), dimension(:),       intent(in)         :: x
     real(8),                     intent(out)        :: bmod
     real(8),                     intent(out)        :: sqrtg
@@ -104,8 +104,8 @@ contains
     iota = spl_val(1)
     q = 1/iota
     dqds = -spl_val(2)/iota**2
-    spl_val = spline_val_0(eps_spl, x1)
-    eps = spl_val(1)
+    ! spl_val = spline_val_0(eps_spl, x1)
+    ! eps = spl_val(1)
 
     ! calculate B-field from modes
     if (inp_swi == 8) then
@@ -158,7 +158,7 @@ contains
     hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)*bmod/sqgbmod2
     hcurl(3) = (-dBphcovds+bder(1)*Bphcov)*bmod/sqgbmod2 ! TODO: B_s
     hcurl(2) = (dBthcovds-bder(1)*Bthcov)*bmod/sqgbmod2 ! TODO: B_s
-    
+
   end subroutine do_magfie
 
   subroutine boozer_read(filename)
@@ -174,10 +174,10 @@ contains
     R0 = 100*R0 ! m -> cm
 
     ! psi_pr = dpsi_tor/ds = psi_tor/s is constantly spaced
-    ! psi_tor = psi_pr*s	
+    ! psi_tor = psi_pr*s
     ! A_theta = -psi_tor
     psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
-    
+
     nmode = (m0b+1)*(n0b+1)
     allocate(params0(nflux, ncol1+1))
     allocate(modes0(nflux, nmode, ncol2+2))
@@ -194,6 +194,38 @@ contains
     R0 = modes0(1,1,3)*100
   end subroutine boozer_read
 
+  subroutine booz_to_cyl(x, r)
+
+   real(8), intent(in)  :: x(3)  ! Boozer coordinates (s, ph, th)
+   real(8), intent(out) :: r(3)  ! Cylindrical coordinates (R, phi, Z)
+
+   real(8) :: spl_val(3), x1
+   real(8) :: rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode)
+
+   integer :: j
+
+   if(inp_swi /= 9) error stop  ! Only implemented for ASDEX-U type of data
+
+   x1 = max(params0(1,1),x(1))
+   x1 = min(params0(nflux,1),x1)
+
+   do j=1,nmode
+      spl_val = spline_val_0(spl_coeff2(:, :, 1, j), x1)
+      rmnc(j) = 1.0d2*spl_val(1)
+      spl_val = spline_val_0(spl_coeff2(:, :, 2, j), x1)
+      rmns(j) = 1.0d2*spl_val(1)
+      spl_val = spline_val_0(spl_coeff2(:, :, 3, j), x1)
+      zmnc(j) = 1.0d2*spl_val(1)
+      spl_val = spline_val_0(spl_coeff2(:, :, 4, j), x1)
+      zmns(j) = 1.0d2*spl_val(1)
+   end do
+
+   r(1) = sum(rmnc*cos(modes0(1,:,1)*x(3))+rmns*sin(modes0(1,:,1)*x(3)))
+   r(2) = 0.0d0  ! TODO: phi
+   r(3) = sum(zmnc*cos(modes0(1,:,1)*x(3))+zmns*sin(modes0(1,:,1)*x(3)))
+
+  end subroutine booz_to_cyl
+
 end module do_magfie_mod
 
 module do_magfie_pert_mod
@@ -209,7 +241,6 @@ module do_magfie_pert_mod
   integer, protected :: mb, nb, nflux, nfp, nmode
 
   real(8), allocatable, protected :: spl_coeff1(:,:,:), spl_coeff2(:,:,:,:)
-  real(8), allocatable, protected :: eps_spl(:,:)
 
   integer :: ncol1, ncol2 ! number of columns in input file
   real(8) :: mph ! toroidal perturbation mode
@@ -228,7 +259,6 @@ contains
     if (.not. allocated(spl_coeff1)) then
        allocate(spl_coeff1(nflux-1, 5, ncol1))
        allocate(spl_coeff2(nflux-1, 5, ncol2, nmode))
-       allocate(eps_spl(nflux-1, 5))
     end if
 
     ! calculate spline coefficients
@@ -254,7 +284,7 @@ contains
     real(8) :: spl_val_c(3), spl_val_s(3)
     real(8) :: Bmnc(nmode), Bmns(nmode)
     real(8) :: x1
-    
+
     ! safety measure in order not to extrapolate
     x1   = max(params(1,1),x(1))
     x1   = min(params(nflux,1),x1)
@@ -284,7 +314,7 @@ contains
    complex(8)                                      :: bamp
 
    call do_magfie_pert_amp(x, bamp)
-   bmod = real(sum(bamp*exp(imun*modes(1,:,2))))
+   bmod = real(sum(bamp*exp(imun*nfp*modes(1,:,2)*x(2))))
 
   end subroutine do_magfie_pert
 

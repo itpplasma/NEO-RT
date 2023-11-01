@@ -1,8 +1,6 @@
 ### Basic settings
 cmake_minimum_required (VERSION 2.8.12)
-#project(fortranc Fortran C)
-#include(FortranCInterface)
-#FortranCInterface_HEADER(FC.h MACRO_NAMESPACE "FC_")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 enable_testing()
 
 ### Define the project
@@ -23,33 +21,28 @@ set(PROJECT_EXE_NAME "neo_rt.x")                  # Define the name
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 
-### Find libraries for NEO-2 field routines
-#find_package(SuiteSparse REQUIRED)
-#find_package(SuperLU REQUIRED)
-
-### Source files (load external file)
-include (CMakeSources.txt)
 
 ### External modules
-#add_subdirectory("../BOOZER_MAGFIE" "BOOZER_MAGFIE")
-#add_subdirectory("../contrib/rkf45" "rkf45")
+add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
 add_subdirectory("../spline" "spline")
 add_subdirectory("../contrib/quadpack" "quadpack")
-#add_subdirectory("../contrib/odepack" "odepack")
 add_subdirectory("../contrib/vode" "vode")
+#add_subdirectory(POTATO/LATEST)  # contains also vode
 
-#set(CMAKE_Fortran_FLAGS "-O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS") # GNU
-#set(CMAKE_Fortran_FLAGS " -O2 -g -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS") # INTEL
-#set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I BOOZER_MAGFIE/OBJS -I spline/OBJS -I vode/OBJS")
-#set(CMAKE_Fortran_FLAGS "-mkl -O3 -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
+# Set default build type to Release if not specified
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
 
-#IF(WIN32)
-#  set(CMAKE_Fortran_FLAGS "/Qmkl /O3")
-#ELSE()
-#  set(CMAKE_Fortran_FLAGS "-mkl -O3 -init=snan,arrays -g -traceback -implicitnone -I spline/OBJS -I vode/OBJS")
-   #set(CMAKE_Fortran_FLAGS "-mkl -O3 -implicitnone -I spline/OBJS -I vode/OBJS")
-set(CMAKE_Fortran_FLAGS "-O3") #GNU
-#ENDIF()
+add_compile_options(-fPIC -cpp -g -fbacktrace)
+# Set compiler options based on build type
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
+  add_compile_options(-fbounds-check -finit-real=nan -fcheck=all -Wextra)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+  add_compile_options(-O3)
+endif()
+
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
@@ -60,33 +53,57 @@ add_executable(orbit_test
   orbit_test.f90
 )
 
-
-add_library("neo_rt" SHARED
+set(NEO_RT_SOURCES
   orbit.f90
   attenuation_factor.f90
   collis_nbi.f90
   polylag_3.f
   common.f90
   driftorbit.f90
-  do_magfie_standalone.f90
-# For NEO-2 field routines
-#  do_magfie_neo.f90
-#  ${SUITESPARSE_SRC_FILES}
-#  ${SUPERLU_SRC_FILES}
 )
 
-#add_dependencies(neo-rt boozer_magfie)
-#add_dependencies(neo-rt rkf45)
+# Set a configuration flag
+option(USE_STANDALONE "Use do_magfie_standalone" ON)
+
+# Add source files based on the configuration flag
+if(USE_STANDALONE)
+  add_library("neo_rt" SHARED
+    ${NEO_RT_SOURCES}
+    do_magfie_standalone.f90
+  )
+else()
+  # For NEO-2 field routines
+
+  ### Source files (load external file)
+  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../NEO-2/COMMON/CMAKE_TOOLS")
+
+  find_package(SuiteSparse REQUIRED)
+  find_package(SuperLU REQUIRED)
+  include(../BOOZER_MAGFIE/CMakeSources.txt)
+  include_directories(BUILD/boozer_magfie/OBJS/)
+
+  add_library("neo_rt" SHARED
+    ${NEO_RT_SOURCES}
+    ${SUPERLU_SRC_FILES}
+    ${SUITESPARSE_SRC_FILES}
+    do_magfie_neo.f90
+  )
+  add_dependencies(neo_rt boozer_magfie)
+  target_link_libraries(neo_rt
+    boozer_magfie
+    ${SUPERLU_LIBRARIES}
+    ${SUITESPARSE_LIBRARIES}
+  )
+endif()
+
 add_dependencies(neo_rt spline)
-#add_dependencies(neo-rt quadpack)
-#add_dependencies(neo-rt odepack)
+add_dependencies(neo_rt quadpack)
 add_dependencies(neo_rt vode)
 
 find_package(BLAS)
 find_package(LAPACK)
 
-target_link_libraries(
-  neo_rt
+target_link_libraries(neo_rt
   vode
   spline
   quadpack
@@ -94,28 +111,25 @@ target_link_libraries(
 )
 
 ### Linking
-target_link_libraries(
-  ${PROJECT_EXE_NAME}
+target_link_libraries(${PROJECT_EXE_NAME}
   neo_rt
-#  boozer_magfie
-#  ${SuperLU_lib}
-#  ${Umfpack_lib} ${Amd_lib} ${Cholmod_lib} ${Colamd_lib} ${Camd_lib} ${Metis_lib} ${Ccolamd_lib}
-#  ${SuiteSparseConfig_lib}
-  #rkf45
-  #odepack
-#  blas
-#  lapack
-#  pthread
 )
 
-### Copy files
-#configure_file(neo.in neo.in COPYONLY)
-#configure_file(tok-synch2-n0.bc tok-synch2-n0.bc COPYONLY)
+add_executable(test_frequencies.x
+test_frequencies.f90
+)
 
+target_link_libraries(test_frequencies.x
+neo_rt
+)
 
-### For make install
-# install (TARGETS ${PROJECT_EXE_NAME} DESTINATION /temp/gernot_k/)
-# set_property(TARGET ${PROJECT_EXE_NAME} PROPERTY INSTALL_RPATH_USE_LINK_PATH TRUE)
+add_executable(test_reslines.x
+  test_reslines.f90
+)
+
+target_link_libraries(test_reslines.x
+  neo_rt
+)
 
 ### Tests
 add_test( test_magfie neo_rt )

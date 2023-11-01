@@ -1,0 +1,51 @@
+name: NEO-RT
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Test
+      run: |
+        pwd
+        ls
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential gfortran libblas-dev liblapack-dev cmake python3-numpy
+        sudo apt-get install -y libsuitesparse-dev libsuperlu-dev
+
+    - name: Install custom dependencies
+      run: |
+        cd ..
+        git clone https://github.com/itpplasma/spline
+        git clone https://github.com/itpplasma/BOOZER_MAGFIE
+        mkdir contrib
+        cd contrib
+        git clone https://github.com/itpplasma/quadpack
+        git clone https://github.com/itpplasma/vode
+        cd ../NEO-RT
+
+    - name: Build code
+      run: |
+        mkdir BUILD
+        cd BUILD
+        cmake ..
+        make -j4
+        cd ..
+
+    - name: Run tests
+      run: |
+        cd test/ripple_plateau
+        python3 test_ripple_plateau.py
