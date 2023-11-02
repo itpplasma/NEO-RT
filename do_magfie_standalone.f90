@@ -122,10 +122,14 @@ contains
        bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
        bder(3) = sum(-modes0(1,:,1)*B0mnc*sin(modes0(1,:,1)*x(3)))/bmod
     else if (inp_swi == 9) then
-       Bthcov = -Bthcov
-       dBthcovds = -dBthcovds
-       Bphcov = -Bphcov
-       dBphcovds = -dBphcovds
+       if (Bthcov < 0) then
+         Bthcov = -Bthcov
+         dBthcovds = -dBthcovds
+       end if
+       if (Bphcov < 0) then
+         Bphcov = -Bphcov
+         dBphcovds = -dBphcovds
+       end if
        do j=1,nmode
           spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
           B0mnc(j) = 1d4*spl_val_c(1)*bfac
