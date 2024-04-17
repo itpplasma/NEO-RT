@@ -46,20 +46,20 @@ endif()
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
-  main.f90
+  SRC/main.f90
 )
 
 add_executable(orbit_test
-  orbit_test.f90
+  TEST/test_orbit.f90
 )
 
 set(NEO_RT_SOURCES
-  orbit.f90
-  attenuation_factor.f90
-  collis_nbi.f90
-  polylag_3.f
-  common.f90
-  driftorbit.f90
+  SRC/orbit.f90
+  SRC/attenuation_factor.f90
+  SRC/collis_nbi.f90
+  SRC/polylag_3.f
+  SRC/common.f90
+  SRC/driftorbit.f90
 )
 
 # Set a configuration flag
@@ -69,7 +69,7 @@ option(USE_STANDALONE "Use do_magfie_standalone" ON)
 if(USE_STANDALONE)
   add_library("neo_rt" SHARED
     ${NEO_RT_SOURCES}
-    do_magfie_standalone.f90
+    SRC/do_magfie_standalone.f90
   )
 else()
   # For NEO-2 field routines
@@ -86,7 +86,7 @@ else()
     ${NEO_RT_SOURCES}
     ${SUPERLU_SRC_FILES}
     ${SUITESPARSE_SRC_FILES}
-    do_magfie_neo.f90
+    SRC/do_magfie_neo.f90
   )
   add_dependencies(neo_rt boozer_magfie)
   target_link_libraries(neo_rt
@@ -116,7 +116,7 @@ target_link_libraries(${PROJECT_EXE_NAME}
 )
 
 add_executable(test_frequencies.x
-test_frequencies.f90
+  TEST/test_frequencies.f90
 )
 
 target_link_libraries(test_frequencies.x
@@ -124,7 +124,7 @@ neo_rt
 )
 
 add_executable(test_reslines.x
-  test_reslines.f90
+  TEST/test_reslines.f90
 )
 
 target_link_libraries(test_reslines.x
