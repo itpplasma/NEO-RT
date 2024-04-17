@@ -353,13 +353,13 @@ contains
     end if
   end subroutine timestep
 
-  function findroot2(y0, dt, tol)
+  function findroot2(y0, dt)
     !
     !  Finds the root of an orbit after the first turn
     !
     use dvode_f90_m
 
-    real(8) :: y0(nvar), dt, tol, findroot2(nvar+1)
+    real(8) :: y0(nvar), dt, findroot2(nvar+1)
     integer :: n
 
     integer :: k, state, rootstate
@@ -460,7 +460,7 @@ contains
 
     ! Look for exactly one orbit turn via root-finding.
     ! Start by looking for 5 points per turn.
-    findroot_res = findroot2(y0, taub_est/5d0, 1d-10)
+    findroot_res = findroot2(y0, taub_est/5d0)
     !print *, taub
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
