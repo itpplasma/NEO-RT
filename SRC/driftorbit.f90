@@ -432,15 +432,12 @@ contains
     real(8) :: findroot_res(nvar+1)
     real(8), optional :: taub_estimate  ! estimated bounce time (user input)
     real(8) :: taub_est                 ! estimated bounce time (computed)
-    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    real(8) :: bmod
     real(8) :: y0(nvar)
 
     ! Initialize bounce-averated quantities y0. Their meaning
     ! is defined inside subroutine timestep (thin orbit integration)
-    x(1) = s
-    x(2) = 0d0
-    x(3) = th0
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
+    call evaluate_bfield_local(bmod)
     y0 = 1d-15
     y0(1) = th0         ! poloidal angle theta
     y0(2) = vpar(bmod)  ! parallel velocity vpar
@@ -465,12 +462,45 @@ contains
     taub = findroot_res(1)
     bounceavg = findroot_res(2:)/taub
 
+    call evaluate_bfield_local(bmod)
+
+  end subroutine bounce
+
+  subroutine bounce_fast(tspan)
+    use dvode_f90_m
+
+    real(8), intent(in) :: tspan
+
+    real(8) :: t1, t2
+
+    real(8) :: y(nvar)
+    real(8) :: atol(nvar), rtol
+    integer :: neq, itask, istate
+    type (vode_opts) :: options
+
+    t1 = 0d0
+    t2 = tspan
+    y = 0d0
+
+    neq = nvar
+    rtol = 1d-9
+    atol = 1d-10
+    itask = 1
+    istate = 1
+    options = set_normal_opts(abserr_vector=atol, relerr=rtol)
+
+    call dvode_f90(timestep2, neq, y, t1, t2, itask, istate, options)
+  end subroutine bounce_fast
+
+  subroutine evaluate_bfield_local(bmod)
+    real(8), intent(out) :: bmod
+    real(8) :: sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+
     x(1) = s
     x(2) = 0d0
     x(3) = th0
     call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-
-  end subroutine bounce
+  end subroutine evaluate_bfield_local
 
   subroutine Om_tB(OmtB, dOmtBdv, dOmtBdeta)
     ! returns bounce averaged toroidal magnetic drift frequency

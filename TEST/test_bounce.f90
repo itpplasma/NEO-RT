@@ -5,6 +5,7 @@ program test_bounce_program
 
     call setup
     call test_bounce
+    call test_bounce_fast
 
     contains
 
@@ -68,4 +69,11 @@ program test_bounce_program
 
         call bounce
     end subroutine test_bounce
+
+
+    subroutine test_bounce_fast
+        use driftorbit, only: bounce, bounce_fast
+
+        call bounce
+    end subroutine test_bounce_fast
 end program test_bounce_program
