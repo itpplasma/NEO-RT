@@ -466,12 +466,10 @@ contains
 
   end subroutine bounce
 
-  subroutine bounce_fast(tspan)
+  subroutine bounce_fast
     use dvode_f90_m
 
-    real(8), intent(in) :: tspan
-
-    real(8) :: t1, t2
+    real(8) :: t1, t2, bmod
 
     real(8) :: y(nvar)
     real(8) :: atol(nvar), rtol
@@ -479,8 +477,13 @@ contains
     type (vode_opts) :: options
 
     t1 = 0d0
-    t2 = tspan
-    y = 0d0
+    t2 = taub
+
+    call evaluate_bfield_local(bmod)
+    y = 1d-15
+    y(1) = th0
+    y(2) = vpar(bmod)
+    y(3:6) = 0d0
 
     neq = nvar
     rtol = 1d-9
@@ -490,6 +493,8 @@ contains
     options = set_normal_opts(abserr_vector=atol, relerr=rtol)
 
     call dvode_f90(timestep2, neq, y, t1, t2, itask, istate, options)
+
+    bounceavg = y/taub
   end subroutine bounce_fast
 
   subroutine evaluate_bfield_local(bmod)

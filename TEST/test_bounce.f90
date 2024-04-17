@@ -3,6 +3,8 @@ program test_bounce_program
 
     implicit none
 
+    real(8), parameter :: tol = 1e-13
+
     call setup
     call test_bounce
     call test_bounce_fast
@@ -65,14 +67,28 @@ program test_bounce_program
     end subroutine setup_control
 
     subroutine test_bounce
-        use driftorbit, only: bounce
+        use driftorbit, only: bounce, bounceavg, nvar, taub
 
+        real(8) :: bounceavg_tmp(nvar)
+
+        bounceavg = 0d0
         call bounce
+        bounceavg_tmp(:) = bounceavg(:)
+
+        bounceavg = 0d0
+        call bounce
+
+        if (maxval(abs(bounceavg - bounceavg_tmp)) > tol) then
+            print *, 'test_bounce failed'
+            error stop
+        end if
+
+        print *, 'test_bounce OK'
     end subroutine test_bounce
 
 
     subroutine test_bounce_fast
-        use driftorbit, only: bounce, bounce_fast
+        use driftorbit, only: bounce, bounce_fast, bounceavg
 
         call bounce
     end subroutine test_bounce_fast
