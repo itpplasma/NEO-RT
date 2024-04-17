@@ -9,6 +9,7 @@ git clone https://github.com/itpplasma/NEO-RT
 * Prerequisites: In the directory where the NEO-RT folder is located, run
 ```bash
 git clone https://github.com/itpplasma/spline
+git clone https://github.com/itpplasma/BOOZER_MAGFIE
 mkdir contrib
 cd contrib
 git clone https://github.com/itpplasma/quadpack
