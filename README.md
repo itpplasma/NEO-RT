@@ -30,7 +30,7 @@ From there on, when changing code, one only needs to run `make` inside `build`.
 ## Running
 
 Single run with input file: `neo_rt.x driftorbit`.
-An example input file can be found in `test/base`.
+An example input file can be found in `examples/base`.
 Note that the name of the input file is given without file ending, that
 is because this is also the name (prefix) to use for output files.
 
@@ -54,4 +54,4 @@ Used by `run_driftorbit.py`:
 
 ## Postprocessing
 
-* `test/plot_torque.py` is the most recent plotting utility for toroidal torque
+* `examples/plot_torque.py` is the most recent plotting utility for toroidal torque
