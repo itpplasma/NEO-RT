@@ -123,13 +123,11 @@ target_link_libraries(test_frequencies.x
 neo_rt
 )
 
-add_executable(test_reslines.x
-  TEST/test_reslines.f90
-)
+add_executable(test_reslines.x TEST/test_reslines.f90)
+target_link_libraries(test_reslines.x neo_rt)
 
-target_link_libraries(test_reslines.x
-  neo_rt
-)
+add_executable(test_bounce.x TEST/test_bounce.f90)
+target_link_libraries(test_bounce.x neo_rt )
 
 ### Tests
 add_test( test_magfie neo_rt )
