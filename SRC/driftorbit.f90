@@ -605,7 +605,7 @@ contains
 !    ds = 1d-7*s0
     ds = 1d-7
     s = s0 - ds/2d0
-    call bounce(taub0)
+    call bounce_fast
     Omth = 2d0*pi/taub
     if (magdrift) then
        if (eta > etatp) then
@@ -621,7 +621,7 @@ contains
        end if
     end if
     s = s0 + ds/2d0
-    call bounce(taub0)
+    call bounce_fast
     dOmthds = (2d0*pi/taub - Omth)/ds
     if (magdrift) then
        if (eta > etatp) then
@@ -894,7 +894,8 @@ contains
     eta = etax
     call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_tB(OmtB, dummy, dummy2)
-    call bounce(2d0*pi/abs(Omth))
+    taub = 2d0*pi/abs(Omth)
+    call bounce_fast
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
     thatt = 1d0
@@ -933,7 +934,8 @@ contains
     eta = etax
     call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_tB(OmtB, dummy, dummy2)
-    call bounce(2d0*pi/abs(Omth))
+    taub = 2d0*pi/abs(Omth)
+    call bounce_fast
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
     thatt = 1d0
@@ -1017,7 +1019,8 @@ contains
     eta = etax(1)
     call Om_th(Omth, dOmthdv, dOmthdeta)
     call Om_tB(OmtB, dummy, dummy2)
-    call bounce(2d0*pi/abs(Omth))
+    taub = 2d0*pi/abs(Omth)
+    call bounce_fast
     Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
     thatt = 1d0
@@ -1376,7 +1379,8 @@ module lineint
 
     ydot(1) = dGdeta           ! vbar
     ydot(2) = -dGdv            ! etabar
-    call bounce(2d0*pi/Omth)
+    taub = 2d0*pi/abs(Omth)
+    call bounce_fast
     ydot(3) = (vmax2-vmin2)*(etamax-etamin)*D11_ode()/vth            ! D11
     ydot(4) = (vmax2-vmin2)*(etamax-etamin)*D11_ode()*(v/vth)**2/vth ! D12
 
