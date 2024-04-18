@@ -18,7 +18,7 @@ program main
   character(:), allocatable :: runname
   integer :: tmplen
   logical :: plasmafile, profilefile
-  character(len=64) :: runmode = ''
+  character(len=64) :: runmode = 'torque'
 
   call get_command_argument(1, tmp, tmplen)
   runname = trim(adjustl(tmp))
