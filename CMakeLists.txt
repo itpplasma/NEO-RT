@@ -21,14 +21,6 @@ set(PROJECT_EXE_NAME "neo_rt.x")                  # Define the name
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 
-
-### External modules
-add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
-add_subdirectory("../spline" "spline")
-add_subdirectory("../contrib/quadpack" "quadpack")
-add_subdirectory("../contrib/vode" "vode")
-#add_subdirectory(POTATO/LATEST)  # contains also vode
-
 # Set default build type to Release if not specified
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -40,9 +32,20 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
   add_compile_options(-fbounds-check -finit-real=nan -fcheck=all -Wextra)
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
-  add_compile_options(-O3)
+  add_compile_options(-O3 -mavx2)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Profile")
+  add_compile_options(-O0 -pg)
+  add_link_options(-pg)
 endif()
 
+
+
+### External modules
+add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
+add_subdirectory("../spline" "spline")
+add_subdirectory("../contrib/quadpack" "quadpack")
+add_subdirectory("../contrib/vode" "vode")
+#add_subdirectory(POTATO/LATEST)  # contains also vode
 
 ### Define executable
 add_executable(${PROJECT_EXE_NAME}
