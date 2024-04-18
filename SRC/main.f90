@@ -18,7 +18,7 @@ program main
   character(:), allocatable :: runname
   integer :: tmplen
   logical :: plasmafile, profilefile
-  character(len=64) :: runmode
+  character(len=64) :: runmode = ''
 
   call get_command_argument(1, tmp, tmplen)
   runname = trim(adjustl(tmp))
@@ -60,6 +60,7 @@ program main
   call test_magfie
 
   if (runmode == 'test_profile') then
+    if (.not. profilefile) error stop 'need profile.in for test_profile'
      call test_profile
      stop
   elseif (runmode == 'test_bounce') then
@@ -72,7 +73,8 @@ program main
      call test_resline
      stop
   elseif (runmode == 'test_box') then
-      if (orbit_mode_transp<=0) error stop
+      if (orbit_mode_transp<=0) &
+        error stop 'need orbit_mode_transp>=0 for test_box'
       call test_box
       stop
   elseif (runmode == 'test_torque_integral') then
