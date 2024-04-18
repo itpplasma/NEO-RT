@@ -27,8 +27,8 @@ program main
 
   call do_magfie_init  ! init axisymmetric part of field from infile
   if (pertfile) then
-     ! init non-axisymmetric perturbation of field from infile_pert
-     call do_magfie_pert_init
+    ! init non-axisymmetric perturbation of field from infile_pert
+    call do_magfie_pert_init
   end if
 
   ! Init plasma profiles of radial electric field.
@@ -61,34 +61,34 @@ program main
 
   if (runmode == "test_profile") then
     if (.not. profilefile) error stop "need profile.in for test_profile"
-     call test_profile
-     stop
+    call test_profile
+    stop
   elseif (runmode == "test_bounce") then
-     call test_bounce
-     stop
+    call test_bounce
+    stop
   elseif (runmode == "test_torfreq") then
-     call test_torfreq
-     stop
+    call test_torfreq
+    stop
   elseif (runmode == "test_resline") then
-     call test_resline
-     stop
+    call test_resline
+    stop
   elseif (runmode == "test_box") then
-      if (orbit_mode_transp<=0) &
-        error stop "need orbit_mode_transp>=0 for test_box"
-      call test_box
-      stop
+    if (orbit_mode_transp<=0) &
+      error stop "need orbit_mode_transp>=0 for test_box"
+    call test_box
+    stop
   elseif (runmode == "test_torque_integral") then
-     call test_torque_integral
-     stop
+    call test_torque_integral
+    stop
   elseif (runmode == "test_integral") then
-     call test_integral
-     stop
+    call test_integral
+    stop
   elseif (runmode == "torque") then
-     call compute_torque
-     stop
+    call compute_torque
+    stop
   elseif (runmode == "transport") then
-      call test_machrange2
-      stop
+    call test_machrange2
+    stop
   end if
 
 contains
@@ -129,15 +129,15 @@ contains
     dM_tds = splineval(2)*efac/bfac
 
     if(orbit_mode_transp>0) then
-       allocate(sbox(size(data,1)+1))
-       allocate(taubins(size(sbox)+1))
-       sbox(1) = 0.0
-       sbox(size(sbox)) = 1.0
-       do k=1,(size(data,1)-1)
-          sbox(k+1) = (data(k,1)+data(k+1,1))/2d0
-       enddo
-       allocate(fluxint_box(2,size(sbox)+1))
-       allocate(torque_int_box(size(sbox)+1))
+      allocate(sbox(size(data,1)+1))
+      allocate(taubins(size(sbox)+1))
+      sbox(1) = 0.0
+      sbox(size(sbox)) = 1.0
+      do k=1,(size(data,1)-1)
+        sbox(k+1) = (data(k,1)+data(k+1,1))/2d0
+      enddo
+      allocate(fluxint_box(2,size(sbox)+1))
+      allocate(torque_int_box(size(sbox)+1))
     end if
 
     deallocate(data)
@@ -161,7 +161,7 @@ contains
     read (1,*)
     allocate(plasma(nplasma,6))
     do i=1,nplasma
-       read (1,*) plasma(i,:)
+      read (1,*) plasma(i,:)
     enddo
     dxm1=1.d0/(plasma(2,1)-plasma(1,1))
     close(1)
@@ -211,11 +211,11 @@ contains
     sigv = 1
 
     if (comptorque) then
-       ! thermodynamic forces
-       A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
-       A2 = dTi1ds/Ti1
+      ! thermodynamic forces
+      A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
+      A2 = dTi1ds/Ti1
 
-       print *, "A1 = ", A1, "A2 = ", A2
+      print *, "A1 = ", A1, "A2 = ", A2
     end if
   end subroutine init_test
 
@@ -517,36 +517,36 @@ contains
 
     told = 0d0
     do k = 2,n
-       yold = y
-       s1old = s1
-       tout = taub
-       call dvode_f90(tsorb, neq, y, ti, tout, itask, istate, options,&
-            g_fcn = sroots)
-       if (istate == 2) exit
-       if (istate == 3) then
-          taubins(sind) = taubins(sind) + ti-told
-          told = ti
-          call get_stats(rstats, istats, numevents, jroots)
-          if (jroots(2).ne.0) then
-             sind = sind + 1 ! moving outwards
-             sprev = snext
-             if (sind == size(sbox)+1) then
-                snext = 1e5
-             else
-                snext = sbox(sind)
-             end if
-          end if
-          if (jroots(1).ne.0) then
-             sind = sind - 1 ! moving inwards
-             snext = sprev
-             if (sind == 1) then
-                sprev = -1e5
-             else
-                sprev = sbox(sind-1)
-             end if
-          end if
-          print *, y(1), sind, s1
-       end if
+      yold = y
+      s1old = s1
+      tout = taub
+      call dvode_f90(tsorb, neq, y, ti, tout, itask, istate, options,&
+          g_fcn = sroots)
+      if (istate == 2) exit
+      if (istate == 3) then
+        taubins(sind) = taubins(sind) + ti-told
+        told = ti
+        call get_stats(rstats, istats, numevents, jroots)
+        if (jroots(2).ne.0) then
+            sind = sind + 1 ! moving outwards
+            sprev = snext
+            if (sind == size(sbox)+1) then
+              snext = 1e5
+            else
+              snext = sbox(sind)
+            end if
+        end if
+        if (jroots(1).ne.0) then
+            sind = sind - 1 ! moving inwards
+            snext = sprev
+            if (sind == 1) then
+              sprev = -1e5
+            else
+              sprev = sbox(sind-1)
+            end if
+        end if
+        print *, y(1), sind, s1
+      end if
     end do
     !if (sind /= sind0) then
     !   write(6,*) s, s1, sind0, sind, v, eta, etatp, etadt
@@ -612,15 +612,15 @@ contains
          "14:dOmphdeta              "//&
          "15:dOmphds                "
     do k = 0, n-1
-       eta = etamin*(1d0 + exp(aa*k+b))
-       call Om_ph(Omph, dOmphdv, dOmphdeta)
-       call Om_th(Omth, dOmthdv, dOmthdeta)
-       call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
-       call d_Om_ds(dOmthds, dOmphds)
-       write(9, *) eta, etatp, etadt,&
-            Om_tE, OmtB, dOmtbdv, dOmtbdeta,&
-            Omth, dOmthdv, dOmthdeta, dOmthds,&
-            Omph, dOmphdv, dOmphdeta, dOmphds
+      eta = etamin*(1d0 + exp(aa*k+b))
+      call Om_ph(Omph, dOmphdv, dOmphdeta)
+      call Om_th(Omth, dOmthdv, dOmthdeta)
+      call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+      call d_Om_ds(dOmthds, dOmphds)
+      write(9, *) eta, etatp, etadt,&
+          Om_tE, OmtB, dOmtbdv, dOmtbdeta,&
+          Omth, dOmthdv, dOmthdeta, dOmthds,&
+          Omph, dOmphdv, dOmphdeta, dOmphds
     end do
     close(unit=9)
   end subroutine test_torfreq
@@ -646,31 +646,31 @@ contains
     open(unit=10, file=trim(adjustl(runname))//"_resline_pct.out", recl=1024)
     open(unit=11, file=trim(adjustl(runname))//"_resline_t.out", recl=1024)
     do k = 0, n-1
-       v = vmin + k/(n-1d0)*(vmax-vmin)
+      v = vmin + k/(n-1d0)*(vmax-vmin)
 
-       if (.not. nopassing) then
-          ! resonance (passing)
-          sigv = 1
-          call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
-          do kr = 1,nroots
-             etaresp = driftorbit_root(1d-8*abs(Om_tE),roots(kr,1),roots(kr,2))
-             write(9, *) v/vth, kr, etaresp(1), 0d0, etatp
-          end do
-          sigv = -1
-          call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
-          do kr = 1,nroots
-             etaresp = driftorbit_root(1d-8*abs(Om_tE),roots(kr,1),roots(kr,2))
-             write(10, *) v/vth, kr, etaresp(1), 0d0, etatp
-          end do
-       end if
+      if (.not. nopassing) then
+        ! resonance (passing)
+        sigv = 1
+        call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
+        do kr = 1,nroots
+            etaresp = driftorbit_root(1d-8*abs(Om_tE),roots(kr,1),roots(kr,2))
+            write(9, *) v/vth, kr, etaresp(1), 0d0, etatp
+        end do
+        sigv = -1
+        call driftorbit_coarse(etatp*epsp, etatp*(1-epsp), roots, nroots)
+        do kr = 1,nroots
+            etaresp = driftorbit_root(1d-8*abs(Om_tE),roots(kr,1),roots(kr,2))
+            write(10, *) v/vth, kr, etaresp(1), 0d0, etatp
+        end do
+      end if
 
-       ! resonance (trapped)
-       sigv = 1
-       call driftorbit_coarse(etatp*(1+epst), etadt*(1-epst), roots, nroots)
-       do kr = 1,nroots
-          etarest = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
-          write(11, *) v/vth, kr, etarest(1), etatp, etadt
-       end do
+      ! resonance (trapped)
+      sigv = 1
+      call driftorbit_coarse(etatp*(1+epst), etadt*(1-epst), roots, nroots)
+      do kr = 1,nroots
+        etarest = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+        write(11, *) v/vth, kr, etarest(1), etatp, etadt
+      end do
     end do
     close(unit=11)
     close(unit=10)
@@ -789,19 +789,19 @@ contains
             etamin = epsp*etatp
             etamax = (1-epsp)*etatp
             if (odeint) then
-                fluxrespctr = flux_integral_ode(vminp, vmaxp)
+              fluxrespctr = flux_integral_ode(vminp, vmaxp)
             elseif (vsteps > 0) then
-                fluxrespctr = flux_integral_mid(vminp, vmaxp)
+              fluxrespctr = flux_integral_mid(vminp, vmaxp)
             else
-                fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
+              fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
             end if
             fluxpctr = fluxpctr + fluxrespctr
             tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
             tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
             if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
-                write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
-                close(unit=9)
+              open(unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
+              write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
+              close(unit=9)
             end if
           end if
 
@@ -815,9 +815,9 @@ contains
             fluxrest = flux_integral_mid(vmint, vmaxt)
           else
             if (mth == 0) then
-                fluxrest = flux_integral(vmint, vmaxt, tol0)
+              fluxrest = flux_integral(vmint, vmaxt, tol0)
             else
-                fluxrest = flux_integral(vmint, vmaxt, tolt)
+              fluxrest = flux_integral(vmint, vmaxt, tolt)
             end if
           end if
           fluxt = fluxt + fluxrest
@@ -858,9 +858,9 @@ contains
     ! Index 1 is D11, index 2 D12.
     open(unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
     write(9, *) M_t, fluxpco(1), fluxpctr(1), fluxt(1),&
-        fluxpco(1) + fluxpctr(1) + fluxt(1),&
-        fluxpco(2), fluxpctr(2), fluxt(2),&
-        fluxpco(2) + fluxpctr(2) + fluxt(2)
+      fluxpco(1) + fluxpctr(1) + fluxt(1),&
+      fluxpco(2), fluxpctr(2), fluxt(2),&
+      fluxpco(2) + fluxpctr(2) + fluxt(2)
     close(unit=9)
   end subroutine test_machrange2
 
@@ -915,31 +915,31 @@ contains
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
-       vold = v
-       v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
+      vold = v
+      v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
 
-       call driftorbit_coarse(etamin, etamax, roots, nroots)
-       if (nroots == 0) cycle
+      call driftorbit_coarse(etamin, etamax, roots, nroots)
+      if (nroots == 0) cycle
 
-       do kr = 1,nroots
-          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-          eta = eta_res(1)
-          D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
-          D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
-          if ((ku == 1) .or. (ku == nu-1)) then
-             D11 = D11/2d0
-             D12 = D12/2d0
-          end if
-          D11sum = D11sum + D11
-          D12sum = D12sum + D12
-       end do
+      do kr = 1,nroots
+        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+        eta = eta_res(1)
+        D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
+        D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
+        if ((ku == 1) .or. (ku == nu-1)) then
+            D11 = D11/2d0
+            D12 = D12/2d0
+        end if
+        D11sum = D11sum + D11
+        D12sum = D12sum + D12
+      end do
 
-       xs = (v/vth)**2
-       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+      xs = (v/vth)**2
+      kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-       write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
-            (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, xs, kappa2s, 0d0, etatp
+      write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
+          (eta_res(1)-etamin)/(etamax-etamin),&
+          vth, B0, xs, kappa2s, 0d0, etatp
     end do
     print *, "D11/Dp (SUM) = ", D11sum/Dp, D12sum/Dp
     close(unit=10)
@@ -969,31 +969,31 @@ contains
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
-       vold = v
-       v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
+      vold = v
+      v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
 
-       call driftorbit_coarse(etamin, etamax, roots, nroots)
-       if (nroots == 0) cycle
+      call driftorbit_coarse(etamin, etamax, roots, nroots)
+      if (nroots == 0) cycle
 
-       do kr = 1,nroots
-          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-          eta = eta_res(1)
-          D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
-          D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
-          if ((ku == 1) .or. (ku == nu-1)) then
-             D11 = D11/2d0
-             D12 = D12/2d0
-          end if
-          D11sum = D11sum + D11
-          D12sum = D12sum + D12
-       end do
+      do kr = 1,nroots
+        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+        eta = eta_res(1)
+        D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
+        D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
+        if ((ku == 1) .or. (ku == nu-1)) then
+            D11 = D11/2d0
+            D12 = D12/2d0
+        end if
+        D11sum = D11sum + D11
+        D12sum = D12sum + D12
+      end do
 
-       xs = (v/vth)**2
-       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+      xs = (v/vth)**2
+      kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-       write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
-            (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, xs, kappa2s, 0d0, etatp
+      write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
+          (eta_res(1)-etamin)/(etamax-etamin),&
+          vth, B0, xs, kappa2s, 0d0, etatp
     end do
     print *, "D11/Dp (SUM) = ", D11sum/Dp, D12sum/Dp
     close(unit=10)
@@ -1021,31 +1021,31 @@ contains
     v = vmax2
     vold = vmax2
     do ku = 0, nu-1
-       vold = v
-       v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
+      vold = v
+      v = vmax2 - ku*(vmax2-vmin2)/(nu-1)
 
-       call driftorbit_coarse(etamin, etamax, roots, nroots)
-       if (nroots == 0) cycle
+      call driftorbit_coarse(etamin, etamax, roots, nroots)
+      if (nroots == 0) cycle
 
-       do kr = 1,nroots
-          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-          eta = eta_res(1)
-          D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
-          D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
-          if ((ku == 1) .or. (ku == nu-1)) then
-             D11 = D11/2d0
-             D12 = D12/2d0
-          end if
-          D11sum = D11sum + D11
-          D12sum = D12sum + D12
-       end do
+      do kr = 1,nroots
+        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+        eta = eta_res(1)
+        D11 = (vold-v)/vth*D11int_u(v/vth)*dsdreff**(-2)
+        D12 = (vold-v)/vth*D12int_u(v/vth)*dsdreff**(-2)
+        if ((ku == 1) .or. (ku == nu-1)) then
+            D11 = D11/2d0
+            D12 = D12/2d0
+        end if
+        D11sum = D11sum + D11
+        D12sum = D12sum + D12
+      end do
 
-       xs = (v/vth)**2
-       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+      xs = (v/vth)**2
+      kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-       write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
-            (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, xs, kappa2s, etatp, etadt
+      write(10, *) v/vth, eta_res(1), D11/Dp, D12/Dp,&
+          (eta_res(1)-etamin)/(etamax-etamin),&
+          vth, B0, xs, kappa2s, etatp, etadt
     end do
     print *, "D11/Dp (SUM) = ", D11sum/Dp, D12sum/Dp
     close(unit=10)
@@ -1091,27 +1091,27 @@ contains
 
       du = (vmax2 - vmin2)/(vth*nu)
       do ku = 0, nu-1
-         ux = vmin2/vth + du/2d0 + ku*du
-         v = ux*vth
+        ux = vmin2/vth + du/2d0 + ku*du
+        v = ux*vth
 
-         call driftorbit_coarse(etamin, etamax, roots, nroots)
-         if (nroots == 0) cycle
+        call driftorbit_coarse(etamin, etamax, roots, nroots)
+        if (nroots == 0) cycle
 
-         open(unit=11, file=trim(adjustl(runname))//"_int_cop.out", recl=8192, position="append")
-         do kr = 1,nroots
-            eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-            eta = eta_res(1)
-            write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
-            dTphidu = Tphi_int(ux, eta_res)
-            Tphi = Tphi + dTphidu*du
-         end do
-         close(unit=11)
+        open(unit=11, file=trim(adjustl(runname))//"_int_cop.out", recl=8192, position="append")
+        do kr = 1,nroots
+          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+          eta = eta_res(1)
+          write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
+          dTphidu = Tphi_int(ux, eta_res)
+          Tphi = Tphi + dTphidu*du
+        end do
+        close(unit=11)
 
-         kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+        kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-         write(10, *) ux, eta_res(1), dTphidu, &
-               (eta_res(1)-etamin)/(etamax-etamin),&
-               vth, B0, kappa2s, 0d0, etatp
+        write(10, *) ux, eta_res(1), dTphidu, &
+              (eta_res(1)-etamin)/(etamax-etamin),&
+              vth, B0, kappa2s, 0d0, etatp
       end do
       print *, "Tphi (SUM) = ", Tphi/dVds
       close(unit=10)
@@ -1134,27 +1134,27 @@ contains
 
       du = (vmax2 - vmin2)/(vth*nu)
       do ku = 0, nu-1
-         ux = vmin2/vth + du/2d0 + ku*du
-         v = ux*vth
+        ux = vmin2/vth + du/2d0 + ku*du
+        v = ux*vth
 
-         call driftorbit_coarse(etamin, etamax, roots, nroots)
-         if (nroots == 0) cycle
+        call driftorbit_coarse(etamin, etamax, roots, nroots)
+        if (nroots == 0) cycle
 
-         open(unit=11, file=trim(adjustl(runname))//"_int_ctr.out", recl=8192, position="append")
-         do kr = 1,nroots
-            eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-            eta = eta_res(1)
-            write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
-            dTphidu = Tphi_int(ux, eta_res)
-            Tphi = Tphi + dTphidu*du
-         end do
-         close(unit=11)
+        open(unit=11, file=trim(adjustl(runname))//"_int_ctr.out", recl=8192, position="append")
+        do kr = 1,nroots
+          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+          eta = eta_res(1)
+          write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
+          dTphidu = Tphi_int(ux, eta_res)
+          Tphi = Tphi + dTphidu*du
+        end do
+        close(unit=11)
 
-         kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+        kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-         write(10, *) ux, eta_res(1), dTphidu, &
-               (eta_res(1)-etamin)/(etamax-etamin),&
-               vth, B0, kappa2s, 0d0, etatp
+        write(10, *) ux, eta_res(1), dTphidu, &
+              (eta_res(1)-etamin)/(etamax-etamin),&
+              vth, B0, kappa2s, 0d0, etatp
       end do
       print *, "Tphi (SUM) = ", Tphi/dVds
       close(unit=10)
@@ -1178,27 +1178,27 @@ contains
 
     du = (vmax2 - vmin2)/(vth*nu)
     do ku = 0, nu-1
-       ux = vmin2/vth + du/2d0 + ku*du
-       v = ux*vth
+      ux = vmin2/vth + du/2d0 + ku*du
+      v = ux*vth
 
-       call driftorbit_coarse(etamin, etamax, roots, nroots)
-       if (nroots == 0) cycle
+      call driftorbit_coarse(etamin, etamax, roots, nroots)
+      if (nroots == 0) cycle
 
-       open(unit=11, file=trim(adjustl(runname))//"_int_t.out", recl=8192, position="append")
-       do kr = 1,nroots
-          eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
-          eta = eta_res(1)
-          write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
-          dTphidu = Tphi_int(ux, eta_res)
-          Tphi = Tphi + dTphidu*du
-       end do
-       close(unit=11)
+      open(unit=11, file=trim(adjustl(runname))//"_int_t.out", recl=8192, position="append")
+      do kr = 1,nroots
+        eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
+        eta = eta_res(1)
+        write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
+        dTphidu = Tphi_int(ux, eta_res)
+        Tphi = Tphi + dTphidu*du
+      end do
+      close(unit=11)
 
-       kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
+      kappa2s = (1d0/eta_res(1)-B0*(1d0-eps))/(2d0*B0*eps)
 
-       write(10, *) ux, eta_res(1), dTphidu, &
-            (eta_res(1)-etamin)/(etamax-etamin),&
-            vth, B0, kappa2s, 0d0, etatp
+      write(10, *) ux, eta_res(1), dTphidu, &
+          (eta_res(1)-etamin)/(etamax-etamin),&
+          vth, B0, kappa2s, 0d0, etatp
     end do
     print *, "Tphi (SUM) = ", Tphi/dVds
     close(unit=10)
@@ -1243,11 +1243,11 @@ contains
     dOm_tEds = vth*dM_tds/R0
 
     if (supban) then
-        mthmin = 0
-        mthmax = 0
+      mthmin = 0
+      mthmax = 0
     else
-        mthmin = -ceiling(2*mph*q)
-        mthmax = ceiling(2*mph*q)
+      mthmin = -ceiling(2*mph*q)
+      mthmax = ceiling(2*mph*q)
     end if
 
     mth0co = 0
@@ -1260,88 +1260,88 @@ contains
     if (intoutput) open(unit=11, file=trim(adjustl(runname))//"_intoutput.out", recl=1024)
 
     do j = mthmin, mthmax
-        mth = j
+      mth = j
 
-        vminp = 1d-6*vth
-        vmaxp = 4d0*vth
+      vminp = 1d-6*vth
+      vmaxp = 4d0*vth
 
-        ! Hardcoded alternative up to 15 keV
-        !vminp = sqrt(2d0*1e-3*ev/mi)
-        !vmaxp = sqrt(2d0*(15e3+1e-3)*ev/mi)
+      ! Hardcoded alternative up to 15 keV
+      !vminp = sqrt(2d0*1e-3*ev/mi)
+      !vmaxp = sqrt(2d0*(15e3+1e-3)*ev/mi)
 
-        vmint = vminp
-        vmaxt = vmaxp
+      vmint = vminp
+      vmaxt = vmaxp
 
-        Tresco = 0d0
-        Tresctr = 0d0
-        Trest = 0d0
+      Tresco = 0d0
+      Tresctr = 0d0
+      Trest = 0d0
 
-        ! superbanana resonance
-        if (supban) then
+      ! superbanana resonance
+      if (supban) then
+        sigv = 1
+        vmint = 0.01*vth
+        vmaxt = 5*vth
+        etamin = (1+epst)*etatp
+        etamax = (1-epst)*etadt
+        Trest = torque_integral_mid(vmint, vmaxt)
+        Tt = Tt + Trest
+      else
+        ! passing resonance (co-passing)
+        if (.not. nopassing) then
           sigv = 1
-          vmint = 0.01*vth
-          vmaxt = 5*vth
-          etamin = (1+epst)*etatp
-          etamax = (1-epst)*etadt
-          Trest = torque_integral_mid(vmint, vmaxt)
-          Tt = Tt + Trest
-        else
-          ! passing resonance (co-passing)
-          if (.not. nopassing) then
-              sigv = 1
-              etamin = epsp*etatp
-              etamax = (1-epsp)*etatp
-              Tresco = torque_integral_mid(vminp, vmaxp)
-              Tco = Tco + Tresco
-              if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//"_torque_box_co.out", recl=8192,&
-                    position="append")
-                write(9, *) mth, torque_int_box
-                close(unit=9)
-              end if
-          end if
-
-          ! passing resonance (counter-passing)
-          if (.not. nopassing) then
-              sigv = -1
-              etamin = epsp*etatp
-              etamax = (1-epsp)*etatp
-              Tresctr = torque_integral_mid(vminp, vmaxp)
-              Tctr = Tctr + Tresctr
-              if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//"_torque_box_ctr.out", recl=8192,&
-                    position="append")
-                write(9, *) mth, torque_int_box
-                close(unit=9)
-              end if
-          end if
-
-          ! trapped resonance (trapped)
-          sigv = 1
-          etamin = (1+epst)*etatp
-          etamax = (1-epst)*etadt
-          Trest = torque_integral_mid(vmint, vmaxt)
-          Tt = Tt + Trest
+          etamin = epsp*etatp
+          etamax = (1-epsp)*etatp
+          Tresco = torque_integral_mid(vminp, vmaxp)
+          Tco = Tco + Tresco
           if (orbit_mode_transp>0) then
-              open(unit=9, file=trim(adjustl(runname))//"_torque_box_t.out", recl=8192,&
+            open(unit=9, file=trim(adjustl(runname))//"_torque_box_co.out", recl=8192,&
                 position="append")
-              write(9, *) mth, torque_int_box
-              close(unit=9)
+            write(9, *) mth, torque_int_box
+            close(unit=9)
           end if
         end if
 
-        print *, ""
-        print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
-        write(*,"(4ES12.2,2F12.2)") Tresco, Tresctr,&
-          Trest, Tresco + Tresctr + Trest
-
-        open(unit=10, file=trim(adjustl(fn2)), recl=1024, position="append")
-        write(10, *) mth, Tresco, Tresctr, Trest
-        close(unit=10)
-
-        if (supban) then
-          exit
+        ! passing resonance (counter-passing)
+        if (.not. nopassing) then
+          sigv = -1
+          etamin = epsp*etatp
+          etamax = (1-epsp)*etatp
+          Tresctr = torque_integral_mid(vminp, vmaxp)
+          Tctr = Tctr + Tresctr
+          if (orbit_mode_transp>0) then
+            open(unit=9, file=trim(adjustl(runname))//"_torque_box_ctr.out", recl=8192,&
+                position="append")
+            write(9, *) mth, torque_int_box
+            close(unit=9)
+          end if
         end if
+
+        ! trapped resonance (trapped)
+        sigv = 1
+        etamin = (1+epst)*etatp
+        etamax = (1-epst)*etadt
+        Trest = torque_integral_mid(vmint, vmaxt)
+        Tt = Tt + Trest
+        if (orbit_mode_transp>0) then
+          open(unit=9, file=trim(adjustl(runname))//"_torque_box_t.out", recl=8192,&
+            position="append")
+          write(9, *) mth, torque_int_box
+          close(unit=9)
+        end if
+      end if
+
+      print *, ""
+      print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
+      write(*,"(4ES12.2,2F12.2)") Tresco, Tresctr,&
+        Trest, Tresco + Tresctr + Trest
+
+      open(unit=10, file=trim(adjustl(fn2)), recl=1024, position="append")
+      write(10, *) mth, Tresco, Tresctr, Trest
+      close(unit=10)
+
+      if (supban) then
+        exit
+      end if
     end do
     open(unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
     write(9, *) s, dVds, M_t, Tco, Tctr, Tt
