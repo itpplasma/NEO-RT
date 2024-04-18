@@ -133,4 +133,4 @@ add_executable(test_bounce.x TEST/test_bounce.f90)
 target_link_libraries(test_bounce.x neo_rt )
 
 ### Tests
-add_test( test_magfie neo_rt )
+add_test(test_magfie neo_rt)
