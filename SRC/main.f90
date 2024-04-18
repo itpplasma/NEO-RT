@@ -18,7 +18,7 @@ program main
   character(:), allocatable :: runname
   integer :: tmplen
   logical :: plasmafile, profilefile
-  character(len=64) :: runmode = 'torque'
+  character(len=64) :: runmode = "torque"
 
   call get_command_argument(1, tmp, tmplen)
   runname = trim(adjustl(tmp))
@@ -33,24 +33,24 @@ program main
 
   ! Init plasma profiles of radial electric field.
   ! Read profile.in in cases where it's needed.
-  inquire(file='profile.in', exist=profilefile)
+  inquire(file="profile.in", exist=profilefile)
   if (profilefile) then
     call init_profile
   else
     if (orbit_mode_transp>0) then
-      stop 'need profile.in for finite orbit width transport'
+      stop "need profile.in for finite orbit width transport"
     elseif (intoutput .or. nonlin) then
-      stop 'need profile.in for integral output or nonlinear calculation'
+      stop "need profile.in for integral output or nonlinear calculation"
     end if
   end if
 
-  inquire(file='plasma.in', exist=plasmafile)
+  inquire(file="plasma.in", exist=plasmafile)
   ! init plasma density and temperature profiles
   if (plasmafile) then
     call init_plasma
   else
     if (comptorque .or. nonlin) then
-      stop 'need plasma.in for nonlinear or torque calculation'
+      stop "need plasma.in for nonlinear or torque calculation"
     end if
   end if
 
@@ -59,34 +59,34 @@ program main
 
   call test_magfie
 
-  if (runmode == 'test_profile') then
-    if (.not. profilefile) error stop 'need profile.in for test_profile'
+  if (runmode == "test_profile") then
+    if (.not. profilefile) error stop "need profile.in for test_profile"
      call test_profile
      stop
-  elseif (runmode == 'test_bounce') then
+  elseif (runmode == "test_bounce") then
      call test_bounce
      stop
-  elseif (runmode == 'test_torfreq') then
+  elseif (runmode == "test_torfreq") then
      call test_torfreq
      stop
-  elseif (runmode == 'test_resline') then
+  elseif (runmode == "test_resline") then
      call test_resline
      stop
-  elseif (runmode == 'test_box') then
+  elseif (runmode == "test_box") then
       if (orbit_mode_transp<=0) &
-        error stop 'need orbit_mode_transp>=0 for test_box'
+        error stop "need orbit_mode_transp>=0 for test_box"
       call test_box
       stop
-  elseif (runmode == 'test_torque_integral') then
+  elseif (runmode == "test_torque_integral") then
      call test_torque_integral
      stop
-  elseif (runmode == 'test_integral') then
+  elseif (runmode == "test_integral") then
      call test_integral
      stop
-  elseif (runmode == 'torque') then
+  elseif (runmode == "torque") then
      call compute_torque
      stop
-  elseif (runmode == 'transport') then
+  elseif (runmode == "transport") then
       call test_machrange2
       stop
   end if
@@ -103,7 +103,7 @@ contains
                       inp_swi, orbit_mode_avg, orbit_mode_transp, vsteps, &
                       comptorque, intoutput, runmode
 
-    open(unit=9,file=trim(adjustl(runname))//'.in',status='old',form='formatted')
+    open(unit=9,file=trim(adjustl(runname))//".in",status="old",form="formatted")
     read(9, nml=params)
     close(unit=9)
 
@@ -118,7 +118,7 @@ contains
     real(8) :: splineval(3)
     integer :: k
 
-    call readdata('profile.in', 3, data)
+    call readdata("profile.in", 3, data)
 
     allocate(Mt_spl_coeff(size(data(:,1)),5))
 
@@ -155,7 +155,7 @@ contains
     integer :: nplasma, i
 
     ! read plasma file
-    open(1,file='plasma.in')
+    open(1,file="plasma.in")
     read (1,*)
     read (1,*) nplasma,am1,am2,Z1,Z2
     read (1,*)
@@ -215,7 +215,7 @@ contains
        A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
        A2 = dTi1ds/Ti1
 
-       print *, 'A1 = ', A1, 'A2 = ', A2
+       print *, "A1 = ", A1, "A2 = ", A2
     end if
   end subroutine init_test
 
@@ -244,7 +244,7 @@ contains
     Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
     Drp = 4*mph*q/(eps**2*sqrt(pi))  ! actually this is Drp/Dp
 
-    open(unit=9, file=trim(adjustl(runname))//'_magfie_param.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//"_magfie_param.out", recl=1024)
 
     thmin = -pi
     thmax = pi
@@ -294,8 +294,8 @@ contains
 
     close(unit=9)
 
-    open(unit=9, file=trim(adjustl(runname))//'_magfie.out', recl=1024)
-!    open(unit=10, file=trim(adjustl(runname))//'_magfie_neo.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//"_magfie.out", recl=1024)
+!    open(unit=10, file=trim(adjustl(runname))//"_magfie_neo.out", recl=1024)
     do k = 0, nth-1
        x(3) = thmin + k*(thmax-thmin)/(nth-1)
        call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
@@ -399,7 +399,7 @@ contains
     y(2) = 0.0 ! reset toroidal angle
     itask = 1
     istate = 1
-    open(unit=9, file=trim(adjustl(runname))//'_bounce_zeroorder.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//"_bounce_zeroorder.out", recl=1024)
     do k = 2,n
        call do_magfie(y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
        write(9, *) t/taub, y, q, taub, v**2*bounceavg(3), y(1)+c*mi*y(4)*hcovar(2)*q/(qi*psi_pr)
@@ -416,7 +416,7 @@ contains
     y(1) = y(1) + c*mi*y0(4)*hcovar(2)*q/(qi*psi_pr)
     itask = 1
     istate = 1
-    open(unit=9, file=trim(adjustl(runname))//'_bounce_full.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//"_bounce_full.out", recl=1024)
     do k = 2,n
        call do_magfie( y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
        write(9, *) t/taub, y, q, taub, v**2*bounceavg(3)
@@ -433,7 +433,7 @@ contains
     y(1) = y(1) + c*mi*y0(4)*hcovar(2)*q/(qi*psi_pr)
     itask = 1
     istate = 1
-    open(unit=9, file=trim(adjustl(runname))//'_bounce_rela.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//"_bounce_rela.out", recl=1024)
     do k = 2,n
        call do_magfie( y(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl )
        write(9, *) t/taub, y, q, taub, v**2*bounceavg(3)
@@ -550,7 +550,7 @@ contains
     end do
     !if (sind /= sind0) then
     !   write(6,*) s, s1, sind0, sind, v, eta, etatp, etadt
-    !   stop('START AND END RADIUS OF ORBIT ARE NOT THE SAME')
+    !   stop("START AND END RADIUS OF ORBIT ARE NOT THE SAME")
     !end if
     print *, ti/taub, sind, s1
     taubins(sind) = taubins(sind) + taub-told
@@ -595,22 +595,22 @@ contains
     call disp("test_torfreq: Om_th_approx    = ", v/(q*R0*sqrt(2d0/eps)))
     call disp("test_torfreq: Om_th_deeptrap  = ", Omth)
 
-    open(unit=9, file=trim(adjustl(runname))//'_torfreq.out', recl=1024)
-    write(9, *) '!1:eta                   '//&
-         ' 2:etatp                  '//&
-         ' 3:etadt                  '//&
-         ' 4:Om_tE                  '//&
-         ' 5:OmtB                   '//&
-         ' 6:dOmtbdv                '//&
-         ' 7:dOmtbdeta              '//&
-         ' 8:Omth                   '//&
-         ' 9:dOmthdv                '//&
-         '10:dOmthdeta              '//&
-         '11:dOmthds                '//&
-         '12:Omph                   '//&
-         '13:dOmphdv                '//&
-         '14:dOmphdeta              '//&
-         '15:dOmphds                '
+    open(unit=9, file=trim(adjustl(runname))//"_torfreq.out", recl=1024)
+    write(9, *) "!1:eta                   "//&
+         " 2:etatp                  "//&
+         " 3:etadt                  "//&
+         " 4:Om_tE                  "//&
+         " 5:OmtB                   "//&
+         " 6:dOmtbdv                "//&
+         " 7:dOmtbdeta              "//&
+         " 8:Omth                   "//&
+         " 9:dOmthdv                "//&
+         "10:dOmthdeta              "//&
+         "11:dOmthds                "//&
+         "12:Omph                   "//&
+         "13:dOmphdv                "//&
+         "14:dOmphdeta              "//&
+         "15:dOmphds                "
     do k = 0, n-1
        eta = etamin*(1d0 + exp(aa*k+b))
        call Om_ph(Omph, dOmphdv, dOmphdeta)
@@ -642,9 +642,9 @@ contains
     etarest = etatp
     sigv = 1
 
-    open(unit=9, file=trim(adjustl(runname))//'_resline_pco.out', recl=1024)
-    open(unit=10, file=trim(adjustl(runname))//'_resline_pct.out', recl=1024)
-    open(unit=11, file=trim(adjustl(runname))//'_resline_t.out', recl=1024)
+    open(unit=9, file=trim(adjustl(runname))//"_resline_pco.out", recl=1024)
+    open(unit=10, file=trim(adjustl(runname))//"_resline_pct.out", recl=1024)
+    open(unit=11, file=trim(adjustl(runname))//"_resline_t.out", recl=1024)
     do k = 0, n-1
        v = vmin + k/(n-1d0)*(vmax-vmin)
 
@@ -681,7 +681,7 @@ contains
   !>
   !> Range of mach numbers depends on input parameters Mtmin, Mtmax and
   !> Mtnum.
-  !> Output file names depend on commandline parameter 'runname'.
+  !> Output file names depend on commandline parameter "runname".
   subroutine test_machrange2
     integer :: j, k
     real(8) :: fluxrespco(2), fluxrespctr(2),&
@@ -703,8 +703,8 @@ contains
     fluxpctr = 0d0
     fluxt = 0d0
 
-    write(fn1, *) trim(adjustl(runname))//'.out'
-    write(fn2, *) trim(adjustl(runname))//'_integral.out'
+    write(fn1, *) trim(adjustl(runname))//".out"
+    write(fn2, *) trim(adjustl(runname))//"_integral.out"
 
     ! absolute tolerances for integrals
     tol0 = 1d-15
@@ -777,7 +777,7 @@ contains
             tolpco(1) = max(1d-6*fluxpco(1), tolpco(1))
             tolpco(2) = max(1d-6*fluxpco(2), tolpco(2))
             if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//'_box_cop.out', recl=8192, position="append")
+                open(unit=9, file=trim(adjustl(runname))//"_box_cop.out", recl=8192, position="append")
                 write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
                 close(unit=9)
             end if
@@ -799,7 +799,7 @@ contains
             tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
             tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
             if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//'_box_ctr.out', recl=8192, position="append")
+                open(unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
                 write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
                 close(unit=9)
             end if
@@ -824,18 +824,18 @@ contains
           tolt(1) = max(1d-6*fluxt(1), tolt(1))
           tolt(2) = max(1d-6*fluxt(2), tolt(2))
           if (orbit_mode_transp>0) then
-            open(unit=9, file=trim(adjustl(runname))//'_box_t.out', recl=8192, position="append")
+            open(unit=9, file=trim(adjustl(runname))//"_box_t.out", recl=8192, position="append")
             write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
             close(unit=9)
           end if
       end if
 
-      print *, ''
+      print *, ""
       print *, "test_flux: Mt = ", M_t, ", mth = ", mth
-      write(*,'(4ES12.2,2F12.2)') fluxrespco(1), fluxrespctr(1),&
+      write(*,"(4ES12.2,2F12.2)") fluxrespco(1), fluxrespctr(1),&
             fluxrest(1), fluxrespco(1) + fluxrespctr(1) + fluxrest(1),&
             vminp/vth, vmint/vth
-      write(*,'(4ES12.2,2F12.2)') fluxrespco(2), fluxrespctr(2),&
+      write(*,"(4ES12.2,2F12.2)") fluxrespco(2), fluxrespctr(2),&
             fluxrest(2), fluxrespco(2) + fluxrespctr(2) + fluxrest(2),&
             vmaxp/vth, vmaxt/vth
 
@@ -880,9 +880,9 @@ contains
     call disp("test_integral: Poloidal mode mth   = ", 1d0*mth)
     print *, "test_integral: Boxes sbox = ", sbox
 
-    write(fn1,*) trim(adjustl(runname))//'_integral_pco.out'
-    write(fn2,*) trim(adjustl(runname))//'_integral_pct.out'
-    write(fn3,*) trim(adjustl(runname))//'_integral_t.out'
+    write(fn1,*) trim(adjustl(runname))//"_integral_pco.out"
+    write(fn2,*) trim(adjustl(runname))//"_integral_pct.out"
+    write(fn3,*) trim(adjustl(runname))//"_integral_t.out"
 
     nu = 1000
 
@@ -890,17 +890,17 @@ contains
     vmax2 = 3d0*vth
 
 
-    print *, '==CO-PASSING=='
+    print *, "==CO-PASSING=="
     sigv = 1
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
 
-    print *, 'vrange: ', vmin2/vth, vmax2/vth
-    print *, 'etarange: ', etamin, etamax
-    !if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-    !if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
+    print *, "vrange: ", vmin2/vth, vmax2/vth
+    print *, "etarange: ", etamin, etamax
+    !if (vsteps>0) print *, "D11/Dp (INT) = ", flux_integral(vmin2, vmax2, tol0)
+    !if (vsteps>0) print *, "D11/Dp (MID) = ", flux_integral_mid(vmin2, vmax2)
     !if (orbit_mode_transp>0) print *, fluxint_box(1,:)
-    !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
+    !print *, "D11/Dp (ODE) = ", flux_integral_ode(vmin2, vmax2)
     !vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     !vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
 
@@ -941,20 +941,20 @@ contains
             (eta_res(1)-etamin)/(etamax-etamin),&
             vth, B0, xs, kappa2s, 0d0, etatp
     end do
-    print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
+    print *, "D11/Dp (SUM) = ", D11sum/Dp, D12sum/Dp
     close(unit=10)
 
-    print *, '==CTR-PASSING=='
+    print *, "==CTR-PASSING=="
     sigv = -1
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
 
-    print *, 'vrange: ', vmin2/vth, vmax2/vth
-    print *, 'etarange: ', etamin, etamax
-    if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-    if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
+    print *, "vrange: ", vmin2/vth, vmax2/vth
+    print *, "etarange: ", etamin, etamax
+    if (vsteps>0) print *, "D11/Dp (INT) = ", flux_integral(vmin2, vmax2, tol0)
+    if (vsteps>0) print *, "D11/Dp (MID) = ", flux_integral_mid(vmin2, vmax2)
     if(orbit_mode_transp>0) print *, fluxint_box(1,:)
-    !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
+    !print *, "D11/Dp (ODE) = ", flux_integral_ode(vmin2, vmax2)
     !vmin2 = vmin2 + 1d-10*(vmax2-vmin2)
     !vmax2 = vmax2 - 1d-10*(vmax2-vmin2)
 
@@ -995,19 +995,19 @@ contains
             (eta_res(1)-etamin)/(etamax-etamin),&
             vth, B0, xs, kappa2s, 0d0, etatp
     end do
-    print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
+    print *, "D11/Dp (SUM) = ", D11sum/Dp, D12sum/Dp
     close(unit=10)
 
-    print *, '==TRAPPED=='
+    print *, "==TRAPPED=="
     sigv = 1d0
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     !call find_vlim_t(vmin2, vmax2)
-    !print *, 'vrange: ', vmin2/vth, vmax2/vth
+    !print *, "vrange: ", vmin2/vth, vmax2/vth
 
-    print *, 'vrange: ', vmin2/vth, vmax2/vth
-    if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-    if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
+    print *, "vrange: ", vmin2/vth, vmax2/vth
+    if (vsteps>0) print *, "D11/Dp (INT) = ", flux_integral(vmin2, vmax2, tol0)
+    if (vsteps>0) print *, "D11/Dp (MID) = ", flux_integral_mid(vmin2, vmax2)
     if(orbit_mode_transp>0) print *, fluxint_box(1,:)
 
     D11  = 0d0
@@ -1047,7 +1047,7 @@ contains
             (eta_res(1)-etamin)/(etamax-etamin),&
             vth, B0, xs, kappa2s, etatp, etadt
     end do
-    print *, 'D11/Dp (SUM) = ', D11sum/Dp, D12sum/Dp
+    print *, "D11/Dp (SUM) = ", D11sum/Dp, D12sum/Dp
     close(unit=10)
   end subroutine test_integral
 
@@ -1067,9 +1067,9 @@ contains
     call disp("test_torque_integral: Poloidal mode mth   = ", 1d0*mth)
     print *, "test_torque_integral: Boxes sbox = ", sbox
 
-    write(fn1,*) trim(adjustl(runname))//'_torque_integral_pco.out'
-    write(fn2,*) trim(adjustl(runname))//'_torque_integral_pct.out'
-    write(fn3,*) trim(adjustl(runname))//'_torque_integral_t.out'
+    write(fn1,*) trim(adjustl(runname))//"_torque_integral_pco.out"
+    write(fn2,*) trim(adjustl(runname))//"_torque_integral_pct.out"
+    write(fn3,*) trim(adjustl(runname))//"_torque_integral_t.out"
 
     nu = 1000
 
@@ -1077,13 +1077,13 @@ contains
     vmax2 = 3d0*vth
 
     if (.not. nopassing) then
-      print *, '==CO-PASSING=='
+      print *, "==CO-PASSING=="
       sigv = 1
       etamin = epsp*etatp
       etamax = (1-epsp)*etatp
 
-      print *, 'vrange: ', vmin2/vth, vmax2/vth
-      print *, 'etarange: ', etamin, etamax
+      print *, "vrange: ", vmin2/vth, vmax2/vth
+      print *, "etarange: ", etamin, etamax
 
       Tphi = 0d0
 
@@ -1097,11 +1097,11 @@ contains
          call driftorbit_coarse(etamin, etamax, roots, nroots)
          if (nroots == 0) cycle
 
-         open(unit=11, file=trim(adjustl(runname))//'_int_cop.out', recl=8192, position="append")
+         open(unit=11, file=trim(adjustl(runname))//"_int_cop.out", recl=8192, position="append")
          do kr = 1,nroots
             eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
             eta = eta_res(1)
-            write(11, '(i3, i3, f8.3, f8.3)') mth, kr, ux, eta_res(1)
+            write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
             dTphidu = Tphi_int(ux, eta_res)
             Tphi = Tphi + dTphidu*du
          end do
@@ -1113,20 +1113,20 @@ contains
                (eta_res(1)-etamin)/(etamax-etamin),&
                vth, B0, kappa2s, 0d0, etatp
       end do
-      print *, 'Tphi (SUM) = ', Tphi/dVds
+      print *, "Tphi (SUM) = ", Tphi/dVds
       close(unit=10)
 
-      print *, '==CTR-PASSING=='
+      print *, "==CTR-PASSING=="
       sigv = -1
       etamin = epsp*etatp
       etamax = (1-epsp)*etatp
 
-      print *, 'vrange: ', vmin2/vth, vmax2/vth
-      print *, 'etarange: ', etamin, etamax
-      !if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-      !if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
+      print *, "vrange: ", vmin2/vth, vmax2/vth
+      print *, "etarange: ", etamin, etamax
+      !if (vsteps>0) print *, "D11/Dp (INT) = ", flux_integral(vmin2, vmax2, tol0)
+      !if (vsteps>0) print *, "D11/Dp (MID) = ", flux_integral_mid(vmin2, vmax2)
       !if(orbit_mode_transp>0) print *, fluxint_box(1,:)
-      !print *, 'D11/Dp (ODE) = ', flux_integral_ode(vmin2, vmax2)
+      !print *, "D11/Dp (ODE) = ", flux_integral_ode(vmin2, vmax2)
 
       Tphi = 0d0
 
@@ -1140,11 +1140,11 @@ contains
          call driftorbit_coarse(etamin, etamax, roots, nroots)
          if (nroots == 0) cycle
 
-         open(unit=11, file=trim(adjustl(runname))//'_int_ctr.out', recl=8192, position="append")
+         open(unit=11, file=trim(adjustl(runname))//"_int_ctr.out", recl=8192, position="append")
          do kr = 1,nroots
             eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
             eta = eta_res(1)
-            write(11, '(i3, i3, f8.3, f8.3)') mth, kr, ux, eta_res(1)
+            write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
             dTphidu = Tphi_int(ux, eta_res)
             Tphi = Tphi + dTphidu*du
          end do
@@ -1156,20 +1156,20 @@ contains
                (eta_res(1)-etamin)/(etamax-etamin),&
                vth, B0, kappa2s, 0d0, etatp
       end do
-      print *, 'Tphi (SUM) = ', Tphi/dVds
+      print *, "Tphi (SUM) = ", Tphi/dVds
       close(unit=10)
     end if
 
-    print *, '==TRAPPED=='
+    print *, "==TRAPPED=="
     sigv = 1d0
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     !call find_vlim_t(vmin2, vmax2)
-    !print *, 'vrange: ', vmin2/vth, vmax2/vth
+    !print *, "vrange: ", vmin2/vth, vmax2/vth
 
-    print *, 'vrange: ', vmin2/vth, vmax2/vth
-    !if (vsteps>0) print *, 'D11/Dp (INT) = ', flux_integral(vmin2, vmax2, tol0)
-    !if (vsteps>0) print *, 'D11/Dp (MID) = ', flux_integral_mid(vmin2, vmax2)
+    print *, "vrange: ", vmin2/vth, vmax2/vth
+    !if (vsteps>0) print *, "D11/Dp (INT) = ", flux_integral(vmin2, vmax2, tol0)
+    !if (vsteps>0) print *, "D11/Dp (MID) = ", flux_integral_mid(vmin2, vmax2)
     !if(orbit_mode_transp>0) print *, fluxint_box(1,:)
 
     Tphi = 0d0
@@ -1184,11 +1184,11 @@ contains
        call driftorbit_coarse(etamin, etamax, roots, nroots)
        if (nroots == 0) cycle
 
-       open(unit=11, file=trim(adjustl(runname))//'_int_t.out', recl=8192, position="append")
+       open(unit=11, file=trim(adjustl(runname))//"_int_t.out", recl=8192, position="append")
        do kr = 1,nroots
           eta_res = driftorbit_root(max(1d-9*abs(Om_tE),1d-12), roots(kr,1), roots(kr,2))
           eta = eta_res(1)
-          write(11, '(i3, i3, f8.3, f8.3)') mth, kr, ux, eta_res(1)
+          write(11, "(i3, i3, f8.3, f8.3)") mth, kr, ux, eta_res(1)
           dTphidu = Tphi_int(ux, eta_res)
           Tphi = Tphi + dTphidu*du
        end do
@@ -1200,7 +1200,7 @@ contains
             (eta_res(1)-etamin)/(etamax-etamin),&
             vth, B0, kappa2s, 0d0, etatp
     end do
-    print *, 'Tphi (SUM) = ', Tphi/dVds
+    print *, "Tphi (SUM) = ", Tphi/dVds
     close(unit=10)
   end subroutine test_torque_integral
 
@@ -1220,14 +1220,14 @@ contains
 
     firstloop = .true.
 
-    write(fn1, *) trim(adjustl(runname))//'_torque.out'
+    write(fn1, *) trim(adjustl(runname))//"_torque.out"
     call clearfile(fn1)
-    write(fn2, *) trim(adjustl(runname))//'_torque_integral.out'
+    write(fn2, *) trim(adjustl(runname))//"_torque_integral.out"
     call clearfile(fn2)
 
-    call clearfile(trim(adjustl(runname))//'_torque_box_co.out')
-    call clearfile(trim(adjustl(runname))//'_torque_box_ctr.out')
-    call clearfile(trim(adjustl(runname))//'_torque_box_t.out')
+    call clearfile(trim(adjustl(runname))//"_torque_box_co.out")
+    call clearfile(trim(adjustl(runname))//"_torque_box_ctr.out")
+    call clearfile(trim(adjustl(runname))//"_torque_box_t.out")
 
     ! absolute tolerances for integrals
     tol0 = 1d-15
@@ -1257,7 +1257,7 @@ contains
     mthctr = 0
     mtht = 0
 
-    if (intoutput) open(unit=11, file=trim(adjustl(runname))//'_intoutput.out', recl=1024)
+    if (intoutput) open(unit=11, file=trim(adjustl(runname))//"_intoutput.out", recl=1024)
 
     do j = mthmin, mthmax
         mth = j
@@ -1294,7 +1294,7 @@ contains
               Tresco = torque_integral_mid(vminp, vmaxp)
               Tco = Tco + Tresco
               if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//'_torque_box_co.out', recl=8192,&
+                open(unit=9, file=trim(adjustl(runname))//"_torque_box_co.out", recl=8192,&
                     position="append")
                 write(9, *) mth, torque_int_box
                 close(unit=9)
@@ -1309,7 +1309,7 @@ contains
               Tresctr = torque_integral_mid(vminp, vmaxp)
               Tctr = Tctr + Tresctr
               if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//'_torque_box_ctr.out', recl=8192,&
+                open(unit=9, file=trim(adjustl(runname))//"_torque_box_ctr.out", recl=8192,&
                     position="append")
                 write(9, *) mth, torque_int_box
                 close(unit=9)
@@ -1323,16 +1323,16 @@ contains
           Trest = torque_integral_mid(vmint, vmaxt)
           Tt = Tt + Trest
           if (orbit_mode_transp>0) then
-              open(unit=9, file=trim(adjustl(runname))//'_torque_box_t.out', recl=8192,&
+              open(unit=9, file=trim(adjustl(runname))//"_torque_box_t.out", recl=8192,&
                 position="append")
               write(9, *) mth, torque_int_box
               close(unit=9)
           end if
         end if
 
-        print *, ''
+        print *, ""
         print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
-        write(*,'(4ES12.2,2F12.2)') Tresco, Tresctr,&
+        write(*,"(4ES12.2,2F12.2)") Tresco, Tresctr,&
           Trest, Tresco + Tresctr + Trest
 
         open(unit=10, file=trim(adjustl(fn2)), recl=1024, position="append")
@@ -1353,12 +1353,12 @@ contains
     integer :: k
     real(8), allocatable :: data(:,:)
 
-    print *, 'test_profile'
+    print *, "test_profile"
 
-    call readdata('profile.in', 3, data)
+    call readdata("profile.in", 3, data)
 
-    open(unit=9, file=trim(adjustl(runname))//'_profile.out', recl=1024)
-    write(9,*) '#s deltas=c*mi*vth*hcovar(2)*q/(qi*psi_pr) dVds q psi_pr'
+    open(unit=9, file=trim(adjustl(runname))//"_profile.out", recl=1024)
+    write(9,*) "#s deltas=c*mi*vth*hcovar(2)*q/(qi*psi_pr) dVds q psi_pr"
     do k = 1, size(data,1)
        s = data(k,1)
        call output_flux_surface_data(9)
