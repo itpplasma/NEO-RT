@@ -90,39 +90,14 @@ contains
     character(1)          :: dummy
     real(8)               :: qs, ms
 
+    namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, mth, mthnum, &
+                      Mtmin, Mtmax, Mtnum, supban, magdrift, nopassing, &
+                      noshear, pertfile, odeint, nonlin, bfac, efac, &
+                      inp_swi, orbit_mode_avg, orbit_mode_transp, vsteps, &
+                      comptorque, intoutput
+
     open(unit=9,file=trim(adjustl(runname))//'.in',status='old',form='formatted')
-    read (9,*) dummy
-    read (9,*) dummy
-    read (9,*) dummy
-    read (9,*) s
-    read (9,*) M_t
-    read (9,*) qs
-    read (9,*) ms
-    read (9,*) vth
-    read (9,*) epsmn
-    read (9,*) m0
-    read (9,*) mph
-    read (9,*) mth
-    read (9,*) mthnum
-    read (9,*) Mtmin
-    read (9,*) Mtmax
-    read (9,*) Mtnum
-    read (9,*) supban
-    read (9,*) magdrift
-    read (9,*) nopassing
-    read (9,*) dummy
-    read (9,*) noshear
-    read (9,*) pertfile
-    read (9,*) odeint
-    read (9,*) nonlin
-    read (9,*) bfac
-    read (9,*) efac
-    read (9,*) inp_swi
-    read (9,*) orbit_mode_avg
-    read (9,*) orbit_mode_transp
-    read (9,*) vsteps
-    read (9,*) comptorque
-    read (9,*) intoutput
+    read(9, nml=params)
     close(unit=9)
 
     M_t = M_t*efac/bfac

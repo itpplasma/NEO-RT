@@ -1,32 +1,33 @@
-# Input file for DRIFTORBIT - Version 1.2
-#
-#
-0.5                 s                  - Radial coordinate s
-0.036   	    M_t		       - Mach number (for single Mach no. run)
-1d0                 qi                 - Particle charge / elem. charge
-2.014               mi                 - Particle mass / 1u
-40000000.0          vth		       - thermal velocity [cm/s]
-0.001		    epsmn	       - perturbation amplitude B1/B0 (if pertfile==F)
-0		    m		       - poroidal perturbation mode (if pertfile==F)
-3 		    n		       - toroidal perturbation mode (if pertfile==F, n>0!)
-0		    mth		       - poloidal canonical mode (for single Mach no. run)
-10       	    mthnum	       - poloidal canonical mode count
-0d0	    	    Mtmin	       - minimum Mach number
-0d0	    	    Mtmax	       - maximum Mach number
-1                   Mtnum              - Mach number count
-F                   supban             - calculate superbanana plateau
-T		    magdrift	       - consider magnetic drift
-F		    nopassing	       - neglect passing particles
-F		    calcflux	       - calculate flux directly instead via flux-force relation
-T		    noshear	       - neglect magnetic shear term with dqds
-F		    pertfile	       - read perturbation from file with do_magfie_pert
-F                   odeint             - use ODE integrator for resonance line
-F		    nonlin	       - do nonlinear calculation
-1.0                 bscale             - scale B field by factor
-1.0                 escale             - scale E field by factor
-8                   inp_swi            - input switch for Boozer file
-0                   orbit_mode_avg     - orbit mode for bounce averaging
-0                   orbit_mode_transp  - orbit mode for transport computation
-256                 vsteps             - integration steps in velocity space
-T                   comptorque         - do torque computation
-F                   intoutput          - output details of integrand
+! Input file for NEO-RT - Version 1.3
+!
+!
+&params
+    s = 0.5                ! Radial coordinate s
+    M_t = 0.036            ! Mach number (for single Mach no. run)
+    qs = 1.0               ! Particle charge / elem. charge
+    ms = 2.014             ! Particle mass / 1u
+    vth = 40000000.0       ! thermal velocity [cm/s]
+    epsmn = 0.001          ! perturbation amplitude B1/B0 (if pertfile==F)
+    m0 = 0                 ! poroidal perturbation mode (if pertfile==F)
+    mph = 3                ! toroidal perturbation mode (if pertfile==F, n>0!)
+    mth = 0                ! poloidal canonical mode (for single Mach no. run)
+    mthnum = 10            ! poloidal canonical mode count
+    Mtmin = 0.0            ! minimum Mach number
+    Mtmax = 0.0            ! maximum Mach number
+    Mtnum = 1              ! Mach number count
+    supban = .false.       ! calculate superbanana plateau
+    magdrift = .true.      ! consider magnetic drift
+    nopassing = .false.    ! neglect passing particles
+    noshear = .true.       ! neglect magnetic shear term with dqds
+    pertfile = .false.     ! read perturbation from file with do_magfie_pert
+    odeint = .false.       ! use ODE integrator for resonance line
+    nonlin = .false.       ! do nonlinear calculation
+    bfac = 1.0             ! scale B field by factor
+    efac = 1.0             ! scale E field by factor
+    inp_swi = 8            ! input switch for Boozer file
+    orbit_mode_avg = 0     ! orbit mode for bounce averaging
+    orbit_mode_transp = 0  ! orbit mode for transport computation
+    vsteps = 256           ! integration steps in velocity space
+    comptorque = .true.    ! do torque computation
+    intoutput = .false.    ! output details of integrand
+/
