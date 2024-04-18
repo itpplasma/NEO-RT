@@ -11,8 +11,6 @@ program main
   use common, only: clearfile
   implicit none
 
-  integer :: Mtnum, mthnum
-  real(8) :: Mtmin, Mtmax
   logical :: odeint
   character(len=1024) :: tmp
   character(:), allocatable :: runname
@@ -97,11 +95,10 @@ contains
     character(1)          :: dummy
     real(8)               :: qs, ms
 
-    namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, mth, mthnum, &
-                      Mtmin, Mtmax, Mtnum, supban, magdrift, nopassing, &
-                      noshear, pertfile, odeint, nonlin, bfac, efac, &
-                      inp_swi, orbit_mode_avg, orbit_mode_transp, vsteps, &
-                      comptorque, intoutput, runmode
+    namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, mth, supban, &
+                      magdrift, nopassing, noshear, pertfile, odeint, nonlin, &
+                      bfac, efac, inp_swi, orbit_mode_avg, orbit_mode_transp, &
+                      vsteps, comptorque, intoutput, runmode
 
     open(unit=9,file=trim(adjustl(runname))//".in",status="old",form="formatted")
     read(9, nml=params)
@@ -723,8 +720,8 @@ contains
       mthmin = 0
       mthmax = 0
     else
-      mthmin = -ceiling(2*mph*q)
-      mthmax = ceiling(2*mph*q)
+      mthmin = -ceiling(2*abs(mph)*q)
+      mthmax = ceiling(2*abs(mph)*q)
     end if
 
     mth0co = 0
@@ -747,87 +744,87 @@ contains
 
       ! superbanana resonance
       if (supban) then
-          sigv = 1
-          vmint = 0.01*vth
-          vmaxt = 5*vth
-          etamin = (1+epst)*etatp
-          etamax = (1-epst)*etadt
-          if (odeint) then
-            fluxrest = flux_integral_ode(vmint, vmaxt)
-          elseif (vsteps > 0) then
-            fluxrest = flux_integral_mid(vmint, vmaxt)
-          else
-            fluxrest = flux_integral(vmint, vmaxt, tol0)
-          end if
-          fluxt = fluxt + fluxrest
+        sigv = 1
+        vmint = 0.01*vth
+        vmaxt = 5*vth
+        etamin = (1+epst)*etatp
+        etamax = (1-epst)*etadt
+        if (odeint) then
+          fluxrest = flux_integral_ode(vmint, vmaxt)
+        elseif (vsteps > 0) then
+          fluxrest = flux_integral_mid(vmint, vmaxt)
+        else
+          fluxrest = flux_integral(vmint, vmaxt, tol0)
+        end if
+        fluxt = fluxt + fluxrest
       else
-          ! passing resonance (co-passing)
-          if (.not. nopassing) then
-            sigv = 1
-            etamin = epsp*etatp
-            etamax = (1-epsp)*etatp
-            if (odeint) then
-                fluxrespco = flux_integral_ode(vminp, vmaxp)
-            elseif (vsteps > 0) then
-                fluxrespco = flux_integral_mid(vminp, vmaxp)
-            else
-                fluxrespco = flux_integral(vminp, vmaxp, tolpco)
-            end if
-            fluxpco = fluxpco + fluxrespco
-            tolpco(1) = max(1d-6*fluxpco(1), tolpco(1))
-            tolpco(2) = max(1d-6*fluxpco(2), tolpco(2))
-            if (orbit_mode_transp>0) then
-                open(unit=9, file=trim(adjustl(runname))//"_box_cop.out", recl=8192, position="append")
-                write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
-                close(unit=9)
-            end if
+        ! passing resonance (co-passing)
+        if (.not. nopassing) then
+          sigv = 1
+          etamin = epsp*etatp
+          etamax = (1-epsp)*etatp
+          if (odeint) then
+              fluxrespco = flux_integral_ode(vminp, vmaxp)
+          elseif (vsteps > 0) then
+              fluxrespco = flux_integral_mid(vminp, vmaxp)
+          else
+              fluxrespco = flux_integral(vminp, vmaxp, tolpco)
           end if
-
-          ! passing resonance (counter-passing)
-          if (.not. nopassing) then
-            sigv = -1
-            etamin = epsp*etatp
-            etamax = (1-epsp)*etatp
-            if (odeint) then
-              fluxrespctr = flux_integral_ode(vminp, vmaxp)
-            elseif (vsteps > 0) then
-              fluxrespctr = flux_integral_mid(vminp, vmaxp)
-            else
-              fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
-            end if
-            fluxpctr = fluxpctr + fluxrespctr
-            tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
-            tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
-            if (orbit_mode_transp>0) then
-              open(unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
+          fluxpco = fluxpco + fluxrespco
+          tolpco(1) = max(1d-6*fluxpco(1), tolpco(1))
+          tolpco(2) = max(1d-6*fluxpco(2), tolpco(2))
+          if (orbit_mode_transp>0) then
+              open(unit=9, file=trim(adjustl(runname))//"_box_cop.out", recl=8192, position="append")
               write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
               close(unit=9)
-            end if
           end if
+        end if
 
-          ! trapped resonance (trapped)
-          sigv = 1
-          etamin = (1+epst)*etatp
-          etamax = (1-epst)*etadt
+        ! passing resonance (counter-passing)
+        if (.not. nopassing) then
+          sigv = -1
+          etamin = epsp*etatp
+          etamax = (1-epsp)*etatp
           if (odeint) then
-            fluxrest = flux_integral_ode(vmint, vmaxt)
+            fluxrespctr = flux_integral_ode(vminp, vmaxp)
           elseif (vsteps > 0) then
-            fluxrest = flux_integral_mid(vmint, vmaxt)
+            fluxrespctr = flux_integral_mid(vminp, vmaxp)
           else
-            if (mth == 0) then
-              fluxrest = flux_integral(vmint, vmaxt, tol0)
-            else
-              fluxrest = flux_integral(vmint, vmaxt, tolt)
-            end if
+            fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
           end if
-          fluxt = fluxt + fluxrest
-          tolt(1) = max(1d-6*fluxt(1), tolt(1))
-          tolt(2) = max(1d-6*fluxt(2), tolt(2))
+          fluxpctr = fluxpctr + fluxrespctr
+          tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
+          tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
           if (orbit_mode_transp>0) then
-            open(unit=9, file=trim(adjustl(runname))//"_box_t.out", recl=8192, position="append")
+            open(unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
             write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
             close(unit=9)
           end if
+        end if
+
+        ! trapped resonance (trapped)
+        sigv = 1
+        etamin = (1+epst)*etatp
+        etamax = (1-epst)*etadt
+        if (odeint) then
+          fluxrest = flux_integral_ode(vmint, vmaxt)
+        elseif (vsteps > 0) then
+          fluxrest = flux_integral_mid(vmint, vmaxt)
+        else
+          if (mth == 0) then
+            fluxrest = flux_integral(vmint, vmaxt, tol0)
+          else
+            fluxrest = flux_integral(vmint, vmaxt, tolt)
+          end if
+        end if
+        fluxt = fluxt + fluxrest
+        tolt(1) = max(1d-6*fluxt(1), tolt(1))
+        tolt(2) = max(1d-6*fluxt(2), tolt(2))
+        if (orbit_mode_transp>0) then
+          open(unit=9, file=trim(adjustl(runname))//"_box_t.out", recl=8192, position="append")
+          write(9, *) mth, fluxint_box(1,:), fluxint_box(2,:)
+          close(unit=9)
+        end if
       end if
 
       print *, ""

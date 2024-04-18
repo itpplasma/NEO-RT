@@ -12,10 +12,6 @@
     m0 = 0                 ! poroidal perturbation mode (if pertfile==F)
     mph = 3                ! toroidal perturbation mode (if pertfile==F, n>0!)
     mth = 0                ! poloidal canonical mode (for single Mach no. run)
-    mthnum = 10            ! poloidal canonical mode count
-    Mtmin = 0.0            ! minimum Mach number
-    Mtmax = 0.0            ! maximum Mach number
-    Mtnum = 1              ! Mach number count
     supban = .false.       ! calculate superbanana plateau
     magdrift = .true.      ! consider magnetic drift
     nopassing = .false.    ! neglect passing particles
