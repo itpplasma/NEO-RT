@@ -2,7 +2,7 @@
 !
 !
 &params
-    runmode = "test_profile"
+    runmode = "torque"     ! "torque", "transport", or various tests
     s = 0.5                ! Radial coordinate s
     M_t = 0.036            ! Mach number (for single Mach no. run)
     qs = 1.0               ! Particle charge / elem. charge
