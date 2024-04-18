@@ -1376,11 +1376,8 @@ contains
   end subroutine compute_torque
 
   subroutine test_profile
-    integer :: k, nrest
-    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    integer :: k
     real(8), allocatable :: data(:,:)
-
-    nrest = 10
 
     print *, 'test_profile'
 
@@ -1390,47 +1387,34 @@ contains
     write(9,*) '#s deltas=c*mi*vth*hcovar(2)*q/(qi*psi_pr) dVds q psi_pr'
     do k = 1, size(data,1)
        s = data(k,1)
-       x(1) = s
-       x(2) = 0d0
-       x(3) = 0d0
-       call init_plasma
-       call init_fsa
-       call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-       write(9,*) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
+       call output_flux_surface_data(9)
     end do
     s = 0.96
-    x(1) = s
-    call init_plasma
-    call init_fsa
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    write(9,*) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
+    call output_flux_surface_data(9)
     s = 0.97
-    x(1) = s
-    call init_plasma
-    call init_fsa
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    write(9,*) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
+    call output_flux_surface_data(9)
     s = 0.98
-    x(1) = s
-    call init_plasma
-    call init_fsa
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    write(9,*) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
+    call output_flux_surface_data(9)
     s = 0.99
-    x(1) = s
-    call init_plasma
-    call init_fsa
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    write(9,*) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
+    call output_flux_surface_data(9)
     s = 1.0
-    x(1) = s
-    call init_plasma
-    call init_fsa
-    call do_magfie( x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl )
-    write(9,*) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
+    call output_flux_surface_data(9)
+
     close(unit=9)
 
     deallocate(data)
   end subroutine test_profile
+
+  subroutine output_flux_surface_data(unit)
+    integer, intent(in) :: unit
+    real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    x(1) = s
+    x(2) = 0d0
+    x(3) = 0d0
+    call init_plasma
+    call init_fsa
+    call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+    write(unit,*) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
+  end subroutine output_flux_surface_data
 
 end program main
