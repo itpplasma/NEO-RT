@@ -1243,8 +1243,8 @@ contains
       mthmin = 0
       mthmax = 0
     else
-      mthmin = -ceiling(2*mph*q)
-      mthmax = ceiling(2*mph*q)
+      mthmin = -ceiling(2*abs(mph)*q)
+      mthmax = ceiling(2*abs(mph)*q)
     end if
 
     mth0co = 0
