@@ -1283,10 +1283,10 @@ contains
     end function flux_integral_mid
 
     subroutine tsorb(neq, t, y, ydot)
-        !
-        !  Timestep function for orbit only.
-        !  used for radial boxes
-        !
+    !
+    !  Timestep function for orbit only.
+    !  used for radial boxes
+    !
 
         integer, intent(in) :: neq
         real(8), intent(in) :: t

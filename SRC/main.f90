@@ -4,9 +4,6 @@ program main
     use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                              q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
     use do_magfie_pert_mod, only: do_magfie_pert_init, do_magfie_pert_amp, mph
-    !use do_magfie_neo_mod, only : s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-    !     q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
-    !use do_magfie_pert_neo_mod, only : do_magfie_pert_init, do_magfie_pert_amp, mph
     use polylag_3, only: mp, indef, plag1d
     use common, only: clearfile
     implicit none
@@ -1156,13 +1153,8 @@ contains
         sigv = 1d0
         etamin = (1 + epst)*etatp
         etamax = (1 - epst)*etadt
-        !call find_vlim_t(vmin2, vmax2)
-        !print *, "vrange: ", vmin2/vth, vmax2/vth
 
         print *, "vrange: ", vmin2/vth, vmax2/vth
-        !if (vsteps>0) print *, "D11/Dp (INT) = ", flux_integral(vmin2, vmax2, tol0)
-        !if (vsteps>0) print *, "D11/Dp (MID) = ", flux_integral_mid(vmin2, vmax2)
-        !if(orbit_mode_transp>0) print *, fluxint_box(1,:)
 
         Tphi = 0d0
 
@@ -1256,10 +1248,6 @@ contains
 
             vminp = 1d-6*vth
             vmaxp = 4d0*vth
-
-            ! Hardcoded alternative up to 15 keV
-            !vminp = sqrt(2d0*1e-3*ev/mi)
-            !vmaxp = sqrt(2d0*(15e3+1e-3)*ev/mi)
 
             vmint = vminp
             vmaxt = vmaxp

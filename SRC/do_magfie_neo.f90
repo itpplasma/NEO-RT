@@ -60,8 +60,6 @@ contains
         real(8), dimension(size(x)), intent(out) :: hcovar
         real(8), dimension(size(x)), intent(out) :: hctrvr
         real(8), dimension(size(x)), intent(out) :: hcurl
-    !! VERY DANGEROUS: CHANGING Q MANUALLY
-        !boozer_iota      = 1d0/3d0
         call magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
         bmod = 1d4*bmod
         sqrtg = abs(sqrtg)
@@ -71,8 +69,6 @@ contains
         dBthcovds = boozer_curr_tor_hat_s
         dBphcovds = boozer_curr_pol_hat_s
         iota = boozer_iota
-    !! VERY DANGEROUS: CHANGING Q MANUALLY
-        !iota      = 1d0/3d0
         q = 1d0/iota
         dqds = -boozer_iota_s/iota**2
         R0 = 1d2*rt0
