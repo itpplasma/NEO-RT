@@ -7,9 +7,6 @@ enable_testing()
 project (driftorbit)
 enable_language(Fortran)
 
-### Define paths to external libraries (load external file)
-include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
-
 ### Specify paths
 set(CMAKE_BINARY_DIR ${PROJECT_BINARY_DIR}/OBJS)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
@@ -38,8 +35,6 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Profile")
   add_compile_options(-O0 -pg)
   add_link_options(-pg)
 endif()
-
-
 
 ### External modules
 add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
