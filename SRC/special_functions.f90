@@ -1,4 +1,4 @@
-subroutine comelp ( hk, ck, ce )
+subroutine comelp(hk, ck, ce)
 
 !*****************************************************************************80
 !
@@ -6,8 +6,8 @@ subroutine comelp ( hk, ck, ce )
 !
 !  Licensing:
 !
-!    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However, 
-!    they give permission to incorporate this routine into a user program 
+!    This routine is copyrighted by Shanjie Zhang and Jianming Jin.  However,
+!    they give permission to incorporate this routine into a user program
 !    provided that the copyright is acknowledged.
 !
 !  Modified:
@@ -32,60 +32,60 @@ subroutine comelp ( hk, ck, ce )
 !
 !    Output, real ( kind = 8 ) CK, CE, the values of K(HK) and E(HK).
 !
-  implicit none
+    implicit none
 
-  real ( kind = 8 ), intent(in) :: hk
+    real(kind=8), intent(in) :: hk
 
-  real ( kind = 8 ), intent(out) :: ce
-  real ( kind = 8 ), intent(out) :: ck
+    real(kind=8), intent(out) :: ce
+    real(kind=8), intent(out) :: ck
 
-  real ( kind = 8 ) ae
-  real ( kind = 8 ) ak
-  real ( kind = 8 ) be
-  real ( kind = 8 ) bk
-  real ( kind = 8 ) pk
+    real(kind=8) ae
+    real(kind=8) ak
+    real(kind=8) be
+    real(kind=8) bk
+    real(kind=8) pk
 
-  pk = 1.0D+00 - hk * hk
+    pk = 1.0D+00 - hk*hk
 
-  if ( hk == 1.0D+00 ) then
+    if (hk == 1.0D+00) then
 
-    ck = 1.0D+300
-    ce = 1.0D+00
+        ck = 1.0D+300
+        ce = 1.0D+00
 
-  else
+    else
 
-    ak = ((( &
-        0.01451196212D+00   * pk &
-      + 0.03742563713D+00 ) * pk &
-      + 0.03590092383D+00 ) * pk &
-      + 0.09666344259D+00 ) * pk &
-      + 1.38629436112D+00
+        ak = ((( &
+               0.01451196212D+00*pk &
+               + 0.03742563713D+00)*pk &
+               + 0.03590092383D+00)*pk &
+              + 0.09666344259D+00)*pk &
+             + 1.38629436112D+00
 
-    bk = ((( &
-        0.00441787012D+00   * pk &
-      + 0.03328355346D+00 ) * pk &
-      + 0.06880248576D+00 ) * pk &
-      + 0.12498593597D+00 ) * pk &
-      + 0.5D+00
+        bk = ((( &
+               0.00441787012D+00*pk &
+               + 0.03328355346D+00)*pk &
+               + 0.06880248576D+00)*pk &
+              + 0.12498593597D+00)*pk &
+             + 0.5D+00
 
-    ck = ak - bk * log ( pk )
+        ck = ak - bk*log(pk)
 
-    ae = ((( &
-        0.01736506451D+00   * pk &
-      + 0.04757383546D+00 ) * pk &
-      + 0.0626060122D+00  ) * pk &
-      + 0.44325141463D+00 ) * pk &
-      + 1.0D+00
+        ae = ((( &
+               0.01736506451D+00*pk &
+               + 0.04757383546D+00)*pk &
+               + 0.0626060122D+00)*pk &
+              + 0.44325141463D+00)*pk &
+             + 1.0D+00
 
-    be = ((( &
-        0.00526449639D+00   * pk &
-      + 0.04069697526D+00 ) * pk &
-      + 0.09200180037D+00 ) * pk &
-      + 0.2499836831D+00  ) * pk
+        be = ((( &
+               0.00526449639D+00*pk &
+               + 0.04069697526D+00)*pk &
+               + 0.09200180037D+00)*pk &
+              + 0.2499836831D+00)*pk
 
-    ce = ae - be * log ( pk )
+        ce = ae - be*log(pk)
 
-  end if
+    end if
 
-  return
+    return
 end subroutine comelp
