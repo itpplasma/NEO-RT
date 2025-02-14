@@ -36,11 +36,18 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Profile")
   add_link_options(-pg)
 endif()
 
+include(Util)
+
+find_or_fetch(BOOZER_MAGFIE)
+find_or_fetch(spline)
+find_or_fetch(quadpack)
+find_or_fetch(vode)
+
 ### External modules
-add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
-add_subdirectory("../spline" "spline")
-add_subdirectory("../contrib/quadpack" "quadpack")
-add_subdirectory("../contrib/vode" "vode")
+# add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
+# add_subdirectory("../spline" "spline")
+# add_subdirectory("../contrib/quadpack" "quadpack")
+# add_subdirectory("../contrib/vode" "vode")
 #add_subdirectory(POTATO/LATEST)  # contains also vode
 
 ### Define executable
