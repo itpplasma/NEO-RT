@@ -7,9 +7,6 @@ enable_testing()
 project (driftorbit)
 enable_language(Fortran)
 
-### Define paths to external libraries (load external file)
-include(${CMAKE_SOURCE_DIR}/ProjectConfig.cmake.in)
-
 ### Specify paths
 set(CMAKE_BINARY_DIR ${PROJECT_BINARY_DIR}/OBJS)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
@@ -26,7 +23,8 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_compile_options(-fPIC -cpp -g -fbacktrace)
+add_compile_options(-fPIC -cpp -g)
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace")
 # Set compiler options based on build type
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
@@ -37,8 +35,6 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Profile")
   add_compile_options(-O0 -pg)
   add_link_options(-pg)
 endif()
-
-
 
 ### External modules
 add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
@@ -76,26 +72,15 @@ if(USE_STANDALONE)
   )
 else()
   # For NEO-2 field routines
-
-  ### Source files (load external file)
-  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/../NEO-2/COMMON/CMAKE_TOOLS")
-
-  find_package(SuiteSparse REQUIRED)
-  find_package(SuperLU REQUIRED)
-  include(../BOOZER_MAGFIE/CMakeSources.txt)
-  include_directories(BUILD/boozer_magfie/OBJS/)
+  include_directories(${PROJECT_BINARY_DIR}/boozer_magfie/OBJS/)
 
   add_library("neo_rt" SHARED
     ${NEO_RT_SOURCES}
-    ${SUPERLU_SRC_FILES}
-    ${SUITESPARSE_SRC_FILES}
     SRC/do_magfie_neo.f90
   )
   add_dependencies(neo_rt boozer_magfie)
   target_link_libraries(neo_rt
     boozer_magfie
-    ${SUPERLU_LIBRARIES}
-    ${SUITESPARSE_LIBRARIES}
   )
 endif()
 
