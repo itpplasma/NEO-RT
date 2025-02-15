@@ -44,7 +44,7 @@ program main
     if (plasmafile) then
         call init_plasma
     else
-        if (comptorque .or. nonlin) then
+        if ((runmode == "torque") .or. nonlin) then
             stop "need plasma.in for nonlinear or torque calculation"
         end if
     end if
@@ -94,7 +94,7 @@ contains
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, mth, supban, &
             magdrift, nopassing, noshear, pertfile, odeint, nonlin, &
             bfac, efac, inp_swi, orbit_mode_avg, orbit_mode_transp, &
-            vsteps, comptorque, intoutput, runmode
+            vsteps, intoutput, runmode
 
         open (unit=9, file=trim(adjustl(runname))//".in", status="old", form="formatted")
         read (9, nml=params)
@@ -202,7 +202,7 @@ contains
         etamax = (1 - epst)*etadt
         sigv = 1
 
-        if (comptorque) then
+        if (runmode == "torque") then
             ! thermodynamic forces
             A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
             A2 = dTi1ds/Ti1

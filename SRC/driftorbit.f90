@@ -85,9 +85,6 @@ module driftorbit
     real(8), allocatable :: torque_int_box(:)
     real(8), allocatable :: taubins(:)
 
-    ! Do torque computation directly instead of transport coefficients D11 and D12
-    logical :: comptorque
-
     ! Plasma parameters
     real(8) ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds
 

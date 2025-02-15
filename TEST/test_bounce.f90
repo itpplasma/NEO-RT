@@ -33,7 +33,7 @@ program test_bounce_program
         use driftorbit, only: s, M_t, qi, mi, vth, epsmn, m0, &
             mph, mth, supban, magdrift, nopassing, noshear, pertfile, &
             nonlin, bfac, efac, inp_swi, orbit_mode_avg, &
-            orbit_mode_transp, vsteps, comptorque, intoutput
+            orbit_mode_transp, vsteps, intoutput
 
         real(8) :: qs, ms
 
@@ -58,7 +58,6 @@ program test_bounce_program
         orbit_mode_avg = 0
         orbit_mode_transp = 0
         vsteps = -1
-        comptorque = .false.
         intoutput = .false.
 
         M_t = M_t*efac/bfac
