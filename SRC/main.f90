@@ -84,7 +84,7 @@ contains
             call compute_torque
             stop
         elseif (runmode == "transport") then
-            call test_machrange2
+            call compute_transport_coeffs
             stop
         end if
     end subroutine main
@@ -694,12 +694,7 @@ contains
         close (unit=9)
     end subroutine test_resline
 
-    !> Do calculation for a range of mach numbers
-    !>
-    !> Range of mach numbers depends on input parameters Mtmin, Mtmax and
-    !> Mtnum.
-    !> Output file names depend on commandline parameter "runname".
-    subroutine test_machrange2
+    subroutine compute_transport_coeffs
         use lineint, only: flux_integral_ode
 
         integer :: j, k
@@ -881,7 +876,7 @@ contains
             fluxpco(2), fluxpctr(2), fluxt(2), &
             fluxpco(2) + fluxpctr(2) + fluxt(2)
         close (unit=9)
-    end subroutine test_machrange2
+    end subroutine compute_transport_coeffs
 
     subroutine test_integral
         real(8) :: eta_res(2)
