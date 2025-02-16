@@ -772,8 +772,8 @@ contains
 
         vminp = 1d-6*vth
         vmaxp = 3d0*vth
-        vmint = 1d-6*vth
-        vmaxt = 3d0*vth
+        vmint = vminp
+        vmaxt = vmaxp
 
         ! Superbanana resonance
         if (supban) then
@@ -1290,8 +1290,7 @@ contains
         mth = j
 
         vminp = 1d-6*vth
-        vmaxp = 4d0*vth
-
+        vmaxp = 3d0*vth
         vmint = vminp
         vmaxt = vmaxp
 
