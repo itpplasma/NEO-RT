@@ -1,15 +1,19 @@
 program test_torque_prog
-    use neort, only: runname, read_control, init_profile, init_plasma, init_test, M_t, &
-                     test_magfie, compute_torque_harmonic, &
-                     compute_transport_coeff_harmonic
+    use neort, only: read_control, test_magfie, init_profile, init_plasma, init_test, &
+                    compute_transport_coeff_harmonic, compute_torque_harmonic, &
+                    runname, s, M_t
     use driftorbit, only: A1, A2, ni1, vth, B0
-    use do_magfie_mod, only: do_magfie_init, R0, iota, psi_pr
+    use do_magfie_mod, only: do_magfie_init, do_magfie, R0, iota
     use util
     implicit none
 
     real(8) :: Dco(2), Dctr(2), Dt(2)
     real(8) :: Tco, Tctr, Tt
+
     integer, parameter :: MTH = -3
+    real(8), parameter :: AVG_NABLA_S = 0.02162413513580247d0
+    real(8), parameter :: NM_IN_DYNCM = 1d7
+    character(1024) :: TEST_RUN = "driftorbit64.new"
 
     call test_torque
     call print_torque_from_transport
@@ -17,14 +21,22 @@ program test_torque_prog
 contains
 
     subroutine test_torque
-        runname = "driftorbit64.new"
+        runname = TEST_RUN
         call read_control
         call do_magfie_init
         call init_profile
         call init_plasma
         call init_test(use_thermodynamic_profiles=.True.)
         call test_magfie
+
+        Dco = 0d0
+        Dctr = 0d0
+        Dt = 0d0
         call compute_transport_coeff_harmonic(MTH, Dco, Dctr, Dt)
+
+        Tco = 0d0
+        Tctr = 0d0
+        Tt = 0d0
         call compute_torque_harmonic(MTH, Tco, Tctr, Tt)
     end subroutine test_torque
 
@@ -38,14 +50,31 @@ contains
         print *, ""
         print *, "torque_from_transport: Mt = ", M_t, ", mth = ", MTH
         write (*, "(4ES12.2,2F12.2)") TTco, TTctr, TTt, TTco + TTctr + TTt
+        print *, ""
+        print *, "Ratios to direct calculation:"
+        print *, "TTco/Tco = ", TTco/Tco
+        print *, "TTctr/Tctr = ", TTctr/Tctr
+        print *, "TTt/Tt = ", TTt/Tt
+
     end subroutine print_torque_from_transport
 
     function torque_from_transport(D) result(Tphi)
         real(8), intent(in) :: D(2)
         real(8) :: Tphi
         real(8) :: Dp
+        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(8) :: sqrtgBth
+
+        x(1) = s
+        x(2) = 0d0
+        x(3) = 0d0
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        sqrtgBth = sqrtg*hctrvr(3)*bmod*AVG_NABLA_S
+        print *, ""
+        print *, "sqrtgBth = ", sqrtgBth
 
         Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-        Tphi = -(iota*psi_pr/c)*qe*(-ni1*Dp*(D(1)*A1 + D(2)*A2))
+        Tphi = (sqrtgBth/c)*qe*(-ni1*Dp*(D(1)*A1 + D(2)*A2))*AVG_NABLA_S
+        Tphi = Tphi*NM_IN_DYNCM
     end function torque_from_transport
 end program test_torque_prog
