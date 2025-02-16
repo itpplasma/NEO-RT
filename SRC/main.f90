@@ -229,7 +229,11 @@ contains
             A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
             A2 = dTi1ds/Ti1
 
-            print *, "A1 = ", A1, "A2 = ", A2
+            print *, "dni1ds/ni1 = ", dni1ds/ni1
+            print *, "-qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE = ", -qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE
+            print *, "-3d0/2d0*dTi1ds/Ti1 = ", -3d0/2d0*dTi1ds/Ti1
+            print *, "A1 = ", A1
+            print *, "A2 = ", A2
         end if
     end subroutine init_test
 

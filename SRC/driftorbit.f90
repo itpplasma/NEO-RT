@@ -819,6 +819,8 @@ contains
         real(8) :: thrange(nth), dth
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
+        print *, "       s: ", s
+
         thrange = -pi + (/(k*2*pi/nth, k=1, nth)/)
 
         dth = thrange(2) - thrange(1)
