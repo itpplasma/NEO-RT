@@ -1142,7 +1142,6 @@ contains
         ! test box counting
         use dvode_f90_m2
 
-        real(8) :: tol
         integer :: n
 
         integer :: k, state
@@ -1155,7 +1154,7 @@ contains
 
         real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
-        real(8) :: s1old, told, s1dot, sbound
+        real(8) :: s1old, told
         integer :: sind, sind0 ! s index
 
         integer :: jroots(2)
