@@ -16,7 +16,7 @@ contains
 
         character(len=1024) :: tmp
         integer :: tmplen
-        logical :: plasmafile, profilefile
+        logical :: use_rotation_profiles, use_thermodynamic_profiles
 
         call get_command_argument(1, tmp, tmplen)
         runname = trim(adjustl(tmp))
@@ -31,8 +31,8 @@ contains
 
         ! Init plasma profiles of radial electric field.
         ! Read profile.in in cases where it is needed.
-        inquire (file="profile.in", exist=profilefile)
-        if (profilefile) then
+        inquire (file="profile.in", exist=use_rotation_profiles)
+        if (use_rotation_profiles) then
             call init_profile
         else
             if (orbit_mode_transp > 0) then
@@ -42,9 +42,9 @@ contains
             end if
         end if
 
-        inquire (file="plasma.in", exist=plasmafile)
+        inquire (file="plasma.in", exist=use_thermodynamic_profiles)
         ! init plasma density and temperature profiles
-        if (plasmafile) then
+        if (use_thermodynamic_profiles) then
             call init_plasma
         else
             if ((runmode == "torque") .or. nonlin) then
@@ -52,12 +52,12 @@ contains
             end if
         end if
 
-        call init_test
+        call init_test(use_thermodynamic_profiles)
 
         call test_magfie
 
         if (runmode == "test_profile") then
-            if (.not. profilefile) error stop "need profile.in for test_profile"
+            if (.not. use_rotation_profiles) error stop "need profile.in for test_profile"
             call test_profile
             stop
         elseif (runmode == "test_bounce") then
@@ -209,7 +209,10 @@ contains
 
     end subroutine init_plasma
 
-    subroutine init_test
+    subroutine init_test(use_thermodynamic_profiles)
+
+        logical, intent(in) :: use_thermodynamic_profiles
+
         call init
         !if (supban) then
         ! set thermal velocity so that ExB = reference toroidal drift
@@ -224,7 +227,7 @@ contains
         etamax = (1 - epst)*etadt
         sigv = 1
 
-        if (runmode == "torque") then
+        if (use_thermodynamic_profiles) then
             ! thermodynamic forces
             ! validated manually against NEO-2 output on 2025-02-16
             A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
