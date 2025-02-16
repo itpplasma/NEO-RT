@@ -226,6 +226,7 @@ contains
 
         if (runmode == "torque") then
             ! thermodynamic forces
+            ! validated manually against NEO-2 output on 2025-02-16
             A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
             A2 = dTi1ds/Ti1
 
