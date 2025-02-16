@@ -91,8 +91,6 @@ contains
 
     subroutine read_control
         use driftorbit
-
-        character(1) :: dummy
         real(8) :: qs, ms
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, mth, supban, &
@@ -119,7 +117,6 @@ contains
 
         real(8), allocatable :: data(:, :)
         real(8) :: splineval(3)
-        integer :: k
 
         call readdata("profile.in", 3, data)
 
@@ -252,7 +249,7 @@ contains
         real(8) :: thmin, thmax
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(8) :: Dp, Drp
-        real(8) :: ux, dpp, dhh, fpeff
+        real(8) :: dpp, dhh, fpeff
         complex(8) :: bn
 
 ! comparison with Neo2 magfie
@@ -468,13 +465,10 @@ contains
     subroutine test_box
         ! test box counting
         use dvode_f90_m2
+        integer :: k, n
 
-        real(8) :: tol
-        integer :: n
-
-        integer :: k, state
         real(8) :: ti
-        real(8) :: y(2), ydot(2), yold(2)
+        real(8) :: y(2), yold(2)
 
         real(8) :: atol(nvar), rtol, tout, rstats(22)
         integer :: neq, itask, istate, istats(31), numevents
@@ -482,8 +476,7 @@ contains
 
         real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
-        real(8) :: s1old, told, s1dot, sbound
-        real(8), allocatable :: taubins(:)
+        real(8) :: s1old, told
         integer :: sind, sind0 ! s index
 
         integer :: jroots(2)
@@ -700,7 +693,7 @@ contains
     subroutine compute_transport_coeffs
         use lineint, only: flux_integral_ode
 
-        integer :: j, k
+        integer :: j
         real(8) :: fluxrespco(2), fluxrespctr(2), &
                    fluxrest(2), fluxpco(2), fluxpctr(2), fluxt(2)
         real(8) :: vminp, vmaxp, vmint, vmaxt
@@ -712,7 +705,6 @@ contains
 
         logical :: firstloop
 
-        integer :: kb
 
         firstloop = .true.
 
@@ -1218,7 +1210,7 @@ contains
     subroutine compute_torque
         ! computes torque per radial distance dTphi/ds at s=sphi
 
-        integer :: j, k
+        integer :: j
         real(8) :: Tresco, Tresctr, Trest, Tco, Tctr, Tt
         real(8) :: vminp, vmaxp, vmint, vmaxt
         integer :: mthmin, mthmax
