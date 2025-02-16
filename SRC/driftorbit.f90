@@ -1092,10 +1092,9 @@ contains
     function torque_integral_mid(vmin, vmax)
         ! compute flux integral via midpoint rule
         real(8) :: vmin, vmax
-        real(8) :: torque_integral_mid, err
+        real(8) :: torque_integral_mid
         real(8) :: ux, du
         integer :: ku
-        real(8) :: dD11, dD12
 
         if (orbit_mode_transp > 0) then
             torque_int_box = 0d0

@@ -758,12 +758,6 @@ contains
 
         write (outfile, *) trim(adjustl(runname))//"_integral.out"
 
-        ! Tolerances for integrals
-        tol0 = 1d-15
-        tolpco = tol0
-        tolpctr = tol0
-        tolt = tol0
-
         mth = j
 
         fluxrest = 0d0
@@ -1217,7 +1211,6 @@ contains
 
         integer :: j
         real(8) :: Tco, Tctr, Tt
-        real(8) :: vminp, vmaxp, vmint, vmaxt
         integer :: mthmin, mthmax
         integer :: mth0co, mth0ctr, mth0t, mthco, mthctr, mtht ! mode counters
         character(1024) :: outfile
@@ -1274,18 +1267,11 @@ contains
         real(8), intent(inout) :: Tco, Tctr, Tt
 
         real(8) :: Tresco, Tresctr, Trest
-        real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
         real(8) :: vminp, vmaxp, vmint, vmaxt
         character(1024) :: outfile
 
         write (outfile, *) trim(adjustl(runname))//"_torque_integral.out"
         call clearfile(outfile)
-
-        ! absolute tolerances for integrals
-        tol0 = 1d-15
-        tolpco = tol0
-        tolpctr = tol0
-        tolt = tol0
 
         mth = j
 
