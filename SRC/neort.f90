@@ -1,11 +1,9 @@
-program neo_rt
+module neort
     use driftorbit
     implicit none
 
     character(:), allocatable :: runname
     character(len=64) :: runmode = "torque"
-
-    call main
 
 contains
 
@@ -1390,4 +1388,4 @@ contains
         write (unit, *) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
     end subroutine output_flux_surface_data
 
-end program neo_rt
+end module neort

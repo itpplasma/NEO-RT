@@ -71,6 +71,7 @@ set(NEO_RT_SOURCES
   SRC/polylag_3.f
   SRC/util.f90
   SRC/driftorbit.f90
+  SRC/neort.f90
 )
 
 # Set a configuration flag
