@@ -1242,8 +1242,7 @@ contains
     function flux_integral_mid(vmin, vmax)
         ! compute flux integral via midpoint rule
         real(8) :: vmin, vmax
-        real(8) :: tol(2)
-        real(8) :: flux_integral_mid(2), err
+        real(8) :: flux_integral_mid(2)
         real(8) :: Dp, dsdreff
         real(8) :: ux, du
         integer :: ku
