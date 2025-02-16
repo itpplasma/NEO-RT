@@ -1,26 +1,22 @@
 program neo_rt
+    use driftorbit
     implicit none
+
+    character(:), allocatable :: runname
+    character(len=64) :: runmode = "torque"
 
     call main
 
 contains
 
     subroutine main
-        use driftorbit
-        use lineint
-        use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
-                                 q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
-        use do_magfie_pert_mod, only: do_magfie_pert_init, do_magfie_pert_amp, mph
-        use polylag_3, only: mp, indef, plag1d
-        use util, only: clearfile
-        implicit none
+        use do_magfie_mod, only: do_magfie_init
+        use do_magfie_pert_mod, only: do_magfie_pert_init
+        use driftorbit, only: pertfile, orbit_mode_transp, intoutput, nonlin
 
-        logical :: odeint
         character(len=1024) :: tmp
-        character(:), allocatable :: runname
         integer :: tmplen
         logical :: plasmafile, profilefile
-        character(len=64) :: runmode = "torque"
 
         call get_command_argument(1, tmp, tmplen)
         runname = trim(adjustl(tmp))
@@ -34,7 +30,7 @@ contains
         end if
 
         ! Init plasma profiles of radial electric field.
-        ! Read profile.in in cases where it's needed.
+        ! Read profile.in in cases where it is needed.
         inquire (file="profile.in", exist=profilefile)
         if (profilefile) then
             call init_profile
@@ -94,6 +90,8 @@ contains
     end subroutine main
 
     subroutine read_control
+        use driftorbit
+
         character(1) :: dummy
         real(8) :: qs, ms
 
@@ -113,6 +111,12 @@ contains
 
     subroutine init_profile
         ! Init s profile for finite orbit width boxes in radial s
+        use driftorbit, only: s, M_t, dM_tds, efac, bfac, orbit_mode_transp
+        use spline
+
+        ! For splining electric precession frequency
+        real(8), allocatable :: Mt_spl_coeff(:, :)
+
         real(8), allocatable :: data(:, :)
         real(8) :: splineval(3)
         integer :: k
@@ -128,21 +132,33 @@ contains
         dM_tds = splineval(2)*efac/bfac
 
         if (orbit_mode_transp > 0) then
-            allocate (sbox(size(data, 1) + 1))
-            allocate (taubins(size(sbox) + 1))
-            sbox(1) = 0.0
-            sbox(size(sbox)) = 1.0
-            do k = 1, (size(data, 1) - 1)
-                sbox(k + 1) = (data(k, 1) + data(k + 1, 1))/2d0
-            end do
-            allocate (fluxint_box(2, size(sbox) + 1))
-            allocate (torque_int_box(size(sbox) + 1))
+            call init_profile_finite_width(data)
         end if
-
-        deallocate (data)
     end subroutine init_profile
 
+    subroutine init_profile_finite_width(data)
+        use driftorbit, only: sbox, taubins, fluxint_box, torque_int_box
+
+        real(8), allocatable, intent(in) :: data(:, :)
+
+        integer :: k
+
+        allocate (sbox(size(data, 1) + 1))
+        allocate (taubins(size(sbox) + 1))
+        sbox(1) = 0.0
+        sbox(size(sbox)) = 1.0
+        do k = 1, (size(data, 1) - 1)
+            sbox(k + 1) = (data(k, 1) + data(k + 1, 1))/2d0
+        end do
+        allocate (fluxint_box(2, size(sbox) + 1))
+        allocate (torque_int_box(size(sbox) + 1))
+    end subroutine init_profile_finite_width
+
     subroutine init_plasma
+        use driftorbit, only: s, ni1, dni1ds, ni2, dni2ds, Ti1, dTi1ds, Ti2, dTi2ds, &
+            Te, dTeds, qi, qe, mi, mu, ev, loacol_nbi, vth
+        use polylag_3, only: plag1d, indef, mp
+
         real(8), parameter :: pmass = 1.6726d-24
 
         real(8) :: amb, am1, am2, Zb, Z1, Z2, dchichi, slowrate, dchichi_norm, slowrate_norm
@@ -679,6 +695,8 @@ contains
     !> Mtnum.
     !> Output file names depend on commandline parameter "runname".
     subroutine test_machrange2
+        use lineint, only: flux_integral_ode
+
         integer :: j, k
         real(8) :: fluxrespco(2), fluxrespctr(2), &
                    fluxrest(2), fluxpco(2), fluxpctr(2), fluxt(2)

@@ -45,6 +45,8 @@ module driftorbit
     logical :: noshear = .False.      ! neglect magnetic shear
     logical :: pertfile = .False.     ! read perturbation from file with neo_magfie_pert
 
+    logical :: odeint = .False.       ! use ode integrator for orbit integration
+
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(8) :: dVds, etadt, etatp
     real(8) :: etamin, etamax
@@ -93,9 +95,6 @@ module driftorbit
 
     ! Output integral quantities and resonance line
     logical :: intoutput
-
-    ! For splining electric precession frequency
-    real(8), allocatable :: Mt_spl_coeff(:, :)
 
 contains
 
