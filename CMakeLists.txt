@@ -6,26 +6,22 @@ enable_testing()
 ### Define the project
 project (driftorbit)
 enable_language(Fortran)
+set(PROJECT_EXE_NAME "neo_rt.x")
 
 ### Specify paths
 set(CMAKE_BINARY_DIR ${PROJECT_BINARY_DIR}/OBJS)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
-### Define the name of the executable
-set(PROJECT_EXE_NAME "neo_rt.x")                  # Define the name
-
 ### Set compiler flags
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
 
-# Set default build type to Release if not specified
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
 add_compile_options(-fPIC -cpp -g)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace")
-# Set compiler options based on build type
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
   add_compile_options(-fbounds-check -finit-real=nan -fcheck=all -Wextra)
@@ -48,14 +44,6 @@ find_or_fetch(spline)
 find_or_fetch(quadpack)
 find_or_fetch(vode)
 
-### External modules
-# add_subdirectory("../BOOZER_MAGFIE" "boozer_magfie")
-# add_subdirectory("../spline" "spline")
-# add_subdirectory("../contrib/quadpack" "quadpack")
-# add_subdirectory("../contrib/vode" "vode")
-#add_subdirectory(POTATO/LATEST)  # contains also vode
-
-### Define executable
 add_executable(${PROJECT_EXE_NAME}
   SRC/main.f90
 )
@@ -74,20 +62,17 @@ set(NEO_RT_SOURCES
   SRC/neort.f90
 )
 
-# Set a configuration flag
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
 
-# Add source files based on the configuration flag
 if(USE_STANDALONE)
-  add_library("neo_rt" SHARED
+  add_library("neo_rt" STATIC
     ${NEO_RT_SOURCES}
     SRC/do_magfie_standalone.f90
   )
 else()
-  # For NEO-2 field routines
   include_directories(${PROJECT_BINARY_DIR}/boozer_magfie/OBJS/)
 
-  add_library("neo_rt" SHARED
+  add_library("neo_rt" STATIC
     ${NEO_RT_SOURCES}
     SRC/do_magfie_neo.f90
   )
