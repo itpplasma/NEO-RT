@@ -689,20 +689,15 @@ contains
     end subroutine test_resline
 
     subroutine compute_transport_coeffs
-        use lineint, only: flux_integral_ode
-
         integer :: j
-        real(8) :: fluxrespco(2), fluxrespctr(2), &
-                   fluxrest(2), fluxpco(2), fluxpctr(2), fluxt(2)
-        real(8) :: vminp, vmaxp, vmint, vmaxt
+        real(8) :: fluxpco(2), fluxpctr(2), fluxt(2)
         integer :: mthmin, mthmax
         integer :: mth0co, mth0ctr, mth0t, mthco, mthctr, mtht ! mode counters
-        character(1024) :: fn1, fn2
-
-        real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
+        character(1024) :: outfile
 
         logical :: firstloop
 
+        write (outfile, *) trim(adjustl(runname))//".out"
 
         firstloop = .true.
 
@@ -710,14 +705,6 @@ contains
         fluxpctr = 0d0
         fluxt = 0d0
 
-        write (fn1, *) trim(adjustl(runname))//".out"
-        write (fn2, *) trim(adjustl(runname))//"_integral.out"
-
-        ! absolute tolerances for integrals
-        tol0 = 1d-15
-        tolpco = tol0
-        tolpctr = tol0
-        tolt = tol0
 
         fluxpco = 0d0
         fluxpctr = 0d0
@@ -742,134 +729,154 @@ contains
         mtht = 0
 
         do j = mthmin, mthmax
-            mth = j
-            fluxrest = 0d0
-            fluxrespco = 0d0
-            fluxrespctr = 0d0
-
-            vminp = 1d-6*vth
-            vmaxp = 3d0*vth
-            vmint = 1d-6*vth
-            vmaxt = 3d0*vth
-
-            ! superbanana resonance
-            if (supban) then
-                sigv = 1
-                vmint = 0.01*vth
-                vmaxt = 5*vth
-                etamin = (1 + epst)*etatp
-                etamax = (1 - epst)*etadt
-                if (odeint) then
-                    fluxrest = flux_integral_ode(vmint, vmaxt)
-                elseif (vsteps > 0) then
-                    fluxrest = flux_integral_mid(vmint, vmaxt)
-                else
-                    fluxrest = flux_integral(vmint, vmaxt, tol0)
-                end if
-                fluxt = fluxt + fluxrest
-            else
-                ! passing resonance (co-passing)
-                if (.not. nopassing) then
-                    sigv = 1
-                    etamin = epsp*etatp
-                    etamax = (1 - epsp)*etatp
-                    if (odeint) then
-                        fluxrespco = flux_integral_ode(vminp, vmaxp)
-                    elseif (vsteps > 0) then
-                        fluxrespco = flux_integral_mid(vminp, vmaxp)
-                    else
-                        fluxrespco = flux_integral(vminp, vmaxp, tolpco)
-                    end if
-                    fluxpco = fluxpco + fluxrespco
-                    tolpco(1) = max(1d-6*fluxpco(1), tolpco(1))
-                    tolpco(2) = max(1d-6*fluxpco(2), tolpco(2))
-                    if (orbit_mode_transp > 0) then
-                        open (unit=9, file=trim(adjustl(runname))//"_box_cop.out", recl=8192, position="append")
-                        write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
-                        close (unit=9)
-                    end if
-                end if
-
-                ! passing resonance (counter-passing)
-                if (.not. nopassing) then
-                    sigv = -1
-                    etamin = epsp*etatp
-                    etamax = (1 - epsp)*etatp
-                    if (odeint) then
-                        fluxrespctr = flux_integral_ode(vminp, vmaxp)
-                    elseif (vsteps > 0) then
-                        fluxrespctr = flux_integral_mid(vminp, vmaxp)
-                    else
-                        fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
-                    end if
-                    fluxpctr = fluxpctr + fluxrespctr
-                    tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
-                    tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
-                    if (orbit_mode_transp > 0) then
-                        open (unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
-                        write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
-                        close (unit=9)
-                    end if
-                end if
-
-                ! trapped resonance (trapped)
-                sigv = 1
-                etamin = (1 + epst)*etatp
-                etamax = (1 - epst)*etadt
-                if (odeint) then
-                    fluxrest = flux_integral_ode(vmint, vmaxt)
-                elseif (vsteps > 0) then
-                    fluxrest = flux_integral_mid(vmint, vmaxt)
-                else
-                    if (mth == 0) then
-                        fluxrest = flux_integral(vmint, vmaxt, tol0)
-                    else
-                        fluxrest = flux_integral(vmint, vmaxt, tolt)
-                    end if
-                end if
-                fluxt = fluxt + fluxrest
-                tolt(1) = max(1d-6*fluxt(1), tolt(1))
-                tolt(2) = max(1d-6*fluxt(2), tolt(2))
-                if (orbit_mode_transp > 0) then
-                    open (unit=9, file=trim(adjustl(runname))//"_box_t.out", recl=8192, position="append")
-                    write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
-                    close (unit=9)
-                end if
-            end if
-
-            print *, ""
-            print *, "test_flux: Mt = ", M_t, ", mth = ", mth
-            write (*, "(4ES12.2,2F12.2)") fluxrespco(1), fluxrespctr(1), &
-                fluxrest(1), fluxrespco(1) + fluxrespctr(1) + fluxrest(1), &
-                vminp/vth, vmint/vth
-            write (*, "(4ES12.2,2F12.2)") fluxrespco(2), fluxrespctr(2), &
-                fluxrest(2), fluxrespco(2) + fluxrespctr(2) + fluxrest(2), &
-                vmaxp/vth, vmaxt/vth
-
-            open (unit=10, file=trim(adjustl(fn2)), recl=1024, position="append")
-            write (10, *) M_t, mth, fluxrespco(1), fluxrespctr(1), fluxrest(1), &
-                fluxrespco(1) + fluxrespctr(1) + fluxrest(1), &
-                fluxrespco(2), fluxrespctr(2), fluxrest(2), &
-                fluxrespco(2) + fluxrespctr(2) + fluxrest(2), vminp/vth, vmaxp/vth, &
-                vmint/vth, vmaxt/vth
-            close (unit=10)
-
-            if (supban) then
-                exit
-            end if
+            call compute_transport_coeff_harmonic(j, fluxpco, fluxpctr, fluxt)
         end do
         ! Here D11 and D12 are written - just different names have been used.
         ! pco is part from co-passing particles, pctr is part from counter
         ! passing particles, t is part from trapped particles. Sum of all
         ! three terms is also stored.
         ! Index 1 is D11, index 2 D12.
-        open (unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
+        open (unit=9, file=trim(adjustl(outfile)), recl=1024, position="append")
         write (9, *) M_t, fluxpco(1), fluxpctr(1), fluxt(1), &
             fluxpco(1) + fluxpctr(1) + fluxt(1), &
             fluxpco(2), fluxpctr(2), fluxt(2), &
             fluxpco(2) + fluxpctr(2) + fluxt(2)
         close (unit=9)
     end subroutine compute_transport_coeffs
+
+    subroutine compute_transport_coeff_harmonic(j, fluxpco, fluxpctr, fluxt)
+        use lineint, only: flux_integral_ode
+
+        integer, intent(in) :: j
+        real(8), intent(inout) :: fluxpco(2), fluxpctr(2), fluxt(2)
+
+        real(8) :: fluxrespco(2), fluxrespctr(2), fluxrest(2)
+        real(8) :: vminp, vmaxp, vmint, vmaxt
+        real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
+
+        character(1024) :: outfile
+
+        write (outfile, *) trim(adjustl(runname))//"_integral.out"
+
+        ! Tolerances for integrals
+        tol0 = 1d-15
+        tolpco = tol0
+        tolpctr = tol0
+        tolt = tol0
+
+        mth = j
+
+        fluxrest = 0d0
+        fluxrespco = 0d0
+        fluxrespctr = 0d0
+
+        vminp = 1d-6*vth
+        vmaxp = 3d0*vth
+        vmint = 1d-6*vth
+        vmaxt = 3d0*vth
+
+        ! Superbanana resonance
+        if (supban) then
+            sigv = 1
+            vmint = 0.01*vth
+            vmaxt = 5*vth
+            etamin = (1 + epst)*etatp
+            etamax = (1 - epst)*etadt
+            if (odeint) then
+                fluxrest = flux_integral_ode(vmint, vmaxt)
+            elseif (vsteps > 0) then
+                fluxrest = flux_integral_mid(vmint, vmaxt)
+            else
+                fluxrest = flux_integral(vmint, vmaxt, tol0)
+            end if
+            fluxt = fluxt + fluxrest
+        else
+            ! Passing resonance (co-passing)
+            if (.not. nopassing) then
+                sigv = 1
+                etamin = epsp*etatp
+                etamax = (1 - epsp)*etatp
+                if (odeint) then
+                    fluxrespco = flux_integral_ode(vminp, vmaxp)
+                elseif (vsteps > 0) then
+                    fluxrespco = flux_integral_mid(vminp, vmaxp)
+                else
+                    fluxrespco = flux_integral(vminp, vmaxp, tolpco)
+                end if
+                fluxpco = fluxpco + fluxrespco
+                tolpco(1) = max(1d-6*fluxpco(1), tolpco(1))
+                tolpco(2) = max(1d-6*fluxpco(2), tolpco(2))
+                if (orbit_mode_transp > 0) then
+                    open (unit=9, file=trim(adjustl(runname))//"_box_cop.out", recl=8192, position="append")
+                    write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
+                    close (unit=9)
+                end if
+            end if
+
+            ! Passing resonance (counter-passing)
+            if (.not. nopassing) then
+                sigv = -1
+                etamin = epsp*etatp
+                etamax = (1 - epsp)*etatp
+                if (odeint) then
+                    fluxrespctr = flux_integral_ode(vminp, vmaxp)
+                elseif (vsteps > 0) then
+                    fluxrespctr = flux_integral_mid(vminp, vmaxp)
+                else
+                    fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
+                end if
+                fluxpctr = fluxpctr + fluxrespctr
+                tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
+                tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
+                if (orbit_mode_transp > 0) then
+                    open (unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
+                    write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
+                    close (unit=9)
+                end if
+            end if
+
+            ! Trapped resonance (trapped)
+            sigv = 1
+            etamin = (1 + epst)*etatp
+            etamax = (1 - epst)*etadt
+            if (odeint) then
+                fluxrest = flux_integral_ode(vmint, vmaxt)
+            elseif (vsteps > 0) then
+                fluxrest = flux_integral_mid(vmint, vmaxt)
+            else
+                if (mth == 0) then
+                    fluxrest = flux_integral(vmint, vmaxt, tol0)
+                else
+                    fluxrest = flux_integral(vmint, vmaxt, tolt)
+                end if
+            end if
+            fluxt = fluxt + fluxrest
+            tolt(1) = max(1d-6*fluxt(1), tolt(1))
+            tolt(2) = max(1d-6*fluxt(2), tolt(2))
+            if (orbit_mode_transp > 0) then
+                open (unit=9, file=trim(adjustl(runname))//"_box_t.out", recl=8192, position="append")
+                write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
+                close (unit=9)
+            end if
+        end if
+
+        print *, ""
+        print *, "test_flux: Mt = ", M_t, ", mth = ", mth
+        write (*, "(4ES12.2,2F12.2)") fluxrespco(1), fluxrespctr(1), &
+            fluxrest(1), fluxrespco(1) + fluxrespctr(1) + fluxrest(1), &
+            vminp/vth, vmint/vth
+        write (*, "(4ES12.2,2F12.2)") fluxrespco(2), fluxrespctr(2), &
+            fluxrest(2), fluxrespco(2) + fluxrespctr(2) + fluxrest(2), &
+            vmaxp/vth, vmaxt/vth
+
+        open (unit=10, file=trim(adjustl(outfile)), recl=1024, position="append")
+        write (10, *) M_t, mth, fluxrespco(1), fluxrespctr(1), fluxrest(1), &
+            fluxrespco(1) + fluxrespctr(1) + fluxrest(1), &
+            fluxrespco(2), fluxrespctr(2), fluxrest(2), &
+            fluxrespco(2) + fluxrespctr(2) + fluxrest(2), vminp/vth, vmaxp/vth, &
+            vmint/vth, vmaxt/vth
+        close (unit=10)
+    end subroutine compute_transport_coeff_harmonic
 
     subroutine test_integral
         real(8) :: eta_res(2)
