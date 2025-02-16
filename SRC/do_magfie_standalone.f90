@@ -1,6 +1,6 @@
 module do_magfie_mod
 
-    use common
+    use util
     use spline
 
     implicit none
@@ -234,7 +234,7 @@ end module do_magfie_mod
 
 module do_magfie_pert_mod
 
-    use common
+    use util
     use spline
     use do_magfie_mod, only: s, bfac, inp_swi
 

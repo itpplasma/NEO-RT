@@ -69,7 +69,7 @@ set(NEO_RT_SOURCES
   SRC/attenuation_factor.f90
   SRC/collis_nbi.f90
   SRC/polylag_3.f
-  SRC/common.f90
+  SRC/util.f90
   SRC/driftorbit.f90
 )
 

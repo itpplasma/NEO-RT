@@ -23,7 +23,7 @@ Indices and tables
 Common
 =========
 
-.. f:autosrcfile:: common.f90
+.. f:autosrcfile:: util.f90
 
 
 Transport
@@ -31,4 +31,3 @@ Transport
 
 .. f:autosrcfile:: orbit_full.f90
 .. f:autosrcfile:: transport_full.f90
-

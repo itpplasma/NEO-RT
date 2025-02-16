@@ -1,5 +1,5 @@
 program test_frequencies
-  use common
+  use util
   use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
   q, dqds, iota, R0, a, eps, inp_swi, do_magfie_init, do_magfie
   use driftorbit, only: init, epsmn, mph, mth, vth, qi, mi, Jperp, &

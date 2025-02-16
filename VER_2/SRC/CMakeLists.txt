@@ -47,7 +47,7 @@ endif()
 
 add_subdirectory("../../../spline" "spline")
 add_executable (test_orbit_full.x test_orbit.f90
-  ../../do_magfie_standalone.f90 ../../common.f90)
+  ../../do_magfie_standalone.f90 ../../util.f90)
 target_link_libraries(test_orbit_full.x neo-rt-full spline)
 #add_executable (test_orbit_thin.x test_orbit.f90)
 #target_link_libraries(test_orbit_thin.x neo-rt-thin)

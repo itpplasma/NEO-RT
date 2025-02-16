@@ -1,5 +1,5 @@
 module do_magfie_mod
-    use common
+    use util
     use neo_exchange, only: nper, b_min, b_max, &
                             theta_bmin, theta_bmax, phi_bmin, phi_bmax, rt0
     use magfie_mod, only: magfie, stevvo, magfie_deallocate

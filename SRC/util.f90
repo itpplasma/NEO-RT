@@ -2,7 +2,7 @@
 ! in the action-angle formalism
 ! Christopher Albert, 2015
 
-module common
+module util
     implicit none
     save
 
@@ -95,4 +95,4 @@ contains
         open (unit=newunit(lun), iostat=stat, file=filename, status='old')
         if (stat == 0) close (lun, status='delete')
     end subroutine
-end module common
+end module util

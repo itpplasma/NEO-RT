@@ -1,5 +1,5 @@
 module orbit
-use common
+use util
 implicit none
 
 integer(4), parameter :: neqm=5  ! Number of equations of motion

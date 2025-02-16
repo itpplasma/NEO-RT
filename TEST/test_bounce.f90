@@ -1,5 +1,5 @@
 program test_bounce_program
-    use common, only: qe, mu
+    use util, only: qe, mu
 
     implicit none
 

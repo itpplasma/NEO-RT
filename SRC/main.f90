@@ -1,91 +1,97 @@
-program main
-    use driftorbit
-    use lineint
-    use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
-                             q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
-    use do_magfie_pert_mod, only: do_magfie_pert_init, do_magfie_pert_amp, mph
-    use polylag_3, only: mp, indef, plag1d
-    use common, only: clearfile
+program neo_rt
     implicit none
 
-    logical :: odeint
-    character(len=1024) :: tmp
-    character(:), allocatable :: runname
-    integer :: tmplen
-    logical :: plasmafile, profilefile
-    character(len=64) :: runmode = "torque"
-
-    call get_command_argument(1, tmp, tmplen)
-    runname = trim(adjustl(tmp))
-
-    call read_control
-
-    call do_magfie_init  ! init axisymmetric part of field from infile
-    if (pertfile) then
-        ! init non-axisymmetric perturbation of field from infile_pert
-        call do_magfie_pert_init
-    end if
-
-    ! Init plasma profiles of radial electric field.
-    ! Read profile.in in cases where it's needed.
-    inquire (file="profile.in", exist=profilefile)
-    if (profilefile) then
-        call init_profile
-    else
-        if (orbit_mode_transp > 0) then
-            stop "need profile.in for finite orbit width transport"
-        elseif (intoutput .or. nonlin) then
-            stop "need profile.in for integral output or nonlinear calculation"
-        end if
-    end if
-
-    inquire (file="plasma.in", exist=plasmafile)
-    ! init plasma density and temperature profiles
-    if (plasmafile) then
-        call init_plasma
-    else
-        if ((runmode == "torque") .or. nonlin) then
-            stop "need plasma.in for nonlinear or torque calculation"
-        end if
-    end if
-
-    call init_test
-
-    call test_magfie
-
-    if (runmode == "test_profile") then
-        if (.not. profilefile) error stop "need profile.in for test_profile"
-        call test_profile
-        stop
-    elseif (runmode == "test_bounce") then
-        call test_bounce
-        stop
-    elseif (runmode == "test_torfreq") then
-        call test_torfreq
-        stop
-    elseif (runmode == "test_resline") then
-        call test_resline
-        stop
-    elseif (runmode == "test_box") then
-        if (orbit_mode_transp <= 0) &
-            error stop "need orbit_mode_transp>=0 for test_box"
-        call test_box
-        stop
-    elseif (runmode == "test_torque_integral") then
-        call test_torque_integral
-        stop
-    elseif (runmode == "test_integral") then
-        call test_integral
-        stop
-    elseif (runmode == "torque") then
-        call compute_torque
-        stop
-    elseif (runmode == "transport") then
-        call test_machrange2
-        stop
-    end if
+    call main
 
 contains
+
+    subroutine main
+        use driftorbit
+        use lineint
+        use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
+                                 q, dqds, iota, R0, a, eps, inp_swi !,B0h, B00
+        use do_magfie_pert_mod, only: do_magfie_pert_init, do_magfie_pert_amp, mph
+        use polylag_3, only: mp, indef, plag1d
+        use util, only: clearfile
+        implicit none
+
+        logical :: odeint
+        character(len=1024) :: tmp
+        character(:), allocatable :: runname
+        integer :: tmplen
+        logical :: plasmafile, profilefile
+        character(len=64) :: runmode = "torque"
+
+        call get_command_argument(1, tmp, tmplen)
+        runname = trim(adjustl(tmp))
+
+        call read_control
+
+        call do_magfie_init  ! init axisymmetric part of field from infile
+        if (pertfile) then
+            ! init non-axisymmetric perturbation of field from infile_pert
+            call do_magfie_pert_init
+        end if
+
+        ! Init plasma profiles of radial electric field.
+        ! Read profile.in in cases where it's needed.
+        inquire (file="profile.in", exist=profilefile)
+        if (profilefile) then
+            call init_profile
+        else
+            if (orbit_mode_transp > 0) then
+                stop "need profile.in for finite orbit width transport"
+            elseif (intoutput .or. nonlin) then
+                stop "need profile.in for integral output or nonlinear calculation"
+            end if
+        end if
+
+        inquire (file="plasma.in", exist=plasmafile)
+        ! init plasma density and temperature profiles
+        if (plasmafile) then
+            call init_plasma
+        else
+            if ((runmode == "torque") .or. nonlin) then
+                stop "need plasma.in for nonlinear or torque calculation"
+            end if
+        end if
+
+        call init_test
+
+        call test_magfie
+
+        if (runmode == "test_profile") then
+            if (.not. profilefile) error stop "need profile.in for test_profile"
+            call test_profile
+            stop
+        elseif (runmode == "test_bounce") then
+            call test_bounce
+            stop
+        elseif (runmode == "test_torfreq") then
+            call test_torfreq
+            stop
+        elseif (runmode == "test_resline") then
+            call test_resline
+            stop
+        elseif (runmode == "test_box") then
+            if (orbit_mode_transp <= 0) &
+                error stop "need orbit_mode_transp>=0 for test_box"
+            call test_box
+            stop
+        elseif (runmode == "test_torque_integral") then
+            call test_torque_integral
+            stop
+        elseif (runmode == "test_integral") then
+            call test_integral
+            stop
+        elseif (runmode == "torque") then
+            call compute_torque
+            stop
+        elseif (runmode == "transport") then
+            call test_machrange2
+            stop
+        end if
+    end subroutine main
 
     subroutine read_control
         character(1) :: dummy
@@ -459,7 +465,7 @@ contains
         integer :: jroots(2)
 
         v = 26399452.5418568
-        eta = 4.686498216380098E-005
+        eta = 4.686498216380098e-005
 
         ! v = vth
         ! eta = etatp*1.01
@@ -1371,4 +1377,4 @@ contains
         write (unit, *) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
     end subroutine output_flux_surface_data
 
-end program main
+end program neo_rt

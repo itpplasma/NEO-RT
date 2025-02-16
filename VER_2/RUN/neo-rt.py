@@ -7,7 +7,7 @@ from ninjarun import read_config, build_and_run
 target = 'neo-rt'
 sources = [
     'main.f90',
-    'common.f90',
+    'util.f90',
     'orbit_{orbit_type}.f90',
     'transport_{transport_type}.f90'
 ]
