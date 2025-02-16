@@ -1216,32 +1216,21 @@ contains
         ! computes torque per radial distance dTphi/ds at s=sphi
 
         integer :: j
-        real(8) :: Tresco, Tresctr, Trest, Tco, Tctr, Tt
+        real(8) :: Tco, Tctr, Tt
         real(8) :: vminp, vmaxp, vmint, vmaxt
         integer :: mthmin, mthmax
         integer :: mth0co, mth0ctr, mth0t, mthco, mthctr, mtht ! mode counters
-        character(1024) :: fn1, fn2
-
-        real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
+        character(1024) :: outfile
 
         logical :: firstloop
 
-        firstloop = .true.
-
-        write (fn1, *) trim(adjustl(runname))//"_torque.out"
-        call clearfile(fn1)
-        write (fn2, *) trim(adjustl(runname))//"_torque_integral.out"
-        call clearfile(fn2)
-
+        write (outfile, *) trim(adjustl(runname))//"_torque.out"
+        call clearfile(outfile)
         call clearfile(trim(adjustl(runname))//"_torque_box_co.out")
         call clearfile(trim(adjustl(runname))//"_torque_box_ctr.out")
         call clearfile(trim(adjustl(runname))//"_torque_box_t.out")
 
-        ! absolute tolerances for integrals
-        tol0 = 1d-15
-        tolpco = tol0
-        tolpctr = tol0
-        tolt = tol0
+        firstloop = .true.
 
         Tco = 0d0
         Tctr = 0d0
@@ -1268,90 +1257,111 @@ contains
         if (intoutput) open (unit=11, file=trim(adjustl(runname))//"_intoutput.out", recl=1024)
 
         do j = mthmin, mthmax
-            mth = j
+            call compute_torque_harmonic(j, Tco, Tctr, Tt)
 
-            vminp = 1d-6*vth
-            vmaxp = 4d0*vth
-
-            vmint = vminp
-            vmaxt = vmaxp
-
-            Tresco = 0d0
-            Tresctr = 0d0
-            Trest = 0d0
-
-            ! superbanana resonance
             if (supban) then
-                sigv = 1
-                vmint = 0.01*vth
-                vmaxt = 5*vth
-                etamin = (1 + epst)*etatp
-                etamax = (1 - epst)*etadt
-                Trest = torque_integral_mid(vmint, vmaxt)
-                Tt = Tt + Trest
-            else
-                ! passing resonance (co-passing)
-                if (.not. nopassing) then
-                    sigv = 1
-                    etamin = epsp*etatp
-                    etamax = (1 - epsp)*etatp
-                    Tresco = torque_integral_mid(vminp, vmaxp)
-                    Tco = Tco + Tresco
-                    if (orbit_mode_transp > 0) then
-                        open (unit=9, file=trim(adjustl(runname))//"_torque_box_co.out", recl=8192, &
-                              position="append")
-                        write (9, *) mth, torque_int_box
-                        close (unit=9)
-                    end if
-                end if
+                exit
+            end if
+        end do
+        open (unit=9, file=trim(adjustl(outfile)), recl=1024, position="append")
+        write (9, *) s, dVds, M_t, Tco, Tctr, Tt
+        close (unit=9)
+        if (intoutput) close (unit=11)
+    end subroutine compute_torque
 
-                ! passing resonance (counter-passing)
-                if (.not. nopassing) then
-                    sigv = -1
-                    etamin = epsp*etatp
-                    etamax = (1 - epsp)*etatp
-                    Tresctr = torque_integral_mid(vminp, vmaxp)
-                    Tctr = Tctr + Tresctr
-                    if (orbit_mode_transp > 0) then
-                        open (unit=9, file=trim(adjustl(runname))//"_torque_box_ctr.out", recl=8192, &
-                              position="append")
-                        write (9, *) mth, torque_int_box
-                        close (unit=9)
-                    end if
-                end if
+    subroutine compute_torque_harmonic(j, Tco, Tctr, Tt)
+        integer, intent(in) :: j
+        real(8), intent(inout) :: Tco, Tctr, Tt
 
-                ! trapped resonance (trapped)
+        real(8) :: Tresco, Tresctr, Trest
+        real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
+        real(8) :: vminp, vmaxp, vmint, vmaxt
+        character(1024) :: outfile
+
+        write (outfile, *) trim(adjustl(runname))//"_torque_integral.out"
+        call clearfile(outfile)
+
+        ! absolute tolerances for integrals
+        tol0 = 1d-15
+        tolpco = tol0
+        tolpctr = tol0
+        tolt = tol0
+
+        mth = j
+
+        vminp = 1d-6*vth
+        vmaxp = 4d0*vth
+
+        vmint = vminp
+        vmaxt = vmaxp
+
+        Tresco = 0d0
+        Tresctr = 0d0
+        Trest = 0d0
+
+        ! superbanana resonance
+        if (supban) then
+            sigv = 1
+            vmint = 0.01*vth
+            vmaxt = 5*vth
+            etamin = (1 + epst)*etatp
+            etamax = (1 - epst)*etadt
+            Trest = torque_integral_mid(vmint, vmaxt)
+            Tt = Tt + Trest
+        else
+            ! passing resonance (co-passing)
+            if (.not. nopassing) then
                 sigv = 1
-                etamin = (1 + epst)*etatp
-                etamax = (1 - epst)*etadt
-                Trest = torque_integral_mid(vmint, vmaxt)
-                Tt = Tt + Trest
+                etamin = epsp*etatp
+                etamax = (1 - epsp)*etatp
+                Tresco = torque_integral_mid(vminp, vmaxp)
+                Tco = Tco + Tresco
                 if (orbit_mode_transp > 0) then
-                    open (unit=9, file=trim(adjustl(runname))//"_torque_box_t.out", recl=8192, &
+                    open (unit=9, file=trim(adjustl(runname))//"_torque_box_co.out", recl=8192, &
                           position="append")
                     write (9, *) mth, torque_int_box
                     close (unit=9)
                 end if
             end if
 
-            print *, ""
-            print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
-            write (*, "(4ES12.2,2F12.2)") Tresco, Tresctr, &
-                Trest, Tresco + Tresctr + Trest
-
-            open (unit=10, file=trim(adjustl(fn2)), recl=1024, position="append")
-            write (10, *) mth, Tresco, Tresctr, Trest
-            close (unit=10)
-
-            if (supban) then
-                exit
+            ! passing resonance (counter-passing)
+            if (.not. nopassing) then
+                sigv = -1
+                etamin = epsp*etatp
+                etamax = (1 - epsp)*etatp
+                Tresctr = torque_integral_mid(vminp, vmaxp)
+                Tctr = Tctr + Tresctr
+                if (orbit_mode_transp > 0) then
+                    open (unit=9, file=trim(adjustl(runname))//"_torque_box_ctr.out", recl=8192, &
+                          position="append")
+                    write (9, *) mth, torque_int_box
+                    close (unit=9)
+                end if
             end if
-        end do
-        open (unit=9, file=trim(adjustl(fn1)), recl=1024, position="append")
-        write (9, *) s, dVds, M_t, Tco, Tctr, Tt
-        close (unit=9)
-        if (intoutput) close (unit=11)
-    end subroutine compute_torque
+
+            ! trapped resonance (trapped)
+            sigv = 1
+            etamin = (1 + epst)*etatp
+            etamax = (1 - epst)*etadt
+            Trest = torque_integral_mid(vmint, vmaxt)
+            Tt = Tt + Trest
+            if (orbit_mode_transp > 0) then
+                open (unit=9, file=trim(adjustl(runname))//"_torque_box_t.out", recl=8192, &
+                      position="append")
+                write (9, *) mth, torque_int_box
+                close (unit=9)
+            end if
+        end if
+
+        print *, ""
+        print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
+        write (*, "(4ES12.2,2F12.2)") Tresco, Tresctr, &
+            Trest, Tresco + Tresctr + Trest
+
+        open (unit=10, file=trim(adjustl(outfile)), recl=1024, position="append")
+        write (10, *) mth, Tresco, Tresctr, Trest
+        close (unit=10)
+    end subroutine compute_torque_harmonic
 
     subroutine test_profile
         integer :: k
