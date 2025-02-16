@@ -2,7 +2,7 @@ program test_torque_prog
     use neort, only: read_control, test_magfie, init_profile, init_plasma, init_test, &
                     compute_transport_coeff_harmonic, compute_torque_harmonic, &
                     runname, s, M_t
-    use driftorbit, only: A1, A2, ni1, vth, B0
+    use driftorbit, only: A1, A2, ni1, vth, B0, a
     use do_magfie_mod, only: do_magfie_init, do_magfie, R0, iota
     use util
     implicit none
@@ -33,6 +33,9 @@ contains
         Dctr = 0d0
         Dt = 0d0
         call compute_transport_coeff_harmonic(MTH, Dco, Dctr, Dt)
+        call correct_transport_coeff(Dco)
+        call correct_transport_coeff(Dctr)
+        call correct_transport_coeff(Dt)
 
         Tco = 0d0
         Tctr = 0d0
@@ -77,4 +80,11 @@ contains
         Tphi = (sqrtgBth/c)*qe*(-ni1*Dp*(D(1)*A1 + D(2)*A2))*AVG_NABLA_S
         Tphi = Tphi*NM_IN_DYNCM
     end function torque_from_transport
+
+    ! Correct ad-hoc approximation for AVG_NABLA_S
+    ! This then finally cancels out in torque calculation
+    subroutine correct_transport_coeff(D)
+        real(8), intent(inout) :: D(2)
+        D = D*(2d0/a*sqrt(s))**2/AVG_NABLA_S**2
+    end subroutine correct_transport_coeff
 end program test_torque_prog
