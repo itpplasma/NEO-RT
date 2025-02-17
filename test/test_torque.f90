@@ -14,14 +14,15 @@ program test_torque_prog
     real(8), parameter :: AVG_NABLA_S = 0.02162413513580247d0
     real(8), parameter :: DV_OVER_DS = 12621249.179676009d0
     real(8), parameter :: FLUX_SURFACE_AREA = DV_OVER_DS*AVG_NABLA_S
+    real(8), parameter :: TOL = 1d-13
     character(1024) :: TEST_RUN = "driftorbit64.new"
 
+    call setup
     call test_torque
-    call print_torque_from_transport
 
 contains
 
-    subroutine test_torque
+    subroutine setup
         runname = TEST_RUN
         call read_control
         call do_magfie_init
@@ -45,9 +46,9 @@ contains
         call correct_torque(Tco)
         call correct_torque(Tctr)
         call correct_torque(Tt)
-    end subroutine test_torque
+    end subroutine setup
 
-    subroutine print_torque_from_transport
+    subroutine test_torque
         real(8) :: TTco, TTctr, TTt
 
         TTco = torque_from_transport(Dco)
@@ -59,11 +60,20 @@ contains
         write (*, "(4ES12.2,2F12.2)") TTco, TTctr, TTt, TTco + TTctr + TTt
         print *, ""
         print *, "Ratios to direct calculation:"
-        ! print *, "TTco/Tco = ", TTco/Tco
         print *, "TTctr/Tctr = ", TTctr/Tctr
         print *, "TTt/Tt = ", TTt/Tt
 
-    end subroutine print_torque_from_transport
+        if (abs(TTctr/Tctr - 1d0) > TOL) then
+            error stop
+        end if
+
+        if (abs(TTt/Tt - 1d0) > TOL) then
+            error stop
+        end if
+
+        print *, "test_torque ... OK"
+
+    end subroutine test_torque
 
     function torque_from_transport(D) result(Tphi)
         real(8), intent(in) :: D(2)
@@ -92,7 +102,7 @@ contains
     end subroutine correct_transport_coeff
 
 
-    ! Correct bug in torque calculation
+    ! Correct torque calculation
     subroutine correct_torque(T)
         real(8), intent(inout) :: T
         T = T/DV_OVER_DS
