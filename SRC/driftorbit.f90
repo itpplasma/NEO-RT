@@ -1,12 +1,10 @@
 ! Resonant transport regimes in tokamaks
 ! in the action-angle formalism
-! Christopher Albert, 2015-2017
+! Christopher Albert, since 2015
 
 module driftorbit
     use do_magfie_mod
     use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
-    !use do_magfie_neo_mod
-    !use do_magfie_pert_neo_mod, only: do_magfie_pert_amp, mph
     use collis_alp
     use spline
 
@@ -417,6 +415,8 @@ contains
         integer, intent(in) :: NEQ, NG
         real(8), intent(in) :: T, Y(neq)
         real(8), intent(out) :: GOUT(ng)
+        associate(dummy => T)
+        end associate
         GOUT(1) = Y(1) - th0
         GOUT(2) = 2d0*pi - (Y(1) - th0)
         return
@@ -674,8 +674,8 @@ contains
         end do
     end subroutine driftorbit_coarse
 
-    function driftorbit_nroot(nlev, eta_min, eta_max)
-        integer :: driftorbit_nroot, nlev
+    function driftorbit_nroot(eta_min, eta_max)
+        integer :: driftorbit_nroot
         real(8), optional :: eta_min, eta_max
         real(8) :: etamin2, etamax2
         real(8) :: Omph_etamin, Omph_etamax, dummy, dummy2, &
@@ -746,7 +746,7 @@ contains
             slope_pos = .false.
         end if
 
-        if (driftorbit_nroot(1, etamin2, etamax2) == 0) then
+        if (driftorbit_nroot(etamin2, etamax2) == 0) then
             print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
             print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
 
@@ -802,7 +802,7 @@ contains
                 exit
             end if
             v = (vmax + vmin)/2d0
-            if (driftorbit_nroot(1) /= 0) then
+            if (driftorbit_nroot() /= 0) then
                 vmax = v
             else
                 vmin = v
@@ -1142,12 +1142,11 @@ contains
         ! test box counting
         use dvode_f90_m2
 
-        real(8) :: tol
         integer :: n
 
-        integer :: k, state
+        integer :: k
         real(8) :: ti
-        real(8) :: y(2), ydot(2), yold(2)
+        real(8) :: y(2), yold(2)
 
         real(8) :: atol(nvar), rtol, tout, rstats(22)
         integer :: neq, itask, istate, istats(31), numevents
@@ -1155,7 +1154,7 @@ contains
 
         real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
-        real(8) :: s1old, told, s1dot, sbound
+        real(8) :: s1old, told
         integer :: sind, sind0 ! s index
 
         integer :: jroots(2)
@@ -1228,10 +1227,6 @@ contains
                 end if
             end if
         end do
-        !if (sind /= sind0) then
-        !   write(0,*) s, s1, sind0, sind, v, eta, etatp, etadt
-        !   write(0,*) 'START AND END RADIUS OF ORBIT ARE NOT THE SAME'
-        !end if
 
         taubins(sind) = taubins(sind) + taub - told
 
@@ -1291,6 +1286,9 @@ contains
 
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
+        associate(dummy => t)
+        end associate
+
         x(1) = s
         x(2) = 0d0
         x(3) = y(1)
@@ -1309,6 +1307,9 @@ contains
         real(8), intent(out) :: gout(ng)
 
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+
+        associate(dummy => t)
+        end associate
 
         x(1) = s
         x(2) = 0d0
@@ -1348,6 +1349,9 @@ contains
         real(8) :: G, dGdv, dGdeta, absgradG
         real(8) :: deltatp
         real(8) :: Sveta
+
+        associate(dummy => t)
+        end associate
 
         ! check if trapped or passing region
         if (etamin > etatp) then
@@ -1391,7 +1395,7 @@ contains
 
         real(8) :: sk, ds
         real(8) :: Dp, dsdreff, eta_res(2)
-        integer :: ks, ns
+        integer :: ks, nums
 
         real(8) :: y(4), t, tout, rtol(4), atol(4), rwork(1024)
         integer :: neq, itask, istate, iopt, itol, iwork(1024), ng, jt
@@ -1424,8 +1428,8 @@ contains
         iwork = 0
         iwork(6) = 10000
 
-        ns = 1000
-        ds = 4d0/ns
+        nums = 1000
+        ds = 4d0/nums
         sk = 0d0
 
         dsdreff = 2d0/a*sqrt(s)
@@ -1446,7 +1450,7 @@ contains
             y(2) = (eta_res(1) - etamin)/(etamax - etamin)
         end if
 
-        do ks = 1, ns
+        do ks = 1, nums
             print *, ks, y(2)
             tout = t + ds
             call dvode_f90(intstep, neq, y, t, tout, itask, istate, options, g_fcn=bbox)
@@ -1468,6 +1472,10 @@ contains
         integer, intent(in) :: NEQ, NG
         real(8), intent(in) :: T, Y(neq)
         real(8), intent(out) :: GOUT(ng)
+
+        associate(dummy => T)
+        end associate
+
         GOUT(1) = 1d0
         GOUT(2) = 1d0 - Y(1)
         GOUT(3) = Y(2)

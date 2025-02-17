@@ -77,7 +77,6 @@ contains
         x(3) = 0d0
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         sqrtgBth = sqrtg*hctrvr(3)*bmod*AVG_NABLA_S
-        print *, ""
         print *, "sqrtgBth = ", sqrtgBth
 
         Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
