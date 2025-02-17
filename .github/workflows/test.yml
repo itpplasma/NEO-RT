@@ -2,9 +2,12 @@ name: NEO-RT
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -39,13 +42,9 @@ jobs:
 
     - name: Build code
       run: |
-        mkdir BUILD
-        cd BUILD
-        cmake ..
-        make -j4
-        cd ..
+        make
 
     - name: Run tests
       run: |
-        cd test/ripple_plateau
+        cd examples/ripple_plateau
         python3 test_ripple_plateau.py
