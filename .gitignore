@@ -13,7 +13,6 @@ _*.o
 *.pyc
 *.mod
 *.dat
-*.in
 *.o
 *.so
 *.a

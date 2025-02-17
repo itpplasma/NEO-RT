@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 os.system('rm -f *.out')
-os.system('../../BUILD/neo_rt.x driftorbit_test')
+os.system('../../build/neo_rt.x driftorbit_test')
 
 #%%
 epsmn = 1e-3

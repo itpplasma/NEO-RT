@@ -365,9 +365,7 @@ contains
             vmaxt = 5*vth
             etamin = (1 + epst)*etatp
             etamax = (1 - epst)*etadt
-            if (odeint) then
-                fluxrest = flux_integral_ode(vmint, vmaxt)
-            elseif (vsteps > 0) then
+            if (vsteps > 0) then
                 fluxrest = flux_integral_mid(vmint, vmaxt)
             else
                 fluxrest = flux_integral(vmint, vmaxt, tol0)
@@ -379,9 +377,7 @@ contains
                 sigv = 1
                 etamin = epsp*etatp
                 etamax = (1 - epsp)*etatp
-                if (odeint) then
-                    fluxrespco = flux_integral_ode(vminp, vmaxp)
-                elseif (vsteps > 0) then
+                if (vsteps > 0) then
                     fluxrespco = flux_integral_mid(vminp, vmaxp)
                 else
                     fluxrespco = flux_integral(vminp, vmaxp, tolpco)
@@ -401,9 +397,7 @@ contains
                 sigv = -1
                 etamin = epsp*etatp
                 etamax = (1 - epsp)*etatp
-                if (odeint) then
-                    fluxrespctr = flux_integral_ode(vminp, vmaxp)
-                elseif (vsteps > 0) then
+                if (vsteps > 0) then
                     fluxrespctr = flux_integral_mid(vminp, vmaxp)
                 else
                     fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
@@ -422,9 +416,7 @@ contains
             sigv = 1
             etamin = (1 + epst)*etatp
             etamax = (1 - epst)*etadt
-            if (odeint) then
-                fluxrest = flux_integral_ode(vmint, vmaxt)
-            elseif (vsteps > 0) then
+            if (vsteps > 0) then
                 fluxrest = flux_integral_mid(vmint, vmaxt)
             else
                 if (mth == 0) then
