@@ -37,7 +37,7 @@ module driftorbit
     real(8) :: epsmn = 1d-3           ! perturbation amplitude B1/B0
     integer :: m0 = 1                 ! Boozer poloidal perturbation mode
     integer :: mth = 1                ! canonical poloidal mode
-    logical :: supban = .False.     ! calculate superbanana plateau
+    logical :: supban = .False.       ! calculate superbanana plateau only
     logical :: magdrift = .True.      ! consider magnetic drift
     logical :: nopassing = .False.    ! neglect passing particles
     logical :: noshear = .False.      ! neglect magnetic shear
