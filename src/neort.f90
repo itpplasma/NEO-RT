@@ -67,10 +67,9 @@ contains
         use driftorbit
         real(8) :: qs, ms
 
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, mth, supban, &
-            magdrift, nopassing, noshear, pertfile, odeint, nonlin, &
-            bfac, efac, inp_swi, orbit_mode_avg, orbit_mode_transp, &
-            vsteps, intoutput, runmode
+        namelist /params/ runmode, s, M_t, qs, ms, vth, epsmn, m0, mph, supban, &
+            magdrift, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
+            orbit_mode_avg, orbit_mode_transp, vsteps, intoutput
 
         open (unit=9, file=trim(adjustl(runname))//".in", status="old", form="formatted")
         read (9, nml=params)

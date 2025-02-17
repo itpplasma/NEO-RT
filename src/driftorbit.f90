@@ -43,8 +43,6 @@ module driftorbit
     logical :: noshear = .False.      ! neglect magnetic shear
     logical :: pertfile = .False.     ! read perturbation from file with neo_magfie_pert
 
-    logical :: odeint = .False.       ! use ode integrator for orbit integration
-
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(8) :: dVds, etadt, etatp
     real(8) :: etamin, etamax
@@ -68,13 +66,16 @@ module driftorbit
     real(8) :: sigv = 1d0
 
     ! Nonlinear calculation switch
-    logical :: nonlin
+    logical :: nonlin = .False.
 
-    ! Orbit modes: 0 ... zeroth order, 1 ... first order, 2 ... full orbit
-    integer :: orbit_mode_avg, orbit_mode_transp
+    ! Orbit modes: 0 ... zeroth order, 1 ... first order
+    integer :: orbit_mode_avg = 0, orbit_mode_transp = 0
 
     ! Number of integration steps in v, set 0 for adaptive integration by quadpack
-    integer :: vsteps
+    integer :: vsteps = 256
+
+    ! Output integral quantities and resonance line
+    logical :: intoutput = .False.
 
     ! Box boundaries of s levels where to check intersections of orbits
     real(8), allocatable :: sbox(:)
@@ -90,10 +91,6 @@ module driftorbit
 
     ! Thermodynamic forces in radial variable s
     real(8) A1, A2
-
-    ! Output integral quantities and resonance line
-    logical :: intoutput
-
 contains
 
     subroutine init
@@ -1308,178 +1305,3 @@ contains
     end subroutine sroots
 
 end module driftorbit
-
-!------------------------------------------------------------------------------!
-!------------------------------------------------------------------------------!
-! WIP: integration with ODEs                                                   !
-!------------------------------------------------------------------------------!
-module lineint
-    use driftorbit
-
-contains
-
-    subroutine intstep(neq, t, y, ydot)
-        !
-        !  Timestep function for orbit integration.
-        !  Includes poloidal angle theta and parallel velocity.
-        !  More integrands may be added starting from y(3)
-        !
-        integer, intent(in) :: neq
-        real(8), intent(in) :: t
-        real(8), intent(in) :: y(neq)
-        real(8), intent(out) :: ydot(neq)
-
-        real(8) :: Omph, dOmphdv, dOmphdeta
-        real(8) :: Omth, dOmthdv, dOmthdeta
-        real(8) :: G, dGdv, dGdeta, absgradG
-        real(8) :: deltatp
-        real(8) :: Sveta
-
-        associate(dummy => t)
-        end associate
-
-        ! check if trapped or passing region
-        if (etamin > etatp) then
-            deltatp = 0d0
-        else
-            deltatp = 1d0
-        end if
-
-        Sveta = (vmax2 - vmin2)*(etamax - etamin)
-
-        v = vmin2 + y(1)*(vmax2 - vmin2)
-        eta = etamin + y(2)*(etamax - etamin)
-
-        call Om_ph(Omph, dOmphdv, dOmphdeta)
-        call Om_th(Omth, dOmthdv, dOmthdeta)
-        G = (mph*q*deltatp + mth)*Omth + mph*Omph
-        dGdv = ((mph*q*deltatp + mth)*dOmthdv + mph*dOmphdv)*(vmax2 - vmin2)
-        dGdeta = ((mph*q*deltatp + mth)*dOmthdeta + mph*dOmphdeta)*(etamax - etamin)
-        absgradG = sqrt(dGdv**2 + dGdeta**2)
-
-        ydot(1) = dGdeta           ! vbar
-        ydot(2) = -dGdv            ! etabar
-        taub = 2d0*pi/abs(Omth)
-        call bounce_fast
-        ydot(3) = (vmax2 - vmin2)*(etamax - etamin)*D11_ode()/vth            ! D11
-        ydot(4) = (vmax2 - vmin2)*(etamax - etamin)*D11_ode()*(v/vth)**2/vth ! D12
-
-        ydot = ydot/absgradG
-
-        ! always go in positive velocity direction
-        if (etamin > etatp) then
-            ydot(1) = -ydot(1)
-            ydot(2) = -ydot(2)
-        end if
-    end subroutine intstep
-
-    function flux_integral_ode(vmin, vmax)
-        use dvode_f90_m2
-        real(8) :: flux_integral_ode(2)
-        real(8) :: vmin, vmax
-
-        real(8) :: sk, ds
-        real(8) :: Dp, dsdreff, eta_res(2)
-        integer :: ks, nums
-
-        real(8) :: y(4), t, tout, rtol(4), atol(4), rwork(1024)
-        integer :: neq, itask, istate, iopt, itol, iwork(1024), ng, jt
-        type(VODE_OPTS) :: OPTIONS
-
-        vmin2 = vmin + 1d-8*(vmax - vmin)
-        vmax2 = vmax - 1d-8*(vmax - vmin)
-
-        neq = 4
-        ng = 4
-        y(1) = 1d0 - 1d-15
-        y(2) = 1d-15
-        y(3) = 0d0
-        y(4) = 0d0
-        itol = 4
-        t = 0.0d0
-        rtol(1) = 1d-9
-        rtol(2) = 1d-9
-        rtol(3) = 1d-9
-        rtol(4) = 1d-9
-        atol(1) = 1d-9
-        atol(2) = 1d-9
-        atol(3) = 1d-9
-        atol(4) = 1d-9
-        itask = 1
-        istate = 1
-        iopt = 1
-        jt = 2
-        rwork = 0d0
-        iwork = 0
-        iwork(6) = 10000
-
-        nums = 1000
-        ds = 4d0/nums
-        sk = 0d0
-
-        dsdreff = 2d0/a*sqrt(s)
-        Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-
-        OPTIONS = SET_OPTS(DENSE_J=.true., RELERR_VECTOR=RTOL, &
-                           ABSERR_VECTOR=ATOL, NEVENTS=NG)
-
-        v = vmax2
-        if (mth /= 0) then
-            if (etamin < etatp) then
-                y(2) = 1d0 - 1d-15
-            else
-                y(2) = 1d-15
-            end if
-        else
-            eta_res = driftorbit_root(max(1d-9*abs(Om_tE), 1d-12), etamin, etamax)
-            y(2) = (eta_res(1) - etamin)/(etamax - etamin)
-        end if
-
-        do ks = 1, nums
-            print *, ks, y(2)
-            tout = t + ds
-            call dvode_f90(intstep, neq, y, t, tout, itask, istate, options, g_fcn=bbox)
-            if (istate == 3) then
-                exit
-            end if
-            print *, ks
-        end do
-
-        flux_integral_ode(1) = dsdreff**(-2)*y(3)/Dp
-        flux_integral_ode(2) = dsdreff**(-2)*y(4)/Dp
-        print *, flux_integral_ode
-    end function flux_integral_ode
-
-    subroutine dummyjac
-    end subroutine dummyjac
-
-    subroutine bbox(NEQ, T, Y, NG, GOUT)
-        integer, intent(in) :: NEQ, NG
-        real(8), intent(in) :: T, Y(neq)
-        real(8), intent(out) :: GOUT(ng)
-
-        associate(dummy => T)
-        end associate
-
-        GOUT(1) = 1d0
-        GOUT(2) = 1d0 - Y(1)
-        GOUT(3) = Y(2)
-        GOUT(4) = 1d0 - Y(2)
-        return
-    end subroutine bbox
-
-    function D11_ode()
-        real(8) :: D11_ode
-        real(8) :: ux
-        real(8) :: Hmn2
-
-        ux = v/vth
-
-        Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
-
-        D11_ode = pi**(3d0/2d0)*mph**2*c**2*q*vth/ &
-                  (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)* &
-                  taub*Hmn2
-    end function D11_ode
-
-end module lineint
