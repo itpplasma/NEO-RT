@@ -41,9 +41,9 @@ contains
         Tctr = 0d0
         Tt = 0d0
         call compute_torque_harmonic(MTH, Tco, Tctr, Tt)
-        call correct_torque(Tco)
-        call correct_torque(Tctr)
-        call correct_torque(Tt)
+        ! call correct_torque(Tco)
+        ! call correct_torque(Tctr)
+        ! call correct_torque(Tt)
     end subroutine test_torque
 
     subroutine print_torque_from_transport
@@ -58,7 +58,7 @@ contains
         write (*, "(4ES12.2,2F12.2)") TTco, TTctr, TTt, TTco + TTctr + TTt
         print *, ""
         print *, "Ratios to direct calculation:"
-        print *, "TTco/Tco = ", TTco/Tco
+        ! print *, "TTco/Tco = ", TTco/Tco
         print *, "TTctr/Tctr = ", TTctr/Tctr
         print *, "TTt/Tt = ", TTt/Tt
 

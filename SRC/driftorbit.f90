@@ -1059,7 +1059,7 @@ contains
             end if
         end if
 
-        Tphi_int = -pi**(3d0/2d0)*mph*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1 + A2*ux**2)*1d0/abs(etax(2))
+        Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1 + A2*ux**2)*1d0/abs(etax(2))
     end function Tphi_int
 
     function Tphi_int_u(ux)
@@ -1092,9 +1092,10 @@ contains
     function torque_integral_mid(vmin, vmax)
         ! compute flux integral via midpoint rule
         real(8) :: vmin, vmax
-        real(8) :: torque_integral_mid
+        real(8) :: torque_integral_mid, err
         real(8) :: ux, du
         integer :: ku
+        real(8) :: dD11, dD12
 
         if (orbit_mode_transp > 0) then
             torque_int_box = 0d0
@@ -1142,6 +1143,7 @@ contains
         ! test box counting
         use dvode_f90_m2
 
+        real(8) :: tol
         integer :: n
 
         integer :: k, state
@@ -1154,7 +1156,7 @@ contains
 
         real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
-        real(8) :: s1old, told
+        real(8) :: s1old, told, s1dot, sbound
         integer :: sind, sind0 ! s index
 
         integer :: jroots(2)
