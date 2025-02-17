@@ -12,7 +12,8 @@ program test_torque_prog
 
     integer, parameter :: MTH = -3
     real(8), parameter :: AVG_NABLA_S = 0.02162413513580247d0
-    real(8), parameter :: NM_IN_DYNCM = 1d7
+    real(8), parameter :: DV_OVER_DS = 12621249.179676009d0
+    real(8), parameter :: FLUX_SURFACE_AREA = DV_OVER_DS*AVG_NABLA_S
     character(1024) :: TEST_RUN = "driftorbit64.new"
 
     call test_torque
@@ -41,9 +42,9 @@ contains
         Tctr = 0d0
         Tt = 0d0
         call compute_torque_harmonic(MTH, Tco, Tctr, Tt)
-        ! call correct_torque(Tco)
-        ! call correct_torque(Tctr)
-        ! call correct_torque(Tt)
+        call correct_torque(Tco)
+        call correct_torque(Tctr)
+        call correct_torque(Tt)
     end subroutine test_torque
 
     subroutine print_torque_from_transport
@@ -81,7 +82,7 @@ contains
 
         Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         Tphi = (sqrtgBth/c)*qe*(-ni1*Dp*(D(1)*A1 + D(2)*A2))*AVG_NABLA_S
-        Tphi = Tphi*NM_IN_DYNCM
+        Tphi = Tphi
     end function torque_from_transport
 
     ! Correct ad-hoc approximation for AVG_NABLA_S
@@ -95,6 +96,6 @@ contains
     ! Correct bug in torque calculation
     subroutine correct_torque(T)
         real(8), intent(inout) :: T
-        T = 0.5d0*pi*T
+        T = T/DV_OVER_DS
     end subroutine correct_torque
 end program test_torque_prog
