@@ -894,7 +894,7 @@ contains
         D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
                  /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
                  *taub*Hmn2 &
-                 *nonlinear_attenuation(ux, dOmthdv, dOmthdeta, Hmn2)
+                 *nonlinear_attenuation(ux, Omth, dOmthdv, dOmthdeta, Hmn2)
     end function D11int
 
     function D12int(ux, etax)
@@ -916,11 +916,11 @@ contains
         D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
                  /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
                  *taub*Hmn2*ux**2 &
-                 *nonlinear_attenuation(ux, dOmthdv, dOmthdeta, Hmn2)
+                 *nonlinear_attenuation(ux, Omth, dOmthdv, dOmthdeta, Hmn2)
     end function D12int
 
-    function nonlinear_attenuation(ux, dOmthdv, dOmthdeta, Hmn2)
-        real(8), intent(in) :: ux, dOmthdv, dOmthdeta, Hmn2
+    function nonlinear_attenuation(ux, Omth, dOmthdv, dOmthdeta, Hmn2)
+        real(8), intent(in) :: ux, Omth, dOmthdv, dOmthdeta, Hmn2
         real(8) :: nonlinear_attenuation
 
         real(8) :: dpp, dhh, fpeff, dres, dnorm, Omph, dOmphdv, dOmphdeta, dOmdv, &
@@ -1284,9 +1284,6 @@ contains
 
         ydot(1) = y(2)*hctrvr(3)                                    ! theta
         ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
-
-        !s1 = s+c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
-        !print *, ti/taub, y, s1
     end subroutine tsorb
 
     subroutine sroots(neq, t, y, ng, gout)
