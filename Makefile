@@ -1,5 +1,5 @@
 CONFIG ?= Release
-BUILD_DIR := BUILD
+BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
 .PHONY: all configure reconfigure build test install clean
