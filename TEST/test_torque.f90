@@ -41,6 +41,9 @@ contains
         Tctr = 0d0
         Tt = 0d0
         call compute_torque_harmonic(MTH, Tco, Tctr, Tt)
+        call correct_torque(Tco)
+        call correct_torque(Tctr)
+        call correct_torque(Tt)
     end subroutine test_torque
 
     subroutine print_torque_from_transport
@@ -87,4 +90,11 @@ contains
         real(8), intent(inout) :: D(2)
         D = D*(2d0/a*sqrt(s))**2/AVG_NABLA_S**2
     end subroutine correct_transport_coeff
+
+
+    ! Correct bug in torque calculation
+    subroutine correct_torque(T)
+        real(8), intent(inout) :: T
+        T = 0.5d0*pi*T
+    end subroutine correct_torque
 end program test_torque_prog
