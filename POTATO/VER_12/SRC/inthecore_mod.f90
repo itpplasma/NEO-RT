@@ -1,1 +1,0 @@
-../../libneo/src/magfie/inthecore_mod.f90

@@ -1,1 +1,0 @@
-../../libneo/src/magfie/amn_mod.f90
