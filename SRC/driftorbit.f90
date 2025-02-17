@@ -882,9 +882,6 @@ contains
         real(8) :: dummy, dummy2
         real(8) :: OmtB
         real(8) :: Hmn2
-        real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt, & ! for nonlin
-                   Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds, &
-                   dOmdpph
 
         v = ux*vth
         eta = etax
@@ -894,25 +891,10 @@ contains
         call bounce_fast
         Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
-        thatt = 1d0
-        if (nonlin) then
-            call Om_ph(Omph, dOmphdv, dOmphdeta)
-            call d_Om_ds(dOmthds, dOmphds)
-            dOmdv = mth*dOmthdv + mph*dOmphdv
-            dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-            dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
-            Ompr = mth*(eta*dOmdeta - ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth)) + dOmdpph
-            call coleff(ux, dpp, dhh, fpeff)
-            dhh = vth*dhh
-            dpp = vth**3*dpp
-            dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6) - eta)*(dOmdeta/Ompr)**2
-            dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
-            call attenuation_factor(dnorm, thatt)
-        end if
-
-        D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth/ &
-                 (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)* &
-                 taub*Hmn2*thatt
+        D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
+                 /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
+                 *taub*Hmn2 &
+                 *nonlinear_attenuation(ux, dOmthdv, dOmthdeta, Hmn2)
     end function D11int
 
     function D12int(ux, etax)
@@ -922,9 +904,6 @@ contains
         real(8) :: dummy, dummy2
         real(8) :: OmtB
         real(8) :: Hmn2
-        real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt, & ! for nonlin
-                   Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds, &
-                   dOmdpph
 
         v = ux*vth
         eta = etax
@@ -934,28 +913,37 @@ contains
         call bounce_fast
         Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
-        thatt = 1d0
-        if (nonlin) then
-            call Om_ph(Omph, dOmphdv, dOmphdeta)
-            call d_Om_ds(dOmthds, dOmphds)
-            dOmdv = mth*dOmthdv + mph*dOmphdv
-            dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-            dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
+        D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
+                 /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
+                 *taub*Hmn2*ux**2 &
+                 *nonlinear_attenuation(ux, dOmthdv, dOmthdeta, Hmn2)
+    end function D12int
 
-            Ompr = mth*(eta*dOmdeta - ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth)) + dOmdpph
+    function nonlinear_attenuation(ux, dOmthdv, dOmthdeta, Hmn2)
+        real(8), intent(in) :: ux, dOmthdv, dOmthdeta, Hmn2
+        real(8) :: nonlinear_attenuation
 
-            call coleff(ux, dpp, dhh, fpeff)
-            dhh = vth*dhh
-            dpp = vth**3*dpp
-            dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6) - eta)*(dOmdeta/Ompr)**2
-            dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
-            call attenuation_factor(dnorm, thatt)
+        real(8) :: dpp, dhh, fpeff, dres, dnorm, Omph, dOmphdv, dOmphdeta, dOmdv, &
+                   dOmdeta, Ompr, dOmphds, dOmthds, dOmdpph
+
+        if (.not. nonlin) then
+            nonlinear_attenuation = 1d0
+            return
         end if
 
-        D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth/ &
-                 (qi**2*dVds*psi_pr)*ux**3*exp(-ux**2)* &
-                 taub*Hmn2*ux**2*thatt
-    end function D12int
+        call Om_ph(Omph, dOmphdv, dOmphdeta)
+        call d_Om_ds(dOmthds, dOmphds)
+        dOmdv = mth*dOmthdv + mph*dOmphdv
+        dOmdeta = mth*dOmthdeta + mph*dOmphdeta
+        dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
+        Ompr = mth*(eta*dOmdeta - ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth)) + dOmdpph
+        call coleff(ux, dpp, dhh, fpeff)
+        dhh = vth*dhh
+        dpp = vth**3*dpp
+        dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6) - eta)*(dOmdeta/Ompr)**2
+        dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
+        call attenuation_factor(dnorm, nonlinear_attenuation)
+    end function
 
     function D11int_u(ux)
         real(8) :: ux
