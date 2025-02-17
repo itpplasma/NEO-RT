@@ -9,3 +9,6 @@ target_link_libraries(test_bounce.x neo_rt)
 
 add_executable(test_torque.x test_torque.f90)
 target_link_libraries(test_torque.x neo_rt)
+
+add_executable(test_misc.x test_misc.f90)
+target_link_libraries(test_misc.x neo_rt)

@@ -1,5 +1,5 @@
 program test_torque_prog
-    use neort, only: read_control, test_magfie, init_profile, init_plasma, init_test, &
+    use neort, only: read_control, check_magfie, init_profile, init_plasma, init_run, &
                     compute_transport_coeff_harmonic, compute_torque_harmonic, &
                     runname, s, M_t
     use driftorbit, only: A1, A2, ni1, vth, B0, a
@@ -27,8 +27,8 @@ contains
         call do_magfie_init
         call init_profile
         call init_plasma
-        call init_test(use_thermodynamic_profiles=.True.)
-        call test_magfie
+        call init_run(use_thermodynamic_profiles=.True.)
+        call check_magfie
 
         Dco = 0d0
         Dctr = 0d0
