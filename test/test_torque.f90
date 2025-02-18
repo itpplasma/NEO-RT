@@ -1,7 +1,6 @@
 program test_torque_prog
     use neort, only: read_control, check_magfie, init_profile, init_plasma, init_run, &
-                    compute_transport_coeff_harmonic, compute_torque_harmonic, &
-                    runname, s, M_t
+                      compute_transport_harmonic, runname, s, M_t
     use driftorbit, only: A1, A2, ni1, vth, B0, a
     use do_magfie_mod, only: do_magfie_init, do_magfie, R0, iota
     use util
@@ -34,15 +33,13 @@ contains
         Dco = 0d0
         Dctr = 0d0
         Dt = 0d0
-        call compute_transport_coeff_harmonic(MTH, Dco, Dctr, Dt)
-        call correct_transport_coeff(Dco)
-        call correct_transport_coeff(Dctr)
-        call correct_transport_coeff(Dt)
-
         Tco = 0d0
         Tctr = 0d0
         Tt = 0d0
-        call compute_torque_harmonic(MTH, Tco, Tctr, Tt)
+        call compute_transport_harmonic(MTH, Dco, Dctr, Dt, Tco, Tctr, Tt)
+        call correct_transport_coeff(Dco)
+        call correct_transport_coeff(Dctr)
+        call correct_transport_coeff(Dt)
         call correct_torque(Tco)
         call correct_torque(Tctr)
         call correct_torque(Tt)

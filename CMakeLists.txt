@@ -41,7 +41,6 @@ include(Util)
 
 find_or_fetch(BOOZER_MAGFIE)
 find_or_fetch(spline)
-find_or_fetch(quadpack)
 find_or_fetch(vode)
 
 add_executable(${PROJECT_EXE_NAME}
@@ -79,7 +78,6 @@ else()
 endif()
 
 add_dependencies(neo_rt spline)
-add_dependencies(neo_rt quadpack)
 add_dependencies(neo_rt vode)
 
 find_package(BLAS)
@@ -88,7 +86,6 @@ find_package(LAPACK)
 target_link_libraries(neo_rt
   vode
   spline
-  quadpack
   BLAS::BLAS
   LAPACK::LAPACK
 )

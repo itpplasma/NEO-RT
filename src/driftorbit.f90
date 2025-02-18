@@ -942,49 +942,9 @@ contains
         call attenuation_factor(dnorm, nonlinear_attenuation)
     end function
 
-    function D11int_u(ux)
-        real(8) :: ux
-        real(8) :: D11int_u
-        real(8) :: eta_res(2)
-        real(8) :: roots(nlev, 3)
-        integer :: nroots, kr
-
-        v = ux*vth
-        D11int_u = 0d0
-
-        call driftorbit_coarse(etamin, etamax, roots, nroots)
-        if (nroots == 0) return
-
-        do kr = 1, nroots
-            eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
-            eta = eta_res(1)
-            D11int_u = D11int_u + D11int(ux, eta_res(1))*1d0/abs(eta_res(2))
-        end do
-
-    end function D11int_u
-
-    function D12int_u(ux)
-        real(8) :: ux
-        real(8) :: D12int_u
-        real(8) :: eta_res(2)
-        real(8) :: roots(nlev, 3)
-        integer :: nroots, kr
-        v = ux*vth
-        D12int_u = 0d0
-
-        call driftorbit_coarse(etamin, etamax, roots, nroots)
-        if (nroots == 0) return
-
-        do kr = 1, nroots
-            eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
-            eta = eta_res(1)
-            D12int_u = D12int_u + D12int(ux, eta_res(1))*1d0/abs(eta_res(2))
-        end do
-    end function D12int_u
-
     function Tphi_int(ux, etax)
         real(8) :: Tphi_int
-        real(8) :: ux, etax(2)
+        real(8) :: ux, etax
         real(8) :: Omth, dOmthdv, dOmthdeta
         real(8) :: dummy, dummy2
         real(8) :: OmtB
@@ -996,7 +956,7 @@ contains
         real(8) :: dvdJ, detadJ
 
         v = ux*vth
-        eta = etax(1)
+        eta = etax
         call Om_th(Omth, dOmthdv, dOmthdeta)
         call Om_tB(OmtB, dummy, dummy2)
         taub = 2d0*pi/abs(Omth)
@@ -1044,84 +1004,8 @@ contains
             end if
         end if
 
-        Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1 + A2*ux**2)*1d0/abs(etax(2))
+        Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1 + A2*ux**2)
     end function Tphi_int
-
-    function Tphi_int_u(ux)
-        real(8) :: ux
-        real(8) :: Tphi_int_u, dTphi_int_u
-        real(8) :: eta_res(2)
-        real(8) :: roots(nlev, 3)
-        integer :: nroots, kr
-
-        v = ux*vth
-        Tphi_int_u = 0d0
-
-        call driftorbit_coarse(etamin, etamax, roots, nroots)
-        if (nroots == 0) return
-
-        do kr = 1, nroots
-            eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
-            eta = eta_res(1)
-            dTphi_int_u = Tphi_int(ux, eta_res)
-            Tphi_int_u = Tphi_int_u + dTphi_int_u
-
-            if (orbit_mode_transp > 0) then
-                call taurel
-                torque_int_box = torque_int_box + dTphi_int_u*taubins
-            end if
-        end do
-
-    end function Tphi_int_u
-
-    function torque_integral_mid(vmin, vmax)
-        ! compute flux integral via midpoint rule
-        real(8) :: vmin, vmax
-        real(8) :: torque_integral_mid
-        real(8) :: ux, du
-        integer :: ku
-
-        if (orbit_mode_transp > 0) then
-            torque_int_box = 0d0
-        end if
-
-        torque_integral_mid = 0d0
-        du = (vmax - vmin)/(vsteps*vth)
-        ux = vmin/vth + du/2d0
-
-        do ku = 1, vsteps
-            torque_integral_mid = torque_integral_mid + Tphi_int_u(ux)*du
-            ux = ux + du
-        end do
-
-        if (orbit_mode_transp > 0) then
-            torque_int_box = torque_int_box*du
-        end if
-
-    end function torque_integral_mid
-
-    function flux_integral(vmin, vmax, tol)
-        real(8) :: vmin, vmax
-        real(8) :: tol(2)
-        real(8) :: flux_integral(2), err
-        real(8) :: Dp, dsdreff
-        integer :: neval, ier
-
-        flux_integral = 0d0
-
-        call qag(D11int_u, &
-                 (vmin + (vmax - vmin)*1d-10)/vth, (vmax - (vmax - vmin)*1d-10)/vth, &
-                 tol(1), 1d-3, 6, flux_integral(1), err, neval, ier)
-
-        call qag(D12int_u, &
-                 (vmin + (vmax - vmin)*1d-10)/vth, (vmax - (vmax - vmin)*1d-10)/vth, &
-                 tol(2), 1d-3, 6, flux_integral(2), err, neval, ier)
-
-        Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-        dsdreff = 2d0/a*sqrt(s)
-        flux_integral = dsdreff**(-2)*flux_integral/Dp
-
-    end function flux_integral
 
     subroutine taurel
         ! test box counting
@@ -1218,45 +1102,59 @@ contains
         taubins = taubins/taub
     end subroutine taurel
 
-    function flux_integral_mid(vmin, vmax)
+    subroutine transport_integral_mid(vmin, vmax, D, T)
         ! compute flux integral via midpoint rule
-        real(8) :: vmin, vmax
-        real(8) :: flux_integral_mid(2)
-        real(8) :: Dp, dsdreff
-        real(8) :: ux, du
-        integer :: ku
-        real(8) :: dD11, dD12
+        real(8), intent(in) :: vmin, vmax
+        real(8), intent(out) :: D(2), T ! Transport coefficients D and torque density T
+        real(8) :: Dp, dsdreff ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
+        real(8) :: ux, du, dD11, dD12, dT
+        real(8) :: eta_res(2)
+        real(8) :: roots(nlev, 3)
+        integer :: nroots, kr, ku
 
         if (orbit_mode_transp > 0) then
             fluxint_box = 0d0
+            torque_int_box = 0d0
         end if
 
-        flux_integral_mid = 0d0
+        D = 0d0
+        T = 0d0
         du = (vmax - vmin)/(vsteps*vth)
         ux = vmin/vth + du/2d0
 
         do ku = 1, vsteps
-            dD11 = D11int_u(ux)*du
-            dD12 = D12int_u(ux)*du
-            flux_integral_mid(1) = flux_integral_mid(1) + dD11
-            flux_integral_mid(2) = flux_integral_mid(2) + dD12
-            if (orbit_mode_transp > 0) then
-                call taurel
-                fluxint_box(1, :) = fluxint_box(1, :) + taubins*dD11
-                fluxint_box(2, :) = fluxint_box(2, :) + taubins*dD12
-            end if
+            v = ux*vth
+            call driftorbit_coarse(etamin, etamax, roots, nroots)
+            if (nroots == 0) continue
+            do kr = 1, nroots
+                eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                eta = eta_res(1)
+                dD11 = du*D11int(ux, eta_res(1))/abs(eta_res(2))
+                dD12 = du*D12int(ux, eta_res(1))/abs(eta_res(2))
+                dT = du*Tphi_int(ux, eta_res(1))/abs(eta_res(2))
+                D(1) = D(1) + dD11
+                D(2) = D(2) + dD12
+                T = T + dT
+                if (orbit_mode_transp > 0) then
+                    call taurel
+                    fluxint_box(1, :) = fluxint_box(1, :) + taubins*dD11
+                    fluxint_box(2, :) = fluxint_box(2, :) + taubins*dD12
+                    torque_int_box = torque_int_box + taubins*dT
+                end if
+            end do
             ux = ux + du
         end do
 
         Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
-        dsdreff = 2d0/a*sqrt(s)
-        flux_integral_mid = dsdreff**(-2)*flux_integral_mid/Dp
+        dsdreff = 2d0/a*sqrt(s)  ! TODO: Use exact value instead of this approximation
+        D = dsdreff**(-2)*D/Dp
 
         if (orbit_mode_transp > 0) then
             fluxint_box = dsdreff**(-2)*fluxint_box/Dp
         end if
 
-    end function flux_integral_mid
+    end subroutine transport_integral_mid
+
 
     subroutine tsorb(neq, t, y, ydot)
     !

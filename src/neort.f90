@@ -51,16 +51,8 @@ contains
         end if
 
         call init_run(use_thermodynamic_profiles)
-
         call check_magfie
-
-        if (runmode == "torque") then
-            call compute_torque
-            stop
-        elseif (runmode == "transport") then
-            call compute_transport_coeffs
-            stop
-        end if
+        call compute_transport
     end subroutine main
 
     subroutine read_control
@@ -126,7 +118,7 @@ contains
 
     subroutine init_plasma
         use driftorbit, only: s, ni1, dni1ds, ni2, dni2ds, Ti1, dTi1ds, Ti2, dTi2ds, &
-            Te, dTeds, qi, qe, mi, mu, ev, loacol_nbi, vth
+                              Te, dTeds, qi, qe, mi, mu, ev, loacol_nbi, vth
         use polylag_3, only: plag1d, indef, mp
 
         real(8), parameter :: pmass = 1.6726d-24
@@ -276,200 +268,23 @@ contains
         close (unit=9)
     end subroutine check_magfie
 
-
-    subroutine compute_transport_coeffs
+    subroutine compute_transport
         integer :: j
-        real(8) :: fluxpco(2), fluxpctr(2), fluxt(2)
-        integer :: mthmin, mthmax
-        integer :: mth0co, mth0ctr, mth0t, mthco, mthctr, mtht ! mode counters
-        character(1024) :: outfile
 
-        logical :: firstloop
+        ! Transport coefficients D11, D12 in approximate effective radius r=2d0/a*sqrt(s)
+        real(8) :: Dco(2), Dctr(2), Dt(2)
 
-        write (outfile, *) trim(adjustl(runname))//".out"
-
-        firstloop = .true.
-
-        fluxpco = 0d0
-        fluxpctr = 0d0
-        fluxt = 0d0
-
-
-        fluxpco = 0d0
-        fluxpctr = 0d0
-        fluxt = 0d0
-
-        Om_tE = vth*M_t/R0
-        dOm_tEds = vth*dM_tds/R0
-
-        if (supban) then
-            mthmin = 0
-            mthmax = 0
-        else
-            mthmin = -ceiling(2*abs(mph)*q)
-            mthmax = ceiling(2*abs(mph)*q)
-        end if
-
-        mth0co = 0
-        mth0ctr = 0
-        mth0t = 0
-        mthco = 0
-        mthctr = 0
-        mtht = 0
-
-        do j = mthmin, mthmax
-            call compute_transport_coeff_harmonic(j, fluxpco, fluxpctr, fluxt)
-        end do
-        ! Here D11 and D12 are written - just different names have been used.
-        ! pco is part from co-passing particles, pctr is part from counter
-        ! passing particles, t is part from trapped particles. Sum of all
-        ! three terms is also stored.
-        ! Index 1 is D11, index 2 D12.
-        open (unit=9, file=trim(adjustl(outfile)), recl=1024, position="append")
-        write (9, *) M_t, fluxpco(1), fluxpctr(1), fluxt(1), &
-            fluxpco(1) + fluxpctr(1) + fluxt(1), &
-            fluxpco(2), fluxpctr(2), fluxt(2), &
-            fluxpco(2) + fluxpctr(2) + fluxt(2)
-        close (unit=9)
-    end subroutine compute_transport_coeffs
-
-    subroutine compute_transport_coeff_harmonic(j, fluxpco, fluxpctr, fluxt)
-        integer, intent(in) :: j
-        real(8), intent(inout) :: fluxpco(2), fluxpctr(2), fluxt(2)
-
-        real(8) :: fluxrespco(2), fluxrespctr(2), fluxrest(2)
-        real(8) :: vminp, vmaxp, vmint, vmaxt
-        real(8) :: tolpco(2), tolpctr(2), tolt(2), tol0(2)
-
-        character(1024) :: outfile
-
-        write (outfile, *) trim(adjustl(runname))//"_integral.out"
-
-        mth = j
-
-        fluxrest = 0d0
-        fluxrespco = 0d0
-        fluxrespctr = 0d0
-
-        vminp = 1d-6*vth
-        vmaxp = 3d0*vth
-        vmint = vminp
-        vmaxt = vmaxp
-
-        ! Superbanana resonance
-        if (supban) then
-            sigv = 1
-            vmint = 0.01*vth
-            vmaxt = 5*vth
-            etamin = (1 + epst)*etatp
-            etamax = (1 - epst)*etadt
-            if (vsteps > 0) then
-                fluxrest = flux_integral_mid(vmint, vmaxt)
-            else
-                fluxrest = flux_integral(vmint, vmaxt, tol0)
-            end if
-            fluxt = fluxt + fluxrest
-        else
-            ! Passing resonance (co-passing)
-            if (.not. nopassing) then
-                sigv = 1
-                etamin = epsp*etatp
-                etamax = (1 - epsp)*etatp
-                if (vsteps > 0) then
-                    fluxrespco = flux_integral_mid(vminp, vmaxp)
-                else
-                    fluxrespco = flux_integral(vminp, vmaxp, tolpco)
-                end if
-                fluxpco = fluxpco + fluxrespco
-                tolpco(1) = max(1d-6*fluxpco(1), tolpco(1))
-                tolpco(2) = max(1d-6*fluxpco(2), tolpco(2))
-                if (orbit_mode_transp > 0) then
-                    open (unit=9, file=trim(adjustl(runname))//"_box_cop.out", recl=8192, position="append")
-                    write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
-                    close (unit=9)
-                end if
-            end if
-
-            ! Passing resonance (counter-passing)
-            if (.not. nopassing) then
-                sigv = -1
-                etamin = epsp*etatp
-                etamax = (1 - epsp)*etatp
-                if (vsteps > 0) then
-                    fluxrespctr = flux_integral_mid(vminp, vmaxp)
-                else
-                    fluxrespctr = flux_integral(vminp, vmaxp, tolpctr)
-                end if
-                fluxpctr = fluxpctr + fluxrespctr
-                tolpctr(1) = max(1d-6*fluxpctr(1), tolpctr(1))
-                tolpctr(2) = max(1d-6*fluxpctr(2), tolpctr(2))
-                if (orbit_mode_transp > 0) then
-                    open (unit=9, file=trim(adjustl(runname))//"_box_ctr.out", recl=8192, position="append")
-                    write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
-                    close (unit=9)
-                end if
-            end if
-
-            ! Trapped resonance (trapped)
-            sigv = 1
-            etamin = (1 + epst)*etatp
-            etamax = (1 - epst)*etadt
-            if (vsteps > 0) then
-                fluxrest = flux_integral_mid(vmint, vmaxt)
-            else
-                if (mth == 0) then
-                    fluxrest = flux_integral(vmint, vmaxt, tol0)
-                else
-                    fluxrest = flux_integral(vmint, vmaxt, tolt)
-                end if
-            end if
-            fluxt = fluxt + fluxrest
-            tolt(1) = max(1d-6*fluxt(1), tolt(1))
-            tolt(2) = max(1d-6*fluxt(2), tolt(2))
-            if (orbit_mode_transp > 0) then
-                open (unit=9, file=trim(adjustl(runname))//"_box_t.out", recl=8192, position="append")
-                write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
-                close (unit=9)
-            end if
-        end if
-
-        print *, ""
-        print *, "test_flux: Mt = ", M_t, ", mth = ", mth
-        write (*, "(4ES12.2,2F12.2)") fluxrespco(1), fluxrespctr(1), &
-            fluxrest(1), fluxrespco(1) + fluxrespctr(1) + fluxrest(1), &
-            vminp/vth, vmint/vth
-        write (*, "(4ES12.2,2F12.2)") fluxrespco(2), fluxrespctr(2), &
-            fluxrest(2), fluxrespco(2) + fluxrespctr(2) + fluxrest(2), &
-            vmaxp/vth, vmaxt/vth
-
-        open (unit=10, file=trim(adjustl(outfile)), recl=1024, position="append")
-        write (10, *) M_t, mth, fluxrespco(1), fluxrespctr(1), fluxrest(1), &
-            fluxrespco(1) + fluxrespctr(1) + fluxrest(1), &
-            fluxrespco(2), fluxrespctr(2), fluxrest(2), &
-            fluxrespco(2) + fluxrespctr(2) + fluxrest(2), vminp/vth, vmaxp/vth, &
-            vmint/vth, vmaxt/vth
-        close (unit=10)
-    end subroutine compute_transport_coeff_harmonic
-
-    subroutine compute_torque
-        ! computes torque per radial distance dTphi/ds at s=sphi
-
-        integer :: j
+        ! Torque density dTphi_int/ds for integration over normalized toroidal flux s
         real(8) :: Tco, Tctr, Tt
         integer :: mthmin, mthmax
-        integer :: mth0co, mth0ctr, mth0t, mthco, mthctr, mtht ! mode counters
-        character(1024) :: outfile
 
         logical :: firstloop
 
-        write (outfile, *) trim(adjustl(runname))//"_torque.out"
-        call clearfile(outfile)
-        call clearfile(trim(adjustl(runname))//"_torque_box_co.out")
-        call clearfile(trim(adjustl(runname))//"_torque_box_ctr.out")
-        call clearfile(trim(adjustl(runname))//"_torque_box_t.out")
-
         firstloop = .true.
 
+        Dco = 0d0
+        Dctr = 0d0
+        Dt = 0d0
         Tco = 0d0
         Tctr = 0d0
         Tt = 0d0
@@ -485,112 +300,126 @@ contains
             mthmax = ceiling(2*abs(mph)*q)
         end if
 
-        mth0co = 0
-        mth0ctr = 0
-        mth0t = 0
-        mthco = 0
-        mthctr = 0
-        mtht = 0
-
-        if (intoutput) open (unit=11, file=trim(adjustl(runname))//"_intoutput.out", recl=1024)
-
         do j = mthmin, mthmax
-            call compute_torque_harmonic(j, Tco, Tctr, Tt)
-
-            if (supban) then
-                exit
-            end if
+            call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)
         end do
-        open (unit=9, file=trim(adjustl(outfile)), recl=1024, position="append")
+
+        open (unit=9, file=trim(adjustl(runname))//".out", recl=1024)
+        write (9, *) "# M_t D11t D11ctr D11co D11 D12t D12ctr D12co D12"
+        write (9, *) M_t, Dco(1), Dctr(1), Dt(1), Dco(1) + Dctr(1) + Dt(1), &
+            Dco(2), Dctr(2), Dt(2), Dco(2) + Dctr(2) + Dt(2)
+        close (unit=9)
+
+        open (unit=9, file=trim(adjustl(runname))//"_torque.out", recl=1024)
+        write (9, *) "# s dVds M_t Tco Tctr Tt"
         write (9, *) s, dVds, M_t, Tco, Tctr, Tt
         close (unit=9)
-        if (intoutput) close (unit=11)
-    end subroutine compute_torque
+    end subroutine compute_transport
 
-    subroutine compute_torque_harmonic(j, Tco, Tctr, Tt)
+    subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)
         integer, intent(in) :: j
-        real(8), intent(inout) :: Tco, Tctr, Tt
+        real(8), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
 
-        real(8) :: Tresco, Tresctr, Trest
+        real(8) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
         real(8) :: vminp, vmaxp, vmint, vmaxt
-        character(1024) :: outfile
-
-        write (outfile, *) trim(adjustl(runname))//"_torque_integral.out"
-        call clearfile(outfile)
 
         mth = j
+
+        Drest = 0d0
+        Dresco = 0d0
+        Dresctr = 0d0
+        Tresco = 0d0
+        Tresctr = 0d0
+        Trest = 0d0
 
         vminp = 1d-6*vth
         vmaxp = 3d0*vth
         vmint = vminp
         vmaxt = vmaxp
 
-        Tresco = 0d0
-        Tresctr = 0d0
-        Trest = 0d0
-
-        ! superbanana resonance
+        ! Superbanana resonance
         if (supban) then
             sigv = 1
-            vmint = 0.01*vth
-            vmaxt = 5*vth
+            vmint = 0.01d0*vth
+            vmaxt = 5d0*vth
             etamin = (1 + epst)*etatp
             etamax = (1 - epst)*etadt
-            Trest = torque_integral_mid(vmint, vmaxt)
+            call transport_integral_mid(vmint, vmaxt, Drest, Trest)
+            Dt = Dt + Drest
             Tt = Tt + Trest
         else
-            ! passing resonance (co-passing)
+            ! Passing resonance (co-passing)
             if (.not. nopassing) then
                 sigv = 1
                 etamin = epsp*etatp
                 etamax = (1 - epsp)*etatp
-                Tresco = torque_integral_mid(vminp, vmaxp)
+                call transport_integral_mid(vminp, vmaxp, Dresco, Tresco)
+                Dco = Dco + Dresco
                 Tco = Tco + Tresco
                 if (orbit_mode_transp > 0) then
-                    open (unit=9, file=trim(adjustl(runname))//"_torque_box_co.out", recl=8192, &
-                          position="append")
-                    write (9, *) mth, torque_int_box
-                    close (unit=9)
+                    call write_transport_box(trim(adjustl(runname))//"_box_co.out")
                 end if
             end if
 
-            ! passing resonance (counter-passing)
+            ! Passing resonance (counter-passing)
             if (.not. nopassing) then
                 sigv = -1
                 etamin = epsp*etatp
                 etamax = (1 - epsp)*etatp
-                Tresctr = torque_integral_mid(vminp, vmaxp)
+                call transport_integral_mid(vminp, vmaxp, Dresctr, Tresctr)
+                Dctr = Dctr + Dresctr
                 Tctr = Tctr + Tresctr
                 if (orbit_mode_transp > 0) then
-                    open (unit=9, file=trim(adjustl(runname))//"_torque_box_ctr.out", recl=8192, &
-                          position="append")
-                    write (9, *) mth, torque_int_box
-                    close (unit=9)
+                    call write_transport_box(trim(adjustl(runname))//"_box_ctr.out")
                 end if
             end if
 
-            ! trapped resonance (trapped)
+            ! Trapped resonance (trapped)
             sigv = 1
             etamin = (1 + epst)*etatp
             etamax = (1 - epst)*etadt
-            Trest = torque_integral_mid(vmint, vmaxt)
+            call transport_integral_mid(vmint, vmaxt, Drest, Trest)
+            Dt = Dt + Drest
             Tt = Tt + Trest
             if (orbit_mode_transp > 0) then
-                open (unit=9, file=trim(adjustl(runname))//"_torque_box_t.out", recl=8192, &
-                      position="append")
-                write (9, *) mth, torque_int_box
-                close (unit=9)
+                call write_transport_box(trim(adjustl(runname))//"_box_t.out")
             end if
         end if
+
+        print *, ""
+        print *, "test_flux: Mt = ", M_t, ", mth = ", mth
+        write (*, "(4ES12.2,2F12.2)") Dresco(1), Dresctr(1), &
+            Drest(1), Dresco(1) + Dresctr(1) + Drest(1), &
+            vminp/vth, vmint/vth
+        write (*, "(4ES12.2,2F12.2)") Dresco(2), Dresctr(2), &
+            Drest(2), Dresco(2) + Dresctr(2) + Drest(2), &
+            vmaxp/vth, vmaxt/vth
+
+        open (unit=10, file=trim(adjustl(runname))//"_integral.out", recl=1024, position="append")
+        write (10, *) M_t, mth, Dresco(1), Dresctr(1), Drest(1), &
+            Dresco(1) + Dresctr(1) + Drest(1), &
+            Dresco(2), Dresctr(2), Drest(2), &
+            Dresco(2) + Dresctr(2) + Drest(2), vminp/vth, vmaxp/vth, &
+            vmint/vth, vmaxt/vth
+        close (unit=10)
 
         print *, ""
         print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
         write (*, "(4ES12.2,2F12.2)") Tresco, Tresctr, &
             Trest, Tresco + Tresctr + Trest
 
-        open (unit=10, file=trim(adjustl(outfile)), recl=1024, position="append")
+        open (unit=10, file=trim(adjustl(runname))//"_torque_integral.out", recl=1024, position="append")
         write (10, *) mth, Tresco, Tresctr, Trest
         close (unit=10)
-    end subroutine compute_torque_harmonic
+    end subroutine compute_transport_harmonic
 
-end module neort
+    subroutine write_transport_box(filename)
+        implicit none
+        character(len=*), intent(in) :: filename
+
+        open (unit=9, file=filename, recl=8192, position="append")
+        write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
+        close (unit=9)
+    end subroutine write_transport_box
+
+    end module neort
