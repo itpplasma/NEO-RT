@@ -334,8 +334,6 @@ contains
     end subroutine compute_transport_coeffs
 
     subroutine compute_transport_coeff_harmonic(j, fluxpco, fluxpctr, fluxt)
-        use lineint, only: flux_integral_ode
-
         integer, intent(in) :: j
         real(8), intent(inout) :: fluxpco(2), fluxpctr(2), fluxt(2)
 
