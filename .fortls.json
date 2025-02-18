@@ -1,0 +1,5 @@
+{
+  "excl_suffixes": ["-pp.f90"],
+  "hover_signature": true,
+  "hover_language": "fortran90"
+}
