@@ -26,7 +26,7 @@ jobs:
     - name: Install build dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential gfortran cmake ninja python3-numpy
+        sudo apt-get install -y build-essential gfortran cmake ninja-build python3-numpy
         sudo apt-get install -y libblas-dev liblapack-dev libsuitesparse-dev libsuperlu-dev
 
     - name: Install custom dependencies
