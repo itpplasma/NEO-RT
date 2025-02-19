@@ -927,7 +927,7 @@ contains
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta
         dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
-        Ompr = omega_prime(ux, Omth, dOmdv, dOmdeta, dOmdpph)
+        Ompr = omega_prime(ux, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test, migrate to new
         call coleff(ux, dpp, dhh, fpeff)
         dhh = vth*dhh
         dpp = vth**3*dpp
@@ -966,7 +966,7 @@ contains
             dOmdeta = mth*dOmthdeta + mph*dOmphdeta
             dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
 
-            Ompr = omega_prime_new(ux, Omth, dOmdv, dOmdeta, dOmdpph)
+            Ompr = omega_prime_new(ux, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test
 
             if (intoutput) then
                 ! 0:n, 1:l, 2:Eth, 3:Jperp_tp, 4:drphi/dpphi, 5:E/Eth, 6:Jperp/Jperp_tp, 7:rphi,
