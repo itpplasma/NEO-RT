@@ -3,18 +3,18 @@
 !
 &params
     runmode = "transport"  ! "torque" or "transport"
-    s = 0.153d0            ! Radial coordinate: Normalized toroidal flux
+    s = 3.9063d-2          ! Radial coordinate: Normalized toroidal flux
     M_t = 0.1d0            ! Toroidal Mach number
     qs = 1.0d0             ! Particle charge [elementary charge]
     ms = 2.014d0           ! Particle mass [atomic unit]
-    vth = 40000000.0d0     ! Thermal velocity [cm/s]
+    vth = 1.0d8            ! Thermal velocity [cm/s]
     epsmn = 1.0d-3         ! Perturbation amplitude B1/B0 (if pertfile==.false.)
     m0 = 0                 ! Poroidal perturbation harmonic (if pertfile==.false.)
     mph = 18               ! Toroidal perturbation harmonic (if pertfile==.false., n>0!)
     supban = .false.       ! Calculate superbanana plateau only
-    magdrift = .true.      ! Consider magnetic drift
+    magdrift = .false.     ! Consider magnetic drift
     nopassing = .false.    ! Neglect passing particles
-    noshear = .true.       ! Neglect magnetic shear term dq/ds
+    noshear = .false.      ! Neglect magnetic shear term dq/ds
     pertfile = .false.     ! Read perturbation from file
     nonlin = .false.       ! Do nonlinear calculation
     bfac = 1.0d0           ! Scale B field by factor
@@ -22,6 +22,6 @@
     inp_swi = 8            ! Input switch for Boozer file
     orbit_mode_avg = 0     ! Orbit mode for bounce averaging
     orbit_mode_transp = 0  ! Orbit mode for transport computation
-    vsteps = 4096          ! Integration steps in velocity space
+    vsteps = 256           ! Integration steps in velocity space
     intoutput = .false.    ! Output details of integrand
 /

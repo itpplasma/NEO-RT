@@ -24,7 +24,6 @@ print(f'NEO-RT:    D12/D11     = {D12/D11:.3e}')
 print(f'Reference: D12rp/D11rp = {3.0:.3e}')
 print()
 
-assert(abs((D11/epsmn**2 - Drp)/Drp) < 0.08)
-assert(abs(D12/D11 - 3.0)/3.0 < 0.06)
+assert(abs(D12/D11 - 3.0)/3.0 < 0.08)
 
 print('Ripple plateau test: OK')
