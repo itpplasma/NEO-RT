@@ -536,6 +536,30 @@ For passing particles, an additional term appears and
 \end_layout
 
 \begin_layout Subsection*
+Resonance condition and resonant action and angle
+\end_layout
+
+\begin_layout Standard
+At the resonance, the nonlinear oscillation (superbanana) frequency
+\begin_inset Formula 
+\[
+\Omega(\bJ)=m_{k}\Omega^{k}=m_{\vartheta}\Omega^{\vartheta}+m_{\varphi}\Omega^{\varphi}
+\]
+
+\end_inset
+
+vanishes.
+ Introducing the canonical transformation TODO
+\begin_inset Formula 
+\[
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection*
 Hamiltonian perturbation
 \end_layout
 
