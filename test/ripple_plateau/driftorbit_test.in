@@ -13,7 +13,7 @@
     mph = 18               ! Toroidal perturbation harmonic (if pertfile==.false., n>0!)
     supban = .false.       ! Calculate superbanana plateau only
     magdrift = .false.     ! Consider magnetic drift
-    nopassing = .false.    ! Neglect passing particles
+    nopassing = .true.     ! Neglect passing particles
     noshear = .false.      ! Neglect magnetic shear term dq/ds
     pertfile = .false.     ! Read perturbation from file
     nonlin = .false.       ! Do nonlinear calculation
