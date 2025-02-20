@@ -62,7 +62,7 @@ contains
         character(1024) :: temp_file
         integer :: funit, i
 
-        temp_file = "/dev/shm/test_omega_prime.dat"
+        temp_file = "/tmp/test_omega_prime.dat"
 
         print *, "Writing results to ", trim(adjustl(temp_file))
 
