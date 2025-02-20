@@ -5,23 +5,37 @@ program main
     implicit none
 
     character(1024) :: TEST_RUN = "driftorbit64.new"
+    real(8) :: ds = 0.001d0
 
     runname = TEST_RUN
+
     call read_control
-    call do_magfie_init
-    call init_profile
-    call init_plasma
-    call init_run(use_thermodynamic_profiles=.true.)
-    call check_magfie
 
-    mth = -3
-    sigv = 1
-    etamin = (1 + epst)*etatp
-    etamax = (1 - epst)*etadt
+    call setup
+    call test_omega_prime
 
+    s = s + 0.5d0*ds
+    call setup
+    call test_omega_prime
+
+    s = s - ds
+    call setup
     call test_omega_prime
 
 contains
+
+    subroutine setup
+        call do_magfie_init
+        call init_profile
+        call init_plasma
+        call init_run(use_thermodynamic_profiles=.true.)
+        call check_magfie
+
+        mth = -3
+        sigv = 1
+        etamin = (1 + epst)*etatp
+        etamax = (1 - epst)*etadt
+    end subroutine setup
 
     subroutine test_omega_prime
         real(8) :: ux

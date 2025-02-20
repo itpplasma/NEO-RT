@@ -183,8 +183,8 @@ contains
         psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
-        allocate (params0(nflux, ncol1 + 1))
-        allocate (modes0(nflux, nmode, ncol2 + 2))
+        if (.not. allocated(params0)) allocate (params0(nflux, ncol1 + 1))
+        if (.not. allocated(modes0)) allocate (modes0(nflux, nmode, ncol2 + 2))
         do ksurf = 1, nflux
             read (18, '(/)')
             read (18, *) params0(ksurf, :)
