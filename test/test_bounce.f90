@@ -66,16 +66,15 @@ program test_bounce_program
     end subroutine setup_control
 
     subroutine test_bounce
-        use driftorbit, only: bounce, bounceavg, nvar, taub
+        use driftorbit, only: bounce, nvar
 
-        real(8) :: bounceavg_tmp(nvar)
-
-        bounceavg = 0d0
-        call bounce
-        bounceavg_tmp(:) = bounceavg(:)
+        real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
         bounceavg = 0d0
-        call bounce
+        call bounce(taub, bounceavg_tmp)
+
+        bounceavg = 0d0
+        call bounce(taub, bounceavg)
 
         if (maxval(abs(bounceavg - bounceavg_tmp)) > tol) then
             print *, 'test_bounce failed'
@@ -87,19 +86,18 @@ program test_bounce_program
 
 
     subroutine test_bounce_fast
-        use driftorbit, only: bounce, bounce_fast, bounceavg, nvar, taub
+        use driftorbit, only: bounce, bounce_fast, nvar
 
-        real(8) :: bounceavg_tmp(nvar)
-
-        bounceavg = 0d0
-        call bounce
+        real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
         bounceavg = 0d0
-        call bounce(taub)
-        bounceavg_tmp(:) = bounceavg(:)
+        call bounce(taub, bounceavg)
 
         bounceavg = 0d0
-        call bounce_fast
+        call bounce(taub, bounceavg_tmp, taub)
+
+        bounceavg = 0d0
+        call bounce_fast(taub, bounceavg)
 
         if (maxval(abs((bounceavg - bounceavg_tmp)/(bounceavg+1d-6))) &
             > 1d-3) then

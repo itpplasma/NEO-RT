@@ -101,6 +101,7 @@ contains
     subroutine test_omega_prime(freq_data)
         type(freq_data_t), intent(inout) :: freq_data
         real(8) :: dOmdv, dOmdeta, Ompr_old, Ompr_new, dOmdpph, Omth, dOmthdeta, vpar
+        real(8) :: bounceavg(nvar)
 
         s = freq_data%s
         call setup
@@ -109,8 +110,10 @@ contains
         ! TODO: J(2) = Jpar, J(3) = pphi
 
         call compute_frequencies(freq_data%u, freq_data%eta, Omth, freq_data%Om, dOmdv, dOmdeta, dOmdpph)
+        call bounce_fast(2d0*pi/abs(Omth), bounceavg)
+
         freq_data%Ompr_old = omega_prime(freq_data%u, Omth, dOmdv, dOmdeta, dOmdpph)
-        freq_data%Ompr_new = omega_prime_new(freq_data%u, Omth, dOmdv, dOmdeta, dOmdpph)
+        freq_data%Ompr_new = omega_prime_new(freq_data%u, bounceavg,Omth, dOmdv, dOmdeta, dOmdpph)
     end subroutine test_omega_prime
 
     subroutine compute_frequencies(ux, etax, Omth, Om, dOmdv, dOmdeta, dOmdpph)
@@ -119,14 +122,16 @@ contains
 
         real(8) :: Omph, dOmphdv, dOmphdeta, dOmphds, dOmthds, dOmthdv, dOmthdeta
 
+        real(8) :: taub, bounceavg(nvar)
+
         v = ux*vth
         eta = etax
 
         call Om_th(Omth, dOmthdv, dOmthdeta)
         taub = 2d0*pi/abs(Omth)
-        call bounce_fast
+        call bounce_fast(taub, bounceavg)
         call Om_ph(Omph, dOmphdv, dOmphdeta)
-        call d_Om_ds(dOmthds, dOmphds)
+        call d_Om_ds(taub, dOmthds, dOmphds)
         Om = mth*Omth + mph*Omph
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta

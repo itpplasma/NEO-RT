@@ -15,7 +15,7 @@ module driftorbit
 
     ! Orbit parameters
     real(8) :: v, eta
-    real(8) :: taub, bounceavg(nvar)
+    ! real(8) :: taub, bounceavg(nvar)
 
     ! Plasma parameters
     real(8) :: Om_tE, dOm_tEds, vth, M_t, dM_tds, efac
@@ -109,6 +109,7 @@ contains
         integer :: k
         real(8) :: aa, b
         real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
+        real(8) :: taub, bounceavg(nvar)
 
         print *, 'init_Om_spl'
 
@@ -132,9 +133,9 @@ contains
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
             if (k == netaspl - 1) then
-                call bounce
+                call bounce(taub, bounceavg)
             else
-                call bounce(taub)
+                call bounce(taub, bounceavg, taub)
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -169,6 +170,7 @@ contains
         real(8) :: aa, b
         integer :: k
         real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
+        real(8) :: taub, bounceavg(nvar)
 
         print *, 'init_Om_pass_spl'
 
@@ -190,9 +192,9 @@ contains
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
             if (k == netaspl_pass - 1) then
-                call bounce
+                call bounce(taub, bounceavg)
             else
-                call bounce(taub)
+                call bounce(taub, bounceavg, taub)
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -419,11 +421,11 @@ contains
         return
     end subroutine bounceroots
 
-    subroutine bounce(taub_estimate)
+    subroutine bounce(taub, bounceavg, taub_estimate)
         ! calculate all bounce averages
-        real(8) :: findroot_res(nvar + 1)
+        real(8), intent(out) :: taub, bounceavg(nvar)
         real(8), optional :: taub_estimate  ! estimated bounce time (user input)
-        real(8) :: taub_est                 ! estimated bounce time (computed)
+        real(8) :: findroot_res(nvar + 1)
         real(8) :: bmod
         real(8) :: y0(nvar)
 
@@ -442,15 +444,15 @@ contains
         ! If bounce time estimate exists (elliptic integrals),
         ! initialize taub with it, owtherwise estimate here.
         if (present(taub_estimate)) then
-            taub_est = taub_estimate
+            taub = taub_estimate
         else
-            taub_est = 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
+            taub = 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
         end if
 
         ! Look for exactly one orbit turn via root-finding.
         ! Start by looking for 5 points per turn.
-        findroot_res = findroot2(y0, taub_est/5d0)
-        !print *, taub
+        findroot_res = findroot2(y0, taub/5d0)
+
         taub = findroot_res(1)
         bounceavg = findroot_res(2:)/taub
 
@@ -458,9 +460,11 @@ contains
 
     end subroutine bounce
 
-    subroutine bounce_fast
+    subroutine bounce_fast(taub, bounceavg)
         use dvode_f90_m
 
+        real(8), intent(in) :: taub
+        real(8), intent(out) :: bounceavg(nvar)
         real(8) :: t1, t2, bmod
 
         real(8) :: y(nvar)
@@ -586,18 +590,17 @@ contains
         dOmthdeta = sigv*splineval(2)*v
     end subroutine Om_th
 
-    subroutine d_Om_ds(dOmthds, dOmphds)
-        real(8) :: s0, taub0, bounceavg0(nvar), ds
-        real(8) :: dOmthds, dOmphds, Omth, Omph_noE
+    subroutine d_Om_ds(taub, dOmthds, dOmphds)
+        real(8), intent(in) :: taub
+        real(8), intent(out) :: dOmthds, dOmphds
+        real(8) :: s0, ds, bounceavg(nvar)
+        real(8) :: Omth, Omph_noE
         ! store current flux surface values
         s0 = s
-        taub0 = taub
-        bounceavg0 = bounceavg
 
-!    ds = 1d-7*s0
         ds = 1d-7
         s = s0 - ds/2d0
-        call bounce_fast
+        call bounce_fast(taub, bounceavg)
         Omth = 2d0*pi/taub
         if (magdrift) then
             if (eta > etatp) then
@@ -613,7 +616,7 @@ contains
             end if
         end if
         s = s0 + ds/2d0
-        call bounce_fast
+        call bounce_fast(taub, bounceavg)
         dOmthds = (2d0*pi/taub - Omth)/ds
         if (magdrift) then
             if (eta > etatp) then
@@ -631,8 +634,6 @@ contains
 
         ! re-set current flux surface values
         s = s0
-        taub = taub0
-        bounceavg = bounceavg0
     end subroutine d_Om_ds
 
     subroutine driftorbit_coarse(eta_min, eta_max, roots, nroots)
@@ -877,18 +878,19 @@ contains
         real(8) :: ux, etax
         real(8) :: Omth, dOmthdv, dOmthdeta
         real(8) :: Hmn2
+        real(8) :: taub, bounceavg(nvar)
 
         v = ux*vth
         eta = etax
         call Om_th(Omth, dOmthdv, dOmthdeta)
         taub = 2d0*pi/abs(Omth)
-        call bounce_fast
+        call bounce_fast(taub, bounceavg)
         Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
         D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
                  /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
                  *taub*Hmn2 &
-                 *nonlinear_attenuation(ux, Omth, dOmthdv, dOmthdeta, Hmn2)
+                 *nonlinear_attenuation(ux, taub, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
     end function D11int
 
     function D12int(ux, etax)
@@ -896,22 +898,23 @@ contains
         real(8) :: ux, etax
         real(8) :: Omth, dOmthdv, dOmthdeta
         real(8) :: Hmn2
+        real(8) :: taub, bounceavg(nvar)
 
         v = ux*vth
         eta = etax
         call Om_th(Omth, dOmthdv, dOmthdeta)
         taub = 2d0*pi/abs(Omth)
-        call bounce_fast
+        call bounce_fast(taub, bounceavg)
         Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
         D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
                  /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
                  *taub*Hmn2*ux**2 &
-                 *nonlinear_attenuation(ux, Omth, dOmthdv, dOmthdeta, Hmn2)
+                 *nonlinear_attenuation(ux, taub, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
     end function D12int
 
-    function nonlinear_attenuation(ux, Omth, dOmthdv, dOmthdeta, Hmn2)
-        real(8), intent(in) :: ux, Omth, dOmthdv, dOmthdeta, Hmn2
+    function nonlinear_attenuation(ux, taub, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
+        real(8), intent(in) :: ux, taub, bounceavg(nvar), Omth, dOmthdv, dOmthdeta, Hmn2
         real(8) :: nonlinear_attenuation
 
         real(8) :: dpp, dhh, fpeff, dres, dnorm, Omph, dOmphdv, dOmphdeta, dOmdv, &
@@ -923,7 +926,7 @@ contains
         end if
 
         call Om_ph(Omph, dOmphdv, dOmphdeta)
-        call d_Om_ds(dOmthds, dOmphds)
+        call d_Om_ds(taub, dOmthds, dOmphds)
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta
         dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
@@ -949,24 +952,24 @@ contains
         real(8) :: Hmn2
         real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt, & ! for nonlin
                    Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds, &
-                   dOmdpph
+                   dOmdpph, taub, bounceavg(nvar)
 
         v = ux*vth
         eta = etax
         call Om_th(Omth, dOmthdv, dOmthdeta)
         taub = 2d0*pi/abs(Omth)
-        call bounce_fast
+        call bounce_fast(taub, bounceavg)
         Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
 
         thatt = 1d0
         if (intoutput .or. nonlin) then
             call Om_ph(Omph, dOmphdv, dOmphdeta)
-            call d_Om_ds(dOmthds, dOmphds)
+            call d_Om_ds(taub, dOmthds, dOmphds)
             dOmdv = mth*dOmthdv + mph*dOmphdv
             dOmdeta = mth*dOmthdeta + mph*dOmphdeta
             dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
 
-            Ompr = omega_prime_new(ux, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test
+            Ompr = omega_prime_new(ux, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test
 
             if (intoutput) then
                 ! 0:n, 1:l, 2:Eth, 3:Jperp_tp, 4:drphi/dpphi, 5:E/Eth, 6:Jperp/Jperp_tp, 7:rphi,
@@ -990,8 +993,8 @@ contains
         Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1 + A2*ux**2)
     end function Tphi_int
 
-    function omega_prime_new(ux, Omth, dOmdv, dOmdeta, dOmdpph)
-        real(8), intent(in) :: ux, Omth, dOmdv, dOmdeta, dOmdpph
+    function omega_prime_new(ux, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
+        real(8), intent(in) :: ux, bounceavg(nvar), Omth, dOmdv, dOmdeta, dOmdpph
         real(8) :: omega_prime_new
 
         real(8) :: ma, mb, mc, md, me, mf, dvdJ, detadJ
@@ -1030,12 +1033,14 @@ contains
 
         integer :: jroots(2)
 
+        real(8) :: taub, bounceavg(nvar)
+
         x(1) = s
         x(2) = 0d0
         x(3) = 0d0
         call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
-        call bounce
+        call bounce(taub, bounceavg)
 
         neq = 2
         rtol = 1d-12

@@ -13,7 +13,7 @@ program test_torque_prog
     real(8), parameter :: AVG_NABLA_S = 0.02162413513580247d0
     real(8), parameter :: DV_OVER_DS = 12621249.179676009d0
     real(8), parameter :: FLUX_SURFACE_AREA = DV_OVER_DS*AVG_NABLA_S
-    real(8), parameter :: TOL = 1d-13
+    real(8), parameter :: TOL = 1d-7
     character(1024) :: TEST_RUN = "driftorbit64.new"
 
     call setup

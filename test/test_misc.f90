@@ -42,6 +42,8 @@ contains
         integer :: neq, itask, istate
         type(vode_opts) :: options
 
+        real(8) :: taub, bounceavg(nvar)
+
         neq = 4
         t = 0.0d0
         rtol = 1d-11
@@ -71,7 +73,7 @@ contains
         !v = 2.2*vth
         !eta = 0.00003
 
-        call bounce
+        call bounce(taub, bounceavg)
         call disp("test_bounce: Om_tB     = ", v**2*bounceavg(3))
         call disp("test_bounce: taub      = ", taub)
         call disp("test_bounce: taub_est  = ", 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0)))
@@ -163,6 +165,8 @@ contains
 
         integer :: jroots(2)
 
+        real(8) :: taub, bounceavg(nvar)
+
         v = 26399452.5418568
         eta = 4.686498216380098e-005
 
@@ -174,7 +178,7 @@ contains
         x(3) = 0d0
         call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
 
-        call bounce
+        call bounce(taub, bounceavg)
 
         neq = 2
         rtol = 1d-12
@@ -263,6 +267,7 @@ contains
         real(8) :: Omth, dOmthdv, dOmthdeta, dOmthds
         real(8) :: OmtB, dOmtBdv, dOmtBdeta
         real(8) :: aa, b
+        real(8) :: taub, bounceavg(nvar)
 
         v = vth
 
@@ -281,7 +286,7 @@ contains
         call disp("test_torfreq: mth        = ", 1d0*mth)
         call disp("test_torfreq: Om_tE      = ", Om_tE)
         call disp("test_torfreq: Om_tB_ref  = ", c*mi*vth**2/(2*qi*psi_pr))
-        call bounce
+        call bounce(taub, bounceavg)
         call disp("test_torfreq: Om_tB_ba   = ", vth**2*bounceavg(3))
         call disp("test_torfreq: etamin = ", etamin)
         call disp("test_torfreq: etamax = ", etamax)
@@ -311,7 +316,7 @@ contains
             call Om_ph(Omph, dOmphdv, dOmphdeta)
             call Om_th(Omth, dOmthdv, dOmthdeta)
             call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
-            call d_Om_ds(dOmthds, dOmphds)
+            call d_Om_ds(taub, dOmthds, dOmphds)
             write (9, *) eta, etatp, etadt, &
                 Om_tE, OmtB, dOmtbdv, dOmtbdeta, &
                 Omth, dOmthdv, dOmthdeta, dOmthds, &
