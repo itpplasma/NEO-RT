@@ -15,7 +15,6 @@ module driftorbit
 
     ! Orbit parameters
     real(8) :: v, eta
-    ! real(8) :: taub, bounceavg(nvar)
 
     ! Plasma parameters
     real(8) :: Om_tE, dOm_tEds, vth, M_t, dM_tds, efac
