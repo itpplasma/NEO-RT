@@ -334,13 +334,13 @@ contains
         end if
     end subroutine timestep
 
-    function findroot2(v, eta, neq, y0, dt, ts)
+    function bounce_integral(v, eta, neq, y0, dt, ts)
         !
         !  Finds the root of an orbit after the first turn
         !
         use dvode_f90_m
 
-        real(8) :: findroot2(neq + 1)
+        real(8) :: bounce_integral(neq + 1)
         real(8), intent(in) :: v, eta
         integer, intent(in) :: neq
         real(8), intent(in) :: y0(neq), dt
@@ -396,12 +396,12 @@ contains
             istate = 2
         end do
         if (istate /= 3) then
-            write (0, *) "ERROR: findroot2 did not converge after 500 iterations"
+            write (0, *) "ERROR: bounce_integral did not converge after 500 iterations"
             write (0, *) eta, etamin, etamax, y(1)
         end if
 
-        findroot2(1) = ti
-        findroot2(2:) = y
+        bounce_integral(1) = ti
+        bounce_integral(2:) = y
 
     contains
 
@@ -414,7 +414,7 @@ contains
 
             call ts(v, eta, t_, y_, ydot_)
         end subroutine timestep2
-    end function findroot2
+    end function bounce_integral
 
     subroutine bounceroots(NEQ, T, Y, NG, GOUT)
         integer, intent(in) :: NEQ, NG
@@ -458,13 +458,10 @@ contains
 
         ! Look for exactly one orbit turn via root-finding.
         ! Start by looking for 5 points per turn.
-        findroot_res = findroot2(v, eta, nvar, y0, taub/5d0, timestep)
+        findroot_res = bounce_integral(v, eta, nvar, y0, taub/5d0, timestep)
 
         taub = findroot_res(1)
         bounceavg = findroot_res(2:)/taub
-
-        call evaluate_bfield_local(bmod)
-
     end subroutine bounce
 
     subroutine bounce_fast(v, eta, taub, bounceavg)
@@ -538,7 +535,7 @@ contains
             taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
         end if
 
-        roots = findroot2(v, eta, neq, y0, taub, timestep_poloidal_motion)
+        roots = bounce_integral(v, eta, neq, y0, taub, timestep_poloidal_motion)
         taub = roots(1)
 
     end function bounce_time
@@ -1288,5 +1285,17 @@ contains
         gout(1) = s1 - sprev
         gout(2) = s1 - snext
     end subroutine sroots
+
+    subroutine get_trapped_region(eta_min, eta_max)
+        real(8), intent(out) :: eta_min, eta_max
+        etamin = (1 + epst)*etatp
+        etamax = (1 - epst)*etadt
+    end subroutine get_trapped_region
+
+    subroutine get_passing_region(eta_min, eta_max)
+        real(8), intent(out) :: eta_min, eta_max
+        etamin = epsp*etatp
+        etamax = (1 - epsp)*etatp
+    end subroutine get_passing_region
 
 end module driftorbit

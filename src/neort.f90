@@ -180,9 +180,8 @@ contains
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
         dOm_tEds = vth*dM_tds/R0
 
-        etamin = (1 + epst)*etatp
-        etamax = (1 - epst)*etadt
         sigv = 1
+        call get_trapped_region(etamin, etamax)
 
         if (use_thermodynamic_profiles) then
             A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
@@ -339,11 +338,10 @@ contains
 
         ! Superbanana resonance
         if (supban) then
-            sigv = 1
             vmint = 0.01d0*vth
             vmaxt = 5d0*vth
-            etamin = (1 + epst)*etatp
-            etamax = (1 - epst)*etadt
+            sigv = 1
+            call get_trapped_region(etamin, etamax)
             call transport_integral_mid(vmint, vmaxt, Drest, Trest)
             Dt = Dt + Drest
             Tt = Tt + Trest
@@ -351,8 +349,7 @@ contains
             ! Passing resonance (co-passing)
             if (.not. nopassing) then
                 sigv = 1
-                etamin = epsp*etatp
-                etamax = (1 - epsp)*etatp
+                call get_passing_region(etamin, etamax)
                 call transport_integral_mid(vminp, vmaxp, Dresco, Tresco)
                 Dco = Dco + Dresco
                 Tco = Tco + Tresco
@@ -364,8 +361,7 @@ contains
             ! Passing resonance (counter-passing)
             if (.not. nopassing) then
                 sigv = -1
-                etamin = epsp*etatp
-                etamax = (1 - epsp)*etatp
+                call get_passing_region(etamin, etamax)
                 call transport_integral_mid(vminp, vmaxp, Dresctr, Tresctr)
                 Dctr = Dctr + Dresctr
                 Tctr = Tctr + Tresctr
@@ -376,8 +372,7 @@ contains
 
             ! Trapped resonance (trapped)
             sigv = 1
-            etamin = (1 + epst)*etatp
-            etamax = (1 - epst)*etadt
+            call get_trapped_region(etamin, etamax)
             call transport_integral_mid(vmint, vmaxt, Drest, Trest)
             Dt = Dt + Drest
             Tt = Tt + Trest

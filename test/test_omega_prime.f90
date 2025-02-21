@@ -86,8 +86,7 @@ contains
 
         mth = -3
         sigv = 1
-        etamin = (1 + epst)*etatp
-        etamax = (1 - epst)*etadt
+        call get_trapped_region(etamin, etamax)
     end subroutine setup
 
     function first_resonance(v) result(eta_res)
@@ -141,5 +140,26 @@ contains
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta
         dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
     end subroutine compute_frequencies
+
+    subroutine compute_invariants(v, eta)
+        real(8), intent(in) :: v, eta
+        real(8) :: taub, bounceavg(nvar)
+        real(8) :: findroot_res(nvar + 1)
+        real(8) :: bmod
+        real(8) :: y0(nvar)
+
+        ! Initialize bounce-averated quantities y0. Their meaning
+        ! is defined inside subroutine timestep (thin orbit integration)
+        call evaluate_bfield_local(bmod)
+        y0 = 1d-15
+        y0(1) = th0
+        y0(2) = vpar(v, eta, bmod)
+        taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+
+        findroot_res = bounce_integral(v, eta, nvar, y0, taub/5d0, timestep)
+
+        taub = findroot_res(1)
+        bounceavg = findroot_res(2:)/taub
+    end subroutine compute_invariants
 
 end program test_omage_prime_prog
