@@ -14,7 +14,7 @@ module driftorbit
     integer, parameter :: nvar = 7
 
     ! Orbit parameters
-    real(8) :: v, eta
+    ! real(8) :: v, eta
 
     ! Plasma parameters
     real(8) :: Om_tE, dOm_tEds, vth, M_t, dM_tds, efac
@@ -108,7 +108,7 @@ contains
         integer :: k
         real(8) :: aa, b
         real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
-        real(8) :: taub, bounceavg(nvar)
+        real(8) :: v, eta, taub, bounceavg(nvar)
 
         print *, 'init_Om_spl'
 
@@ -132,9 +132,9 @@ contains
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
             if (k == netaspl - 1) then
-                call bounce(taub, bounceavg)
+                call bounce(v, eta, taub, bounceavg)
             else
-                call bounce(taub, bounceavg, taub)
+                call bounce(v, eta, taub, bounceavg, taub)
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -169,7 +169,7 @@ contains
         real(8) :: aa, b
         integer :: k
         real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
-        real(8) :: taub, bounceavg(nvar)
+        real(8) :: v, eta, taub, bounceavg(nvar)
 
         print *, 'init_Om_pass_spl'
 
@@ -191,9 +191,9 @@ contains
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
             if (k == netaspl_pass - 1) then
-                call bounce(taub, bounceavg)
+                call bounce(v, eta, taub, bounceavg)
             else
-                call bounce(taub, bounceavg, taub)
+                call bounce(v, eta, taub, bounceavg, taub)
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -226,23 +226,26 @@ contains
         etadt = 1d0/Bmin
     end subroutine init_misc
 
-    function Jperp()
+    function Jperp(v, eta)
         real(8) :: Jperp
+        real(8), intent(in) :: v, eta
         Jperp = mi**2*c/(2d0*qi)*eta*v**2
     end function Jperp
 
-    function vpar(bmod)
+    function vpar(v, eta, bmod)
         !   parallel velocity
-        real(8) :: bmod, vpar
+        real(8) :: vpar
+        real(8), intent(in) :: v, eta, bmod
         vpar = v*sqrt(1d0 - eta*bmod)
         if (isnan(vpar)) then
             vpar = 0d0
         end if
     end function vpar
 
-    function vperp(bmod)
+    function vperp(v, eta, bmod)
         !   perpendicular velocity
-        real(8) :: bmod, vperp
+        real(8) :: vperp
+        real(8), intent(in) :: v, eta, bmod
         vperp = v*sqrt(eta*bmod)
         if (isnan(vperp)) then
             vperp = 0d0
@@ -420,8 +423,9 @@ contains
         return
     end subroutine bounceroots
 
-    subroutine bounce(taub, bounceavg, taub_estimate)
+    subroutine bounce(v, eta, taub, bounceavg, taub_estimate)
         ! calculate all bounce averages
+        real(8), intent(in) :: v, eta
         real(8), intent(out) :: taub, bounceavg(nvar)
         real(8), optional :: taub_estimate  ! estimated bounce time (user input)
         real(8) :: findroot_res(nvar + 1)
@@ -433,7 +437,7 @@ contains
         call evaluate_bfield_local(bmod)
         y0 = 1d-15
         y0(1) = th0         ! poloidal angle theta
-        y0(2) = vpar(bmod)  ! parallel velocity vpar
+        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
         y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
         y0(4) = 0d0         ! perturbed Hamiltonian real part
         y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
@@ -445,7 +449,7 @@ contains
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = 2.0*pi/(vperp(bmod)*iota/R0*sqrt(eps/2d0))
+            taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
         end if
 
         ! Look for exactly one orbit turn via root-finding.
@@ -502,9 +506,10 @@ contains
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
     end subroutine evaluate_bfield_local
 
-    subroutine Om_tB(OmtB, dOmtBdv, dOmtBdeta)
+    subroutine Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
         ! returns bounce averaged toroidal magnetic drift frequency
         ! and derivatives w.r.t. v and eta
+        real(8), intent(in) :: v, eta
         real(8), intent(out) :: OmtB, dOmtBdv, dOmtBdeta
         real(8) :: splineval(3)
         real(8) :: Omth, dOmthdv, dOmthdeta
@@ -532,9 +537,10 @@ contains
         dOmtBdeta = splineval(2)*v**2
     end subroutine Om_tB
 
-    subroutine Om_ph(Omph, dOmphdv, dOmphdeta)
+    subroutine Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         ! returns canonical toroidal frequency
         ! and derivatives w.r.t. v and eta
+        real(8), intent(in) :: v, eta
         real(8), intent(out) :: Omph, dOmphdv, dOmphdeta
         real(8) :: Omth, dOmthdv, dOmthdeta
         real(8) :: OmtB, dOmtBdv, dOmtBdeta
@@ -563,9 +569,10 @@ contains
         end if
     end subroutine Om_ph
 
-    subroutine Om_th(Omth, dOmthdv, dOmthdeta)
+    subroutine Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         ! returns canonical poloidal frequency
         ! and derivatives w.r.t. v and eta
+        real(8), intent(in) :: v, eta
         real(8), intent(out) :: Omth, dOmthdv, dOmthdeta
         real(8) :: splineval(3)
 
@@ -589,8 +596,8 @@ contains
         dOmthdeta = sigv*splineval(2)*v
     end subroutine Om_th
 
-    subroutine d_Om_ds(taub, dOmthds, dOmphds)
-        real(8), intent(in) :: taub
+    subroutine d_Om_ds(taub, v, eta, dOmthds, dOmphds)
+        real(8), intent(in) :: taub, v, eta
         real(8), intent(out) :: dOmthds, dOmphds
         real(8) :: s0, ds, bounceavg(nvar)
         real(8) :: Omth, Omph_noE
