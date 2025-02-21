@@ -3,6 +3,7 @@
 ! Christopher Albert, since 2015
 
 module driftorbit
+    use util
     use do_magfie_mod
     use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
     use collis_alp
@@ -251,7 +252,7 @@ contains
         end if
     end function vperp
 
-    subroutine timestep(v, eta, t, y, ydot)
+    subroutine timestep(v, eta, neq, t, y, ydot)
         !
         !  Timestep function for orbit integration.
         !  Includes poloidal angle theta and parallel velocity.
@@ -259,9 +260,10 @@ contains
         !
 
         real(8), intent(in) :: v, eta
+        integer, intent(in) :: neq
         real(8), intent(in) :: t
-        real(8), intent(in) :: y(*)
-        real(8), intent(out) :: ydot(*)
+        real(8), intent(in) :: y(neq)
+        real(8), intent(out) :: ydot(neq)
 
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(8) :: Om_tB_v
@@ -385,7 +387,6 @@ contains
             tout = ti + dt
             call dvode_f90(timestep2, neq, y, ti, tout, itask, istate, options, &
                            g_fcn=bounceroots)
-            !print *, ti
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then
                     exit
@@ -412,7 +413,7 @@ contains
             real(8), intent(in) :: y_(neq_)
             real(8), intent(out) :: ydot_(neq_)
 
-            call ts(v, eta, t_, y_, ydot_)
+            call ts(v, eta, neq_, t_, y_, ydot_)
         end subroutine timestep2
     end function bounce_integral
 
@@ -469,8 +470,8 @@ contains
 
         real(8), intent(in) :: v, eta, taub
         real(8), intent(out) :: bounceavg(nvar)
-        real(8) :: t1, t2, bmod
 
+        real(8) :: t1, t2, bmod
         real(8) :: y(nvar)
         real(8) :: atol(nvar), rtol
         integer :: neq, itask, istate
@@ -505,7 +506,7 @@ contains
             real(8), intent(in) :: y_(neq_)
             real(8), intent(out) :: ydot_(neq_)
 
-            call timestep(v, eta, t_, y_, ydot_)
+            call timestep(v, eta, neq_, t_, y_, ydot_)
         end subroutine timestep2
     end subroutine bounce_fast
 
@@ -541,9 +542,9 @@ contains
     end function bounce_time
 
     subroutine timestep_poloidal_motion(v, eta, neq, t, y, ydot)
-        real(8), intent(in) :: v, eta, t
+        real(8), intent(in) :: v, eta
         integer, intent(in) :: neq
-        real(8), intent(in) :: y(neq)
+        real(8), intent(in) :: t, y(neq)
         real(8), intent(out) :: ydot(neq)
 
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
@@ -551,11 +552,23 @@ contains
         x(1) = s
         x(2) = 0d0
         x(3) = y(1)
+
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        ydot(1) = y(2)*hctrvr(3)                                    ! theta
-        ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+        call timestep_poloidal_internal(v, eta, bmod, hctrvr(3), hder(3), neq, t, y, ydot)
     end subroutine timestep_poloidal_motion
+
+
+    subroutine timestep_poloidal_internal(v, eta, bmod, hthctr, hderth, neq, t, y, ydot)
+        real(8), intent(in) :: v, eta, bmod, hthctr, hderth
+        integer, intent(in) :: neq
+        real(8), intent(in) :: t, y(neq)
+        real(8), intent(out) :: ydot(neq)
+
+
+        ydot(1) = y(2)*hthctr                                   ! theta
+        ydot(2) = -v**2*eta/2d0*hthctr*hderth*bmod              ! v_par
+    end subroutine timestep_poloidal_internal
 
     subroutine evaluate_bfield_local(bmod)
         real(8), intent(out) :: bmod

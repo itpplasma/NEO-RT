@@ -95,7 +95,6 @@ program test_bounce_program
         real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
         bounceavg = 0d0
-        call bounce(v, eta, taub, bounceavg)
 
         bounceavg = 0d0
         call bounce(v, eta, taub, bounceavg_tmp, taub)

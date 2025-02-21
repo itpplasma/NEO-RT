@@ -9,11 +9,13 @@ program test_omage_prime_prog
         real(8) :: J(3), Jbar(3), Om, Ompr_old, Ompr_new
     end type
 
+    real(8), allocatable :: spl_psi_pol(:, :)
+
     call main
 contains
 
     subroutine main
-        integer, parameter :: NUM_SAMPLES = 16
+        integer, parameter :: NUM_SAMPLES = 1
         character(1024), parameter :: TEST_RUN = "driftorbit64.new"
         real(8) :: s0, ux0, eta0
         real(8) :: delta = 1d-10
@@ -30,6 +32,7 @@ contains
         eta_res = first_resonance(ux0*vth)
         eta0 = eta_res(1)
 
+        call spline_psi_pol
         call sample_values(s0, ux0, eta0, delta, freq_data)
         call show_results(freq_data)
     end subroutine main
@@ -45,6 +48,7 @@ contains
         freq_data(1)%u = ux0
         freq_data(1)%eta = eta0
         call test_omega_prime(freq_data(1))
+        stop
         do i = 2, size(freq_data)
             call random_number(xi)
             freq_data(i)%s = s0*(1d0 + delta*(xi-0.5d0))
@@ -118,6 +122,8 @@ contains
 
         freq_data%Ompr_old = omega_prime(freq_data%u, eta, Omth, dOmdv, dOmdeta, dOmdpph)
         freq_data%Ompr_new = omega_prime_new(freq_data%u, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
+
+        call compute_invariants(v, eta, freq_data%J)
     end subroutine test_omega_prime
 
     subroutine compute_frequencies(ux, eta, Omth, Om, dOmdv, dOmdeta, dOmdpph)
@@ -141,12 +147,15 @@ contains
         dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
     end subroutine compute_frequencies
 
-    subroutine compute_invariants(v, eta)
+    subroutine compute_invariants(v, eta, J)
         real(8), intent(in) :: v, eta
-        real(8) :: taub, bounceavg(nvar)
-        real(8) :: findroot_res(nvar + 1)
+        real(8), intent(out) :: J(3)
+
+        integer, parameter :: neq = 2
+        real(8) :: taub, bounceavg(neq)
+        real(8) :: bounceint(neq + 1)
         real(8) :: bmod
-        real(8) :: y0(nvar)
+        real(8) :: y0(neq)
 
         ! Initialize bounce-averated quantities y0. Their meaning
         ! is defined inside subroutine timestep (thin orbit integration)
@@ -154,12 +163,95 @@ contains
         y0 = 1d-15
         y0(1) = th0
         y0(2) = vpar(v, eta, bmod)
-        taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+        taub = bounce_time(v, eta)
 
-        findroot_res = bounce_integral(v, eta, nvar, y0, taub/5d0, timestep)
+        bounceint = bounce_integral(v, eta, nvar, y0, taub/5d0, timestep_invariants)
+        taub = bounceint(1)
+        bounceavg = bounceint(2:)/taub
 
-        taub = findroot_res(1)
-        bounceavg = findroot_res(2:)/taub
+        print *, "taub: ", taub
+        print *, "bounceavg: ", bounceavg
+
+        J(1) = Jperp(v, eta)
+        J(2) = bounceint(3)
+        J(3) = pphi()
+
+        print *, "psi_pol: ", psi_pol()
+
+        print *, "J: ", J
     end subroutine compute_invariants
+
+    subroutine timestep_invariants(v, eta, neq, t, y, ydot)
+        real(8), intent(in) :: v, eta, t
+        integer, intent(in) :: neq
+        real(8), intent(in) :: y(neq)
+        real(8), intent(out) :: ydot(neq)
+
+        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+
+        x(1) = s
+        x(2) = 0d0
+        x(3) = y(1)
+
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+
+        call timestep_poloidal_internal(v, eta, bmod, hctrvr(3), hder(3), 2, t, y(:2), ydot(:2))
+
+        ydot(3) = 0.5d0/pi*mi*vpar(v, eta, bmod)**2  ! Jpar
+    end subroutine timestep_invariants
+
+    function pphi()
+        real(8) :: pphi
+        pphi = -qi/c*psi_pol()
+    end function pphi
+
+    function psi_pol()
+        real(8) :: psi_pol, psi_pol_result(3)
+        psi_pol_result = spline_val_0(spl_psi_pol, s)
+        psi_pol = psi_pol_result(1)
+    end function psi_pol
+
+    subroutine psi_pol_grid(psi_pol)
+        real(8), allocatable, intent(out) :: psi_pol(:)
+
+        integer :: i
+
+        associate(sx => params0(:, 1), iota => params0(:, 2))
+            allocate(psi_pol(size(sx)))
+            psi_pol(1) = 0d0
+            do i = 2, size(sx)
+                psi_pol(i) = psi_pol(i-1) + trapz_step(sx(i-1), sx(i), iota(i-1), iota(i))
+            end do
+            psi_pol = psi_pol*psi_pr
+        end associate
+    end subroutine psi_pol_grid
+
+    subroutine spline_psi_pol
+        real(8), allocatable :: psi(:)
+
+        associate(sx => params0(:, 1))
+            call psi_pol_grid(psi)
+            allocate(spl_psi_pol(size(sx) - 1, 5))
+            spl_psi_pol = spline_coeff(sx, psi)
+        end associate
+    end subroutine spline_psi_pol
+
+    function trapz(x, y)
+        real(8), intent(in) :: x(:), y(:)
+        real(8) :: trapz
+        integer :: i
+
+        trapz = 0d0
+        do i = 2, size(x)
+            trapz = trapz + trapz_step(x(i-1), x(i), y(i-1), y(i))
+        end do
+    end function trapz
+
+    function trapz_step(x1, x2, y1, y2)
+        real(8), intent(in) :: x1, x2, y1, y2
+        real(8) :: trapz_step
+
+        trapz_step = 0.5d0*(x2 - x1)*(y1 + y2)
+    end function trapz_step
 
 end program test_omage_prime_prog
