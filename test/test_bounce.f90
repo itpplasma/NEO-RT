@@ -4,6 +4,7 @@ program test_bounce_program
     implicit none
 
     real(8), parameter :: tol = 1e-13
+    real(8) :: v, eta
 
     call setup
     call test_bounce
@@ -26,6 +27,9 @@ program test_bounce_program
         etamin = (1+epst)*etatp
         etamax = (1-epst)*etadt
         sigv = 1
+
+        v = vth
+        eta = 0.5d0*(etamin + etamax)
 
     end subroutine setup
 
@@ -71,10 +75,10 @@ program test_bounce_program
         real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
         bounceavg = 0d0
-        call bounce(taub, bounceavg_tmp)
+        call bounce(v, eta, taub, bounceavg_tmp)
 
         bounceavg = 0d0
-        call bounce(taub, bounceavg)
+        call bounce(v, eta, taub, bounceavg)
 
         if (maxval(abs(bounceavg - bounceavg_tmp)) > tol) then
             print *, 'test_bounce failed'
@@ -91,13 +95,13 @@ program test_bounce_program
         real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
         bounceavg = 0d0
-        call bounce(taub, bounceavg)
+        call bounce(v, eta, taub, bounceavg)
 
         bounceavg = 0d0
-        call bounce(taub, bounceavg_tmp, taub)
+        call bounce(v, eta, taub, bounceavg_tmp, taub)
 
         bounceavg = 0d0
-        call bounce_fast(taub, bounceavg)
+        call bounce_fast(v, eta, taub, bounceavg)
 
         if (maxval(abs((bounceavg - bounceavg_tmp)/(bounceavg+1d-6))) &
             > 1d-3) then

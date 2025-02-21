@@ -26,8 +26,8 @@ contains
         call read_control
         call setup
         s0 = s
-        ux0 = v/vth
-        eta_res = first_resonance()
+        ux0 = 0.9d0
+        eta_res = first_resonance(ux0*vth)
         eta0 = eta_res(1)
 
         call sample_values(s0, ux0, eta0, delta, freq_data)
@@ -90,48 +90,52 @@ contains
         etamax = (1 - epst)*etadt
     end subroutine setup
 
-    function first_resonance() result(eta_res)
+    function first_resonance(v) result(eta_res)
+        real(8), intent(in) :: v
         real(8) :: eta_res(2)
         real(8) :: roots(nlev, 3)
         integer :: nroots
-        call driftorbit_coarse(etamin, etamax, roots, nroots)
-        eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(1, 1), roots(1, 2))
+        call driftorbit_coarse(v, etamin, etamax, roots, nroots)
+        eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(1, 1), roots(1, 2))
     end function first_resonance
 
     subroutine test_omega_prime(freq_data)
         type(freq_data_t), intent(inout) :: freq_data
         real(8) :: dOmdv, dOmdeta, Ompr_old, Ompr_new, dOmdpph, Omth, dOmthdeta, vpar
         real(8) :: bounceavg(nvar)
+        real(8) :: v, eta
 
         s = freq_data%s
+        v = freq_data%u*vth
+        eta = freq_data%eta
+
         call setup
 
-        freq_data%J(1) = Jperp()
+        freq_data%J(1) = Jperp(v, eta)
         ! TODO: J(2) = Jpar, J(3) = pphi
 
         call compute_frequencies(freq_data%u, freq_data%eta, Omth, freq_data%Om, dOmdv, dOmdeta, dOmdpph)
-        call bounce_fast(2d0*pi/abs(Omth), bounceavg)
+        call bounce_fast(v, eta, 2d0*pi/abs(Omth), bounceavg)
 
-        freq_data%Ompr_old = omega_prime(freq_data%u, Omth, dOmdv, dOmdeta, dOmdpph)
-        freq_data%Ompr_new = omega_prime_new(freq_data%u, bounceavg,Omth, dOmdv, dOmdeta, dOmdpph)
+        freq_data%Ompr_old = omega_prime(freq_data%u, eta, Omth, dOmdv, dOmdeta, dOmdpph)
+        freq_data%Ompr_new = omega_prime_new(freq_data%u, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
     end subroutine test_omega_prime
 
-    subroutine compute_frequencies(ux, etax, Omth, Om, dOmdv, dOmdeta, dOmdpph)
-        real(8), intent(in) :: ux, etax
+    subroutine compute_frequencies(ux, eta, Omth, Om, dOmdv, dOmdeta, dOmdpph)
+        real(8), intent(in) :: ux, eta
         real(8), intent(out) :: Omth, Om, dOmdv, dOmdeta, dOmdpph
 
-        real(8) :: Omph, dOmphdv, dOmphdeta, dOmphds, dOmthds, dOmthdv, dOmthdeta
+        real(8) :: Omph, dOmphdv, dOmphdeta, dOmphds, dOmthds, dOmthdv, dOmthdeta, v
 
         real(8) :: taub, bounceavg(nvar)
 
         v = ux*vth
-        eta = etax
 
-        call Om_th(Omth, dOmthdv, dOmthdeta)
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         taub = 2d0*pi/abs(Omth)
-        call bounce_fast(taub, bounceavg)
-        call Om_ph(Omph, dOmphdv, dOmphdeta)
-        call d_Om_ds(taub, dOmthds, dOmphds)
+        call bounce_fast(v, eta, taub, bounceavg)
+        call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+        call d_Om_ds(taub, v, eta, dOmthds, dOmphds)
         Om = mth*Omth + mph*Omph
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta

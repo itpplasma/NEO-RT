@@ -9,136 +9,15 @@ program test_misc
     if (runmode == "test_profile") then
         call test_profile
         stop
-    elseif (runmode == "test_bounce") then
-        call test_bounce
-        stop
     elseif (runmode == "test_torfreq") then
         call test_torfreq
         stop
     elseif (runmode == "test_resline") then
         call test_resline
         stop
-    elseif (runmode == "test_box") then
-        if (orbit_mode_transp <= 0) &
-            error stop "need orbit_mode_transp>=0 for test_box"
-        call test_box
     end if
 
 contains
-
-    subroutine test_box
-        ! test box counting
-        use dvode_f90_m2
-        integer :: k, n
-
-        real(8) :: ti
-        real(8) :: y(2), yold(2)
-
-        real(8) :: atol(nvar), rtol, tout, rstats(22)
-        integer :: neq, itask, istate, istats(31), numevents
-        type(vode_opts) :: options
-
-        real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
-
-        real(8) :: s1old, told
-        integer :: sind, sind0 ! s index
-
-        integer :: jroots(2)
-
-        real(8) :: taub, bounceavg(nvar)
-
-        v = 26399452.5418568
-        eta = 4.686498216380098e-005
-
-        ! v = vth
-        ! eta = etatp*1.01
-
-        x(1) = s
-        x(2) = 0d0
-        x(3) = 0d0
-        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-
-        call bounce(taub, bounceavg)
-
-        neq = 2
-        rtol = 1d-12
-        atol = 1d-13
-        itask = 1
-        istate = 1
-        numevents = 2
-        options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=numevents)
-
-        n = 3*size(sbox)
-        allocate (taubins(size(sbox) + 1))
-        taubins = 0d0
-
-        y(1) = 0d0
-        y(2) = sigv*vpar(bmod)
-        ti = 0d0
-
-        print *, sbox
-
-        s1 = s + c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
-        sind = size(sbox) + 1
-        sprev = -1e5
-        snext = 1e5
-        do k = 1, size(sbox)
-            if (sbox(k) > s1) then
-                sind = k
-                snext = sbox(k)
-                if (k > 1) sprev = sbox(k - 1)
-                exit
-            end if
-        end do
-        sind0 = sind
-
-        print *, y(1), sind, s1
-
-        told = 0d0
-        do k = 2, n
-            yold = y
-            s1old = s1
-            tout = taub
-            call dvode_f90(tsorb, neq, y, ti, tout, itask, istate, options, &
-                           g_fcn=sroots)
-            if (istate == 2) exit
-            if (istate == 3) then
-                taubins(sind) = taubins(sind) + ti - told
-                told = ti
-                call get_stats(rstats, istats, numevents, jroots)
-                if (jroots(2) .ne. 0) then
-                    sind = sind + 1 ! moving outwards
-                    sprev = snext
-                    if (sind == size(sbox) + 1) then
-                        snext = 1e5
-                    else
-                        snext = sbox(sind)
-                    end if
-                end if
-                if (jroots(1) .ne. 0) then
-                    sind = sind - 1 ! moving inwards
-                    snext = sprev
-                    if (sind == 1) then
-                        sprev = -1e5
-                    else
-                        sprev = sbox(sind - 1)
-                    end if
-                end if
-                print *, y(1), sind, s1
-            end if
-        end do
-        !if (sind /= sind0) then
-        !   write(6,*) s, s1, sind0, sind, v, eta, etatp, etadt
-        !   stop("START AND END RADIUS OF ORBIT ARE NOT THE SAME")
-        !end if
-        print *, ti/taub, sind, s1
-        taubins(sind) = taubins(sind) + taub - told
-
-        taubins = taubins/taub
-        print *, taubins
-        deallocate (taubins)
-
-    end subroutine test_box
 
     subroutine test_torfreq
         integer, parameter :: n = 100
@@ -148,6 +27,7 @@ contains
         real(8) :: OmtB, dOmtBdv, dOmtBdeta
         real(8) :: aa, b
         real(8) :: taub, bounceavg(nvar)
+        real(8) :: v, eta
 
         v = vth
 
@@ -166,11 +46,11 @@ contains
         call disp("test_torfreq: mth        = ", 1d0*mth)
         call disp("test_torfreq: Om_tE      = ", Om_tE)
         call disp("test_torfreq: Om_tB_ref  = ", c*mi*vth**2/(2*qi*psi_pr))
-        call bounce(taub, bounceavg)
+        call bounce(v, eta, taub, bounceavg)
         call disp("test_torfreq: Om_tB_ba   = ", vth**2*bounceavg(3))
         call disp("test_torfreq: etamin = ", etamin)
         call disp("test_torfreq: etamax = ", etamax)
-        call Om_th(Omth, dOmthdv, dOmthdeta)
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
         call disp("test_torfreq: Om_th_approx    = ", v/(q*R0*sqrt(2d0/eps)))
         call disp("test_torfreq: Om_th_deeptrap  = ", Omth)
@@ -193,10 +73,10 @@ contains
             "15:dOmphds                "
         do k = 0, n - 1
             eta = etamin*(1d0 + exp(aa*k + b))
-            call Om_ph(Omph, dOmphdv, dOmphdeta)
-            call Om_th(Omth, dOmthdv, dOmthdeta)
-            call Om_tB(OmtB, dOmtBdv, dOmtBdeta)
-            call d_Om_ds(taub, dOmthds, dOmphds)
+            call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+            call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+            call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+            call d_Om_ds(taub, v, eta, dOmthds, dOmphds)
             write (9, *) eta, etatp, etadt, &
                 Om_tE, OmtB, dOmtbdv, dOmtbdeta, &
                 Omth, dOmthdv, dOmthdeta, dOmthds, &
@@ -208,8 +88,8 @@ contains
     subroutine test_resline
         integer, parameter :: n = 500
         integer :: k
-        real(8) :: vmin, vmax
-        real(8) :: etarest(2), etaresp(2)
+        real(8) :: vmin, vmax, v
+        real(8) :: etarest(2), etaresp(2), eta
         real(8) :: roots(nlev, 3)
         integer :: nroots, kr
 
@@ -231,24 +111,24 @@ contains
             if (.not. nopassing) then
                 ! resonance (passing)
                 sigv = 1
-                call driftorbit_coarse(etatp*epsp, etatp*(1 - epsp), roots, nroots)
+                call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
                 do kr = 1, nroots
-                    etaresp = driftorbit_root(1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                    etaresp = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                     write (9, *) v/vth, kr, etaresp(1), 0d0, etatp
                 end do
                 sigv = -1
-                call driftorbit_coarse(etatp*epsp, etatp*(1 - epsp), roots, nroots)
+                call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
                 do kr = 1, nroots
-                    etaresp = driftorbit_root(1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                    etaresp = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                     write (10, *) v/vth, kr, etaresp(1), 0d0, etatp
                 end do
             end if
 
             ! resonance (trapped)
             sigv = 1
-            call driftorbit_coarse(etatp*(1 + epst), etadt*(1 - epst), roots, nroots)
+            call driftorbit_coarse(v, etatp*(1 + epst), etadt*(1 - epst), roots, nroots)
             do kr = 1, nroots
-                etarest = driftorbit_root(1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                etarest = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                 write (11, *) v/vth, kr, etarest(1), etatp, etadt
             end do
         end do
