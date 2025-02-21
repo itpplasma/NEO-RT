@@ -334,27 +334,31 @@ contains
         end if
     end subroutine timestep
 
-    function findroot2(v, eta, y0, dt)
+    function findroot2(v, eta, neq, y0, dt, ts)
         !
         !  Finds the root of an orbit after the first turn
         !
         use dvode_f90_m
 
-        real(8) :: findroot2(nvar + 1)
-        real(8), intent(in) :: v, eta, y0(nvar), dt
+        real(8) :: findroot2(neq + 1)
+        real(8), intent(in) :: v, eta
+        integer, intent(in) :: neq
+        real(8), intent(in) :: y0(neq), dt
+        external ts
+
         integer :: n
 
         integer :: k, state, rootstate
         real(8) :: ti, told
-        real(8) :: y(nvar), yold(nvar)
+        real(8) :: y(neq), yold(neq)
 
         logical :: passing
 
-        real(8) :: atol(nvar), rtol, tout
-        integer :: neq, itask, istate
+        real(8) :: atol(neq), rtol, tout
+        integer :: itask, istate
         type(vode_opts) :: options
 
-        neq = nvar
+
         rtol = 1d-9
         atol = 1d-10
         itask = 1
@@ -405,10 +409,10 @@ contains
             ! Wrapper routine for timestep to work with VODE
             integer, intent(in) :: neq_
             real(8), intent(in) :: t_
-            real(8), intent(in) :: y_(neq)
-            real(8), intent(out) :: ydot_(neq)
+            real(8), intent(in) :: y_(neq_)
+            real(8), intent(out) :: ydot_(neq_)
 
-            call timestep(v, eta, t_, y_, ydot_)
+            call ts(v, eta, t_, y_, ydot_)
         end subroutine timestep2
     end function findroot2
 
@@ -454,7 +458,7 @@ contains
 
         ! Look for exactly one orbit turn via root-finding.
         ! Start by looking for 5 points per turn.
-        findroot_res = findroot2(v, eta, y0, taub/5d0)
+        findroot_res = findroot2(v, eta, nvar, y0, taub/5d0, timestep)
 
         taub = findroot_res(1)
         bounceavg = findroot_res(2:)/taub
@@ -501,12 +505,60 @@ contains
             ! Wrapper routine for timestep to work with VODE
             integer, intent(in) :: neq_
             real(8), intent(in) :: t_
-            real(8), intent(in) :: y_(neq)
-            real(8), intent(out) :: ydot_(neq)
+            real(8), intent(in) :: y_(neq_)
+            real(8), intent(out) :: ydot_(neq_)
 
             call timestep(v, eta, t_, y_, ydot_)
         end subroutine timestep2
     end subroutine bounce_fast
+
+    function bounce_time(v, eta, taub_estimate) result(taub)
+        use dvode_f90_m, only: dvode_f90, set_normal_opts, vode_opts
+
+        real(8), intent(in) :: v, eta
+        real(8), intent(in), optional :: taub_estimate
+        real(8) :: taub
+
+        integer, parameter :: neq = 2
+        real(8) :: y(neq), y0(neq), roots(neq)
+        real(8) :: bmod
+
+        real(8) :: atol(neq), rtol
+        integer :: itask, istate
+        type(vode_opts) :: options
+
+        call evaluate_bfield_local(bmod)
+
+        y0(1) = th0         ! poloidal angle theta
+        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
+
+        if (present(taub_estimate)) then
+            taub = taub_estimate
+        else
+            taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+        end if
+
+        roots = findroot2(v, eta, neq, y0, taub, timestep_poloidal_motion)
+        taub = roots(1)
+
+    end function bounce_time
+
+    subroutine timestep_poloidal_motion(v, eta, neq, t, y, ydot)
+        real(8), intent(in) :: v, eta, t
+        integer, intent(in) :: neq
+        real(8), intent(in) :: y(neq)
+        real(8), intent(out) :: ydot(neq)
+
+        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+
+        x(1) = s
+        x(2) = 0d0
+        x(3) = y(1)
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+
+        ydot(1) = y(2)*hctrvr(3)                                    ! theta
+        ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+    end subroutine timestep_poloidal_motion
 
     subroutine evaluate_bfield_local(bmod)
         real(8), intent(out) :: bmod
