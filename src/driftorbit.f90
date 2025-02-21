@@ -229,7 +229,7 @@ contains
     function Jperp(v, eta)
         real(8) :: Jperp
         real(8), intent(in) :: v, eta
-        Jperp = mi**2*c/(2d0*qi)*eta*v**2
+        Jperp = 0.5d0*mi*v**2*mi*c/qi*eta
     end function Jperp
 
     function vpar(v, eta, bmod)
@@ -670,17 +670,17 @@ contains
         dOmthdeta = sigv*splineval(2)*v
     end subroutine Om_th
 
-    subroutine d_Om_ds(taub, v, eta, dOmthds, dOmphds)
-        real(8), intent(in) :: taub, v, eta
+    subroutine d_Om_ds(v, eta, dOmthds, dOmphds)
+        real(8), intent(in) :: v, eta
         real(8), intent(out) :: dOmthds, dOmphds
         real(8) :: s0, ds, bounceavg(nvar)
-        real(8) :: Omth, Omph_noE
+        real(8) :: taub, Omth, Omph_noE
         ! store current flux surface values
         s0 = s
 
         ds = 1d-7
         s = s0 - ds/2d0
-        call bounce_fast(v, eta, taub, bounceavg)
+        call bounce(v, eta, taub, bounceavg)
         Omth = 2d0*pi/taub
         if (magdrift) then
             if (eta > etatp) then
@@ -696,7 +696,7 @@ contains
             end if
         end if
         s = s0 + ds/2d0
-        call bounce_fast(v, eta, taub, bounceavg)
+        call bounce(v, eta, taub, bounceavg, taub)
         dOmthds = (2d0*pi/taub - Omth)/ds
         if (magdrift) then
             if (eta > etatp) then
@@ -1014,7 +1014,7 @@ contains
         v = ux*vth
 
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-        call d_Om_ds(v, eta, taub, dOmthds, dOmphds)
+        call d_Om_ds(v, eta, dOmthds, dOmphds)
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta
         dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
@@ -1052,7 +1052,7 @@ contains
         thatt = 1d0
         if (intoutput .or. nonlin) then
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-            call d_Om_ds(taub, v, eta, dOmthds, dOmphds)
+            call d_Om_ds(v, eta, dOmthds, dOmphds)
             dOmdv = mth*dOmthdv + mph*dOmphdv
             dOmdeta = mth*dOmthdeta + mph*dOmphdeta
             dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
@@ -1301,14 +1301,14 @@ contains
 
     subroutine get_trapped_region(eta_min, eta_max)
         real(8), intent(out) :: eta_min, eta_max
-        etamin = (1 + epst)*etatp
-        etamax = (1 - epst)*etadt
+        eta_min = (1 + epst)*etatp
+        eta_max = (1 - epst)*etadt
     end subroutine get_trapped_region
 
     subroutine get_passing_region(eta_min, eta_max)
         real(8), intent(out) :: eta_min, eta_max
-        etamin = epsp*etatp
-        etamax = (1 - epsp)*etatp
+        eta_min = epsp*etatp
+        eta_max = (1 - epsp)*etatp
     end subroutine get_passing_region
 
 end module driftorbit

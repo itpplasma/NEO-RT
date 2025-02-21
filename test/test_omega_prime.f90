@@ -5,7 +5,7 @@ program test_omage_prime_prog
     implicit none
 
     type :: freq_data_t
-        real(8) :: s, u, eta
+        real(8) :: s, v, eta
         real(8) :: J(3), Jbar(3), Om, Ompr_old, Ompr_new
     end type
 
@@ -15,10 +15,10 @@ program test_omage_prime_prog
 contains
 
     subroutine main
-        integer, parameter :: NUM_SAMPLES = 1
+        integer, parameter :: NUM_SAMPLES = 32
         character(1024), parameter :: TEST_RUN = "driftorbit64.new"
-        real(8) :: s0, ux0, eta0
-        real(8) :: delta = 1d-10
+        real(8) :: s0, v0, eta0
+        real(8) :: delta = 1d-9
         real(8) :: eta_res(2)
 
         type(freq_data_t) :: freq_data(NUM_SAMPLES)
@@ -28,34 +28,34 @@ contains
         call read_control
         call setup
         s0 = s
-        ux0 = 0.9d0
-        eta_res = first_resonance(ux0*vth)
-        eta0 = eta_res(1)
+        v0 = 0.9d0*vth
+        eta_res = first_resonance(v0)
+        !eta0 = eta_res(1)
+        eta0 = 0.5d0*(etamin + etamax)
 
         call spline_psi_pol
-        call sample_values(s0, ux0, eta0, delta, freq_data)
+        call sample_values(s0, v0, eta0, delta, freq_data)
         call show_results(freq_data)
     end subroutine main
 
-    subroutine sample_values(s0, ux0, eta0, delta, freq_data)
-        real(8), intent(in) :: s0, ux0, eta0, delta
+    subroutine sample_values(s0, v0, eta0, delta, freq_data)
+        real(8), intent(in) :: s0, v0, eta0, delta
         type(freq_data_t), intent(out) :: freq_data(:)
 
         integer :: i
         real(8) :: xi
 
         freq_data(1)%s = s0
-        freq_data(1)%u = ux0
+        freq_data(1)%v = v0
         freq_data(1)%eta = eta0
         call test_omega_prime(freq_data(1))
-        stop
         do i = 2, size(freq_data)
             call random_number(xi)
             freq_data(i)%s = s0*(1d0 + delta*(xi-0.5d0))
             call random_number(xi)
-            freq_data(i)%u = ux0*(1d0 + delta*(xi-0.5d0))
+            freq_data(i)%v = v0*(1d0 + delta*(xi-0.5d0))
             call random_number(xi)
-            freq_data(i)%eta = eta0*(1d0 + delta*(xi-0.5d0))
+            freq_data(i)%eta = eta0 + (etamax - etamin)*delta*(xi-0.5d0)
             call test_omega_prime(freq_data(i))
         end do
     end subroutine sample_values
@@ -71,7 +71,7 @@ contains
         print *, "Writing results to ", trim(adjustl(temp_file))
 
         open(newunit=funit, file=temp_file, status='unknown')
-        write(funit, *) "# s, u, eta, J(1), J(2), J(3), Jbar(1), Jbar(2), Jbar(3), Om, Ompr_old, Ompr_new"
+        write(funit, *) "# s, v, eta, J(1), J(2), J(3), Jbar(1), Jbar(2), Jbar(3), Om, Ompr_old, Ompr_new"
 
         do i = 1, size(freq_data)
             write(funit, *) freq_data(i)
@@ -109,49 +109,52 @@ contains
         real(8) :: v, eta
 
         s = freq_data%s
-        v = freq_data%u*vth
+        v = freq_data%v
         eta = freq_data%eta
 
         call setup
 
-        freq_data%J(1) = Jperp(v, eta)
-        ! TODO: J(2) = Jpar, J(3) = pphi
-
-        call compute_frequencies(freq_data%u, freq_data%eta, Omth, freq_data%Om, dOmdv, dOmdeta, dOmdpph)
+        call compute_frequencies(freq_data%v, freq_data%eta, Omth, freq_data%Om, dOmdv, dOmdeta, dOmdpph)
         call bounce_fast(v, eta, 2d0*pi/abs(Omth), bounceavg)
 
-        freq_data%Ompr_old = omega_prime(freq_data%u, eta, Omth, dOmdv, dOmdeta, dOmdpph)
-        freq_data%Ompr_new = omega_prime_new(freq_data%u, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
+        freq_data%Ompr_old = omega_prime(freq_data%v/vth, eta, Omth, dOmdv, dOmdeta, dOmdpph)
+        freq_data%Ompr_new = omega_prime_new(freq_data%v/vth, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
 
         call compute_invariants(v, eta, freq_data%J)
+
+        ! Transformed actions for Galileo transformation near resonance
+        freq_data%Jbar(1) = freq_data%J(1)
+        freq_data%Jbar(2) = freq_data%J(2) - mth/mph*freq_data%J(3)
+        freq_data%Jbar(3) = freq_data%J(3)/mph
     end subroutine test_omega_prime
 
-    subroutine compute_frequencies(ux, eta, Omth, Om, dOmdv, dOmdeta, dOmdpph)
-        real(8), intent(in) :: ux, eta
+    subroutine compute_frequencies(v, eta, Omth, Om, dOmdv, dOmdeta, dOmdpph)
+        real(8), intent(in) :: v, eta
         real(8), intent(out) :: Omth, Om, dOmdv, dOmdeta, dOmdpph
 
-        real(8) :: Omph, dOmphdv, dOmphdeta, dOmphds, dOmthds, dOmthdv, dOmthdeta, v
+        real(8) :: Omph, dOmds, dOmphdv, dOmphdeta, dOmphds, dOmthds, dOmthdv, dOmthdeta
 
         real(8) :: taub, bounceavg(nvar)
-
-        v = ux*vth
 
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         taub = 2d0*pi/abs(Omth)
         call bounce_fast(v, eta, taub, bounceavg)
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-        call d_Om_ds(taub, v, eta, dOmthds, dOmphds)
+        call d_Om_ds(v, eta, dOmthds, dOmphds)
         Om = mth*Omth + mph*Omph
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-        dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
+        dOmds = mth*dOmthds + mph*dOmphds
+        dOmdpph = -(qi/c*iota*psi_pr)**(-1)*dOmds
+
+        print *, dOmds, dOmdv, dOmdeta, dOmdpph
     end subroutine compute_frequencies
 
     subroutine compute_invariants(v, eta, J)
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: J(3)
 
-        integer, parameter :: neq = 2
+        integer, parameter :: neq = 3
         real(8) :: taub, bounceavg(neq)
         real(8) :: bounceint(neq + 1)
         real(8) :: bmod
@@ -160,12 +163,12 @@ contains
         ! Initialize bounce-averated quantities y0. Their meaning
         ! is defined inside subroutine timestep (thin orbit integration)
         call evaluate_bfield_local(bmod)
-        y0 = 1d-15
         y0(1) = th0
         y0(2) = vpar(v, eta, bmod)
-        taub = bounce_time(v, eta)
+        y0(3) = 1d-15
 
-        bounceint = bounce_integral(v, eta, nvar, y0, taub/5d0, timestep_invariants)
+        taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+        bounceint = bounce_integral(v, eta, neq, y0, taub/5d0, timestep_invariants)
         taub = bounceint(1)
         bounceavg = bounceint(2:)/taub
 
@@ -173,7 +176,7 @@ contains
         print *, "bounceavg: ", bounceavg
 
         J(1) = Jperp(v, eta)
-        J(2) = bounceint(3)
+        J(2) = bounceint(1+3)
         J(3) = pphi()
 
         print *, "psi_pol: ", psi_pol()
@@ -194,10 +197,9 @@ contains
         x(3) = y(1)
 
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-
         call timestep_poloidal_internal(v, eta, bmod, hctrvr(3), hder(3), 2, t, y(:2), ydot(:2))
 
-        ydot(3) = 0.5d0/pi*mi*vpar(v, eta, bmod)**2  ! Jpar
+        ydot(3) = mi*ydot(2)**2  ! Jpar
     end subroutine timestep_invariants
 
     function pphi()
@@ -220,9 +222,10 @@ contains
             allocate(psi_pol(size(sx)))
             psi_pol(1) = 0d0
             do i = 2, size(sx)
-                psi_pol(i) = psi_pol(i-1) + trapz_step(sx(i-1), sx(i), iota(i-1), iota(i))
+                psi_pol(i) = psi_pol(i-1) &
+                    + psi_pr*trapz_step(sx(i-1), sx(i), iota(i-1), iota(i))
             end do
-            psi_pol = psi_pol*psi_pr
+            psi_pol = psi_pol
         end associate
     end subroutine psi_pol_grid
 

@@ -76,7 +76,7 @@ contains
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
             call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
-            call d_Om_ds(taub, v, eta, dOmthds, dOmphds)
+            call d_Om_ds(v, eta, dOmthds, dOmphds)
             write (9, *) eta, etatp, etadt, &
                 Om_tE, OmtB, dOmtbdv, dOmtbdeta, &
                 Omth, dOmthdv, dOmthdeta, dOmthds, &
