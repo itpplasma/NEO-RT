@@ -1,6 +1,6 @@
 module orbit
     use do_magfie_mod, only: do_magfie, q, iota, psi_pr, Bphcov, Bthcov
-    use driftorbit, only: v, vth, eta, mi, c, qi, Om_tE
+    use driftorbit, only: vth, mi, c, qi, Om_tE
 
     implicit none
     save

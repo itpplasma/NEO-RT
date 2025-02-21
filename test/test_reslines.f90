@@ -4,7 +4,7 @@ program test_reslines
   q, dqds, iota, R0, a, eps, inp_swi, do_magfie_init, do_magfie
   use do_magfie_pert_mod, only: mph
   use driftorbit, only: init, epsmn, mth, M_t, vth, qi, mi, Jperp, &
-    eta, etadt, etatp, v, Om_th, Om_ph, Om_tE, sigv, &
+    etadt, etatp, Om_th, Om_ph, Om_tE, sigv, &
     epst, epsp, etamin, etamax, nlev, driftorbit_coarse, driftorbit_root
 
   implicit none
@@ -56,7 +56,7 @@ program test_reslines
 
   subroutine resline
 
-    real(8) :: eta_res(2)
+    real(8) :: v, eta, eta_res(2)
     real(8) :: roots(nlev, 3)
     integer :: nroots, kr
 
@@ -66,30 +66,30 @@ program test_reslines
     sigv = 1d0
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
-    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    call driftorbit_coarse(v, etamin, etamax, roots, nroots)
     if(nroots == 0) return
     do kr = 1,nroots
-      eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+      eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, 0
       end do
     ! Co-passing
     sigv = 1d0
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
-    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    call driftorbit_coarse(v, etamin, etamax, roots, nroots)
     if(nroots == 0) return
     do kr = 1,nroots
-      eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+      eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, 1
       end do
     ! Ctr-passing
     sigv = -1d0
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
-    call driftorbit_coarse(etamin, etamax, roots, nroots)
+    call driftorbit_coarse(v, etamin, etamax, roots, nroots)
     if(nroots == 0) return
     do kr = 1,nroots
-      eta_res = driftorbit_root(1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+      eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, -1
     end do
 

@@ -3,7 +3,7 @@ program test_frequencies
   use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
   q, dqds, iota, R0, a, eps, inp_swi, do_magfie_init, do_magfie
   use driftorbit, only: init, epsmn, mph, mth, vth, qi, mi, Jperp, &
-    eta, etadt, etatp, v, Om_th, Om_ph, Om_tE, sigv
+    etadt, etatp, Om_th, Om_ph, Om_tE, sigv
 
   implicit none
 
@@ -14,6 +14,8 @@ program test_frequencies
   real(8) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
   real(8), parameter :: scalfac_energy = 100.0d0
   real(8), parameter :: scalfac_efield = 100.0d0
+
+  real(8) :: v, eta
 
   inp_swi = 9  ! ASDEX Upgrade format
   s = 0.17     ! Normalized toroidal flux
@@ -36,8 +38,8 @@ program test_frequencies
   sigv = 1d0
   do i = 1,neta
     eta = etatp + i*(etadt-etatp)/neta
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
     write(fid,*) eta, Omth, Omph
   end do
   close(fid)
@@ -47,8 +49,8 @@ program test_frequencies
   sigv = 1d0
   do i = 0,neta-1
     eta = i*etatp/neta
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
     write(fid,*) eta, Omth, Omph
   end do
   close(fid)
@@ -58,8 +60,8 @@ program test_frequencies
   sigv = -1d0
   do i = 0,neta-1
     eta = i*etatp/neta
-    call Om_th(Omth, dOmthdv, dOmthdeta)
-    call Om_ph(Omph, dOmphdv, dOmphdeta)
+    call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
     write(fid,*) eta, -Omth, Omph
   end do
   close(fid)
