@@ -48,7 +48,6 @@ add_executable(${PROJECT_EXE_NAME}
 )
 
 set(NEO_RT_SOURCES
-  src/orbit.f90
   src/attenuation_factor.f90
   src/collis_nbi.f90
   src/polylag_3.f
