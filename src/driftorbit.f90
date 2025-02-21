@@ -128,7 +128,6 @@ contains
         aa = 1d0/(netaspl - 1d0)*(log(etamax/etamin - 1d0) - b)
 
         do k = netaspl - 1, 0, -1
-            !eta = etamin * (1d0 + (k/(netaspl-1d0))**4*(etamax/etamin-1d0))
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
             if (k == netaspl - 1) then
