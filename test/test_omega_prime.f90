@@ -13,6 +13,7 @@ program test_omage_prime_prog
         real(8) :: dOmds, dOmdv, dOmdeta, dOmdpph
         real(8) :: Omth, dOmthds, dOmthdv, dOmthdeta
         real(8) :: Omph, dOmphds, dOmphdv, dOmphdeta
+        real(8) :: Om_tE, dOm_tEds
     end type
 
     real(8), allocatable :: spl_psi_pol(:, :)
@@ -80,7 +81,7 @@ contains
         open(newunit=funit, file=temp_file, recl=8192)
         write(funit, *) "s v eta J1 J2 J3 Jbar1 Jbar2 Jbar3 Om " &
             // "Ompr_old Ompr_new dOmds dOmdv dOmdeta dOmdpph Omth dOmthds " &
-            // "dOmthdv dOmthdeta Omph dOmphds dOmphdv dOmphdeta"
+            // "dOmthdv dOmthdeta Omph dOmphds dOmphdv dOmphdeta Om_tE dOm_tEds"
 
         do i = 1, size(freq_data)
             write(funit, *) freq_data(i)
@@ -149,6 +150,8 @@ contains
         f%dOmdeta = mth*f%dOmthdeta + mph*f%dOmphdeta
         f%dOmds = mth*f%dOmthds + mph*f%dOmphds
         f%dOmdpph = -(qi/c*iota*psi_pr)**(-1)*f%dOmds
+        f%Om_tE = Om_tE
+        f%dOm_tEds = dOm_tEds
     end subroutine compute_frequencies
 
     subroutine compute_invariants(v, eta, J)

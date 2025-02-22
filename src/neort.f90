@@ -118,7 +118,7 @@ contains
 
     subroutine init_plasma
         use driftorbit, only: s, ni1, dni1ds, ni2, dni2ds, Ti1, dTi1ds, Ti2, dTi2ds, &
-                              Te, dTeds, qi, qe, mi, mu, ev, loacol_nbi, vth
+                              Te, dTeds, qi, qe, mi, mu, ev, loacol_nbi, vth, dvthds
         use polylag_3, only: plag1d, indef, mp
 
         real(8), parameter :: pmass = 1.6726d-24
@@ -161,7 +161,7 @@ contains
         qi = Z1*qe
         mi = am1*mu
         vth = sqrt(2d0*Ti1*ev/mi)
-        ! dvthds = TODO
+        dvthds = 0.5d0*sqrt(2d0*ev/(mi*Ti1))*dTi1ds
         v0 = vth
         amb = 2d0
         Zb = 1d0
@@ -179,7 +179,7 @@ contains
         call init
 
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
-        dOm_tEds = vth*dM_tds/R0 ! TODO + M_t*dvthds/R0
+        dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
         sigv = 1
         call get_trapped_region(etamin, etamax)
@@ -290,7 +290,7 @@ contains
         Tt = 0d0
 
         Om_tE = vth*M_t/R0
-        dOm_tEds = vth*dM_tds/R0
+        dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
         if (supban) then
             mthmin = 0
