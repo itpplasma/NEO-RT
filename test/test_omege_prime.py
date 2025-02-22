@@ -83,17 +83,7 @@ print(f"Omega prime new: {np.mean(df['Ompr_new'][0])} +/- {np.std(df['Ompr_new']
 
 # %%
 plt.figure()
-plt.plot(Jbar3, Om, "x")
+plt.plot(df["Jbar2"], df["Om"], "x")
 
-# %% Compare partial derivatives of frequencies
-
-#vars = np.empty((len(Om), 3))
-# vars[:, 0] = v
-# vars[:, 1] = eta
-# vars[:, 2] = J3  # pphi
-vars = freq_data[:, 0:3]
-
-fit = LinearRegression().fit(vars, Om)
-print(f"Omega derivatives from regression:\n {fit.coef_}")
 
 # %%

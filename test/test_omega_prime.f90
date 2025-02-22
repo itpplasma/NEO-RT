@@ -36,8 +36,8 @@ contains
         s0 = s
         v0 = 0.9d0*vth
         eta_res = first_resonance(v0)
-        !eta0 = eta_res(1)
-        eta0 = 0.5d0*(etamin + etamax)
+        eta0 = eta_res(1)
+        !eta0 = 0.5d0*(etamin + etamax)
 
         call spline_psi_pol
         call sample_values(s0, v0, eta0, freq_data)
