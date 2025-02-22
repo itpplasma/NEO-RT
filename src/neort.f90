@@ -178,7 +178,7 @@ contains
         call init
 
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
-        dOm_tEds = vth*dM_tds/R0
+        dOm_tEds = vth*dM_tds/R0             ! TODO: + M_t*dvth_ds/R0
 
         sigv = 1
         call get_trapped_region(etamin, etamax)

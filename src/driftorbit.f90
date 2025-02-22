@@ -678,7 +678,7 @@ contains
         ! store current flux surface values
         s0 = s
 
-        ds = 1d-7
+        ds = 2d-8
         s = s0 - ds/2d0
         call bounce(v, eta, taub, bounceavg)
         Omth = 2d0*pi/taub

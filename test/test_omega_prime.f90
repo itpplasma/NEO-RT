@@ -4,7 +4,7 @@ program test_omage_prime_prog
     use driftorbit
     implicit none
 
-    real(8) :: DELTA = 1d-6
+    real(8) :: DELTA = 1d-8
 
     type :: freq_data_t
         real(8) :: s, v, eta
@@ -51,12 +51,14 @@ contains
         real(8) :: xi
 
         freq_data(1)%s = s0
+        s = freq_data(1)%s
         freq_data(1)%v = v0
         freq_data(1)%eta = eta0
         call test_omega_prime(freq_data(1))
         do i = 2, size(freq_data)
             call random_number(xi)
             freq_data(i)%s = s0*(1d0 + DELTA*(xi-0.5d0))
+            s = freq_data(i)%s
             call random_number(xi)
             freq_data(i)%v = v0*(1d0 + DELTA*(xi-0.5d0))
             call random_number(xi)
@@ -178,6 +180,7 @@ contains
         J(2) = bounceint(1+3)
         J(3) = pphi()
 
+        print *, "s: ", s
         print *, "psi_pol: ", psi_pol()
 
         print *, "J: ", J
@@ -212,19 +215,18 @@ contains
         psi_pol = psi_pol_result(1)
     end function psi_pol
 
-    subroutine psi_pol_grid(psi_pol)
-        real(8), allocatable, intent(out) :: psi_pol(:)
+    subroutine psi_pol_grid(psi)
+        real(8), allocatable, intent(out) :: psi(:)
 
         integer :: i
 
         associate(sx => params0(:, 1), iota => params0(:, 2))
-            allocate(psi_pol(size(sx)))
-            psi_pol(1) = 0d0
+            allocate(psi(size(sx)))
+            psi(1) = 0d0
             do i = 2, size(sx)
-                psi_pol(i) = psi_pol(i-1) &
+                psi(i) = psi(i-1) &
                     + psi_pr*trapz_step(sx(i-1), sx(i), iota(i-1), iota(i))
             end do
-            psi_pol = psi_pol
         end associate
     end subroutine psi_pol_grid
 
@@ -267,11 +269,11 @@ contains
 
         s0 = s
         s = s0 + ds
-        Omth1 = 1d0 / bounce_time(v, eta)
+        Omth1 = 2d0*pi / bounce_time(v, eta)
 
 
         s = s0 - ds
-        Omth2 = 1d0 / bounce_time(v, eta)
+        Omth2 = 2d0*pi / bounce_time(v, eta)
 
         dOmthds_test = (Omth1 - Omth2) / (2d0*ds)
 
