@@ -161,6 +161,7 @@ contains
         qi = Z1*qe
         mi = am1*mu
         vth = sqrt(2d0*Ti1*ev/mi)
+        ! dvthds = TODO
         v0 = vth
         amb = 2d0
         Zb = 1d0
@@ -178,7 +179,7 @@ contains
         call init
 
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
-        dOm_tEds = vth*dM_tds/R0             ! TODO: + M_t*dvth_ds/R0
+        dOm_tEds = vth*dM_tds/R0 ! TODO + M_t*dvthds/R0
 
         sigv = 1
         call get_trapped_region(etamin, etamax)

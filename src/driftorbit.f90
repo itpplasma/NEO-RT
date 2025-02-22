@@ -18,7 +18,7 @@ module driftorbit
     ! real(8) :: v, eta
 
     ! Plasma parameters
-    real(8) :: Om_tE, dOm_tEds, vth, M_t, dM_tds, efac
+    real(8) :: Om_tE, dOm_tEds, vth, dvthds, M_t, dM_tds, efac
 
     ! For splining in the trapped eta region
     integer, parameter :: netaspl = 100
