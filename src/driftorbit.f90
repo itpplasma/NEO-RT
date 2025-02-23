@@ -885,8 +885,8 @@ contains
                    *Hmn2*(A1 + A2*ux**2)
     end function Tphi_int
 
-    function nonlinear_attenuation(ux, eta, taub, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
-        real(8), intent(in) :: ux, eta, taub, bounceavg(nvar), Omth, dOmthdv, dOmthdeta, Hmn2
+    function nonlinear_attenuation(ux, eta, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
+        real(8), intent(in) :: ux, eta, bounceavg(nvar), Omth, dOmthdv, dOmthdeta, Hmn2
         real(8) :: nonlinear_attenuation
 
         real(8) :: dpp, dhh, fpeff, dres, dnorm, Omph, dOmphdv, dOmphdeta, dOmdv, &
@@ -965,8 +965,8 @@ contains
                 taub = 2d0*pi/abs(Omth)
                 call bounce_fast(v, eta, taub, bounceavg)
                 Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
-                attenuation_factor = nonlinear_attenuation(ux, eta, taub, bounceavg, &
-                                                           Omth, dOmthdv, dOmthdeta, Hmn2)
+                attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
+                                                           dOmthdv, dOmthdeta, Hmn2)
 
                 dD11 = du*D11int(ux, taub, Hmn2)/abs(eta_res(2))
                 dD12 = du*D12int(ux, taub, Hmn2)/abs(eta_res(2))
