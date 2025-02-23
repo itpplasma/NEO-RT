@@ -86,7 +86,7 @@ contains
         integer :: j
         real(8) :: spl_val(3), spl_val_c(3), spl_val_s(3)
         real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
-        real(8) :: sqgbmod2 ! sqg*B^2
+        real(8) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
 
         real(8) :: x1, costerm(nmode), sinterm(nmode)
 
@@ -118,7 +118,6 @@ contains
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm)
-            sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2
             bder(1) = sum(dB0dsmnc*costerm)/bmod
             bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
@@ -142,7 +141,6 @@ contains
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm + B0mns*sinterm)
-            sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2
             bder(1) = sum(dB0dsmnc*costerm + dB0dsmns*sinterm)/bmod
             bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm &
@@ -150,19 +148,21 @@ contains
         end if
 
         sqgbmod2 = psi_pr*(Bphcov + iota*Bthcov)
+        sqgbmod = sqgbmod2/bmod
+        sqrtg = sqgbmod/bmod
 
         hcovar(1) = 0d0 ! TODO 2: get this from geometry
         hcovar(2) = Bphcov/bmod
         hcovar(3) = Bthcov/bmod
 
         hctrvr(1) = 0d0
-        hctrvr(2) = psi_pr/(sqrtg*bmod)
-        hctrvr(3) = iota*psi_pr/(sqrtg*bmod)
+        hctrvr(2) = psi_pr/sqgbmod
+        hctrvr(3) = iota*psi_pr/sqgbmod
 
         ! Common factor bmod since bder(k) = (dB/dx(k))/bmod
-        hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)*bmod/sqgbmod2
-        hcurl(3) = (-dBphcovds + bder(1)*Bphcov)*bmod/sqgbmod2 ! TODO: B_s
-        hcurl(2) = (dBthcovds - bder(1)*Bthcov)*bmod/sqgbmod2 ! TODO: B_s
+        hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)/sqgbmod
+        hcurl(3) = (-dBphcovds + bder(1)*Bphcov)/sqgbmod ! TODO: B_s
+        hcurl(2) = (dBthcovds - bder(1)*Bthcov)/sqgbmod ! TODO: B_s
 
     end subroutine do_magfie
 

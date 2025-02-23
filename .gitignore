@@ -52,3 +52,5 @@ BUILD/
 VER_2/BUILD/
 *.synctex.gz
 callgrind.out.*
+callgraph.dot
+gprofout.txt
