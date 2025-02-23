@@ -331,8 +331,8 @@ contains
         read (18, '(////)')
         read (18, *) mb, nb, nflux, nfp, flux, dummy, dummy
         nmode = (mb + 1)*(nb + 1)
-        allocate (params(nflux, ncol1 + 1))
-        allocate (modes(nflux, nmode, ncol2 + 2))
+        if (.not. allocated(params)) allocate (params(nflux, ncol1 + 1))
+        if (.not. allocated(modes)) allocate (modes(nflux, nmode, ncol2 + 2))
         do ksurf = 1, nflux
             read (18, '(/)')
             read (18, *) params(ksurf, :)

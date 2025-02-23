@@ -1,6 +1,8 @@
 program test_omage_prime_prog
+    use do_magfie_mod, only: do_magfie_init
+    use do_magfie_pert_mod, only: do_magfie_pert_init
     use neort, only: read_control, check_magfie, init_profile_input, &
-        init_plasma_input, init_run, compute_transport_harmonic, runname, s, M_t
+                     init_plasma_input, init_run, compute_transport_harmonic, runname, s, M_t
     use driftorbit
     implicit none
 
@@ -23,13 +25,12 @@ contains
 
     subroutine main
         integer, parameter :: NUM_SAMPLES = 32
-        character(1024), parameter :: TEST_RUN = "driftorbit64.new"
         real(8) :: s0, v0, eta0
         real(8) :: eta_res(2)
 
         type(freq_data_t) :: freq_data(NUM_SAMPLES)
 
-        runname = TEST_RUN
+        call get_command_argument(1, runname)
 
         call read_control
         call setup
@@ -51,19 +52,19 @@ contains
         integer :: i
         real(8) :: xi
 
-        freq_data(1)%s = s0
-        s = freq_data(1)%s
-        freq_data(1)%v = v0
-        freq_data(1)%eta = eta0
+        freq_data(1) % s = s0
+        s = freq_data(1) % s
+        freq_data(1) % v = v0
+        freq_data(1) % eta = eta0
         call test_omega_prime(freq_data(1))
         do i = 2, size(freq_data)
             call random_number(xi)
-            freq_data(i)%s = s0*(1d0 + DELTA*(xi-0.5d0))
-            s = freq_data(i)%s
+            freq_data(i) % s = s0*(1d0 + DELTA*(xi - 0.5d0))
+            s = freq_data(i) % s
             call random_number(xi)
-            freq_data(i)%v = v0*(1d0 + DELTA*(xi-0.5d0))
+            freq_data(i) % v = v0*(1d0 + DELTA*(xi - 0.5d0))
             call random_number(xi)
-            freq_data(i)%eta = eta0 + (etamax - etamin)*DELTA*(xi-0.5d0)
+            freq_data(i) % eta = eta0 + (etamax - etamin)*DELTA*(xi - 0.5d0)
             call test_omega_prime(freq_data(i))
         end do
     end subroutine sample_values
@@ -78,21 +79,22 @@ contains
 
         print *, "Writing results to ", trim(adjustl(temp_file))
 
-        open(newunit=funit, file=temp_file, recl=8192)
-        write(funit, *) "s v eta J1 J2 J3 Jbar1 Jbar2 Jbar3 Om " &
-            // "Ompr_old Ompr_new dOmds dOmdv dOmdeta dOmdpph Omth dOmthds " &
-            // "dOmthdv dOmthdeta Omph dOmphds dOmphdv dOmphdeta Om_tE dOm_tEds"
+        open (newunit=funit, file=temp_file, recl=8192)
+        write (funit, *) "s v eta J1 J2 J3 Jbar1 Jbar2 Jbar3 Om " &
+            //"Ompr_old Ompr_new dOmds dOmdv dOmdeta dOmdpph Omth dOmthds " &
+            //"dOmthdv dOmthdeta Omph dOmphds dOmphdv dOmphdeta Om_tE dOm_tEds"
 
         do i = 1, size(freq_data)
-            write(funit, *) freq_data(i)
+            write (funit, *) freq_data(i)
         end do
 
-        close(funit)
+        close (funit)
 
     end subroutine show_results
 
     subroutine setup
         call do_magfie_init
+        if (pertfile) call do_magfie_pert_init
         call init_profile_input(s, efac, bfac)
         call init_plasma_input(s)
         call init_run
@@ -120,19 +122,19 @@ contains
 
         call compute_frequencies(f)
 
-        print *, "dOmthds_test: ", dOmthds_test(f%v, f%eta)
+        print *, "dOmthds_test: ", dOmthds_test(f % v, f % eta)
 
-        call bounce_fast(f%v, f%eta, 2d0*pi/abs(f%Omth), bounceavg)
+        call bounce_fast(f % v, f % eta, 2d0*pi/abs(f % Omth), bounceavg)
 
-        f%Ompr_old = omega_prime(f%v/vth, f%eta, f%Omth, f%dOmdv, f%dOmdeta, f%dOmdpph)
-        f%Ompr_new = omega_prime_new(f%v/vth, f%eta, bounceavg, f%Omth, f%dOmdv, f%dOmdeta, f%dOmdpph)
+        f % Ompr_old = omega_prime_old(f % v/vth, f % eta, f % Omth, f % dOmdv, f % dOmdeta, f % dOmdpph)
+        f % Ompr_new = omega_prime(f % v/vth, f % eta, bounceavg, f % Omth, f % dOmdv, f % dOmdeta, f % dOmdpph)
 
-        call compute_invariants(f%v, f%eta, f%J)
+        call compute_invariants(f % v, f % eta, f % J)
 
         ! Transformed actions for Galileo transformation near resonance
-        f%Jbar(1) = f%J(1)
-        f%Jbar(2) = f%J(2) - mth/mph*f%J(3)
-        f%Jbar(3) = f%J(3)/mph
+        f % Jbar(1) = f % J(1)
+        f % Jbar(2) = f % J(2) - mth/mph*f % J(3)
+        f % Jbar(3) = f % J(3)/mph
     end subroutine test_omega_prime
 
     subroutine compute_frequencies(f)
@@ -140,18 +142,18 @@ contains
 
         real(8) :: taub, bounceavg(nvar)
 
-        call Om_th(f%v, f%eta, f%Omth, f%dOmthdv, f%dOmthdeta)
-        taub = 2d0*pi/abs(f%Omth)
-        call bounce_fast(f%v, f%eta, taub, bounceavg)
-        call Om_ph(f%v, f%eta, f%Omph, f%dOmphdv, f%dOmphdeta)
-        call d_Om_ds(f%v, f%eta, f%dOmthds, f%dOmphds)
-        f%Om = mth*f%Omth + mph*f%Omph
-        f%dOmdv = mth*f%dOmthdv + mph*f%dOmphdv
-        f%dOmdeta = mth*f%dOmthdeta + mph*f%dOmphdeta
-        f%dOmds = mth*f%dOmthds + mph*f%dOmphds
-        f%dOmdpph = -(qi/c*iota*psi_pr)**(-1)*f%dOmds
-        f%Om_tE = Om_tE
-        f%dOm_tEds = dOm_tEds
+        call Om_th(f % v, f % eta, f % Omth, f % dOmthdv, f % dOmthdeta)
+        taub = 2d0*pi/abs(f % Omth)
+        call bounce_fast(f % v, f % eta, taub, bounceavg)
+        call Om_ph(f % v, f % eta, f % Omph, f % dOmphdv, f % dOmphdeta)
+        call d_Om_ds(f % v, f % eta, f % dOmthds, f % dOmphds)
+        f % Om = mth*f % Omth + mph*f % Omph
+        f % dOmdv = mth*f % dOmthdv + mph*f % dOmphdv
+        f % dOmdeta = mth*f % dOmthdeta + mph*f % dOmphdeta
+        f % dOmds = mth*f % dOmthds + mph*f % dOmphds
+        f % dOmdpph = -(qi/c*iota*psi_pr)**(-1)*f % dOmds
+        f % Om_tE = Om_tE
+        f % dOm_tEds = dOm_tEds
     end subroutine compute_frequencies
 
     subroutine compute_invariants(v, eta, J)
@@ -180,7 +182,7 @@ contains
         print *, "bounceavg: ", bounceavg
 
         J(1) = Jperp(v, eta)
-        J(2) = bounceint(1+3)
+        J(2) = bounceint(1 + 3)
         J(3) = pphi()
 
         print *, "s: ", s
@@ -223,12 +225,12 @@ contains
 
         integer :: i
 
-        associate(sx => params0(:, 1), iota => params0(:, 2))
-            allocate(psi(size(sx)))
+        associate (sx => params0(:, 1), iota => params0(:, 2))
+            allocate (psi(size(sx)))
             psi(1) = 0d0
             do i = 2, size(sx)
-                psi(i) = psi(i-1) &
-                    + psi_pr*trapz_step(sx(i-1), sx(i), iota(i-1), iota(i))
+                psi(i) = psi(i - 1) &
+                         + psi_pr*trapz_step(sx(i - 1), sx(i), iota(i - 1), iota(i))
             end do
         end associate
     end subroutine psi_pol_grid
@@ -236,9 +238,9 @@ contains
     subroutine spline_psi_pol
         real(8), allocatable :: psi(:)
 
-        associate(sx => params0(:, 1))
+        associate (sx => params0(:, 1))
             call psi_pol_grid(psi)
-            allocate(spl_psi_pol(size(sx) - 1, 5))
+            allocate (spl_psi_pol(size(sx) - 1, 5))
             spl_psi_pol = spline_coeff(sx, psi)
         end associate
     end subroutine spline_psi_pol
@@ -250,7 +252,7 @@ contains
 
         trapz = 0d0
         do i = 2, size(x)
-            trapz = trapz + trapz_step(x(i-1), x(i), y(i-1), y(i))
+            trapz = trapz + trapz_step(x(i - 1), x(i), y(i - 1), y(i))
         end do
     end function trapz
 
@@ -272,15 +274,20 @@ contains
 
         s0 = s
         s = s0 + ds
-        Omth1 = 2d0*pi / bounce_time(v, eta)
-
+        Omth1 = 2d0*pi/bounce_time(v, eta)
 
         s = s0 - ds
-        Omth2 = 2d0*pi / bounce_time(v, eta)
+        Omth2 = 2d0*pi/bounce_time(v, eta)
 
-        dOmthds_test = (Omth1 - Omth2) / (2d0*ds)
+        dOmthds_test = (Omth1 - Omth2)/(2d0*ds)
 
         s = s0
     end function dOmthds_test
+
+    function omega_prime_old(ux, eta, Omth, dOmdv, dOmdeta, dOmdpph)
+        real(8), intent(in) :: ux, eta, Omth, dOmdv, dOmdeta, dOmdpph
+        real(8) :: omega_prime_old
+        omega_prime_old = mth*(eta*dOmdeta - ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth)) + dOmdpph
+    end function omega_prime_old
 
 end program test_omage_prime_prog

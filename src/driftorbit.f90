@@ -1011,7 +1011,7 @@ contains
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta
         dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
-        Ompr = omega_prime(ux, eta, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test, migrate to new
+        Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test, migrate to new
         call coleff(ux, dpp, dhh, fpeff)
         dhh = vth*dhh
         dpp = vth**3*dpp
@@ -1019,12 +1019,6 @@ contains
         dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
         call attenuation_factor(dnorm, nonlinear_attenuation)
     end function nonlinear_attenuation
-
-    function omega_prime(ux, eta, Omth, dOmdv, dOmdeta, dOmdpph)
-        real(8), intent(in) :: ux, eta, Omth, dOmdv, dOmdeta, dOmdpph
-        real(8) :: omega_prime
-        omega_prime = mth*(eta*dOmdeta - ux*vth/2*dOmdv)/(mi*(ux*vth)**2/(2d0*Omth)) + dOmdpph
-    end function omega_prime
 
     function Tphi_int(ux, etax)
         real(8) :: Tphi_int
@@ -1050,7 +1044,7 @@ contains
             dOmdeta = mth*dOmthdeta + mph*dOmphdeta
             dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
 
-            Ompr = omega_prime_new(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test
+            Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test
 
             if (intoutput) then
                 ! 0:n, 1:l, 2:Eth, 3:Jperp_tp, 4:drphi/dpphi, 5:E/Eth, 6:Jperp/Jperp_tp, 7:rphi,
@@ -1074,9 +1068,9 @@ contains
         Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1 + A2*ux**2)
     end function Tphi_int
 
-    function omega_prime_new(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
+    function omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
         real(8), intent(in) :: ux, eta, bounceavg(nvar), Omth, dOmdv, dOmdeta, dOmdpph
-        real(8) :: omega_prime_new
+        real(8) :: omega_prime
 
         real(8) :: ma, mb, mc, md, me, mf, dvdJ, detadJ
 
@@ -1090,8 +1084,8 @@ contains
         dvdJ = mb*me/(ma*md*mf - mb*mc*mf)
         detadJ = ma*me/(mb*mc*mf - ma*md*mf)
 
-        omega_prime_new = dOmdv*dvdJ + dOmdeta*detadJ + mph*dOmdpph
-    end function omega_prime_new
+        omega_prime = dOmdv*dvdJ + dOmdeta*detadJ + mph*dOmdpph
+    end function omega_prime
 
     subroutine taurel(v, eta)
         ! Compute relative time in each bin
