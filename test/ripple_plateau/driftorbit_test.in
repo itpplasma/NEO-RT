@@ -19,5 +19,5 @@
     bfac = 1.0d0           ! Scale B field by factor
     efac = 1.0d0           ! Scale E field by factor
     inp_swi = 8            ! Input switch for Boozer file
-    vsteps = 1024          ! Integration steps in velocity space
+    vsteps = 256           ! Integration steps in velocity space
 /
