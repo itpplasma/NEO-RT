@@ -1,0 +1,23 @@
+! Input file for NEO-RT - Version 1.3
+!
+!
+&params
+    s = 3.9063d-2          ! Radial coordinate: Normalized toroidal flux
+    M_t = 0.1d0            ! Toroidal Mach number
+    qs = 1.0d0             ! Particle charge [elementary charge]
+    ms = 2.014d0           ! Particle mass [atomic unit]
+    vth = 1.0d8            ! Thermal velocity [cm/s]
+    epsmn = 1.0d-3         ! Perturbation amplitude B1/B0 (if pertfile==.false.)
+    m0 = 0                 ! Poroidal perturbation harmonic (if pertfile==.false.)
+    mph = 18               ! Toroidal perturbation harmonic (if pertfile==.false., n>0!)
+    magdrift = .false.     ! Consider magnetic drift
+    nopassing = .false.    ! Neglect passing particles
+    noshear = .false.      ! Neglect magnetic shear term dq/ds
+    pertfile = .false.     ! Read perturbation from file
+    nonlin = .false.       ! Do nonlinear calculation
+    comptorque = .false.   ! Compute torque
+    bfac = 1.0d0           ! Scale B field by factor
+    efac = 1.0d0           ! Scale E field by factor
+    inp_swi = 8            ! Input switch for Boozer file
+    vsteps = 1024          ! Integration steps in velocity space
+/

@@ -1,5 +1,5 @@
 ### Basic settings
-cmake_minimum_required (VERSION 2.8.12)
+cmake_minimum_required (VERSION 3.10)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 enable_testing()
 
@@ -41,25 +41,20 @@ include(Util)
 
 find_or_fetch(BOOZER_MAGFIE)
 find_or_fetch(spline)
-find_or_fetch(quadpack)
 find_or_fetch(vode)
 
 add_executable(${PROJECT_EXE_NAME}
-  SRC/main.f90
-)
-
-add_executable(orbit_test
-  TEST/test_orbit.f90
+  src/main.f90
 )
 
 set(NEO_RT_SOURCES
-  SRC/orbit.f90
-  SRC/attenuation_factor.f90
-  SRC/collis_nbi.f90
-  SRC/polylag_3.f
-  SRC/util.f90
-  SRC/driftorbit.f90
-  SRC/neort.f90
+  src/attenuation_factor.f90
+  src/collis_nbi.f90
+  src/polylag_3.f
+  src/util.f90
+  src/profiles.f90
+  src/driftorbit.f90
+  src/neort.f90
 )
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
@@ -67,14 +62,14 @@ option(USE_STANDALONE "Use do_magfie_standalone" ON)
 if(USE_STANDALONE)
   add_library("neo_rt" STATIC
     ${NEO_RT_SOURCES}
-    SRC/do_magfie_standalone.f90
+    src/do_magfie_standalone.f90
   )
 else()
   include_directories(${PROJECT_BINARY_DIR}/boozer_magfie/OBJS/)
 
   add_library("neo_rt" STATIC
     ${NEO_RT_SOURCES}
-    SRC/do_magfie_neo.f90
+    src/do_magfie_neo.f90
   )
   add_dependencies(neo_rt boozer_magfie)
   target_link_libraries(neo_rt
@@ -83,7 +78,6 @@ else()
 endif()
 
 add_dependencies(neo_rt spline)
-add_dependencies(neo_rt quadpack)
 add_dependencies(neo_rt vode)
 
 find_package(BLAS)
@@ -92,31 +86,10 @@ find_package(LAPACK)
 target_link_libraries(neo_rt
   vode
   spline
-  quadpack
-  ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES}
+  BLAS::BLAS
+  LAPACK::LAPACK
 )
 
-### Linking
-target_link_libraries(${PROJECT_EXE_NAME}
-  neo_rt
-)
+target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 
-add_executable(test_frequencies.x
-  TEST/test_frequencies.f90
-)
-
-target_link_libraries(test_frequencies.x
-neo_rt
-)
-
-add_executable(test_reslines.x TEST/test_reslines.f90)
-target_link_libraries(test_reslines.x neo_rt)
-
-add_executable(test_bounce.x TEST/test_bounce.f90)
-target_link_libraries(test_bounce.x neo_rt )
-
-add_executable(test_torque.x TEST/test_torque.f90)
-target_link_libraries(test_torque.x neo_rt)
-
-### Tests
-add_test(test_magfie neo_rt)
+add_subdirectory(test)

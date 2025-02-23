@@ -536,6 +536,40 @@ For passing particles, an additional term appears and
 \end_layout
 
 \begin_layout Subsection*
+Resonance condition and resonant action and angle
+\end_layout
+
+\begin_layout Standard
+At the resonance, the nonlinear oscillation (superbanana) frequency
+\begin_inset Formula 
+\[
+\Omega(\bJ)=m_{k}\Omega^{k}=m_{2}\Omega^{2}+m_{3}\Omega^{3}
+\]
+
+\end_inset
+
+vanishes.
+ For the perturbation theory, we peform a canonical transformation to the
+ Galileian frame of the resonance.
+ New actions are
+\begin_inset Formula 
+\begin{align}
+\bar{J}_{1} & =J_{1}-\frac{m_{1}}{m_{3}}J_{3}\\
+\bar{J}_{2} & =J_{2}-\frac{m_{2}}{m_{3}}J_{3}\\
+\bar{J}_{3} & =\frac{1}{m_{3}}J_{N}\equiv\bar{J}.
+\end{align}
+
+\end_inset
+
+Here, we have 
+\begin_inset Formula $m_{1}=0$
+\end_inset
+
+, since we treat no cyclotron harmonics - they assumed to be much too fast
+ to go in resonance.
+\end_layout
+
+\begin_layout Subsection*
 Hamiltonian perturbation
 \end_layout
 
