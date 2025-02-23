@@ -137,10 +137,6 @@ contains
         real(8) :: Tco, Tctr, Tt
         integer :: mthmin, mthmax
 
-        logical :: firstloop
-
-        firstloop = .true.
-
         Dco = 0d0
         Dctr = 0d0
         Dt = 0d0
