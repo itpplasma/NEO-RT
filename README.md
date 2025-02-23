@@ -2,8 +2,7 @@
 Calculates NTV torque in resonant transport regimes using a Hamiltonian approach
 
 ## Building
-
-* Inside the NEO-RT folder run
+Inside the NEO-RT folder run
 ```bash
 make
 ```
