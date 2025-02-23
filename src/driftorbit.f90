@@ -971,7 +971,7 @@ contains
                 call bounce_fast(v, eta, taub, bounceavg)
                 Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, taub, bounceavg, &
-                    Omth, dOmthdv, dOmthdeta, Hmn2)
+                                                           Omth, dOmthdv, dOmthdeta, Hmn2)
 
                 dD11 = du*D11int(ux, taub, Hmn2)/abs(eta_res(2))
                 dD12 = du*D12int(ux, taub, Hmn2)/abs(eta_res(2))
