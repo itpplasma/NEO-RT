@@ -2,7 +2,6 @@
 !
 !
 &params
-    runmode = "torque"     ! "torque", "transport", or various tests
     s = 0.5                ! Radial coordinate s
     M_t = 0.036            ! Mach number (for single Mach no. run)
     qs = 1.0               ! Particle charge / elem. charge
@@ -11,20 +10,14 @@
     epsmn = 0.001          ! perturbation amplitude B1/B0 (if pertfile==F)
     m0 = 0                 ! poroidal perturbation mode (if pertfile==F)
     mph = 3                ! toroidal perturbation mode (if pertfile==F, n>0!)
-    mth = 0                ! poloidal canonical mode (for single Mach no. run)
-    supban = .false.       ! calculate superbanana plateau
     magdrift = .true.      ! consider magnetic drift
     nopassing = .false.    ! neglect passing particles
     noshear = .true.       ! neglect magnetic shear term with dqds
     pertfile = .false.     ! read perturbation from file with do_magfie_pert
-    odeint = .false.       ! use ODE integrator for resonance line
     nonlin = .false.       ! do nonlinear calculation
+    comptorque = .true.    ! compute torque
     bfac = 1.0             ! scale B field by factor
     efac = 1.0             ! scale E field by factor
     inp_swi = 8            ! input switch for Boozer file
-    orbit_mode_avg = 0     ! orbit mode for bounce averaging
-    orbit_mode_transp = 0  ! orbit mode for transport computation
     vsteps = 256           ! integration steps in velocity space
-    comptorque = .true.    ! do torque computation
-    intoutput = .false.    ! output details of integrand
 /
