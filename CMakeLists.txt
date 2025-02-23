@@ -52,6 +52,7 @@ set(NEO_RT_SOURCES
   src/collis_nbi.f90
   src/polylag_3.f
   src/util.f90
+  src/profiles.f90
   src/driftorbit.f90
   src/neort.f90
 )

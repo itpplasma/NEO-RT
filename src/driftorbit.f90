@@ -8,17 +8,11 @@ module driftorbit
     use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
     use collis_alp
     use spline
+    use neort_profiles, only: vth, M_t, ni1
 
     implicit none
-    save
 
     integer, parameter :: nvar = 7
-
-    ! Orbit parameters
-    ! real(8) :: v, eta
-
-    ! Plasma parameters
-    real(8) :: Om_tE, dOm_tEds, vth, dvthds, M_t, dM_tds, efac
 
     ! For splining in the trapped eta region
     integer, parameter :: netaspl = 100
@@ -86,9 +80,6 @@ module driftorbit
     real(8), allocatable :: torque_int_box(:)
     real(8), allocatable :: taubins(:)
 
-    ! Plasma parameters
-    real(8) ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds
-
     ! Thermodynamic forces in radial variable s
     real(8) A1, A2
 contains
@@ -99,6 +90,8 @@ contains
         call init_misc
         call init_Om_spl       ! frequencies of trapped orbits
         if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
+        sigv = 1
+        call get_trapped_region(etamin, etamax)
         init_done = .true.
     end subroutine init
 
@@ -1299,13 +1292,13 @@ contains
         gout(2) = s1 - snext
     end subroutine sroots
 
-    subroutine get_trapped_region(eta_min, eta_max)
+    pure subroutine get_trapped_region(eta_min, eta_max)
         real(8), intent(out) :: eta_min, eta_max
         eta_min = (1 + epst)*etatp
         eta_max = (1 - epst)*etadt
     end subroutine get_trapped_region
 
-    subroutine get_passing_region(eta_min, eta_max)
+    pure subroutine get_passing_region(eta_min, eta_max)
         real(8), intent(out) :: eta_min, eta_max
         eta_min = epsp*etatp
         eta_max = (1 - epsp)*etatp
