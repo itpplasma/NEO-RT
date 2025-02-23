@@ -26,7 +26,7 @@ contains
         runname = TEST_RUN
         call read_control
         call do_magfie_init
-        call init_profile_input(s, efac, bfac)
+        call init_profile_input(s, R0, efac, bfac)
         call init_plasma_input(s)
         call init_run
         call check_magfie

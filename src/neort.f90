@@ -1,11 +1,11 @@
 module neort
-    use neort_profiles, only: init_profile_input, init_plasma_input, init_profiles, &
-        vth, dvthds, ni1, dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
+    use neort_profiles, only: init_profile_input, init_plasma_input, &
+        init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
+        dTi1ds, qi, mi, mu, qe
     use driftorbit
     implicit none
 
     character(1024) :: runname
-    logical :: supban = .false.       ! calculate superbanana plateau only
 
     ! Number of integration steps in v, set 0 for adaptive integration by quadpack
     integer :: vsteps = 256
@@ -17,12 +17,28 @@ contains
         use do_magfie_pert_mod, only: do_magfie_pert_init
         use driftorbit, only: pertfile
 
+        logical :: file_exists
+
         call get_command_argument(1, runname)
         call read_control
         call do_magfie_init  ! init axisymmetric part of field from infile
         if (pertfile) call do_magfie_pert_init ! else epsmn*exp(imun*(m0*th + mph*ph))
-        call init_profile_input(s, efac, bfac)
-        call init_plasma_input(s)
+        call init_profiles(R0)
+
+        inquire(file="plasma.in", exist=file_exists)
+        if (file_exists) then
+            call init_plasma_input(s)
+        else if (nonlin) then
+            error stop "plasma.in required for nonlin"
+        end if
+
+        inquire(file="profile.in", exist=file_exists)
+        if (file_exists) then
+            call init_profile_input(s, R0, efac, bfac)
+        else if (nonlin .or. comptorque) then
+            error stop "profile.in required for nonlin or comptorque"
+        end if
+
         call init_run
         call check_magfie
         call compute_transport
@@ -32,7 +48,7 @@ contains
         use driftorbit
         real(8) :: qs, ms
 
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, supban, magdrift, &
+        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
             nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps
 
         open (unit=9, file=trim(adjustl(runname))//".in", status="old", form="formatted")
@@ -46,7 +62,7 @@ contains
 
     subroutine init_run
         call init
-        call init_profiles(R0, psi_pr, q)
+        if (comptorque) call init_thermodynamic_forces(psi_pr, q)
     end subroutine init_run
 
     subroutine check_magfie
@@ -147,13 +163,8 @@ contains
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
-        if (supban) then
-            mthmin = 0
-            mthmax = 0
-        else
-            mthmin = -ceiling(2*abs(mph)*q)
-            mthmax = ceiling(2*abs(mph)*q)
-        end if
+        mthmin = -ceiling(2*abs(mph)*q)
+        mthmax = ceiling(2*abs(mph)*q)
 
         do j = mthmin, mthmax
             call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)
@@ -165,10 +176,12 @@ contains
             Dco(2), Dctr(2), Dt(2), Dco(2) + Dctr(2) + Dt(2)
         close (unit=9)
 
-        open (unit=9, file=trim(adjustl(runname))//"_torque.out", recl=1024)
-        write (9, *) "# s dVds M_t Tco Tctr Tt"
-        write (9, *) s, dVds, M_t, Tco, Tctr, Tt
-        close (unit=9)
+        if (comptorque) then
+            open (unit=9, file=trim(adjustl(runname))//"_torque.out", recl=1024)
+            write (9, *) "# s dVds M_t Tco Tctr Tt"
+            write (9, *) s, dVds, M_t, Tco, Tctr, Tt
+            close (unit=9)
+        end if
     end subroutine compute_transport
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)

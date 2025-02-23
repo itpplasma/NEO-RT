@@ -38,6 +38,7 @@ module driftorbit
     logical :: nopassing = .false.    ! neglect passing particles
     logical :: noshear = .false.      ! neglect magnetic shear
     logical :: pertfile = .false.     ! read perturbation from file with neo_magfie_pert
+    logical :: comptorque = .true.    ! compute torque
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(8) :: dVds, etadt, etatp
@@ -970,10 +971,13 @@ contains
 
                 dD11 = du*D11int(ux, taub, Hmn2)/abs(eta_res(2))
                 dD12 = du*D12int(ux, taub, Hmn2)/abs(eta_res(2))
-                dT = du*Tphi_int(ux, taub, Hmn2)/abs(eta_res(2))
                 D(1) = D(1) + dD11*attenuation_factor
                 D(2) = D(2) + dD12*attenuation_factor
-                T = T + dT*attenuation_factor
+
+                if (comptorque) then
+                    dT = du*Tphi_int(ux, taub, Hmn2)/abs(eta_res(2))
+                    T = T + dT*attenuation_factor
+                end if
             end do
             ux = ux + du
         end do

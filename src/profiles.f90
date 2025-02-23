@@ -8,40 +8,25 @@ module neort_profiles
     implicit none
 
     ! Thermal velocity, Mach number, and their derivatives over s_tor
-    real(dp) vth, dvthds, M_t, dM_tds
+    real(dp) :: vth = 0d0, dvthds = 0d0, M_t = 0d0, dM_tds = 0d0
 
     ! Electric precession frequency and its derivative over s_tor
-    real(8) :: Om_tE, dOm_tEds
+    real(8) :: Om_tE = 0d0, dOm_tEds = 0d0
 
     ! density and temperature profiles and their derivatives over s_tor
-    real(dp) ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds
+    real(dp) :: ni1 = 0d0, ni2 = 0d0, Ti1 = 0d0, Ti2 = 0d0, Te = 0d0, dni1ds = 0d0, &
+                dni2ds = 0d0, dTi1ds = 0d0, dTi2ds = 0d0, dTeds = 0d0
 
     ! Thermodynamic forces in radial variable s_tor
-    real(8) A1, A2
+    real(dp) :: A1 = 0d0, A2 = 0d0
 
 contains
 
-    subroutine init_profile_input(s, efac, bfac)
-        ! Init s profile for finite orbit width boxes in radial s
-
-        real(8), intent(in) :: s, efac, bfac
-
-        ! For splining electric precession frequency
-        real(8), allocatable :: Mt_spl_coeff(:, :)
-
-        real(8), allocatable :: data(:, :)
-        real(8) :: splineval(3)
-
-        call readdata("profile.in", 3, data)
-
-        allocate (Mt_spl_coeff(size(data(:, 1)), 5))
-
-        Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
-        splineval = spline_val_0(Mt_spl_coeff, s)
-
-        M_t = splineval(1)*efac/bfac
-        dM_tds = splineval(2)*efac/bfac
-    end subroutine init_profile_input
+    subroutine init_profiles(R0)
+        real(dp), intent(in) :: R0
+        Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
+        dOm_tEds = 0d0
+    end subroutine init_profiles
 
     subroutine init_plasma_input(s)
         real(dp), intent(in) :: s
@@ -97,14 +82,36 @@ contains
 
     end subroutine init_plasma_input
 
-    subroutine init_profiles(R0, psi_pr, q)
-        real(dp), intent(in) :: R0, psi_pr, q
+    subroutine init_profile_input(s, R0, efac, bfac)
+        ! Init s profile for finite orbit width boxes in radial s
+
+        real(8), intent(in) :: s, R0, efac, bfac
+
+        ! For splining electric precession frequency
+        real(8), allocatable :: Mt_spl_coeff(:, :)
+
+        real(8), allocatable :: data(:, :)
+        real(8) :: splineval(3)
+
+        call readdata("profile.in", 3, data)
+
+        allocate (Mt_spl_coeff(size(data(:, 1)), 5))
+
+        Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
+        splineval = spline_val_0(Mt_spl_coeff, s)
+
+        M_t = splineval(1)*efac/bfac
+        dM_tds = splineval(2)*efac/bfac
 
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
+    end subroutine init_profile_input
+
+    subroutine init_thermodynamic_forces(psi_pr, q)
+        real(dp), intent(in) :: psi_pr, q
 
         A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
         A2 = dTi1ds/Ti1
-    end subroutine init_profiles
+    end subroutine init_thermodynamic_forces
 
 end module neort_profiles
