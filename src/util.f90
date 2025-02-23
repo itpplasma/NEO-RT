@@ -69,7 +69,7 @@ contains
         real(8) :: buf(ncol)
         integer :: lun, nrow, io, k
 
-        open (unit=newunit(lun), file=filename)
+        open (unit=newunit(lun), file=filename, status="old")
         nrow = 0
         do
             read (lun, *, iostat=io) buf

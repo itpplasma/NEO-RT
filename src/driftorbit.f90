@@ -6,13 +6,16 @@ module driftorbit
     use util
     use do_magfie_mod
     use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
-    use collis_alp
     use spline
-    use neort_profiles, only: vth, M_t, ni1
+    use neort_profiles, only: vth, M_t, ni1, Om_tE, A1, A2, dM_tds, dni1ds, dOm_tEds
+    use collis_alp, only: coleff
 
     implicit none
 
     integer, parameter :: nvar = 7
+
+    ! Normalization factor for radial electric field
+    real(8) :: efac = 1d0
 
     ! For splining in the trapped eta region
     integer, parameter :: netaspl = 100
@@ -79,9 +82,6 @@ module driftorbit
     real(8), allocatable :: fluxint_box(:, :)
     real(8), allocatable :: torque_int_box(:)
     real(8), allocatable :: taubins(:)
-
-    ! Thermodynamic forces in radial variable s
-    real(8) A1, A2
 contains
 
     subroutine init
@@ -1228,11 +1228,6 @@ contains
         real(8) :: roots(nlev, 3)
         integer :: nroots, kr, ku
 
-        if (orbit_mode_transp > 0) then
-            fluxint_box = 0d0
-            torque_int_box = 0d0
-        end if
-
         D = 0d0
         T = 0d0
         du = (vmax - vmin)/(vsteps*vth)
@@ -1251,12 +1246,6 @@ contains
                 D(1) = D(1) + dD11
                 D(2) = D(2) + dD12
                 T = T + dT
-                if (orbit_mode_transp > 0) then
-                    call taurel(v, eta)
-                    fluxint_box(1, :) = fluxint_box(1, :) + taubins*dD11
-                    fluxint_box(2, :) = fluxint_box(2, :) + taubins*dD12
-                    torque_int_box = torque_int_box + taubins*dT
-                end if
             end do
             ux = ux + du
         end do
@@ -1264,10 +1253,6 @@ contains
         Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         dsdreff = 2d0/a*sqrt(s)  ! TODO: Use exact value instead of this approximation
         D = dsdreff**(-2)*D/Dp
-
-        if (orbit_mode_transp > 0) then
-            fluxint_box = dsdreff**(-2)*fluxint_box/Dp
-        end if
 
     end subroutine transport_integral_mid
 

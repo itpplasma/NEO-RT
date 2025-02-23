@@ -1,6 +1,6 @@
 program test_omage_prime_prog
-    use neort, only: read_control, check_magfie, init_profile, init_plasma, init_run, &
-                     compute_transport_harmonic, runname, s, M_t
+    use neort, only: read_control, check_magfie, init_profile_input, &
+        init_plasma_input, init_run, compute_transport_harmonic, runname, s, M_t
     use driftorbit
     implicit none
 
@@ -93,9 +93,9 @@ contains
 
     subroutine setup
         call do_magfie_init
-        call init_profile
-        call init_plasma
-        call init_run(use_thermodynamic_profiles=.true.)
+        call init_profile_input(s, efac, bfac)
+        call init_plasma_input(s)
+        call init_run
         call check_magfie
 
         mth = -3

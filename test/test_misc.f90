@@ -1,6 +1,6 @@
 program test_misc
     use driftorbit
-    use neort, only: main, init_plasma, runmode, runname
+    use neort, only: main, init_plasma_input, runmode, runname
 
     implicit none
 
@@ -173,7 +173,7 @@ contains
         x(1) = s
         x(2) = 0d0
         x(3) = 0d0
-        call init_plasma
+        call init_plasma_input(s)
         call init_fsa
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         write (unit, *) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth

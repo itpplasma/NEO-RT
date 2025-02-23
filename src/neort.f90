@@ -1,6 +1,6 @@
 module neort
-    use neort_profiles, only: init_plasma_input, vth, dvthds, ni1, dni1ds, &
-        Ti1, dTi1ds, qi, mi, mu, qe
+    use neort_profiles, only: init_profile_input, init_plasma_input, init_profiles, &
+        vth, dvthds, ni1, dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
     use driftorbit
     implicit none
 
@@ -16,7 +16,7 @@ contains
 
         character(len=1024) :: tmp
         integer :: tmplen
-        logical :: use_rotation_profiles, use_thermodynamic_profiles
+        logical :: file_exists
 
         call get_command_argument(1, tmp, tmplen)
         runname = trim(adjustl(tmp))
@@ -25,34 +25,15 @@ contains
 
         call do_magfie_init  ! init axisymmetric part of field from infile
         if (pertfile) then
-            ! init non-axisymmetric perturbation of field from infile_pert
+            ! init non-axisymmetric perturbation of field from infile_pert,
+            ! otherwise use epsmn*exp(imun*(m0*theta + mph*phi))
             call do_magfie_pert_init
         end if
 
-        ! Init plasma profiles of radial electric field.
-        ! Read profile.in in cases where it is needed.
-        inquire (file="profile.in", exist=use_rotation_profiles)
-        if (use_rotation_profiles) then
-            call init_profile
-        else
-            if (orbit_mode_transp > 0) then
-                stop "need profile.in for finite orbit width transport"
-            elseif (intoutput .or. nonlin) then
-                stop "need profile.in for integral output or nonlinear calculation"
-            end if
-        end if
+        call init_profile_input(s, efac, bfac)
+        call init_plasma_input(s)
 
-        inquire (file="plasma.in", exist=use_thermodynamic_profiles)
-        ! init plasma density and temperature profiles
-        if (use_thermodynamic_profiles) then
-            call init_plasma_input(s)
-        else
-            if ((runmode == "torque") .or. nonlin) then
-                stop "need plasma.in for nonlinear or torque calculation"
-            end if
-        end if
-
-        call init_run(use_thermodynamic_profiles)
+        call init_run
         call check_magfie
         call compute_transport
     end subroutine main
@@ -74,12 +55,9 @@ contains
         mi = ms*mu
     end subroutine read_control
 
-    subroutine init_run(use_thermodynamic_profiles)
-
-        logical, intent(in) :: use_thermodynamic_profiles
-
+    subroutine init_run
         call init
-        call init_profiles(use_thermodynamic_profiles)
+        call init_profiles(R0, psi_pr, q)
     end subroutine init_run
 
     subroutine check_magfie
@@ -246,9 +224,6 @@ contains
                 call transport_integral_mid(vminp, vmaxp, Dresco, Tresco)
                 Dco = Dco + Dresco
                 Tco = Tco + Tresco
-                if (orbit_mode_transp > 0) then
-                    call write_transport_box(trim(adjustl(runname))//"_box_co.out")
-                end if
             end if
 
             ! Passing resonance (counter-passing)
@@ -258,9 +233,6 @@ contains
                 call transport_integral_mid(vminp, vmaxp, Dresctr, Tresctr)
                 Dctr = Dctr + Dresctr
                 Tctr = Tctr + Tresctr
-                if (orbit_mode_transp > 0) then
-                    call write_transport_box(trim(adjustl(runname))//"_box_ctr.out")
-                end if
             end if
 
             ! Trapped resonance (trapped)
@@ -269,9 +241,6 @@ contains
             call transport_integral_mid(vmint, vmaxt, Drest, Trest)
             Dt = Dt + Drest
             Tt = Tt + Trest
-            if (orbit_mode_transp > 0) then
-                call write_transport_box(trim(adjustl(runname))//"_box_t.out")
-            end if
         end if
 
         print *, ""

@@ -1,22 +1,30 @@
 module neort_profiles
     use iso_fortran_env, only: dp => real64
     use polylag_3, only: plag1d, indef, mp
-    use util, only: ev, qi, mi, mu, qe
+    use spline, only: spline_coeff, spline_val_0
+    use util, only: readdata, ev, qi, mi, mu, qe, c
+    use collis_alp, only: loacol_nbi
 
     implicit none
 
+    ! Thermal velocity, Mach number, and their derivatives over s_tor
     real(dp) vth, dvthds, M_t, dM_tds
 
-    real(8) :: Om_tE, dOm_tEds, efac
+    ! Electric precession frequency and its derivative over s_tor
+    real(8) :: Om_tE, dOm_tEds
+
+    ! density and temperature profiles and their derivatives over s_tor
     real(dp) ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds
+
+    ! Thermodynamic forces in radial variable s_tor
+    real(8) A1, A2
 
     contains
 
-    subroutine init_profile_input(s)
+    subroutine init_profile_input(s, efac, bfac)
         ! Init s profile for finite orbit width boxes in radial s
-        use do_magfie_mod, only: bfac, orbit_mode_transp
-        use neort_profiles, only: M_t, dM_tds
-        use spline
+
+        real(8), intent(in) :: s, efac, bfac
 
         ! For splining electric precession frequency
         real(8), allocatable :: Mt_spl_coeff(:, :)
@@ -33,10 +41,6 @@ module neort_profiles
 
         M_t = splineval(1)*efac/bfac
         dM_tds = splineval(2)*efac/bfac
-
-        if (orbit_mode_transp > 0) then
-            call init_profile_finite_width(data)
-        end if
     end subroutine init_profile_input
 
     subroutine init_plasma_input(s)
@@ -53,7 +57,7 @@ module neort_profiles
         integer :: nplasma, i
 
         ! read plasma file
-        open (1, file="plasma.in")
+        open (1, file="plasma.in", status="old")
         read (1, *)
         read (1, *) nplasma, am1, am2, Z1, Z2
         read (1, *)
@@ -93,34 +97,14 @@ module neort_profiles
 
     end subroutine init_plasma_input
 
-    subroutine init_profiles(use_thermodynamic_profiles)
-        logical, intent(in) :: use_thermodynamic_profiles
+    subroutine init_profiles(R0, psi_pr, q)
+        real(dp), intent(in) :: R0, psi_pr, q
 
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
-        if (use_thermodynamic_profiles) then
-            A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
-            A2 = dTi1ds/Ti1
-        end if
+        A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
+        A2 = dTi1ds/Ti1
     end subroutine init_profiles
-
-    subroutine init_profile_finite_width(data)
-        use driftorbit, only: sbox, taubins, fluxint_box, torque_int_box
-
-        real(8), allocatable, intent(in) :: data(:, :)
-
-        integer :: k
-
-        allocate (sbox(size(data, 1) + 1))
-        allocate (taubins(size(sbox) + 1))
-        sbox(1) = 0.0
-        sbox(size(sbox)) = 1.0
-        do k = 1, (size(data, 1) - 1)
-            sbox(k + 1) = (data(k, 1) + data(k + 1, 1))/2d0
-        end do
-        allocate (fluxint_box(2, size(sbox) + 1))
-        allocate (torque_int_box(size(sbox) + 1))
-    end subroutine init_profile_finite_width
 
 end module neort_profiles
