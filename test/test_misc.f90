@@ -1,21 +1,14 @@
 program test_misc
     use driftorbit
-    use neort, only: main, init_plasma_input, runmode, runname
+    use neort, only: main, init_plasma_input, runname
 
     implicit none
 
     call main
 
-    if (runmode == "test_profile") then
-        call test_profile
-        stop
-    elseif (runmode == "test_torfreq") then
-        call test_torfreq
-        stop
-    elseif (runmode == "test_resline") then
-        call test_resline
-        stop
-    end if
+    call test_profile
+    call test_torfreq
+    call test_resline
 
 contains
 

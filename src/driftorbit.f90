@@ -845,8 +845,6 @@ contains
             if (bmod > Bmax) Bmax = bmod
         end do
 
-        !th0 = 0d0 ! TODO remove this
-
         dVds = 2d0*pi*dVds
         B0 = B0/(2d0*pi)
         eps = eps/(B0*pi)
