@@ -11,18 +11,19 @@ directory.
 
 ## Running
 
-Single run with input file: `neo_rt.x neort`.
-An example input file can be found in `examples/base`.
+Single run with input file: `neo_rt.x <runname>` will run with input file `<runname>.in` .
+An example input file `driftorbit.in` can be found in `examples/base`.
 Note that the name of the input file is given without file ending, that
 is because this is also the name (prefix) to use for output files.
 
 Script to be called for batch runs on multiple flux surfaces: `run_driftorbit.py`
 
 ## Input
-- `neort.in`: Given as first command line argument, contains run parameters 
+- `<runname>.in`: Given as first command line argument, contains run parameters 
 - `in_file`: Boozer coordinate file of axisymmetric part of the magnetic field
 - `in_file_pert`: Boozer coordinate file of non-axisymmetric perturbation
-- `plasma.in`: Plasma parameters, must be **equidistant in radius** `s` !
+- `plasma.in`: Plasma parameters, must be **equidistant in radius** `s` ! Required for torque and/or nonlinear.
+- `profile.in`: Profile parameters, required for derivatives used inside nonlinear runs.
 
 Used by `run_driftorbit.py`:
 

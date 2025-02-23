@@ -28,15 +28,15 @@ contains
         inquire(file="plasma.in", exist=file_exists)
         if (file_exists) then
             call init_plasma_input(s)
-        else if (nonlin) then
-            error stop "plasma.in required for nonlin"
+        else if (nonlin .or. comptorque) then
+            error stop "plasma.in required for nonlin or comptorque"
         end if
 
         inquire(file="profile.in", exist=file_exists)
         if (file_exists) then
             call init_profile_input(s, R0, efac, bfac)
-        else if (nonlin .or. comptorque) then
-            error stop "profile.in required for nonlin or comptorque"
+        else if (nonlin) then
+            error stop "profile.in required for nonlin"
         end if
 
         call init_run
