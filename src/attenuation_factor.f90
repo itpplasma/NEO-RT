@@ -19,7 +19,7 @@ subroutine attenuation_factor(D, Theta)
 
     if (prop) then
         prop = .false.
-        open (iunitarg, file='thetafun_inp.dat')
+        open (iunitarg, file='thetafun_inp.dat', status='old')
         npoiarg = 0
         do
             read (iunitarg, *, end=1) arglog
@@ -27,7 +27,7 @@ subroutine attenuation_factor(D, Theta)
         end do
 1       close (iunitarg)
         allocate (argvals(npoiarg), thetavals(npoiarg))
-        open (iunitarg, file='thetafun_inp.dat')
+        open (iunitarg, file='thetafun_inp.dat', status='old')
         do i = 1, npoiarg
             read (iunitarg, *) arglog, Theta
             argvals(i) = log(arglog)
