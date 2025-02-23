@@ -12,7 +12,7 @@ contains
     subroutine main
         use do_magfie_mod, only: do_magfie_init
         use do_magfie_pert_mod, only: do_magfie_pert_init
-        use driftorbit, only: pertfile, orbit_mode_transp, intoutput, nonlin
+        use driftorbit, only: pertfile
 
         call get_command_argument(1, runname)
         call read_control
@@ -31,7 +31,7 @@ contains
 
         namelist /params/ runmode, s, M_t, qs, ms, vth, epsmn, m0, mph, supban, &
             magdrift, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            orbit_mode_avg, orbit_mode_transp, vsteps, intoutput
+            vsteps
 
         open (unit=9, file=trim(adjustl(runname))//".in", status="old", form="formatted")
         read (9, nml=params)
@@ -256,14 +256,5 @@ contains
         write (10, *) mth, Tresco, Tresctr, Trest
         close (unit=10)
     end subroutine compute_transport_harmonic
-
-    subroutine write_transport_box(filename)
-        implicit none
-        character(len=*), intent(in) :: filename
-
-        open (unit=9, file=filename, recl=8192, position="append")
-        write (9, *) mth, fluxint_box(1, :), fluxint_box(2, :)
-        close (unit=9)
-    end subroutine write_transport_box
 
     end module neort

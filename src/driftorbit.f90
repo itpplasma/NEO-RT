@@ -65,23 +65,8 @@ module driftorbit
     ! Nonlinear calculation switch
     logical :: nonlin = .false.
 
-    ! Orbit modes: 0 ... zeroth order, 1 ... first order
-    integer :: orbit_mode_avg = 0, orbit_mode_transp = 0
-
     ! Number of integration steps in v, set 0 for adaptive integration by quadpack
     integer :: vsteps = 256
-
-    ! Output integral quantities and resonance line
-    logical :: intoutput = .false.
-
-    ! Box boundaries of s levels where to check intersections of orbits
-    real(8), allocatable :: sbox(:)
-    real(8) :: s1, snext, sprev ! first order correction to s
-
-    ! Integrals for radial boxes
-    real(8), allocatable :: fluxint_box(:, :)
-    real(8), allocatable :: torque_int_box(:)
-    real(8), allocatable :: taubins(:)
 contains
 
     subroutine init
@@ -288,11 +273,6 @@ contains
         if (init_done) then
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
             Omth = abs(Omth)
-            if (orbit_mode_avg == 1) then
-                ! use first order radial orbit width
-                x(1) = s + sigv*c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
-                call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-            end if
 
             ! evaluate orbit averages of Hamiltonian perturbation
             if (pertfile) then
@@ -318,11 +298,6 @@ contains
                 ydot(7) = bmod
             else
                 ydot(6:7) = 0d0
-            end if
-            if (orbit_mode_avg == 1) then
-                ! reset original values
-                x(1) = s
-                call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
             end if
         else
             ydot(4:7) = 0d0
@@ -1015,27 +990,6 @@ contains
         D = dsdreff**(-2)*D/Dp
 
     end subroutine transport_integral_mid
-
-    subroutine sroots(neq, t, y, ng, gout)
-        integer, intent(in) :: neq, ng
-        real(8), intent(in) :: t, y(neq)
-        real(8), intent(out) :: gout(ng)
-
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-
-        associate (dummy => t)
-        end associate
-
-        x(1) = s
-        x(2) = 0d0
-        x(3) = y(1)
-        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-
-        s1 = s + c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
-
-        gout(1) = s1 - sprev
-        gout(2) = s1 - snext
-    end subroutine sroots
 
     pure subroutine get_trapped_region(eta_min, eta_max)
         real(8), intent(out) :: eta_min, eta_max
