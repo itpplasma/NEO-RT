@@ -31,7 +31,7 @@ module driftorbit
 
     ! Harmonics TODO: make dynamic, multiple harmonics
     ! Default values are overridden by config file in driftorbit_test:read_control
-    real(8) :: epsmn = 1d-3           ! perturbation amplitude B1/B0
+    real(8) :: epsmn = 1d0            ! perturbation amplitude B1/B0
     integer :: m0 = 1                 ! Boozer poloidal perturbation mode
     integer :: mth = 1                ! canonical poloidal mode
     logical :: magdrift = .true.      ! consider magnetic drift
