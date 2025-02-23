@@ -35,8 +35,8 @@ program test_bounce_program
 
     subroutine setup_control
         use driftorbit, only: s, M_t, qi, mi, vth, epsmn, m0, &
-            mph, mth, supban, magdrift, nopassing, noshear, pertfile, &
-            nonlin, bfac, efac, inp_swi, vsteps
+            mph, mth, magdrift, nopassing, noshear, pertfile, &
+            nonlin, bfac, efac, inp_swi
 
         real(8) :: qs, ms
 
@@ -49,7 +49,6 @@ program test_bounce_program
         m0 = 0
         mph = 18
         mth = -1
-        supban = .false.
         magdrift = .false.
         nopassing = .false.
         noshear = .true.
@@ -58,7 +57,6 @@ program test_bounce_program
         bfac = 1.0d0
         efac = 1.0d0
         inp_swi = 8
-        vsteps = -1
 
         M_t = M_t*efac/bfac
         qi = qs*qe

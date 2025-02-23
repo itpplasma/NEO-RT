@@ -11,7 +11,6 @@
     epsmn = 1.0d-3         ! Perturbation amplitude B1/B0 (if pertfile==.false.)
     m0 = 0                 ! Poroidal perturbation harmonic (if pertfile==.false.)
     mph = 3                ! Toroidal perturbation harmonic (if pertfile==.false., n>0!)
-    supban = .false.       ! Calculate superbanana plateau only
     magdrift = .true.      ! Consider magnetic drift
     nopassing = .false.    ! Neglect passing particles
     noshear = .true.       ! Neglect magnetic shear term dq/ds
@@ -20,8 +19,5 @@
     bfac = 1.0d0           ! Scale B field by factor
     efac = 1.0d0           ! Scale E field by factor
     inp_swi = 8            ! Input switch for Boozer file
-    orbit_mode_avg = 0     ! Orbit mode for bounce averaging
-    orbit_mode_transp = 0  ! Orbit mode for transport computation
     vsteps = 256           ! Integration steps in velocity space
-    intoutput = .false.    ! Output details of integrand
 /

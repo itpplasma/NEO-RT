@@ -34,7 +34,6 @@ module driftorbit
     real(8) :: epsmn = 1d-3           ! perturbation amplitude B1/B0
     integer :: m0 = 1                 ! Boozer poloidal perturbation mode
     integer :: mth = 1                ! canonical poloidal mode
-    logical :: supban = .false.       ! calculate superbanana plateau only
     logical :: magdrift = .true.      ! consider magnetic drift
     logical :: nopassing = .false.    ! neglect passing particles
     logical :: noshear = .false.      ! neglect magnetic shear
@@ -43,7 +42,6 @@ module driftorbit
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(8) :: dVds, etadt, etatp
     real(8) :: etamin, etamax
-    real(8) :: vmin2, vmax2 ! permanent vmin vmax for integration bracketing
 
     ! Check if init is done
     logical :: init_done
@@ -64,9 +62,6 @@ module driftorbit
 
     ! Nonlinear calculation switch
     logical :: nonlin = .false.
-
-    ! Number of integration steps in v, set 0 for adaptive integration by quadpack
-    integer :: vsteps = 256
 contains
 
     subroutine init
@@ -76,7 +71,7 @@ contains
         call init_Om_spl       ! frequencies of trapped orbits
         if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
         sigv = 1
-        call get_trapped_region(etamin, etamax)
+        call set_to_trapped_region(etamin, etamax)
         init_done = .true.
     end subroutine init
 
@@ -940,9 +935,10 @@ contains
         omega_prime = dOmdv*dvdJ + dOmdeta*detadJ + mph*dOmdpph
     end function omega_prime
 
-    subroutine transport_integral_mid(vmin, vmax, D, T)
-        ! compute flux integral via midpoint rule
+    subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
+        ! compute transport integral via midpoint rule
         real(8), intent(in) :: vmin, vmax
+        integer, intent(in) :: vsteps
         real(8), intent(out) :: D(2), T ! Transport coefficients D and torque density T
         real(8) :: Dp, dsdreff ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
         real(8) :: ux, du, dD11, dD12, dT, v, eta
@@ -987,18 +983,18 @@ contains
         dsdreff = 2d0/a*sqrt(s)  ! TODO: Use exact value instead of this approximation
         D = dsdreff**(-2)*D/Dp
 
-    end subroutine transport_integral_mid
+    end subroutine compute_transport_integral
 
-    pure subroutine get_trapped_region(eta_min, eta_max)
+    pure subroutine set_to_trapped_region(eta_min, eta_max)
         real(8), intent(out) :: eta_min, eta_max
         eta_min = (1 + epst)*etatp
         eta_max = (1 - epst)*etadt
-    end subroutine get_trapped_region
+    end subroutine set_to_trapped_region
 
-    pure subroutine get_passing_region(eta_min, eta_max)
+    pure subroutine set_to_passing_region(eta_min, eta_max)
         real(8), intent(out) :: eta_min, eta_max
         eta_min = epsp*etatp
         eta_max = (1 - epsp)*etatp
-    end subroutine get_passing_region
+    end subroutine set_to_passing_region
 
 end module driftorbit

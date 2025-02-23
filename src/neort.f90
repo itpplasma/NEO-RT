@@ -5,6 +5,10 @@ module neort
     implicit none
 
     character(1024) :: runname
+    logical :: supban = .false.       ! calculate superbanana plateau only
+
+    ! Number of integration steps in v, set 0 for adaptive integration by quadpack
+    integer :: vsteps = 256
 
 contains
 
@@ -192,41 +196,30 @@ contains
         vmint = vminp
         vmaxt = vmaxp
 
-        ! Superbanana resonance
-        if (supban) then
-            vmint = 0.01d0*vth
-            vmaxt = 5d0*vth
+        ! Passing resonance (co-passing)
+        if (.not. nopassing) then
             sigv = 1
-            call get_trapped_region(etamin, etamax)
-            call transport_integral_mid(vmint, vmaxt, Drest, Trest)
-            Dt = Dt + Drest
-            Tt = Tt + Trest
-        else
-            ! Passing resonance (co-passing)
-            if (.not. nopassing) then
-                sigv = 1
-                call get_passing_region(etamin, etamax)
-                call transport_integral_mid(vminp, vmaxp, Dresco, Tresco)
-                Dco = Dco + Dresco
-                Tco = Tco + Tresco
-            end if
-
-            ! Passing resonance (counter-passing)
-            if (.not. nopassing) then
-                sigv = -1
-                call get_passing_region(etamin, etamax)
-                call transport_integral_mid(vminp, vmaxp, Dresctr, Tresctr)
-                Dctr = Dctr + Dresctr
-                Tctr = Tctr + Tresctr
-            end if
-
-            ! Trapped resonance (trapped)
-            sigv = 1
-            call get_trapped_region(etamin, etamax)
-            call transport_integral_mid(vmint, vmaxt, Drest, Trest)
-            Dt = Dt + Drest
-            Tt = Tt + Trest
+            call set_to_passing_region(etamin, etamax)
+            call compute_transport_integral(vminp, vmaxp, vsteps, Dresco, Tresco)
+            Dco = Dco + Dresco
+            Tco = Tco + Tresco
         end if
+
+        ! Passing resonance (counter-passing)
+        if (.not. nopassing) then
+            sigv = -1
+            call set_to_passing_region(etamin, etamax)
+            call compute_transport_integral(vminp, vmaxp, vsteps, Dresctr, Tresctr)
+            Dctr = Dctr + Dresctr
+            Tctr = Tctr + Tresctr
+        end if
+
+        ! Trapped resonance (trapped)
+        sigv = 1
+        call set_to_trapped_region(etamin, etamax)
+        call compute_transport_integral(vmint, vmaxt, vsteps, Drest, Trest)
+        Dt = Dt + Drest
+        Tt = Tt + Trest
 
         print *, ""
         print *, "test_flux: Mt = ", M_t, ", mth = ", mth

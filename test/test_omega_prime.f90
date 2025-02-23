@@ -102,7 +102,7 @@ contains
 
         mth = -3
         sigv = 1
-        call get_trapped_region(etamin, etamax)
+        call set_to_trapped_region(etamin, etamax)
     end subroutine setup
 
     function first_resonance(v) result(eta_res)
