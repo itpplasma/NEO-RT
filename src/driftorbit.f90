@@ -353,7 +353,6 @@ contains
         integer :: itask, istate
         type(vode_opts) :: options
 
-
         rtol = 1d-9
         atol = 1d-10
         itask = 1
@@ -551,13 +550,11 @@ contains
         call timestep_poloidal_internal(v, eta, bmod, hctrvr(3), hder(3), neq, t, y, ydot)
     end subroutine timestep_poloidal_motion
 
-
     subroutine timestep_poloidal_internal(v, eta, bmod, hthctr, hderth, neq, t, y, ydot)
         real(8), intent(in) :: v, eta, bmod, hthctr, hderth
         integer, intent(in) :: neq
         real(8), intent(in) :: t, y(neq)
         real(8), intent(out) :: ydot(neq)
-
 
         ydot(1) = y(2)*hthctr                                   ! theta
         ydot(2) = -v**2*eta/2d0*hthctr*hderth*bmod              ! v_par
@@ -897,47 +894,29 @@ contains
 
     end subroutine init_fsa
 
-    function D11int(ux, etax)
+    function D11int(ux, taub, Hmn2)
         real(8) :: D11int
-        real(8) :: ux, etax
-        real(8) :: Omth, dOmthdv, dOmthdeta
-        real(8) :: Hmn2
-        real(8) :: taub, bounceavg(nvar)
-        real(8) :: v, eta
-
-        v = ux*vth
-        eta = etax
-        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-        taub = 2d0*pi/abs(Omth)
-        call bounce_fast(v, eta, taub, bounceavg)
-        Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
+        real(8), intent(in) :: ux, taub, Hmn2
 
         D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
                  /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
-                 *taub*Hmn2 &
-                 *nonlinear_attenuation(ux, eta, taub, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
+                 *taub*Hmn2
     end function D11int
 
-    function D12int(ux, etax)
+    function D12int(ux, taub, Hmn2)
         real(8) :: D12int
-        real(8) :: ux, etax
-        real(8) :: Omth, dOmthdv, dOmthdeta
-        real(8) :: Hmn2
-        real(8) :: taub, bounceavg(nvar)
-        real(8) :: v, eta
+        real(8), intent(in) :: ux, taub, Hmn2
 
-        v = ux*vth
-        eta = etax
-        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-        taub = 2d0*pi/abs(Omth)
-        call bounce_fast(v, eta, taub, bounceavg)
-        Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
-
-        D12int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
-                 /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
-                 *taub*Hmn2*ux**2 &
-                 *nonlinear_attenuation(ux, eta, taub, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
+        D12int = D11int(ux, taub, Hmn2)*ux**2
     end function D12int
+
+    function Tphi_int(ux, taub, Hmn2)
+        real(8) :: Tphi_int
+        real(8), intent(in) :: ux, taub, Hmn2
+
+        Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub &
+                   *Hmn2*(A1 + A2*ux**2)
+    end function Tphi_int
 
     function nonlinear_attenuation(ux, eta, taub, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
         real(8), intent(in) :: ux, eta, taub, bounceavg(nvar), Omth, dOmthdv, dOmthdeta, Hmn2
@@ -953,67 +932,21 @@ contains
 
         v = ux*vth
 
-        call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-        call d_Om_ds(v, eta, dOmthds, dOmphds)
-        dOmdv = mth*dOmthdv + mph*dOmphdv
-        dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-        dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
-        Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
-        call coleff(ux, dpp, dhh, fpeff)
-        dhh = vth*dhh
-        dpp = vth**3*dpp
-        dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6) - eta)*(dOmdeta/Ompr)**2
-        dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
-        call attenuation_factor(dnorm, nonlinear_attenuation)
-    end function nonlinear_attenuation
-
-    function Tphi_int(ux, etax)
-        real(8) :: Tphi_int
-        real(8) :: ux, etax
-        real(8) :: Omth, dOmthdv, dOmthdeta
-        real(8) :: Hmn2
-        real(8) :: dpp, dhh, fpeff, dres, dnorm, thatt, & ! for nonlin
-                   Omph, dOmphdv, dOmphdeta, dOmdv, dOmdeta, Ompr, dOmphds, dOmthds, &
-                   dOmdpph, taub, bounceavg(nvar), v, eta
-
-        v = ux*vth
-        eta = etax
-        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-        taub = 2d0*pi/abs(Omth)
-        call bounce_fast(v, eta, taub, bounceavg)
-        Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
-
-        thatt = 1d0
-        if (intoutput .or. nonlin) then
+        if (nonlin) then
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
             call d_Om_ds(v, eta, dOmthds, dOmphds)
             dOmdv = mth*dOmthdv + mph*dOmphdv
             dOmdeta = mth*dOmthdeta + mph*dOmphdeta
             dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
-
             Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
-
-            if (intoutput) then
-                ! 0:n, 1:l, 2:Eth, 3:Jperp_tp, 4:drphi/dpphi, 5:E/Eth, 6:Jperp/Jperp_tp, 7:rphi,
-                ! 8:|Hmn|, 9:Omth, 10:Omph, 11:Ombarprime, 12:dOmdv, 13:dOmdeta, 14:dOmdpphi, 15:sigma
-                ! 16:iota=1/q, 17: Om_tE, 18: dOmthds, 19: dOmphds, 20:Jperp_dt
-                write (11, *) mth, mph, mi*vth**2/2d0, mi*(ux*vth)**2/2d0*mi*c/qi*etatp, &
-                    -(qi/c*iota*psi_pr)**(-1), ux**2, eta/etatp, s, sqrt(Hmn2), Omth, Omph, &
-                    Ompr, dOmdv, dOmdeta, dOmdpph, sigv, iota, Om_tE, dOmthds, dOmphds, &
-                    mi*(ux*vth)**2/2d0*mi*c/qi*etadt
-            end if
-            if (nonlin) then
-                call coleff(ux, dpp, dhh, fpeff)
-                dhh = vth*dhh
-                dpp = vth**3*dpp
-                dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6) - eta)*(dOmdeta/Ompr)**2
-                dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
-                call attenuation_factor(dnorm, thatt)
-            end if
+            call coleff(ux, dpp, dhh, fpeff)
+            dhh = vth*dhh
+            dpp = vth**3*dpp
+            dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6) - eta)*(dOmdeta/Ompr)**2
+            dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
+            call attenuation_factor(dnorm, nonlinear_attenuation)
         end if
-
-        Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub*Hmn2*thatt*(A1 + A2*ux**2)
-    end function Tphi_int
+    end function nonlinear_attenuation
 
     function omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
         real(8), intent(in) :: ux, eta, bounceavg(nvar), Omth, dOmdv, dOmdeta, dOmdpph
@@ -1034,131 +967,6 @@ contains
         omega_prime = dOmdv*dvdJ + dOmdeta*detadJ + mph*dOmdpph
     end function omega_prime
 
-    subroutine taurel(v, eta)
-        ! Compute relative time in each bin
-        use dvode_f90_m2
-
-        real(8), intent(in) :: v, eta
-
-        integer :: n
-
-        integer :: k
-        real(8) :: ti
-        real(8) :: y(2), yold(2)
-
-        real(8) :: atol(nvar), rtol, tout, rstats(22)
-        integer :: neq, itask, istate, istats(31), numevents
-        type(vode_opts) :: options
-
-        real(8) :: bmod, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
-
-        real(8) :: s1old, told
-        integer :: sind, sind0 ! s index
-
-        integer :: jroots(2)
-
-        real(8) :: taub, bounceavg(nvar)
-
-        x(1) = s
-        x(2) = 0d0
-        x(3) = 0d0
-        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-
-        call bounce(v, eta, taub, bounceavg)
-
-        neq = 2
-        rtol = 1d-12
-        atol = 1d-13
-        itask = 1
-        istate = 1
-        numevents = 2
-        options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=numevents)
-
-        n = 3*size(sbox)
-        taubins = 0d0
-
-        y(1) = 0d0
-        y(2) = sigv*vpar(v, eta, bmod)
-        ti = 0d0
-
-        s1 = s + c*mi*y(2)*hcovar(2)*q/(qi*psi_pr)
-        sind = size(sbox) + 1
-        sprev = -1e5
-        snext = 1e5
-        do k = 1, size(sbox)
-            if (sbox(k) > s1) then
-                sind = k
-                snext = sbox(k)
-                if (k > 1) sprev = sbox(k - 1)
-                exit
-            end if
-        end do
-        sind0 = sind
-
-        told = 0d0
-        do k = 2, n
-            yold = y
-            s1old = s1
-            tout = taub
-            call dvode_f90(tsorb, neq, y, ti, tout, itask, istate, options, &
-                           g_fcn=sroots)
-            if (istate == 2) exit
-            if (istate == 3) then
-                taubins(sind) = taubins(sind) + ti - told
-                told = ti
-                call get_stats(rstats, istats, numevents, jroots)
-                if (jroots(2) .ne. 0) then
-                    sind = sind + 1 ! moving outwards
-                    sprev = snext
-                    if (sind == size(sbox) + 1) then
-                        snext = 1e5
-                    else
-                        snext = sbox(sind)
-                    end if
-                end if
-                if (jroots(1) .ne. 0) then
-                    sind = sind - 1 ! moving inwards
-                    snext = sprev
-                    if (sind == 1) then
-                        sprev = -1e5
-                    else
-                        sprev = sbox(sind - 1)
-                    end if
-                end if
-            end if
-        end do
-
-        taubins(sind) = taubins(sind) + taub - told
-
-        taubins = taubins/taub
-
-    contains
-
-        subroutine tsorb(neq_, t_, y_, ydot_)
-            !
-            !  Timestep function for orbit only.
-            !  used for radial boxes
-            !
-            integer, intent(in) :: neq_
-            real(8), intent(in) :: t_
-            real(8), intent(in) :: y_(neq)
-            real(8), intent(out) :: ydot_(neq)
-
-            real(8) :: bmod_, sqrtg_, x_(3), hder_(3), hcovar_(3), hctrvr_(3), hcurl_(3)
-
-            associate (dummy => t_)
-            end associate
-
-            x_(1) = s
-            x_(2) = 0d0
-            x_(3) = y_(1)
-            call do_magfie(x_, bmod_, sqrtg_, hder_, hcovar_, hctrvr_, hcurl_)
-
-            ydot_(1) = y_(2)*hctrvr_(3)                                    ! theta
-            ydot_(2) = -v**2*eta/2d0*hctrvr_(3)*hder_(3)*bmod_             ! v_par
-        end subroutine tsorb
-    end subroutine taurel
-
     subroutine transport_integral_mid(vmin, vmax, D, T)
         ! compute flux integral via midpoint rule
         real(8), intent(in) :: vmin, vmax
@@ -1166,6 +974,9 @@ contains
         real(8) :: Dp, dsdreff ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
         real(8) :: ux, du, dD11, dD12, dT, v, eta
         real(8) :: eta_res(2)
+        real(8) :: Omth, dOmthdv, dOmthdeta
+        real(8) :: taub, bounceavg(nvar)
+        real(8) :: Hmn2, attenuation_factor
         real(8) :: roots(nlev, 3)
         integer :: nroots, kr, ku
 
@@ -1181,12 +992,20 @@ contains
             do kr = 1, nroots
                 eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                 eta = eta_res(1)
-                dD11 = du*D11int(ux, eta_res(1))/abs(eta_res(2))
-                dD12 = du*D12int(ux, eta_res(1))/abs(eta_res(2))
-                dT = du*Tphi_int(ux, eta_res(1))/abs(eta_res(2))
-                D(1) = D(1) + dD11
-                D(2) = D(2) + dD12
-                T = T + dT
+
+                call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+                taub = 2d0*pi/abs(Omth)
+                call bounce_fast(v, eta, taub, bounceavg)
+                Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
+                attenuation_factor = nonlinear_attenuation(ux, eta, taub, bounceavg, &
+                    Omth, dOmthdv, dOmthdeta, Hmn2)
+
+                dD11 = du*D11int(ux, taub, Hmn2)/abs(eta_res(2))
+                dD12 = du*D12int(ux, taub, Hmn2)/abs(eta_res(2))
+                dT = du*Tphi_int(ux, taub, Hmn2)/abs(eta_res(2))
+                D(1) = D(1) + dD11*attenuation_factor
+                D(2) = D(2) + dD12*attenuation_factor
+                T = T + dT*attenuation_factor
             end do
             ux = ux + du
         end do
