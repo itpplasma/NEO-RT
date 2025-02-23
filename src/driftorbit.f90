@@ -193,19 +193,80 @@ contains
         end if
     end subroutine init_Om_pass_spl
 
+    subroutine init_fsa
+        ! Calculate the flux surface areas for normalization
+        integer, parameter :: nth = 1000
+        integer :: k
+        real(8) :: thrange(nth), dth
+        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+
+        print *, "       s: ", s
+
+        thrange = -pi + (/(k*2*pi/nth, k=1, nth)/)
+
+        dth = thrange(2) - thrange(1)
+        x(1) = s
+        x(2) = 0d0
+        x(3) = 0d0
+
+        dVds = 0d0
+        B0 = 0d0
+        print *, " eps orig: ", eps
+        eps = 0d0
+
+        Bmin = -1d0
+        Bmax = 0d0
+
+        do k = 1, nth
+            x(3) = thrange(k)
+            call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+            dVds = dVds + sqrtg*dth
+            B0 = B0 + bmod*dth
+            eps = eps - cos(x(3))*bmod*dth
+
+            ! TODO: do fine search
+            if ((Bmin < 0) .or. (bmod < Bmin)) then
+                Bmin = bmod
+                th0 = x(3)
+            end if
+            if (bmod > Bmax) Bmax = bmod
+        end do
+
+        dVds = 2d0*pi*dVds
+        B0 = B0/(2d0*pi)
+        eps = eps/(B0*pi)
+
+        print *, " eps calc: ", eps
+        print *, "      th0: ", th0
+        print *, "     dVds: ", dVds
+        print *, "       B0: ", B0
+        print *, "Bmin,Bmax: ", Bmin, Bmax
+        print *, "        x: ", x
+        print *, "     bmod: ", bmod
+        print *, "    sqrtg: ", sqrtg
+        print *, "     hder: ", hder
+        print *, "   hcovar: ", hcovar
+        print *, "   hctrvr: ", hctrvr
+        print *, "    hcurl: ", hcurl
+
+        call disp('init_fsa: iota       = ', iota)
+        !call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
+
+    end subroutine init_fsa
+
     subroutine init_misc
         ! TODO: fine search for minima and maxima
         etatp = 1d0/Bmax
         etadt = 1d0/Bmin
     end subroutine init_misc
 
-    function Jperp(v, eta)
+    pure function Jperp(v, eta)
         real(8) :: Jperp
         real(8), intent(in) :: v, eta
         Jperp = 0.5d0*mi*v**2*mi*c/qi*eta
     end function Jperp
 
-    function vpar(v, eta, bmod)
+    pure function vpar(v, eta, bmod)
         !   parallel velocity
         real(8) :: vpar
         real(8), intent(in) :: v, eta, bmod
@@ -215,7 +276,7 @@ contains
         end if
     end function vpar
 
-    function vperp(v, eta, bmod)
+    pure function vperp(v, eta, bmod)
         !   perpendicular velocity
         real(8) :: vperp
         real(8), intent(in) :: v, eta, bmod
@@ -520,7 +581,7 @@ contains
         call timestep_poloidal_internal(v, eta, bmod, hctrvr(3), hder(3), neq, t, y, ydot)
     end subroutine timestep_poloidal_motion
 
-    subroutine timestep_poloidal_internal(v, eta, bmod, hthctr, hderth, neq, t, y, ydot)
+    pure subroutine timestep_poloidal_internal(v, eta, bmod, hthctr, hderth, neq, t, y, ydot)
         real(8), intent(in) :: v, eta, bmod, hthctr, hderth
         integer, intent(in) :: neq
         real(8), intent(in) :: t, y(neq)
@@ -801,68 +862,7 @@ contains
         eta = eta0
     end function driftorbit_root
 
-    subroutine init_fsa
-        ! Calculate the flux surface areas for normalization
-        integer, parameter :: nth = 1000
-        integer :: k
-        real(8) :: thrange(nth), dth
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-
-        print *, "       s: ", s
-
-        thrange = -pi + (/(k*2*pi/nth, k=1, nth)/)
-
-        dth = thrange(2) - thrange(1)
-        x(1) = s
-        x(2) = 0d0
-        x(3) = 0d0
-
-        dVds = 0d0
-        B0 = 0d0
-        print *, " eps orig: ", eps
-        eps = 0d0
-
-        Bmin = -1d0
-        Bmax = 0d0
-
-        do k = 1, nth
-            x(3) = thrange(k)
-            call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-            dVds = dVds + sqrtg*dth
-            B0 = B0 + bmod*dth
-            eps = eps - cos(x(3))*bmod*dth
-
-            ! TODO: do fine search
-            if ((Bmin < 0) .or. (bmod < Bmin)) then
-                Bmin = bmod
-                th0 = x(3)
-            end if
-            if (bmod > Bmax) Bmax = bmod
-        end do
-
-        dVds = 2d0*pi*dVds
-        B0 = B0/(2d0*pi)
-        eps = eps/(B0*pi)
-
-        print *, " eps calc: ", eps
-        print *, "      th0: ", th0
-        print *, "     dVds: ", dVds
-        print *, "       B0: ", B0
-        print *, "Bmin,Bmax: ", Bmin, Bmax
-        print *, "        x: ", x
-        print *, "     bmod: ", bmod
-        print *, "    sqrtg: ", sqrtg
-        print *, "     hder: ", hder
-        print *, "   hcovar: ", hcovar
-        print *, "   hctrvr: ", hctrvr
-        print *, "    hcurl: ", hcurl
-
-        call disp('init_fsa: iota       = ', iota)
-        !call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
-
-    end subroutine init_fsa
-
-    function D11int(ux, taub, Hmn2)
+    pure function D11int(ux, taub, Hmn2)
         real(8) :: D11int
         real(8), intent(in) :: ux, taub, Hmn2
 
@@ -871,14 +871,14 @@ contains
                  *taub*Hmn2
     end function D11int
 
-    function D12int(ux, taub, Hmn2)
+    pure function D12int(ux, taub, Hmn2)
         real(8) :: D12int
         real(8), intent(in) :: ux, taub, Hmn2
 
         D12int = D11int(ux, taub, Hmn2)*ux**2
     end function D12int
 
-    function Tphi_int(ux, taub, Hmn2)
+    pure function Tphi_int(ux, taub, Hmn2)
         real(8) :: Tphi_int
         real(8), intent(in) :: ux, taub, Hmn2
 
@@ -916,7 +916,7 @@ contains
         end if
     end function nonlinear_attenuation
 
-    function omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
+    pure function omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
         real(8), intent(in) :: ux, eta, bounceavg(nvar), Omth, dOmdv, dOmdeta, dOmdpph
         real(8) :: omega_prime
 
