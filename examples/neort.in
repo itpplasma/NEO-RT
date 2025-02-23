@@ -2,7 +2,6 @@
 !
 !
 &params
-    runmode = "torque"     ! "torque" or "transport"
     s = 0.5d0              ! Radial coordinate: Normalized toroidal flux
     M_t = 0.036d0          ! Toroidal Mach number
     qs = 1.0d0             ! Particle charge [elementary charge]
@@ -16,6 +15,7 @@
     noshear = .true.       ! Neglect magnetic shear term dq/ds
     pertfile = .false.     ! Read perturbation from file
     nonlin = .false.       ! Do nonlinear calculation
+    comptorque = .false.   ! Compute torque
     bfac = 1.0d0           ! Scale B field by factor
     efac = 1.0d0           ! Scale E field by factor
     inp_swi = 8            ! Input switch for Boozer file
