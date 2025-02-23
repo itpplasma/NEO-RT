@@ -19,7 +19,7 @@ module neort_profiles
     ! Thermodynamic forces in radial variable s_tor
     real(8) A1, A2
 
-    contains
+contains
 
     subroutine init_profile_input(s, efac, bfac)
         ! Init s profile for finite orbit width boxes in radial s
