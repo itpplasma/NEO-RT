@@ -250,7 +250,6 @@ contains
         print *, "    hcurl: ", hcurl
 
         call disp('init_fsa: iota       = ', iota)
-        !call disp('init_fsa: fsa/psi_pr = ', fsa/psi_pr)
 
     end subroutine init_fsa
 
