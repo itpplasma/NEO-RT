@@ -1,7 +1,7 @@
 program test_omage_prime_prog
     use do_magfie_mod, only: do_magfie_init
     use do_magfie_pert_mod, only: do_magfie_pert_init
-    use neort, only: read_control, check_magfie, init_profile_input, &
+    use neort, only: read_control, check_magfie, init_profiles, init_profile_input, &
                      init_plasma_input, init_run, compute_transport_harmonic, runname, s, M_t
     use driftorbit
     implicit none
@@ -95,8 +95,9 @@ contains
     subroutine setup
         call do_magfie_init
         if (pertfile) call do_magfie_pert_init
-        call init_profile_input(s, R0, efac, bfac)
+        call init_profiles(R0)
         call init_plasma_input(s)
+        call init_profile_input(s, R0, efac, bfac)
         call init_run
         call check_magfie
 

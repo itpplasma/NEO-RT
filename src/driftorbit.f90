@@ -541,12 +541,8 @@ contains
         real(8) :: taub
 
         integer, parameter :: neq = 2
-        real(8) :: y(neq), y0(neq), roots(neq)
+        real(8) :: y0(neq), roots(neq+1)
         real(8) :: bmod
-
-        real(8) :: atol(neq), rtol
-        integer :: itask, istate
-        type(vode_opts) :: options
 
         call evaluate_bfield_local(bmod)
 

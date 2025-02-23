@@ -88,7 +88,7 @@ contains
         real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
         real(8) :: sqgbmod2 ! sqg*B^2
 
-        real(8) :: x1
+        real(8) :: x1, costerm(nmode), sinterm(nmode)
 
         ! safety measure in order not to extrapolate
         x1 = max(params0(1, 1), x(1))
@@ -104,8 +104,9 @@ contains
         iota = spl_val(1)
         q = 1/iota
         dqds = -spl_val(2)/iota**2
-        ! spl_val = spline_val_0(eps_spl, x1)
-        ! eps = spl_val(1)
+
+        costerm = cos(modes0(1, :, 1)*x(3))
+        sinterm = sin(modes0(1, :, 1)*x(3))
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
@@ -116,11 +117,11 @@ contains
             end do
             B0h = B0mnc(1)
 
-            bmod = sum(B0mnc*cos(modes0(1, :, 1)*x(3)))
+            bmod = sum(B0mnc*costerm)
             sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2
-            bder(1) = sum(dB0dsmnc*cos(modes0(1, :, 1)*x(3)))/bmod
+            bder(1) = sum(dB0dsmnc*costerm)/bmod
             bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
-            bder(3) = sum(-modes0(1, :, 1)*B0mnc*sin(modes0(1, :, 1)*x(3)))/bmod
+            bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
             if (Bthcov < 0) then
                 Bthcov = -Bthcov
@@ -140,12 +141,12 @@ contains
             end do
             B0h = B0mnc(1)
 
-            bmod = sum(B0mnc*cos(modes0(1, :, 1)*x(3)) + B0mns*sin(modes0(1, :, 1)*x(3)))
+            bmod = sum(B0mnc*costerm + B0mns*sinterm)
             sqrtg = psi_pr*(iota*Bthcov + Bphcov)/bmod**2
-            bder(1) = sum(dB0dsmnc*cos(modes0(1, :, 1)*x(3)) + dB0dsmns*sin(modes0(1, :, 1)*x(3)))/bmod
+            bder(1) = sum(dB0dsmnc*costerm + dB0dsmns*sinterm)/bmod
             bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
-            bder(3) = sum(-modes0(1, :, 1)*B0mnc*sin(modes0(1, :, 1)*x(3)) &
-                          + modes0(1, :, 1)*B0mns*cos(modes0(1, :, 1)*x(3)))/bmod
+            bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm &
+                          + modes0(1, :, 1)*B0mns*costerm)/bmod
         end if
 
         sqgbmod2 = psi_pr*(Bphcov + iota*Bthcov)

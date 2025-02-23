@@ -1,5 +1,5 @@
 program test_torque_prog
-    use neort, only: read_control, check_magfie, init_profile_input, &
+    use neort, only: read_control, check_magfie, init_profiles, init_profile_input, &
                       init_plasma_input, init_run, compute_transport_harmonic, &
                       runname, s, M_t
     use driftorbit, only: A1, A2, ni1, vth, B0, a, efac
@@ -26,8 +26,9 @@ contains
         runname = TEST_RUN
         call read_control
         call do_magfie_init
-        call init_profile_input(s, R0, efac, bfac)
+        call init_profiles(R0)
         call init_plasma_input(s)
+        call init_profile_input(s, R0, efac, bfac)
         call init_run
         call check_magfie
 
