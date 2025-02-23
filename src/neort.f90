@@ -4,8 +4,8 @@ module neort
     use driftorbit
     implicit none
 
-    character(:), allocatable :: runname
-    character(len=64) :: runmode = "torque"
+    character(1024) :: runname
+    character(64) :: runmode = "torque"
 
 contains
 
@@ -14,25 +14,12 @@ contains
         use do_magfie_pert_mod, only: do_magfie_pert_init
         use driftorbit, only: pertfile, orbit_mode_transp, intoutput, nonlin
 
-        character(len=1024) :: tmp
-        integer :: tmplen
-        logical :: file_exists
-
-        call get_command_argument(1, tmp, tmplen)
-        runname = trim(adjustl(tmp))
-
+        call get_command_argument(1, runname)
         call read_control
-
         call do_magfie_init  ! init axisymmetric part of field from infile
-        if (pertfile) then
-            ! init non-axisymmetric perturbation of field from infile_pert,
-            ! otherwise use epsmn*exp(imun*(m0*theta + mph*phi))
-            call do_magfie_pert_init
-        end if
-
+        if (pertfile) call do_magfie_pert_init ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_profile_input(s, efac, bfac)
         call init_plasma_input(s)
-
         call init_run
         call check_magfie
         call compute_transport
