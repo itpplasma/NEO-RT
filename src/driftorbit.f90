@@ -749,39 +749,11 @@ contains
     function driftorbit_nroot(v, eta_min, eta_max)
         integer :: driftorbit_nroot
         real(8), intent(in) :: v
-        real(8), intent(in), optional :: eta_min, eta_max
+        real(8), intent(in) :: eta_min, eta_max
         real(8) :: etamin2, etamax2
-        real(8) :: Omph_etamin, Omph_etamax, dummy, dummy2, &
-                   Omth_etamin, Omth_etamax, res_etamin, res_etamax
-        real(8) :: eta
+        real(8) :: roots(nlev, 3)
 
-        if (present(eta_min) .and. present(eta_max)) then
-            etamin2 = eta_min
-            etamax2 = eta_max
-        else
-            ! default behavior for trapped particles
-            etamin2 = etatp*(1d0 + epst)
-            etamax2 = etadt*(1d0 - epst)
-        end if
-
-        driftorbit_nroot = 0
-        ! TODO: return number of possible roots instead of 0 and 1
-        eta = etamax2
-        call Om_ph(v, eta, Omph_etamin, dummy, dummy2)
-        call Om_th(v, eta, Omth_etamin, dummy, dummy2)
-        eta = etamin2
-        call Om_ph(v, eta, Omph_etamax, dummy, dummy2)
-        call Om_th(v, eta, Omth_etamax, dummy, dummy2)
-
-        res_etamin = mph*Omph_etamin + mth*Omth_etamin
-        res_etamax = mph*Omph_etamax + mth*Omth_etamax
-        if (sign(1d0, res_etamin) /= sign(1d0, res_etamax)) then
-            driftorbit_nroot = 1
-        end if
-        if (isnan(res_etamin) .or. isnan(res_etamax)) then
-            print *, "ERROR: driftorbit_nroot found NaN value in Om_ph_ba"
-            return
-        end if
+        call driftorbit_coarse(v, eta_min, eta_max, roots, driftorbit_nroot)
     end function driftorbit_nroot
 
     function driftorbit_root(v, tol, eta_min, eta_max)
@@ -861,31 +833,6 @@ contains
         end if
         eta = eta0
     end function driftorbit_root
-
-    function find_vmin(v0, vmin0, vmax0)
-        real(8), intent(in) :: v0, vmin0, vmax0
-        real(8) :: v, vmax, vmin, find_vmin, tol
-        integer, parameter :: nit = 100
-        integer :: k
-        ! Bisection search for smallest possible v
-        tol = 1d-12*vth
-        vmin = vmin0
-        vmax = vmax0
-
-        do k = 1, nit
-            if (abs(vmax - vmin) < tol) then
-                exit
-            end if
-            v = (vmax + vmin)/2d0
-            if (driftorbit_nroot(v) /= 0) then
-                vmax = v
-            else
-                vmin = v
-            end if
-        end do
-        v = v0
-        find_vmin = vmax
-    end function find_vmin
 
     subroutine init_fsa
         ! Calculate the flux surface areas for normalization
@@ -1011,7 +958,7 @@ contains
         dOmdv = mth*dOmthdv + mph*dOmphdv
         dOmdeta = mth*dOmthdeta + mph*dOmphdeta
         dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
-        Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test, migrate to new
+        Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
         call coleff(ux, dpp, dhh, fpeff)
         dhh = vth*dhh
         dpp = vth**3*dpp
@@ -1044,7 +991,7 @@ contains
             dOmdeta = mth*dOmthdeta + mph*dOmphdeta
             dOmdpph = -(qi/c*iota*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
 
-            Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)  ! TODO test
+            Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
 
             if (intoutput) then
                 ! 0:n, 1:l, 2:Eth, 3:Jperp_tp, 4:drphi/dpphi, 5:E/Eth, 6:Jperp/Jperp_tp, 7:rphi,
