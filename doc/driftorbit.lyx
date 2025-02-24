@@ -458,19 +458,16 @@ Canonical frequencies
 \end_layout
 
 \begin_layout Standard
-The canonical poloidal frequency 
-\begin_inset Formula $\Omega^{2}$
-\end_inset
-
- is the bounce frequency,
+The second canonical (poloidal) frequency
 \begin_inset Formula 
 \begin{equation}
-\omega_{b}=\frac{2\pi}{\tau_{b}}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi v\left(\oint\frac{d\vartheta}{h^{\vartheta}\sigma\sqrt{1-\eta B}}\right)^{-1}.
+\Omega^{\vartheta}=\omega_{b}=\frac{2\pi}{\tau_{b}}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi v\left(\oint\frac{d\vartheta}{h^{\vartheta}\sigma\sqrt{1-\eta B}}\right)^{-1}.
 \end{equation}
 
 \end_inset
 
-For passing particles, the integral is running between 
+is the bounce or transit frequency.
+ For passing particles, the integral is running between 
 \begin_inset Formula $\vartheta=0$
 \end_inset
 
@@ -493,14 +490,14 @@ For passing particles, the integral is running between
 \end_layout
 
 \begin_layout Standard
-For trapped particles, the canonical toroidal rotation frequency 
-\begin_inset Formula $\Omega^{3}$
+For trapped particles, the canonical (toroidal rotation) frequency 
+\begin_inset Formula $\Omega^{\varphi}$
 \end_inset
 
  is the bounce averaged sum
 \begin_inset Formula 
 \begin{equation}
-\Omega^{3}=\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle \label{eq:Om_ph}
+\Omega^{\varphi}=\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle \label{eq:Om_ph}
 \end{equation}
 
 \end_inset
@@ -527,7 +524,7 @@ The last term with magnetic shear
 For passing particles, an additional term appears and
 \begin_inset Formula 
 \begin{equation}
-\Omega^{3}=q(r_{\varphi})\Omega^{\vartheta}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle .\label{eq:Om_ph_passing}
+\Omega^{\varphi}=q(r_{\varphi})\Omega^{2}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle .\label{eq:Om_ph_passing}
 \end{equation}
 
 \end_inset
@@ -540,34 +537,165 @@ Resonance condition and resonant action and angle
 \end_layout
 
 \begin_layout Standard
-At the resonance, the nonlinear oscillation (superbanana) frequency
+The nonlinear oscillation (superbanana) frequency for a specific pair of
+ harmonics is given by
 \begin_inset Formula 
-\[
-\Omega(\bJ)=m_{k}\Omega^{k}=m_{2}\Omega^{2}+m_{3}\Omega^{3}
-\]
+\begin{equation}
+\Omega(\bJ)=m_{k}\Omega^{k}(\bJ)=m_{\vartheta}\Omega^{\vartheta}(\bJ)+m_{\varphi}\Omega^{\varphi}(\bJ).\label{eq:res}
+\end{equation}
 
 \end_inset
 
-vanishes.
+At a resonance, 
+\begin_inset Formula $\Omega(\bJ)=0$
+\end_inset
+
+.
  For the perturbation theory, we peform a canonical transformation to the
  Galileian frame of the resonance.
- New actions are
+ In any case, we have 
+\begin_inset Formula $m_{\phi}=0$
+\end_inset
+
+, since we treat no cyclotron harmonics - they assumed to be much too fast
+ to go in resonance, so we keep the pair 
+\begin_inset Formula $(J_{1},\theta^{1})=(J_{\perp},\phi)$
+\end_inset
+
+.
+ The other two new pairs are
 \begin_inset Formula 
 \begin{align}
-\bar{J}_{1} & =J_{1}-\frac{m_{1}}{m_{3}}J_{3}\\
-\bar{J}_{2} & =J_{2}-\frac{m_{2}}{m_{3}}J_{3}\\
-\bar{J}_{3} & =\frac{1}{m_{3}}J_{N}\equiv\bar{J}.
+J_{2} & =\frac{m_{\varphi}J_{\vartheta}-m_{\vartheta}J_{\varphi}}{m_{\vartheta}^{\,2}+m_{\varphi}^{\,2}},\quad\theta^{2}=m_{\varphi}\vartheta_{c}-m_{\vartheta}\varphi_{c},\\
+J_{3} & =\frac{m_{\vartheta}J_{\vartheta}+m_{\varphi}J_{\varphi}}{m_{\vartheta}^{\,2}+m_{\varphi}^{\,2}}\equiv J,\quad\theta^{3}=m_{\vartheta}\vartheta_{c}+m_{\varphi}\varphi_{c}\equiv\theta-\theta_{0}(\bJ).
 \end{align}
 
 \end_inset
 
-Here, we have 
-\begin_inset Formula $m_{1}=0$
+Note the difference to the original definition in the thesis of Albert,
+ where no orthogonalization is performed.
+ Around the resonance, the pair 
+\begin_inset Formula $(J,\theta)$
 \end_inset
 
-, since we treat no cyclotron harmonics - they assumed to be much too fast
- to go in resonance.
+ evolves slowly on the nonlinear oscillation (
+\begin_inset Quotes eld
+\end_inset
+
+superbanana beat
+\begin_inset Quotes erd
+\end_inset
+
+) timescale.
+ A Taylor expansion of the unperturbed Hamiltonian with 
+\begin_inset Formula $\Delta J\equiv J-$
+\end_inset
+
  
+\begin_inset Formula $J_{\mathrm{res}}$
+\end_inset
+
+ is then given as
+\begin_inset Formula 
+\begin{equation}
+H_{0}(\bJ)=H_{0}(J_{1},J_{2},J=J_{\mathrm{res}})+\underbrace{\difp[H_{0}(J_{1},J_{2},J=J_{\mathrm{res}})]J}_{=\Omega(J_{1},J_{2},J=J_{\mathrm{res}})=0}\Delta J+\frac{1}{2}\difp[{^{2}H_{0}(J_{1},J_{2},J=J_{\mathrm{res}})}]{J^{2}}\Delta J^{2}+\mathcal{O}(\Delta J^{3}).
+\end{equation}
+
+\end_inset
+
+Here, 
+\begin_inset Formula $J_{\mathrm{res}}=J_{\mathrm{res}}(J_{1},J_{2})$
+\end_inset
+
+ is the solution of the resonance condition
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset CommandInset ref
+LatexCommand eqref
+reference "eq:res"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+ depends on 
+\begin_inset Formula $J_{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $J_{2}$
+\end_inset
+
+.
+ Those actions are adiabatical invariants, so are assumed constant during
+ motion and treated as parameters.
+ The steepness of the resonance is given by the nonlinearity parameter
+\begin_inset Formula 
+\begin{equation}
+\Omega^{\prime}\equiv\difp[\Omega(J_{1},J_{2},J=J_{\mathrm{res}})]J=\difp[{^{2}H_{0}(J_{1},J_{2},J=J_{\mathrm{res}})}]{J^{2}}.
+\end{equation}
+
+\end_inset
+
+This means that 
+\begin_inset Formula $H_{0}$
+\end_inset
+
+ describes a particle freely passing along the resonance with 
+\begin_inset Quotes eld
+\end_inset
+
+mass
+\begin_inset Quotes erd
+\end_inset
+
+ 
+\begin_inset Formula $1/\Omega^{\prime}$
+\end_inset
+
+.
+ This changes with a Hamiltonian perturbation.
+ The first-order perturbation depends on the resonant phase plus an action-depen
+dent phase-shift,
+\begin_inset Formula 
+\[
+H_{1}=H_{\bm}(\bJ)e^{i(m_{\vartheta}\vartheta_{c}+m_{\varphi}\varphi_{c})}=-|H_{\bm}(\bJ)|\cos(\theta).
+\]
+
+\end_inset
+
+Here we chose 
+\begin_inset Formula $\theta_{0}(\bJ)$
+\end_inset
+
+ to aborb the complex phase and get a cosine term and again assume slow
+ changes due to 
+\begin_inset Formula $\bJ$
+\end_inset
+
+.
+ Skipping parametric dependencies on 
+\begin_inset Formula $\bJ$
+\end_inset
+
+ in the notation, we obtain leads to the pendulum equation for nonlinear
+ resonant oscillations and trapping to second order in the distance to the
+ resonance 
+\begin_inset Formula $\Delta J$
+\end_inset
+
+,
+\begin_inset Formula 
+\begin{equation}
+H(\Delta J)=\frac{1}{2}\Omega^{\prime}\Delta J^{2}-|H_{\bm}|\cos(\theta).
+\end{equation}
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection*
