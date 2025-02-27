@@ -20,7 +20,7 @@ from scipy.interpolate import interp1d
 #     print(f.keys())
 
 # %%
-infile = "/proj/plasma/DATA/DEMO/teams/Equilibrium_DEMO2019_CHEASE/multi_spec_demo_version_1_1.in"
+infile = "/temp/grassl_g/GPEC_NEO2_AUG_30835/RUN_stor_lag6/aug_30835.in"
 
 with h5py.File(infile) as f:
     s_neo2 = np.array(f['boozer_s'])
@@ -59,3 +59,7 @@ with open('plasma.in', 'w') as fout:
             f'{eV*T_out[1,ks]:.8e} {0.0:.8e} {eV*T_out[0,ks]:.8e}' + '\n')
 
 # %%
+
+vth =
+
+with open('profile.in', 'w') as fout:

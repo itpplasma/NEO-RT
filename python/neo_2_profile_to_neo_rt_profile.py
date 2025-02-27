@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+
+sys.path.append("/var/tmp/ert/code/NEO-2/python/src/neo2_util/")
+
 def neo_2_profile_to_neo_rt_profile(input_neo2_profile_name: str, input_neo2_outputfile_name: str,
     s_min: float, s_max: float, number_s_points: int):
   """
@@ -117,6 +121,7 @@ def neo_2_profile_to_neo_rt_profile(input_neo2_profile_name: str, input_neo2_out
 
 
 if __name__ == "__main__":
-  neo_2_profile_to_neo_rt_profile('multi_spec_Valentin_tearing.in',
-      '/itp/MooseFS/buchholz/Scans/Igoshine_t2.688_vector_perturbation_new_boozer/n2_vshift+0e0/neo2_multispecies_out.h5',
-      0.05, 0.9, 50)
+  neo_2_profile_to_neo_rt_profile(
+    '/temp/grassl_g/GPEC_NEO2_AUG_30835/RUN_stor_lag6/aug_30835.in',
+    '/temp/grassl_g/GPEC_NEO2_AUG_30835/RUN_stor_lag6/aug_30835.out',
+      0.05, 0.9, 100)
