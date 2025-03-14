@@ -1,6 +1,5 @@
 module neort_profiles
     use iso_fortran_env, only: dp => real64
-    use polylag_3, only: plag1d, indef, mp
     use spline, only: spline_coeff, spline_val_0
     use util, only: readdata, ev, qi, mi, mu, qe, c
     use collis_alp, only: loacol_nbi
@@ -29,44 +28,50 @@ contains
     end subroutine init_profiles
 
     subroutine init_plasma_input(s)
+        use spline, only: spline_coeff, spline_val_0
         real(dp), intent(in) :: s
 
         real(dp), parameter :: pmass = 1.6726d-24
+        integer, parameter :: NCOL = 6
 
         real(dp) :: amb, am1, am2, Zb, Z1, Z2, dchichi, slowrate, dchichi_norm, slowrate_norm
         real(dp) :: v0, ebeam
-        real(dp), dimension(:, :), allocatable :: plasma(:, :)
-        integer, dimension(mp) :: indu
-        real(dp), dimension(mp) :: xp, fp
-        real(dp) :: dxm1
-        integer :: nplasma, i
+        real(dp), allocatable :: plasma(:, :)
+        real(dp), allocatable :: spl_coeff(:, :, :)
+        real(dp) :: spl_val(3)
+        integer :: nplasma, k
 
-        ! read plasma file
         open (1, file="plasma.in", status="old")
         read (1, *)
         read (1, *) nplasma, am1, am2, Z1, Z2
         read (1, *)
-        allocate (plasma(nplasma, 6))
-        do i = 1, nplasma
-            read (1, *) plasma(i, :)
+        allocate (plasma(nplasma, NCOL))
+        do k = 1, nplasma
+            read (1, *) plasma(k, :)
         end do
-        dxm1 = 1.d0/(plasma(2, 1) - plasma(1, 1))
         close (1)
 
-        ! interpolate to s value
-        call indef(s, plasma(1, 1), dxm1, nplasma, indu)
+        allocate (spl_coeff(nplasma - 1, 5, NCOL))
 
-        xp = plasma(indu, 1)
-        fp = plasma(indu, 2)
-        call plag1d(s, fp, dxm1, xp, ni1, dni1ds)
-        fp = plasma(indu, 3)
-        call plag1d(s, fp, dxm1, xp, ni2, dni2ds)
-        fp = plasma(indu, 4)
-        call plag1d(s, fp, dxm1, xp, Ti1, dTi1ds)
-        fp = plasma(indu, 5)
-        call plag1d(s, fp, dxm1, xp, Ti2, dTi2ds)
-        fp = plasma(indu, 6)
-        call plag1d(s, fp, dxm1, xp, Te, dTeds)
+        do k = 1, 5
+            spl_coeff(:, :, k) = spline_coeff(plasma(:, 1), plasma(:, k + 1))
+        end do
+
+        spl_val = spline_val_0(spl_coeff(:, :, 1), s)
+        ni1 = spl_val(1)
+        dni1ds = spl_val(2)
+        spl_val = spline_val_0(spl_coeff(:, :, 2), s)
+        ni2 = spl_val(1)
+        dni2ds = spl_val(2)
+        spl_val = spline_val_0(spl_coeff(:, :, 3), s)
+        Ti1 = spl_val(1)
+        dTi1ds = spl_val(2)
+        spl_val = spline_val_0(spl_coeff(:, :, 4), s)
+        Ti2 = spl_val(1)
+        dTi2ds = spl_val(2)
+        spl_val = spline_val_0(spl_coeff(:, :, 5), s)
+        Te = spl_val(1)
+        dTeds = spl_val(2)
 
         qi = Z1*qe
         mi = am1*mu
