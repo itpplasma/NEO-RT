@@ -163,8 +163,8 @@ contains
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
-        mthmin = -ceiling(2*abs(mph)*q)
-        mthmax = ceiling(2*abs(mph)*q)
+        mthmin = -ceiling(2*abs(mph*q))
+        mthmax = ceiling(2*abs(mph*q))
 
         do j = mthmin, mthmax
             call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)
