@@ -16,7 +16,6 @@ module do_magfie_mod
     integer, protected :: m0b, n0b, nflux, nfp, nmode
 
     real(8), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
-    real(8), allocatable, protected :: eps_spl(:, :)
 
     real(8), parameter :: ItoB = 2.0d-1 ! Factor for covar. field (cgs) from I(SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
@@ -45,7 +44,6 @@ contains
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
-            allocate (eps_spl(nflux - 1, 5))
         end if
 
         B00 = 1.0d4*modes0(1, 1, 6)*bfac
@@ -62,9 +60,6 @@ contains
                 spl_coeff2(:, :, k, j) = spline_coeff(params0(:, 1), modes0(:, j, k + 2))
             end do
         end do
-
-        if (inp_swi == 8) eps_spl = spline_coeff(params0(:, 1), abs(modes0(:, 2, 6)/modes0(:, 1, 6)))
-        if (inp_swi == 9) eps_spl = spline_coeff(params0(:, 1), abs(modes0(:, 2, 9)/modes0(:, 1, 9)))
 
         x(1) = s
         x(2) = 0.0
