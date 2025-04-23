@@ -13,14 +13,11 @@ set(CMAKE_BINARY_DIR ${PROJECT_BINARY_DIR}/OBJS)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
-### Set compiler flags
-set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/OBJS)
-
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_compile_options(-fPIC -cpp -g)
+add_compile_options(-fPIC -g)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace")
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
@@ -36,7 +33,7 @@ endif()
 
 include(Util)
 
-find_or_fetch(BOOZER_MAGFIE)
+find_or_fetch(NEO-2)
 find_or_fetch(spline)
 find_or_fetch(vode)
 
@@ -54,7 +51,7 @@ set(NEO_RT_SOURCES
   src/neort.f90
 )
 
-option(USE_STANDALONE "Use do_magfie_standalone" ON)
+option(USE_STANDALONE "Use do_magfie_standalone" OFF)
 
 if(USE_STANDALONE)
   add_library("neo_rt" STATIC
@@ -68,9 +65,10 @@ else()
     ${NEO_RT_SOURCES}
     src/do_magfie_neo.f90
   )
-  add_dependencies(neo_rt boozer_magfie)
+  add_dependencies(neo_rt common)
   target_link_libraries(neo_rt
-    boozer_magfie
+    common
+    neo2_ql
   )
 endif()
 

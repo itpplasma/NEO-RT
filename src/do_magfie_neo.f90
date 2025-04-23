@@ -3,13 +3,13 @@ module do_magfie_mod
     use neo_exchange, only: nper, b_min, b_max, &
                             theta_bmin, theta_bmax, phi_bmin, phi_bmax, rt0
     use magfie_mod, only: magfie, stevvo, magfie_deallocate
-    use neo_magfie_mod, only: magfie_spline, magfie_sarray, boozer_curr_tor_hat, &
+    use neo_magfie, only: magfie_spline, magfie_sarray, boozer_curr_tor_hat, &
                               boozer_curr_pol_hat, boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, &
                               boozer_psi_pr_hat, boozer_sqrtg11, boozer_isqrg, boozer_iota, &
                               boozer_iota_s, inp_swi
     use nrtype, only: twopi
     use partpa_mod, ONLY: bmod0
-    use neo_magfie_mod, only: boozer_curr_tor_hat, boozer_curr_pol_hat, &
+    use neo_magfie, only: boozer_curr_tor_hat, boozer_curr_pol_hat, &
                               boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat, &
                               boozer_sqrtg11, boozer_isqrg
     use neo_input, only: bmnc
@@ -79,15 +79,15 @@ contains
 end module do_magfie_mod
 
 module do_magfie_pert_mod
-    use neo_magfie_perturbation, only: neo_read_pert_control, neo_read_pert, &
-                                       neo_init_spline_pert, neo_magfie_pert_amp, m_phi
+    use neo_magfie_perturbation, only: neo_read_pert, &
+                                       neo_init_spline_pert, m_phi
 
     real(8) :: mph
 
 contains
 
     subroutine do_magfie_pert_init
-        call neo_read_pert_control
+        !call neo_read_pert_control
         call neo_read_pert
         call neo_init_spline_pert
         mph = m_phi
@@ -96,6 +96,6 @@ contains
     subroutine do_magfie_pert_amp(x, bamp)
         real(8) :: x(3)
         complex(8) :: bamp
-        call neo_magfie_pert_amp(x, bamp)
+        !call neo_magfie_pert_amp(x, bamp)
     end subroutine do_magfie_pert_amp
 end module do_magfie_pert_mod
