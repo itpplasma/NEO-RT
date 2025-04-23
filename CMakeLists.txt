@@ -66,8 +66,7 @@ else()
     src/do_magfie_neo.f90
   )
   add_dependencies(neo_rt common)
-  target_link_libraries(neo_rt
-    common
+  target_link_libraries(neo_rt PUBLIC
     neo2_ql
   )
 endif()
@@ -78,13 +77,14 @@ add_dependencies(neo_rt vode)
 find_package(BLAS)
 find_package(LAPACK)
 
-target_link_libraries(neo_rt
+target_link_libraries(neo_rt PUBLIC
   vode
   spline
   BLAS::BLAS
   LAPACK::LAPACK
 )
 
-target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
+target_link_libraries(${PROJECT_EXE_NAME} neo_rt neo2_ql)
+
 
 add_subdirectory(test)
