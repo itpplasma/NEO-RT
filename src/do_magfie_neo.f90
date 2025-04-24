@@ -80,14 +80,22 @@ end module do_magfie_mod
 
 module do_magfie_pert_mod
     use neo_magfie_perturbation, only: neo_read_pert, &
-                                       neo_init_spline_pert, m_phi
+                                       neo_init_spline_pert, m_phi, &
+                                       neo_magfie_pert_amp
+    use neo2_ql, only: read_in_namelists, set_default_values, init
 
     real(8) :: mph
 
 contains
 
     subroutine do_magfie_pert_init
-        !call neo_read_pert_control
+        integer :: iunit
+
+        call init
+        open(newunit=iunit,file='neo2.in',status='old')
+        call read_in_namelists(iunit)
+        close(iunit)
+
         call neo_read_pert
         call neo_init_spline_pert
         mph = m_phi
