@@ -59,20 +59,22 @@ if(USE_STANDALONE)
     src/do_magfie_standalone.f90
   )
 else()
-  include_directories(${PROJECT_BINARY_DIR}/boozer_magfie/OBJS/)
 
   add_library("neo_rt" STATIC
     ${NEO_RT_SOURCES}
     src/do_magfie_neo.f90
   )
-  add_dependencies(neo_rt common)
+  add_dependencies(neo_rt neo2_ql)
+  target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/NEO-2/NEO-2-QL/OBJS")
   target_link_libraries(neo_rt PUBLIC
     neo2_ql
   )
 endif()
 
 add_dependencies(neo_rt spline)
+target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/spline")
 add_dependencies(neo_rt vode)
+target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/vode")
 
 find_package(BLAS)
 find_package(LAPACK)
