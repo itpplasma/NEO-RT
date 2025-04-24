@@ -27,7 +27,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
   if(APPLE)
     add_compile_options(-march=native)
   else()
-    add_compile_options(-march=sandybridge -mtune=generic)
+    add_compile_options(-march=x86-64-v2 -mtune=generic)
   endif()
 endif()
 
