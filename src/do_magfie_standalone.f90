@@ -4,7 +4,6 @@ module do_magfie_mod
     use spline
 
     implicit none
-    save
 
     real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                        q, dqds, iota, R0, a, eps, B0h, B00

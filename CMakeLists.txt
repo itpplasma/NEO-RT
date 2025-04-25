@@ -17,7 +17,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-add_compile_options(-fPIC -g)
+add_compile_options(-fPIC -g -fopenmp)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace")
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)

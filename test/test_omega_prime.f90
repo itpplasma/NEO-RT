@@ -1,5 +1,5 @@
 program test_omage_prime_prog
-    use do_magfie_mod, only: do_magfie_init
+    use do_magfie_mod, only: do_magfie_init, params0
     use do_magfie_pert_mod, only: do_magfie_pert_init
     use neort, only: read_control, check_magfie, init_profiles, init_profile_input, &
                      init_plasma_input, init_run, compute_transport_harmonic, runname, s, M_t
