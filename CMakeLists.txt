@@ -37,6 +37,35 @@ find_or_fetch(NEO-2)
 find_or_fetch(spline)
 find_or_fetch(vode)
 
+### NetCDF
+find_program(NF_CONFIG "nf-config")
+
+if (NF_CONFIG)
+execute_process(COMMAND nf-config --includedir
+                OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
+execute_process(COMMAND nc-config --libdir
+				OUTPUT_VARIABLE NETCDFLIB_DIR)
+execute_process(COMMAND nf-config --flibs
+                OUTPUT_VARIABLE NETCDF_FLIBS)
+else()
+message(SEND_ERROR "nf-config not found. Please install libnetcdff-dev")
+endif()
+
+string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
+string(STRIP ${NETCDFLIB_DIR} NETCDFLIB_DIR)
+string(STRIP ${NETCDF_FLIBS} NETCDF_FLIBS)
+
+message(STATUS "NetCDF include path: " ${NETCDFINCLUDE_DIR})
+message(STATUS "NetCDF lib path: " ${NETCDFLIB_DIR})
+message(STATUS "NetCDF Fortran libs: " ${NETCDF_FLIBS})
+
+# Replace space by semicolon in the Fortran libs
+string(REPLACE " " ";" NETCDF_FLIBS ${NETCDF_FLIBS})
+
+include_directories(${NETCDFINCLUDE_DIR})
+link_directories(${NETCDFLIB_DIR})
+add_link_options(${NETCDF_FLIBS})
+
 add_executable(${PROJECT_EXE_NAME}
   src/main.f90
 )
@@ -78,6 +107,8 @@ target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/vode")
 
 find_package(BLAS)
 find_package(LAPACK)
+
+
 
 target_link_libraries(neo_rt PUBLIC
   vode
