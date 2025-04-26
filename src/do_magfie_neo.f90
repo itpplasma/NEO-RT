@@ -104,6 +104,6 @@ contains
     subroutine do_magfie_pert_amp(x, bamp)
         real(8) :: x(3)
         complex(8) :: bamp
-        !call neo_magfie_pert_amp(x, bamp)
+        call neo_magfie_pert_amp(x, bamp)
     end subroutine do_magfie_pert_amp
 end module do_magfie_pert_mod
