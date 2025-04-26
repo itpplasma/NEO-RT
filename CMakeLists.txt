@@ -5,7 +5,7 @@ enable_testing()
 
 ### Define the project
 project (driftorbit)
-enable_language(Fortran)
+enable_language(Fortran C)
 set(PROJECT_EXE_NAME "neo_rt.x")
 
 ### Specify paths
@@ -20,8 +20,10 @@ endif()
 add_compile_options(-fPIC -g)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp")
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  add_compile_options(-O0 -ffpe-trap=zero,overflow,invalid,underflow)
-  add_compile_options(-fbounds-check -finit-real=nan -fcheck=all -Wextra)
+  add_compile_options(-O0 -Wextra)
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbounds-check -finit-real=nan -fcheck=all")
+  set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffpe-trap=zero,overflow,invalid,underflow")
+  add_compile_options()
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
   add_compile_options(-O3)
   if(APPLE)
