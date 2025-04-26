@@ -477,7 +477,7 @@ contains
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = abs(2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0)))
+            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
         end if
 
         ! Look for exactly one orbit turn via root-finding.
