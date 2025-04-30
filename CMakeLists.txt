@@ -80,7 +80,7 @@ set(NEO_RT_SOURCES
   src/neort.f90
 )
 
-option(USE_STANDALONE "Use do_magfie_standalone" OFF)
+option(USE_STANDALONE "Use do_magfie_standalone" ON)
 
 if(USE_STANDALONE)
   add_library("neo_rt" STATIC
