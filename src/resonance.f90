@@ -1,5 +1,5 @@
 module neort_resonance
-    use neort_orbit, only: Om_th, Om_ph, d_Om_ds
+    use neort_freq, only: Om_th, Om_ph, d_Om_ds
     use driftorbit, only: mth, mph, nlev, vth, sigv
     implicit none
 

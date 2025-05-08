@@ -4,7 +4,7 @@ module neort
         dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_fsa, init_misc
     use neort_orbit, only: noshear
-    use neort_orbit, only: init_Om_spl, init_Om_pass_spl
+    use neort_freq, only: init_Om_spl, init_Om_pass_spl
     use neort_transport, only: compute_transport_integral
     use driftorbit
     implicit none

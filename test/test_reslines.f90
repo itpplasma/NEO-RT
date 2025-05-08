@@ -6,7 +6,7 @@ program test_reslines
   use driftorbit, only: mth, M_t, vth, qi, mi, &
     etadt, etatp, Om_tE, sigv, epst, epsp, etamin, etamax, nlev
   use neort_resonance, only: driftorbit_coarse, driftorbit_root
-  use neort_orbit, only: Om_th, Om_ph
+  use neort_freq, only: Om_th, Om_ph
   implicit none
 
   real(8), parameter  :: vnorm = sqrt(0.15)

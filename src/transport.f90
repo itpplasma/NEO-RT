@@ -2,10 +2,12 @@ module neort_transport
     use util, only: imun, pi, c, qi
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds
+    use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
-    use neort_orbit, only: Om_th, Om_ph, bounce_fast, nvar, velo_orbit
+    use neort_freq, only: Om_th, Om_ph 
+    use neort_orbit, only: bounce_fast, nvar, timestep
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt
@@ -111,12 +113,8 @@ contains
         complex(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
 
-        x(1) = s
-        x(2) = 0d0
-        x(3) = y(1)
-        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        call velo_orbit(bmod, ydot(1:3))
+        call timestep(v, eta, neq, t, y, ydot)
 
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         Omth = abs(Omth)

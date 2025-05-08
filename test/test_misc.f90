@@ -6,10 +6,10 @@ program test_misc
     use do_magfie_pert_mod, only: mph
     use neort_profiles, only: vth, Om_tE
     use neort, only: main, init_plasma_input, runname
-    use neort_orbit, only: bounce, nvar, Om_th, Om_ph, Om_tB
+    use neort_orbit, only: bounce, nvar
     use neort_resonance, only: driftorbit_root, driftorbit_coarse
     use neort_magfie, only: init_fsa
-    use neort_nonlin, only: d_Om_ds
+    use neort_freq, only: Om_th, Om_ph, Om_tB, d_Om_ds
     implicit none
 
     call main

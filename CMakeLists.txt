@@ -88,6 +88,7 @@ set(NEO_RT_SOURCES
   src/magfie.f90
   src/profiles.f90
   src/driftorbit.f90
+  src/freq.f90
   src/orbit.f90
   src/resonance.f90
   src/nonlin.f90

@@ -85,7 +85,7 @@ program test_bounce_program
 
 
     subroutine test_bounce_fast
-        use neort_orbit, only: bounce, bounce_fast, nvar
+        use neort_orbit, only: bounce, bounce_fast, nvar, timestep
         real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
         bounceavg = 0d0
@@ -94,7 +94,7 @@ program test_bounce_program
         call bounce(v, eta, taub, bounceavg_tmp, taub)
 
         bounceavg = 0d0
-        call bounce_fast(v, eta, taub, bounceavg)
+        call bounce_fast(v, eta, taub, bounceavg, timestep)
 
         if (maxval(abs((bounceavg - bounceavg_tmp)/(bounceavg+1d-6))) &
             > 1d-3) then
