@@ -1,7 +1,8 @@
 module neort_nonlin
     use util, only: c, mi
     use collis_alp, only: coleff
-    use neort_orbit, only: Om_th, Om_ph, d_Om_ds, nvar
+    use neort_freq, only: Om_th, Om_ph, d_Om_ds
+    use neort_orbit, only: nvar
     use driftorbit, only: nonlin, vth, mth, mph, qi, iota, psi_pr
 
     implicit none
