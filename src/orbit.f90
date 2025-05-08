@@ -32,6 +32,16 @@ module neort_orbit
     real(8) :: k_taub_p, d_taub_p, k_taub_t, d_taub_t ! extrapolation at tp bound
     real(8) :: k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t ! extrapolation at tp bound
 
+    interface
+        subroutine timestep_i(v, eta, neq, t, y, ydot)
+            real(8), intent(in) :: v, eta
+            integer, intent(in) :: neq
+            real(8), intent(in) :: t
+            real(8), intent(in) :: y(neq)
+            real(8), intent(out) :: ydot(neq)
+        end subroutine timestep_i
+    end interface
+
 contains
 
     subroutine bounce(v, eta, taub, bounceavg, taub_estimate)
@@ -210,7 +220,7 @@ contains
         real(8), intent(in) :: v, eta
         integer, intent(in) :: neq
         real(8), intent(in) :: y0(neq), dt
-        external ts
+        procedure(timestep_i) :: ts
 
         integer :: n
 
