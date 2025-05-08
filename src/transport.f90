@@ -1,13 +1,14 @@
 module neort_transport
-    use util, only: pi, c, qi
-    use do_magfie_mod, only: s, a, R0, iota, q, psi_pr, eps
+    use util, only: imun, pi, c, qi
+    use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
+        bphcov, dbthcovds, dbphcovds, q, dqds
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
-    use neort_orbit, only: Om_th, Om_ph, bounce_fast, nvar
+    use neort_orbit, only: Om_th, Om_ph, bounce_fast, nvar, velo_orbit
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
-    use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, &
-        etamin, etamax, A1, A2, nlev
+    use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
+        etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt
 
     implicit none
 
@@ -66,7 +67,7 @@ contains
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
                 taub = 2d0*pi/abs(Omth)
-                call bounce_fast(v, eta, taub, bounceavg)
+                call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
                 Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)
@@ -89,5 +90,62 @@ contains
         D = dsdreff**(-2)*D/Dp
 
     end subroutine compute_transport_integral
+
+    subroutine timestep_transport(v, eta, neq, t, y, ydot)
+        !
+        !  Timestep function for orbit integration.
+        !  Includes poloidal angle theta and parallel velocity.
+        !  More integrands may be added starting from y(3)
+        !
+
+        real(8), intent(in) :: v, eta
+        integer, intent(in) :: neq
+        real(8), intent(in) :: t
+        real(8), intent(in) :: y(neq)
+        real(8), intent(out) :: ydot(neq)
+
+        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(8) :: Omth, dOmthdv, dOmthdeta
+        real(8) :: t0
+        real(8) :: shearterm
+        complex(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
+        ! and Hamiltonian Hn = (H - H0)_n
+
+        x(1) = s
+        x(2) = 0d0
+        x(3) = y(1)
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+
+        call velo_orbit(bmod, ydot(1:3))
+
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+        Omth = abs(Omth)
+
+        ! evaluate orbit averages of Hamiltonian perturbation
+        if (pertfile) then
+            call do_magfie_pert_amp(x, epsn)
+            epsn = epsmn*epsn/bmod
+        else
+            epsn = epsmn*exp(imun*m0*y(1))
+        end if
+
+        if (eta > etatp) then
+            !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
+            t0 = 0d0
+            Hn = (2d0 - eta*bmod)*epsn*exp(imun*(q*mph*(y(1)) - mth*(t - t0)*Omth))
+        else
+            Hn = (2d0 - eta*bmod)*epsn*exp(imun*(q*mph*(y(1)) - (mth + q*mph)*t*Omth))
+        end if
+        ydot(4) = real(Hn)
+        ydot(5) = aimag(Hn)
+
+        ! evaluate orbit averages for nonlinear attenuation
+        if (nonlin) then
+            ydot(6) = 1d0/bmod
+            ydot(7) = bmod
+        else
+            ydot(6:7) = 0d0
+        end if
+    end subroutine timestep_transport
 
 end module neort_transport
