@@ -13,7 +13,8 @@ program test_bounce_program
     contains
 
     subroutine setup
-        use driftorbit, only: do_magfie_init, init, etamin, etamax, &
+        use neort, only: init
+        use driftorbit, only: do_magfie_init, etamin, etamax, &
             Om_tE, dOm_tEds, etatp, etadt, epst, sigv, vth, M_t, dM_tds
         use do_magfie_mod, only: R0
 
@@ -35,9 +36,9 @@ program test_bounce_program
 
     subroutine setup_control
         use driftorbit, only: s, M_t, qi, mi, vth, epsmn, m0, &
-            mph, mth, magdrift, nopassing, noshear, pertfile, &
+            mph, mth, magdrift, nopassing, pertfile, &
             nonlin, bfac, efac, inp_swi
-
+        use neort_orbit, only: noshear
         real(8) :: qs, ms
 
         s = 0.153d0
@@ -64,7 +65,7 @@ program test_bounce_program
     end subroutine setup_control
 
     subroutine test_bounce
-        use driftorbit, only: bounce, nvar
+        use neort_orbit, only: bounce, nvar
 
         real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
@@ -84,8 +85,7 @@ program test_bounce_program
 
 
     subroutine test_bounce_fast
-        use driftorbit, only: bounce, bounce_fast, nvar
-
+        use neort_orbit, only: bounce, bounce_fast, nvar
         real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
         bounceavg = 0d0

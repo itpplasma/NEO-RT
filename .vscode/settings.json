@@ -1,0 +1,9 @@
+{
+    "fortran.linter.includePaths": [
+        "${workspaceFolder}/build",
+        "${workspaceFolder}/build/vode",
+        "${workspaceFolder}/build/NEO-2/COMMON",
+        "${workspaceFolder}/build/spline",
+        "${workspaceFolder}/build/NEO-2/NEO-2-QL"
+    ]
+}

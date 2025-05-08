@@ -2,6 +2,10 @@ module neort
     use neort_profiles, only: init_profile_input, init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
+    use neort_magfie, only: init_fsa, init_misc
+    use neort_orbit, only: noshear
+    use neort_orbit, only: init_Om_spl, init_Om_pass_spl
+    use neort_transport, only: compute_transport_integral
     use driftorbit
     implicit none
 
@@ -39,7 +43,7 @@ contains
             error stop "profile.in required for nonlin"
         end if
 
-        call init_run
+        call init
         call check_magfie
         call compute_transport
     end subroutine main
@@ -60,13 +64,31 @@ contains
         mi = ms*mu
     end subroutine read_control
 
-    subroutine init_run
-        call init
+    subroutine init
+        init_done = .false.
+        call init_fsa
+        call init_misc
+        call init_Om_spl       ! frequencies of trapped orbits
+        if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
+        sigv = 1
+        call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
-    end subroutine init_run
+        init_done = .true.
+    end subroutine init
+
+    pure subroutine set_to_trapped_region(eta_min, eta_max)
+        real(8), intent(out) :: eta_min, eta_max
+        eta_min = (1 + epst)*etatp
+        eta_max = (1 - epst)*etadt
+    end subroutine set_to_trapped_region
+
+    pure subroutine set_to_passing_region(eta_min, eta_max)
+        real(8), intent(out) :: eta_min, eta_max
+        eta_min = epsp*etatp
+        eta_max = (1 - epsp)*etatp
+    end subroutine set_to_passing_region
 
     subroutine check_magfie
-
         integer, parameter :: nth = 50
         integer :: k
         real(8) :: thmin, thmax

@@ -1,12 +1,12 @@
 program test_reslines
   use util
-  use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-  q, dqds, iota, R0, a, eps, inp_swi, do_magfie_init, do_magfie
+  use do_magfie_mod, only: s, R0, a, inp_swi, do_magfie_init, do_magfie
   use do_magfie_pert_mod, only: mph
-  use driftorbit, only: init, epsmn, mth, M_t, vth, qi, mi, Jperp, &
-    etadt, etatp, Om_th, Om_ph, Om_tE, sigv, &
-    epst, epsp, etamin, etamax, nlev, driftorbit_coarse, driftorbit_root
-
+  use neort, only: init
+  use driftorbit, only: mth, M_t, vth, qi, mi, &
+    etadt, etatp, Om_tE, sigv, epst, epsp, etamin, etamax, nlev
+  use neort_resonance, only: driftorbit_coarse, driftorbit_root
+  use neort_orbit, only: Om_th, Om_ph
   implicit none
 
   real(8), parameter  :: vnorm = sqrt(0.15)
@@ -56,7 +56,7 @@ program test_reslines
 
   subroutine resline
 
-    real(8) :: v, eta, eta_res(2)
+    real(8) :: v, eta_res(2)
     real(8) :: roots(nlev, 3)
     integer :: nroots, kr
 

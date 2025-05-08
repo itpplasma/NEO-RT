@@ -1,7 +1,15 @@
 program test_misc
-    use driftorbit
+    use util, only: readdata, disp, c, qi, mi
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epssp_spl, &
+        epsp_spl, sigv, mth, nlev, nopassing, epsp, epst, dVds
+    use do_magfie_mod, only: do_magfie, psi_pr, q, s, eps, R0
+    use do_magfie_pert_mod, only: mph
+    use neort_profiles, only: vth, Om_tE
     use neort, only: main, init_plasma_input, runname
-
+    use neort_orbit, only: bounce, nvar, Om_th, Om_ph, Om_tB
+    use neort_resonance, only: driftorbit_root, driftorbit_coarse
+    use neort_magfie, only: init_fsa
+    use neort_nonlin, only: d_Om_ds
     implicit none
 
     call main
@@ -82,7 +90,7 @@ contains
         integer, parameter :: n = 500
         integer :: k
         real(8) :: vmin, vmax, v
-        real(8) :: etarest(2), etaresp(2), eta
+        real(8) :: etarest(2), etaresp(2)
         real(8) :: roots(nlev, 3)
         integer :: nroots, kr
 

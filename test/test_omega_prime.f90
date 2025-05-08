@@ -2,7 +2,13 @@ program test_omage_prime_prog
     use do_magfie_mod, only: do_magfie_init, params0
     use do_magfie_pert_mod, only: do_magfie_pert_init
     use neort, only: read_control, check_magfie, init_profiles, init_profile_input, &
-                     init_plasma_input, init_run, compute_transport_harmonic, runname, s, M_t
+                     init_plasma_input, init, compute_transport_harmonic, runname, &
+                     s, M_t, set_to_trapped_region
+    use neort_orbit, only: th0, nvar, bounce_time, vpar, vperp, bounce_integral, &
+                            bounce_fast, timestep_poloidal_internal, evaluate_bfield_local, &
+                            timestep, Om_th, Om_ph
+    use neort_resonance, only: driftorbit_coarse, driftorbit_root
+    use neort_nonlin, only: omega_prime, d_Om_ds
     use driftorbit
     implicit none
 
@@ -98,7 +104,7 @@ contains
         call init_profiles(R0)
         call init_plasma_input(s)
         call init_profile_input(s, R0, efac, bfac)
-        call init_run
+        call init
         call check_magfie
 
         mth = -3
@@ -209,6 +215,12 @@ contains
 
         ydot(3) = mi*ydot(2)**2  ! Jpar
     end subroutine timestep_invariants
+
+    pure function Jperp(v, eta)
+        real(8) :: Jperp
+        real(8), intent(in) :: v, eta
+        Jperp = 0.5d0*mi*v**2*mi*c/qi*eta
+    end function Jperp
 
     function pphi()
         real(8) :: pphi
