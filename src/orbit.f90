@@ -111,11 +111,12 @@ contains
         end if
     end function vperp
 
-    subroutine bounce_fast(v, eta, taub, bounceavg)
+    subroutine bounce_fast(v, eta, taub, bounceavg, ts)
         use dvode_f90_m
 
         real(8), intent(in) :: v, eta, taub
         real(8), intent(out) :: bounceavg(nvar)
+        procedure(timestep_i) :: ts
 
         real(8) :: t1, t2, bmod
         real(8) :: y(nvar)
@@ -139,21 +140,21 @@ contains
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
 
-        call dvode_f90(timestep2, neq, y, t1, t2, itask, istate, options)
+        call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
 
         bounceavg = y/taub
 
     contains
 
-        subroutine timestep2(neq_, t_, y_, ydot_)
+        subroutine timestep_wrapper(neq_, t_, y_, ydot_)
             ! Wrapper routine for timestep to work with VODE
             integer, intent(in) :: neq_
             real(8), intent(in) :: t_
             real(8), intent(in) :: y_(neq_)
             real(8), intent(out) :: ydot_(neq_)
 
-            call timestep(v, eta, neq_, t_, y_, ydot_)
-        end subroutine timestep2
+            call ts(v, eta, neq_, t_, y_, ydot_)
+        end subroutine timestep_wrapper
     end subroutine bounce_fast
 
     function bounce_time(v, eta, taub_estimate) result(taub)
@@ -258,7 +259,7 @@ contains
             told = ti
 
             tout = ti + dt
-            call dvode_f90(timestep2, neq, y, ti, tout, itask, istate, options, &
+            call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then
@@ -279,7 +280,7 @@ contains
 
     contains
 
-        subroutine timestep2(neq_, t_, y_, ydot_)
+        subroutine timestep_wrapper(neq_, t_, y_, ydot_)
             ! Wrapper routine for timestep to work with VODE
             integer, intent(in) :: neq_
             real(8), intent(in) :: t_
@@ -287,7 +288,7 @@ contains
             real(8), intent(out) :: ydot_(neq_)
 
             call ts(v, eta, neq_, t_, y_, ydot_)
-        end subroutine timestep2
+        end subroutine timestep_wrapper
     end function bounce_integral
 
     subroutine bounceroots(NEQ, T, Y, NG, GOUT)
@@ -374,6 +375,29 @@ contains
             ydot(4:7) = 0d0
         end if
     end subroutine timestep
+
+    subroutine velo_orbit(bmod, ydot)
+        real(8), intent(in) :: bmod
+
+        real(8), intent(out) :: ydot(3)
+
+        real(8) :: shearterm
+        real(8) :: Om_tB_v
+
+        shearterm = Bphcov*dqds
+        if (noshear) then
+            shearterm = 0
+        end if
+
+        Om_tB_v = mi*c*q/(2d0*qi*psi_pr*bmod)*( &      ! Om_tB/v**2
+                -(2d0 - eta*bmod)*bmod*hder(1) &
+                + 2d0*(1d0 - eta*bmod)*hctrvr(3)* &
+                (dBthcovds + q*dBphcovds + shearterm))
+
+        ydot(1) = y(2)*hctrvr(3)                                    ! theta
+        ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+        ydot(3) = Om_tB_v                                           ! v_ph
+    end subroutine velo_orbit
 
     subroutine init_Om_spl
         ! Initialise splines for canonical frequencies of trapped orbits
