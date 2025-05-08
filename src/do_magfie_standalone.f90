@@ -4,7 +4,6 @@ module do_magfie_mod
     use spline
 
     implicit none
-    save
 
     real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                        q, dqds, iota, R0, a, eps, B0h, B00
@@ -16,7 +15,6 @@ module do_magfie_mod
     integer, protected :: m0b, n0b, nflux, nfp, nmode
 
     real(8), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
-    real(8), allocatable, protected :: eps_spl(:, :)
 
     real(8), parameter :: ItoB = 2.0d-1 ! Factor for covar. field (cgs) from I(SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
@@ -45,7 +43,6 @@ contains
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
-            allocate (eps_spl(nflux - 1, 5))
         end if
 
         B00 = 1.0d4*modes0(1, 1, 6)*bfac
@@ -62,9 +59,6 @@ contains
                 spl_coeff2(:, :, k, j) = spline_coeff(params0(:, 1), modes0(:, j, k + 2))
             end do
         end do
-
-        if (inp_swi == 8) eps_spl = spline_coeff(params0(:, 1), abs(modes0(:, 2, 6)/modes0(:, 1, 6)))
-        if (inp_swi == 9) eps_spl = spline_coeff(params0(:, 1), abs(modes0(:, 2, 9)/modes0(:, 1, 9)))
 
         x(1) = s
         x(2) = 0.0
@@ -122,14 +116,6 @@ contains
             bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
-            if (Bthcov < 0) then
-                Bthcov = -Bthcov
-                dBthcovds = -dBthcovds
-            end if
-            if (Bphcov < 0) then
-                Bphcov = -Bphcov
-                dBphcovds = -dBphcovds
-            end if
             do j = 1, nmode
                 spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
                 B0mnc(j) = 1d4*spl_val_c(1)*bfac
@@ -181,7 +167,7 @@ contains
         ! psi_pr = dpsi_tor/ds = psi_tor/s is constantly spaced
         ! psi_tor = psi_pr*s
         ! A_theta = -psi_tor
-        psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
+        psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
         if (.not. allocated(params0)) allocate (params0(nflux, ncol1 + 1))

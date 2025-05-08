@@ -1,9 +1,10 @@
 program test_frequencies
   use util
-  use do_magfie_mod, only: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds,&
-  q, dqds, iota, R0, a, eps, inp_swi, do_magfie_init, do_magfie
-  use driftorbit, only: init, epsmn, mph, mth, vth, qi, mi, Jperp, &
-    etadt, etatp, Om_th, Om_ph, Om_tE, sigv
+  use do_magfie_mod, only: s, R0, a, inp_swi, do_magfie_init, do_magfie
+  use neort, only: init
+  use neort_freq, only: Om_th, Om_ph
+  use driftorbit, only: mph, mth, vth, qi, mi, &
+    etadt, etatp, Om_tE, sigv
 
   implicit none
 

@@ -26,7 +26,6 @@ fort.*
 *.asc
 doc/html/
 doc/latex/
-.vscode/
 *.x
 .ninja*
 build.ninja
