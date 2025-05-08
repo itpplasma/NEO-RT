@@ -18,7 +18,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 add_compile_options(-fPIC -g)
-set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp -fmax-errors=1")
+set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wimplicit-interface -Wimplicit-procedure")
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-O0 -Wextra)
   set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbounds-check -finit-real=nan -fcheck=all")
@@ -84,8 +85,13 @@ set(NEO_RT_SOURCES
   src/collis_nbi.f90
   src/polylag_3.f
   src/util.f90
+  src/magfie.f90
   src/profiles.f90
   src/driftorbit.f90
+  src/orbit.f90
+  src/resonance.f90
+  src/nonlin.f90
+  src/transport.f90
   src/neort.f90
 )
 

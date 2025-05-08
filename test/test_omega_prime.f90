@@ -210,6 +210,12 @@ contains
         ydot(3) = mi*ydot(2)**2  ! Jpar
     end subroutine timestep_invariants
 
+    pure function Jperp(v, eta)
+        real(8) :: Jperp
+        real(8), intent(in) :: v, eta
+        Jperp = 0.5d0*mi*v**2*mi*c/qi*eta
+    end function Jperp
+
     function pphi()
         real(8) :: pphi
         pphi = -qi/c*psi_pol()
