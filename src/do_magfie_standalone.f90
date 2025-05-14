@@ -5,7 +5,7 @@ module do_magfie_mod
 
     implicit none
 
-    real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
+    real(8), parameter :: sign_theta = +1.0d0  ! negative for left-handed
 
     real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                        q, dqds, iota, R0, a, eps, B0h, B00

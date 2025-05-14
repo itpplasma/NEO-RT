@@ -2,7 +2,7 @@ module neort_orbit
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
     use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
-        bphcov, dbthcovds, dbphcovds, q, dqds
+        bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etatp, etadt, etamin, etamax, epsmn, mth, mph, m0, mth, &
@@ -315,7 +315,7 @@ contains
             shearterm = 0
         end if
 
-        Om_tB_v = mi*c*q/(2d0*qi*psi_pr*bmod)*( &      ! Om_tB/v**2
+        Om_tB_v = mi*c*q/(2d0*qi*sign_theta*psi_pr*bmod)*( &      ! Om_tB/v**2
                   -(2d0 - eta*bmod)*bmod*hder(1) &
                   + 2d0*(1d0 - eta*bmod)*hctrvr(3)* &
                   (dBthcovds + q*dBphcovds + shearterm))

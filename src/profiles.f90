@@ -3,6 +3,7 @@ module neort_profiles
     use spline, only: spline_coeff, spline_val_0
     use util, only: readdata, ev, qi, mi, mu, qe, c
     use collis_alp, only: loacol_nbi
+    use do_magfie_mod, only: sign_theta
 
     implicit none
 
@@ -115,7 +116,7 @@ contains
     subroutine init_thermodynamic_forces(psi_pr, q)
         real(dp), intent(in) :: psi_pr, q
 
-        A1 = dni1ds/ni1 - qi/(Ti1*ev)*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
+        A1 = dni1ds/ni1 - qi/(Ti1*ev)*sign_theta*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
         A2 = dTi1ds/Ti1
     end subroutine init_thermodynamic_forces
 

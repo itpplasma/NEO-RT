@@ -125,7 +125,7 @@ contains
         write (9, *) "check_magfie: dVds      = ", dVds
         write (9, *) "check_magfie: M_t       = ", M_t
         write (9, *) "check_magfie: Om_tE     = ", Om_tE
-        write (9, *) "check_magfie: Om_tBref  = ", c*mi*vth**2/(2d0*qi*psi_pr)
+        write (9, *) "check_magfie: Om_tBref  = ", c*mi*vth**2/(2d0*qi*sign_theta*psi_pr)
         write (9, *) "check_magfie: vth       = ", vth
         write (9, *) "check_magfie: T [eV]    = ", mi/2d0*vth**2/eV
         write (9, *) "check_magfie: m0        = ", 1d0*m0

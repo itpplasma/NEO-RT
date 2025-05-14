@@ -1,7 +1,7 @@
 module neort_transport
     use util, only: imun, pi, c, qi
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
-        bphcov, dbthcovds, dbphcovds, q, dqds
+        bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
@@ -21,7 +21,7 @@ contains
         real(8), intent(in) :: ux, taub, Hmn2
 
         D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
-                 /(qi**2*dVds*psi_pr)*ux**3*exp(-ux**2) &
+                 /(qi**2*dVds*sign_theta*psi_pr)*ux**3*exp(-ux**2) &
                  *taub*Hmn2
     end function D11int
 
@@ -125,7 +125,7 @@ contains
             shearterm = 0
         end if
 
-        Om_tB_v = mi*c*q/(2d0*qi*psi_pr*bmod)*( &      ! Om_tB/v**2
+        Om_tB_v = mi*c*q/(2d0*qi*sign_theta*psi_pr*bmod)*( &      ! Om_tB/v**2
                   -(2d0 - eta*bmod)*bmod*hder(1) &
                   + 2d0*(1d0 - eta*bmod)*hctrvr(3)* &
                   (dBthcovds + q*dBphcovds + shearterm))
