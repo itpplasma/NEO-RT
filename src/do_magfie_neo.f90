@@ -73,7 +73,7 @@ contains
         dqds = -boozer_iota_s/iota**2
         R0 = 1d2*rt0
         ! set B_r to zero for now
-        hctrvr(1) = 0
+        hcovar(1) = 0
     end subroutine do_magfie
 
 end module do_magfie_mod
