@@ -62,7 +62,6 @@ contains
         real(8), dimension(size(x)), intent(out) :: hcurl
         call magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
         bmod = 1d4*bmod
-        sqrtg = abs(sqrtg)
         psi_pr = boozer_psi_pr_hat
         Bthcov = boozer_curr_tor_hat
         Bphcov = boozer_curr_pol_hat
