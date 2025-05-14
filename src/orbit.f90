@@ -224,7 +224,7 @@ contains
         atol = 1d-10
         itask = 1
         istate = 1
-        options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
+        options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=3)
 
         ! check for passing orbit
         passing = .false.
@@ -282,8 +282,9 @@ contains
         real(8), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = Y(1) - th0
-        GOUT(2) = 2d0*pi - (Y(1) - th0)
+        GOUT(1) = Y(1) - th0             ! trapped orbit return to starting point
+        GOUT(2) = 2d0*pi - (Y(1) - th0)  ! passing orbit return for positive h^theta
+        GOUT(3) = th0 - 2d0*pi - Y(1)    ! passing orbit return for negative h^theta
         return
     end subroutine bounceroots
 
@@ -322,7 +323,7 @@ contains
 
         ydot(1) = y(2)*hctrvr(3)                                    ! theta
         ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
-        ydot(3) = Om_tB_v                                           ! v_ph        
+        ydot(3) = Om_tB_v                                           ! v_ph
     end subroutine timestep
 
 end module neort_orbit
