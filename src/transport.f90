@@ -6,8 +6,8 @@ module neort_transport
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
-    use neort_freq, only: Om_th, Om_ph 
-    use neort_orbit, only: bounce_fast, nvar, timestep
+    use neort_freq, only: Om_th, Om_ph
+    use neort_orbit, only: bounce_fast, nvar, noshear
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt
@@ -106,15 +106,35 @@ contains
         real(8), intent(in) :: y(neq)
         real(8), intent(out) :: ydot(neq)
 
+        ! BEGIN TODO: remove all of this after refactoring and re-use routine in orbit
+        ! for y(1:3)
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-        real(8) :: Omth, dOmthdv, dOmthdeta
+        real(8) :: Omth, dOmthdv, dOmthdeta, Om_tB_v
         real(8) :: t0
         real(8) :: shearterm
         complex(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
 
+        x(1) = s
+        x(2) = 0d0
+        x(3) = y(1)
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        call timestep(v, eta, neq, t, y, ydot)
+        shearterm = Bphcov*dqds
+        if (noshear) then
+            shearterm = 0
+        end if
+
+        Om_tB_v = mi*c*q/(2d0*qi*psi_pr*bmod)*( &      ! Om_tB/v**2
+                  -(2d0 - eta*bmod)*bmod*hder(1) &
+                  + 2d0*(1d0 - eta*bmod)*hctrvr(3)* &
+                  (dBthcovds + q*dBphcovds + shearterm))
+
+        ydot(1) = y(2)*hctrvr(3)                                    ! theta
+        ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+        ydot(3) = Om_tB_v                                           ! v_ph
+
+        ! END TODO
 
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         Omth = abs(Omth)
