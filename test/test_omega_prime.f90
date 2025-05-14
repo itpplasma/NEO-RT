@@ -1,5 +1,5 @@
 program test_omage_prime_prog
-    use do_magfie_mod, only: do_magfie_init, params0
+    use do_magfie_mod, only: do_magfie_init, params0, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_init
     use neort, only: read_control, check_magfie, init_profiles, init_profile_input, &
                      init_plasma_input, init, compute_transport_harmonic, runname, &
@@ -159,7 +159,7 @@ contains
         f % dOmdv = mth*f % dOmthdv + mph*f % dOmphdv
         f % dOmdeta = mth*f % dOmthdeta + mph*f % dOmphdeta
         f % dOmds = mth*f % dOmthds + mph*f % dOmphds
-        f % dOmdpph = -(qi/c*iota*psi_pr)**(-1)*f % dOmds
+        f % dOmdpph = -(qi/c*iota*sign_theta*psi_pr)**(-1)*f % dOmds
         f % Om_tE = Om_tE
         f % dOm_tEds = dOm_tEds
     end subroutine compute_frequencies

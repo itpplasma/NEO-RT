@@ -324,7 +324,6 @@ contains
         integer :: ksurf, kmode
         real(8) :: flux, dummy
         character(len=*) :: filename
-        character(len=128) :: buffer
         open (unit=18, file=filename)
         read (18, '(////)')
         read (18, *) mb, nb, nflux, nfp, flux, dummy, dummy

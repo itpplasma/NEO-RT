@@ -14,6 +14,8 @@ module neort_transport
 
     implicit none
 
+    real(8) :: Omth, dOmthdv, dOmthdeta
+
 contains
 
     pure function D11int(ux, taub, Hmn2)
@@ -48,7 +50,6 @@ contains
         real(8) :: Dp, dsdreff ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
         real(8) :: ux, du, dD11, dD12, dT, v, eta
         real(8) :: eta_res(2)
-        real(8) :: Omth, dOmthdv, dOmthdeta
         real(8) :: taub, bounceavg(nvar)
         real(8) :: Hmn2, attenuation_factor
         real(8) :: roots(nlev, 3)
@@ -108,8 +109,7 @@ contains
 
         ! BEGIN TODO: remove all of this after refactoring and re-use routine in orbit
         ! for y(1:3)
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-        real(8) :: Omth, dOmthdv, dOmthdeta, Om_tB_v
+        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
         real(8) :: t0
         real(8) :: shearterm
         complex(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
@@ -135,9 +135,6 @@ contains
         ydot(3) = Om_tB_v                                           ! v_ph
 
         ! END TODO
-
-        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-        Omth = abs(Omth)
 
         ! evaluate orbit averages of Hamiltonian perturbation
         if (pertfile) then
