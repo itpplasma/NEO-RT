@@ -250,7 +250,6 @@ contains
                 if (passing .or. (yold(1) - th0) < 0) then
                     exit
                 end if
-
             end if
 
             istate = 2

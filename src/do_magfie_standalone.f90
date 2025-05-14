@@ -5,6 +5,8 @@ module do_magfie_mod
 
     implicit none
 
+    real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
+
     real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                        q, dqds, iota, R0, a, eps, B0h, B00
     real(8), public :: bfac = 1.0d0
@@ -16,8 +18,9 @@ module do_magfie_mod
 
     real(8), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
 
-    real(8), parameter :: ItoB = 2.0d-1 ! Factor for covar. field (cgs) from I(SI)
+    real(8), parameter :: ItoB = 2.0d-1*sign_theta ! Covarient B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
+
     integer :: ncol1, ncol2 ! number of columns in input file
 
     integer :: inp_swi ! type of input file
@@ -89,11 +92,11 @@ contains
         x1 = min(params0(nflux, 1), x1)
 
         spl_val = spline_val_0(spl_coeff1(:, :, 3), x1)
-        Bthcov = -ItoB*spl_val(1)*bfac
-        dBthcovds = -ItoB*spl_val(2)*bfac
+        Bthcov = ItoB*spl_val(1)*bfac
+        dBthcovds = ItoB*spl_val(2)*bfac
         spl_val = spline_val_0(spl_coeff1(:, :, 2), x1)
-        Bphcov = -ItoB*spl_val(1)*bfac
-        dBphcovds = -ItoB*spl_val(2)*bfac
+        Bphcov = ItoB*spl_val(1)*bfac
+        dBphcovds = ItoB*spl_val(2)*bfac
         spl_val = spline_val_0(spl_coeff1(:, :, 1), x1)
         iota = spl_val(1)
         q = 1/iota
@@ -141,7 +144,7 @@ contains
                           + modes0(1, :, 1)*B0mns*costerm)/bmod
         end if
 
-        sqgbmod2 = psi_pr*(Bphcov + iota*Bthcov)
+        sqgbmod2 = sign_theta*psi_pr*(Bphcov + iota*Bthcov)
         sqgbmod = sqgbmod2/bmod
         sqrtg = sqgbmod/bmod
 
@@ -150,8 +153,8 @@ contains
         hcovar(3) = Bthcov/bmod
 
         hctrvr(1) = 0d0
-        hctrvr(2) = psi_pr/sqgbmod
-        hctrvr(3) = iota*psi_pr/sqgbmod
+        hctrvr(2) = sign_theta*psi_pr/sqgbmod
+        hctrvr(3) = sign_theta*iota*psi_pr/sqgbmod
 
         ! Common factor bmod since bder(k) = (dB/dx(k))/bmod
         hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)/sqgbmod

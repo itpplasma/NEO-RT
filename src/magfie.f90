@@ -35,7 +35,7 @@ contains
         do k = 1, nth
             x(3) = thrange(k)
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-            dVds = dVds + sqrtg*dth
+            dVds = dVds + abs(sqrtg)*dth
             B0 = B0 + bmod*dth
             eps = eps - cos(x(3))*bmod*dth
 
