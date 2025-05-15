@@ -5,7 +5,7 @@ program test_omage_prime_prog
                      init_plasma_input, init, compute_transport_harmonic, runname, &
                      s, M_t, set_to_trapped_region
     use neort_orbit, only: th0, nvar, bounce_time, vpar, vperp, bounce_integral, &
-                            bounce_fast, timestep_poloidal_internal, evaluate_bfield_local
+                            bounce_fast, poloidal_velocity, evaluate_bfield_local
     use neort_freq, only: Om_th, Om_ph, d_Om_ds
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use neort_transport, only: timestep_transport
@@ -212,7 +212,7 @@ contains
         x(3) = y(1)
 
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-        call timestep_poloidal_internal(v, eta, bmod, hctrvr(3), hder(3), 2, t, y(2:), ydot(:2))
+        call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot(:2))
 
         ydot(3) = mi*ydot(2)**2  ! Jpar
     end subroutine timestep_invariants
