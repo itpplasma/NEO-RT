@@ -239,7 +239,7 @@ module do_magfie_pert_mod
 
     real(8), parameter :: s_tol = 1.0d-13
     real(8), private :: s_prev = -1.0d0
-    complex(8), private :: bamp_cached = (0.0d0, 0.0d0)
+    real(8), private, allocatable :: Bmnc_cached(:), Bmns_cached(:)
 
     real(8), allocatable, protected :: params(:, :), modes(:, :, :)
     integer, protected :: mb, nb, nflux, nfp, nmode
@@ -278,22 +278,16 @@ contains
             end do
         end do
 
+        allocate (Bmnc_cached(nmode))
+        allocate (Bmns_cached(nmode))
     end subroutine do_magfie_pert_init
 
     subroutine do_magfie_pert_amp(x, bamp)
         real(8), dimension(:), intent(in) :: x
         complex(8), intent(out) :: bamp
 
-        integer :: j
-        real(8) :: spl_val_c(3), spl_val_s(3)
         real(8) :: Bmnc(nmode), Bmns(nmode)
         real(8) :: x1
-
-        if (abs(x(1) - s_prev) < s_tol) then
-            bamp = bamp_cached
-            return
-        end if
-        s_prev = x(1)
 
         ! safety measure in order not to extrapolate
         x1 = max(params(1, 1), x(1))
@@ -301,23 +295,39 @@ contains
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
-            do j = 1, nmode
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), x1)
-                Bmnc(j) = 1d4*spl_val_c(1)*bfac
-            end do
+            call cached_spline(x1, spl_coeff2(:, :, 4, :), Bmnc_cached, Bmnc)
             bamp = sum(Bmnc*cos(modes(1, :, 1)*x(3)))
         else if (inp_swi == 9) then
-            do j = 1, nmode
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
-                Bmnc(j) = 1d4*spl_val_c(1)*bfac
-                spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), x1)
-                Bmns(j) = 1d4*spl_val_s(1)*bfac
-            end do
-
+            call cached_spline(x1, spl_coeff2(:, :, 7, :), Bmnc_cached, Bmnc)
+            call cached_spline(x1, spl_coeff2(:, :, 8, :), Bmns_cached, Bmns)
             bamp = sum((Bmnc - imun*Bmns)*exp(imun*modes(1, :, 1)*x(3)))
         end if
-        bamp_cached = bamp
+        bamp = bamp*1d4*bfac  ! T -> Gauss, rescale due to user input
+
+        s_prev = x(1)
+        Bmnc_cached = Bmnc
+        Bmns_cached = Bmns
     end subroutine do_magfie_pert_amp
+
+    subroutine cached_spline(x1, spl_coeff, y_cached, y)
+        real(8), intent(in) :: x1
+        real(8), intent(in) :: spl_coeff(:, :, :)
+        real(8), intent(in) :: y_cached(:)
+        real(8), intent(out) :: y(:)
+
+        real(8) :: spl_val(3)
+        integer :: j
+
+        if (abs(x1 - s_prev) < s_tol) then
+            y(:) = y_cached
+            return
+        end if
+
+        do j = 1, nmode
+            spl_val = spline_val_0(spl_coeff(:, :, j), x1)
+            y(j) = spl_val(1)
+        end do
+    end subroutine
 
     subroutine do_magfie_pert(x, bmod)
         real(8), dimension(:), intent(in) :: x
