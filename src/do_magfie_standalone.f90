@@ -7,9 +7,9 @@ module do_magfie_mod
 
     real(8), parameter :: sign_theta = +1.0d0  ! negative for left-handed
 
-    real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
+    real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                        q, dqds, iota, R0, a, eps, B0h, B00
-    real(8), public :: bfac = 1.0d0
+    real(8) :: bfac = 1.0d0
     ! B0h is the 0th theta harmonic of bmod on current flux surface
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
@@ -236,7 +236,10 @@ module do_magfie_pert_mod
     use do_magfie_mod, only: s, bfac, inp_swi
 
     implicit none
-    save
+
+    real(8), parameter :: s_tol = 1.0d-13
+    real(8), private :: s_prev = -1.0d0
+    complex(8), private :: bamp_cached = (0.0d0, 0.0d0)
 
     real(8), allocatable, protected :: params(:, :), modes(:, :, :)
     integer, protected :: mb, nb, nflux, nfp, nmode
@@ -286,6 +289,12 @@ contains
         real(8) :: Bmnc(nmode), Bmns(nmode)
         real(8) :: x1
 
+        if (abs(x(1) - s_prev) < s_tol) then
+            bamp = bamp_cached
+            return
+        end if
+        s_prev = x(1)
+
         ! safety measure in order not to extrapolate
         x1 = max(params(1, 1), x(1))
         x1 = min(params(nflux, 1), x1)
@@ -307,6 +316,7 @@ contains
 
             bamp = sum((Bmnc - imun*Bmns)*exp(imun*modes(1, :, 1)*x(3)))
         end if
+        bamp_cached = bamp
     end subroutine do_magfie_pert_amp
 
     subroutine do_magfie_pert(x, bmod)
