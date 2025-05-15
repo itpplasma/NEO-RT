@@ -122,22 +122,14 @@ contains
             bder(2) = 0d0
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
-            do j = 1, nmode
-                if (Bthcov < 0) then
-                    Bthcov = -Bthcov
-                    dBthcovds = -dBthcovds
-                end if
-                if (Bphcov < 0) then
-                    Bphcov = -Bphcov
-                    dBphcovds = -dBphcovds
-                end if
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
-                B0mnc(j) = 1d4*spl_val_c(1)*bfac
-                dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
-                spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), x1)
-                B0mns(j) = 1d4*spl_val_s(1)*bfac
-                dB0dsmns(j) = 1d4*spl_val_s(2)*bfac
-            end do
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), &
+                spl_val_c_cached, spl_val_c)
+            B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
+            dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), &
+                spl_val_s_cached, spl_val_s)
+            B0mns(:) = 1d4*spl_val_s(1, :)*bfac
+            dB0dsmns(:) = 1d4*spl_val_s(2, :)*bfac
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm + B0mns*sinterm)

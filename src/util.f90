@@ -96,42 +96,22 @@ contains
         if (stat == 0) close (lun, status='delete')
     end subroutine
 
-    subroutine cached_spline(x, x_prev, spl_coeff, y_cached, y)
+    subroutine cached_spline(x, x_prev, spl_coeff, y)
         use spline, only: spline_val_0
 
         real(8), intent(in) :: x, x_prev
         real(8), intent(in) :: spl_coeff(:, :, :)
-        real(8), intent(in) :: y_cached(:, :)
-        real(8), intent(out) :: y(:, :)
+        real(8), intent(inout) :: y(:, :)
 
         real(8), parameter :: tol = 1.0d-12
         real(8) :: spl_val(3)
         integer :: j
 
-        if (abs(x - x_prev) < tol) then
-            y(:, :) = y_cached
-            return
-        end if
+        if (abs(x - x_prev) < tol) return
 
         do j = 1, size(spl_coeff, 3)
             spl_val(:) = spline_val_0(spl_coeff(:, :, j), x)
             y(:, j) = spl_val
         end do
     end subroutine
-
-    subroutine cached_spline_value(x, x_prev, spl_coeff, val_cached, val)
-        real(8), intent(in) :: x, x_prev
-        real(8), intent(in) :: spl_coeff(:, :, :)
-        real(8), intent(in) :: val_cached(:)
-        real(8), intent(out) :: val(:)
-
-        real(8) :: y_cached(3, size(val_cached, 1))
-        real(8) :: y(3, size(val, 1))
-
-        y_cached = 0d0
-        y_cached(1, :) = val_cached
-        call cached_spline(x, x_prev, spl_coeff, y_cached, y)
-        val(:) = y(1, :)
-
-    end subroutine cached_spline_value
 end module util
