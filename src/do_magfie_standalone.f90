@@ -5,6 +5,9 @@ module do_magfie_mod
 
     implicit none
 
+    real(8), private :: s_prev = -1.0d0
+    real(8), private, allocatable :: spl_val_c_cached(:,:), spl_val_s_cached(:,:)
+
     real(8), parameter :: sign_theta = +1.0d0  ! negative for left-handed
 
     real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
@@ -63,11 +66,13 @@ contains
             end do
         end do
 
+        allocate (spl_val_c_cached(3, nmode))
+        allocate (spl_val_s_cached(3, nmode))
+
         x(1) = s
         x(2) = 0.0
         x(3) = 0.0
         call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-
     end subroutine do_magfie_init
 
     subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
@@ -80,8 +85,7 @@ contains
         real(8), dimension(size(x)), intent(out) :: hctrvr
         real(8), dimension(size(x)), intent(out) :: hcurl
 
-        integer :: j
-        real(8) :: spl_val(3), spl_val_c(3), spl_val_s(3)
+        real(8) :: spl_val(3), spl_val_c(3, nmode), spl_val_s(3, nmode)
         real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
         real(8) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
 
@@ -107,11 +111,10 @@ contains
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
-            do j = 1, nmode
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), x1)
-                B0mnc(j) = 1d4*spl_val_c(1)*bfac
-                dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
-            end do
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), &
+                spl_val_c_cached, spl_val_c)
+            B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
+            dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm)
@@ -159,6 +162,10 @@ contains
         hcurl(1) = 0d0  ! TODO
         hcurl(3) = 0d0  ! TODO
         hcurl(2) = 0d0  ! TODO
+
+        s_prev = x1
+        spl_val_c_cached(:, :) = spl_val_c
+        spl_val_s_cached(:, :) = spl_val_s
 
     end subroutine do_magfie
 
@@ -237,7 +244,6 @@ module do_magfie_pert_mod
 
     implicit none
 
-    real(8), parameter :: s_tol = 1.0d-13
     real(8), private :: s_prev = -1.0d0
     real(8), private, allocatable :: Bmnc_cached(:), Bmns_cached(:)
 
@@ -252,6 +258,8 @@ contains
 
     subroutine do_magfie_pert_init
         integer :: j, k
+        real(8) :: x(3)
+        complex(8) :: dummy
 
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
@@ -280,6 +288,11 @@ contains
 
         allocate (Bmnc_cached(nmode))
         allocate (Bmns_cached(nmode))
+
+        x(1) = s
+        x(2) = 0.0
+        x(3) = 0.0
+        call do_magfie_pert_amp(x, dummy)
     end subroutine do_magfie_pert_init
 
     subroutine do_magfie_pert_amp(x, bamp)
@@ -295,39 +308,19 @@ contains
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
-            call cached_spline(x1, spl_coeff2(:, :, 4, :), Bmnc_cached, Bmnc)
+            call cached_spline_value(x1, s_prev, spl_coeff2(:, :, 4, :), Bmnc_cached, Bmnc)
             bamp = sum(Bmnc*cos(modes(1, :, 1)*x(3)))
         else if (inp_swi == 9) then
-            call cached_spline(x1, spl_coeff2(:, :, 7, :), Bmnc_cached, Bmnc)
-            call cached_spline(x1, spl_coeff2(:, :, 8, :), Bmns_cached, Bmns)
+            call cached_spline_value(x1, s_prev, spl_coeff2(:, :, 7, :), Bmnc_cached, Bmnc)
+            call cached_spline_value(x1, s_prev, spl_coeff2(:, :, 8, :), Bmns_cached, Bmns)
             bamp = sum((Bmnc - imun*Bmns)*exp(imun*modes(1, :, 1)*x(3)))
         end if
         bamp = bamp*1d4*bfac  ! T -> Gauss, rescale due to user input
 
-        s_prev = x(1)
-        Bmnc_cached = Bmnc
-        Bmns_cached = Bmns
+        s_prev = x1
+        Bmnc_cached(:) = Bmnc
+        Bmns_cached(:) = Bmns
     end subroutine do_magfie_pert_amp
-
-    subroutine cached_spline(x1, spl_coeff, y_cached, y)
-        real(8), intent(in) :: x1
-        real(8), intent(in) :: spl_coeff(:, :, :)
-        real(8), intent(in) :: y_cached(:)
-        real(8), intent(out) :: y(:)
-
-        real(8) :: spl_val(3)
-        integer :: j
-
-        if (abs(x1 - s_prev) < s_tol) then
-            y(:) = y_cached
-            return
-        end if
-
-        do j = 1, nmode
-            spl_val = spline_val_0(spl_coeff(:, :, j), x1)
-            y(j) = spl_val(1)
-        end do
-    end subroutine
 
     subroutine do_magfie_pert(x, bmod)
         real(8), dimension(:), intent(in) :: x
