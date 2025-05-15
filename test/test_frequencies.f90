@@ -13,8 +13,8 @@ program test_frequencies
 
   integer :: i, fid
   real(8) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
-  real(8), parameter :: scalfac_energy = 100.0d0
-  real(8), parameter :: scalfac_efield = 100.0d0
+  real(8), parameter :: scalfac_energy = 1.0d0
+  real(8), parameter :: scalfac_efield = 1.0d0
 
   real(8) :: v, eta
 

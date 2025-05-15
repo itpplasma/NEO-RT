@@ -34,7 +34,7 @@ contains
             call coleff(ux, dpp, dhh, fpeff)
             dhh = vth*dhh
             dpp = vth**3*dpp
-            dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(6) - eta)*(dOmdeta/Ompr)**2
+            dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(5) - eta)*(dOmdeta/Ompr)**2
             dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
             call attenuation_factor(dnorm, nonlinear_attenuation)
         end if
@@ -48,7 +48,7 @@ contains
 
         ma = mi*(ux*vth)*mi*c/qi*eta
         mb = mi*(ux*vth)**2/2*mi*c/qi
-        mc = mi/(2d0*Omth)*(ux*vth)*(1d0 - eta*bounceavg(7))
+        mc = mi/(2d0*Omth)*(ux*vth)*(1d0 - eta*bounceavg(6))
         md = mi*(ux*vth)**2/2d0*Omth
         me = -mth/mph
         mf = 1d0/mph

@@ -4,7 +4,7 @@ module neort_freq
     use neort_orbit, only: nvar, bounce
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, epssp_spl, epsp_spl, sigv
-    use do_magfie_mod, only: iota, s
+    use do_magfie_mod, only: iota, s, Bthcov
     implicit none
 
     ! For splining in the trapped eta region

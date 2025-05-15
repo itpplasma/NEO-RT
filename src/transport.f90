@@ -1,13 +1,13 @@
 module neort_transport
     use util, only: imun, pi, c, qi
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
-        bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta
+        bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph
-    use neort_orbit, only: bounce_fast, nvar, noshear
+    use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt
@@ -71,7 +71,7 @@ contains
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
                 taub = 2d0*pi/abs(Omth)
                 call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
-                Hmn2 = (bounceavg(4)**2 + bounceavg(5)**2)*(mi*(ux*vth)**2/2d0)**2
+                Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2d0)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)
 
@@ -111,7 +111,6 @@ contains
         ! for y(1:3)
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
         real(8) :: t0
-        real(8) :: shearterm
         complex(8) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
 
@@ -119,22 +118,7 @@ contains
         x(2) = 0d0
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-
-        shearterm = Bphcov*dqds
-        if (noshear) then
-            shearterm = 0
-        end if
-
-        Om_tB_v = mi*c*q/(2d0*qi*sign_theta*psi_pr*bmod)*( &      ! Om_tB/v**2
-                  -(2d0 - eta*bmod)*bmod*hder(1) &
-                  + 2d0*(1d0 - eta*bmod)*hctrvr(3)* &
-                  (dBthcovds + q*dBphcovds + shearterm))
-
-        ydot(1) = y(2)*hctrvr(3)                                    ! theta
-        ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
-        ydot(3) = Om_tB_v                                           ! v_ph
-
-        ! END TODO
+        call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot)
 
         ! evaluate orbit averages of Hamiltonian perturbation
         if (pertfile) then
@@ -151,15 +135,15 @@ contains
         else
             Hn = (2d0 - eta*bmod)*epsn*exp(imun*(q*mph*(y(1)) - (mth + q*mph)*t*Omth))
         end if
-        ydot(4) = real(Hn)
-        ydot(5) = aimag(Hn)
+        ydot(3) = real(Hn)
+        ydot(4) = aimag(Hn)
 
         ! evaluate orbit averages for nonlinear attenuation
         if (nonlin) then
-            ydot(6) = 1d0/bmod
-            ydot(7) = bmod
+            ydot(5) = 1d0/bmod
+            ydot(6) = bmod
         else
-            ydot(6:7) = 0d0
+            ydot(5:6) = 0d0
         end if
     end subroutine timestep_transport
 

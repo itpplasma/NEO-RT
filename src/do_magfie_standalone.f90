@@ -116,7 +116,7 @@ contains
 
             bmod = sum(B0mnc*costerm)
             bder(1) = sum(dB0dsmnc*costerm)/bmod
-            bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
+            bder(2) = 0d0
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
             do j = 1, nmode
@@ -139,7 +139,7 @@ contains
 
             bmod = sum(B0mnc*costerm + B0mns*sinterm)
             bder(1) = sum(dB0dsmnc*costerm + dB0dsmns*sinterm)/bmod
-            bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
+            bder(2) = 0d0
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm &
                           + modes0(1, :, 1)*B0mns*costerm)/bmod
         end if
@@ -148,7 +148,7 @@ contains
         sqgbmod = sqgbmod2/bmod
         sqrtg = sqgbmod/bmod
 
-        hcovar(1) = 0d0 ! TODO 2: get this from geometry
+        hcovar(1) = 0d0  ! TODO
         hcovar(2) = Bphcov/bmod
         hcovar(3) = Bthcov/bmod
 
@@ -156,10 +156,9 @@ contains
         hctrvr(2) = sign_theta*psi_pr/sqgbmod
         hctrvr(3) = sign_theta*iota*psi_pr/sqgbmod
 
-        ! Common factor bmod since bder(k) = (dB/dx(k))/bmod
-        hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)/sqgbmod
-        hcurl(3) = (-dBphcovds + bder(1)*Bphcov)/sqgbmod ! TODO: B_s
-        hcurl(2) = (dBthcovds - bder(1)*Bthcov)/sqgbmod ! TODO: B_s
+        hcurl(1) = 0d0  ! TODO
+        hcurl(3) = 0d0  ! TODO
+        hcurl(2) = 0d0  ! TODO
 
     end subroutine do_magfie
 
@@ -177,8 +176,8 @@ contains
 
         ! psi_pr = dpsi_tor/ds = psi_tor/s is constantly spaced
         ! psi_tor = psi_pr*s
-        ! A_theta = -psi_tor
-        psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
+        ! A_theta = -sign_theta*psi_tor
+        psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
         if (.not. allocated(params0)) allocate (params0(nflux, ncol1 + 1))
