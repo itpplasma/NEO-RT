@@ -117,15 +117,15 @@ contains
                 call bounce(v, eta, taub, bounceavg, taub)
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
-            Omth_v(k + 1) = 2*pi/(v*taub)
+            Omth_v(k + 1) = 2*pi/(v*taub)*sign(1d0, Bthcov)
             if (k == netaspl_pass - 2) then
                 leta0 = log(etatp - eta)
-                taub0 = v*taub
+                taub0 = v*taub*sign(1d0, Bthcov)
                 if (magdrift) OmtB0 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
             if (k == netaspl_pass - 1) then
                 leta1 = log(etatp - eta)
-                taub1 = v*taub
+                taub1 = v*taub*sign(1d0, Bthcov)
                 if (magdrift) OmtB1 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
         end do
