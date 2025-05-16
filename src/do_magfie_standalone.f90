@@ -6,7 +6,7 @@ module do_magfie_mod
     implicit none
 
     real(8), private :: s_prev = -1.0d0
-    real(8), private, allocatable :: spl_val_c_cached(:,:), spl_val_s_cached(:,:)
+    real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
 
     real(8), parameter :: sign_theta = +1.0d0  ! negative for left-handed
 
@@ -66,8 +66,8 @@ contains
             end do
         end do
 
-        allocate (spl_val_c_cached(3, nmode))
-        allocate (spl_val_s_cached(3, nmode))
+        allocate (spl_val_c(3, nmode))
+        allocate (spl_val_s(3, nmode))
 
         x(1) = s
         x(2) = 0.0
@@ -85,7 +85,7 @@ contains
         real(8), dimension(size(x)), intent(out) :: hctrvr
         real(8), dimension(size(x)), intent(out) :: hcurl
 
-        real(8) :: spl_val(3), spl_val_c(3, nmode), spl_val_s(3, nmode)
+        real(8) :: spl_val(3)
         real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
         real(8) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
 
@@ -111,8 +111,7 @@ contains
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), &
-                spl_val_c_cached, spl_val_c)
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
             B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
             dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
             B0h = B0mnc(1)
@@ -122,12 +121,10 @@ contains
             bder(2) = 0d0
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), &
-                spl_val_c_cached, spl_val_c)
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
             B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
             dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), &
-                spl_val_s_cached, spl_val_s)
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
             B0mns(:) = 1d4*spl_val_s(1, :)*bfac
             dB0dsmns(:) = 1d4*spl_val_s(2, :)*bfac
             B0h = B0mnc(1)
@@ -156,8 +153,6 @@ contains
         hcurl(2) = 0d0  ! TODO
 
         s_prev = x1
-        spl_val_c_cached(:, :) = spl_val_c
-        spl_val_s_cached(:, :) = spl_val_s
 
     end subroutine do_magfie
 
@@ -237,7 +232,7 @@ module do_magfie_pert_mod
     implicit none
 
     real(8), private :: s_prev = -1.0d0
-    real(8), private, allocatable :: Bmnc_cached(:), Bmns_cached(:)
+    real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
 
     real(8), allocatable, protected :: params(:, :), modes(:, :, :)
     integer, protected :: mb, nb, nflux, nfp, nmode
@@ -278,8 +273,8 @@ contains
             end do
         end do
 
-        allocate (Bmnc_cached(nmode))
-        allocate (Bmns_cached(nmode))
+        allocate (spl_val_c(3, nmode))
+        allocate (spl_val_s(3, nmode))
 
         x(1) = s
         x(2) = 0.0
@@ -300,18 +295,18 @@ contains
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
-            call cached_spline_value(x1, s_prev, spl_coeff2(:, :, 4, :), Bmnc_cached, Bmnc)
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
+            Bmnc(:) = 1d4*spl_val_c(1, :)*bfac
             bamp = sum(Bmnc*cos(modes(1, :, 1)*x(3)))
         else if (inp_swi == 9) then
-            call cached_spline_value(x1, s_prev, spl_coeff2(:, :, 7, :), Bmnc_cached, Bmnc)
-            call cached_spline_value(x1, s_prev, spl_coeff2(:, :, 8, :), Bmns_cached, Bmns)
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+            Bmnc(:) = 1d4*spl_val_c(1, :)*bfac
+            Bmns(:) = 1d4*spl_val_s(1, :)*bfac
             bamp = sum((Bmnc - imun*Bmns)*exp(imun*modes(1, :, 1)*x(3)))
         end if
-        bamp = bamp*1d4*bfac  ! T -> Gauss, rescale due to user input
 
         s_prev = x1
-        Bmnc_cached(:) = Bmnc
-        Bmns_cached(:) = Bmns
     end subroutine do_magfie_pert_amp
 
     subroutine do_magfie_pert(x, bmod)
