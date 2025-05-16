@@ -107,8 +107,7 @@ contains
         q = 1/iota
         dqds = -spl_val(2)/iota**2
 
-        costerm = cos(modes0(1, :, 1)*x(3))
-        sinterm = sin(modes0(1, :, 1)*x(3))
+        call fast_sin_cos(modes0(1, :, 1), x(3), sinterm, costerm)
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
@@ -223,6 +222,28 @@ contains
         r(3) = sum(zmnc*cos(modes0(1, :, 1)*x(3)) + zmns*sin(modes0(1, :, 1)*x(3)))
 
     end subroutine booz_to_cyl
+
+    subroutine fast_sin_cos(m, x, sinterm, costerm)
+        ! Fast sine and cosine that assumes equally spaced ascending mode numbers
+        real(8), intent(in) :: m(:), x
+        real(8), intent(out) :: sinterm(:), costerm(:)
+
+        real(8) :: dm
+        complex(8) :: fourier_factor, rotation
+        integer :: j
+
+        dm = m(2) - m(1)
+        fourier_factor  = exp(imun*m(1)*x)
+        rotation = exp(imun*dm*x)
+
+        costerm = (0.0d0, 0.0d0)
+        sinterm = (0.0d0, 0.0d0)
+        do j = 1, size(m)
+            costerm(j) = real(fourier_factor)
+            sinterm(j) = imag(fourier_factor)
+            fourier_factor = fourier_factor*rotation
+        end do
+    end subroutine fast_sin_cos
 
 end module do_magfie_mod
 
