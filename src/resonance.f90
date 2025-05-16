@@ -124,6 +124,7 @@ contains
             print *, "etamin = ", eta_min, "etamax = ", eta_max, "eta = ", eta
             print *, "resmin = ", resmin, "resmax = ", resmax, "res = ", res
             print *, "resold = ", res_old, "res    = ", res
+            print *, "tol = ", tol
         end if
         eta = eta0
     end function driftorbit_root

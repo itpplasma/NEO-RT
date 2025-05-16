@@ -15,7 +15,8 @@ module do_magfie_mod
     use neo_input, only: bmnc
 
     implicit none
-    save
+
+    real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
 
     real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds, &
                iota, R0, eps, bfac ! TODO: implement bfac
@@ -41,9 +42,7 @@ contains
 
         x(1) = s
         x(2:3) = 0.0d0
-        print *, "before do_magfie"
         call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-        print *, "after do_magfie"
         R0 = 1d2*rt0
         print *, R0
         x(3) = pi

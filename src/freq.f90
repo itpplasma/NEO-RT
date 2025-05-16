@@ -4,7 +4,7 @@ module neort_freq
     use neort_orbit, only: nvar, bounce
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, epssp_spl, epsp_spl, sigv
-    use do_magfie_mod, only: iota, s
+    use do_magfie_mod, only: iota, s, Bthcov
     implicit none
 
     ! For splining in the trapped eta region
@@ -117,15 +117,15 @@ contains
                 call bounce(v, eta, taub, bounceavg, taub)
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
-            Omth_v(k + 1) = 2*pi/(v*taub)
+            Omth_v(k + 1) = 2*pi/(v*taub)*sign(1d0, Bthcov)
             if (k == netaspl_pass - 2) then
                 leta0 = log(etatp - eta)
-                taub0 = v*taub
+                taub0 = v*taub*sign(1d0, Bthcov)
                 if (magdrift) OmtB0 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
             if (k == netaspl_pass - 1) then
                 leta1 = log(etatp - eta)
-                taub1 = v*taub
+                taub1 = v*taub*sign(1d0, Bthcov)
                 if (magdrift) OmtB1 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
         end do

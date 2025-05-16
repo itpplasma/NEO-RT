@@ -182,19 +182,17 @@ contains
         x(3) = y(1)
 
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-
-        call timestep_poloidal_internal(v, eta, bmod, hctrvr(3), hder(3), neq, t, y, ydot)
+        call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot)
     end subroutine timestep_poloidal_motion
 
-    pure subroutine timestep_poloidal_internal(v, eta, bmod, hthctr, hderth, neq, t, y, ydot)
+    pure subroutine poloidal_velocity(v, eta, bmod, hthctr, hderth, v_par, ydot)
         real(8), intent(in) :: v, eta, bmod, hthctr, hderth
-        integer, intent(in) :: neq
-        real(8), intent(in) :: t, y(neq)
-        real(8), intent(out) :: ydot(neq)
+        real(8), intent(in) :: v_par
+        real(8), intent(out) :: ydot(2)
 
-        ydot(1) = y(2)*hthctr                                   ! theta
+        ydot(1) = v_par*hthctr                                  ! theta
         ydot(2) = -v**2*eta/2d0*hthctr*hderth*bmod              ! v_par
-    end subroutine timestep_poloidal_internal
+    end subroutine poloidal_velocity
 
     function bounce_integral(v, eta, neq, y0, dt, ts)
         !
@@ -322,7 +320,7 @@ contains
 
         ydot(1) = y(2)*hctrvr(3)                                    ! theta
         ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
-        ydot(3) = Om_tB_v                                           ! v_ph
+        ydot(3) = Om_tB_v  ! for bounce average of Om_tB/v**2
     end subroutine timestep
 
 end module neort_orbit

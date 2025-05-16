@@ -95,4 +95,23 @@ contains
         open (unit=newunit(lun), iostat=stat, file=filename, status='old')
         if (stat == 0) close (lun, status='delete')
     end subroutine
+
+    subroutine cached_spline(x, x_prev, spl_coeff, y)
+        use spline, only: spline_val_0
+
+        real(8), intent(in) :: x, x_prev
+        real(8), intent(in) :: spl_coeff(:, :, :)
+        real(8), intent(inout) :: y(:, :)
+
+        real(8), parameter :: tol = 1.0d-12
+        real(8) :: spl_val(3)
+        integer :: j
+
+        if (abs(x - x_prev) < tol) return
+
+        do j = 1, size(spl_coeff, 3)
+            spl_val(:) = spline_val_0(spl_coeff(:, :, j), x)
+            y(:, j) = spl_val
+        end do
+    end subroutine
 end module util

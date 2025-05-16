@@ -5,11 +5,15 @@ module do_magfie_mod
 
     implicit none
 
+    real(8), private :: s_prev = -1.0d0
+    real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
+
+    ! TODO: Find consistent sign convention
     real(8), parameter :: sign_theta = +1.0d0  ! negative for left-handed
 
-    real(8), public :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
+    real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                        q, dqds, iota, R0, a, eps, B0h, B00
-    real(8), public :: bfac = 1.0d0
+    real(8) :: bfac = 1.0d0
     ! B0h is the 0th theta harmonic of bmod on current flux surface
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
@@ -63,11 +67,13 @@ contains
             end do
         end do
 
+        allocate (spl_val_c(3, nmode))
+        allocate (spl_val_s(3, nmode))
+
         x(1) = s
         x(2) = 0.0
         x(3) = 0.0
         call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-
     end subroutine do_magfie_init
 
     subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
@@ -80,8 +86,7 @@ contains
         real(8), dimension(size(x)), intent(out) :: hctrvr
         real(8), dimension(size(x)), intent(out) :: hcurl
 
-        integer :: j
-        real(8) :: spl_val(3), spl_val_c(3), spl_val_s(3)
+        real(8) :: spl_val(3)
         real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
         real(8) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
 
@@ -102,44 +107,31 @@ contains
         q = 1/iota
         dqds = -spl_val(2)/iota**2
 
-        costerm = cos(modes0(1, :, 1)*x(3))
-        sinterm = sin(modes0(1, :, 1)*x(3))
+        call fast_sin_cos(modes0(1, :, 1), x(3), sinterm, costerm)
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
-            do j = 1, nmode
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), x1)
-                B0mnc(j) = 1d4*spl_val_c(1)*bfac
-                dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
-            end do
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
+            B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
+            dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm)
             bder(1) = sum(dB0dsmnc*costerm)/bmod
-            bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
+            bder(2) = 0d0
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
-            do j = 1, nmode
-                if (Bthcov < 0) then
-                    Bthcov = -Bthcov
-                    dBthcovds = -dBthcovds
-                end if
-                if (Bphcov < 0) then
-                    Bphcov = -Bphcov
-                    dBphcovds = -dBphcovds
-                end if
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
-                B0mnc(j) = 1d4*spl_val_c(1)*bfac
-                dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
-                spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), x1)
-                B0mns(j) = 1d4*spl_val_s(1)*bfac
-                dB0dsmns(j) = 1d4*spl_val_s(2)*bfac
-            end do
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+            B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
+            dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+            B0mns(:) = 1d4*spl_val_s(1, :)*bfac
+            dB0dsmns(:) = 1d4*spl_val_s(2, :)*bfac
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm + B0mns*sinterm)
             bder(1) = sum(dB0dsmnc*costerm + dB0dsmns*sinterm)/bmod
-            bder(2) = 0d0 ! TODO 3: toroidal symmetry assumed
+            bder(2) = 0d0
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm &
                           + modes0(1, :, 1)*B0mns*costerm)/bmod
         end if
@@ -148,7 +140,7 @@ contains
         sqgbmod = sqgbmod2/bmod
         sqrtg = sqgbmod/bmod
 
-        hcovar(1) = 0d0 ! TODO 2: get this from geometry
+        hcovar(1) = 0d0  ! TODO
         hcovar(2) = Bphcov/bmod
         hcovar(3) = Bthcov/bmod
 
@@ -156,10 +148,11 @@ contains
         hctrvr(2) = sign_theta*psi_pr/sqgbmod
         hctrvr(3) = sign_theta*iota*psi_pr/sqgbmod
 
-        ! Common factor bmod since bder(k) = (dB/dx(k))/bmod
-        hcurl(1) = (bder(2)*Bthcov - bder(3)*Bphcov)/sqgbmod
-        hcurl(3) = (-dBphcovds + bder(1)*Bphcov)/sqgbmod ! TODO: B_s
-        hcurl(2) = (dBthcovds - bder(1)*Bthcov)/sqgbmod ! TODO: B_s
+        hcurl(1) = 0d0  ! TODO
+        hcurl(3) = 0d0  ! TODO
+        hcurl(2) = 0d0  ! TODO
+
+        s_prev = x1
 
     end subroutine do_magfie
 
@@ -177,7 +170,9 @@ contains
 
         ! psi_pr = dpsi_tor/ds = psi_tor/s is constantly spaced
         ! psi_tor = psi_pr*s
-        ! A_theta = -psi_tor
+        ! A_theta = -sign_theta*psi_tor
+
+        ! TODO: Find consistent sign convention
         psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
@@ -228,6 +223,28 @@ contains
 
     end subroutine booz_to_cyl
 
+    subroutine fast_sin_cos(m, x, sinterm, costerm)
+        ! Fast sine and cosine that assumes equally spaced ascending mode numbers
+        real(8), intent(in) :: m(:), x
+        real(8), intent(out) :: sinterm(:), costerm(:)
+
+        real(8) :: dm
+        complex(8) :: fourier_factor, rotation
+        integer :: j
+
+        dm = m(2) - m(1)
+        fourier_factor  = exp(imun*m(1)*x)
+        rotation = exp(imun*dm*x)
+
+        costerm = (0.0d0, 0.0d0)
+        sinterm = (0.0d0, 0.0d0)
+        do j = 1, size(m)
+            costerm(j) = real(fourier_factor)
+            sinterm(j) = imag(fourier_factor)
+            fourier_factor = fourier_factor*rotation
+        end do
+    end subroutine fast_sin_cos
+
 end module do_magfie_mod
 
 module do_magfie_pert_mod
@@ -237,7 +254,9 @@ module do_magfie_pert_mod
     use do_magfie_mod, only: s, bfac, inp_swi
 
     implicit none
-    save
+
+    real(8), private :: s_prev = -1.0d0
+    real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
 
     real(8), allocatable, protected :: params(:, :), modes(:, :, :)
     integer, protected :: mb, nb, nflux, nfp, nmode
@@ -250,6 +269,8 @@ contains
 
     subroutine do_magfie_pert_init
         integer :: j, k
+        real(8) :: x(3)
+        complex(8) :: dummy
 
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
@@ -276,14 +297,19 @@ contains
             end do
         end do
 
+        allocate (spl_val_c(3, nmode))
+        allocate (spl_val_s(3, nmode))
+
+        x(1) = s
+        x(2) = 0.0
+        x(3) = 0.0
+        call do_magfie_pert_amp(x, dummy)
     end subroutine do_magfie_pert_init
 
     subroutine do_magfie_pert_amp(x, bamp)
         real(8), dimension(:), intent(in) :: x
         complex(8), intent(out) :: bamp
 
-        integer :: j
-        real(8) :: spl_val_c(3), spl_val_s(3)
         real(8) :: Bmnc(nmode), Bmns(nmode)
         real(8) :: x1
 
@@ -293,21 +319,18 @@ contains
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
-            do j = 1, nmode
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 4, j), x1)
-                Bmnc(j) = 1d4*spl_val_c(1)*bfac
-            end do
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
+            Bmnc(:) = 1d4*spl_val_c(1, :)*bfac
             bamp = sum(Bmnc*cos(modes(1, :, 1)*x(3)))
         else if (inp_swi == 9) then
-            do j = 1, nmode
-                spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
-                Bmnc(j) = 1d4*spl_val_c(1)*bfac
-                spl_val_s = spline_val_0(spl_coeff2(:, :, 8, j), x1)
-                Bmns(j) = 1d4*spl_val_s(1)*bfac
-            end do
-
-            bamp = sum((Bmnc - imun*Bmns)*exp(imun*modes(1, :, 1)*x(3)))
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+            Bmnc(:) = 1d4*spl_val_c(1, :)*bfac
+            Bmns(:) = 1d4*spl_val_s(1, :)*bfac
+            bamp = fast_fourier_sum(Bmnc, Bmns, modes(1, :, 1), x(3))
         end if
+
+        s_prev = x1
     end subroutine do_magfie_pert_amp
 
     subroutine do_magfie_pert(x, bmod)
@@ -324,7 +347,6 @@ contains
         integer :: ksurf, kmode
         real(8) :: flux, dummy
         character(len=*) :: filename
-        character(len=128) :: buffer
         open (unit=18, file=filename)
         read (18, '(////)')
         read (18, *) mb, nb, nflux, nfp, flux, dummy, dummy
@@ -337,8 +359,61 @@ contains
             read (18, *)
             do kmode = 1, nmode
                 read (18, *) modes(ksurf, kmode, :)
+                call check_equal_space_ascending(modes(ksurf, :, 1), kmode)
+                call check_equal(modes(ksurf, :, 2), kmode)
             end do
         end do
         close (unit=18)
     end subroutine boozer_read_pert
+
+    subroutine check_equal_space_ascending(m, kmode)
+        real(8), dimension(:), intent(in) :: m
+        integer, intent(in) :: kmode
+
+        real(8), parameter :: tol = 1.0d-10
+        real(8) :: diff, diff2
+
+        if (kmode < 3) return
+
+        diff = m(kmode - 1) - m(kmode - 2)
+        diff2 = m(kmode) - m(kmode - 1)
+        if (abs(diff - diff2) > tol) then
+            error stop "harmonics not equally spaced and ascending"
+        end if
+    end subroutine check_equal_space_ascending
+
+    subroutine check_equal(m, kmode)
+        real(8), dimension(:), intent(in) :: m
+        integer, intent(in) :: kmode
+
+        real(8), parameter :: tol = 1.0d-10
+
+        if (kmode < 2) return
+
+        if (abs(m(kmode) - m(kmode - 1)) > tol) then
+            error stop "harmonics not equal"
+        end if
+    end subroutine check_equal
+
+    function fast_fourier_sum(fmnc, fmns, m, x)
+        ! Fast Fourier sum that assumes equally spaced ascending mode numbers
+        real(8), dimension(:), intent(in) :: fmnc, fmns, m
+        real(8), intent(in) :: x
+        complex(8) :: fast_fourier_sum
+
+        real(8) :: dm
+        complex(8) :: fourier_factor, rotation
+        integer :: j
+
+        dm = m(2) - m(1)
+        fourier_factor  = exp(imun*m(1)*x)
+        rotation = exp(imun*dm*x)
+
+        fast_fourier_sum = (0.0d0, 0.0d0)
+        do j = 1, size(m)
+            fast_fourier_sum = fast_fourier_sum + &
+                (fmnc(j) - imun*fmns(j))*fourier_factor
+            fourier_factor = fourier_factor*rotation
+        end do
+    end function fast_fourier_sum
 end module do_magfie_pert_mod
