@@ -117,6 +117,14 @@ contains
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
             do j = 1, nmode
+                if (Bthcov < 0) then
+                    Bthcov = -Bthcov
+                    dBthcovds = -dBthcovds
+                end if
+                if (Bphcov < 0) then
+                    Bphcov = -Bphcov
+                    dBphcovds = -dBphcovds
+                end if
                 spl_val_c = spline_val_0(spl_coeff2(:, :, 7, j), x1)
                 B0mnc(j) = 1d4*spl_val_c(1)*bfac
                 dB0dsmnc(j) = 1d4*spl_val_c(2)*bfac
@@ -167,7 +175,7 @@ contains
         ! psi_pr = dpsi_tor/ds = psi_tor/s is constantly spaced
         ! psi_tor = psi_pr*s
         ! A_theta = -psi_tor
-        psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
+        psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
         if (.not. allocated(params0)) allocate (params0(nflux, ncol1 + 1))
