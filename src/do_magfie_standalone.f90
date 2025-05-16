@@ -306,7 +306,7 @@ contains
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
             Bmnc(:) = 1d4*spl_val_c(1, :)*bfac
             Bmns(:) = 1d4*spl_val_s(1, :)*bfac
-            bamp = sum((Bmnc - imun*Bmns)*exp(imun*modes(1, :, 1)*x(3)))
+            bamp = fast_fourier_sum(Bmnc, Bmns, modes(1, :, 1), x(3))
         end if
 
         s_prev = x1
@@ -338,8 +338,61 @@ contains
             read (18, *)
             do kmode = 1, nmode
                 read (18, *) modes(ksurf, kmode, :)
+                call check_equal_space_ascending(modes(ksurf, :, 1), kmode)
+                call check_equal(modes(ksurf, :, 2), kmode)
             end do
         end do
         close (unit=18)
     end subroutine boozer_read_pert
+
+    subroutine check_equal_space_ascending(m, kmode)
+        real(8), dimension(:), intent(in) :: m
+        integer, intent(in) :: kmode
+
+        real(8), parameter :: tol = 1.0d-10
+        real(8) :: diff, diff2
+
+        if (kmode < 3) return
+
+        diff = m(kmode - 1) - m(kmode - 2)
+        diff2 = m(kmode) - m(kmode - 1)
+        if (abs(diff - diff2) > tol) then
+            error stop "harmonics not equally spaced and ascending"
+        end if
+    end subroutine check_equal_space_ascending
+
+    subroutine check_equal(m, kmode)
+        real(8), dimension(:), intent(in) :: m
+        integer, intent(in) :: kmode
+
+        real(8), parameter :: tol = 1.0d-10
+
+        if (kmode < 2) return
+
+        if (abs(m(kmode) - m(kmode - 1)) > tol) then
+            error stop "harmonics not equal"
+        end if
+    end subroutine check_equal
+
+    function fast_fourier_sum(fmnc, fmns, m, x)
+        ! Fast Fourier sum that assumes equally spaced ascending mode numbers
+        real(8), dimension(:), intent(in) :: fmnc, fmns, m
+        real(8), intent(in) :: x
+        complex(8) :: fast_fourier_sum
+
+        real(8) :: dm
+        complex(8) :: fourier_factor, rotation
+        integer :: j
+
+        dm = m(2) - m(1)
+        fourier_factor  = exp(imun*m(1)*x)
+        rotation = exp(imun*dm*x)
+
+        fast_fourier_sum = (0.0d0, 0.0d0)
+        do j = 1, size(m)
+            fast_fourier_sum = fast_fourier_sum + &
+                (fmnc(j) - imun*fmns(j))*fourier_factor
+            fourier_factor = fourier_factor*rotation
+        end do
+    end function fast_fourier_sum
 end module do_magfie_pert_mod
