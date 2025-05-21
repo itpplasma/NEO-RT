@@ -43,7 +43,8 @@ contains
         call evaluate_bfield_local(bmod, htheta)
         y0 = 1d-15
         y0(1) = th0         ! poloidal angle theta
-        y0(2) = sign(1d0, htheta)*sigv*vpar(v, eta, bmod)  ! parallel velocity vpar
+        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
+        if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction
         y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
         y0(4) = 0d0         ! perturbed Hamiltonian real part
         y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
@@ -116,7 +117,8 @@ contains
         call evaluate_bfield_local(bmod, htheta)
         y = 1d-15
         y(1) = th0
-        y(2) = sign(1.0d0, htheta)*sigv*vpar(v, eta, bmod)
+        y(2) = vpar(v, eta, bmod)
+        if (eta < etatp) y(2) = sign(1d0, htheta)*sigv*y(2) ! passing direction
         y(3:6) = 0d0
 
         neq = nvar
@@ -157,7 +159,8 @@ contains
         call evaluate_bfield_local(bmod, htheta)
 
         y0(1) = th0         ! poloidal angle theta
-        y0(2) = sign(1d0, htheta)*sigv*vpar(v, eta, bmod)  ! parallel velocity vpar
+        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
+        if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction
 
         if (present(taub_estimate)) then
             taub = taub_estimate
