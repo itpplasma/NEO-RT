@@ -7,7 +7,7 @@ module neort_orbit
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etatp, etadt, etamin, etamax, epsmn, mth, mph, m0, mth, &
         init_done, pertfile, magdrift, nonlin, epsst_spl, epssp_spl, epst_spl, epsp_spl, &
-        sigv
+        sigv, sigv_theta
 
     implicit none
 
@@ -44,7 +44,10 @@ contains
         y0 = 1d-15
         y0(1) = th0         ! poloidal angle theta
         y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
-        !if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction  ! TODO: Find consistent sign convention
+        if (eta < etatp) then ! passing direction  ! TODO: Find consistent sign convention
+            sigv_theta = sign(1d0, htheta)*sigv
+            y0(2) = sigv_theta*y0(2)
+        end if
         y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
         y0(4) = 0d0         ! perturbed Hamiltonian real part
         y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
@@ -118,7 +121,10 @@ contains
         y = 1d-15
         y(1) = th0
         y(2) = vpar(v, eta, bmod)
-        !if (eta < etatp) y(2) = sign(1d0, htheta)*sigv*y(2) ! passing direction  ! TODO: Find consistent sign convention
+        if (eta < etatp) then ! passing direction  ! TODO: Find consistent sign convention
+            sigv_theta = sign(1d0, htheta)*sigv
+            y(2) = sigv_theta*y(2)
+        end if
         y(3:6) = 0d0
 
         neq = nvar
@@ -160,7 +166,10 @@ contains
 
         y0(1) = th0         ! poloidal angle theta
         y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
-        !if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction  ! TODO: Find consistent sign convention
+        if (eta < etatp) then ! passing direction  ! TODO: Find consistent sign convention
+            sigv_theta = sign(1d0, htheta)*sigv
+            y0(2) = sigv_theta*y0(2)
+        end if
 
         if (present(taub_estimate)) then
             taub = taub_estimate

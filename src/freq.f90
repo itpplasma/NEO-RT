@@ -3,7 +3,7 @@ module neort_freq
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce
     use neort_profiles, only: vth, Om_tE, dOm_tEds
-    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, epssp_spl, epsp_spl, sigv
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, epssp_spl, epsp_spl, sigv, sigv_theta
     use do_magfie_mod, only: iota, s, Bthcov
     implicit none
 
@@ -153,8 +153,8 @@ contains
                 splineval = spline_val_0(OmtB_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = (k_OmtB_t*log(eta - etatp) + d_OmtB_t)*Omth/v
-                splineval(2) = (Omth/v*k_OmtB_t/(eta - etatp) + &
+                splineval(1) = sigv*(k_OmtB_t*log(eta - etatp) + d_OmtB_t)*Omth/v
+                splineval(2) = sigv*(Omth/v*k_OmtB_t/(eta - etatp) + &
                                 dOmthdeta/v*(k_OmtB_t*log(eta - etatp) + d_OmtB_t))
             end if
         else
@@ -162,8 +162,8 @@ contains
                 splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = (k_OmtB_p*log(etatp - eta) + d_OmtB_p)*Omth/v
-                splineval(2) = (Omth/v*k_OmtB_p/(eta - etatp) + &
+                splineval(1) = sigv*(k_OmtB_p*log(etatp - eta) + d_OmtB_p)*Omth/v
+                splineval(2) = sigv*(Omth/v*k_OmtB_p/(eta - etatp) + &
                                 dOmthdeta/v*(k_OmtB_p*log(etatp - eta) + d_OmtB_p))
             end if
         end if
@@ -242,7 +242,7 @@ contains
         ds = 2d-8
         s = s0 - ds/2d0
         call bounce(v, eta, taub, bounceavg)
-        Omth = sigv*2d0*pi/taub
+        Omth = sigv_theta*2d0*pi/taub
         if (magdrift) then
             if (eta > etatp) then
                 Omph_noE = bounceavg(3)*v**2
@@ -258,7 +258,7 @@ contains
         end if
         s = s0 + ds/2d0
         call bounce(v, eta, taub, bounceavg, taub)
-        dOmthds = sigv*(2d0*pi/taub - sigv*Omth)/ds
+        dOmthds = sigv_theta*(2d0*pi/taub - sigv_theta*Omth)/ds
         if (magdrift) then
             if (eta > etatp) then
                 dOmphds = dOm_tEds + (bounceavg(3)*v**2 - Omph_noE)/ds
