@@ -6,8 +6,8 @@ module neort_orbit
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etatp, etadt, etamin, etamax, epsmn, mth, mph, m0, mth, &
-        init_done, pertfile, magdrift, nonlin, sigv, epsst_spl, epssp_spl, epst_spl, &
-        epsp_spl
+        init_done, pertfile, magdrift, nonlin, epsst_spl, epssp_spl, epst_spl, epsp_spl, &
+        sigv
 
     implicit none
 
@@ -35,15 +35,15 @@ contains
         real(8), intent(out) :: taub, bounceavg(nvar)
         real(8), optional :: taub_estimate  ! estimated bounce time (user input)
         real(8) :: findroot_res(nvar + 1)
-        real(8) :: bmod
+        real(8) :: bmod, htheta
         real(8) :: y0(nvar)
 
         ! Initialize bounce-averated quantities y0. Their meaning
         ! is defined inside subroutine timestep (thin orbit integration)
-        call evaluate_bfield_local(bmod)
+        call evaluate_bfield_local(bmod, htheta)
         y0 = 1d-15
         y0(1) = th0         ! poloidal angle theta
-        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
+        y0(2) = sign(1d0, htheta)*sigv*vpar(v, eta, bmod)  ! parallel velocity vpar
         y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
         y0(4) = 0d0         ! perturbed Hamiltonian real part
         y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
@@ -66,14 +66,15 @@ contains
         bounceavg = findroot_res(2:)/taub
     end subroutine bounce
 
-    subroutine evaluate_bfield_local(bmod)
-        real(8), intent(out) :: bmod
+    subroutine evaluate_bfield_local(bmod, htheta)
+        real(8), intent(out) :: bmod, htheta
         real(8) :: sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
         x(1) = s
         x(2) = 0d0
         x(3) = th0
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        htheta = hctrvr(3)
     end subroutine evaluate_bfield_local
 
     pure function vpar(v, eta, bmod)
@@ -103,7 +104,7 @@ contains
         real(8), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
 
-        real(8) :: t1, t2, bmod
+        real(8) :: t1, t2, bmod, htheta
         real(8) :: y(nvar)
         real(8) :: atol(nvar), rtol
         integer :: neq, itask, istate
@@ -112,10 +113,10 @@ contains
         t1 = 0d0
         t2 = taub
 
-        call evaluate_bfield_local(bmod)
+        call evaluate_bfield_local(bmod, htheta)
         y = 1d-15
         y(1) = th0
-        y(2) = vpar(v, eta, bmod)
+        y(2) = sign(1.0d0, htheta)*sigv*vpar(v, eta, bmod)
         y(3:6) = 0d0
 
         neq = nvar
@@ -151,12 +152,12 @@ contains
 
         integer, parameter :: neq = 2
         real(8) :: y0(neq), roots(neq+1)
-        real(8) :: bmod
+        real(8) :: bmod, htheta
 
-        call evaluate_bfield_local(bmod)
+        call evaluate_bfield_local(bmod, htheta)
 
         y0(1) = th0         ! poloidal angle theta
-        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
+        y0(2) = sign(1d0, htheta)*sigv*vpar(v, eta, bmod)  ! parallel velocity vpar
 
         if (present(taub_estimate)) then
             taub = taub_estimate
@@ -319,7 +320,7 @@ contains
                   (dBthcovds + q*dBphcovds + shearterm))
 
         ydot(1) = y(2)*hctrvr(3)                                    ! theta
-        ydot(2) = -v**2*eta/2d0*hctrvr(3)*hder(3)*bmod              ! v_par
+        ydot(2) = -0.5d0*v**2*eta*hctrvr(3)*hder(3)*bmod            ! v_par
         ydot(3) = Om_tB_v  ! for bounce average of Om_tB/v**2
     end subroutine timestep
 

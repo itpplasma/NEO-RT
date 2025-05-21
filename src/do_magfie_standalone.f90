@@ -9,7 +9,7 @@ module do_magfie_mod
     real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
 
     ! TODO: Find consistent sign convention
-    real(8), parameter :: sign_theta = +1.0d0  ! negative for left-handed
+    real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
 
     real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
                        q, dqds, iota, R0, a, eps, B0h, B00
@@ -173,7 +173,7 @@ contains
         ! A_theta = -sign_theta*psi_tor
 
         ! TODO: Find consistent sign convention
-        psi_pr = 1.0d8*abs(flux)/(2*pi)*bfac ! T -> Gauss, m -> cm
+        psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
         if (.not. allocated(params0)) allocate (params0(nflux, ncol1 + 1))

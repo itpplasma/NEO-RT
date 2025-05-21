@@ -19,8 +19,8 @@ module neort_freq
     real(8) :: Omth_pass_spl_coeff(netaspl_pass - 1, 5)
     real(8) :: vres_pass_spl_coeff(netaspl - 1, 5)
 
-    real(8) :: k_taub_p, d_taub_p, k_taub_t, d_taub_t ! extrapolation at tp bound
-    real(8) :: k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t ! extrapolation at tp bound
+    real(8) :: k_taub_p=0d0, d_taub_p=0d0, k_taub_t=0d0, d_taub_t=0d0 ! extrapolation at tp bound
+    real(8) :: k_OmtB_p=0d0, d_Omtb_p=0d0, k_Omtb_t=0d0, d_Omtb_t=0d0 ! extrapolation at tp bound
 
 contains
     subroutine init_Om_spl
@@ -153,18 +153,18 @@ contains
                 splineval = spline_val_0(OmtB_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = sigv*(k_OmtB_t*log(eta - etatp) + d_OmtB_t)*Omth/v
-                splineval(2) = sigv*(Omth/v*k_OmtB_t/(eta - etatp) + &
-                                     dOmthdeta/v*(k_OmtB_t*log(eta - etatp) + d_OmtB_t))
+                splineval(1) = (k_OmtB_t*log(eta - etatp) + d_OmtB_t)*Omth/v
+                splineval(2) = (Omth/v*k_OmtB_t/(eta - etatp) + &
+                                dOmthdeta/v*(k_OmtB_t*log(eta - etatp) + d_OmtB_t))
             end if
         else
             if (eta < etatp*(1 - epsp_spl)) then
                 splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = sigv*(k_OmtB_p*log(etatp - eta) + d_OmtB_p)*Omth/v
-                splineval(2) = sigv*(Omth/v*k_OmtB_p/(eta - etatp) + &
-                                     dOmthdeta/v*(k_OmtB_p*log(etatp - eta) + d_OmtB_p))
+                splineval(1) = (k_OmtB_p*log(etatp - eta) + d_OmtB_p)*Omth/v
+                splineval(2) = (Omth/v*k_OmtB_p/(eta - etatp) + &
+                                dOmthdeta/v*(k_OmtB_p*log(etatp - eta) + d_OmtB_p))
             end if
         end if
         OmtB = splineval(1)*v**2
@@ -242,7 +242,7 @@ contains
         ds = 2d-8
         s = s0 - ds/2d0
         call bounce(v, eta, taub, bounceavg)
-        Omth = 2d0*pi/taub
+        Omth = sigv*2d0*pi/taub
         if (magdrift) then
             if (eta > etatp) then
                 Omph_noE = bounceavg(3)*v**2
@@ -258,7 +258,7 @@ contains
         end if
         s = s0 + ds/2d0
         call bounce(v, eta, taub, bounceavg, taub)
-        dOmthds = (2d0*pi/taub - Omth)/ds
+        dOmthds = sigv*(2d0*pi/taub - sigv*Omth)/ds
         if (magdrift) then
             if (eta > etatp) then
                 dOmphds = dOm_tEds + (bounceavg(3)*v**2 - Omph_noE)/ds

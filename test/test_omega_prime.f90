@@ -171,14 +171,14 @@ contains
         integer, parameter :: neq = 3
         real(8) :: taub, bounceavg(neq)
         real(8) :: bounceint(neq + 1)
-        real(8) :: bmod
+        real(8) :: bmod, htheta
         real(8) :: y0(neq)
 
         ! Initialize bounce-averated quantities y0. Their meaning
         ! is defined inside subroutine timestep (thin orbit integration)
-        call evaluate_bfield_local(bmod)
+        call evaluate_bfield_local(bmod, htheta)
         y0(1) = th0
-        y0(2) = vpar(v, eta, bmod)
+        y0(2) = sign(1d0, htheta)*sigv*vpar(v, eta, bmod)
         y0(3) = 1d-15
 
         taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
