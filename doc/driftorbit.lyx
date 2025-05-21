@@ -395,34 +395,106 @@ Bounce average for thin orbits
 \end_layout
 
 \begin_layout Standard
-The code calculates bounce averages
+The bounce time is given by
 \begin_inset Formula 
 \begin{equation}
-\left\langle f(\vartheta_{{\rm orb}}(\tau))\right\rangle _{b}=\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\,f(\vartheta_{{\rm orb}}(\tau))
+\tau_{b}=\oint d\tau=\oint\left|\frac{d\vartheta}{v_{\parallel}h^{\vartheta}}\right|.
 \end{equation}
 
 \end_inset
 
+Here, 
+\begin_inset Formula $\oint$
+\end_inset
+
+ runs around the trapped orbit for one period, or between 
+\begin_inset Formula $\vartheta=0$
+\end_inset
+
+ and 
+\begin_inset Formula $2\pi$
+\end_inset
+
+ for passing orbits.
+\end_layout
+
+\begin_layout Standard
+The code calculates bounce averages
+\begin_inset Formula 
+\begin{align}
+\left\langle f\right\rangle _{b} & =\frac{1}{\tau_{b}}\int_{0}^{\tau_{b}}d\tau\,f(\vartheta_{{\rm orb}}(\tau))\\
+ & =\frac{1}{\tau_{b}}\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}\frac{d\vartheta}{v^{\vartheta}(\vartheta)}\,f(\vartheta)
+\end{align}
+
+\end_inset
+
  via an ODE integration over bounce orbits.
- The time derivative of the poloidal angle during the bounce orbit, 
+ The velocity of the poloidal angle during the bounce orbit, 
 \begin_inset Formula $\vartheta_{{\rm orb}}$
 \end_inset
 
 , is given by
 \begin_inset Formula 
 \begin{equation}
-\dot{\vartheta}_{{\rm orb}}=v_{\parallel}h^{\vartheta}
+v^{\vartheta}(\vartheta)=v_{\parallel}h^{\vartheta}
 \end{equation}
 
 \end_inset
 
-and the one of the parallel velocity is 
+with
+\begin_inset Formula 
+\begin{equation}
+\frac{d\vartheta_{{\rm orb}}(\tau)}{d\tau}=\dot{\vartheta}_{{\rm orb}}(\tau)=v^{\vartheta}(\vartheta_{{\rm orb}}(\tau)).
+\end{equation}
+
+\end_inset
+
+The parallel velocity is
+\lang british
+
 \begin_inset Formula 
 \begin{align}
-\dot{v}_{\parallel} & =-\sigma v\frac{\eta\dot{B}}{2\sqrt{1-\eta B}}\nonumber \\
- & =-\frac{v^{2}\eta}{2v_{\parallel}}\frac{\partial B}{\partial\vartheta}\dot{\vartheta}_{{\rm orb}}\nonumber \\
+v_{\parallel} & =\sigma_{\parallel}\sqrt{2/m_{\alpha}(H-e_{\alpha}\Phi(p_{\varphi})-J_{\perp}\omega_{c}(\tht,p_{\varphi}))}\nonumber \\
+ & =\sigma_{\parallel}v\sqrt{1-\eta B}.
+\end{align}
+
+\end_inset
+
+
+\lang english
+The parallel acceleration is
+\begin_inset Formula 
+\begin{align}
+a_{\parallel}(\vartheta) & =-\sigma_{\parallel}v\frac{\eta\dot{B}(\tau)}{2\sqrt{1-\eta B}}\nonumber \\
+ & =-\frac{v^{2}\eta}{2v_{\parallel}}\frac{\partial B}{\partial\vartheta}v^{\vartheta}\nonumber \\
  & =-\frac{v^{2}\eta}{2}h^{\vartheta}\frac{\partial B}{\partial\vartheta}.
 \end{align}
+
+\end_inset
+
+and
+\begin_inset Formula 
+\begin{equation}
+\frac{dv_{\parallel{\rm orb}}(\tau)}{d\tau}=\dot{v}_{\parallel{\rm orb}}(\tau)=a_{\parallel}(\vartheta_{{\rm orb}}(\tau)).
+\end{equation}
+
+\end_inset
+
+Note that the signs of 
+\begin_inset Formula $d\vartheta$
+\end_inset
+
+ an 
+\begin_inset Formula $v^{\vartheta}$
+\end_inset
+
+ always coincide if the integration direction and boundaries represent the
+ order in actual time.
+ In that case
+\begin_inset Formula 
+\begin{equation}
+d\tau=\left|\frac{d\vartheta}{v_{\parallel}h^{\vartheta}}\right|=\frac{d\vartheta}{v_{\parallel}h^{\vartheta}}.
+\end{equation}
 
 \end_inset
 
@@ -451,6 +523,62 @@ Bounce integration of other quantities
 \end_inset
 
 .
+ 
+\end_layout
+
+\begin_layout Subsection*
+Canonical actions
+\end_layout
+
+\begin_layout Standard
+
+\lang british
+\begin_inset Formula 
+\begin{equation}
+J_{\tht}=\frac{1}{2\pi}\oint d\tht\,p_{\tht}=\frac{e_{\alpha}}{c}A_{\tht}\delta_{\mathrm{tp}}+J_{\parallel}+\mathcal{O}(\varepsilon^{2}),\label{eq:Action Variables}
+\end{equation}
+
+\end_inset
+
+Note that 
+\begin_inset Formula $\oint d\tht=\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}$
+\end_inset
+
+ for 
+\begin_inset Formula $v_{\parallel}h^{\vartheta}>0$
+\end_inset
+
+, and 
+\begin_inset Formula $\oint d\tht=-\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}$
+\end_inset
+
+ for 
+\begin_inset Formula $v_{\parallel}h^{\vartheta}<0$
+\end_inset
+
+.
+ We have
+\begin_inset Formula 
+\begin{align}
+J_{\parallel} & =\frac{1}{2\pi}\oint d\tht\,\frac{m_{\alpha}v_{\parallel}}{h^{\tht}}\nonumber \\
+ & =\frac{m_{\alpha}}{2\pi}\oint\frac{d\tht}{h^{\tht}v_{\parallel}}v_{\parallel}^{\,2}\nonumber \\
+ & =\frac{m_{\alpha}\tau_{b}}{2\pi}\sigma\left\langle v_{\parallel}^{\,2}\right\rangle _{b},
+\end{align}
+
+\end_inset
+
+where 
+\begin_inset Formula 
+\begin{equation}
+\sigma=\begin{cases}
+\mathrm{sgn}(v_{\parallel}h^{\vartheta}) & \text{for passing particles,}\\
+1 & \text{for trapped particles.}
+\end{cases}
+\end{equation}
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection*
@@ -461,7 +589,7 @@ Canonical frequencies
 The second canonical (poloidal) frequency
 \begin_inset Formula 
 \begin{equation}
-\Omega^{\vartheta}=\omega_{b}=\frac{2\pi}{\tau_{b}}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi v\left(\oint\frac{d\vartheta}{h^{\vartheta}\sigma\sqrt{1-\eta B}}\right)^{-1}.
+\Omega^{\vartheta}=\omega_{b}=\sigma\frac{2\pi}{\tau_{b}}=2\pi\left(\oint\frac{d\vartheta}{h^{\vartheta}v_{\parallel}}\right)^{-1}=2\pi v\left(\oint\frac{d\vartheta}{h^{\vartheta}\sigma_{\parallel}\sqrt{1-\eta B}}\right)^{-1}.
 \end{equation}
 
 \end_inset
@@ -475,8 +603,8 @@ is the bounce or transit frequency.
 \begin_inset Formula $2\pi$
 \end_inset
 
- and for trapped particles back and forth between the turning points (direction
- 
+ and for trapped particles back and forth between the turning points (poloidal
+ direction 
 \begin_inset Formula $\sigma=\pm1$
 \end_inset
 
@@ -490,24 +618,105 @@ is the bounce or transit frequency.
 \end_layout
 
 \begin_layout Standard
+For the remaining canonical frequencies, we compute 
+\lang british
+
+\begin_inset Formula 
+\begin{align}
+\Omega^{\phi}=\frac{\partial H}{\partial J_{\perp}} & =-\frac{\partial J_{\tht}(J_{\perp},H,p_{\varphi})}{\partial J_{\perp}}\Omega^{\vartheta}\,,\nonumber \\
+\Omega^{\ph}=\frac{\partial H}{\partial p_{\ph}} & =-\frac{\partial J_{\tht}(J_{\perp},H,p_{\varphi})}{\partial p_{\varphi}}\Omega^{\tht}.\label{eq:Om3}
+\end{align}
+
+\end_inset
+
+Since 
+\begin_inset Formula $\partial A_{\vartheta}/\partial J_{\perp}=0$
+\end_inset
+
+ we just require 
+\begin_inset Formula $J_{\parallel}$
+\end_inset
+
+ in
+\begin_inset Formula 
+\begin{align}
+\Omega^{\phi}=-\frac{\partial J_{\parallel}}{\partial J_{\perp}}\Omega^{\vartheta} & =-\frac{\omega_{b}}{2\pi}\oint d\tht\,\frac{m_{\alpha}}{h^{\tht}(\tht,p_{\ph})}\frac{\partial v_{\parallel}(\tht,J_{\perp},H,p_{\ph})}{\partial J_{\perp}}\nonumber \\
+ & =\frac{\omega_{b}}{2\pi}\oint d\tht\,\frac{\omega_{c}}{v_{\parallel}h^{\tht}}=\left\langle \omega_{c}\right\rangle _{b}.
+\end{align}
+
+\end_inset
+
+For 
+\begin_inset Formula $\Omega^{\ph}$
+\end_inset
+
+ we evaluate
+\begin_inset Formula 
+\begin{align}
+-\frac{e_{\alpha}}{c}\frac{\partial A_{\tht}(p_{\ph})}{\partial p_{\ph}}\Omega^{\vartheta} & =-\frac{e_{\alpha}}{c}A_{\tht}^{\prime}(r_{\ph})\frac{dr_{\ph}}{dp_{\ph}}\omega_{b}=\frac{A_{\tht}^{\prime}(r_{\ph})}{A_{\varphi}^{\prime}(r_{\ph})}\omega_{b}=q(r_{\ph})\omega_{b}
+\end{align}
+
+\end_inset
+
+and
+\begin_inset Formula 
+\begin{align*}
+\Omega_{t}=-\frac{\partial J_{\parallel}}{\partial p_{\ph}}\Omega^{\vartheta} & =-\sigma\frac{m_{\alpha}}{\tau_{b}}\oint d\tht\,\frac{dr_{\ph}}{dp_{\ph}}\frac{\partial}{\partial r}\left(\frac{v_{\parallel}(\tht,J_{\perp},H,r)}{h^{\tht}(\tht,r)}\right)\\
+ & =\frac{\sigma}{\tau_{b}}\oint d\tht\,\frac{1}{\sqrt{g}\omega_{c}h^{\tht}}\frac{\partial}{\partial r}\left(\frac{v_{\parallel}}{h^{\tht}}\right)\\
+ & =\frac{\sigma}{\tau_{b}}\oint\frac{d\tht}{v_{\parallel}h^{\tht}}\,\frac{v_{\parallel}}{\sqrt{g}\omega_{c}}\frac{\partial}{\partial r}\left(\frac{v_{\parallel}}{h^{\tht}}\right)=\left\langle v_{g}^{\ph}\right\rangle _{b}.
+\end{align*}
+
+\end_inset
+
+Evaluation of the radial derivative inside the brackets with 
+\begin_inset Formula $r=r_{\ph}$
+\end_inset
+
+ results in
+\begin_inset Formula 
+\begin{align}
+\frac{\partial}{\partial r}\left(\frac{v_{\parallel}}{h^{\vartheta}}\right) & =\frac{1}{m_{\alpha}h^{\vartheta}v_{\parallel}}\left(-e_{\alpha}\frac{\partial\Phi}{\partial r}-\frac{e_{\alpha}J_{\perp}}{m_{\alpha}c}\frac{\partial B}{\partial r}\right)+v_{\parallel}\frac{\partial}{\partial r}\left(\frac{1}{h^{\tht}}\right)\,.
+\end{align}
+
+\end_inset
+
+Together with the relation in straight field-line flux coordinates
+\begin_inset Formula 
+\begin{align}
+\frac{1}{m_{\alpha}\sqrt{g}\omega_{c}h^{\vartheta}} & =\frac{c}{e_{\alpha}\sigma_{\vartheta}\psi_{{\rm pol}}^{\prime}}\,,
+\end{align}
+
+\end_inset
+
+this yields
+\begin_inset Formula 
+\begin{align*}
+\Omega_{t} & =\frac{1}{\sigma_{\vartheta}\psi_{{\rm pol}}^{\prime}}\left\langle -c\frac{\partial\Phi}{\partial r}-\frac{J_{\perp}}{m_{\alpha}}\frac{\partial B}{\partial r}+\frac{v_{\parallel}^{2}B}{\omega_{c}}h^{\vartheta}\frac{\partial}{\partial r}\left(\frac{1}{h^{\tht}}\right)\,\right\rangle _{b}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 For trapped particles, the canonical (toroidal rotation) frequency 
 \begin_inset Formula $\Omega^{\varphi}$
 \end_inset
 
- is the bounce averaged sum
+ is just
 \begin_inset Formula 
 \begin{equation}
-\Omega^{\varphi}=\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle \label{eq:Om_ph}
+\Omega^{\varphi}=\Omega_{t}=\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle _{b}\label{eq:Om_ph}
 \end{equation}
 
 \end_inset
 
- of electric and magnetic drift (in any flux coordinates)
+being the sum of electric and magnetic drift (in any flux coordinates)
 \begin_inset Formula 
 \begin{align}
-\Omega_{tE} & =-\frac{c}{\psi_{{\rm pol}}^{\prime}}\frac{\partial\Phi}{\partial r}\label{eq:Om_tE}\\
-\Omega_{tB} & =-\frac{v^{2}(2-\eta B)}{2\omega_{c}B^{\vartheta}\sqrt{g}}\frac{\partial B}{\partial r}+\frac{v^{2}(1-\eta B)}{\omega_{c}\sqrt{g}B}\left(\frac{\partial B_{\vartheta}}{\partial r}+q\frac{\partial B_{\varphi}}{\partial r}+B_{\varphi}\frac{dq}{dr}\right)\nonumber \\
- & =\frac{v^{2}}{\psi_{{\rm pol}}^{\prime}}\left(-\frac{2-\eta B}{2\omega_{c}}\frac{\partial B}{\partial r}+\frac{1-\eta B}{\omega_{c}}h^{\vartheta}\left(\frac{\partial B_{\vartheta}}{\partial r}+q\frac{\partial B_{\varphi}}{\partial r}+B_{\varphi}\frac{dq}{dr}\right)\right).\label{eq:Om_tB}
+\Omega_{tE} & =-\frac{c}{\sigma_{\vartheta}\psi_{{\rm pol}}^{\prime}}\frac{\partial\Phi}{\partial r}\label{eq:Om_tE}\\
+\left\langle \Omega_{tB}\right\rangle _{b} & =\frac{v^{2}}{\sigma_{\vartheta}\psi_{{\rm pol}}^{\prime}}\left\langle -\frac{2-\eta B}{2\omega_{c}}\frac{\partial B}{\partial r}+\frac{1-\eta B}{\omega_{c}}h^{\vartheta}\left(\frac{\partial B_{\vartheta}}{\partial r}+q\frac{\partial B_{\varphi}}{\partial r}+B_{\varphi}\frac{dq}{dr}\right)\right\rangle _{b}.\nonumber 
 \end{align}
 
 \end_inset
@@ -524,7 +733,7 @@ The last term with magnetic shear
 For passing particles, an additional term appears and
 \begin_inset Formula 
 \begin{equation}
-\Omega^{\varphi}=q(r_{\varphi})\Omega^{2}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle .\label{eq:Om_ph_passing}
+\Omega^{\varphi}=q(r_{\varphi})\omega_{b}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle _{b}.\label{eq:Om_ph_passing}
 \end{equation}
 
 \end_inset
