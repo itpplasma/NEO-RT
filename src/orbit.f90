@@ -44,7 +44,7 @@ contains
         y0 = 1d-15
         y0(1) = th0         ! poloidal angle theta
         y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
-        if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction
+        !if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction  ! TODO: Find consistent sign convention
         y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
         y0(4) = 0d0         ! perturbed Hamiltonian real part
         y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
@@ -118,7 +118,7 @@ contains
         y = 1d-15
         y(1) = th0
         y(2) = vpar(v, eta, bmod)
-        if (eta < etatp) y(2) = sign(1d0, htheta)*sigv*y(2) ! passing direction
+        !if (eta < etatp) y(2) = sign(1d0, htheta)*sigv*y(2) ! passing direction  ! TODO: Find consistent sign convention
         y(3:6) = 0d0
 
         neq = nvar
@@ -160,7 +160,7 @@ contains
 
         y0(1) = th0         ! poloidal angle theta
         y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
-        if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction
+        !if (eta < etatp) y0(2) = sign(1d0, htheta)*sigv*y0(2) ! passing direction  ! TODO: Find consistent sign convention
 
         if (present(taub_estimate)) then
             taub = taub_estimate
@@ -285,7 +285,7 @@ contains
         end associate
         GOUT(1) = Y(1) - th0             ! trapped orbit return to starting point
         GOUT(2) = 2d0*pi - (Y(1) - th0)  ! passing orbit return for positive h^theta
-        GOUT(3) = th0 - 2d0*pi - Y(1)    ! passing orbit return for negative h^theta
+        GOUT(3) = -GOUT(2)               ! passing orbit return for negative h^theta
         return
     end subroutine bounceroots
 
