@@ -4,7 +4,7 @@ program test_reslines
   use do_magfie_pert_mod, only: mph
   use neort, only: init
   use driftorbit, only: mth, M_t, vth, qi, mi, &
-    etadt, etatp, Om_tE, sigv, epst, epsp, etamin, etamax, nlev
+    etadt, etatp, Om_tE, sign_vpar, epst, epsp, etamin, etamax, nlev
   use neort_resonance, only: driftorbit_coarse, driftorbit_root
   use neort_freq, only: Om_th, Om_ph
   implicit none
@@ -63,7 +63,7 @@ program test_reslines
     v = vnorm*vth
 
     ! Trapped
-    sigv = 1d0
+    sign_vpar = 1d0
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     call driftorbit_coarse(v, etamin, etamax, roots, nroots)
@@ -73,7 +73,7 @@ program test_reslines
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, 0
       end do
     ! Co-passing
-    sigv = 1d0
+    sign_vpar = 1d0
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
     call driftorbit_coarse(v, etamin, etamax, roots, nroots)
@@ -83,7 +83,7 @@ program test_reslines
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, 1
       end do
     ! Ctr-passing
-    sigv = -1d0
+    sign_vpar = -1d0
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
     call driftorbit_coarse(v, etamin, etamax, roots, nroots)

@@ -109,7 +109,7 @@ contains
         call check_magfie
 
         mth = -3
-        sigv = 1
+        sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
     end subroutine setup
 
@@ -178,7 +178,7 @@ contains
         ! is defined inside subroutine timestep (thin orbit integration)
         call evaluate_bfield_local(bmod, htheta)
         y0(1) = th0
-        y0(2) = sign(1d0, htheta)*sigv*vpar(v, eta, bmod)
+        y0(2) = sign(1d0, htheta)*sign_vpar*vpar(v, eta, bmod)
         y0(3) = 1d-15
 
         taub = 2.0*pi/(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))

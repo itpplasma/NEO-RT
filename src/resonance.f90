@@ -1,6 +1,6 @@
 module neort_resonance
     use neort_freq, only: Om_th, Om_ph, d_Om_ds
-    use driftorbit, only: mth, mph, nlev, vth, sigv
+    use driftorbit, only: mth, mph, nlev, vth, sign_vpar
     implicit none
 
 contains
@@ -120,7 +120,7 @@ contains
         if (state < 0) then
             driftorbit_root(2) = mph*dOmphdeta + mth*dOmthdeta
             print *, "ERROR: driftorbit_root did not converge in 100 iterations"
-            print *, "v/vth  = ", v/vth, "mth    = ", mth, "sigv= ", sigv
+            print *, "v/vth  = ", v/vth, "mth    = ", mth, "sign_vpar= ", sign_vpar
             print *, "etamin = ", eta_min, "etamax = ", eta_max, "eta = ", eta
             print *, "resmin = ", resmin, "resmax = ", resmax, "res = ", res
             print *, "resold = ", res_old, "res    = ", res

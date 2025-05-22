@@ -3,8 +3,9 @@ module neort_freq
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce
     use neort_profiles, only: vth, Om_tE, dOm_tEds
-    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, epssp_spl, epsp_spl, sigv
-    use do_magfie_mod, only: iota, s, Bthcov
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
+        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta
+    use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
     implicit none
 
     ! For splining in the trapped eta region
@@ -117,15 +118,15 @@ contains
                 call bounce(v, eta, taub, bounceavg, taub)
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
-            Omth_v(k + 1) = 2*pi/(v*taub)*sign(1d0, Bthcov)
+            Omth_v(k + 1) = 2*pi/(v*taub)
             if (k == netaspl_pass - 2) then
                 leta0 = log(etatp - eta)
-                taub0 = v*taub*sign(1d0, Bthcov)
+                taub0 = v*taub
                 if (magdrift) OmtB0 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
             if (k == netaspl_pass - 1) then
                 leta1 = log(etatp - eta)
-                taub1 = v*taub*sign(1d0, Bthcov)
+                taub1 = v*taub
                 if (magdrift) OmtB1 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
         end do
@@ -153,8 +154,8 @@ contains
                 splineval = spline_val_0(OmtB_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = (k_OmtB_t*log(eta - etatp) + d_OmtB_t)*Omth/v
-                splineval(2) = (Omth/v*k_OmtB_t/(eta - etatp) + &
+                splineval(1) = sign_vpar*(k_OmtB_t*log(eta - etatp) + d_OmtB_t)*Omth/v
+                splineval(2) = sign_vpar*(Omth/v*k_OmtB_t/(eta - etatp) + &
                                 dOmthdeta/v*(k_OmtB_t*log(eta - etatp) + d_OmtB_t))
             end if
         else
@@ -162,8 +163,8 @@ contains
                 splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = (k_OmtB_p*log(etatp - eta) + d_OmtB_p)*Omth/v
-                splineval(2) = (Omth/v*k_OmtB_p/(eta - etatp) + &
+                splineval(1) = sign_vpar*(k_OmtB_p*log(etatp - eta) + d_OmtB_p)*Omth/v
+                splineval(2) = sign_vpar*(Omth/v*k_OmtB_p/(eta - etatp) + &
                                 dOmthdeta/v*(k_OmtB_p*log(etatp - eta) + d_OmtB_p))
             end if
         end if
@@ -226,9 +227,9 @@ contains
                 splineval(2) = -splineval(1)**2/(2d0*pi)*k_taub_p/(eta - etatp)
             end if
         end if
-        Omth = sigv*splineval(1)*v
-        dOmthdv = sigv*splineval(1)
-        dOmthdeta = sigv*splineval(2)*v
+        Omth = sign_vpar*splineval(1)*v
+        dOmthdv = sign_vpar*splineval(1)
+        dOmthdeta = sign_vpar*splineval(2)*v
     end subroutine Om_th
 
     subroutine d_Om_ds(v, eta, dOmthds, dOmphds)
@@ -242,7 +243,7 @@ contains
         ds = 2d-8
         s = s0 - ds/2d0
         call bounce(v, eta, taub, bounceavg)
-        Omth = sigv*2d0*pi/taub
+        Omth = sign_vpar_htheta*2d0*pi/taub
         if (magdrift) then
             if (eta > etatp) then
                 Omph_noE = bounceavg(3)*v**2
@@ -258,7 +259,7 @@ contains
         end if
         s = s0 + ds/2d0
         call bounce(v, eta, taub, bounceavg, taub)
-        dOmthds = sigv*(2d0*pi/taub - sigv*Omth)/ds
+        dOmthds = sign_vpar_htheta*(2d0*pi/taub - sign_vpar_htheta*Omth)/ds
         if (magdrift) then
             if (eta > etatp) then
                 dOmphds = dOm_tEds + (bounceavg(3)*v**2 - Omph_noE)/ds

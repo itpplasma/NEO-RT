@@ -395,7 +395,8 @@ Bounce average for thin orbits
 \end_layout
 
 \begin_layout Standard
-The bounce time is given by
+This is for axisymmetric field.
+ The bounce time is given by
 \begin_inset Formula 
 \begin{equation}
 \tau_{b}=\oint d\tau=\oint\left|\frac{d\vartheta}{v_{\parallel}h^{\vartheta}}\right|.
@@ -466,7 +467,7 @@ The parallel acceleration is
 \begin_inset Formula 
 \begin{align}
 a_{\parallel}(\vartheta) & =-\sigma_{\parallel}v\frac{\eta\dot{B}(\tau)}{2\sqrt{1-\eta B}}\nonumber \\
- & =-\frac{v^{2}\eta}{2v_{\parallel}}\frac{\partial B}{\partial\vartheta}v^{\vartheta}\nonumber \\
+ & =-\frac{v^{2}\eta}{2v_{\parallel}}\left(\frac{\partial B}{\partial\vartheta}v^{\vartheta}+\underbrace{\frac{\partial B}{\partial\varphi}}_{=0}v^{\varphi}\right)\nonumber \\
  & =-\frac{v^{2}\eta}{2}h^{\vartheta}\frac{\partial B}{\partial\vartheta}.
 \end{align}
 
@@ -540,8 +541,19 @@ J_{\tht}=\frac{1}{2\pi}\oint d\tht\,p_{\tht}=\frac{e_{\alpha}}{c}A_{\tht}\delta_
 
 \end_inset
 
+The integral here is
+\begin_inset Formula 
+\[
+\oint=\begin{cases}
+\int_{0}^{2\pi} & \text{for passing}\\
+\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b}/2)}-\int_{\vartheta_{\mathrm{orb}}(\tau_{b}/2)}^{\vartheta_{\mathrm{orb}}(\tau_{b})} & \text{for trapped with}\vartheta_{\mathrm{orb}}(\tau_{b}/2)>\vartheta_{\mathrm{orb}}(0)
+\end{cases}
+\]
+
+\end_inset
+
 Note that 
-\begin_inset Formula $\oint d\tht=\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}$
+\begin_inset Formula $\oint d\tht=\int_{0}^{2\pi}=\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}$
 \end_inset
 
  for 
@@ -549,7 +561,7 @@ Note that
 \end_inset
 
 , and 
-\begin_inset Formula $\oint d\tht=-\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}$
+\begin_inset Formula $\oint d\tht=\int_{0}^{2\pi}=-\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}$
 \end_inset
 
  for 
@@ -571,7 +583,7 @@ where
 \begin_inset Formula 
 \begin{equation}
 \sigma=\begin{cases}
-\mathrm{sgn}(v_{\parallel}h^{\vartheta}) & \text{for passing particles,}\\
+\mathrm{sgn}(v_{\parallel}h^{\vartheta})=\sigma_{\parallel}\mathrm{sgn}(h^{\vartheta}) & \text{for passing particles,}\\
 1 & \text{for trapped particles.}
 \end{cases}
 \end{equation}
@@ -735,6 +747,45 @@ For passing particles, an additional term appears and
 \begin{equation}
 \Omega^{\varphi}=q(r_{\varphi})\omega_{b}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle _{b}.\label{eq:Om_ph_passing}
 \end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection*
+*Jacobians
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\det\frac{\partial(J_{\perp},H,p_{\varphi})}{\partial(J_{\perp},J_{\tht},p_{\varphi})} & =\det\left(\begin{array}{ccc}
+1 & \difp[H]{J_{\perp}} & 0\\
+0 & \difp[H]{J_{\tht}} & 0\\
+0 & \difp[H]{p_{\varphi}} & 1
+\end{array}\right)\\
+ & =\difp[H]{J_{\tht}}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection*
+Interpolation and extrapolation of canonical frequencies
+\end_layout
+
+\begin_layout Standard
+Extrapolation:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\sigma\tau_{b}=2\pi/\Omega_{\vartheta}=k\log(\eta_{\mathrm{tp}}-\eta)+d
+\]
 
 \end_inset
 

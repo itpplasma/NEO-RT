@@ -1,7 +1,7 @@
 program test_misc
     use util, only: readdata, disp, c, qi, mi
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epssp_spl, &
-        epsp_spl, sigv, mth, nlev, nopassing, epsp, epst, dVds
+        epsp_spl, sign_vpar, mth, nlev, nopassing, epsp, epst, dVds
     use do_magfie_mod, only: do_magfie, psi_pr, q, s, eps, R0
     use do_magfie_pert_mod, only: mph
     use neort_profiles, only: vth, Om_tE
@@ -39,7 +39,7 @@ contains
         aa = 1d0/(n - 1d0)*(log(etamax/etamin - 1d0) - b)
         eta = etamax
 
-        sigv = 1
+        sign_vpar = 1
 
         call disp("test_torfreq: vth        = ", vth)
         call disp("test_torfreq: v/vth      = ", v/vth)
@@ -101,7 +101,7 @@ contains
 
         etaresp = etatp
         etarest = etatp
-        sigv = 1
+        sign_vpar = 1
 
         open (unit=9, file=trim(adjustl(runname))//"_resline_pco.out", recl=1024)
         open (unit=10, file=trim(adjustl(runname))//"_resline_pct.out", recl=1024)
@@ -111,13 +111,13 @@ contains
 
             if (.not. nopassing) then
                 ! resonance (passing)
-                sigv = 1
+                sign_vpar = 1
                 call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
                 do kr = 1, nroots
                     etaresp = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                     write (9, *) v/vth, kr, etaresp(1), 0d0, etatp
                 end do
-                sigv = -1
+                sign_vpar = -1
                 call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
                 do kr = 1, nroots
                     etaresp = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
@@ -126,7 +126,7 @@ contains
             end if
 
             ! resonance (trapped)
-            sigv = 1
+            sign_vpar = 1
             call driftorbit_coarse(v, etatp*(1 + epst), etadt*(1 - epst), roots, nroots)
             do kr = 1, nroots
                 etarest = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
