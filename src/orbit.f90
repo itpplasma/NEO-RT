@@ -41,13 +41,10 @@ contains
         ! Initialize bounce-averated quantities y0. Their meaning
         ! is defined inside subroutine timestep (thin orbit integration)
         call evaluate_bfield_local(bmod, htheta)
+        sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
         y0 = 1d-15
         y0(1) = th0         ! poloidal angle theta
-        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
-        if (eta < etatp) then ! passing direction  ! TODO: Find consistent sign convention
-            sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
-            y0(2) = sign_vpar_htheta*y0(2)
-        end if
+        y0(2) = sign_vpar_htheta*vpar(v, eta, bmod)  ! parallel velocity vpar
         y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
         y0(4) = 0d0         ! perturbed Hamiltonian real part
         y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
@@ -118,13 +115,10 @@ contains
         t2 = taub
 
         call evaluate_bfield_local(bmod, htheta)
+        sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
         y = 1d-15
         y(1) = th0
-        y(2) = vpar(v, eta, bmod)
-        if (eta < etatp) then ! passing direction  ! TODO: Find consistent sign convention
-            sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
-            y(2) = sign_vpar_htheta*y(2)
-        end if
+        y(2) = sign_vpar_htheta*vpar(v, eta, bmod)
         y(3:6) = 0d0
 
         neq = nvar
@@ -163,13 +157,10 @@ contains
         real(8) :: bmod, htheta
 
         call evaluate_bfield_local(bmod, htheta)
+        sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
 
         y0(1) = th0         ! poloidal angle theta
-        y0(2) = vpar(v, eta, bmod)  ! parallel velocity vpar
-        if (eta < etatp) then ! passing direction  ! TODO: Find consistent sign convention
-            sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
-            y0(2) = sign_vpar_htheta*y0(2)
-        end if
+        y0(2) = sign_vpar_htheta*vpar(v, eta, bmod)  ! parallel velocity vpar
 
         if (present(taub_estimate)) then
             taub = taub_estimate
@@ -235,7 +226,7 @@ contains
         atol = 1d-10
         itask = 1
         istate = 1
-        options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=3)
+        options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
 
         ! check for passing orbit
         passing = .false.
@@ -292,9 +283,8 @@ contains
         real(8), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = Y(1) - th0             ! trapped orbit return to starting point
-        GOUT(2) = 2d0*pi - (Y(1) - th0)  ! passing orbit return for positive h^theta
-        GOUT(3) = -GOUT(2)               ! passing orbit return for negative h^theta
+        GOUT(1) = sign_vpar_htheta*(Y(1) - th0) ! trapped orbit return to starting point
+        GOUT(2) = sign_vpar_htheta*(2d0*pi - (Y(1) - th0))  ! passing orbit return
         return
     end subroutine bounceroots
 

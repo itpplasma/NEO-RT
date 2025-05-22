@@ -70,7 +70,7 @@ contains
                 eta = eta_res(1)
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                Omth = abs(Omth)  ! TODO: find consistent sign convention
+                !Omth = abs(Omth)  ! TODO: find consistent sign convention
                 taub = 2d0*pi/abs(Omth)
                 call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2d0)**2
