@@ -15,7 +15,7 @@ program test_bounce_program
     subroutine setup
         use neort, only: init
         use driftorbit, only: do_magfie_init, etamin, etamax, &
-            Om_tE, dOm_tEds, etatp, etadt, epst, sigv, vth, M_t, dM_tds
+            Om_tE, dOm_tEds, etatp, etadt, epst, sign_vpar, vth, M_t, dM_tds
         use do_magfie_mod, only: R0
 
         call setup_control
@@ -27,7 +27,7 @@ program test_bounce_program
 
         etamin = (1+epst)*etatp
         etamax = (1-epst)*etadt
-        sigv = 1
+        sign_vpar = 1
 
         v = vth
         eta = 0.5d0*(etamin + etamax)

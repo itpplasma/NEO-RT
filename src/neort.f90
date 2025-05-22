@@ -70,7 +70,7 @@ contains
         call init_misc
         call init_Om_spl       ! frequencies of trapped orbits
         if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
-        sigv = 1
+        sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
         init_done = .true.
@@ -229,7 +229,7 @@ contains
 
         ! Passing resonance (co-passing)
         if (.not. nopassing) then
-            sigv = 1
+            sign_vpar = 1
             call set_to_passing_region(etamin, etamax)
             call compute_transport_integral(vminp, vmaxp, vsteps, Dresco, Tresco)
             Dco = Dco + Dresco
@@ -238,7 +238,7 @@ contains
 
         ! Passing resonance (counter-passing)
         if (.not. nopassing) then
-            sigv = -1
+            sign_vpar = -1
             call set_to_passing_region(etamin, etamax)
             call compute_transport_integral(vminp, vmaxp, vsteps, Dresctr, Tresctr)
             Dctr = Dctr + Dresctr
@@ -246,7 +246,7 @@ contains
         end if
 
         ! Trapped resonance (trapped)
-        sigv = 1
+        sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         call compute_transport_integral(vmint, vmaxt, vsteps, Drest, Trest)
         Dt = Dt + Drest

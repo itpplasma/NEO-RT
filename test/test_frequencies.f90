@@ -4,7 +4,7 @@ program test_frequencies
   use neort, only: init
   use neort_freq, only: Om_th, Om_ph
   use driftorbit, only: mph, mth, vth, qi, mi, &
-    etadt, etatp, Om_tE, sigv
+    etadt, etatp, Om_tE, sign_vpar
 
   implicit none
 
@@ -36,7 +36,7 @@ program test_frequencies
 
   open(newunit=fid, file='canonical_freqs_vs_eta_t.dat')
   write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] trapped'
-  sigv = 1d0
+  sign_vpar = 1d0
   do i = 1,neta
     eta = etatp + i*(etadt-etatp)/neta
     call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
@@ -47,7 +47,7 @@ program test_frequencies
 
   open(newunit=fid, file='canonical_freqs_vs_eta_pco.dat')
   write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
-  sigv = 1d0
+  sign_vpar = 1d0
   do i = 0,neta-1
     eta = i*etatp/neta
     call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
@@ -58,7 +58,7 @@ program test_frequencies
 
   open(newunit=fid, file='canonical_freqs_vs_eta_pct.dat')
   write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
-  sigv = -1d0
+  sign_vpar = -1d0
   do i = 0,neta-1
     eta = i*etatp/neta
     call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)

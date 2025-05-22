@@ -10,7 +10,8 @@ module neort_transport
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
-        etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt
+        etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt, &
+        sign_vpar_htheta, sign_vpar
 
     implicit none
 
