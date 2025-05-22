@@ -167,10 +167,6 @@ contains
         a = 100*a   ! m -> cm
         R0 = 100*R0 ! m -> cm
 
-        ! psi_pr = dpsi_tor/ds = psi_tor/s is constantly spaced
-        ! psi_tor = psi_pr*s
-        ! A_theta = -sign_theta*psi_tor
-
         psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
