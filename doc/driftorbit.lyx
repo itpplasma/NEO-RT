@@ -1,5 +1,5 @@
-#LyX 2.3 created this file. For more info see http://www.lyx.org/
-\lyxformat 544
+#LyX 2.4 created this file. For more info see https://www.lyx.org/
+\lyxformat 620
 \begin_document
 \begin_header
 \save_transient_properties true
@@ -9,11 +9,11 @@
 \begin_modules
 logicalmkup
 \end_modules
-\maintain_unincluded_children false
+\maintain_unincluded_children no
 \language english
 \language_package default
-\inputencoding auto
-\fontencoding global
+\inputencoding auto-legacy
+\fontencoding auto
 \font_roman "default" "default"
 \font_sans "default" "default"
 \font_typewriter "default" "default"
@@ -21,7 +21,9 @@ logicalmkup
 \font_default_family default
 \use_non_tex_fonts false
 \font_sc false
-\font_osf false
+\font_roman_osf false
+\font_sans_osf false
+\font_typewriter_osf false
 \font_sf_scale 100 100
 \font_tt_scale 100 100
 \use_microtype false
@@ -55,7 +57,9 @@ logicalmkup
 \suppress_date false
 \justification true
 \use_refstyle 1
+\use_formatted_ref 0
 \use_minted 0
+\use_lineno 0
 \index Index
 \shortcut idx
 \color #008000
@@ -71,11 +75,16 @@ logicalmkup
 \papercolumns 1
 \papersides 1
 \paperpagestyle default
+\tablestyle default
 \tracking_changes false
 \output_changes false
+\change_bars false
+\postpone_fragile_content false
 \html_math_output 0
 \html_css_as_file 0
 \html_be_strict false
+\docbook_table_output 0
+\docbook_mathml_prefix 1
 \end_header
 
 \begin_body
@@ -84,7 +93,7 @@ logicalmkup
 
 \lang british
 \begin_inset FormulaMacro
-\newcommand{\non}{}
+\newcommand{\non}{\{\}}
 \end_inset
 
 
@@ -274,12 +283,12 @@ logicalmkup
 
 
 \begin_inset FormulaMacro
-\newcommand{\intpi}{\int\limits _{0}^{2\pi}}
+\newcommand{\intpi}{\int\limits_{0}^{2\pi}}
 \end_inset
 
 
 \begin_inset FormulaMacro
-\newcommand{\summ}{\sum\limits _{m=-\infty}^{\infty}}
+\newcommand{\summ}{\sum\limits_{m=-\infty}^{\infty}}
 \end_inset
 
 
@@ -345,11 +354,14 @@ The main steps of the code are done in
 \family typewriter
 driftorbit_test.f90
 \family default
- as follows: 
+ as follows:
+ 
 \end_layout
 
 \begin_layout Itemize
-Read control file, magnetic field, and profile data
+Read control file,
+ magnetic field,
+ and profile data
 \end_layout
 
 \begin_layout Itemize
@@ -365,7 +377,8 @@ In case
 \family typewriter
 mthnum < 1
 \family default
- is configured, print out profile diagnostics and exit
+ is configured,
+ print out profile diagnostics and exit
 \end_layout
 
 \begin_layout Itemize
@@ -373,13 +386,12 @@ In case
 \family typewriter
 Mtnum < 1
 \family default
- is configured, do some tests with a single bounce harmonic and Mach number
- and exit
+ is configured,
+ do some tests with a single bounce harmonic and Mach number and exit
 \end_layout
 
 \begin_layout Itemize
-Otherwise go to production operation for a single Mach number or some Mach
- number range
+Otherwise go to production operation for a single Mach number or some Mach number range
 \end_layout
 
 \begin_layout Subsection*
@@ -404,11 +416,13 @@ This is for axisymmetric field.
 
 \end_inset
 
-Here, 
+Here,
+ 
 \begin_inset Formula $\oint$
 \end_inset
 
- runs around the trapped orbit for one period, or between 
+ runs around the trapped orbit for one period,
+ or between 
 \begin_inset Formula $\vartheta=0$
 \end_inset
 
@@ -430,11 +444,13 @@ The code calculates bounce averages
 \end_inset
 
  via an ODE integration over bounce orbits.
- The velocity of the poloidal angle during the bounce orbit, 
+ The velocity of the poloidal angle during the bounce orbit,
+ 
 \begin_inset Formula $\vartheta_{{\rm orb}}$
 \end_inset
 
-, is given by
+,
+ is given by
 \begin_inset Formula 
 \begin{equation}
 v^{\vartheta}(\vartheta)=v_{\parallel}h^{\vartheta}
@@ -489,8 +505,7 @@ Note that the signs of
 \begin_inset Formula $v^{\vartheta}$
 \end_inset
 
- always coincide if the integration direction and boundaries represent the
- order in actual time.
+ always coincide if the integration direction and boundaries represent the order in actual time.
  In that case
 \begin_inset Formula 
 \begin{equation}
@@ -509,8 +524,7 @@ Bounce integration of other quantities
 
  in the time step for the ODE solver.
  For bounce averages they are divided by the bounce time.
- Its value and the stopping condition results from a root finding method
- where the angle 
+ Its value and the stopping condition results from a root finding method where the angle 
 \begin_inset Formula $\vartheta$
 \end_inset
 
@@ -560,7 +574,8 @@ Note that
 \begin_inset Formula $v_{\parallel}h^{\vartheta}>0$
 \end_inset
 
-, and 
+,
+ and 
 \begin_inset Formula $\oint d\tht=\int_{0}^{2\pi}=-\int_{\vartheta_{\mathrm{orb}}(0)}^{\vartheta_{\mathrm{orb}}(\tau_{b})}$
 \end_inset
 
@@ -607,7 +622,8 @@ The second canonical (poloidal) frequency
 \end_inset
 
 is the bounce or transit frequency.
- For passing particles, the integral is running between 
+ For passing particles,
+ the integral is running between 
 \begin_inset Formula $\vartheta=0$
 \end_inset
 
@@ -615,22 +631,22 @@ is the bounce or transit frequency.
 \begin_inset Formula $2\pi$
 \end_inset
 
- and for trapped particles back and forth between the turning points (poloidal
- direction 
+ and for trapped particles back and forth between the turning points (poloidal direction 
 \begin_inset Formula $\sigma=\pm1$
 \end_inset
 
 ).
- In practice, the bounce time 
+ In practice,
+ the bounce time 
 \begin_inset Formula $\tau_{b}$
 \end_inset
 
- follows from the ODE orbit integration with root-finding where one full
- turn has ended.
+ follows from the ODE orbit integration with root-finding where one full turn has ended.
 \end_layout
 
 \begin_layout Standard
-For the remaining canonical frequencies, we compute 
+For the remaining canonical frequencies,
+ we compute 
 \lang british
 
 \begin_inset Formula 
@@ -712,7 +728,8 @@ this yields
 \end_layout
 
 \begin_layout Standard
-For trapped particles, the canonical (toroidal rotation) frequency 
+For trapped particles,
+ the canonical (toroidal rotation) frequency 
 \begin_inset Formula $\Omega^{\varphi}$
 \end_inset
 
@@ -737,12 +754,12 @@ The last term with magnetic shear
 \begin_inset Formula $dq/dr$
 \end_inset
 
- does not appear in the standard local neoclassical approach but can be
- important.
+ does not appear in the standard local neoclassical approach but can be important.
 \end_layout
 
 \begin_layout Standard
-For passing particles, an additional term appears and
+For passing particles,
+ an additional term appears and
 \begin_inset Formula 
 \begin{equation}
 \Omega^{\varphi}=q(r_{\varphi})\omega_{b}+\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle _{b}.\label{eq:Om_ph_passing}
@@ -797,8 +814,7 @@ Resonance condition and resonant action and angle
 \end_layout
 
 \begin_layout Standard
-The nonlinear oscillation (superbanana) frequency for a specific pair of
- harmonics is given by
+The nonlinear oscillation (superbanana) frequency for a specific pair of harmonics is given by
 \begin_inset Formula 
 \begin{equation}
 \Omega(\bJ)=m_{k}\Omega^{k}(\bJ)=m_{\vartheta}\Omega^{\vartheta}(\bJ)+m_{\varphi}\Omega^{\varphi}(\bJ).\label{eq:res}
@@ -806,19 +822,22 @@ The nonlinear oscillation (superbanana) frequency for a specific pair of
 
 \end_inset
 
-At a resonance, 
+At a resonance,
+ 
 \begin_inset Formula $\Omega(\bJ)=0$
 \end_inset
 
 .
- For the perturbation theory, we peform a canonical transformation to the
- Galileian frame of the resonance.
- In any case, we have 
+ For the perturbation theory,
+ we peform a canonical transformation to the Galileian frame of the resonance.
+ In any case,
+ we have 
 \begin_inset Formula $m_{\phi}=0$
 \end_inset
 
-, since we treat no cyclotron harmonics - they assumed to be much too fast
- to go in resonance, so we keep the pair 
+,
+ since we treat no cyclotron harmonics - they assumed to be much too fast to go in resonance,
+ so we keep the pair 
 \begin_inset Formula $(J_{1},\theta^{1})=(J_{\perp},\phi)$
 \end_inset
 
@@ -834,7 +853,8 @@ J_{3} & =\frac{m_{\vartheta}J_{\vartheta}+m_{\varphi}J_{\varphi}}{m_{\vartheta}^
 
 Note the difference to the original definition in the thesis of Albert,
  where no orthogonalization is performed.
- Around the resonance, the pair 
+ Around the resonance,
+ the pair 
 \begin_inset Formula $(J,\theta)$
 \end_inset
 
@@ -863,7 +883,8 @@ H_{0}(\bJ)=H_{0}(J_{1},J_{2},J=J_{\mathrm{res}})+\underbrace{\difp[H_{0}(J_{1},J
 
 \end_inset
 
-Here, 
+Here,
+ 
 \begin_inset Formula $J_{\mathrm{res}}=J_{\mathrm{res}}(J_{1},J_{2})$
 \end_inset
 
@@ -878,6 +899,7 @@ reference "eq:res"
 plural "false"
 caps "false"
 noprefix "false"
+nolink "false"
 
 \end_inset
 
@@ -890,8 +912,8 @@ noprefix "false"
 \end_inset
 
 .
- Those actions are adiabatical invariants, so are assumed constant during
- motion and treated as parameters.
+ Those actions are adiabatical invariants,
+ so are assumed constant during motion and treated as parameters.
  The steepness of the resonance is given by the nonlinearity parameter
 \begin_inset Formula 
 \begin{equation}
@@ -918,8 +940,7 @@ mass
 
 .
  This changes with a Hamiltonian perturbation.
- The first-order perturbation depends on the resonant phase plus an action-depen
-dent phase-shift,
+ The first-order perturbation depends on the resonant phase plus an action-dependent phase-shift,
 \begin_inset Formula 
 \[
 H_{1}=H_{\bm}(\bJ)e^{i(m_{\vartheta}\vartheta_{c}+m_{\varphi}\varphi_{c})}=-|H_{\bm}(\bJ)|\cos(\theta).
@@ -931,8 +952,7 @@ Here we chose
 \begin_inset Formula $\theta_{0}(\bJ)$
 \end_inset
 
- to aborb the complex phase and get a cosine term and again assume slow
- changes due to 
+ to aborb the complex phase and get a cosine term and again assume slow changes due to 
 \begin_inset Formula $\bJ$
 \end_inset
 
@@ -941,9 +961,8 @@ Here we chose
 \begin_inset Formula $\bJ$
 \end_inset
 
- in the notation, we obtain leads to the pendulum equation for nonlinear
- resonant oscillations and trapping to second order in the distance to the
- resonance 
+ in the notation,
+ we obtain leads to the pendulum equation for nonlinear resonant oscillations and trapping to second order in the distance to the resonance 
 \begin_inset Formula $\Delta J$
 \end_inset
 
@@ -967,7 +986,8 @@ For a magnetic perturbation
 \begin_inset Formula $\tilde{B}$
 \end_inset
 
-, the corresponding Hamiltonian perturbation is
+,
+ the corresponding Hamiltonian perturbation is
 \end_layout
 
 \begin_layout Standard
@@ -980,8 +1000,8 @@ For a magnetic perturbation
 
 \end_inset
 
-From rotation_05_15 (2.5) we use expressions for the harmonics of the canonical
- angles, 
+From rotation_05_15 (2.5) we use expressions for the harmonics of the canonical angles,
+ 
 \begin_inset Formula $m_{\vartheta}$
 \end_inset
 
@@ -989,25 +1009,25 @@ From rotation_05_15 (2.5) we use expressions for the harmonics of the canonical
 \begin_inset Formula $m_{\varphi}$
 \end_inset
 
- starting from harmonics in Boozer angles, 
+ starting from harmonics in Boozer angles,
+ 
 \begin_inset Formula $m_{0},\,n_{0}$
 \end_inset
 
 .
- Poloidal harmonics are translated via an integral that turns out to be
- of the form of a bounce average
+ Poloidal harmonics are translated via an integral that turns out to be of the form of a bounce average
 \begin_inset Foot
 status open
 
 \begin_layout Plain Layout
-The canonical poloidal angle corresponds to a time variable during the bounce
- orbit
+The canonical poloidal angle corresponds to a time variable during the bounce orbit
 \end_layout
 
 \end_inset
 
 .
- For the toroidal harmonics there is a one-to-one correspondence, 
+ For the toroidal harmonics there is a one-to-one correspondence,
+ 
 \begin_inset Formula $m_{\varphi}=n_{0}$
 \end_inset
 
@@ -1015,7 +1035,8 @@ The canonical poloidal angle corresponds to a time variable during the bounce
 \end_layout
 
 \begin_layout Standard
-For passing particles, we have
+For passing particles,
+ we have
 \end_layout
 
 \begin_layout Standard
@@ -1026,7 +1047,8 @@ For passing particles, we have
 
 \end_inset
 
-For trapped particles, we have
+For trapped particles,
+ we have
 \end_layout
 
 \begin_layout Standard
@@ -1151,7 +1173,7 @@ The particle flux through a flux surface is
 \end_layout
 
 \begin_layout Subsection*
-Diffusion coefficients
+Transport coefficients
 \end_layout
 
 \begin_layout Standard
@@ -1195,7 +1217,8 @@ Comparing the coefficients of
 \begin_inset Formula $A_{i}$
 \end_inset
 
-, we have
+,
+ we have
 \begin_inset Formula 
 \begin{align*}
 D_{11} & =\frac{1}{n\left\langle |\nabla r|\right\rangle ^{2}}\frac{1}{m\omega_{c}\sqrt{g}h^{\vartheta}}\mathcal{\mathcal{F}}_{S}^{r}\left[f_{0}\right]=:\mathcal{\mathcal{F}}_{D}\left[f_{0}\right]\\
@@ -1228,7 +1251,8 @@ The toroidal canonical frequency is
 
 \end_inset
 
-For drift-orbit resonances, we neglect magnetic drift and use
+For drift-orbit resonances,
+ we neglect magnetic drift and use
 \begin_inset Formula 
 \begin{align*}
 \Omega^{\varphi} & =qv\bar{\omega}_{b}\delta_{t-p}+\Omega_{tE}^{c}.
@@ -1264,7 +1288,8 @@ For
 \begin_inset Formula $\bar{\omega}_{b}(\eta)$
 \end_inset
 
- we assume, that it takes a minimum 
+ we assume,
+ that it takes a minimum 
 \begin_inset Formula $\bar{\omega}_{b}=0$
 \end_inset
 
@@ -1281,11 +1306,13 @@ For
 \end_inset
 
 .
- The whole expression has to be positive, so for positive 
+ The whole expression has to be positive,
+ so for positive 
 \begin_inset Formula $n\Omega_{tE}^{c}$
 \end_inset
 
-, we consider poloidal canonical modes
+,
+ we consider poloidal canonical modes
 \begin_inset Formula 
 \begin{align*}
 m_{\vartheta} & <-nq\delta_{t-p}
@@ -1309,9 +1336,9 @@ always excluding
 \begin_inset Formula $m_{\vartheta}=0$
 \end_inset
 
- which corresponds to the superbanana resonance, which is treated individually.
- The corners for the bounding box of the resonance line of trapped particles
- are
+ which corresponds to the superbanana resonance,
+ which is treated individually.
+ The corners for the bounding box of the resonance line of trapped particles are
 \begin_inset Formula 
 \begin{align*}
 v_{min,t} & \,|\,\eta_{max,t}=\eta_{dt}-\delta_{dt},\\
@@ -1320,11 +1347,13 @@ v_{max,t} & \,|\,\eta_{min,t}=\eta_{tp}+\delta_{tp}.
 
 \end_inset
 
-For passing particles, the slope of 
+For passing particles,
+ the slope of 
 \begin_inset Formula $\omega_{b}$
 \end_inset
 
- is inverted, so
+ is inverted,
+ so
 \begin_inset Formula 
 \begin{align*}
 v_{min,p} & \,|\,\eta_{min,p}=\delta_{0},\\
@@ -1349,10 +1378,9 @@ I=\int dvd\eta h(v,\eta)\delta(G(v,\eta)).
 
 \end_inset
 
-According to the Bachelor thesis of Lukas Grabenwarter, we pertorm a variable
- transformation.
- We first normalise the domain to a square in the range where we would like
- to find the resonance line with
+According to the Bachelor thesis of Lukas Grabenwarter,
+ we pertorm a variable transformation.
+ We first normalise the domain to a square in the range where we would like to find the resonance line with
 \begin_inset Formula 
 \begin{align*}
 \bar{v} & =\frac{v-v_{min}}{v_{max}-v_{min}},\\
@@ -1426,8 +1454,7 @@ The transformed integral is
 
 \end_inset
 
-We evaluate the integral by solving the system of ordinary differential
- equations
+We evaluate the integral by solving the system of ordinary differential equations
 \begin_inset Formula 
 \begin{align*}
 \frac{d\bar{v}}{ds} & =\frac{1}{|\nabla G|}\frac{\partial G}{\partial\bar{\eta}},\\
@@ -1437,16 +1464,19 @@ We evaluate the integral by solving the system of ordinary differential
 
 \end_inset
 
-In our case, the delta contains the resonance condition 
+In our case,
+ the delta contains the resonance condition 
 \begin_inset CommandInset ref
 LatexCommand eqref
 reference "eq:G"
+nolink "false"
 
 \end_inset
 
 .
  One has to take care of integrating in the right direction.
- In our case, we keep 
+ In our case,
+ we keep 
 \begin_inset Formula $dv/ds$
 \end_inset
 
@@ -1538,8 +1568,8 @@ Large aspect ratio (Shaing)
 \end_layout
 
 \begin_layout Standard
-[TODO: is this still needed or inclueded in other parts?] The resonance
- function is a normalised drift frequency,
+[TODO:
+ is this still needed or inclueded in other parts?] The resonance function is a normalised drift frequency,
 \begin_inset Formula 
 \begin{align*}
 g(\kappa) & =\Omega_{tE}\frac{e\iota}{mc}\frac{2}{v^{2}\varepsilon^{\prime}}-\left[2\frac{E(\kappa)}{K(\kappa)}-1\right].
@@ -1567,8 +1597,8 @@ Large aspect ratio limit
 \end_layout
 
 \begin_layout Standard
-According to Shaing, we calculate the large aspect ratio limit using Hamada
- coordinates 
+According to Shaing,
+ we calculate the large aspect ratio limit using Hamada coordinates 
 \begin_inset Formula $(V,\tht,\ph)$
 \end_inset
 
@@ -1690,8 +1720,7 @@ for trapped and by
 \end_inset
 
 for passing particles.
- The integral is only performed over half of the trapped orbit in the first
- expression.
+ The integral is only performed over half of the trapped orbit in the first expression.
 \end_layout
 
 \begin_layout Subsection*
@@ -1724,7 +1753,8 @@ Variables are
 \begin_inset Formula $(J_{\perp},H,p_{\ph})$
 \end_inset
 
- here, where we can replace derivatives w.r.t.
+ here,
+ where we can replace derivatives w.r.t.
  
 \begin_inset Formula $p_{\ph}$
 \end_inset
@@ -1791,8 +1821,7 @@ Canonical angles
 \end_layout
 
 \begin_layout Standard
-The canonical poloidal angle in the Hamiltonian formalism is the bounce
- phase
+The canonical poloidal angle in the Hamiltonian formalism is the bounce phase
 \begin_inset Formula 
 \begin{align*}
 \theta^{2} & =\omega_{b}\tau=2\pi\frac{\tau}{\tau_{b}}
@@ -1861,7 +1890,8 @@ for the bounce back with
 \begin_inset Formula $\tht>\vartheta^{-}$
 \end_inset
 
-, and
+,
+ and
 \begin_inset Formula 
 \begin{align*}
 \theta^{2} & =\pi+\frac{\pi}{2\kappa K(\kappa)}F\left(\frac{\vartheta}{2},\frac{1}{\kappa}\right)
@@ -1878,7 +1908,8 @@ for the last quarter-bounce
 \end_inset
 
 .
- Alternatively, to have 
+ Alternatively,
+ to have 
 \begin_inset Formula $\theta^{2}$
 \end_inset
 
@@ -1894,7 +1925,8 @@ for the last quarter-bounce
 \begin_inset Formula $\vartheta_{0}=\vartheta^{-}$
 \end_inset
 
-), we take
+),
+ we take
 \begin_inset Formula 
 \begin{align*}
 \theta^{2} & =\frac{\pi}{2\kappa K(\kappa)}F\left(\frac{\vartheta}{2},\frac{1}{\kappa}\right)
@@ -1922,7 +1954,8 @@ for the way back with
 \end_layout
 
 \begin_layout Standard
-For passing particles, the canonical angle is given by
+For passing particles,
+ the canonical angle is given by
 \begin_inset Formula 
 \begin{align*}
 \theta^{2} & =\frac{\pi}{K(1/\kappa)}F\left(\frac{\vartheta}{2},\frac{1}{\kappa}\right).
@@ -1942,7 +1975,8 @@ Superbanana plateau
 \end_layout
 
 \begin_layout Standard
-For the superbanana plateau, we use 
+For the superbanana plateau,
+ we use 
 \begin_inset Formula $m_{\vartheta}=0$
 \end_inset
 
@@ -1952,7 +1986,8 @@ For the superbanana plateau, we use
 \begin_inset Formula $B_{{\rm min}}\approx B_{{\rm max}}$
 \end_inset
 
-, so most of their kinetic energy lies in the magnetic moment,
+,
+ so most of their kinetic energy lies in the magnetic moment,
 \begin_inset Formula 
 \begin{align*}
 \frac{mv^{2}}{2} & \approx\mu B_{0}(\tht).
@@ -1977,12 +2012,15 @@ B_{n}(\tht) & =-B_{a}\varepsilon_{n}(\tht)e^{in\ph_{0}}=-B_{a}\varepsilon_{n}(\t
 
 \end_inset
 
-[TODO: Could it be, that the signs are swapped somewhere? We would like
- 
+[TODO:
+ Could it be,
+ that the signs are swapped somewhere?
+ We would like 
 \begin_inset Formula $e^{inq\tht}$
 \end_inset
 
- to cancel, not to become twice the frequency.
+ to cancel,
+ not to become twice the frequency.
  In this case:] The Hamiltonian perturbation follows as
 \begin_inset Formula 
 \begin{align*}
@@ -1999,8 +2037,8 @@ Using the notation of Shaing,
 
 \end_inset
 
-The toroidal drift frequency, neglecting curvature drift and magnetic shear
- is
+The toroidal drift frequency,
+ neglecting curvature drift and magnetic shear is
 \begin_inset Formula 
 \begin{align*}
 \Omega^{3} & =\Omega_{tE}+\left\langle \Omega_{tB}\right\rangle _{b}\\
@@ -2219,8 +2257,8 @@ Integral along the resonance line by Grabenwarter Method.
  
 \series bold
 \size normal
-2015-09-17: Still some discrepancies when using small amount of points at
- ODE integration -> interpolation at root finding?
+2015-09-17:
+ Still some discrepancies when using small amount of points at ODE integration -> interpolation at root finding?
 \end_layout
 
 \begin_layout Subsection*

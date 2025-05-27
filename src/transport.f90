@@ -24,8 +24,7 @@ contains
         real(8), intent(in) :: ux, taub, Hmn2
 
         D11int = pi**(3d0/2d0)*mph**2*c**2*q*vth &
-                 /(qi**2*dVds*sign_theta*psi_pr)*ux**3*exp(-ux**2) &
-                 *taub*Hmn2
+                 /(qi**2*dVds*abs(psi_pr))*ux**3*exp(-ux**2)*taub*Hmn2
     end function D11int
 
     pure function D12int(ux, taub, Hmn2)
@@ -39,8 +38,8 @@ contains
         real(8) :: Tphi_int
         real(8), intent(in) :: ux, taub, Hmn2
 
-        Tphi_int = -pi**(3d0/2d0)*mph**2*ni1*c*vth/qi*ux**3*exp(-ux**2)*taub &
-                   *Hmn2*(A1 + A2*ux**2)
+        Tphi_int = sign(1d0, psi_pr*q*sign_theta)*pi**(3d0/2d0)*mph**2*ni1*c*vth/qi &
+                   *ux**3*exp(-ux**2)*taub*Hmn2*(A1 + A2*ux**2)
     end function Tphi_int
 
     subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
