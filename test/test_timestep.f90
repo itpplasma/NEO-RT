@@ -1,4 +1,4 @@
-program test_timestep 
+program test_timestep
     use util_for_test, only: print_test, pass_test, fail_test
     implicit none
 
@@ -11,5 +11,5 @@ contains
 
         call fail_test()
     end subroutine test_timestep_thin
-    
+
 end program test_timestep
