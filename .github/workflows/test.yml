@@ -25,20 +25,7 @@ jobs:
         ls
     - name: Install build dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential gfortran cmake ninja-build python3-numpy
-        sudo apt-get install -y libblas-dev liblapack-dev libsuitesparse-dev libsuperlu-dev
-
-    - name: Install custom dependencies
-      run: |
-        cd ..
-        git clone https://github.com/itpplasma/spline
-        git clone https://github.com/itpplasma/BOOZER_MAGFIE
-        mkdir contrib
-        cd contrib
-        git clone https://github.com/itpplasma/quadpack
-        git clone https://github.com/itpplasma/vode
-        cd ../NEO-RT
+        make deps
 
     - name: Build code
       run: |
@@ -46,5 +33,4 @@ jobs:
 
     - name: Run tests
       run: |
-        cd test/ripple_plateau
-        python3 test_ripple_plateau.py
+        make test

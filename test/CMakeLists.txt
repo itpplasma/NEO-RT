@@ -1,19 +1,10 @@
-add_executable(test_frequencies.x test_frequencies.f90)
-target_link_libraries(test_frequencies.x neo_rt)
+file(GLOB TEST_SOURCES "test_*.f90")
+foreach(test_src ${TEST_SOURCES})
+    get_filename_component(test_name ${test_src} NAME_WE)
+    add_executable(${test_name}.x ${test_src})
+    target_link_libraries(${test_name}.x neo_rt util_for_test)
+endforeach()
 
-add_executable(test_reslines.x test_reslines.f90)
-target_link_libraries(test_reslines.x neo_rt)
-
-add_executable(test_bounce.x test_bounce.f90)
-target_link_libraries(test_bounce.x neo_rt)
-
-add_executable(test_torque.x test_torque.f90)
-target_link_libraries(test_torque.x neo_rt)
-
-add_executable(test_misc.x test_misc.f90)
-target_link_libraries(test_misc.x neo_rt)
-
-if(USE_STANDALONE)
-    add_executable(test_omega_prime.x test_omega_prime.f90)
-    target_link_libraries(test_omega_prime.x neo_rt)
-endif()
+add_test(NAME test_timestep
+         COMMAND test_timestep.x
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

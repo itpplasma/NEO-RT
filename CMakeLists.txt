@@ -44,7 +44,6 @@ endif()
 
 include(Util)
 
-find_or_fetch(NEO-2)
 find_or_fetch(spline)
 find_or_fetch(vode)
 
@@ -104,8 +103,9 @@ if(USE_STANDALONE)
     ${NEO_RT_SOURCES}
     src/do_magfie_standalone.f90
   )
+  add_library(util_for_test STATIC test/util_for_test.f90)
 else()
-
+  find_or_fetch(NEO-2)
   add_library("neo_rt" STATIC
     ${NEO_RT_SOURCES}
     src/do_magfie_neo.f90
@@ -134,7 +134,7 @@ target_link_libraries(neo_rt PUBLIC
   LAPACK::LAPACK
 )
 
-target_link_libraries(${PROJECT_EXE_NAME} neo_rt neo2_ql)
+target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 
 
 add_subdirectory(test)
