@@ -12,8 +12,13 @@ module util_for_test
         call print_ok
     end subroutine pass_test
 
-    subroutine fail_test
+    subroutine fail_test(message)
+        character(*), intent(in), optional :: message
+
         call print_fail
+        if (present(message)) then
+            print *, "    ERROR: ", message
+        end if
         error stop
     end subroutine fail_test
 
