@@ -1,6 +1,14 @@
 # NEO-RT
 Calculates NTV torque in resonant transport regimes using a Hamiltonian approach
 
+## Dependencies
+NEO-RT requires the GNU Fortran compiler, make, cmake, ninja, Python with NumPy, 
+BLAS/LAPACK, SuiteSparse, NetCDF. On Debian/Ubuntu they will be installed as `sudo`
+via
+```bash
+make deps
+```
+
 ## Building
 Inside the NEO-RT folder run
 ```bash
