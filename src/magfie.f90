@@ -39,13 +39,14 @@ contains
             B0 = B0 + bmod*dth
             eps = eps - cos(x(3))*bmod*dth
 
-            ! TODO: do fine search
             if ((Bmin < 0) .or. (bmod < Bmin)) then
                 Bmin = bmod
                 th0 = x(3)
             end if
             if (bmod > Bmax) Bmax = bmod
         end do
+
+        ! TODO: do fine search for Bmin and Bmax
 
         dVds = 2d0*pi*dVds
         B0 = B0/(2d0*pi)

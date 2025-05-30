@@ -26,7 +26,7 @@ module do_magfie_mod
 
     integer :: ncol1, ncol2 ! number of columns in input file
 
-    integer :: inp_swi ! type of input file
+    integer :: inp_swi = -1 ! type of input file
 contains
 
     subroutine do_magfie_init
