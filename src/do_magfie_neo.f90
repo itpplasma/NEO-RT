@@ -99,9 +99,56 @@ contains
         mph = m_phi
     end subroutine do_magfie_pert_init
 
-    subroutine do_magfie_pert_amp(x, bamp)
-        real(8) :: x(3)
-        complex(8) :: bamp
-        call neo_magfie_pert_amp(x, bamp)
-    end subroutine do_magfie_pert_amp
+    !
+  ! Compute the perturbation field amplitude
+  ! for constant toroidal modenumber n = ixm_pert(1)
+  SUBROUTINE neo_magfie_pert_amp( x, bn_hat_pert )
+    !
+    ! input / output
+    !
+    REAL(8), DIMENSION(:), INTENT(in) :: x
+    COMPLEX(8), INTENT(out) :: bn_hat_pert
+    !
+    ! local definitions
+    !
+    COMPLEX(8), PARAMETER :: imun=(0.0_dp,1.0_dp)
+    INTEGER :: swd
+    INTEGER :: i, m
+    REAL(8) :: yp, ypp, yppp
+    REAL(8) :: bmnc_pert_val, bmns_pert_val
+    COMPLEX(8) :: expv
+    !
+    ! read Boozer file and prepare spline routines (1st call)
+    !
+    IF (.NOT. ALLOCATED(es_pert)) THEN
+       CALL neo_read_pert()
+       CALL neo_init_spline_pert()
+    END IF
+
+    bn_hat_pert = (0.0_dp,0.0_dp)
+    DO i = 1, mnmax_pert
+       swd = 1
+       CALL splint_horner3(es_pert, a_bmnc_pert(:,i), b_bmnc_pert(:,i),&
+            c_bmnc_pert(:,i), d_bmnc_pert(:,i), swd, r_mhalf_pert(i),&
+            x(1), tf, tfp, tfpp, tfppp, bmnc_pert_val, yp, ypp, yppp)
+
+       ! Additional data from Boozer files without Stellarator symmetry
+       IF (inp_swi .EQ. 9) THEN ! ASDEX-U (E. Strumberger)
+          CALL splint_horner3(es_pert, a_bmns_pert(:,i), b_bmns_pert(:,i),&
+               c_bmns_pert(:,i), d_bmns_pert(:,i), swd, r_mhalf_pert(i),&
+               x(1), tf, tfp, tfpp, tfppp, bmns_pert_val, yp, ypp, yppp)
+       END IF
+
+       IF (inp_swi .EQ. 8) THEN ! NEW IPP TOKAMAK
+          m = (-1)*ixm_pert(i)
+             expv = EXP(imun*m*x(3))
+             bn_hat_pert = bn_hat_pert + bmnc_pert_val * expv
+       ELSEIF (inp_swi .EQ. 9) THEN ! ASDEX-U (E. Strumberger)
+             expv = EXP(imun*m*x(3))
+             bn_hat_pert = bn_hat_pert + (bmnc_pert_val-imun*bmns_pert_val)*expv
+       END IF
+
+    END DO
+    bn_hat_pert = bn_hat_pert / bmod0
+  END SUBROUTINE neo_magfie_pert_amp
 end module do_magfie_pert_mod
