@@ -8,3 +8,8 @@ endforeach()
 add_test(NAME test_timestep
          COMMAND test_timestep.x
          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# Test for POTATO frequencies (now always available with runtime dispatch)
+add_test(NAME test_potato_frequencies
+         COMMAND test_potato_frequencies.x
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
