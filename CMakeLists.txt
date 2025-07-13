@@ -90,6 +90,7 @@ set(NEO_RT_SOURCES
   src/driftorbit.f90
   src/freq.f90
   src/orbit.f90
+  src/orbit_types.f90
   src/resonance.f90
   src/nonlin.f90
   src/transport.f90
