@@ -6,51 +6,61 @@ Extend NEO-RT main code to support full guiding-center (thick) orbit calculation
 ## Phase 1: Interface Compatibility Layer (TDD Foundation)
 
 ### 1.1 Create Thick Orbit Abstract Interface
-- [ ] Write failing test for thick orbit interface in `test/test_thick_orbit_interface.f90`
-- [ ] Create abstract orbit type `orbit_type_t` in new `src/orbit_types.f90` module
-- [ ] Define common interface for bounce calculations: `calculate_bounce_time()`, `calculate_frequencies()`
-- [ ] Implement thin orbit wrapper using existing `bounce()` routine
-- [ ] Write basic integration test comparing thin orbit wrapper to direct calls
+- [x] Write failing test for thick orbit interface in `test/test_thick_orbit_interface.f90`
+- [x] Create abstract orbit type `orbit_type_t` in new `src/orbit_types.f90` module
+- [x] Define common interface for bounce calculations: `calculate_bounce_time()`, `calculate_frequencies()`
+- [x] Implement thin orbit wrapper using existing `bounce()` routine
+- [x] Write basic integration test comparing thin orbit wrapper to direct calls
 
 ### 1.2 Magnetic Field Interface Extension  
-- [ ] Write failing test for thick orbit magnetic field interface in `test/test_magfie_thick.f90`
-- [ ] Create `magfie_thick_mod` module in `src/magfie_thick.f90`
-- [ ] Implement finite gyroradius magnetic field evaluation
-- [ ] Add gyroradius calculation routines from POTATO's approach
-- [ ] Test magnetic field continuity as gyroradius → 0
+- [x] Write failing test for thick orbit magnetic field interface in `test/test_magfie_thick.f90`
+- [x] Create `magfie_thick_mod` module in `src/magfie_thick.f90`
+- [x] ~~Implement finite gyroradius magnetic field evaluation~~ (REVISED: Not needed - POTATO uses standard magnetic field)
+- [x] ~~Add gyroradius calculation routines from POTATO's approach~~ (REVISED: Thick orbit effects come from guiding-center equations)
+- [x] Test magnetic field interface availability and basic functionality
+
+**NOTE**: Phase 1.2 was initially misguided. POTATO doesn't modify the magnetic field interface - it uses the standard magnetic field but integrates full guiding-center equations of motion to naturally include finite Larmor radius effects.
 
 ### 1.3 Build System Integration
-- [ ] Write failing test for CMake thick orbit option in `test/test_build_thick_orbits.cmake`
-- [ ] Add `USE_THICK_ORBITS` CMake option to `CMakeLists.txt`
-- [ ] Create conditional compilation flags for thick orbit modules
+- [x] Write failing test for CMake thick orbit option in `test/test_build_thick_orbits.cmake`
+- [x] Add `USE_THICK_ORBITS` CMake option to `CMakeLists.txt`
+- [x] Create conditional compilation flags for thick orbit modules
 - [ ] Integrate POTATO source files into build when thick orbits enabled
-- [ ] Test build works with both thick orbit modes (ON/OFF)
+- [x] Test build works with both thick orbit modes (ON/OFF)
 
-## Phase 2: POTATO Integration (Core Functionality)
+## Phase 2: POTATO Integration (Direct Interface)
 
-### 2.1 Orbit Integration Enhancement
-- [ ] Write failing test for POTATO-style bounce integration in `test/test_potato_bounce.f90`
-- [ ] Port POTATO's `find_bounce()` routine to `src/orbit_thick.f90`
-- [ ] Implement `bounce_thick()` function with same interface as `bounce()`
-- [ ] Add support for 5D guiding-center equations: (R, φ, Z, p, λ)
-- [ ] Implement adaptive ODE integration with exact bounce detection
-- [ ] Test bounce time accuracy for simple magnetic configurations
+**REVISED APPROACH**: Instead of porting POTATO code, create direct interface layer around existing POTATO functionality and add POTATO sources to CMake build system.
 
-### 2.2 Velocity Field Implementation
-- [ ] Write failing test for guiding-center velocity in `test/test_gc_velocity.f90`
-- [ ] Port POTATO's `velo()` routines to `src/velocity_gc.f90`
-- [ ] Implement complete magnetic drift calculations (grad-B, curvature, E×B)
-- [ ] Add relativistic corrections through gamma factor
-- [ ] Handle both trapped and passing particle orbits uniformly
-- [ ] Test velocity field conservation properties
+### 2.1 POTATO Source Integration  
+- [ ] Write failing test for POTATO source availability in `test/test_potato_sources.f90`
+- [ ] Add POTATO sources to CMake when `USE_THICK_ORBITS=ON`
+- [ ] Create conditional build for `POTATO/SRC/*.f90` files
+- [ ] Add POTATO include directories and dependencies
+- [ ] Test POTATO library builds successfully with NEO-RT
 
-### 2.3 Frequency Calculation Extension
-- [ ] Write failing test for thick orbit frequencies in `test/test_frequencies_thick.f90`
-- [ ] Create `freq_thick.f90` module extending `freq.f90` interface
-- [ ] Implement `Om_th_thick()` and `Om_ph_thick()` functions
-- [ ] Add direct frequency calculation from orbit integration
-- [ ] Maintain spline interface compatibility for performance
-- [ ] Test frequency calculation accuracy vs POTATO reference
+### 2.2 POTATO Interface Layer
+- [ ] Write failing test for POTATO interface in `test/test_potato_interface.f90` 
+- [ ] Create `src/potato_interface.f90` wrapper module
+- [ ] Implement `thick_orbit_type_t` that calls POTATO's `find_bounce()` directly
+- [ ] Add interface to POTATO's `velo()` for guiding-center velocity field
+- [ ] Map POTATO's 5D phase space (R, φ, Z, p, λ) to NEO-RT variables
+- [ ] Test interface correctly calls POTATO routines
+
+### 2.3 Orbit Integration via POTATO
+- [ ] Write failing test for POTATO bounce in `test/test_potato_bounce.f90`
+- [ ] Implement `bounce_thick()` that calls POTATO's `find_bounce()` 
+- [ ] Use POTATO's existing VODE integration with guiding-center equations
+- [ ] Handle POTATO's bounce time calculation and orbit closure detection
+- [ ] Convert POTATO output to NEO-RT bounce averaging format
+- [ ] Test thick orbit bounce times vs reference values
+
+### 2.4 Frequency Calculation via POTATO  
+- [ ] Write failing test for POTATO frequencies in `test/test_potato_frequencies.f90`
+- [ ] Interface to POTATO's canonical frequency calculations
+- [ ] Use POTATO's `taub` and `delphi` to compute `omega_b` and `omega_phi`
+- [ ] Implement frequency caching/spline interface for performance
+- [ ] Test frequency accuracy vs POTATO standalone runs
 
 ## Phase 3: Automated Testing Framework (Validation)
 
@@ -166,22 +176,23 @@ end subroutine
 ## Expected Outcomes
 
 ### Physics Improvements
-1. **Accurate thick orbit physics** for large gyroradius regimes
-2. **Enhanced resonance calculations** with exact orbit dynamics  
-3. **Unified orbit framework** supporting thin and thick calculations
-4. **Validated frequency calculations** with automated testing
+1. **Accurate thick orbit physics** via direct POTATO integration
+2. **Enhanced resonance calculations** using POTATO's exact guiding-center dynamics  
+3. **Unified orbit framework** supporting thin (NEO-RT) and thick (POTATO) calculations
+4. **Validated frequency calculations** with automated testing against POTATO reference
 
 ### Code Architecture Benefits
-1. **Modular design** allowing easy orbit method selection
+1. **Modular design** with interface layer allowing seamless orbit method selection
 2. **Backward compatibility** with all existing thin orbit functionality
-3. **Performance options** from fast thin to accurate thick orbits
-4. **Extensible framework** for future orbit enhancement
+3. **Performance options** from fast thin to accurate thick orbits via runtime selection
+4. **Direct POTATO integration** avoiding code duplication and maintenance burden
 
-### Integration Timeline
-- **Phase 1-2**: 4-6 weeks (core functionality)
-- **Phase 3**: 2-3 weeks (testing framework) 
-- **Phase 4**: 3-4 weeks (advanced physics)
-- **Phase 5**: 2 weeks (integration and documentation)
-- **Total**: 11-15 weeks for complete thick orbit integration
+### Revised Integration Timeline
+- **Phase 1**: ✅ **COMPLETE** - Interface compatibility layer (3 phases)
+- **Phase 2**: 2-3 weeks (POTATO source integration and interface layer)
+- **Phase 3**: 2-3 weeks (automated testing framework) 
+- **Phase 4**: 2-3 weeks (advanced physics validation)
+- **Phase 5**: 1-2 weeks (configuration and documentation)
+- **Total**: 7-11 weeks for complete POTATO integration
 
-This plan ensures robust, tested integration of POTATO-style thick orbit functionality while maintaining the reliability and performance of existing NEO-RT thin orbit calculations.
+**Key Insight**: Direct POTATO integration is more efficient than porting, leveraging existing tested POTATO functionality while providing clean interface for NEO-RT integration.
