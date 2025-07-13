@@ -59,8 +59,24 @@ Extend NEO-RT main code to support full guiding-center (thick) orbit calculation
 - [ ] Write failing test for POTATO frequencies in `test/test_potato_frequencies.f90`
 - [ ] Interface to POTATO's canonical frequency calculations
 - [ ] Use POTATO's `taub` and `delphi` to compute `omega_b` and `omega_phi`
-- [ ] Implement frequency caching/spline interface for performance
+- [ ] **CRITICAL**: Abandon spline-based frequency optimization for thick orbits
+- [ ] Always use direct bounce integration for thick orbit frequency calculations
 - [ ] Test frequency accuracy vs POTATO standalone runs
+
+**⚠️ IMPORTANT LIMITATION: Spline Scaling Invalid for Thick Orbits**
+
+The current NEO-RT frequency optimization using splines assumes thin orbit scaling with velocity `v`, which breaks down for finite orbit width (thick orbits). Key impacts:
+
+1. **Velocity Scaling Breakdown**: Current `freq.f90` splines assume frequencies scale predictably with particle velocity, but thick orbits have complex velocity-dependent drift physics
+2. **Finite Orbit Width Effects**: Thick orbits sample different magnetic field regions, invalidating simple scaling relationships
+3. **Performance vs Accuracy Trade-off**: Must use direct POTATO bounce integration for each (v,eta) point instead of spline interpolation
+4. **No Frequency Splines for Thick Orbits**: Unlike thin orbits, thick orbit frequencies cannot be pre-computed and interpolated
+
+**Consequences**:
+- Thick orbit calculations will be computationally more expensive than thin orbits
+- Need direct integration for every orbit in thick orbit mode
+- Frequency calculations must call POTATO's `find_bounce()` for each evaluation
+- Cannot leverage existing `freq.f90` spline optimization infrastructure for thick orbits
 
 ## Phase 3: Automated Testing Framework (Validation)
 
@@ -71,6 +87,8 @@ Extend NEO-RT main code to support full guiding-center (thick) orbit calculation
 - [ ] Test across full pitch angle range: trapped and passing particles
 - [ ] Validate convergence: thick → thin as gyroradius → 0
 - [ ] Create automated tolerance checking with relative error thresholds
+- [ ] **Performance benchmarking**: Document computational cost increase for thick orbits vs thin orbits
+- [ ] **Scaling studies**: Verify thick orbit frequencies show non-trivial velocity dependence that breaks spline scaling
 
 ### 3.2 Physics Validation Suite
 - [ ] Write test for orbit closure in `test/test_orbit_closure.f90`
@@ -189,10 +207,14 @@ end subroutine
 
 ### Revised Integration Timeline
 - **Phase 1**: ✅ **COMPLETE** - Interface compatibility layer (3 phases)
-- **Phase 2**: 2-3 weeks (POTATO source integration and interface layer)
+- **Phase 2**: ✅ **2.1 COMPLETE** - POTATO interface foundation; 2-3 weeks remaining (actual POTATO integration)
 - **Phase 3**: 2-3 weeks (automated testing framework) 
 - **Phase 4**: 2-3 weeks (advanced physics validation)
 - **Phase 5**: 1-2 weeks (configuration and documentation)
-- **Total**: 7-11 weeks for complete POTATO integration
+- **Total**: 6-10 weeks remaining for complete POTATO integration
 
-**Key Insight**: Direct POTATO integration is more efficient than porting, leveraging existing tested POTATO functionality while providing clean interface for NEO-RT integration.
+**Key Insights**: 
+1. **Direct POTATO integration** is more efficient than porting, leveraging existing tested POTATO functionality
+2. **No spline optimization for thick orbits** due to finite orbit width breaking velocity scaling assumptions
+3. **Performance trade-off**: Thick orbits will be computationally expensive but physically accurate
+4. **Clean interface design** allows seamless switching between thin (fast) and thick (accurate) orbit calculations
