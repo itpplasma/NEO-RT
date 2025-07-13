@@ -86,6 +86,7 @@ set(NEO_RT_SOURCES
   src/polylag_3.f
   src/util.f90
   src/magfie.f90
+  src/magfie_thick.f90
   src/profiles.f90
   src/driftorbit.f90
   src/freq.f90
