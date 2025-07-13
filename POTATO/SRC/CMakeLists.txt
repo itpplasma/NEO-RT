@@ -33,7 +33,10 @@ add_library(potato_base
   eqmagprofs.f90
   box_counting.f90
 )
-find_or_fetch(vode)
+# Use VODE from parent project if available, otherwise fetch
+if(NOT TARGET vode)
+  find_or_fetch(vode)
+endif()
 target_link_libraries(potato_base PUBLIC vode)
 
 add_library(potato

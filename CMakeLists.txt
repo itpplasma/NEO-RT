@@ -92,6 +92,7 @@ set(NEO_RT_SOURCES
   src/freq.f90
   src/orbit.f90
   src/orbit_types.f90
+  src/potato_interface.f90
   src/resonance.f90
   src/nonlin.f90
   src/transport.f90
@@ -124,8 +125,11 @@ endif()
 if(USE_THICK_ORBITS)
   message(STATUS "Thick orbit functionality enabled")
   target_compile_definitions(neo_rt PUBLIC USE_THICK_ORBITS)
-  # Future: Add POTATO library integration here
-  # target_link_libraries(neo_rt PUBLIC potato_lib)
+  
+  # TODO: Add POTATO integration once build issues resolved
+  # add_subdirectory(POTATO/SRC)
+  # target_link_libraries(neo_rt PUBLIC potato_base)
+  # target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/POTATO/SRC")
 else()
   message(STATUS "Thick orbit functionality disabled (using thin orbits only)")
 endif()
