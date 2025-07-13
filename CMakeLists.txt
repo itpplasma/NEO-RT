@@ -99,6 +99,7 @@ set(NEO_RT_SOURCES
 )
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
+option(USE_THICK_ORBITS "Enable thick orbit functionality with POTATO integration" OFF)
 
 if(USE_STANDALONE)
   add_library("neo_rt" STATIC
@@ -117,6 +118,16 @@ else()
   target_link_libraries(neo_rt PUBLIC
     neo2_ql
   )
+endif()
+
+# Conditional thick orbit support
+if(USE_THICK_ORBITS)
+  message(STATUS "Thick orbit functionality enabled")
+  target_compile_definitions(neo_rt PUBLIC USE_THICK_ORBITS)
+  # Future: Add POTATO library integration here
+  # target_link_libraries(neo_rt PUBLIC potato_lib)
+else()
+  message(STATUS "Thick orbit functionality disabled (using thin orbits only)")
 endif()
 
 add_dependencies(neo_rt spline)
