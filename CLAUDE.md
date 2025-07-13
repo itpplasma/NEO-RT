@@ -230,3 +230,8 @@ endif
   - Fortran requires this strict ordering
 - Use double precision (`real(8)`) for all floating-point calculations - **REQUIRED**
 - **cd COMMAND IS FORBIDDEN** - Never use `cd` in bash commands. Use absolute paths instead. - **MANDATORY**
+
+## Code Development Memories
+
+### POTATO Code Integration
+- The POTATO code is distinct now and independent from the remaining code. I want to enable thick orbits like in POTATO also in the main code.
