@@ -47,6 +47,14 @@ include(Util)
 find_or_fetch(spline)
 find_or_fetch(vode)
 
+# Fetch fortplotlib from krystophny's repository
+FetchContent_Declare(
+    fortplotlib
+    GIT_REPOSITORY https://github.com/krystophny/fortplotlib
+    GIT_TAG main
+)
+FetchContent_MakeAvailable(fortplotlib)
+
 ### NetCDF
 find_program(NF_CONFIG "nf-config")
 

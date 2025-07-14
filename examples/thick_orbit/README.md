@@ -5,6 +5,9 @@ This example demonstrates how to use NEO-RT's thick orbit functionality through 
 ## Files
 
 - `thick_orbit_example.f90`: Main example program
+- `plot_canonical_frequencies.f90`: Comprehensive frequency plotting with fortplotlib (requires field initialization)
+- `plot_canonical_frequencies_demo.f90`: Comprehensive plotting demo with synthetic data  
+- `plot_frequencies_simple.f90`: Simple frequency comparison plot with synthetic data
 - `README.md`: This documentation
 
 ## Description
@@ -32,17 +35,33 @@ The example demonstrates three key use cases:
 From the NEO-RT root directory:
 
 ```bash
-# Build the project
+# Build the project (now includes fortplotlib)
 make
 
-# Copy example to build directory (if not automatically built)
-cp examples/thick_orbit/thick_orbit_example.f90 build/
-cd build
-gfortran -I. thick_orbit_example.f90 -L. -lneo_rt -o thick_orbit_example.x
+# Run the basic example
+./build/thick_orbit_example.x
 
-# Run the example
-./thick_orbit_example.x
+# Run the plotting examples
+./build/plot_canonical_frequencies_demo.x  # Comprehensive plots with synthetic data
+./build/plot_frequencies_simple.x          # Simple comparison with synthetic data
+
+# View the generated plots
+display canonical_frequencies.png
+display omega_theta_comparison.png
+display omega_phi_comparison.png
 ```
+
+### Plotting Examples
+
+The plotting programs generate publication-quality figures showing:
+- **omega_theta_comparison.png**: Poloidal frequency comparison
+- **omega_phi_comparison.png**: Toroidal frequency comparison  
+- **q_eff_comparison.png**: Effective safety factor
+- **frequency_differences.png**: Relative differences due to orbit width
+- **all_frequencies.png**: Combined view of all frequencies
+- **canonical_frequencies.png**: Simple overview plot
+
+**Note**: The plotting examples currently use synthetic data to demonstrate the fortplotlib interface and plotting capabilities. Once POTATO integration is complete, they will use actual calculated frequencies from thick and thin orbit calculations.
 
 ## Key Features Demonstrated
 
