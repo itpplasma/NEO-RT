@@ -117,41 +117,27 @@ contains
 
     subroutine calculate_thick_orbit_drift_velocities(v, eta, vd_R, vd_Z, vd_phi, success)
         ! Calculate drift velocities with finite orbit width
-        ! THIS WILL FAIL - not implemented yet
+        use transport_thick, only: calculate_drift_velocities_thick
         implicit none
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: vd_R, vd_Z, vd_phi
         logical, intent(out) :: success
         
-        success = .false.
-        vd_R = 0.0d0
-        vd_Z = 0.0d0
-        vd_phi = 0.0d0
-        
-        ! This is where we would implement:
-        ! use transport_thick, only: calculate_drift_velocities_thick
-        ! call calculate_drift_velocities_thick(v, eta, vd_R, vd_Z, vd_phi, success)
-        
-        print *, '  ERROR: Thick orbit drift velocities not implemented yet'
+        ! Call the real implementation
+        call calculate_drift_velocities_thick(v, eta, vd_R, vd_Z, vd_phi, success)
         
     end subroutine calculate_thick_orbit_drift_velocities
     
     subroutine calculate_thick_orbit_perturbed_hamiltonian(v, eta, H_pert, success)
         ! Calculate perturbed Hamiltonian along thick orbits
-        ! THIS WILL FAIL - not implemented yet
+        use transport_thick, only: calculate_perturbed_hamiltonian_thick
         implicit none
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: H_pert
         logical, intent(out) :: success
         
-        success = .false.
-        H_pert = 0.0d0
-        
-        ! This is where we would implement:
-        ! use transport_thick, only: calculate_perturbed_hamiltonian_thick
-        ! call calculate_perturbed_hamiltonian_thick(v, eta, H_pert, success)
-        
-        print *, '  ERROR: Thick orbit perturbed Hamiltonian not implemented yet'
+        ! Call the real implementation
+        call calculate_perturbed_hamiltonian_thick(v, eta, H_pert, success)
         
     end subroutine calculate_thick_orbit_perturbed_hamiltonian
     
