@@ -20,36 +20,36 @@ module potato_interface
 contains
 
     subroutine thick_calculate_bounce_time(this, v, eta, taub, bounceavg)
-        use potato_stub, only: potato_find_bounce
+        use potato_wrapper, only: potato_wrapper_find_bounce
         
         class(thick_orbit_type_t), intent(in) :: this
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: taub
         real(8), intent(out) :: bounceavg(:)
         
-        ! Call POTATO stub (will be replaced with actual POTATO later)
+        ! Call POTATO through wrapper interface
         real(8) :: delphi, extraset(size(bounceavg))
         extraset = bounceavg
-        call potato_find_bounce(v, eta, taub, delphi, extraset)
+        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
         bounceavg = extraset
         
     end subroutine thick_calculate_bounce_time
     
     subroutine thick_calculate_frequencies(this, eta, omega_theta, omega_phi)
-        use potato_stub, only: potato_find_bounce, potato_calculate_frequencies
+        use potato_wrapper, only: potato_wrapper_find_bounce, potato_wrapper_calculate_frequencies
         
         class(thick_orbit_type_t), intent(in) :: this
         real(8), intent(in) :: eta
         real(8), intent(out) :: omega_theta, omega_phi
         
-        ! Calculate frequencies using POTATO stub
+        ! Calculate frequencies using POTATO wrapper
         real(8) :: v_dummy, taub, delphi, extraset(7)
         real(8) :: omega_bounce, omega_toroidal
         
         v_dummy = 1.0d6  ! Dummy velocity for frequency calculation
         extraset = 0.0d0
-        call potato_find_bounce(v_dummy, eta, taub, delphi, extraset)
-        call potato_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
+        call potato_wrapper_find_bounce(v_dummy, eta, taub, delphi, extraset)
+        call potato_wrapper_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
         
         omega_theta = omega_bounce
         omega_phi = omega_toroidal

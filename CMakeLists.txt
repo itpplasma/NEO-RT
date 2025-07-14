@@ -92,8 +92,9 @@ set(NEO_RT_SOURCES
   src/freq.f90
   src/orbit.f90
   src/orbit_types.f90
-  src/potato_interface.f90
   src/potato_stub.f90
+  src/potato_wrapper.f90
+  src/potato_interface.f90
   src/resonance.f90
   src/nonlin.f90
   src/transport.f90
