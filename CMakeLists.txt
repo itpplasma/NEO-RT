@@ -127,10 +127,16 @@ endif()
 if(USE_THICK_ORBITS)
   message(STATUS "Thick orbit functionality enabled")
   
-  # TODO: Add POTATO integration once build issues resolved
-  # add_subdirectory(POTATO/SRC)
-  # target_link_libraries(neo_rt PUBLIC potato_base)
-  # target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/POTATO/SRC")
+  # POTATO integration requires additional field evaluation functions
+  # Currently POTATO source is incomplete - missing psif, dpsidr, dpsidz functions
+  # TODO: Complete POTATO integration by:
+  # 1. Implementing missing field evaluation functions in field_eq_mod
+  # 2. Adding POTATO/SRC to build: add_subdirectory(POTATO/SRC)
+  # 3. Linking libraries: target_link_libraries(neo_rt PUBLIC potato_base)
+  # 4. Including headers: target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/POTATO/SRC")
+  
+  message(WARNING "POTATO integration incomplete - using stub implementation")
+  message(STATUS "Missing field evaluation functions: psif, dpsidr, dpsidz in field_eq_mod")
 else()
   message(STATUS "Thick orbit functionality disabled (using thin orbits only)")
 endif()

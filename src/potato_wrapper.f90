@@ -3,6 +3,14 @@ module potato_wrapper
     ! This module provides the interface between NEO-RT and POTATO
     ! handling coordinate transformations and initialization
     
+    ! NOTE: Actual POTATO integration currently disabled due to missing
+    ! field evaluation functions (psif, dpsidr, dpsidz) in POTATO field_eq_mod
+    ! 
+    ! To complete integration:
+    ! 1. Implement field evaluation functions connecting to NEO-RT magnetic field
+    ! 2. Enable POTATO compilation in CMakeLists.txt
+    ! 3. Replace stub calls with actual POTATO find_bounce calls
+    
     implicit none
     
     private
@@ -17,15 +25,16 @@ contains
     
     subroutine potato_wrapper_init()
         ! Initialize POTATO modules
-        ! In actual implementation, this would:
-        ! 1. Initialize POTATO field_eq_mod
-        ! 2. Set up magnetic field interface
-        ! 3. Configure orbit integration parameters
+        ! Currently using stub implementation until actual POTATO integration completed
+        ! 
+        ! For actual POTATO integration, this would:
+        ! 1. Initialize POTATO field_eq_mod with NEO-RT magnetic field interface
+        ! 2. Set up orbit_dim_mod parameters
+        ! 3. Configure POTATO orbit integration tolerances
         
-        ! For now, just mark as initialized
         potato_initialized = .true.
         
-        print *, 'POTATO wrapper initialized (stub mode)'
+        print *, 'POTATO wrapper initialized (stub mode - see CMakeLists.txt for integration status)'
         
     end subroutine potato_wrapper_init
     
@@ -61,10 +70,10 @@ contains
         next = size(extraset)
         dtau_in = potato_dtau_default
         
-        ! In actual implementation, would call:
+        ! TODO: Call actual POTATO find_bounce when integration complete
         ! call find_bounce(next, velo, dtau_in, z_eqm, taub, delphi, extraset)
         
-        ! Stub implementation with physically motivated values
+        ! Currently using stub implementation
         call potato_stub_find_bounce(v, eta, taub, delphi, extraset)
         
     end subroutine potato_wrapper_find_bounce
@@ -85,7 +94,7 @@ contains
         
     end subroutine potato_wrapper_calculate_frequencies
     
-    ! Internal stub implementation until actual POTATO integration
+    ! Temporary stub implementation until POTATO build fully integrated
     subroutine potato_stub_find_bounce(v, eta, taub, delphi, extraset)
         use potato_stub, only: potato_find_bounce
         
