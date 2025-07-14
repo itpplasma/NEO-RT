@@ -118,7 +118,7 @@
 ! .true. - without using Poincare cut, can be used for general Phi distributions
 ! .false. - with using the cut, valid for Phi=Phi(psi) only
 !  logical, parameter :: nousecut=.true.
-  logical, parameter :: nousecut=.false.
+  logical, parameter :: nousecut=.true.
 !
 ! maximum number of Newton iterations for closing the orbit:
   integer, parameter :: niter=20
