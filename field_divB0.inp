@@ -4,10 +4,10 @@
 1       ! ntor: number of toroidal harmonics
 0.1     ! cutoff: inner cutoff in psi/psi_a units
 0       ! icftype: type of coil file
-'none'  ! gfile: equilibrium file
-'none'  ! pfile: coil file
+'/home/ert/data/AUG/EQDSK/g30835.3200_ed6'  ! gfile: equilibrium file (ASDEX Upgrade EFIT)
+'none'  ! pfile: coil file (no perturbation for now)
 'none'  ! convexfile: convex file for stretchcoords
 'none'  ! fluxdatapath: directory with data in flux coord.
 5       ! nwindow_r: window size for filtering of psi array over R
 5       ! nwindow_z: window size for filtering of psi array over Z  
-0       ! ieqfile: equilibrium file type (0 - old, 1 - EFIT)
+1       ! ieqfile: equilibrium file type (0 - old, 1 - EFIT)

@@ -78,4 +78,14 @@ if(USE_THICK_ORBITS)
     add_test(NAME test_potato_comparison_plots
              COMMAND test_potato_comparison_plots.x
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    
+    # Test for POTATO EFIT integration (Phase F.1.1)
+    add_test(NAME test_potato_efit_integration
+             COMMAND test_potato_efit_integration.x
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    
+    # Test for EFIT-Boozer coordinate consistency (Phase F.1.2)
+    add_test(NAME test_efit_boozer_consistency
+             COMMAND test_efit_boozer_consistency.x
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()

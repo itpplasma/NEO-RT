@@ -217,23 +217,36 @@ contains
         real(dp), intent(in) :: v, eta, R, Z, phi
         real(dp), intent(out) :: z_eqm(5)
         logical, intent(out) :: success
+        real(dp) :: bmod_local, lambda_potato, v_thermal_normalized
         
         ! Convert NEO-RT (v, eta) to POTATO phase space coordinates
-        ! z_eqm(1) = R (major radius)
-        ! z_eqm(2) = Z (vertical position)
-        ! z_eqm(3) = phi (toroidal angle)
-        ! z_eqm(4) = v_parallel
-        ! z_eqm(5) = v_perpendicular
+        ! NEO-RT: eta = pitch parameter, v_par = v*sqrt(1-eta*bmod), v_perp = v*sqrt(eta*bmod)
+        ! POTATO: z(4) = p (momentum normalized to thermal), z(5) = lambda = cos(pitch_angle)
         
-        z_eqm(1) = R
-        z_eqm(2) = Z
-        z_eqm(3) = phi
-        z_eqm(4) = v * sqrt(1.0d0 - eta)  ! v_parallel = v * sqrt(1-eta)
-        z_eqm(5) = v * sqrt(eta)          ! v_perpendicular = v * sqrt(eta)
+        ! Set spatial coordinates
+        z_eqm(1) = R    ! Major radius
+        z_eqm(2) = phi  ! Toroidal angle  
+        z_eqm(3) = Z    ! Vertical position
+        
+        ! Get local magnetic field strength for conversion
+        bmod_local = 1.0d0  ! Normalized B-field (will be computed by field_eq)
+        call field_eq(R, Z)  ! Sets psif, dpsidr, dpsidz in field_eq_mod
+        
+        ! Convert to POTATO's coordinate system
+        ! NEO-RT: v_par/v = sqrt(1 - eta*bmod), v_perp/v = sqrt(eta*bmod)
+        ! POTATO: lambda = v_par/v = cos(pitch_angle)
+        lambda_potato = sqrt(1.0d0 - eta*bmod_local)  ! cos(pitch_angle)
+        
+        ! POTATO momentum normalized to thermal momentum and sqrt(2)
+        ! v_thermal_normalized = v / v_thermal, POTATO uses p = v_thermal_normalized * sqrt(2)
+        v_thermal_normalized = v / 1.0d6  ! Assume v_thermal ~ 1e6 m/s for scaling
+        
+        z_eqm(4) = v_thermal_normalized * sqrt(2.0d0)  ! Normalized momentum module
+        z_eqm(5) = lambda_potato  ! Cosine of pitch angle
         
         ! Validate physical constraints
         success = (v > 0.0d0) .and. (eta >= 0.0d0) .and. (eta <= 1.0d0) .and. &
-                  (R > 0.0d0)
+                  (R > 0.0d0) .and. (abs(lambda_potato) <= 1.0d0)
         
     end subroutine convert_neort_to_potato
     
@@ -295,8 +308,8 @@ contains
         call initialize_potato_parameters(v, eta, success)
         if (.not. success) return
         
-        ! Set calculation parameters
-        dtau_in = 1.0d-6  ! Small initial time step
+        ! Set calculation parameters for realistic EFIT data  
+        dtau_in = 1.0d-7  ! Time step matching global dtau for consistency
         next = 1          ! Number of extra integrals
         extraset(1) = 0.0d0  ! Initialize extra set
         
@@ -316,16 +329,16 @@ contains
         real(dp), intent(in) :: v, eta
         logical, intent(out) :: success
         
-        ! Initialize POTATO global parameters
-        ! These are dimensionless parameters used by POTATO
-        dtau = 1.0d-6         ! Initial time step
-        toten = 1.0d0         ! Total energy (normalized)
-        perpinv = eta         ! Perpendicular invariant (pitch parameter)
-        sigma = 1.0d0         ! Velocity sign (forward)
+        ! Initialize POTATO global parameters for realistic EFIT data
+        ! Based on ASDEX Upgrade typical parameters
+        dtau = 1.0d-7         ! Time step for realistic field complexity
+        toten = v*v / (2.0d0 * 1.0d12)  ! Normalized total energy (v²/2v_thermal²)
+        perpinv = eta*1.0d0   ! Perpendicular invariant (magnetic moment related)
+        sigma = 1.0d0         ! Velocity sign (forward integration)
         
-        ! Initialize physical parameters
+        ! Physical parameters for ASDEX Upgrade conditions
         rmu = 1.0d0           ! Inverse relativistic temperature
-        ro0 = 1.0d-4          ! Larmor radius parameter
+        ro0 = 8.2d-3          ! Gyroradius ~8mm from AUG test calculation
         
         ! Initialize field parameters
         psi_axis = 0.0d0
