@@ -375,4 +375,142 @@ The POTATO integration infrastructure is fully operational with real `find_bounc
 
 ---
 
+## 🎯 **PHASE G: COMPLETE PATH TO NTV TORQUE WITH THICK ORBITS**
+
+### Current Status: POTATO Integration Complete, Need Full NTV Workflow
+The POTATO thick orbit infrastructure is operational but needs integration into the complete NTV torque calculation workflow.
+
+### G.1 Fix POTATO Integration Issues (TDD Required)
+
+#### G.1.1 Stabilize Orbit Integration with EFIT Data
+- [ ] **Write failing test** for stable orbit integration in `test/test_potato_integration_fix.f90`
+- [ ] Implement adaptive time stepping for complex EFIT fields
+- [ ] Add orbit classification to avoid forbidden regions
+- [ ] Ensure particles start on valid flux surfaces
+- [ ] Test convergence across range of (v, η) parameters
+- [ ] Document optimal integration parameters for production
+
+#### G.1.2 Proper Initial Conditions
+- [ ] **Write failing test** for initial condition setup in `test/test_thick_orbit_initial_conditions.f90`
+- [ ] Map (s, θ, φ) flux coordinates to (R, Z, φ) for POTATO
+- [ ] Ensure initial position lies on specified flux surface
+- [ ] Convert NEO-RT pitch angle convention to POTATO λ = cos(pitch)
+- [ ] Validate energy and magnetic moment conservation
+- [ ] Test initial conditions across plasma volume
+
+### G.2 Integrate Thick Orbits into Frequency Calculation (TDD Required)
+
+#### G.2.1 Thick Orbit Frequency Module
+- [ ] **Write failing test** for thick orbit frequencies in `test/test_thick_orbit_frequencies.f90`
+- [ ] Create `src/freq_thick.f90` module for thick orbit canonical frequencies
+- [ ] Implement thick orbit version of Om_th, Om_ph calculations
+- [ ] Handle velocity scaling differences (no simple v scaling for thick orbits)
+- [ ] Create frequency database for interpolation (thick orbits expensive)
+- [ ] Test frequency accuracy against analytical limits
+
+#### G.2.2 Unified Frequency Interface
+- [ ] **Write failing test** for unified interface in `test/test_frequency_dispatch.f90`
+- [ ] Modify `src/freq.f90` to dispatch between thin/thick calculations
+- [ ] Implement runtime selection based on orbit width criteria
+- [ ] Ensure smooth transition between thin/thick regimes
+- [ ] Test backwards compatibility with existing code
+- [ ] Benchmark performance impact
+
+### G.3 Resonance Calculation with Thick Orbits (TDD Required)
+
+#### G.3.1 Thick Orbit Resonance Condition
+- [ ] **Write failing test** for resonance finder in `test/test_thick_orbit_resonance.f90`
+- [ ] Implement resonance condition: n·ω_φ - m·ω_θ = ω_mode
+- [ ] Account for finite orbit width effects on resonance width
+- [ ] Include orbit width in phase space integration volume
+- [ ] Test resonance shifts due to thick orbit effects
+- [ ] Validate against thin orbit limit
+
+#### G.3.2 Phase Space Integration
+- [ ] **Write failing test** for phase space integrals in `test/test_thick_orbit_phase_space.f90`
+- [ ] Modify integration bounds for finite orbit width
+- [ ] Include orbit classification (trapped/passing/potato)
+- [ ] Account for orbit losses at boundaries
+- [ ] Test conservation properties
+- [ ] Validate phase space volume calculations
+
+### G.4 Transport Matrix with Thick Orbits (TDD Required)
+
+#### G.4.1 Bounce-Averaged Quantities
+- [ ] **Write failing test** for bounce averages in `test/test_thick_orbit_bounce_avg.f90`
+- [ ] Calculate drift velocities with finite orbit width
+- [ ] Compute perturbed Hamiltonian along thick orbits
+- [ ] Include finite Larmor radius corrections
+- [ ] Test against thin orbit expressions
+- [ ] Validate energy conservation
+
+#### G.4.2 Transport Coefficients
+- [ ] **Write failing test** for transport matrix in `test/test_thick_orbit_transport.f90`
+- [ ] Modify `src/transport.f90` for thick orbit contributions
+- [ ] Calculate D_ij diffusion coefficients with orbit width
+- [ ] Include resonance broadening effects
+- [ ] Test Onsager symmetry relations
+- [ ] Benchmark against thin orbit results
+
+### G.5 NTV Torque Calculation (TDD Required)
+
+#### G.5.1 Torque Density Integration
+- [ ] **Write failing test** for torque density in `test/test_thick_orbit_torque.f90`
+- [ ] Integrate transport coefficients over velocity space
+- [ ] Apply thermodynamic forces (pressure, temperature gradients)
+- [ ] Calculate radial torque density profile
+- [ ] Test momentum conservation
+- [ ] Validate torque direction and magnitude
+
+#### G.5.2 Full NTV Calculation Workflow
+- [ ] **Write failing test** for complete workflow in `test/test_ntv_thick_orbit_complete.f90`
+- [ ] Run full calculation: field → orbit → frequency → resonance → transport → torque
+- [ ] Compare thick vs thin orbit torque profiles
+- [ ] Document computational cost increase
+- [ ] Validate against experimental scaling
+- [ ] Create production-ready example
+
+### G.6 Production Validation (TDD Required)
+
+#### G.6.1 ASDEX Upgrade Benchmark
+- [ ] **Write failing test** for AUG benchmark in `test/test_aug_thick_orbit_benchmark.f90`
+- [ ] Use shot 30835 at t=3.2s with RMP configuration
+- [ ] Calculate torque with both thin and thick orbits
+- [ ] Compare with experimental rotation damping
+- [ ] Document finite orbit width corrections
+- [ ] Publish benchmark results
+
+#### G.6.2 Performance Optimization
+- [ ] **Write failing test** for performance targets in `test/test_thick_orbit_performance.f90`
+- [ ] Profile computational bottlenecks
+- [ ] Implement orbit reuse strategies
+- [ ] Create interpolation tables for expensive calculations
+- [ ] Parallelize orbit integrations
+- [ ] Achieve <10x slowdown vs thin orbits
+
+### Success Criteria for NTV Torque with Thick Orbits
+
+#### Physics Requirements
+- [ ] Torque profiles show finite orbit width corrections
+- [ ] Resonance locations shift by measurable amounts
+- [ ] Torque magnitude changes by >5% for relevant parameters
+- [ ] Conservation laws satisfied to machine precision
+- [ ] Results converge to thin orbit limit for ρ_gyro → 0
+
+#### Technical Requirements
+- [ ] All tests pass with realistic EFIT data
+- [ ] Calculation completes in reasonable time
+- [ ] Memory usage remains manageable
+- [ ] Code maintains backwards compatibility
+- [ ] Documentation complete for users
+
+#### Validation Requirements
+- [ ] Benchmark against analytical test cases
+- [ ] Compare with other thick orbit codes
+- [ ] Validate against experimental data
+- [ ] Uncertainty quantification included
+- [ ] Publication-ready plots generated
+
+---
+
 **CRITICAL**: This is **real physics integration** - not interface framework. Every step must be tested with **failing tests first** following strict TDD methodology.
