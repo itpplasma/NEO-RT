@@ -103,6 +103,7 @@ set(NEO_RT_SOURCES
   src/potato_stub.f90
   src/potato_wrapper.f90
   src/potato_interface.f90
+  src/potato_field_bridge.f90
   src/resonance.f90
   src/nonlin.f90
   src/transport.f90
@@ -135,16 +136,19 @@ endif()
 if(USE_THICK_ORBITS)
   message(STATUS "Thick orbit functionality enabled")
   
-  # POTATO integration requires additional field evaluation functions
-  # Currently POTATO source is incomplete - missing psif, dpsidr, dpsidz functions
-  # TODO: Complete POTATO integration by:
-  # 1. Implementing missing field evaluation functions in field_eq_mod
-  # 2. Adding POTATO/SRC to build: add_subdirectory(POTATO/SRC)
-  # 3. Linking libraries: target_link_libraries(neo_rt PUBLIC potato_base)
-  # 4. Including headers: target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/POTATO/SRC")
+  # Add POTATO subdirectory
+  add_subdirectory(POTATO)
   
-  message(WARNING "POTATO integration incomplete - using stub implementation")
-  message(STATUS "Missing field evaluation functions: psif, dpsidr, dpsidz in field_eq_mod")
+  # Make POTATO modules available to neo_rt
+  target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/POTATO")
+  
+  # Link POTATO library
+  target_link_libraries(neo_rt PUBLIC potato_base)
+  
+  # Ensure POTATO builds before neo_rt
+  add_dependencies(neo_rt potato_base)
+  
+  message(STATUS "POTATO library integration enabled")
 else()
   message(STATUS "Thick orbit functionality disabled (using thin orbits only)")
 endif()

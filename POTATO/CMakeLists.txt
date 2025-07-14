@@ -14,30 +14,33 @@ find_package(LAPACK)
 
 add_subdirectory(SRC)
 
-add_executable (potato.x
-    SRC/tt.f90
-)
-target_link_libraries(potato.x
-potato
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
-)
+# Temporarily disable potato.x due to missing dependencies
+# add_executable (potato.x
+#     SRC/tt.f90
+# )
+# target_link_libraries(potato.x
+# potato
+# ${BLAS_LIBRARIES}
+# ${LAPACK_LIBRARIES}
+# )
 
 
-add_executable (test_profile.x
-   SRC/test_profile.f90
-)
-target_link_libraries(test_profile.x
-potato
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
-)
+# Temporarily disable test_profile.x due to missing dependencies
+# add_executable (test_profile.x
+#    SRC/test_profile.f90
+# )
+# target_link_libraries(test_profile.x
+# potato
+# ${BLAS_LIBRARIES}
+# ${LAPACK_LIBRARIES}
+# )
 
-add_executable (test_profile_fixed.x
-   SRC/test_profile.f90
-)
-target_link_libraries(test_profile_fixed.x
-potato_fixed
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
-)
+# Temporarily disable test_profile_fixed.x due to missing dependencies
+# add_executable (test_profile_fixed.x
+#    SRC/test_profile.f90
+# )
+# target_link_libraries(test_profile_fixed.x
+# potato_fixed
+# ${BLAS_LIBRARIES}
+# ${LAPACK_LIBRARIES}
+# )

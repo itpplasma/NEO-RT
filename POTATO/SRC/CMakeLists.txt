@@ -31,7 +31,7 @@ add_library(potato_base
   bmod_pert.f90
   resonant_int.f90
   eqmagprofs.f90
-  box_counting.f90
+  # box_counting.f90  # Disabled due to VODE conflict with dvode_f90_m
 )
 # Use VODE from parent project if available, otherwise fetch
 if(NOT TARGET vode)
@@ -48,3 +48,5 @@ add_library(potato_fixed
   profile_input_fixed.f90
 )
 target_link_libraries(potato_fixed PUBLIC potato_base)
+
+# Remove circular dependency - we'll handle this differently

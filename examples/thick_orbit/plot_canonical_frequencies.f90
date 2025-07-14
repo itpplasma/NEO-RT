@@ -1,10 +1,10 @@
 program plot_canonical_frequencies
     ! Plot canonical frequencies omega_theta and omega_phi vs eta
-    ! for both thin and thick orbit calculations at fixed v = v_thermal
+    ! for both thin and thick orbit calculations using real POTATO
     
     use fortplot
-    use potato_interface, only: thick_orbit_type_t, thin_orbit_type_t
-    use orbit_types, only: orbit_type_t
+    use potato_field_bridge, only: real_find_bounce_calculation, calculate_bounce_time, &
+                                   initialize_potato_field
     
     implicit none
     
@@ -20,20 +20,23 @@ program plot_canonical_frequencies
     real(8) :: q_eff_thin(neta), q_eff_thick(neta)
     
     ! Local variables
-    type(thick_orbit_type_t) :: thick_orbit
-    type(thin_orbit_type_t) :: thin_orbit
-    real(8) :: eta, deta, taub
-    real(8), allocatable :: bounceavg(:)
+    real(8) :: eta, deta, taub_thick, taub_thin, delphi_thick, delphi_thin
+    logical :: success_thick, success_thin
     integer :: i
     
     print *, '===================================================='
     print *, 'Canonical Frequency Comparison: Thin vs Thick Orbits'
     print *, '===================================================='
-    print *, 'v = v_thermal'
+    print *, 'v = v_thermal, using real POTATO integration'
     print *, 'Calculating frequencies across eta range...'
     
-    ! Initialize arrays
-    allocate(bounceavg(7))
+    ! Initialize POTATO field
+    call initialize_potato_field(success_thick)
+    if (.not. success_thick) then
+        print *, 'ERROR: Failed to initialize POTATO field'
+        stop 1
+    end if
+    
     deta = (eta_max - eta_min) / real(neta - 1, 8)
     
     ! Calculate frequencies for both orbit types
@@ -41,20 +44,33 @@ program plot_canonical_frequencies
         eta = eta_min + real(i - 1, 8) * deta
         eta_array(i) = eta
         
-        ! Thick orbit calculation
-        call thick_orbit%calculate_bounce_time(v_thermal, eta, taub, bounceavg)
-        call thick_orbit%calculate_frequencies(eta, omega_theta_thick(i), omega_phi_thick(i))
-        q_eff_thick(i) = omega_phi_thick(i) / omega_theta_thick(i)
+        ! Thick orbit calculation (real POTATO)
+        call real_find_bounce_calculation(v_thermal, eta, taub_thick, delphi_thick, success_thick)
+        if (success_thick) then
+            omega_phi_thick(i) = delphi_thick / taub_thick
+            omega_theta_thick(i) = 2.0d0 * 3.14159d0 / taub_thick
+            q_eff_thick(i) = omega_phi_thick(i) / omega_theta_thick(i)
+        else
+            omega_phi_thick(i) = 0.0d0
+            omega_theta_thick(i) = 0.0d0
+            q_eff_thick(i) = 0.0d0
+        end if
         
-        ! Thin orbit calculation (using stub that gives slightly different values)
-        ! In real implementation, this would call the actual thin orbit routines
-        call thin_orbit%calculate_bounce_time(v_thermal, eta, taub, bounceavg)
-        call thin_orbit%calculate_frequencies(eta, omega_theta_thin(i), omega_phi_thin(i))
-        q_eff_thin(i) = omega_phi_thin(i) / omega_theta_thin(i)
+        ! Thin orbit calculation (stub implementation for comparison)
+        call calculate_bounce_time(v_thermal, eta, taub_thin, delphi_thin, success_thin)
+        if (success_thin) then
+            omega_phi_thin(i) = delphi_thin / taub_thin
+            omega_theta_thin(i) = 2.0d0 * 3.14159d0 / taub_thin
+            q_eff_thin(i) = omega_phi_thin(i) / omega_theta_thin(i)
+        else
+            omega_phi_thin(i) = 0.0d0
+            omega_theta_thin(i) = 0.0d0
+            q_eff_thin(i) = 0.0d0
+        end if
         
         ! Progress indicator
         if (mod(i, 10) == 0) then
-            print *, '  Progress:', i, '/', neta
+            print *, '  Progress:', i, '/', neta, '(thick OK:', success_thick, ', thin OK:', success_thin, ')'
         endif
     end do
     

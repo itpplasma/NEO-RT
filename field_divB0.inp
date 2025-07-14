@@ -1,0 +1,13 @@
+1       ! ipert: 0=eq only, 1=vac, 2=vac+plas no derivatives, 3=plas+vac with derivatives  
+1       ! iequil: 0=perturbation alone, 1=with equilibrium
+1.0     ! ampl: amplitude of perturbation, a.u.
+1       ! ntor: number of toroidal harmonics
+0.1     ! cutoff: inner cutoff in psi/psi_a units
+0       ! icftype: type of coil file
+'none'  ! gfile: equilibrium file
+'none'  ! pfile: coil file
+'none'  ! convexfile: convex file for stretchcoords
+'none'  ! fluxdatapath: directory with data in flux coord.
+5       ! nwindow_r: window size for filtering of psi array over R
+5       ! nwindow_z: window size for filtering of psi array over Z  
+0       ! ieqfile: equilibrium file type (0 - old, 1 - EFIT)
