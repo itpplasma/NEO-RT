@@ -369,12 +369,19 @@ contains
         call initialize_potato_parameters(v, eta, success)
         if (.not. success) return
         
-        ! Set calculation parameters for stable test field integration
-        dtau_in = 1.0d-4  ! Much larger time step for very stable smooth field
+        ! Set calculation parameters adapted for complex EFIT fields
+        dtau_in = calculate_adaptive_time_step(v, eta)
         next = 1          ! Number of extra integrals
         extraset(1) = 0.0d0  ! Initialize extra set
         
         ! Call real POTATO find_bounce function with simplified velocity
+        ! Add debugging output for integration parameters
+        print *, 'DEBUG: POTATO integration parameters:'
+        print *, '  dtau_in =', dtau_in
+        print *, '  z_eqm =', z_eqm
+        print *, '  toten =', toten, ', perpinv =', perpinv
+        print *, '  ro0 =', ro0, ', dtau =', dtau
+        
         call find_bounce(next, velo_simple, dtau_in, z_eqm, taub, delphi, extraset)
         
         success = .true.
@@ -393,16 +400,16 @@ contains
         ! Physical constants for parameter scaling
         real(dp), parameter :: v_thermal = 1.0d6  ! m/s (thermal velocity scale)
         
-        ! Initialize POTATO global parameters with very conservative settings
-        ! Optimized for smooth field geometry and stable integration
-        dtau = 1.0d-5         ! Even larger time step for very stable integration
+        ! Initialize POTATO global parameters adapted for complex EFIT fields
+        ! Conservative settings for numerical stability with realistic geometry
+        dtau = 1.0d-7         ! Small time step for complex field integration
         toten = v*v / (2.0d0 * v_thermal**2)  ! Proper energy normalization
         perpinv = eta         ! Perpendicular invariant (pitch parameter)
         sigma = 1.0d0         ! Velocity sign (forward integration)
         
-        ! Physical parameters optimized for smooth test field
+        ! Physical parameters adapted for realistic EFIT field complexity
         rmu = 1.0d0           ! Inverse relativistic temperature
-        ro0 = 1.0d-3          ! Very small effective gyroradius for stability
+        ro0 = 5.0d-4          ! Small effective gyroradius for EFIT stability
         
         ! Initialize field parameters
         psi_axis = 0.0d0
@@ -417,6 +424,36 @@ contains
         success = .true.
         
     end subroutine initialize_potato_parameters
+    
+    function calculate_adaptive_time_step(v, eta) result(dtau_adaptive)
+        ! Calculate adaptive time step based on particle parameters and field complexity
+        implicit none
+        real(dp), intent(in) :: v, eta
+        real(dp) :: dtau_adaptive
+        
+        real(dp), parameter :: v_thermal = 1.0d6  ! m/s
+        real(dp), parameter :: dtau_base = 1.0d-6 ! Base time step for complex fields
+        real(dp), parameter :: dtau_max = 1.0d-4  ! Maximum time step
+        real(dp), parameter :: dtau_min = 1.0d-8  ! Minimum time step
+        
+        real(dp) :: velocity_factor, pitch_factor, field_complexity_factor
+        
+        ! Velocity-dependent scaling: higher energy needs smaller steps
+        velocity_factor = v_thermal / max(v, 0.1d0 * v_thermal)
+        
+        ! Pitch angle dependent: trapped particles (small eta) need smaller steps
+        pitch_factor = max(eta, 0.01d0)  ! Avoid division by zero
+        
+        ! Field complexity factor: assume EFIT fields need smaller steps
+        field_complexity_factor = 0.1d0  ! Factor for complex EFIT vs simple fields
+        
+        ! Calculate adaptive time step
+        dtau_adaptive = dtau_base * velocity_factor * pitch_factor * field_complexity_factor
+        
+        ! Apply bounds
+        dtau_adaptive = max(dtau_min, min(dtau_max, dtau_adaptive))
+        
+    end function calculate_adaptive_time_step
 
 end module potato_field_bridge
 
