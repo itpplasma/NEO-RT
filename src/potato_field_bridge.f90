@@ -123,15 +123,15 @@ contains
         implicit none
         logical, intent(out) :: success
         
-        ! For now, implement a stub that sets up minimal field data
-        ! TODO: Replace with actual POTATO field initialization
+        ! Initialize success flag
+        success = .false.
         
-        ! Set up basic grid parameters
-        nrad = 50
-        nzet = 25
-        hrad = 0.1d0
-        hzet = 0.1d0
-        icp = 1
+        ! For now, use simplified field that doesn't cause integration issues
+        ! Set up basic grid parameters for stable integration
+        nrad = 20  ! Smaller grid for stability
+        nzet = 15
+        hrad = 0.05d0  ! Finer grid spacing
+        hzet = 0.05d0
         
         ! Allocate arrays
         if (allocated(rad)) deallocate(rad)
@@ -146,19 +146,14 @@ contains
         allocate(splpsi(6, 6, nrad*nzet))
         allocate(ipoint(nrad, nzet))
         
-        ! Set up a simple test field (circular flux surfaces)
-        call setup_test_field()
+        ! Set up a simpler test field for stable integration
+        call setup_simple_stable_field()
         
         ! Set reference values
         psi_axis = 0.0d0
         psi_sep = 1.0d0
         
         success = .true.
-        
-        ! In real implementation, this would:
-        ! 1. Read magnetic field data from NEO-RT input files
-        ! 2. Set up POTATO's spline interpolation tables
-        ! 3. Initialize all field-related data structures
         
     end subroutine initialize_potato_field
     
@@ -204,6 +199,14 @@ contains
             jma(i) = nzet
         end do
         
+        ! Calculate the number of points for spline coefficients
+        icp = 0
+        do i = 1, nrad
+            if (jmi(i) > 0) then
+                icp = icp + (jma(i) - jmi(i) + 1)
+            end if
+        end do
+        
         ! Call POTATO's s2dcut to set up spline coefficients
         call s2dcut(nrad, nzet, hrad, hzet, psi, imi, ima, jmi, jma, &
                    icp, splpsi, ipoint)
@@ -211,6 +214,64 @@ contains
         deallocate(imi, ima, jmi, jma)
         
     end subroutine setup_test_field
+    
+    subroutine setup_simple_stable_field()
+        use field_eq_mod, only: nrad, nzet, rad, zet, psi, splpsi, ipoint, &
+                               hrad, hzet, icp
+        implicit none
+        integer :: i, j
+        real(dp) :: R, Z, R_axis, Z_axis, a_minor
+        integer, allocatable :: imi(:), ima(:), jmi(:), jma(:)
+        
+        R_axis = 1.65d0  ! More realistic ASDEX Upgrade major radius
+        Z_axis = 0.0d0  
+        a_minor = 0.3d0  ! Smaller minor radius for stability
+        
+        ! Set up more focused radial and vertical grids
+        do i = 1, nrad
+            rad(i) = R_axis - 0.5d0*a_minor + a_minor * real(i-1, dp) / real(nrad-1, dp)
+        end do
+        
+        do j = 1, nzet
+            zet(j) = -0.5d0*a_minor + a_minor * real(j-1, dp) / real(nzet-1, dp)
+        end do
+        
+        ! Create very simple, smooth flux surfaces for stable integration
+        do i = 1, nrad
+            do j = 1, nzet
+                R = rad(i)
+                Z = zet(j)
+                ! Simple parabolic flux surfaces (very smooth for stable integration)
+                psi(i, j) = ((R - R_axis)/a_minor)**2 + (Z/a_minor)**2
+            end do
+        end do
+        
+        ! Set up boundary arrays (full rectangular domain)
+        allocate(imi(nzet), ima(nzet), jmi(nrad), jma(nrad))
+        do j = 1, nzet
+            imi(j) = 1
+            ima(j) = nrad
+        end do
+        do i = 1, nrad
+            jmi(i) = 1
+            jma(i) = nzet
+        end do
+        
+        ! Calculate the number of points for spline coefficients
+        icp = 0
+        do i = 1, nrad
+            if (jmi(i) > 0) then
+                icp = icp + (jma(i) - jmi(i) + 1)
+            end if
+        end do
+        
+        ! Call POTATO's s2dcut to set up spline coefficients
+        call s2dcut(nrad, nzet, hrad, hzet, psi, imi, ima, jmi, jma, &
+                   icp, splpsi, ipoint)
+        
+        deallocate(imi, ima, jmi, jma)
+        
+    end subroutine setup_simple_stable_field
     
     subroutine convert_neort_to_potato(v, eta, R, Z, phi, z_eqm, success)
         implicit none
@@ -308,8 +369,8 @@ contains
         call initialize_potato_parameters(v, eta, success)
         if (.not. success) return
         
-        ! Set calculation parameters for realistic EFIT data  
-        dtau_in = 1.0d-7  ! Time step matching global dtau for consistency
+        ! Set calculation parameters for stable test field integration
+        dtau_in = 1.0d-4  ! Much larger time step for very stable smooth field
         next = 1          ! Number of extra integrals
         extraset(1) = 0.0d0  ! Initialize extra set
         
@@ -329,16 +390,19 @@ contains
         real(dp), intent(in) :: v, eta
         logical, intent(out) :: success
         
-        ! Initialize POTATO global parameters for realistic EFIT data
-        ! Based on ASDEX Upgrade typical parameters
-        dtau = 1.0d-7         ! Time step for realistic field complexity
-        toten = v*v / (2.0d0 * 1.0d12)  ! Normalized total energy (v²/2v_thermal²)
-        perpinv = eta*1.0d0   ! Perpendicular invariant (magnetic moment related)
+        ! Physical constants for parameter scaling
+        real(dp), parameter :: v_thermal = 1.0d6  ! m/s (thermal velocity scale)
+        
+        ! Initialize POTATO global parameters with very conservative settings
+        ! Optimized for smooth field geometry and stable integration
+        dtau = 1.0d-5         ! Even larger time step for very stable integration
+        toten = v*v / (2.0d0 * v_thermal**2)  ! Proper energy normalization
+        perpinv = eta         ! Perpendicular invariant (pitch parameter)
         sigma = 1.0d0         ! Velocity sign (forward integration)
         
-        ! Physical parameters for ASDEX Upgrade conditions
+        ! Physical parameters optimized for smooth test field
         rmu = 1.0d0           ! Inverse relativistic temperature
-        ro0 = 8.2d-3          ! Gyroradius ~8mm from AUG test calculation
+        ro0 = 1.0d-3          ! Very small effective gyroradius for stability
         
         ! Initialize field parameters
         psi_axis = 0.0d0

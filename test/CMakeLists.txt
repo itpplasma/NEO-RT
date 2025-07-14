@@ -10,7 +10,8 @@ if(NOT USE_THICK_ORBITS)
         ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_find_bounce_real.f90
         ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_physics_comparison.f90
         ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_real_integration.f90
-        ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_comparison_plots.f90)
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_comparison_plots.f90
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_integration_fix.f90)
 endif()
 
 foreach(test_src ${TEST_SOURCES})
