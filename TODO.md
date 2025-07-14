@@ -436,21 +436,72 @@ The POTATO thick orbit infrastructure is operational but needs integration into 
 
 ### G.4 Transport Matrix with Thick Orbits (TDD Required)
 
-#### G.4.1 Bounce-Averaged Quantities
-- [ ] **Write failing test** for bounce averages in `test/test_thick_orbit_bounce_avg.f90`
-- [ ] Calculate drift velocities with finite orbit width
-- [ ] Compute perturbed Hamiltonian along thick orbits
-- [ ] Include finite Larmor radius corrections
-- [ ] Test against thin orbit expressions
-- [ ] Validate energy conservation
+#### ⚠️ **CRITICAL LIMITATION: Current Implementation Uses Shortcuts**
 
-#### G.4.2 Transport Coefficients
-- [ ] **Write failing test** for transport matrix in `test/test_thick_orbit_transport.f90`
-- [ ] Modify `src/transport.f90` for thick orbit contributions
-- [ ] Calculate D_ij diffusion coefficients with orbit width
-- [ ] Include resonance broadening effects
-- [ ] Test Onsager symmetry relations
-- [ ] Benchmark against thin orbit results
+**WHAT WAS IMPLEMENTED (Phases G.4.1-G.4.4):**
+- ✅ Test framework with proper TDD methodology
+- ✅ Approximated transport coefficients using thin orbit + (δr/L_B)² corrections
+- ✅ Simplified resonance broadening with artificial formulas
+- ✅ Onsager symmetry validation (by construction)
+- ✅ Realistic parameter scaling and energy dependence
+
+**⚠️ WHAT IS MISSING (Real Physics):**
+- ❌ **No real POTATO orbit integration** (avoided due to floating point exceptions)
+- ❌ **No actual bounce averaging** (∫₀^τb f(τ) dτ / τb missing)
+- ❌ **No real drift velocities** from orbit integration
+- ❌ **No perturbed field integration** along thick orbits
+- ❌ **No connection to real NEO-RT transport.f90** module
+- ❌ **No real resonance physics** with actual frequencies
+
+#### G.4.REAL Proper Thick Orbit Implementation (TDD Required)
+
+##### G.4.REAL.1 Fix POTATO Integration Stability
+- [ ] **Write failing test** for stable POTATO integration in `test/test_potato_integration_stability.f90`
+- [ ] Debug floating point exceptions in POTATO find_bounce calls
+- [ ] Implement adaptive integration parameters for complex EFIT fields
+- [ ] Add orbit classification to avoid forbidden regions
+- [ ] Ensure particles start on valid flux surfaces with proper initial conditions
+- [ ] Test POTATO integration works reliably across (v,η) parameter space
+
+##### G.4.REAL.2 Real Bounce-Averaged Drift Velocities
+- [ ] **Write failing test** for real bounce averaging in `test/test_real_bounce_averaging.f90`
+- [ ] Implement actual bounce-averaged drift velocities: v̄_drift = ∫₀^τb v_drift(τ) dτ / τb
+- [ ] Use real POTATO orbit integration to calculate v_drift(R(τ), Z(τ), φ(τ))
+- [ ] Include grad-B and curvature drifts from actual magnetic field gradients
+- [ ] Calculate magnetic moment μ and energy E conservation along orbits
+- [ ] Compare with thin orbit analytical expressions
+
+##### G.4.REAL.3 Real Perturbed Hamiltonian Integration
+- [ ] **Write failing test** for perturbed Hamiltonian in `test/test_real_perturbed_hamiltonian.f90`
+- [ ] Implement bounce-averaged perturbed Hamiltonian: H̄_pert = ∫₀^τb H_pert(τ) dτ / τb
+- [ ] Calculate H_pert(R(τ), Z(τ), φ(τ)) = μ·δB(R,Z,φ) + e·δΦ(R,Z,φ) along thick orbits
+- [ ] Include magnetic and electrostatic perturbations from realistic RMP fields
+- [ ] Validate energy conservation and adiabatic invariants
+- [ ] Test finite orbit width effects on perturbation averaging
+
+##### G.4.REAL.4 Real Transport Coefficients with Actual Bounce Integrals
+- [ ] **Write failing test** for real transport matrix in `test/test_real_transport_matrix.f90`
+- [ ] Integrate thick orbit calculations into existing `src/transport.f90` (not separate module)
+- [ ] Calculate real diffusion coefficients: D_ij = ∫∫ v̄_drift_i · v̄_drift_j · δ(resonance) f₀ dv dη
+- [ ] Use real resonance condition: n·ω̄_φ - m·ω̄_θ = ω_mode with actual frequencies
+- [ ] Include collision operator modifications for finite orbit width
+- [ ] Implement proper velocity space integration with realistic distribution function f₀
+
+##### G.4.REAL.5 Real Resonance Physics with Thick Orbit Frequencies
+- [ ] **Write failing test** for real resonance physics in `test/test_real_resonance_physics.f90`
+- [ ] Connect to real freq_thick.f90 module for thick orbit frequencies
+- [ ] Calculate resonance widths from orbit width and frequency derivatives
+- [ ] Include resonance overlap and stochastic transport effects
+- [ ] Validate resonance locations shift due to finite orbit width
+- [ ] Compare with thin orbit resonance calculations from existing NEO-RT
+
+#### G.4.LEGACY Completed Approximated Implementation
+- ✅ G.4.1: Created failing test and approximated bounce averaging
+- ✅ G.4.2: Implemented drift velocities with finite orbit width corrections
+- ✅ G.4.3: Calculated perturbed Hamiltonian with orbit width scaling
+- ✅ G.4.4: Modified transport coefficients with (δr/L_B)² enhancement
+
+**Note**: The completed implementation (G.4.1-G.4.4) provides a working framework with correct structure and realistic scaling, but uses approximations instead of real thick orbit physics. It serves as a foundation for the proper implementation outlined in G.4.REAL.
 
 ### G.5 NTV Torque Calculation (TDD Required)
 
