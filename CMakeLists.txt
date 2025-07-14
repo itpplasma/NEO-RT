@@ -113,6 +113,11 @@ set(NEO_RT_SOURCES
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
 option(USE_THICK_ORBITS "Enable thick orbit functionality with POTATO integration" OFF)
 
+# Add thick orbit specific sources before library definition
+if(USE_THICK_ORBITS)
+  list(APPEND NEO_RT_SOURCES src/freq_thick.f90)
+endif()
+
 if(USE_STANDALONE)
   add_library("neo_rt" STATIC
     ${NEO_RT_SOURCES}
