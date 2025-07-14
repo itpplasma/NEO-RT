@@ -382,7 +382,16 @@ contains
         print *, '  toten =', toten, ', perpinv =', perpinv
         print *, '  ro0 =', ro0, ', dtau =', dtau
         
+        ! TODO: Add timeout protection for production use
+        ! For now, call POTATO directly - this may hang on difficult orbits
         call find_bounce(next, velo_simple, dtau_in, z_eqm, taub, delphi, extraset)
+        
+        ! Validate results
+        if (taub <= 0.0d0 .or. taub > 1.0d0) then
+            print *, 'WARNING: Unphysical bounce time:', taub
+            success = .false.
+            return
+        end if
         
         success = .true.
         
@@ -400,9 +409,9 @@ contains
         ! Physical constants for parameter scaling
         real(dp), parameter :: v_thermal = 1.0d6  ! m/s (thermal velocity scale)
         
-        ! Initialize POTATO global parameters adapted for complex EFIT fields
-        ! Conservative settings for numerical stability with realistic geometry
-        dtau = 1.0d-7         ! Small time step for complex field integration
+        ! Initialize POTATO global parameters optimized for balanced convergence
+        ! Moderately large time steps for stable but faster integration
+        dtau = 1.0d-4         ! Moderately large time step for balanced integration
         toten = v*v / (2.0d0 * v_thermal**2)  ! Proper energy normalization
         perpinv = eta         ! Perpendicular invariant (pitch parameter)
         sigma = 1.0d0         ! Velocity sign (forward integration)
@@ -430,29 +439,26 @@ contains
     end subroutine initialize_potato_parameters
     
     function calculate_adaptive_time_step(v, eta) result(dtau_adaptive)
-        ! Calculate adaptive time step based on particle parameters and field complexity
+        ! Calculate adaptive time step optimized for fast convergence
         implicit none
         real(dp), intent(in) :: v, eta
         real(dp) :: dtau_adaptive
         
         real(dp), parameter :: v_thermal = 1.0d6  ! m/s
-        real(dp), parameter :: dtau_base = 1.0d-6 ! Base time step for complex fields
-        real(dp), parameter :: dtau_max = 1.0d-4  ! Maximum time step
-        real(dp), parameter :: dtau_min = 1.0d-8  ! Minimum time step
+        real(dp), parameter :: dtau_base = 1.0d-4 ! Moderately large base time step
+        real(dp), parameter :: dtau_max = 1.0d-3  ! Moderately large maximum time step
+        real(dp), parameter :: dtau_min = 1.0d-6  ! Reasonable minimum time step
         
-        real(dp) :: velocity_factor, pitch_factor, field_complexity_factor
+        real(dp) :: velocity_factor, pitch_factor
         
-        ! Velocity-dependent scaling: higher energy needs smaller steps
-        velocity_factor = v_thermal / max(v, 0.1d0 * v_thermal)
+        ! Velocity-dependent scaling: faster particles can use larger steps
+        velocity_factor = max(v, 0.1d0 * v_thermal) / v_thermal
         
-        ! Pitch angle dependent: trapped particles (small eta) need smaller steps
-        pitch_factor = max(eta, 0.01d0)  ! Avoid division by zero
+        ! Pitch angle dependent: passing particles (large eta) can use larger steps
+        pitch_factor = max(eta, 0.1d0)
         
-        ! Field complexity factor: assume EFIT fields need smaller steps
-        field_complexity_factor = 0.1d0  ! Factor for complex EFIT vs simple fields
-        
-        ! Calculate adaptive time step
-        dtau_adaptive = dtau_base * velocity_factor * pitch_factor * field_complexity_factor
+        ! Calculate adaptive time step optimized for speed
+        dtau_adaptive = dtau_base * velocity_factor * pitch_factor
         
         ! Apply bounds
         dtau_adaptive = max(dtau_min, min(dtau_max, dtau_adaptive))

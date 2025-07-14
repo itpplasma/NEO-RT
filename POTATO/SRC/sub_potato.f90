@@ -124,7 +124,7 @@
   integer, parameter :: niter=20
 !
 ! relative error of orbit integrator:
-  double precision, parameter :: relerr=1d-10 !8
+  double precision, parameter :: relerr=1d-4 !8  ! Moderately relaxed for balanced convergence
 
   integer, intent(in) :: next
   double precision, intent(in) :: dtau_in
@@ -288,7 +288,7 @@
   implicit none
 !
   integer, parameter :: niter=20
-  double precision, parameter :: relerr=1d-10 !8
+  double precision, parameter :: relerr=1d-4 !8  ! Moderately relaxed for balanced convergence
 !
   integer :: iter, ierr
   double precision :: sigma_beg,R_beg,sigma_end,R_end,tau_fr,dphi_fr
