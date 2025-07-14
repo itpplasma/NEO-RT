@@ -156,3 +156,4 @@ target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 
 
 add_subdirectory(test)
+add_subdirectory(examples)
