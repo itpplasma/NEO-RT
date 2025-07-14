@@ -170,6 +170,16 @@ To complete actual POTATO integration:
 
 ## Critical Physics Considerations
 
+### Time Normalization and Canonical Frequencies
+**Key Physics**: POTATO uses dimensionless time τ = √(2T/m)·t and provides:
+- `taub`: bounce time in dimensionless units
+- `delphi`: toroidal shift per bounce time (Δφ_bounce)
+
+**Canonical Frequencies**:
+- Bounce frequency: ω_b = 2π/taub  
+- Toroidal frequency: ω_φ = delphi/taub (critical for resonance analysis)
+- Resonance condition: n·ω_φ - m·ω_θ = ω_mode
+
 ### Spline Scaling Breakdown
 **⚠️ Important**: NEO-RT's frequency optimization using splines is invalid for thick orbits:
 

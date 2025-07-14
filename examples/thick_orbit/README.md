@@ -23,8 +23,9 @@ The example demonstrates three key use cases:
 
 ### 3. Resonance Analysis
 - Searches for resonances with magnetic perturbations
-- Finds resonance locations where n·ω_φ - m·ω_θ = ω_mode
-- Demonstrates physics applications of thick orbit calculations
+- Uses canonical frequencies: n·ω_φ - m·ω_θ = ω_mode
+- ω_φ from POTATO's delphi (toroidal shift per bounce time)
+- Critical for NTV torque calculations and resonant transport
 
 ## Building and Running
 

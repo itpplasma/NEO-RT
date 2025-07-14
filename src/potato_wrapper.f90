@@ -80,6 +80,15 @@ contains
     
     subroutine potato_wrapper_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
         ! Calculate canonical frequencies from POTATO bounce results
+        ! 
+        ! From POTATO find_bounce output:
+        ! - taub: bounce time in dimensionless units (tau = sqrt(2*T/m)*t)
+        ! - delphi: toroidal shift per bounce time (Deltaphi_bounce)
+        !
+        ! Canonical frequencies:
+        ! - omega_bounce: bounce frequency = 2*pi/taub
+        ! - omega_toroidal: toroidal precession frequency = delphi/taub
+        !   (This gives the canonical toroidal frequency for resonance analysis)
         
         real(8), intent(in) :: taub, delphi
         real(8), intent(out) :: omega_bounce, omega_toroidal
@@ -89,7 +98,8 @@ contains
         ! Bounce frequency: omega_b = 2*pi / taub
         omega_bounce = 2.0d0 * pi / taub
         
-        ! Toroidal precession frequency: omega_phi = delphi / taub
+        ! Canonical toroidal frequency: omega_phi = delphi / taub
+        ! This is the toroidal precession frequency per bounce time
         omega_toroidal = delphi / taub
         
     end subroutine potato_wrapper_calculate_frequencies
