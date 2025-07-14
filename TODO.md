@@ -241,4 +241,138 @@ The current NEO-RT frequency optimization using splines assumes thin orbit scali
 
 ---
 
+## 🔬 **PHASE F: REALISTIC MAGNETIC FIELD VALIDATION**
+
+### Current Status: Real POTATO Integration Complete ✅
+The POTATO integration infrastructure is fully operational with real `find_bounce` calls and `velo_simple` integration. However, the current test configuration uses minimal synthetic fields that don't reveal thick vs thin orbit differences.
+
+### F.1 Realistic EFIT Data Integration (TDD Required)
+
+#### F.1.1 EFIT File Configuration for POTATO
+- [ ] **Write failing test** for EFIT data loading in `test/test_potato_efit_integration.f90`
+- [ ] Configure POTATO to use realistic ASDEX Upgrade EFIT data:
+  ```
+  EFIT file: $DATA/AUG/EQDSK/g30835.3200_ed6
+  Corresponding Boozer: $DATA/AUG/BOOZER/30835_micdu_eqb_6_t3.2/out_neo-2_rmp_90-n0
+  ```
+- [ ] Update `field_divB0.inp` to point to real EFIT equilibrium:
+  ```
+  1       ! ipert: 0=eq only, 1=vac, 2=vac+plas no derivatives, 3=plas+vac with derivatives  
+  1       ! iequil: 0=perturbation alone, 1=with equilibrium
+  1.0     ! ampl: amplitude of perturbation, a.u.
+  1       ! ntor: number of toroidal harmonics
+  0.1     ! cutoff: inner cutoff in psi/psi_a units
+  0       ! icftype: type of coil file
+  '$DATA/AUG/EQDSK/g30835.3200_ed6'  ! gfile: equilibrium file
+  'none'  ! pfile: coil file (or add perturbation data)
+  'none'  ! convexfile: convex file for stretchcoords
+  'none'  ! fluxdatapath: directory with data in flux coord.
+  5       ! nwindow_r: window size for filtering of psi array over R
+  5       ! nwindow_z: window size for filtering of psi array over Z  
+  1       ! ieqfile: equilibrium file type (0 - old, 1 - EFIT)
+  ```
+- [ ] Test POTATO successfully reads ASDEX Upgrade EFIT data
+- [ ] Verify magnetic field spline interpolation works with realistic geometry
+
+#### F.1.2 Coordinate System Consistency
+- [ ] **Write failing test** for coordinate consistency in `test/test_efit_boozer_consistency.f90`
+- [ ] Ensure POTATO's EFIT reader and NEO-RT's Boozer coordinates are consistent:
+  - Same flux surface labels (ψ normalization)
+  - Consistent R,Z coordinate system
+  - Same magnetic axis and separatrix definitions
+- [ ] Validate field values match between EFIT (POTATO) and Boozer (NEO-RT) at test points
+- [ ] Test coordinate conversion preserves physical orbits between backends
+
+#### F.1.3 Realistic Orbit Width Effects
+- [ ] **Write failing test** for finite Larmor radius effects in `test/test_realistic_thick_orbit_physics.f90`
+- [ ] Calculate particle gyroradius for realistic AUG parameters:
+  ```fortran
+  ! Typical ASDEX Upgrade parameters
+  B_field = 2.5_dp     ! Tesla
+  T_keV = 10.0_dp      ! keV electron/ion temperature
+  rho_gyro = sqrt(2*T_keV*mass_amu*1.66e-27/(charge*1.6e-19)) / (charge*1.6e-19*B_field)
+  ! Expect rho_gyro ~ 1-5 mm for thermal ions
+  ```
+- [ ] Test thick orbit bounce times deviate from thin orbit scaling
+- [ ] Verify finite orbit width effects become visible with realistic field gradients
+- [ ] Document magnitude of thick vs thin differences in realistic geometry
+
+### F.2 Physics Validation with Realistic Data (TDD Required)
+
+#### F.2.1 Orbit Width Physics Verification
+- [ ] **Write failing test** for orbit width scaling in `test/test_orbit_width_scaling.f90`
+- [ ] Calculate expected thick orbit effects:
+  - Orbit width δr ~ ρ_gyro × (magnetic field gradients)
+  - Frequency shifts Δω/ω ~ (δr/L_B)² where L_B is magnetic scale length
+  - Resonance location shifts due to altered bounce frequencies
+- [ ] Compare POTATO thick orbit results vs thin orbit predictions
+- [ ] Validate scaling with particle energy and pitch angle
+- [ ] Test convergence: thick → thin as T → 0 (gyroradius → 0)
+
+#### F.2.2 Realistic NTV Resonance Analysis
+- [ ] **Write failing test** for realistic resonance physics in `test/test_realistic_ntv_resonance.f90`
+- [ ] Use ASDEX Upgrade plasma parameters for resonance calculations:
+  ```fortran
+  ! AUG shot 30835 at t=3.2s typical parameters
+  n_mode = 2          ! RMP toroidal mode number (2/1 or 3/1)
+  m_mode = 4          ! Corresponding poloidal mode
+  omega_mode = 0.0_dp ! Static RMP (non-rotating)
+  q_profile = 2.5_dp  ! Safety factor at relevant flux surface
+  ```
+- [ ] Calculate resonance condition: n×ω_φ - m×ω_θ = ω_mode
+- [ ] Compare resonance locations between thick (POTATO) and thin (NEO-RT) calculations
+- [ ] Document shifts in resonance width and location due to finite orbit effects
+- [ ] Validate physical significance for NTV torque calculations
+
+#### F.2.3 Performance Benchmarking with Realistic Data
+- [ ] **Write failing test** for performance benchmarking in `test/test_realistic_performance.f90`
+- [ ] Benchmark computational cost: POTATO vs NEO-RT with EFIT data
+- [ ] Test memory usage with realistic magnetic field spline tables
+- [ ] Validate numerical stability with ASDEX Upgrade field geometry
+- [ ] Document performance scaling for production calculations
+- [ ] Test parallel efficiency if OpenMP is used
+
+### F.3 Production Integration Testing (TDD Required)
+
+#### F.3.1 End-to-End NTV Calculation
+- [ ] **Write failing test** for full NTV calculation in `test/test_efit_ntv_calculation.f90`
+- [ ] Run complete NTV torque calculation using POTATO thick orbits with EFIT data
+- [ ] Compare torque results: thick orbit (POTATO) vs thin orbit (NEO-RT)
+- [ ] Validate torque differences are physically meaningful (not numerical noise)
+- [ ] Test calculation completes without crashes or instabilities
+- [ ] Document computational cost for production runs
+
+#### F.3.2 Example Updates with Realistic Data
+- [ ] **Write failing test** for realistic examples in `test/test_efit_examples.f90`
+- [ ] Update `thick_orbit_example.f90` to use ASDEX Upgrade EFIT data
+- [ ] Create meaningful plots showing thick vs thin orbit differences
+- [ ] Update `plot_canonical_frequencies.f90` with realistic parameters
+- [ ] Add documentation explaining physical significance of observed differences
+- [ ] Test examples work with both EFIT and minimal field configurations
+
+### Success Criteria for Realistic Field Integration
+
+#### Physics Validation
+- [ ] Thick orbit bounce times differ from thin orbit by >1% for thermal particles
+- [ ] Frequency differences scale correctly with gyroradius/gradient length
+- [ ] Resonance locations shift by measurable amounts (>0.1% in flux coordinate)
+- [ ] Energy and momentum conservation maintained in realistic geometry
+- [ ] Orbit width effects become negligible for low-energy particles (convergence test)
+
+#### Technical Requirements
+- [ ] POTATO reads ASDEX Upgrade EFIT files without errors
+- [ ] Magnetic field interpolation works across entire plasma volume
+- [ ] Coordinate consistency between EFIT (POTATO) and Boozer (NEO-RT) verified
+- [ ] Calculation completes in reasonable time (<1 hour for single flux surface)
+- [ ] All tests pass with realistic magnetic field data
+
+#### Production Readiness
+- [ ] Documentation updated with realistic field configuration instructions
+- [ ] Examples demonstrate meaningful physics with real data
+- [ ] Performance characteristics documented for production planning
+- [ ] Error handling robust for various EFIT file formats
+- [ ] Integration works with existing NEO-RT workflow scripts
+
+---
+
 **CRITICAL**: This is **real physics integration** - not interface framework. Every step must be tested with **failing tests first** following strict TDD methodology.
