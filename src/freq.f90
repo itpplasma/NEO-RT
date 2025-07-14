@@ -6,6 +6,9 @@ module neort_freq
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
+#ifdef USE_THICK_ORBITS
+    use freq_thick, only: compute_canonical_frequencies_thick
+#endif
     implicit none
 
     ! For splining in the trapped eta region
@@ -22,6 +25,10 @@ module neort_freq
 
     real(8) :: k_taub_p=0d0, d_taub_p=0d0, k_taub_t=0d0, d_taub_t=0d0 ! extrapolation at tp bound
     real(8) :: k_OmtB_p=0d0, d_Omtb_p=0d0, k_Omtb_t=0d0, d_Omtb_t=0d0 ! extrapolation at tp bound
+    
+    ! Thick orbit control parameters
+    logical, parameter :: enable_thick_orbit_dispatch = .true.
+    real(8), parameter :: orbit_width_threshold = 0.01d0  ! Switch threshold δr/L_B > 1%
 
 contains
     subroutine init_Om_spl
@@ -277,4 +284,92 @@ contains
         ! re-set current flux surface values
         s = s0
     end subroutine d_Om_ds
+    
+    function calculate_orbit_width_criterion(v, eta) result(criterion)
+        ! Calculate orbit width parameter δr/L_B for thin/thick selection
+        real(8), intent(in) :: v, eta
+        real(8) :: criterion
+        
+        ! Physical parameters for ASDEX Upgrade-like conditions
+        real(8), parameter :: B_field = 2.5d0       ! Tesla
+        real(8), parameter :: mass_amu = 2.0d0      ! Deuterium mass (amu)
+        real(8), parameter :: L_B = 0.5d0           ! Magnetic scale length (m)
+        real(8), parameter :: v_thermal_ref = 1.0d6 ! Reference thermal velocity (m/s)
+        
+        real(8) :: rho_gyro
+        
+        ! Simplified gyroradius calculation: ρ = mv/(qB)
+        rho_gyro = (v / v_thermal_ref) * 1.66d-27 * mass_amu * v_thermal_ref / (1.6d-19 * B_field)
+        
+        ! Orbit width parameter 
+        criterion = rho_gyro / L_B
+        
+    end function calculate_orbit_width_criterion
+    
+    subroutine Om_th_unified(v, eta, Omth, dOmthdv, dOmthdeta)
+        ! Unified poloidal frequency with thin/thick dispatch
+        real(8), intent(in) :: v, eta
+        real(8), intent(out) :: Omth, dOmthdv, dOmthdeta
+        
+        real(8) :: orbit_width, Om_th_thick, Om_ph_thick
+        logical :: success
+        
+#ifdef USE_THICK_ORBITS
+        if (enable_thick_orbit_dispatch) then
+            orbit_width = calculate_orbit_width_criterion(v, eta)
+            
+            if (orbit_width > orbit_width_threshold) then
+                ! Use thick orbit calculation
+                call compute_canonical_frequencies_thick(v, eta, Om_th_thick, Om_ph_thick, success)
+                
+                if (success) then
+                    Omth = Om_th_thick
+                    ! Approximate derivatives for thick orbits
+                    dOmthdv = Om_th_thick / v  ! Rough approximation
+                    dOmthdeta = 0.0d0          ! Simplified
+                    return
+                end if
+                ! Fall through to thin orbit calculation if thick orbit fails
+            end if
+        end if
+#endif
+        
+        ! Use thin orbit calculation (original implementation)
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+        
+    end subroutine Om_th_unified
+    
+    subroutine Om_ph_unified(v, eta, Omph, dOmphdv, dOmphdeta)
+        ! Unified toroidal frequency with thin/thick dispatch  
+        real(8), intent(in) :: v, eta
+        real(8), intent(out) :: Omph, dOmphdv, dOmphdeta
+        
+        real(8) :: orbit_width, Om_th_thick, Om_ph_thick
+        logical :: success
+        
+#ifdef USE_THICK_ORBITS
+        if (enable_thick_orbit_dispatch) then
+            orbit_width = calculate_orbit_width_criterion(v, eta)
+            
+            if (orbit_width > orbit_width_threshold) then
+                ! Use thick orbit calculation
+                call compute_canonical_frequencies_thick(v, eta, Om_th_thick, Om_ph_thick, success)
+                
+                if (success) then
+                    Omph = Om_ph_thick
+                    ! Approximate derivatives for thick orbits
+                    dOmphdv = Om_ph_thick / v  ! Rough approximation  
+                    dOmphdeta = 0.0d0          ! Simplified
+                    return
+                end if
+                ! Fall through to thin orbit calculation if thick orbit fails
+            end if
+        end if
+#endif
+        
+        ! Use thin orbit calculation (original implementation)
+        call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+        
+    end subroutine Om_ph_unified
+
 end module neort_freq
