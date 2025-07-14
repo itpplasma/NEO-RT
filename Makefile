@@ -1,4 +1,5 @@
 CONFIG ?= Release
+USE_THICK_ORBITS ?= OFF
 BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
@@ -19,12 +20,12 @@ deps-debian:
 	sudo apt-get install -y libblas-dev liblapack-dev libsuitesparse-dev libnetcdf-dev libnetcdff-dev
 
 $(BUILD_NINJA):
-	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON
+	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON -DUSE_THICK_ORBITS=$(USE_THICK_ORBITS)
 
 configure: $(BUILD_NINJA)
 
 reconfigure:
-	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON
+	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON -DUSE_THICK_ORBITS=$(USE_THICK_ORBITS)
 
 build: configure
 	cmake --build $(BUILD_DIR) --config $(CONFIG)
