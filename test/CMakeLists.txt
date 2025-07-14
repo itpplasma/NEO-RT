@@ -88,4 +88,14 @@ if(USE_THICK_ORBITS)
     add_test(NAME test_efit_boozer_consistency
              COMMAND test_efit_boozer_consistency.x
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    
+    # Test for EFIT vs Boozer magnetic field comparison
+    add_test(NAME test_efit_boozer_field_comparison
+             COMMAND test_efit_boozer_field_comparison.x
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    
+    # Simple test for EFIT vs Boozer equilibrium verification
+    add_test(NAME test_efit_boozer_simple_comparison
+             COMMAND test_efit_boozer_simple_comparison.x
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
