@@ -98,4 +98,9 @@ if(USE_THICK_ORBITS)
     add_test(NAME test_efit_boozer_simple_comparison
              COMMAND test_efit_boozer_simple_comparison.x
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    
+    # Test for fixing POTATO integration issues (Phase G.1.1)
+    add_test(NAME test_potato_integration_fix
+             COMMAND test_potato_integration_fix.x
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
