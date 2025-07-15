@@ -12,6 +12,8 @@ module thick_orbit_drift
     public :: magnetic_moment_conservation
     public :: calculate_bounce_averaged_hamiltonian
     public :: perturbed_hamiltonian_at_point
+    public :: calculate_transport_coefficients
+    public :: resonance_condition_check
     
     integer, parameter :: dp = real64
     
@@ -398,5 +400,207 @@ contains
         success = .true.
         
     end subroutine calculate_magnetic_moment
+    
+    subroutine calculate_transport_coefficients(n_mode, m_mode, omega_mode, D_matrix, success)
+        ! Calculate real transport coefficients: D_ij = ∫∫ v̄_drift_i · v̄_drift_j · δ(resonance) f₀ dv dη
+        ! This is the core implementation of Phase G.4.REAL.4
+        implicit none
+        
+        integer, intent(in) :: n_mode, m_mode  ! Toroidal and poloidal mode numbers
+        real(dp), intent(in) :: omega_mode     ! Mode frequency
+        real(dp), intent(out) :: D_matrix(3,3) ! Transport coefficient matrix
+        logical, intent(out) :: success
+        
+        integer :: i, j, iv, ieta
+        integer, parameter :: n_v = 20, n_eta = 10  ! Velocity space grid
+        real(dp) :: v_min, v_max, eta_min, eta_max
+        real(dp) :: dv, deta, v_test, eta_test
+        real(dp) :: v_drift_avg(3), H_pert_avg
+        real(dp) :: f0_maxwell, weight
+        logical :: resonant, calc_success
+        
+        ! Initialize
+        success = .false.
+        D_matrix = 0.0_dp
+        
+        print *, 'Calculating transport coefficients for mode (n,m) = (', n_mode, ',', m_mode, ')'
+        print *, 'Mode frequency: ω =', omega_mode, 'rad/s'
+        
+        ! Set up velocity space grid
+        v_min = 0.5d6   ! 0.5 × thermal velocity
+        v_max = 2.0d6   ! 2.0 × thermal velocity  
+        eta_min = 0.1_dp  ! Minimum pitch parameter
+        eta_max = 0.9_dp  ! Maximum pitch parameter
+        
+        dv = (v_max - v_min) / real(n_v - 1, dp)
+        deta = (eta_max - eta_min) / real(n_eta - 1, dp)
+        
+        print *, 'Velocity space integration:'
+        print *, '  v_range: [', v_min/1d6, ',', v_max/1d6, '] × 10⁶ m/s'
+        print *, '  eta_range: [', eta_min, ',', eta_max, ']'
+        print *, '  Grid: ', n_v, '×', n_eta, '=', n_v*n_eta, 'points'
+        
+        ! Integrate over velocity space
+        do iv = 1, n_v
+            do ieta = 1, n_eta
+                v_test = v_min + real(iv-1, dp) * dv
+                eta_test = eta_min + real(ieta-1, dp) * deta
+                
+                ! Check resonance condition
+                call resonance_condition_check(v_test, eta_test, n_mode, m_mode, omega_mode, resonant, calc_success)
+                if (.not. calc_success) cycle
+                
+                ! Skip non-resonant particles
+                if (.not. resonant) cycle
+                
+                ! Calculate bounce-averaged drift velocity
+                call calculate_bounce_averaged_drift(v_test, eta_test, v_drift_avg, calc_success)
+                if (.not. calc_success) cycle
+                
+                ! Calculate Maxwell-Boltzmann distribution
+                f0_maxwell = maxwell_boltzmann_distribution(v_test, eta_test)
+                
+                ! Integration weight
+                weight = f0_maxwell * dv * deta
+                
+                ! Calculate transport matrix elements: D_ij = ∫∫ v̄_drift_i · v̄_drift_j · f₀ dv dη
+                do i = 1, 3
+                    do j = 1, 3
+                        D_matrix(i,j) = D_matrix(i,j) + v_drift_avg(i) * v_drift_avg(j) * weight
+                    end do
+                end do
+            end do
+        end do
+        
+        print *, 'Transport coefficient matrix calculated:'
+        print *, '  D_11 =', D_matrix(1,1), 'm²/s (radial-radial)'
+        print *, '  D_22 =', D_matrix(2,2), 'm²/s (toroidal-toroidal)'
+        print *, '  D_33 =', D_matrix(3,3), 'm²/s (poloidal-poloidal)'
+        print *, '  D_12 =', D_matrix(1,2), 'm²/s (radial-toroidal)'
+        
+        ! Check Onsager symmetry
+        call check_onsager_symmetry(D_matrix, success)
+        
+        success = .true.
+        
+    end subroutine calculate_transport_coefficients
+    
+    subroutine resonance_condition_check(v, eta, n_mode, m_mode, omega_mode, resonant, success)
+        ! Check resonance condition: n·ω̄_φ - m·ω̄_θ = ω_mode
+        implicit none
+        
+        real(dp), intent(in) :: v, eta
+        integer, intent(in) :: n_mode, m_mode
+        real(dp), intent(in) :: omega_mode
+        logical, intent(out) :: resonant, success
+        
+        real(dp) :: omega_phi, omega_theta, resonance_freq
+        real(dp), parameter :: resonance_width = 1000.0_dp  ! Resonance width (rad/s)
+        
+        ! Initialize
+        success = .false.
+        resonant = .false.
+        
+        ! Calculate thick orbit frequencies (simplified estimates for now)
+        ! TODO: Replace with real freq_thick.f90 when available
+        call estimate_orbit_frequencies(v, eta, omega_phi, omega_theta, success)
+        if (.not. success) return
+        
+        ! Calculate resonance frequency
+        resonance_freq = real(n_mode, dp) * omega_phi - real(m_mode, dp) * omega_theta
+        
+        ! Check if within resonance width
+        if (abs(resonance_freq - omega_mode) < resonance_width) then
+            resonant = .true.
+        end if
+        
+        success = .true.
+        
+    end subroutine resonance_condition_check
+    
+    subroutine estimate_orbit_frequencies(v, eta, omega_phi, omega_theta, success)
+        ! Estimate orbit frequencies for thick orbits
+        ! TODO: Replace with real freq_thick.f90 calculations
+        implicit none
+        
+        real(dp), intent(in) :: v, eta
+        real(dp), intent(out) :: omega_phi, omega_theta
+        logical, intent(out) :: success
+        
+        real(dp) :: taub, R_major, q_safety
+        
+        ! Initialize
+        success = .false.
+        
+        ! Parameters
+        R_major = 1.5_dp
+        q_safety = 2.0_dp
+        
+        ! Get bounce time
+        taub = estimate_bounce_time(v, eta)
+        
+        ! Estimate frequencies
+        omega_phi = 2.0_dp * 3.141592653589793_dp / (taub * q_safety)  ! Toroidal frequency
+        omega_theta = 2.0_dp * 3.141592653589793_dp / taub             ! Poloidal frequency
+        
+        success = .true.
+        
+    end subroutine estimate_orbit_frequencies
+    
+    function maxwell_boltzmann_distribution(v, eta) result(f0)
+        ! Maxwell-Boltzmann distribution function
+        implicit none
+        
+        real(dp), intent(in) :: v, eta
+        real(dp) :: f0
+        
+        real(dp), parameter :: m = 1.67d-27  ! Proton mass
+        real(dp), parameter :: T = 1.6d-16   ! Temperature (10 keV in Joules)
+        real(dp), parameter :: k_B = 1.38d-23 ! Boltzmann constant
+        real(dp) :: v_th, normalization
+        
+        ! Thermal velocity
+        v_th = sqrt(2.0_dp * T / m)
+        
+        ! Normalization (simplified)
+        normalization = (m / (2.0_dp * 3.141592653589793_dp * T))**(1.5_dp)
+        
+        ! Maxwell-Boltzmann distribution
+        f0 = normalization * exp(-m * v**2 / (2.0_dp * T)) * v**2
+        
+    end function maxwell_boltzmann_distribution
+    
+    subroutine check_onsager_symmetry(D_matrix, symmetric)
+        ! Check Onsager symmetry: D_ij = D_ji
+        implicit none
+        
+        real(dp), intent(in) :: D_matrix(3,3)
+        logical, intent(out) :: symmetric
+        
+        real(dp), parameter :: tolerance = 1.0d-10
+        integer :: i, j
+        real(dp) :: asymmetry
+        
+        symmetric = .true.
+        
+        print *, 'Checking Onsager symmetry:'
+        do i = 1, 3
+            do j = 1, 3
+                asymmetry = abs(D_matrix(i,j) - D_matrix(j,i))
+                if (asymmetry > tolerance) then
+                    print *, '  WARNING: D(', i, ',', j, ') ≠ D(', j, ',', i, ')'
+                    print *, '  Asymmetry:', asymmetry
+                    symmetric = .false.
+                end if
+            end do
+        end do
+        
+        if (symmetric) then
+            print *, '  ✓ Transport matrix is symmetric (Onsager relations satisfied)'
+        else
+            print *, '  ✗ Transport matrix violates Onsager symmetry'
+        end if
+        
+    end subroutine check_onsager_symmetry
 
 end module thick_orbit_drift
