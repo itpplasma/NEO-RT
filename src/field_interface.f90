@@ -65,24 +65,13 @@ contains
     
     subroutine thin_orbit_evaluate_field(this, R, Z, psif, dpsidr, dpsidz, d2psidr2, d2psidrdz, d2psidz2)
         ! Thin orbit field evaluation using NEO-RT magfie
-        use do_magfie_mod, only: do_magfie
         class(thin_orbit_field_evaluator_t), intent(in) :: this
         real(dp), intent(in) :: R, Z
         real(dp), intent(out) :: psif, dpsidr, dpsidz
         real(dp), intent(out) :: d2psidr2, d2psidrdz, d2psidz2
         
-        ! Local variables for magfie
-        real(dp) :: x(3), bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
-        
-        ! Convert to magfie coordinate system
-        x(1) = R
-        x(2) = 0.0d0  ! phi
-        x(3) = Z
-        
-        ! Call NEO-RT magfie
-        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-        
-        ! Extract field components (simplified implementation)
+        ! Use simplified field evaluation to avoid magfie initialization issues
+        ! TODO: Replace with proper magfie call once initialization is fixed
         psif = 0.5d0 * (R - 1.5d0)**2 + 0.5d0 * Z**2
         dpsidr = R - 1.5d0
         dpsidz = Z

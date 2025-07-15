@@ -70,10 +70,10 @@ contains
         next = size(extraset)
         dtau_in = potato_dtau_default
         
-        ! TODO: Call actual POTATO find_bounce when integration complete
+        ! Call actual POTATO find_bounce when thick orbits enabled
         ! call find_bounce(next, velo, dtau_in, z_eqm, taub, delphi, extraset)
         
-        ! Currently using stub implementation
+        ! Currently using stub implementation until build integration complete
         call potato_stub_find_bounce(v, eta, taub, delphi, extraset)
         
     end subroutine potato_wrapper_find_bounce

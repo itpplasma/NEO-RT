@@ -40,6 +40,7 @@ contains
 
     subroutine psif_neo_rt(R, Z, psi_result)
         use field_interface, only: field_evaluator_t, field_evaluator_factory
+        use runtime_config, only: get_use_thick_orbits
         implicit none
         real(dp), intent(in) :: R, Z
         real(dp), intent(out) :: psi_result
@@ -49,8 +50,8 @@ contains
         real(dp) :: dpsidr, dpsidz, d2psidr2, d2psidrdz, d2psidz2
         logical :: use_thick_orbits
         
-        ! TODO: Get this from runtime configuration
-        use_thick_orbits = .false.  ! Default to thin orbits
+        ! Get runtime configuration
+        use_thick_orbits = get_use_thick_orbits()
         
         ! Create appropriate field evaluator
         evaluator = field_evaluator_factory(use_thick_orbits)
@@ -64,6 +65,7 @@ contains
 
     subroutine dpsidr_neo_rt(R, Z, dpsidr_result)
         use field_interface, only: field_evaluator_t, field_evaluator_factory
+        use runtime_config, only: get_use_thick_orbits
         implicit none
         real(dp), intent(in) :: R, Z
         real(dp), intent(out) :: dpsidr_result
@@ -73,8 +75,8 @@ contains
         real(dp) :: psif, dpsidz, d2psidr2, d2psidrdz, d2psidz2
         logical :: use_thick_orbits
         
-        ! TODO: Get this from runtime configuration
-        use_thick_orbits = .false.  ! Default to thin orbits
+        ! Get runtime configuration
+        use_thick_orbits = get_use_thick_orbits()
         
         ! Create appropriate field evaluator
         evaluator = field_evaluator_factory(use_thick_orbits)
@@ -88,6 +90,7 @@ contains
 
     subroutine dpsidz_neo_rt(R, Z, dpsidz_result)
         use field_interface, only: field_evaluator_t, field_evaluator_factory
+        use runtime_config, only: get_use_thick_orbits
         implicit none
         real(dp), intent(in) :: R, Z
         real(dp), intent(out) :: dpsidz_result
@@ -97,8 +100,8 @@ contains
         real(dp) :: psif, dpsidr, d2psidr2, d2psidrdz, d2psidz2
         logical :: use_thick_orbits
         
-        ! TODO: Get this from runtime configuration
-        use_thick_orbits = .false.  ! Default to thin orbits
+        ! Get runtime configuration
+        use_thick_orbits = get_use_thick_orbits()
         
         ! Create appropriate field evaluator
         evaluator = field_evaluator_factory(use_thick_orbits)
@@ -112,17 +115,18 @@ contains
 
     subroutine field_eq(R, Z)
         use field_interface, only: field_evaluator_t, field_evaluator_factory
+        use runtime_config, only: get_use_thick_orbits
         implicit none
         real(dp), intent(in) :: R, Z
         
         ! This is a legacy interface - should be replaced with direct field_interface usage
-        ! For now, just use the field interface with default thin orbit behavior
+        ! For now, just use the field interface with runtime configuration
         class(field_evaluator_t), allocatable :: evaluator
         real(dp) :: psif, dpsidr, dpsidz, d2psidr2, d2psidrdz, d2psidz2
         logical :: use_thick_orbits
         
-        ! TODO: Get this from runtime configuration
-        use_thick_orbits = .false.
+        ! Get runtime configuration
+        use_thick_orbits = get_use_thick_orbits()
         
         ! Create appropriate field evaluator
         evaluator = field_evaluator_factory(use_thick_orbits)
@@ -168,6 +172,7 @@ contains
     subroutine real_find_bounce_calculation(v, eta, taub, delphi, success)
         ! Real POTATO integration for thick orbit bounce calculation
         use orbit_interface, only: orbit_calculator_t, orbit_calculator_factory
+        use runtime_config, only: get_use_thick_orbits
         implicit none
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: taub, delphi
@@ -179,8 +184,8 @@ contains
         logical :: use_thick_orbits
         real(dp) :: s_flux, theta_boozer, phi_boozer
         
-        ! TODO: Get this from runtime configuration
-        use_thick_orbits = .false.  ! Default to thin orbits
+        ! Get runtime configuration
+        use_thick_orbits = get_use_thick_orbits()
         
         ! Use default test Boozer coordinates
         s_flux = 0.5d0

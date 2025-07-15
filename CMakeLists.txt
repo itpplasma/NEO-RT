@@ -100,6 +100,7 @@ set(NEO_RT_SOURCES
   src/freq.f90
   src/orbit.f90
   src/orbit_types.f90
+  src/runtime_config.f90
   src/field_interface.f90
   src/orbit_interface.f90
   src/potato_stub.f90

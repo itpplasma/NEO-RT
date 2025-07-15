@@ -34,9 +34,19 @@ add_test(NAME test_timestep
          COMMAND test_timestep.x
          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+# Test for runtime configuration switching between thin/thick orbits
+add_test(NAME test_runtime_config
+         COMMAND test_runtime_config.x
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 # Test for POTATO frequencies (now always available with runtime dispatch)
 add_test(NAME test_potato_frequencies
          COMMAND test_potato_frequencies.x
+         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# Test for real POTATO integration (always available with runtime dispatch)
+add_test(NAME test_real_potato_integration
+         COMMAND test_real_potato_integration.x
          WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # Test for POTATO library build integration (only when thick orbits enabled)

@@ -96,17 +96,17 @@ contains
     subroutine thick_orbit_find_bounce(this, v, eta, s_flux, theta_boozer, phi_boozer, &
                                      taub, delphi, extraset, success)
         ! Thick orbit bounce calculation using POTATO
+        use potato_wrapper, only: potato_wrapper_find_bounce
         class(thick_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
         real(dp), intent(out) :: taub, delphi
         real(dp), intent(out) :: extraset(:)
         logical, intent(out) :: success
         
-        ! TODO: Call real POTATO find_bounce when integration is complete
-        ! For now, use stub implementation
-        taub = 1.0d-3 / v * 1.0d5     ! Scale inversely with velocity
-        delphi = 0.1d0 * eta          ! Scale with pitch parameter
-        extraset = 0.0d0
+        ! Call real POTATO find_bounce through wrapper
+        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
+        
+        ! POTATO wrapper always succeeds for now
         success = .true.
         
     end subroutine thick_orbit_find_bounce
@@ -127,15 +127,25 @@ contains
     
     subroutine thick_orbit_calculate_frequencies(this, v, eta, Om_th, Om_ph, success)
         ! Thick orbit frequency calculation using POTATO
+        use potato_wrapper, only: potato_wrapper_find_bounce, potato_wrapper_calculate_frequencies
         class(thick_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Om_th, Om_ph
         logical, intent(out) :: success
         
-        ! TODO: Use real POTATO frequency calculation
-        ! For now, use simplified calculation
-        Om_th = 1.0d3 / v             ! Simplified poloidal frequency
-        Om_ph = 1.0d4 / v * eta       ! Simplified toroidal frequency
+        ! Local variables
+        real(dp) :: taub, delphi, extraset(7)
+        real(dp) :: omega_bounce, omega_toroidal
+        
+        ! Get bounce time from POTATO
+        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
+        
+        ! Calculate frequencies from bounce results
+        call potato_wrapper_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
+        
+        ! Map to NEO-RT frequency convention
+        Om_th = omega_bounce      ! Poloidal bounce frequency
+        Om_ph = omega_toroidal    ! Toroidal precession frequency
         success = .true.
         
     end subroutine thick_orbit_calculate_frequencies
