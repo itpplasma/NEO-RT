@@ -273,25 +273,35 @@ contains
         
     end subroutine setup_simple_stable_field
     
-    subroutine convert_neort_to_potato(v, eta, R, Z, phi, z_eqm, success)
+    subroutine convert_neort_to_potato(v, eta, s_flux, theta_boozer, phi_boozer, z_eqm, success)
+        use do_magfie_mod, only: booz_to_cyl
         implicit none
-        real(dp), intent(in) :: v, eta, R, Z, phi
+        real(dp), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
         real(dp), intent(out) :: z_eqm(5)
         logical, intent(out) :: success
         real(dp) :: bmod_local, lambda_potato, v_thermal_normalized
+        real(dp) :: x_boozer(3), r_cyl(3)
         
         ! Convert NEO-RT (v, eta) to POTATO phase space coordinates
         ! NEO-RT: eta = pitch parameter, v_par = v*sqrt(1-eta*bmod), v_perp = v*sqrt(eta*bmod)
         ! POTATO: z(4) = p (momentum normalized to thermal), z(5) = lambda = cos(pitch_angle)
         
-        ! Set spatial coordinates
-        z_eqm(1) = R    ! Major radius
-        z_eqm(2) = phi  ! Toroidal angle  
-        z_eqm(3) = Z    ! Vertical position
+        ! Convert Boozer coordinates (s, phi, theta) to cylindrical (R, phi, Z)
+        x_boozer(1) = s_flux        ! Flux surface coordinate s ∈ [0,1]
+        x_boozer(2) = phi_boozer    ! Boozer toroidal angle
+        x_boozer(3) = theta_boozer  ! Boozer poloidal angle
+        
+        ! Use magfie coordinate conversion
+        call booz_to_cyl(x_boozer, r_cyl)
+        
+        ! Set POTATO spatial coordinates from converted cylindrical coordinates
+        z_eqm(1) = r_cyl(1) / 100.0d0  ! Convert cm to m (POTATO uses m, magfie returns cm)
+        z_eqm(2) = r_cyl(2)            ! Toroidal angle phi (radians)
+        z_eqm(3) = r_cyl(3) / 100.0d0  ! Convert cm to m (Z coordinate)
         
         ! Get local magnetic field strength for conversion
         bmod_local = 1.0d0  ! Normalized B-field (will be computed by field_eq)
-        call field_eq(R, Z)  ! Sets psif, dpsidr, dpsidz in field_eq_mod
+        call field_eq(z_eqm(1), z_eqm(3))  ! Sets psif, dpsidr, dpsidz in field_eq_mod
         
         ! Convert to POTATO's coordinate system
         ! NEO-RT: v_par/v = sqrt(1 - eta*bmod), v_perp/v = sqrt(eta*bmod)
@@ -307,7 +317,8 @@ contains
         
         ! Validate physical constraints
         success = (v > 0.0d0) .and. (eta >= 0.0d0) .and. (eta <= 1.0d0) .and. &
-                  (R > 0.0d0) .and. (abs(lambda_potato) <= 1.0d0)
+                  (s_flux >= 0.0d0) .and. (s_flux <= 1.0d0) .and. &
+                  (z_eqm(1) > 0.0d0) .and. (abs(lambda_potato) <= 1.0d0)
         
     end subroutine convert_neort_to_potato
     
@@ -322,8 +333,8 @@ contains
         integer :: next
         ! External routines will be declared when actually needed
         
-        ! Convert to POTATO phase space
-        call convert_neort_to_potato(v, eta, 1.5d0, 0.0d0, 0.0d0, z_eqm, success)
+        ! Convert to POTATO phase space using test Boozer coordinates
+        call convert_neort_to_potato(v, eta, 0.5d0, 0.0d0, 0.0d0, z_eqm, success)
         
         if (.not. success) return
         
@@ -361,8 +372,8 @@ contains
         ! Initialize success flag
         success = .false.
         
-        ! Convert to POTATO phase space
-        call convert_neort_to_potato(v, eta, 1.5d0, 0.0d0, 0.0d0, z_eqm, success)
+        ! Convert to POTATO phase space using test Boozer coordinates
+        call convert_neort_to_potato(v, eta, 0.5d0, 0.0d0, 0.0d0, z_eqm, success)
         if (.not. success) return
         
         ! Initialize POTATO parameters

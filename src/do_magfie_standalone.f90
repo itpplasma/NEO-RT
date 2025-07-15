@@ -212,7 +212,7 @@ contains
         end do
 
         r(1) = sum(rmnc*cos(modes0(1, :, 1)*x(3)) + rmns*sin(modes0(1, :, 1)*x(3)))
-        r(2) = 0.0d0  ! TODO: phi
+        r(2) = 0.0d0  ! TODO: phi conversion using lambda function from in_file
         r(3) = sum(zmnc*cos(modes0(1, :, 1)*x(3)) + zmns*sin(modes0(1, :, 1)*x(3)))
 
     end subroutine booz_to_cyl
