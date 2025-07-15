@@ -113,7 +113,7 @@ contains
         
         ! Test that bounce time calculation gives reasonable results
         block
-            use potato_field_bridge, only: calculate_bounce_time
+            use potato_field_bridge, only: real_find_bounce_calculation
             real(8) :: v, eta, taub, delphi
             logical :: calc_success
             
@@ -121,7 +121,7 @@ contains
             v = 1.0d5      ! velocity (m/s)
             eta = 0.5d0    ! pitch parameter
             
-            call calculate_bounce_time(v, eta, taub, delphi, calc_success)
+            call real_find_bounce_calculation(v, eta, taub, delphi, calc_success)
             
             test_passed = calc_success
             

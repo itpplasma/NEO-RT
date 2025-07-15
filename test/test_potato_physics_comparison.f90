@@ -159,7 +159,7 @@ contains
         
         ! Test physical consistency of bounce time calculations
         block
-            use potato_field_bridge, only: calculate_bounce_time
+            use potato_field_bridge, only: real_find_bounce_calculation
             real(8) :: v1, v2, eta1, eta2
             real(8) :: taub1, taub2, delphi1, delphi2
             logical :: success1, success2
@@ -170,8 +170,8 @@ contains
             eta1 = 0.5d0
             eta2 = 0.5d0
             
-            call calculate_bounce_time(v1, eta1, taub1, delphi1, success1)
-            call calculate_bounce_time(v2, eta2, taub2, delphi2, success2)
+            call real_find_bounce_calculation(v1, eta1, taub1, delphi1, success1)
+            call real_find_bounce_calculation(v2, eta2, taub2, delphi2, success2)
             
             test_passed = success1 .and. success2
             

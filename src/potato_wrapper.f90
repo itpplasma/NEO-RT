@@ -53,6 +53,7 @@ contains
         real(8) :: z_eqm(5)
         real(8) :: dtau_in
         logical :: success
+        external :: velo
         
         if (.not. potato_initialized) then
             call potato_wrapper_init()
@@ -78,7 +79,6 @@ contains
         ! Call actual POTATO find_bounce when thick orbits enabled
         if (get_use_thick_orbits()) then
             ! Use real POTATO find_bounce with velo subroutine
-            external :: velo
             call find_bounce(next, velo, dtau_in, z_eqm, taub, delphi, extraset)
         else
             ! Use stub implementation for thin orbits

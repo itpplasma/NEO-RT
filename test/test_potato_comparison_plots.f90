@@ -45,7 +45,7 @@ contains
         
         ! Compare stub and real implementations
         block
-            use potato_field_bridge, only: calculate_bounce_time
+            use potato_field_bridge, only: real_find_bounce_calculation
             real(8) :: v, eta, taub_stub, delphi_stub
             logical :: success_stub
             integer :: i
@@ -57,7 +57,7 @@ contains
                 v = 5.0d4 + real(i-1, 8) * 1.0d4  ! 50-90 km/s
                 eta = 0.2d0 + real(i-1, 8) * 0.15d0  ! 0.2-0.8
                 
-                call calculate_bounce_time(v, eta, taub_stub, delphi_stub, success_stub)
+                call real_find_bounce_calculation(v, eta, taub_stub, delphi_stub, success_stub)
                 
                 if (.not. success_stub) then
                     test_passed = .false.
@@ -86,7 +86,7 @@ contains
             "Generating bounce time comparison data... "
         
         block
-            use potato_field_bridge, only: calculate_bounce_time
+            use potato_field_bridge, only: real_find_bounce_calculation
             real(8) :: v, eta, taub, delphi
             logical :: success
             integer :: iunit, i
@@ -102,7 +102,7 @@ contains
                 v = 3.0d4 + real(i-1, 8) * 1.0d5 / real(n_points-1, 8)  ! 30 km/s to 130 km/s
                 
                 ! Stub implementation
-                call calculate_bounce_time(v, eta, taub, delphi, success)
+                call real_find_bounce_calculation(v, eta, taub, delphi, success)
                 if (success) then
                     write(iunit, '(4E15.6,A)') v, eta, taub, delphi, '  stub'
                 end if
@@ -131,7 +131,7 @@ contains
             "Generating velocity dependence data... "
         
         block
-            use potato_field_bridge, only: calculate_bounce_time
+            use potato_field_bridge, only: real_find_bounce_calculation
             real(8) :: v, eta, taub, delphi
             logical :: success
             integer :: iunit, i, j
@@ -148,7 +148,7 @@ contains
                 do i = 1, n_points
                     v = 2.0d4 + real(i-1, 8) * 1.5d5 / real(n_points-1, 8)  ! 20-170 km/s
                     
-                    call calculate_bounce_time(v, eta, taub, delphi, success)
+                    call real_find_bounce_calculation(v, eta, taub, delphi, success)
                     if (success) then
                         ! Calculate theoretical scaling (should be 1/v)
                         write(iunit, '(5E15.6)') v, eta, taub, delphi, 1.0d-3/v*1.0d5
@@ -175,7 +175,7 @@ contains
             "Generating parameter sweep data... "
         
         block
-            use potato_field_bridge, only: calculate_bounce_time, convert_neort_to_potato
+            use potato_field_bridge, only: real_find_bounce_calculation, convert_neort_to_potato
             real(8) :: v, eta, taub, delphi, z_eqm(5)
             logical :: success
             integer :: iunit, i, j
@@ -192,7 +192,7 @@ contains
                 do j = 1, 10
                     eta = 0.05d0 + real(j-1, 8) * 0.9d0 / 9.0d0  ! 0.05-0.95
                     
-                    call calculate_bounce_time(v, eta, taub, delphi, success)
+                    call real_find_bounce_calculation(v, eta, taub, delphi, success)
                     if (success) then
                         call convert_neort_to_potato(v, eta, 1.5d0, 0.0d0, 0.0d0, z_eqm, success)
                         if (success) then

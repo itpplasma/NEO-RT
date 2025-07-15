@@ -3,9 +3,9 @@ program thick_orbit_example
     ! This shows how to use the real POTATO integration
     ! to compare thick and thin orbit calculations with plots
     
-    use potato_field_bridge, only: real_find_bounce_calculation, calculate_bounce_time, &
+    use potato_field_bridge, only: real_find_bounce_calculation, &
                                    initialize_potato_field
-    use fortplot, only: figure_t
+    use fortplotlib, only: figure_t
     
     implicit none
     
