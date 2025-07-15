@@ -10,6 +10,8 @@ module thick_orbit_drift
     public :: gradB_drift_velocity
     public :: curvature_drift_velocity
     public :: magnetic_moment_conservation
+    public :: calculate_bounce_averaged_hamiltonian
+    public :: perturbed_hamiltonian_at_point
     
     integer, parameter :: dp = real64
     
@@ -249,5 +251,152 @@ contains
         delphi = 2.0_dp * 3.141592653589793_dp / q_safety
         
     end function estimate_toroidal_shift
+    
+    subroutine calculate_bounce_averaged_hamiltonian(v, eta, H_pert_avg, success)
+        ! Calculate bounce-averaged perturbed Hamiltonian: H̄_pert = ∫₀^τb H_pert(τ) dτ / τb
+        ! This is the core implementation of Phase G.4.REAL.3
+        implicit none
+        
+        real(dp), intent(in) :: v, eta
+        real(dp), intent(out) :: H_pert_avg
+        logical, intent(out) :: success
+        
+        real(dp) :: taub_estimated, delphi_estimated
+        integer :: i, n_steps
+        real(dp) :: dt, time_step
+        real(dp) :: H_pert_sum, H_pert_point
+        
+        ! Initialize
+        success = .false.
+        H_pert_avg = 0.0_dp
+        
+        ! Use simplified bounce time estimate for now
+        ! TODO: Replace with real POTATO bounce time when stable
+        taub_estimated = estimate_bounce_time(v, eta)
+        delphi_estimated = estimate_toroidal_shift(v, eta)
+        
+        print *, 'Estimated bounce time: τb =', taub_estimated, 's'
+        print *, 'Estimated toroidal shift: Δφ =', delphi_estimated, 'rad'
+        
+        ! Simplified bounce averaging integration
+        n_steps = 100
+        dt = taub_estimated / real(n_steps, dp)
+        H_pert_sum = 0.0_dp
+        
+        print *, 'Calculating bounce-averaged perturbed Hamiltonian...'
+        print *, 'Integration steps:', n_steps
+        print *, 'Time step:', dt, 's'
+        
+        ! Integration loop over bounce period
+        do i = 1, n_steps
+            time_step = real(i-1, dp) * dt
+            
+            ! Calculate perturbed Hamiltonian at this time step
+            call calculate_hamiltonian_at_time(v, eta, time_step, H_pert_point, success)
+            
+            if (.not. success) then
+                print *, 'WARNING: Hamiltonian calculation failed at step', i
+                return
+            end if
+            
+            H_pert_sum = H_pert_sum + H_pert_point
+        end do
+        
+        ! Average over the bounce time
+        H_pert_avg = H_pert_sum / real(n_steps, dp)
+        
+        print *, 'Bounce-averaged perturbed Hamiltonian calculated:'
+        print *, '  H̄_pert =', H_pert_avg, 'J'
+        
+        success = .true.
+        
+    end subroutine calculate_bounce_averaged_hamiltonian
+    
+    subroutine calculate_hamiltonian_at_time(v, eta, time, H_pert, success)
+        ! Calculate perturbed Hamiltonian at a specific time along the orbit
+        ! This is a simplified version - should use real POTATO orbit integration
+        implicit none
+        
+        real(dp), intent(in) :: v, eta, time
+        real(dp), intent(out) :: H_pert
+        logical, intent(out) :: success
+        
+        real(dp) :: R, Z, phi, B_field, mu
+        real(dp) :: delta_B, delta_Phi
+        
+        ! Initialize
+        success = .false.
+        H_pert = 0.0_dp
+        
+        ! Simplified orbit position (should come from POTATO integration)
+        R = 1.5_dp + 0.1_dp * sin(time * 1.0d6)  ! Simplified R(t)
+        Z = 0.0_dp + 0.05_dp * cos(time * 1.0d6)  ! Simplified Z(t)
+        phi = time * v / R  ! Simplified phi(t)
+        B_field = 2.5_dp  ! Simplified B field
+        
+        ! Calculate magnetic moment
+        call calculate_magnetic_moment(v, eta, B_field, mu, success)
+        if (.not. success) return
+        
+        ! Calculate perturbed Hamiltonian at this position
+        call perturbed_hamiltonian_at_point(R, Z, phi, mu, H_pert, success)
+        
+    end subroutine calculate_hamiltonian_at_time
+    
+    subroutine perturbed_hamiltonian_at_point(R, Z, phi, mu, H_pert, success)
+        ! Calculate perturbed Hamiltonian: H_pert = μ·δB + e·δΦ
+        implicit none
+        
+        real(dp), intent(in) :: R, Z, phi, mu
+        real(dp), intent(out) :: H_pert
+        logical, intent(out) :: success
+        
+        real(dp) :: delta_B, delta_Phi, q
+        
+        ! Initialize
+        success = .false.
+        H_pert = 0.0_dp
+        
+        ! Physical parameters
+        q = 1.602d-19  ! Elementary charge (C)
+        
+        ! Simplified magnetic perturbation (should come from real RMP data)
+        ! δB ~ B_pert × cos(n×φ - m×θ) for resonant magnetic perturbations
+        delta_B = 0.01_dp * cos(2.0_dp * phi)  ! Simplified n=2 mode
+        
+        ! Simplified electrostatic perturbation (should come from real plasma data)
+        ! δΦ ~ Φ_pert × cos(n×φ - m×θ) for electrostatic perturbations
+        delta_Phi = 100.0_dp * sin(2.0_dp * phi)  ! Simplified potential (V)
+        
+        ! Calculate perturbed Hamiltonian
+        H_pert = mu * delta_B + q * delta_Phi
+        
+        success = .true.
+        
+    end subroutine perturbed_hamiltonian_at_point
+    
+    subroutine calculate_magnetic_moment(v, eta, B_field, mu, success)
+        ! Calculate magnetic moment: μ = m×v_⊥²/(2×B)
+        implicit none
+        
+        real(dp), intent(in) :: v, eta, B_field
+        real(dp), intent(out) :: mu
+        logical, intent(out) :: success
+        
+        real(dp) :: m, v_perp
+        
+        ! Initialize
+        success = .false.
+        
+        ! Physical parameters
+        m = 1.67d-27  ! Proton mass (kg)
+        v_perp = v * sqrt(eta)  ! Perpendicular velocity
+        
+        ! Calculate magnetic moment
+        mu = m * v_perp**2 / (2.0_dp * B_field)
+        
+        success = .true.
+        
+    end subroutine calculate_magnetic_moment
 
 end module thick_orbit_drift
