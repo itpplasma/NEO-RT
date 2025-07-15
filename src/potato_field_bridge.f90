@@ -274,7 +274,7 @@ contains
     end subroutine setup_simple_stable_field
     
     subroutine convert_neort_to_potato(v, eta, s_flux, theta_boozer, phi_boozer, z_eqm, success)
-        use do_magfie_mod, only: booz_to_cyl
+        use do_magfie_mod, only: booz_to_cyl, do_magfie_init, inp_swi
         implicit none
         real(dp), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
         real(dp), intent(out) :: z_eqm(5)
@@ -285,6 +285,12 @@ contains
         ! Convert NEO-RT (v, eta) to POTATO phase space coordinates
         ! NEO-RT: eta = pitch parameter, v_par = v*sqrt(1-eta*bmod), v_perp = v*sqrt(eta*bmod)
         ! POTATO: z(4) = p (momentum normalized to thermal), z(5) = lambda = cos(pitch_angle)
+        
+        ! Initialize magfie data if needed (check for ASDEX-U format)
+        if (inp_swi /= 9) then
+            ! Initialize with ASDEX-U equilibrium data for coordinate conversion
+            call do_magfie_init
+        end if
         
         ! Convert Boozer coordinates (s, phi, theta) to cylindrical (R, phi, Z)
         x_boozer(1) = s_flux        ! Flux surface coordinate s ∈ [0,1]
