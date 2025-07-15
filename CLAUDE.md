@@ -38,7 +38,14 @@ make reconfigure   # Force reconfigure CMake
 
 ## Project Architecture
 
-NEO-RT calculates neoclassical toroidal viscosity (NTV) torque in resonant transport regimes using a Hamiltonian approach. The code is structured as follows:
+NEO-RT calculates neoclassical toroidal viscosity (NTV) torque in resonant transport regimes using a Hamiltonian approach. 
+
+### **THICK ORBIT BRANCH GOAL**
+**This branch (potato) implements the same NTV torque functionality as standard NEO-RT thin orbit approximation, but using thick guiding-center orbits from POTATO.**
+
+This means: frequencies, resonances, transport coefficients, and NTV torque calculations must work cleanly with thick orbits. No shortcuts, no approximations - full physics implementation.
+
+### Code Structure
 
 ### Core Components
 
@@ -251,13 +258,15 @@ endif
 
 ## Thick Orbit Integration (POTATO)
 
-### POTATO Integration Status - COMPLETE ✅
-- **Real POTATO Integration**: Full implementation using `find_bounce` and `velo_simple` for thick orbit calculations
-- **Field Bridge Layer**: `src/potato_field_bridge.f90` interfaces NEO-RT's function-based approach with POTATO's module variables
-- **Spline Interpolation**: Real POTATO spline evaluation using `s2dcut` and bicubic interpolation for magnetic field
-- **Runtime Architecture**: Seamless switching between thin (NEO-RT) and thick (POTATO) orbit calculations without preprocessor complexity
-- **Complete Test Suite**: 8 comprehensive test modules covering build, field bridge, physics comparison, and real integration
-- **Working Examples**: Updated `thick_orbit_example.x` and `plot_canonical_frequencies.x` with fortplotlib plotting
+### ⚠️ POTATO Integration Status - **STUB IMPLEMENTATION ONLY**
+**After comprehensive code audit, the thick orbit integration is NOT complete:**
+
+- **Real POTATO Integration**: **STUB ONLY** - All `find_bounce` calls are commented out or use stubs
+- **Field Bridge Layer**: Framework exists but real integration is disabled (`src/potato_field_bridge.f90` line 361)
+- **Spline Interpolation**: Framework exists but not connected to real POTATO physics
+- **Runtime Architecture**: Infrastructure exists but falls back to thin orbit approximations
+- **Test Suite**: Tests exist but expect stub behavior, not real POTATO physics
+- **Examples**: All examples use stub implementations, not real thick orbit calculations
 
 ### POTATO Build Configuration
 When `USE_THICK_ORBITS=ON` is enabled in CMake:
@@ -266,14 +275,22 @@ When `USE_THICK_ORBITS=ON` is enabled in CMake:
 - VODE conflict resolved by disabling `box_counting.f90` in POTATO build
 - `field_divB0.inp` configuration file required for POTATO field initialization
 
-### Key POTATO Integration Components
-- **Real Integration**: `real_find_bounce_calculation()` calls actual POTATO `find_bounce` with `velo_simple` integrator
-- **Field Interface**: Bridge between NEO-RT's (R,Z) → ψ functions and POTATO's module variable approach
-- **Coordinate Conversion**: NEO-RT (v,η) ↔ POTATO phase space z_eqm(5) = [R,Z,φ,v∥,v⊥]
-- **Physics Results**: Real bounce time calculations using POTATO's orbit integration (though test field shows minimal differences)
+### Key POTATO Integration Components - **CURRENT STATUS**
+- **Real Integration**: **STUB ONLY** - `real_find_bounce_calculation()` calls stub, not actual POTATO
+- **Field Interface**: Framework exists but not connected to real POTATO physics
+- **Coordinate Conversion**: Basic conversion exists but uses hardcoded values
+- **Physics Results**: **NO REAL PHYSICS** - All calculations use simplified estimates or thin orbit approximations
+
+### Critical Implementation Issues
+- **`src/potato_stub.f90`**: Entire stub module returns fake values (**BLOCKING**)
+- **`src/potato_wrapper.f90`**: Real POTATO calls commented out (line 74) (**BLOCKING**)
+- **`src/potato_field_bridge.f90`**: Real `find_bounce` call commented out (line 361) (**BLOCKING**)
+- **`src/thick_orbit_drift.f90`**: Uses simplified estimates, not real POTATO bounce times (**BLOCKING**)
+- **`src/transport_thick.f90`**: Falls back to thin orbit approximation (**BLOCKING**)
+- **EFIT Integration**: Not implemented for realistic magnetic fields (**BLOCKING**)
 
 ### Performance and Physics Limitations
-- **Computational Cost**: POTATO integration ~10x slower than thin orbits due to direct ODE integration
-- **No Spline Optimization**: Thick orbits require particle-by-particle integration, cannot use velocity scaling
-- **Test Field Limitation**: Current minimal field configuration shows identical thick/thin results; realistic magnetic equilibrium needed for finite Larmor radius effects
-- **Memory Usage**: POTATO orbit integration requires additional state variables and spline coefficient storage
+- **Current Status**: No performance data available - no real thick orbit calculations implemented
+- **Expected**: POTATO integration ~10x slower than thin orbits due to direct ODE integration
+- **Spline Optimization**: Cannot be used for thick orbits (requires particle-by-particle integration)
+- **Memory Usage**: Unknown - no real POTATO integration to measure

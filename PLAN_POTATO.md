@@ -1,116 +1,92 @@
-# POTATO Integration Status Report
+# POTATO Integration Strategy
 
-## Current Issue: Coordinate System Mismatch
+## Project Goal
+**Enable the same NTV torque functionality as standard NEO-RT thin orbit approximation, but using thick guiding-center orbits from POTATO.**
 
-The main problem is that I incorrectly assumed direct physical coordinates when NEO-RT uses Boozer flux coordinates.
+This means: frequencies, resonances, transport coefficients, and NTV torque calculations must work cleanly with thick orbits. No shortcuts, no approximations - full physics implementation.
 
-### The Problem
+## ⚠️ **CRITICAL STATUS UPDATE: Infrastructure Only**
 
-In `src/potato_field_bridge.f90:365`, the coordinate conversion is wrong:
-```fortran
-call convert_neort_to_potato(v, eta, 1.7d0, 0.0d0, 0.0d0, z_eqm, success)
-```
+### ✅ **COMPLETED: Framework and Build System**
+- **CMake/Makefile**: Conditional compilation with `USE_THICK_ORBITS=ON`
+- **Dependency Resolution**: POTATO library builds and links with NEO-RT
+- **VODE Conflict**: Resolved linking conflicts between POTATO and NEO-RT VODE
+- **Test Framework**: Comprehensive TDD test structure in place
 
-This uses fixed R=1.7m as a starting position, but NEO-RT works with normalized Boozer flux coordinates where:
-- **s ∈ [0,1]**: Flux surface coordinate (s=0 is magnetic axis, s=1 is separatrix)
-- **θ**: Poloidal angle in Boozer coordinates
-- **φ**: Toroidal angle
+### ❌ **INCOMPLETE: Core Physics Implementation**
+**After comprehensive code audit, the following components are NOT implemented:**
 
-### Coordinate System Differences
+### Coordinate System Bridge - **PARTIALLY COMPLETE**
+- **`src/potato_field_bridge.f90`**: Framework exists but real `find_bounce` call commented out (line 361)
+- **Boozer ↔ Cylindrical**: Basic conversion exists but uses hardcoded values
+- **Field Interface**: Structure exists but falls back to stub implementations
+- **Unit Conversion**: Framework present but not fully integrated
 
-| System | Coordinates | Range | Description |
-|--------|-------------|-------|-------------|
-| NEO-RT | (s, θ, φ) | s ∈ [0,1] | Boozer flux coordinates |
-| POTATO | (R, Z, φ) | R ∈ [R_min, R_max] | Physical cylindrical coordinates |
+### Real POTATO Integration - **STUB ONLY**
+- **`POTATO/SRC/velo_safe.f90`**: Safe velocity routine exists
+- **Orbit Integration**: **STUB ONLY** - `src/potato_wrapper.f90` still calls stub (line 74)
+- **Error Handling**: Framework exists but not connected to real POTATO
+- **find_bounce calls**: **COMMENTED OUT** - All real POTATO calls are disabled
 
-### Required Fix
+### Physics Implementation - **APPROXIMATIONS ONLY**
+- **`src/thick_orbit_drift.f90`**: Uses simplified estimates, not real POTATO physics
+- **Real Bounce Averaging**: **STUB** - No actual bounce averaging implementation
+- **Transport Coefficients**: **THIN ORBIT FALLBACK** - Falls back to thin orbit approximation
+- **Perturbed Hamiltonian**: Uses simplified formulas, not real orbit integration
 
-Need to implement proper coordinate conversion:
-1. Take flux surface s from NEO-RT (e.g., s=0.5 for mid-radius)
-2. Convert (s, θ) → (R, Z) using equilibrium magnetic field data
-3. Ensure (R, Z) is inside plasma separatrix for POTATO integration
+### Configuration and Testing - **STUB CONFIGURATION**
+- **`field_divB0.inp`**: ASDEX Upgrade EFIT configuration exists
+- **`convexwall.dat`**: Vessel geometry integration exists
+- **Test Suite**: Tests exist but expect stub behavior
+- **Examples**: **STUB MODE** - All examples use stub implementations
 
-## Files Created/Modified
+## 🎯 **CURRENT PRIORITY: Complete NTV Workflow**
 
-### Core POTATO Integration
-- **`src/potato_field_bridge.f90`**: Main interface between NEO-RT and POTATO
-  - Status: Needs coordinate conversion fix
-  - Current issue: Uses fixed R=1.7m instead of flux coordinates
+### Immediate Next Steps - **REALITY-BASED PRIORITIES**
 
-### Real POTATO Integration  
-- **`POTATO/SRC/velo_safe.f90`**: Safe velocity routine with FPE protection
-  - Status: Working - integrated into build system
-  - Purpose: Prevents floating point exceptions in POTATO orbit integration
+1. **UNCOMMENT REAL POTATO CALLS**: Fix `src/potato_wrapper.f90` line 74 and `src/potato_field_bridge.f90` line 361
+2. **REMOVE STUB DEPENDENCIES**: Replace `src/potato_stub.f90` with real POTATO integration
+3. **IMPLEMENT EFIT FIELD SETUP**: Complete realistic magnetic field initialization
+4. **FIX PHYSICS CALCULATIONS**: Replace simplified estimates with real POTATO physics in all modules
+5. **VALIDATE REAL INTEGRATION**: Test that thick orbit results differ meaningfully from thin orbit
 
-### Physics Implementation
-- **`src/thick_orbit_drift.f90`**: Complete thick orbit transport calculations
-  - Status: Physics complete, needs proper coordinate inputs
-  - Features: Drift velocities, perturbed Hamiltonian, transport coefficients
+### Key Technical Insights
 
-### Test and Example Files
-- **`src/test_potato_real_integration.f90`**: Test for real POTATO functionality
-  - Status: Needs coordinate conversion updates
-  
-- **`examples/thick_orbit_example.f90`**: Working example with plots
-  - Status: Working with test coordinates
+**Coordinate Systems**:
+- NEO-RT: (s, θ, φ) Boozer flux coordinates, s ∈ [0,1]
+- POTATO: (R, Z, φ) physical cylindrical coordinates
+- Conversion: `booz_to_cyl()` from `do_magfie_mod`
 
-### Configuration Files
-- **`field_divB0.inp`**: POTATO configuration for EFIT integration
-  - Status: Working - successfully reads ASDEX Upgrade EFIT data
-  - Path: Uses `/temp/ert/data/AUG/EQDSK/g30835.3200_ed6`
+**Performance Limitations**:
+- Thick orbits ~10x slower than thin orbits (no spline optimization)
+- Direct integration required for each (v,η) point
+- Frequency calculations cannot use existing spline infrastructure
 
-- **`convexwall.dat`**: ASDEX Upgrade vessel geometry
-  - Status: Working - downloaded from libneo repository
-  - Size: 252 R,Z coordinate pairs defining vessel boundary
+**Physics Validation**:
+- Realistic gyroradius: ρ_gyro ~ 1-5 mm for thermal ions
+- Finite orbit width effects: Δω/ω ~ (δr/L_B)²
+- Resonance shifts due to altered bounce frequencies
 
-### Build System
-- **`Makefile`**: Updated to support thick orbit compilation
-  - Status: Working - `make CONFIG=Debug USE_THICK_ORBITS=ON`
+## Current Status Summary - **CORRECTED**
 
-- **`CMakeLists.txt`**: Conditional compilation for thick orbits
-  - Status: Working - properly links POTATO library
-
-- **`POTATO/SRC/CMakeLists.txt`**: Added velo_safe.f90 to POTATO build
-  - Status: Working
-
-## Current Work: Coordinate Conversion Implementation ✅ COMPLETED
-
-### What Was Done
-1. **✅ Fixed convert_neort_to_potato()** in `src/potato_field_bridge.f90:276`:
-   - Now accepts Boozer coordinates (s_flux, theta_boozer, phi_boozer) instead of fixed R,Z
-   - Uses `booz_to_cyl()` from `do_magfie_mod` to convert (s, θ, φ) → (R, Z, φ)
-   - Properly handles unit conversion (cm → m) between magfie and POTATO
-   - Validates flux surface coordinate s ∈ [0,1]
-
-2. **✅ Updated coordinate conversion calls**:
-   - Now uses s=0.5 (mid-radius) as test flux surface
-   - Proper Boozer coordinate system integration
-   - Removed hardcoded R=1.7m physical coordinates
-
-3. **✅ Enhanced do_magfie_standalone.f90**:
-   - Fixed phi handling in `booz_to_cyl()` to use proper lambda function transformation
-   - Ready for realistic coordinate conversion with ASDEX Upgrade equilibrium
-
-### Next Steps
-1. **Test with realistic coordinates**: Verify POTATO integration with s=0.5 flux surface
-2. **Validate physics**: Compare thick vs thin orbit results for finite Larmor radius effects
-3. **Production integration**: Use actual NEO-RT flux surface coordinates in production runs
-
-## Integration Status Summary
-
-| Component | Status | Description |
+| Component | Status | Next Action |
 |-----------|--------|-------------|
-| ✅ POTATO Build | Complete | Library compiles and links successfully |
-| ✅ Field Bridge | Complete | Interface layer for magnetic field data |
-| ✅ Safety Layer | Complete | velo_safe prevents floating point exceptions |
-| ✅ Physics Calculations | Complete | Drift velocities and transport coefficients |
-| ✅ EFIT Integration | Complete | Reads ASDEX Upgrade equilibrium data |
-| ✅ Coordinate Conversion | **Complete** | **Boozer to cylindrical conversion implemented** |
-| ✅ Real Integration Test | **Complete** | **Successfully tests coordinate conversion with s=0.5** |
-| ⏳ Production Validation | Pending | Full physics validation |
+| ✅ Build System | Complete | Maintain |
+| ❌ Field Bridge | **STUB ONLY** | **Uncomment real find_bounce calls** |
+| ❌ POTATO Integration | **STUB ONLY** | **Remove potato_stub.f90, fix wrapper** |
+| ❌ Physics Calculations | **APPROXIMATIONS** | **Use real POTATO physics** |
+| ❌ EFIT Integration | **INCOMPLETE** | **Implement field initialization** |
+| ❌ Frequency Module | **STUB BASED** | **Connect to real POTATO** |
+| ❌ Resonance Integration | **MISSING** | **Implement with real frequencies** |
+| ❌ NTV Torque | **MISSING** | **Full workflow with real physics** |
+| ❌ Production Validation | **MISSING** | **Real physics validation** |
 
-## Next Steps
-1. ✅ ~~Test POTATO integration with realistic Boozer coordinates (s=0.5)~~
-2. Validate thick orbit physics results vs thin orbit approximation  
-3. Integrate with NEO-RT production workflow for realistic transport calculations
-4. Test with real ASDEX Upgrade equilibrium data (`/temp/ert/data/AUG/EQDSK/g30835.3200_ed6`)
+## Strategic Approach - **UPDATED**
+
+**Reality Check Policy**: Current implementation is mostly stubs - must be completely rewritten
+**No Shortcuts Policy**: Every component must use real thick orbit physics, not approximations
+**TDD Methodology**: All implementation must start with failing tests
+**Production Ready**: Code must work with realistic EFIT data and production workflows
+**Performance Awareness**: Document computational cost but prioritize physics correctness
+
+**CRITICAL**: The foundation framework exists but ALL physics implementation is incomplete. The priority is implementing real POTATO integration, not building additional features on top of stub implementations.
