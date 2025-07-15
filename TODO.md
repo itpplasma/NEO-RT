@@ -46,31 +46,47 @@ Test dependencies have been resolved:
 - **✅ Updated example files** to use `fortplotlib` instead of `fortplot`
 - **✅ Core library builds** successfully with `make CONFIG=Debug USE_THICK_ORBITS=ON`
 
-## 🎯 **CURRENT STATUS: Core Physics Implementation Complete**
+## 🎯 **CURRENT STATUS: Field Integration Issue Blocking POTATO**
 
-### ✅ **MAJOR ACHIEVEMENT: Real Physics Implementation Working**
-All critical physics fixes have been implemented and the core library builds successfully. The NEO-RT thick orbit integration now uses:
-- **Real NEO-RT bounce calculation** instead of stubs
-- **Proper Boozer coordinate transformation** via `booz_to_cyl()`
-- **Correct POTATO time normalization** τ = √(2T/m)·t
-- **Actual magnetic field evaluation** through `do_magfie()` calls
-- **Runtime dispatch** between thin and thick orbit implementations
-- **Real POTATO find_bounce** integration when thick orbits are enabled
+### ❌ **CRITICAL ISSUE: Field Interface Incomplete**
+While core physics improvements were made, the POTATO integration is blocked by a fundamental field interface issue:
+
+**Problem**: POTATO's `velo.f90` expects `psif`, `dpsidr`, `dpsidz` as module variables in `field_eq_mod`, but these are not properly exposed by the field evaluation system.
+
+**Impact**: 
+- Build fails with `USE_THICK_ORBITS=ON` due to missing field variables
+- Thick orbit calculations fall back to thin orbit implementations
+- Generated plots show identical results for thin vs thick orbits (not physical differences)
+
+### ✅ **ACHIEVED: Infrastructure and Plotting**
+- **Runtime dispatch architecture** working correctly
+- **Plotting system** generates 5 comparison plots successfully
+- **Real NEO-RT bounce calculation** implemented for thin orbits
+- **Proper Boozer coordinate transformation** via `booz_to_cyl()` (when build works)
+- **Correct POTATO time normalization** τ = √(2T/m)·t framework in place
 
 ### 1. Build Integration (**COMPLETED**)
 - [x] **Fixed test references** to use `real_find_bounce_calculation` function
 - [x] **Updated example files** to use new physics interfaces  
 - [x] **Core library builds** with `make CONFIG=Debug USE_THICK_ORBITS=ON`
 
-### 2. Remaining Physics Implementation (**MEDIUM**)
+### 🔥 **URGENT: Field Interface Fix Required**
+- [ ] **Fix POTATO field interface** - Add `psif`, `dpsidr`, `dpsidz` to `field_eq_mod` and ensure they're set by field evaluation
+- [ ] **Test POTATO build** - Verify `USE_THICK_ORBITS=ON` builds without errors
+- [ ] **Validate thick vs thin differences** - Generate plots showing real physics differences
+
+### 📊 **GENERATED PLOTS (with identical thin/thick results)**
+- ✅ `bounce_time_comparison.png` - Bounce time vs pitch parameter
+- ✅ `canonical_frequencies.png` - Canonical frequencies comparison  
+- ✅ `poloidal_frequency_comparison.png` - Poloidal frequency trends
+- ✅ `toroidal_frequency_comparison.png` - Toroidal frequency trends
+- ✅ `toroidal_shift_comparison.png` - Toroidal shift comparison
+
+### 2. Remaining Physics Implementation (**BLOCKED by field interface**)
 - [ ] **Fix `src/thick_orbit_drift.f90`** - Replace simplified estimates with real POTATO bounce times
 - [ ] **Fix `src/transport_thick.f90`** - Remove thin orbit approximation fallback  
 - [ ] **Fix `src/freq_thick.f90`** - Connect to real POTATO instead of stub
 - [ ] **Implement EFIT field initialization** - Required for realistic magnetic equilibrium
-
-### 3. Complete Field Integration (**BLOCKING**)
-- [ ] **Write failing test** for EFIT integration in `test/test_potato_efit_integration.f90`
-- [ ] **Implement EFIT field initialization** in `src/potato_field_bridge.f90`
 - [ ] **Fix coordinate conversion** - Remove hardcoded values, use real flux coordinates
 - [ ] **Fix magnetic field setup** - Connect to realistic ASDEX Upgrade EFIT data
 - [ ] **Test field consistency** - Validate EFIT vs Boozer coordinate consistency
