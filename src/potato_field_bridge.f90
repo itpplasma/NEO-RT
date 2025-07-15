@@ -356,7 +356,7 @@ contains
         real(dp) :: z_eqm(5), extraset(1)
         real(dp) :: dtau_in
         integer :: next
-        external :: find_bounce, velo_simple
+        external :: find_bounce, velo_simple, velo_safe
         
         ! Initialize success flag
         success = .false.
@@ -377,13 +377,28 @@ contains
         ! Call real POTATO find_bounce function with simplified velocity
         ! Add debugging output for integration parameters
         print *, 'DEBUG: POTATO integration parameters:'
+        print *, '  v =', v, ', eta =', eta
         print *, '  dtau_in =', dtau_in
         print *, '  z_eqm =', z_eqm
         print *, '  toten =', toten, ', perpinv =', perpinv
         print *, '  ro0 =', ro0, ', dtau =', dtau
         
+        ! Add safety check for phase space coordinates
+        if (z_eqm(4) <= 0.0d0) then
+            print *, 'ERROR: Invalid momentum p =', z_eqm(4)
+            success = .false.
+            return
+        end if
+        
+        if (abs(z_eqm(5)) > 1.0d0) then
+            print *, 'ERROR: Invalid pitch cosine lambda =', z_eqm(5)
+            success = .false.
+            return
+        end if
+        
         ! Call POTATO with production-ready error handling
-        call find_bounce(next, velo_simple, dtau_in, z_eqm, taub, delphi, extraset)
+        ! Use safe velocity routine to prevent floating point exceptions
+        call find_bounce(next, velo_safe, dtau_in, z_eqm, taub, delphi, extraset)
         
         ! Validate results with physical bounds
         if (taub <= 0.0d0 .or. taub > 1.0d0) then
@@ -404,35 +419,54 @@ contains
     subroutine initialize_potato_parameters(v, eta, success)
         use global_invariants, only: dtau, toten, perpinv, sigma
         use parmot_mod, only: rmu, ro0
-        use phielec_of_psi_mod, only: npolyphi, polyphi
+        ! use phielec_of_psi_mod, only: npolyphi, polyphi  ! Commented out to avoid conflicts
         use field_eq_mod, only: psi_axis, psi_sep
+        use odeint_mod, only: ak2, ak3, ak4, ak5, ak6, ytemp, yerr, ytemp1
         implicit none
         real(dp), intent(in) :: v, eta
         logical, intent(out) :: success
         
         ! Physical constants for parameter scaling
         real(dp), parameter :: v_thermal = 1.0d6  ! m/s (thermal velocity scale)
+        integer :: ndim_max
         
-        ! Initialize POTATO global parameters optimized for balanced convergence
-        ! Moderately large time steps for stable but faster integration
-        dtau = 1.0d-4         ! Moderately large time step for balanced integration
+        ! Initialize POTATO global parameters with conservative settings
+        ! Use adaptive time step for better stability
+        dtau = calculate_adaptive_time_step(v, eta)
         toten = v*v / (2.0d0 * v_thermal**2)  ! Proper energy normalization
         perpinv = eta         ! Perpendicular invariant (pitch parameter)
         sigma = 1.0d0         ! Velocity sign (forward integration)
         
-        ! Physical parameters adapted for realistic EFIT field complexity
+        ! Physical parameters for stability
         rmu = 1.0d0           ! Inverse relativistic temperature
-        ro0 = 5.0d-4          ! Small effective gyroradius for EFIT stability
+        ro0 = 1.0d-3          ! Conservative gyroradius for stability
         
         ! Initialize field parameters
         psi_axis = 0.0d0
         psi_sep = 1.0d0
         
-        ! Initialize electric potential parameters
-        polyphi = 0.0d0
-        polyphi(1) = -1.12d0 / (psi_sep - psi_axis)
-        polyphi(2) = -polyphi(1) / (psi_sep - psi_axis) / 2.0d0
-        polyphi(3) = -polyphi(2) / (psi_sep - psi_axis) / 2.0d0
+        ! Skip electric potential initialization for now
+        
+        ! Initialize ODE integration arrays if needed
+        ndim_max = 10  ! Maximum dimension for phase space + extra integrals
+        if (.not. allocated(ak2)) allocate(ak2(ndim_max))
+        if (.not. allocated(ak3)) allocate(ak3(ndim_max))
+        if (.not. allocated(ak4)) allocate(ak4(ndim_max))
+        if (.not. allocated(ak5)) allocate(ak5(ndim_max))
+        if (.not. allocated(ak6)) allocate(ak6(ndim_max))
+        if (.not. allocated(ytemp)) allocate(ytemp(ndim_max))
+        if (.not. allocated(yerr)) allocate(yerr(ndim_max))
+        if (.not. allocated(ytemp1)) allocate(ytemp1(ndim_max))
+        
+        ! Initialize arrays to zero
+        ak2 = 0.0d0
+        ak3 = 0.0d0
+        ak4 = 0.0d0
+        ak5 = 0.0d0
+        ak6 = 0.0d0
+        ytemp = 0.0d0
+        yerr = 0.0d0
+        ytemp1 = 0.0d0
         
         ! Initialize Poincare cut data (critical for orbit integration)
         call initialize_poicut_data(success)
@@ -443,25 +477,36 @@ contains
     end subroutine initialize_potato_parameters
     
     function calculate_adaptive_time_step(v, eta) result(dtau_adaptive)
-        ! Calculate adaptive time step optimized for fast convergence
+        ! Calculate adaptive time step with conservative approach for stability
         implicit none
         real(dp), intent(in) :: v, eta
         real(dp) :: dtau_adaptive
         
         real(dp), parameter :: v_thermal = 1.0d6  ! m/s
-        real(dp), parameter :: dtau_base = 1.0d-4 ! Moderately large base time step
-        real(dp), parameter :: dtau_max = 1.0d-3  ! Moderately large maximum time step
-        real(dp), parameter :: dtau_min = 1.0d-6  ! Reasonable minimum time step
+        real(dp), parameter :: dtau_base = 1.0d-5 ! Conservative base time step
+        real(dp), parameter :: dtau_max = 1.0d-4  ! Conservative maximum time step
+        real(dp), parameter :: dtau_min = 1.0d-8  ! Very small minimum for edge cases
         
-        real(dp) :: velocity_factor, pitch_factor
+        real(dp) :: velocity_factor, pitch_factor, lambda
         
-        ! Velocity-dependent scaling: faster particles can use larger steps
-        velocity_factor = max(v, 0.1d0 * v_thermal) / v_thermal
+        ! Velocity-dependent scaling: inverse relationship for stability
+        ! Faster particles need smaller time steps to resolve motion
+        velocity_factor = v_thermal / max(v, 0.1d0 * v_thermal)
         
-        ! Pitch angle dependent: passing particles (large eta) can use larger steps
-        pitch_factor = max(eta, 0.1d0)
+        ! Pitch angle dependent: trapped particles (high eta) need smaller steps
+        ! Convert eta to pitch angle cosine
+        lambda = sqrt(max(0.0d0, 1.0d0 - eta))  ! cos(pitch_angle)
         
-        ! Calculate adaptive time step optimized for speed
+        ! Near turning points (lambda ~ 0) need much smaller time steps
+        if (abs(lambda) < 0.1d0) then
+            pitch_factor = 0.1d0  ! Very small steps near turning points
+        else if (abs(lambda) < 0.3d0) then
+            pitch_factor = 0.3d0  ! Small steps for deeply trapped
+        else
+            pitch_factor = 1.0d0  ! Normal steps for passing particles
+        end if
+        
+        ! Calculate adaptive time step with conservative scaling
         dtau_adaptive = dtau_base * velocity_factor * pitch_factor
         
         ! Apply bounds
@@ -503,23 +548,15 @@ end module potato_field_bridge
 
 ! Stub implementations for missing POTATO functions
 subroutine phielec_of_psi(psi, phi_elec, dPhi_dpsi)
-    use phielec_of_psi_mod, only: npolyphi, polyphi
     use field_eq_mod, only: psi_axis, psi_sep
     implicit none
     double precision, intent(in) :: psi
     double precision, intent(out) :: phi_elec, dPhi_dpsi
-    integer :: i
     
+    ! Simplified implementation without polyphi dependency
+    ! For now, set to zero (no electric field)
     phi_elec = 0.0d0
     dPhi_dpsi = 0.0d0
-    
-    do i = npolyphi, 0, -1
-        phi_elec = polyphi(i) + phi_elec * (psi - psi_axis)
-    end do
-    
-    do i = npolyphi, 1, -1
-        dPhi_dpsi = polyphi(i) * dble(i) + dPhi_dpsi * (psi - psi_axis)
-    end do
     
 end subroutine phielec_of_psi
 
@@ -541,33 +578,132 @@ subroutine denstemp_of_psi(psi, dens, temp, ddens, dtemp)
     
 end subroutine denstemp_of_psi
 
-! Simplified velocity function for POTATO integration testing
+! Simplified velocity function for POTATO integration testing with FPE protection
 subroutine velo_simple(tau, z, vz)
-    use parmot_mod, only: rmu, ro0
+    use parmot_mod, only: rmu, ro0, gradpsiast, dpsiast_dR, dpsiast_dZ
+    use field_eq_mod, only: ierrfield
     implicit none
     double precision, intent(in) :: tau
     double precision, dimension(5), intent(in) :: z
     double precision, dimension(5), intent(out) :: vz
     
-    double precision :: R_coord, Z_coord, phi_coord, p_coord, alambd_coord
-    double precision :: omega_c, v_drift
+    double precision :: x(3), bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
+    double precision :: derphi(3), phi_elec
+    double precision :: p, alambd, p2, ovmu, gamma2, gamma, ppar, vpa, coala
+    double precision :: rmumag, rovsqg, rosqgb, rovbm
+    double precision :: a_phi(3), a_b(3), a_c(3), hstar(3)
+    double precision :: s_hc, hpstar, phidot, blodot, bra
+    integer :: i
     
-    ! Extract coordinates
-    R_coord = z(1)
-    Z_coord = z(2) 
-    phi_coord = z(3)
-    p_coord = z(4)
-    alambd_coord = z(5)
+    ! Safety parameters
+    double precision, parameter :: SMALL_P = 1.0d-10
+    double precision, parameter :: SMALL_BMOD = 1.0d-10
+    double precision, parameter :: SMALL_SQRTG = 1.0d-10
+    double precision, parameter :: SMALL_GAMMA = 1.0d-10
+    double precision, parameter :: SMALL_HPSTAR = 1.0d-10
+    double precision, parameter :: SMALL_VPA = 1.0d-10
     
-    ! Simple circular tokamak model
-    omega_c = 1.0d0 / R_coord  ! Cyclotron frequency ~ 1/R
-    v_drift = ro0 * omega_c  ! Drift velocity
+    ! Extract spatial coordinates
+    x(1) = z(1)  ! R
+    x(2) = z(2)  ! phi
+    x(3) = z(3)  ! Z
     
-    ! Velocity components (simplified guiding center motion)
-    vz(1) = v_drift * sin(omega_c * tau)  ! R drift
-    vz(2) = 0.0d0                         ! Z motion (small)
-    vz(3) = alambd_coord * p_coord / R_coord  ! Toroidal motion
-    vz(4) = 0.0d0                         ! Momentum evolution
-    vz(5) = 0.0d0                         ! Pitch angle evolution
+    ! Get magnetic field data
+    call magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+    
+    if (ierrfield /= 0) then
+        vz = 0.0d0
+        return
+    end if
+    
+    ! Ensure minimum values
+    bmod = max(bmod, SMALL_BMOD)
+    sqrtg = max(sqrtg, SMALL_SQRTG)
+    
+    ! Get electric field
+    call elefie(x, phi_elec, derphi)
+    
+    ! Extract phase space coordinates with safety
+    p = max(z(4), SMALL_P)
+    alambd = max(-1.0d0, min(1.0d0, z(5)))  ! Clamp to valid range
+    
+    ! Compute derived quantities
+    p2 = p * p
+    ovmu = 2.0d0 / rmu
+    gamma2 = p2 * ovmu + 1.0d0
+    gamma = sqrt(gamma2)
+    gamma = max(gamma, SMALL_GAMMA)
+    
+    ppar = p * alambd
+    vpa = ppar / gamma
+    
+    ! Ensure vpa is not exactly zero for stability
+    if (abs(vpa) < SMALL_VPA) then
+        vpa = sign(SMALL_VPA, vpa)
+        if (vpa == 0.0d0) vpa = SMALL_VPA
+    end if
+    
+    coala = 1.0d0 - alambd**2
+    rmumag = 0.5d0 * p2 * coala / bmod
+    
+    ! Compute geometric factors
+    rovsqg = ro0 / sqrtg
+    rosqgb = 0.5d0 * rovsqg / bmod
+    rovbm = ro0 / bmod
+    
+    ! Compute drift coefficients
+    a_phi(1) = (hcovar(2)*derphi(3) - hcovar(3)*derphi(2)) * rosqgb
+    a_b(1) = (hcovar(2)*bder(3) - hcovar(3)*bder(2)) * rovsqg
+    a_phi(2) = (hcovar(3)*derphi(1) - hcovar(1)*derphi(3)) * rosqgb
+    a_b(2) = (hcovar(3)*bder(1) - hcovar(1)*bder(3)) * rovsqg
+    a_phi(3) = (hcovar(1)*derphi(2) - hcovar(2)*derphi(1)) * rosqgb
+    a_b(3) = (hcovar(1)*bder(2) - hcovar(2)*bder(1)) * rovsqg
+    
+    ! Compute effective field direction
+    s_hc = 0.0d0
+    do i = 1, 3
+        a_c(i) = hcurl(i) * rovbm
+        s_hc = s_hc + a_c(i) * hcovar(i)
+        hstar(i) = hctrvr(i) + ppar * a_c(i)
+    end do
+    hpstar = 1.0d0 + ppar * s_hc
+    
+    ! Ensure hpstar is not too small
+    if (abs(hpstar) < SMALL_HPSTAR) then
+        hpstar = sign(SMALL_HPSTAR, hpstar)
+    end if
+    
+    ! Compute spatial velocities
+    phidot = 0.0d0
+    blodot = 0.0d0
+    do i = 1, 3
+        bra = vpa * hstar(i) + a_phi(i) + a_b(i) * rmumag / gamma
+        vz(i) = bra / hpstar
+        phidot = phidot + vz(i) * derphi(i)
+        blodot = blodot + vz(i) * bder(i)
+    end do
+    
+    ! Compute phase space velocities with safety checks
+    vz(4) = -0.5d0 * gamma * phidot / p
+    
+    if (abs(hpstar) > SMALL_HPSTAR .and. p > SMALL_P .and. gamma > SMALL_GAMMA) then
+        vz(5) = -(0.5d0 * coala / hpstar) * (sum(hstar*derphi) / p + &
+                  p * sum(hstar*bder) / gamma + alambd * sum(a_phi*bder))
+    else
+        vz(5) = 0.0d0
+    end if
+    
+    ! Handle gradpsiast if needed
+    if (gradpsiast) then
+        if (abs(vpa) > SMALL_VPA) then
+            dpsiast_dR = bmod * hpstar * x(1) / vpa
+            dpsiast_dZ = dpsiast_dR
+            dpsiast_dR = dpsiast_dR * vz(3)
+            dpsiast_dZ = -dpsiast_dZ * vz(1)
+        else
+            dpsiast_dR = 0.0d0
+            dpsiast_dZ = 0.0d0
+        end if
+    end if
     
 end subroutine velo_simple

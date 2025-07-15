@@ -19,6 +19,7 @@ add_library(potato_base
   spl_three_to_five.f90
   spline5_RZ.f90
   velo.f90
+  velo_safe.f90
   odeint_allroutines.f
   plag_coeff.f90
   find_all_roots.f90
