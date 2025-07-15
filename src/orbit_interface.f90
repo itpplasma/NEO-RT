@@ -78,17 +78,42 @@ contains
     
     subroutine thin_orbit_find_bounce(this, v, eta, s_flux, theta_boozer, phi_boozer, &
                                     taub, delphi, extraset, success)
-        ! Thin orbit bounce calculation using NEO-RT
+        ! Thin orbit bounce calculation using REAL NEO-RT bounce calculation
+        use neort_orbit, only: bounce_time, bounce
+        use driftorbit, only: init_done
         class(thin_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
         real(dp), intent(out) :: taub, delphi
         real(dp), intent(out) :: extraset(:)
         logical, intent(out) :: success
         
-        ! Use simplified thin orbit calculation
-        taub = 1.0d-4 / v * 1.0d5     ! Scale inversely with velocity
-        delphi = 0.1d0 * eta          ! Scale with pitch parameter
-        extraset = 0.0d0
+        ! Local variables for real NEO-RT calculation
+        real(dp) :: bounceavg(7)
+        
+        ! Check if driftorbit is initialized
+        if (.not. init_done) then
+            success = .false.
+            taub = 0.0d0
+            delphi = 0.0d0
+            extraset = 0.0d0
+            return
+        end if
+        
+        ! Call REAL NEO-RT bounce calculation
+        call bounce(v, eta, taub, bounceavg)
+        
+        ! Extract toroidal shift from bounce averages
+        ! bounceavg(3) contains the toroidal velocity v_ph
+        ! delphi = <v_ph> * taub gives toroidal shift per bounce
+        delphi = bounceavg(3) * taub
+        
+        ! Set extraset to bounce averages for compatibility
+        if (size(extraset) >= 7) then
+            extraset(1:7) = bounceavg(1:7)
+        else
+            extraset = bounceavg(1:size(extraset))
+        end if
+        
         success = .true.
         
     end subroutine thin_orbit_find_bounce
@@ -96,38 +121,55 @@ contains
     subroutine thick_orbit_find_bounce(this, v, eta, s_flux, theta_boozer, phi_boozer, &
                                      taub, delphi, extraset, success)
         ! Thick orbit bounce calculation using POTATO
-        use potato_wrapper, only: potato_wrapper_find_bounce
+        use potato_stub, only: potato_find_bounce
         class(thick_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
         real(dp), intent(out) :: taub, delphi
         real(dp), intent(out) :: extraset(:)
         logical, intent(out) :: success
         
-        ! Call real POTATO find_bounce through wrapper
-        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
+        ! Call POTATO find_bounce directly (stub for now)
+        call potato_find_bounce(v, eta, taub, delphi, extraset)
         
-        ! POTATO wrapper always succeeds for now
+        ! POTATO stub always succeeds for now
         success = .true.
         
     end subroutine thick_orbit_find_bounce
     
     subroutine thin_orbit_calculate_frequencies(this, v, eta, Om_th, Om_ph, success)
-        ! Thin orbit frequency calculation using NEO-RT
+        ! Thin orbit frequency calculation using REAL NEO-RT frequency calculation
+        use neort_freq, only: om_th_func => om_th, om_ph_func => om_ph
+        use driftorbit, only: init_done, sign_vpar_htheta
         class(thin_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Om_th, Om_ph
         logical, intent(out) :: success
         
-        ! Use simplified thin orbit frequency calculation
-        Om_th = 1.0d3 / v             ! Simplified poloidal frequency
-        Om_ph = 1.0d4 / v * (1.0d0 - eta)  ! Simplified toroidal frequency
+        ! Local variables for real NEO-RT calculation
+        real(dp) :: dOmthdv, dOmthdeta, dOmphdv, dOmphdeta
+        
+        ! Check if driftorbit is initialized
+        if (.not. init_done) then
+            success = .false.
+            Om_th = 0.0d0
+            Om_ph = 0.0d0
+            return
+        end if
+        
+        ! Call REAL NEO-RT frequency calculations
+        call om_th_func(v, eta, Om_th, dOmthdv, dOmthdeta)
+        call om_ph_func(v, eta, Om_ph, dOmphdv, dOmphdeta)
+        
+        ! Apply sign convention for consistency
+        Om_th = Om_th * sign_vpar_htheta
+        
         success = .true.
         
     end subroutine thin_orbit_calculate_frequencies
     
     subroutine thick_orbit_calculate_frequencies(this, v, eta, Om_th, Om_ph, success)
         ! Thick orbit frequency calculation using POTATO
-        use potato_wrapper, only: potato_wrapper_find_bounce, potato_wrapper_calculate_frequencies
+        use potato_stub, only: potato_find_bounce, potato_calculate_frequencies
         class(thick_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Om_th, Om_ph
@@ -138,10 +180,10 @@ contains
         real(dp) :: omega_bounce, omega_toroidal
         
         ! Get bounce time from POTATO
-        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
+        call potato_find_bounce(v, eta, taub, delphi, extraset)
         
         ! Calculate frequencies from bounce results
-        call potato_wrapper_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
+        call potato_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
         
         ! Map to NEO-RT frequency convention
         Om_th = omega_bounce      ! Poloidal bounce frequency

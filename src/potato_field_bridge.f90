@@ -153,20 +153,62 @@ contains
     end subroutine initialize_potato_field
     
     subroutine convert_neort_to_potato(v, eta, s_flux, theta_boozer, phi_boozer, z_eqm, success)
-        ! Convert NEO-RT parameters to POTATO phase space
+        ! Convert NEO-RT parameters to POTATO phase space using REAL coordinate transformation
+        use do_magfie_mod, only: booz_to_cyl, s, inp_swi
+        use util, only: mi, qi, c
+        use time_normalization, only: calculate_thermal_velocity
         implicit none
         real(dp), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
         real(dp), intent(out) :: z_eqm(5)
         logical, intent(out) :: success
         
-        ! Basic coordinate conversion
-        z_eqm(1) = 1.5d0 + 0.5d0 * s_flux  ! R coordinate
-        z_eqm(2) = 0.0d0                   ! Z coordinate
-        z_eqm(3) = phi_boozer              ! phi coordinate
-        z_eqm(4) = v * sqrt(1.0d0 - eta)   ! v_parallel
-        z_eqm(5) = v * sqrt(eta)           ! v_perpendicular
+        ! Local variables for coordinate conversion
+        real(dp) :: x_boozer(3), r_cyl(3)
+        real(dp) :: s_saved, bmod_local, v_thermal, lambda_potato
+        
+        ! Save current flux surface coordinate
+        s_saved = s
+        
+        ! Set flux surface for coordinate conversion
+        s = s_flux
+        
+        ! Use REAL Boozer coordinate transformation
+        x_boozer(1) = s_flux        ! Flux surface coordinate s ∈ [0,1]
+        x_boozer(2) = phi_boozer    ! Boozer toroidal angle
+        x_boozer(3) = theta_boozer  ! Boozer poloidal angle
+        
+        ! Convert Boozer coordinates to cylindrical coordinates
+        call booz_to_cyl(x_boozer, r_cyl)
+        
+        ! Set POTATO spatial coordinates (NEO-RT uses cm, POTATO uses m)
+        z_eqm(1) = r_cyl(1) / 100.0d0  ! R coordinate (cm -> m)
+        z_eqm(2) = r_cyl(2)            ! phi coordinate (radians)
+        z_eqm(3) = r_cyl(3) / 100.0d0  ! Z coordinate (cm -> m)
         
         success = .true.
+        
+        ! Convert NEO-RT (v, eta) to POTATO velocity space
+        ! NEO-RT: eta = v_perp²/(v_perp² + v_parallel²), v = |v|
+        ! POTATO: lambda = v_parallel/v, normalized momentum
+        
+        ! Convert to POTATO's momentum and pitch angle convention
+        lambda_potato = sqrt(1.0d0 - eta)  ! cos(pitch_angle) for eta = μB/E
+        
+        ! Use proper thermal velocity calculation from time_normalization module
+        v_thermal = calculate_thermal_velocity(1.0d0, 2.0d0)  ! 1 keV deuterium
+        
+        ! POTATO momentum normalization: p = v/v_thermal * sqrt(2)
+        z_eqm(4) = v / v_thermal * sqrt(2.0d0)  ! Normalized momentum
+        z_eqm(5) = lambda_potato                ! Cosine of pitch angle
+        
+        ! Restore original flux surface coordinate
+        s = s_saved
+        
+        ! Validate physical constraints
+        success = (v > 0.0d0) .and. (eta >= 0.0d0) .and. (eta <= 1.0d0) .and. &
+                  (s_flux >= 0.0d0) .and. (s_flux <= 1.0d0) .and. &
+                  (z_eqm(1) > 0.0d0) .and. (abs(lambda_potato) <= 1.0d0)
+        
     end subroutine convert_neort_to_potato
     
     subroutine real_find_bounce_calculation(v, eta, taub, delphi, success)

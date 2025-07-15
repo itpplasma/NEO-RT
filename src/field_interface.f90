@@ -65,37 +65,110 @@ contains
     
     subroutine thin_orbit_evaluate_field(this, R, Z, psif, dpsidr, dpsidz, d2psidr2, d2psidrdz, d2psidz2)
         ! Thin orbit field evaluation using NEO-RT magfie
+        use do_magfie_mod, only: do_magfie, psi_pr
         class(thin_orbit_field_evaluator_t), intent(in) :: this
         real(dp), intent(in) :: R, Z
         real(dp), intent(out) :: psif, dpsidr, dpsidz
         real(dp), intent(out) :: d2psidr2, d2psidrdz, d2psidz2
         
-        ! Use simplified field evaluation to avoid magfie initialization issues
-        ! TODO: Replace with proper magfie call once initialization is fixed
-        psif = 0.5d0 * (R - 1.5d0)**2 + 0.5d0 * Z**2
-        dpsidr = R - 1.5d0
-        dpsidz = Z
-        d2psidr2 = 1.0d0
+        ! Use REAL NEO-RT field evaluation through do_magfie call
+        real(dp) :: x(3), bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), parameter :: delta = 1.0d-6  ! Small step for finite differences
+        real(dp) :: psi_plus, psi_minus
+        
+        ! Set up coordinate input for magfie (Boozer coordinates)
+        x(1) = R
+        x(2) = 0.0d0  ! phi
+        x(3) = Z
+        
+        ! Call magfie to get field information
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        
+        ! Extract psi from magfie result
+        psif = psi_pr  ! This is the poloidal flux from magfie
+        
+        ! Calculate dpsidr
+        x(1) = R + delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_plus = psi_pr
+        
+        x(1) = R - delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_minus = psi_pr
+        
+        dpsidr = (psi_plus - psi_minus) / (2.0d0 * delta)
+        
+        ! Calculate dpsidz  
+        x(1) = R
+        x(3) = Z + delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_plus = psi_pr
+        
+        x(3) = Z - delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_minus = psi_pr
+        
+        dpsidz = (psi_plus - psi_minus) / (2.0d0 * delta)
+        
+        ! Second derivatives (simplified - set to zero for now)
+        d2psidr2 = 0.0d0
         d2psidrdz = 0.0d0
-        d2psidz2 = 1.0d0
+        d2psidz2 = 0.0d0
         
     end subroutine thin_orbit_evaluate_field
     
     subroutine thick_orbit_evaluate_field(this, R, Z, psif, dpsidr, dpsidz, d2psidr2, d2psidrdz, d2psidz2)
-        ! Thick orbit field evaluation using POTATO field_eq
+        ! Thick orbit field evaluation using NEO-RT field for now
+        use do_magfie_mod, only: do_magfie, psi_pr
         class(thick_orbit_field_evaluator_t), intent(in) :: this
         real(dp), intent(in) :: R, Z
         real(dp), intent(out) :: psif, dpsidr, dpsidz
         real(dp), intent(out) :: d2psidr2, d2psidrdz, d2psidz2
         
-        ! For now, use same simplified field as thin orbit
-        ! TODO: Replace with actual POTATO field_eq call when integration is complete
-        psif = 0.5d0 * (R - 1.5d0)**2 + 0.5d0 * Z**2
-        dpsidr = R - 1.5d0
-        dpsidz = Z
-        d2psidr2 = 1.0d0
+        ! Use same NEO-RT field evaluation as thin orbits for now
+        ! TODO: Replace with real POTATO field evaluation once circular dependency is resolved
+        real(dp) :: x(3), bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), parameter :: delta = 1.0d-6  ! Small step for finite differences
+        real(dp) :: psi_plus, psi_minus
+        
+        ! Set up coordinate input for magfie (Boozer coordinates)
+        x(1) = R
+        x(2) = 0.0d0  ! phi
+        x(3) = Z
+        
+        ! Call magfie to get field information
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        
+        ! Extract psi from magfie result
+        psif = psi_pr  ! This is the poloidal flux from magfie
+        
+        ! Calculate dpsidr
+        x(1) = R + delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_plus = psi_pr
+        
+        x(1) = R - delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_minus = psi_pr
+        
+        dpsidr = (psi_plus - psi_minus) / (2.0d0 * delta)
+        
+        ! Calculate dpsidz  
+        x(1) = R
+        x(3) = Z + delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_plus = psi_pr
+        
+        x(3) = Z - delta
+        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        psi_minus = psi_pr
+        
+        dpsidz = (psi_plus - psi_minus) / (2.0d0 * delta)
+        
+        ! Second derivatives (simplified - set to zero for now)
+        d2psidr2 = 0.0d0
         d2psidrdz = 0.0d0
-        d2psidz2 = 1.0d0
+        d2psidz2 = 0.0d0
         
     end subroutine thick_orbit_evaluate_field
     

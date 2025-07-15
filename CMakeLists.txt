@@ -103,6 +103,7 @@ set(NEO_RT_SOURCES
   src/runtime_config.f90
   src/field_interface.f90
   src/orbit_interface.f90
+  src/time_normalization.f90
   src/potato_stub.f90
   src/potato_wrapper.f90
   src/potato_interface.f90
