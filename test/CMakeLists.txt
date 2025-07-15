@@ -11,7 +11,8 @@ if(NOT USE_THICK_ORBITS)
         ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_physics_comparison.f90
         ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_real_integration.f90
         ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_comparison_plots.f90
-        ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_integration_fix.f90)
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_integration_fix.f90
+        ${CMAKE_CURRENT_SOURCE_DIR}/test_potato_floating_point_fix.f90)
 endif()
 
 foreach(test_src ${TEST_SOURCES})
@@ -103,5 +104,10 @@ if(USE_THICK_ORBITS)
     # Test for fixing POTATO integration issues (Phase G.1.1)
     add_test(NAME test_potato_integration_fix
              COMMAND test_potato_integration_fix.x
+             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    
+    # Test for POTATO floating point exception fixes
+    add_test(NAME test_potato_floating_point_fix
+             COMMAND test_potato_floating_point_fix.x
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endif()
