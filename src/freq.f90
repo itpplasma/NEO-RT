@@ -4,7 +4,7 @@ module neort_freq
     use neort_orbit, only: nvar, bounce
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
-        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, Bmax
+        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, Bmax, Bmin
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
 #ifdef USE_THICK_ORBITS
     use freq_thick, only: compute_canonical_frequencies_thick
@@ -65,12 +65,6 @@ contains
             if (eta < 1d-10) then
                 eta = 1d-10
             end if
-            ! Critical fix: ensure eta*Bmax < 1 to avoid sqrt(negative) in vpar
-            if (eta*Bmax >= 0.99d0) then
-                eta = 0.99d0/Bmax
-            end if
-            
-            ! Debug output (removed for performance)
             
             if (k == netaspl - 1) then
                 call bounce(v, eta, taub, bounceavg)

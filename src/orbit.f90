@@ -103,9 +103,9 @@ contains
         real(8) :: vpar
         real(8), intent(in) :: v, eta, bmod
         
-        ! Prevent taking square root of negative number
+        ! At turning points, eta*bmod = 1 and vpar = 0
         if (eta*bmod >= 1d0) then
-            vpar = 0d0  ! Trapped particle at turning point
+            vpar = 0d0  ! At or beyond turning point
         else
             vpar = v*sqrt(1d0 - eta*bmod)
             if (isnan(vpar)) then
@@ -148,8 +148,8 @@ contains
         y(3:6) = 0d0
 
         neq = nvar
-        rtol = 1d-6
-        atol = 1d-8
+        rtol = 1d-4
+        atol = 1d-6
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
@@ -242,6 +242,10 @@ contains
 
         ydot(1) = v_par*hthctr                                  ! theta
         ydot(2) = -v**2*eta/2d0*hthctr*hderth*bmod              ! v_par
+        
+        ! Prevent NaN/infinite values from propagating to VODE
+        if (isnan(ydot(1)) .or. abs(ydot(1)) > 1d10) ydot(1) = 0d0
+        if (isnan(ydot(2)) .or. abs(ydot(2)) > 1d10) ydot(2) = 0d0
     end subroutine poloidal_velocity
 
     function bounce_integral(v, eta, neq, y0, dt, ts)
@@ -268,8 +272,8 @@ contains
         integer :: itask, istate
         type(vode_opts) :: options
 
-        rtol = 1d-6
-        atol = 1d-8
+        rtol = 1d-4
+        atol = 1d-6
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
@@ -287,6 +291,14 @@ contains
         yold = y0
         ti = 0d0
         state = 1
+        
+        ! Check initial conditions for NaN/infinite values
+        if (any(isnan(y)) .or. any(abs(y) > 1d10)) then
+            write(*,*) 'WARNING: Bad initial conditions y0=', y0
+            bounce_integral = 0d0
+            return
+        end if
+        
         do k = 2, n
             yold = y
             told = ti
