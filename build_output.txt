@@ -1,0 +1,274 @@
+cmake --build build --config Debug
+[1/134] Building Fortran object POTATO/SRC/CMakeFiles/potato_base.dir/velo.f90.o
+FAILED: POTATO/SRC/CMakeFiles/potato_base.dir/velo.f90.o 
+/usr/bin/gfortran -I/home/ert/code/NEO-RT/POTATO/SRC -I/usr/include -g -JPOTATO -fdiagnostics-color=always -fPIC -g -O0 -Wextra -cpp -fbacktrace -std=f2008 -O3 -march=native -mtune=native -w -fpreprocessed -c POTATO/SRC/CMakeFiles/potato_base.dir/velo.f90-pp.f90 -o POTATO/SRC/CMakeFiles/potato_base.dir/velo.f90.o
+/home/ert/code/NEO-RT/POTATO/SRC/velo.f90:5:31:
+
+    5 |   use field_eq_mod,      only : psif,dpsidr,dpsidz
+      |                               1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/velo.f90:5:37:
+
+    5 |   use field_eq_mod,      only : psif,dpsidr,dpsidz
+      |                                     1
+Error: Symbol ‘dpsidr’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/velo.f90:5:44:
+
+    5 |   use field_eq_mod,      only : psif,dpsidr,dpsidz
+      |                                            1
+Error: Symbol ‘dpsidz’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/velo.f90:14:30:
+
+   14 |   derphi(1) = dPhi_dpsi*dpsidr
+      |                              1
+Error: Symbol ‘dpsidr’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/velo.f90:16:30:
+
+   16 |   derphi(3) = dPhi_dpsi*dpsidz
+      |                              1
+Error: Symbol ‘dpsidz’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/velo.f90:12:26:
+
+   12 |   call phielec_of_psi(psif,phi_elec,dPhi_dpsi)
+      |                          1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/velo.f90:12:26:
+
+   12 |   call phielec_of_psi(psif,phi_elec,dPhi_dpsi)
+      |                          1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type
+[2/134] Building Fortran object CMakeFiles/neo_rt.dir/src/orbit_types.f90.o
+[3/134] Building Fortran object OBJS/_deps/fortplotlib-build/CMakeFiles/fortplotlib.dir/src/fortplot_figure.f90.o
+[4/134] Building Fortran object CMakeFiles/neo_rt.dir/src/magfie.f90.o
+[5/134] Building Fortran object POTATO/SRC/CMakeFiles/potato_base.dir/sub_potato.f90.o
+FAILED: POTATO/SRC/CMakeFiles/potato_base.dir/sub_potato.f90.o POTATO/bounds_fixpoints_mod.mod POTATO/cc_mod.mod POTATO/form_classes_doublecount_mod.mod POTATO/get_matrix_mod.mod POTATO/global_invariants.mod POTATO/orbit_dim_mod.mod POTATO/phielec_of_psi_mod.mod POTATO/poicut_mod.mod 
+/usr/bin/gfortran -I/home/ert/code/NEO-RT/POTATO/SRC -I/usr/include -g -JPOTATO -fdiagnostics-color=always -fPIC -g -O0 -Wextra -cpp -fbacktrace -std=f2008 -O3 -march=native -mtune=native -w -fpreprocessed -c POTATO/SRC/CMakeFiles/potato_base.dir/sub_potato.f90-pp.f90 -o POTATO/SRC/CMakeFiles/potato_base.dir/sub_potato.f90.o
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:383:26:
+
+  383 |   use field_eq_mod, only : psif     ,dpsidr,dpsidz
+      |                          1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:383:37:
+
+  383 |   use field_eq_mod, only : psif     ,dpsidr,dpsidz
+      |                                     1
+Error: Symbol ‘dpsidr’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:383:44:
+
+  383 |   use field_eq_mod, only : psif     ,dpsidr,dpsidz
+      |                                            1
+Error: Symbol ‘dpsidz’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:530:27:
+
+  530 |   use field_eq_mod,  only : psif,psi_sep
+      |                           1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:564:26:
+
+  564 |   use field_eq_mod, only : psif
+      |                          1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:632:26:
+
+  632 |   use field_eq_mod, only : psif,dpsidr,dpsidz
+      |                          1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:632:32:
+
+  632 |   use field_eq_mod, only : psif,dpsidr,dpsidz
+      |                                1
+Error: Symbol ‘dpsidr’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:632:39:
+
+  632 |   use field_eq_mod, only : psif,dpsidr,dpsidz
+      |                                       1
+Error: Symbol ‘dpsidz’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:661:26:
+
+  661 |   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep,rtf
+      |                          1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:661:32:
+
+  661 |   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep,rtf
+      |                                1
+Error: Symbol ‘dpsidr’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:661:39:
+
+  661 |   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep,rtf
+      |                                       1
+Error: Symbol ‘dpsidz’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:812:26:
+
+  812 |   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+      |                          1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:812:32:
+
+  812 |   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+      |                                1
+Error: Symbol ‘dpsidr’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:812:39:
+
+  812 |   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+      |                                       1
+Error: Symbol ‘dpsidz’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:812:46:
+
+  812 |   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+      |                                              1
+Error: Symbol ‘d2psidr2’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:812:55:
+
+  812 |   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+      |                                                       1
+Error: Symbol ‘d2psidrdz’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:812:65:
+
+  812 |   use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+      |                                                                 1
+Error: Symbol ‘d2psidz2’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:886:26:
+
+  886 |   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep
+      |                          1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:886:32:
+
+  886 |   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep
+      |                                1
+Error: Symbol ‘dpsidr’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:886:39:
+
+  886 |   use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep
+      |                                       1
+Error: Symbol ‘dpsidz’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:992:34:
+
+  992 |   use field_eq_mod,         only : psif
+      |                                  1
+Error: Symbol ‘psif’ referenced at (1) not found in module ‘field_eq_mod’
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:396:36:
+
+  396 |   p_phi=ro0*z(4)*z(5)*hcovar(2)+psif
+      |                                    1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:543:14:
+
+  543 |   psihat=(psif-psimagaxis)/(psi_sep-psimagaxis)
+      |              1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:574:9:
+
+  574 |   x=(psif-psimagaxis)/(psi_bou-psimagaxis)
+      |         1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:645:13:
+
+  645 |   gpgb=dpsidr*bder(3)-dpsidz*bder(1)
+      |             1
+Error: Symbol ‘dpsidr’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:645:28:
+
+  645 |   gpgb=dpsidr*bder(3)-dpsidz*bder(1)
+      |                            1
+Error: Symbol ‘dpsidz’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:701:14:
+
+  701 |     det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
+      |              1
+Error: Symbol ‘dpsidr’ at (1) has no IMPLICIT type; did you mean ‘psils’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:701:30:
+
+  701 |     det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
+      |                              1
+Error: Symbol ‘dpsidz’ at (1) has no IMPLICIT type; did you mean ‘psils’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:694:12:
+
+  694 |     if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) exit
+      |            1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type; did you mean ‘psils’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:859:16:
+
+  859 |     det=d2psidr2*d2psidz2-d2psidrdz**2
+      |                1
+Error: Symbol ‘d2psidr2’ at (1) has no IMPLICIT type; did you mean ‘dpsi_dl’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:859:35:
+
+  859 |     det=d2psidr2*d2psidz2-d2psidrdz**2
+      |                                   1
+Error: Symbol ‘d2psidrdz’ at (1) has no IMPLICIT type; did you mean ‘dpsi_dl’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:859:25:
+
+  859 |     det=d2psidr2*d2psidz2-d2psidrdz**2
+      |                         1
+Error: Symbol ‘d2psidz2’ at (1) has no IMPLICIT type; did you mean ‘dpsi_dl’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:836:16:
+
+  836 |   dpsi_dl=dpsidr+dpsidz*dZ_dR
+      |                1
+Error: Symbol ‘dpsidr’ at (1) has no IMPLICIT type; did you mean ‘dpsi_dl’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:836:23:
+
+  836 |   dpsi_dl=dpsidr+dpsidz*dZ_dR
+      |                       1
+Error: Symbol ‘dpsidz’ at (1) has no IMPLICIT type; did you mean ‘dpsi_dl’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:869:17:
+
+  869 |   psimagaxis=psif
+      |                 1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:917:18:
+
+  917 |     dpsi_dl=dpsidr+dpsidz*dZ_dR
+      |                  1
+Error: Symbol ‘dpsidr’ at (1) has no IMPLICIT type; did you mean ‘dpsi_dl’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:917:25:
+
+  917 |     dpsi_dl=dpsidr+dpsidz*dZ_dR
+      |                         1
+Error: Symbol ‘dpsidz’ at (1) has no IMPLICIT type; did you mean ‘dpsi_dl’?
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:918:23:
+
+  918 |     del_R=(psi_bou-psif)/dpsi_dl
+      |                       1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type
+/home/ert/code/NEO-RT/POTATO/SRC/sub_potato.f90:1091:21:
+
+ 1091 |     psiast_bo(i)=psif
+      |                     1
+Error: Symbol ‘psif’ at (1) has no IMPLICIT type; did you mean ‘isig’?
+[6/134] Building Fortran object CMakeFiles/neo_rt.dir/src/freq.f90.o
+[7/134] Building Fortran object OBJS/_deps/fortplotlib-build/CMakeFiles/fortplotlib.dir/src/fortplot_animation.f90.o
+/home/ert/code/NEO-RT/build/OBJS/_deps/fortplotlib-src/src/fortplot_animation.f90:419:44:
+
+  419 |     subroutine render_pcolormesh_plot(fig, plot_data)
+      |                                            1~~~~~~~~
+Warning: Unused dummy argument ‘plot_data’ at (1) [-Wunused-dummy-argument]
+/home/ert/code/NEO-RT/build/OBJS/_deps/fortplotlib-src/src/fortplot_animation.f90:413:41:
+
+  413 |     subroutine render_contour_plot(fig, plot_data)
+      |                                         1~~~~~~~~
+Warning: Unused dummy argument ‘plot_data’ at (1) [-Wunused-dummy-argument]
+/home/ert/code/NEO-RT/build/OBJS/_deps/fortplotlib-src/src/fortplot_animation.f90:100:25:
+
+  100 |     subroutine sleep_ms(milliseconds)
+      |                         1~~~~~~~~~~~
+Warning: Unused dummy argument ‘milliseconds’ at (1) [-Wunused-dummy-argument]
+/home/ert/code/NEO-RT/build/OBJS/_deps/fortplotlib-src/src/fortplot_animation.f90:175:4:
+
+  175 |     function get_timestamp() result(ts)
+      |    ^
+Warning: ‘get_timestamp’ defined but not used [-Wunused-function]
+/home/ert/code/NEO-RT/build/OBJS/_deps/fortplotlib-src/src/fortplot_animation.f90:186:4:
+
+  186 |     function int_to_str(num) result(str)
+      |    ^
+Warning: ‘int_to_str’ defined but not used [-Wunused-function]
+/home/ert/code/NEO-RT/build/OBJS/_deps/fortplotlib-src/src/fortplot_animation.f90:437:4:
+
+  437 |     function get_current_timestamp() result(ts)
+      |    ^
+Warning: ‘get_current_timestamp’ defined but not used [-Wunused-function]
+ninja: build stopped: subcommand failed.
+make: *** [Makefile:31: build] Error 1
