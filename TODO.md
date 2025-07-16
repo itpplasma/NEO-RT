@@ -191,13 +191,13 @@ Physics calculations now run successfully with optimized numerical parameters:
 - [ ] **Validate field consistency** - Check ∇·B = 0 and flux surface alignment
 - [ ] **Create field diagnostic plots** - Visualize |B|, flux surfaces in R-Z
 
-### 4. Core Physics Implementation (**READY - Test Framework Complete**)
-- [ ] **Connect real thin orbit calculations** - Replace synthetic physics with NEO-RT `bounce()` calls
-- [ ] **Initialize magnetic field data** - Load `in_file` for realistic equilibrium
+### 4. Core Physics Implementation (**IN PROGRESS**)
+- [x] **Connect real thin orbit calculations** - NEO-RT `bounce()` calls working successfully
+- [x] **Initialize magnetic field data** - ASDEX equilibrium loaded and functional
 - [ ] **Fix `src/thick_orbit_drift.f90`** - Replace simplified estimates with real POTATO bounce times
 - [ ] **Fix `src/transport_thick.f90`** - Remove thin orbit approximation fallback  
 - [ ] **Fix `src/freq_thick.f90`** - Connect to real POTATO instead of stub
-- [ ] **Remove hardcoded coordinate conversions** - Use proper flux coordinate system
+- [x] **Remove hardcoded coordinate conversions** - Proper flux coordinate system implemented
 - [ ] **Implement proper velocity space integration** - Account for orbit width averaging
 
 ### 5. Frequency Calculations with Visual Verification
@@ -276,10 +276,10 @@ Physics calculations now run successfully with optimized numerical parameters:
 - ✅ **Verified orbit width effects** with real physics bounce integrals
 - 🔧 **Generate publication-quality orbit comparison figures** (ready for implementation)
 
-### Phase 3: Physics Implementation Pipeline (CURRENT FOCUS)
+### Phase 3: Physics Implementation Pipeline (NEXT STEPS)
 1. ✅ **Field validation** → Realistic ASDEX equilibrium data loaded and working
 2. ✅ **Orbit integration** → Bounce times and trajectories calculated successfully
-3. 🔧 **Frequency calculation** → Show finite orbit corrections (infrastructure ready)
+3. **Frequency calculation** → Connect real POTATO thick orbit frequencies
 4. **Resonance analysis** → Demonstrate shifted resonance locations
 5. **Transport matrix** → Verify modified diffusion coefficients
 6. **Torque calculation** → Final NTV torque with orbit width effects
