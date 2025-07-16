@@ -32,6 +32,7 @@ add_library(potato_base
   bmod_pert.f90
   resonant_int.f90
   eqmagprofs.f90
+  potato_stubs.f90
   # box_counting.f90  # Disabled due to VODE conflict with dvode_f90_m
 )
 # Use VODE from parent project if available, otherwise fetch
