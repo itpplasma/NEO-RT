@@ -203,35 +203,38 @@ Physics calculations now run successfully with optimized numerical parameters:
 
 **Status**: ✅ **MAJOR BREAKTHROUGH ACHIEVED** - Bounce integral calculation now works reliably. VODE convergence warnings present but calculation proceeds to completion. Physics results generated successfully.
 
-### 📊 **PLOT STATUS (18 plots generated)**
-- ✅ `bounce_time_comparison.png` - Bounce time vs pitch parameter
-- ✅ `canonical_frequencies.png` - Multi-panel canonical frequencies comparison  
-- ✅ `poloidal_frequency_comparison.png` - Poloidal frequency trends
-- ✅ `toroidal_frequency_comparison.png` - Toroidal frequency trends
-- ✅ `toroidal_shift_comparison.png` - Toroidal shift comparison
-- ✅ **`orbit_rz_comparison.png`** - R-Z plane orbit trajectories showing ~2cm banana width
-- ✅ `orbit_width_comparison.png` - Orbit width parameter scaling
-- ✅ `physics_based_comparison.png` - Real physics-based frequency analysis
-- ✅ `real_orbit_comparison.png` - Passing vs trapped orbit comparison
-- ✅ `resonance_map.png` - 2D resonance maps in velocity-eta space
-- ✅ `resonance_velocity_scan.png` - Resonance conditions vs velocity
-- ✅ `resonance_eta_scan.png` - Resonance conditions vs pitch angle
-- ✅ **`transport_heatmap.png`** - D_ij matrix elements across (v,η) parameter space
-- ✅ **`transport_matrix_structure.png`** - Transport matrix structure and Onsager symmetry
-- ✅ **`transport_vs_collisionality.png`** - Collisionality scaling in different regimes
-- ✅ **`torque_profile_comparison.png`** - 4-panel comprehensive torque analysis
-- ✅ **`torque_summary.png`** - Integrated torque comparison showing ~2% reduction
-- ✅ **`torque_parameter_scan.png`** - Torque reduction across (ν*, ρ*/ε) space
+### 📊 **PLOT STATUS - FORTRAN VISUALIZATION PROGRAMS COMPLETE**
+**✅ ALL FORTRAN VISUALIZATION PROGRAMS IMPLEMENTED - Using real NEO-RT API**
 
-### 2. Visual Verification Tools ✅ **COMPLETE**
-- [x] **Create `examples/thick_orbit/plot_orbit_rz.f90`** - Visualize single orbit in R-Z plane
-  - [x] Synthetic orbit trajectory demonstration
-  - [x] Framework for thin vs thick orbit comparison
-  - [x] **Physics integration infrastructure complete** - Real bounce calculations now working
-  - [x] **Generated `orbit_rz_comparison.png`** - Shows realistic 2cm banana width
-- [x] **Extend frequency plots** - Generated multi-panel canonical_frequencies.png
-- [x] **Create resonance visualization** - Generated resonance_map.png, resonance_velocity_scan.png, resonance_eta_scan.png
-- [x] **Transport matrix heatmap** - Generated transport_heatmap.png, transport_matrix_structure.png, transport_vs_collisionality.png
+**Completed: Fortran programs in `examples/thick_orbit/` that:**
+1. ✅ Call real NEO-RT API for thin orbit calculations
+2. ✅ Call real NEO-RT API for thick orbit calculations  
+3. ✅ Extract actual numerical results from NEO-RT modules
+4. ✅ Use fortplotlib for plotting real physics data
+
+**✅ COMPLETED FORTRAN VISUALIZATION PROGRAMS:**
+- [x] `plot_bounce_time_real.f90` - Real bounce times from NEO-RT `bounce()` function
+- [x] `plot_canonical_frequencies_real.f90` - Real frequencies from `Om_th()`, `Om_ph()`, `compute_canonical_frequencies_thick()`
+- [x] `plot_orbit_trajectories_real.f90` - Real orbit integration using `bounce()` and magnetic field geometry
+- [x] `plot_resonance_analysis_real.f90` - Real resonance calculations from `driftorbit_coarse()`, `driftorbit_root()`
+- [x] `plot_transport_coefficients_real.f90` - Real transport matrix from `calculate_transport_coefficients_thick()`
+- [x] `plot_torque_profiles_real.f90` - Real NTV torque from `calculate_ntv_torque_density()`
+
+**Physics Functions Used:**
+- **Orbit Integration**: `bounce()`, `orbit_calculator_factory()`, `find_bounce()`
+- **Frequency Calculations**: `Om_th()`, `Om_ph()`, `compute_canonical_frequencies_thick()`
+- **Resonance Analysis**: `driftorbit_coarse()`, `driftorbit_root()`, `calculate_orbit_width_parameter()`
+- **Transport Coefficients**: `calculate_transport_coefficients_thick()`, `validate_onsager_symmetry()`
+- **Torque Calculations**: `calculate_ntv_torque_density()`, `calculate_velocity_space_torque()`
+
+### 2. Visual Verification Tools ✅ **COMPLETE - FORTRAN IMPLEMENTATION**
+- [x] **Created proper Fortran visualization in `examples/thick_orbit/`**
+  - [x] Call real NEO-RT thin orbit API
+  - [x] Call real NEO-RT thick orbit API  
+  - [x] Extract actual calculation results
+  - [x] Use fortplotlib for plotting
+- [x] **Removed all Python approximation scripts**
+- [x] **All calculations come from NEO-RT Fortran modules**
 
 ### 3. Field Interface and Initialization (**UNBLOCKED - Field bridge complete**)
 - [ ] **Initialize POTATO field properly** - Ensure `field_divB0.inp` has correct data
@@ -286,12 +289,13 @@ Physics calculations now run successfully with optimized numerical parameters:
 
 ## Success Criteria
 
-### Visual Verification Outputs ✅ **18/18 COMPLETE**
-- [x] **orbit_rz_comparison.png** - Shows realistic 2cm banana width with real physics
-- [x] **frequency_differences.png** - Canonical frequencies multi-panel comparison
-- [x] **resonance_diagram.png** - Multiple resonance visualization plots generated
-- [x] **transport_heatmap.png** - D_ij matrix elements across parameter space
-- [x] **torque_profile_comparison.png** - Final NTV torque showing ~2% reduction from orbit width
+### Visual Verification Outputs ✅ **6/6 COMPLETE - REAL NEO-RT API IMPLEMENTATION**
+- [x] **bounce_time_real.png** - Real bounce times from NEO-RT `bounce()` function
+- [x] **canonical_frequencies_real.png** - Real frequencies from NEO-RT `Om_th()`, `Om_ph()` functions
+- [x] **orbit_trajectories_real.png** - Real orbit integration using NEO-RT physics
+- [x] **resonance_condition_heatmap.png** - Real resonance conditions from NEO-RT `driftorbit_coarse()`
+- [x] **transport_coefficients_heatmap.png** - Real transport matrix from NEO-RT `calculate_transport_coefficients_thick()`
+- [x] **torque_profiles_comparison.png** - Real NTV torque from NEO-RT `calculate_ntv_torque_density()`
 
 ### Physics Requirements
 - [x] **Test framework detects orbit differences** - ✅ Real POTATO integration working
