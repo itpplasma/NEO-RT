@@ -80,8 +80,8 @@ contains
         end if
 
         ! Look for exactly one orbit turn via root-finding.
-        ! Start by looking for 5 points per turn.
-        findroot_res = bounce_integral(v, eta, nvar, y0, taub/5d0, timestep)
+        ! Start by looking for 10 points per turn for smoother integration.
+        findroot_res = bounce_integral(v, eta, nvar, y0, taub/10d0, timestep)
 
         taub = findroot_res(1)
         bounceavg = findroot_res(2:)/taub
@@ -148,8 +148,8 @@ contains
         y(3:6) = 0d0
 
         neq = nvar
-        rtol = 1d-4
-        atol = 1d-6
+        rtol = 1d-3
+        atol = 1d-5
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
@@ -272,8 +272,8 @@ contains
         integer :: itask, istate
         type(vode_opts) :: options
 
-        rtol = 1d-4
-        atol = 1d-6
+        rtol = 1d-3
+        atol = 1d-5
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
@@ -284,7 +284,7 @@ contains
             passing = .true.
         end if
 
-        n = 500
+        n = 1000
         rootstate = -1
 
         y = y0
@@ -315,7 +315,7 @@ contains
             istate = 2
         end do
         if (istate /= 3) then
-            write (0, *) "ERROR: bounce_integral did not converge after 500 iterations"
+            write (0, *) "ERROR: bounce_integral did not converge after 1000 iterations"
             write (0, *) eta, etamin, etamax, y(1)
         end if
 
