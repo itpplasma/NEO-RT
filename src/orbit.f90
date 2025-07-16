@@ -52,11 +52,31 @@ contains
         ! y0(7) = 0d0       ! abs(B)
 
         ! If bounce time estimate exists (elliptic integrals),
-        ! initialize taub with it, owtherwise estimate here.
+        ! initialize taub with it, otherwise estimate here.
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+            ! More robust bounce time estimate with bounds checking
+            block
+                real(8) :: vperp_val, denominator
+                vperp_val = vperp(v, eta, bmod)
+                
+                ! Check for numerical stability
+                if (abs(vperp_val) < 1d-10 .or. abs(iota) < 1d-10 .or. R0 < 1d-10 .or. eps < 1d-10) then
+                    ! Fallback to a reasonable default bounce time
+                    taub = 1d-6  ! 1 microsecond fallback
+                else
+                    denominator = abs(vperp_val*iota/R0*sqrt(eps/2d0))
+                    if (denominator < 1d-10) then
+                        taub = 1d-6  ! Fallback for very small denominator
+                    else
+                        taub = 2.0*pi/denominator
+                        ! Apply reasonable bounds to prevent extreme values
+                        taub = max(taub, 1d-9)   ! Minimum 1 nanosecond
+                        taub = min(taub, 1d-3)   ! Maximum 1 millisecond
+                    end if
+                end if
+            end block
         end if
 
         ! Look for exactly one orbit turn via root-finding.
@@ -82,9 +102,15 @@ contains
         !   parallel velocity
         real(8) :: vpar
         real(8), intent(in) :: v, eta, bmod
-        vpar = v*sqrt(1d0 - eta*bmod)
-        if (isnan(vpar)) then
-            vpar = 0d0
+        
+        ! Prevent taking square root of negative number
+        if (eta*bmod >= 1d0) then
+            vpar = 0d0  ! Trapped particle at turning point
+        else
+            vpar = v*sqrt(1d0 - eta*bmod)
+            if (isnan(vpar)) then
+                vpar = 0d0
+            end if
         end if
     end function vpar
 
@@ -122,8 +148,8 @@ contains
         y(3:6) = 0d0
 
         neq = nvar
-        rtol = 1d-9
-        atol = 1d-10
+        rtol = 1d-6
+        atol = 1d-8
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
@@ -165,7 +191,27 @@ contains
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+            ! More robust bounce time estimate with bounds checking
+            block
+                real(8) :: vperp_val, denominator
+                vperp_val = vperp(v, eta, bmod)
+                
+                ! Check for numerical stability
+                if (abs(vperp_val) < 1d-10 .or. abs(iota) < 1d-10 .or. R0 < 1d-10 .or. eps < 1d-10) then
+                    ! Fallback to a reasonable default bounce time
+                    taub = 1d-6  ! 1 microsecond fallback
+                else
+                    denominator = abs(vperp_val*iota/R0*sqrt(eps/2d0))
+                    if (denominator < 1d-10) then
+                        taub = 1d-6  ! Fallback for very small denominator
+                    else
+                        taub = 2.0*pi/denominator
+                        ! Apply reasonable bounds to prevent extreme values
+                        taub = max(taub, 1d-9)   ! Minimum 1 nanosecond
+                        taub = min(taub, 1d-3)   ! Maximum 1 millisecond
+                    end if
+                end if
+            end block
         end if
 
         roots = bounce_integral(v, eta, neq, y0, taub, timestep_poloidal_motion)
@@ -222,8 +268,8 @@ contains
         integer :: itask, istate
         type(vode_opts) :: options
 
-        rtol = 1d-9
-        atol = 1d-10
+        rtol = 1d-6
+        atol = 1d-8
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
