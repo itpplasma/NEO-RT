@@ -180,29 +180,31 @@ contains
         use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, etamin, etamax, init_done, &
                              M_t, qi, epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
                              nonlin, bfac, efac, inp_swi
+        use neort_orbit, only: noshear
         use neort_profiles, only: qe, mu
         use do_magfie_mod, only: R0, a, eps, B0h, B00
         
         implicit none
         
-        ! Set basic physics parameters matching examples/base/driftorbit.in
-        s = 0.6d0           ! flux surface label
-        M_t = 1.0d0         ! toroidal mode number
-        vth = 1.0d6         ! thermal velocity [m/s]
+        ! Set basic physics parameters for ASDEX case
+        s = 0.5d0           ! flux surface label (middle of plasma)
+        M_t = 0.036d0       ! Mach number 
+        vth = 4.0d7         ! thermal velocity [cm/s]
         mth = 1             ! toroidal mode number
-        mph = 1             ! poloidal mode number
-        mi = 1.0d0 * mu     ! mass (normalized)
+        mph = 3             ! poloidal mode number
+        mi = 2.014d0 * mu   ! mass (deuterium)
         qi = 1.0d0 * qe     ! charge (normalized)
-        epsmn = 1.0d-4      ! perturbation amplitude
-        m0 = 2              ! poloidal mode number
-        comptorque = .false. ! no torque calculation for test
+        epsmn = 0.001d0     ! perturbation amplitude
+        m0 = 0              ! poloidal mode number
+        comptorque = .true. ! compute torque
         magdrift = .true.   ! include magnetic drifts
         nopassing = .false. ! include passing particles
+        noshear = .true.    ! neglect magnetic shear (for stability)
         pertfile = .false.  ! no perturbation file
         nonlin = .false.    ! linear calculation
         bfac = 1.0d0        ! B-field normalization factor
         efac = 1.0d0        ! E-field normalization factor
-        inp_swi = 9         ! ASDEX input format
+        inp_swi = 8         ! tok_circ input format (matches our in_file)
         
         ! Initialize magnetic field from in_file
         call do_magfie_init

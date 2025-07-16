@@ -2,7 +2,7 @@
 !
 !
 &params
-    s = 0.5                ! Radial coordinate s
+    s = 0.3                ! Radial coordinate s (closer to core for stability)
     M_t = 0.036            ! Mach number (for single Mach no. run)
     qs = 1.0               ! Particle charge / elem. charge
     ms = 2.014             ! Particle mass / 1u
@@ -18,6 +18,6 @@
     comptorque = .true.    ! compute torque
     bfac = 1.0             ! scale B field by factor
     efac = 1.0             ! scale E field by factor
-    inp_swi = 8            ! input switch for Boozer file
+    inp_swi = 9            ! input switch for Boozer file (ASDEX format)
     vsteps = 256           ! integration steps in velocity space
 /
