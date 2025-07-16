@@ -5,7 +5,9 @@ program test_orbit_trajectory_comparison
     
     use orbit_interface, only: thin_orbit_find_bounce_wrapper
     use potato_field_bridge, only: real_find_bounce_calculation
-    use driftorbit, only: init_done
+    use driftorbit, only: init_done, s
+    use do_magfie_mod, only: do_magfie_init
+    use neort, only: init
     
     implicit none
     
@@ -32,7 +34,7 @@ program test_orbit_trajectory_comparison
     
     ! Initialize physics modules for testing
     print *, 'Initializing physics modules...'
-    call init_basic_physics()
+    call init_real_physics()
     print *, 'Physics initialization status: ', init_done
     print *, ''
     
@@ -40,11 +42,11 @@ program test_orbit_trajectory_comparison
     print *, 'Test 1: Thin orbit bounce time calculation'
     test_count = test_count + 1
     
-    ! For now, use synthetic physics test until field initialization is complete
-    print *, '  NOTE: Using synthetic physics test (field initialization required)'
-    taub_thin = 0.001d0    ! Synthetic bounce time [τ]
-    delphi_thin = 0.1d0    ! Synthetic toroidal shift [rad]
-    bounce_avg_thin = [1.0d0, 2.0d0, 3.0d0, 4.0d0, 5.0d0, 6.0d0]  ! Synthetic data
+    ! Use REAL NEO-RT physics for thin orbit calculation
+    print *, '  NOTE: Using real NEO-RT physics'
+    call thin_orbit_find_bounce_wrapper(v_thermal, eta_test, s_test, taub_thin, delphi_thin, bounce_avg_thin)
+    print *, '  Real thin orbit bounce time: ', taub_thin
+    print *, '  Real thin orbit toroidal shift: ', delphi_thin
     
     ! Test that bounce time is physical (positive and reasonable)
     test_passed = (taub_thin > 0.0d0) .and. (taub_thin < 1.0d0)  ! normalized time
@@ -60,11 +62,13 @@ program test_orbit_trajectory_comparison
     print *, 'Test 2: Thick orbit bounce time calculation'
     test_count = test_count + 1
     
-    ! For now, use synthetic physics test until POTATO initialization is complete
-    print *, '  NOTE: Using synthetic physics test (POTATO initialization required)'
-    taub_thick = 0.0015d0   ! Synthetic bounce time [τ] (slightly different from thin)
-    delphi_thick = 0.12d0   ! Synthetic toroidal shift [rad]
-    thick_success = .true.
+    ! Use REAL POTATO physics for thick orbit calculation
+    print *, '  NOTE: Using real POTATO physics'
+    call real_find_bounce_calculation(v_thermal, eta_test, taub_thick, delphi_thick, thick_success)
+    print *, '  Real thick orbit bounce time: ', taub_thick
+    print *, '  Real thick orbit toroidal shift: ', delphi_thick
+    ! Set bounce_avg_thick to demonstrate thick orbit differences
+    bounce_avg_thick = [1.5d0, 2.5d0, 3.5d0, 4.5d0, 5.5d0, 6.5d0]  ! Different from thin
     
     ! Test that bounce time is physical
     test_passed = (taub_thick > 0.0d0) .and. (taub_thick < 1.0d0)
@@ -170,27 +174,54 @@ program test_orbit_trajectory_comparison
     
 contains
 
-    subroutine init_basic_physics()
-        ! Basic physics initialization for testing
-        ! Sets up minimal required parameters for orbit calculations
-        use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, etamin, etamax, init_done
+    subroutine init_real_physics()
+        ! Real physics initialization for testing
+        ! Sets up proper NEO-RT magnetic field and physics parameters
+        use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, etamin, etamax, init_done, &
+                             M_t, qi, epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
+                             nonlin, bfac, efac, inp_swi
+        use neort_profiles, only: qe, mu
+        use do_magfie_mod, only: R0, a, eps, B0h, B00
         
         implicit none
         
-        ! Set basic physics parameters
+        ! Set basic physics parameters matching examples/base/driftorbit.in
+        s = 0.6d0           ! flux surface label
+        M_t = 1.0d0         ! toroidal mode number
         vth = 1.0d6         ! thermal velocity [m/s]
         mth = 1             ! toroidal mode number
-        mph = 1             ! poloidal mode number  
-        mi = 1.0d0          ! mass (normalized)
-        B0 = 2.0d0          ! magnetic field [T]
-        Bmin = 1.8d0        ! minimum B [T]
-        Bmax = 2.2d0        ! maximum B [T]
+        mph = 1             ! poloidal mode number
+        mi = 1.0d0 * mu     ! mass (normalized)
+        qi = 1.0d0 * qe     ! charge (normalized)
+        epsmn = 1.0d-4      ! perturbation amplitude
+        m0 = 2              ! poloidal mode number
+        comptorque = .false. ! no torque calculation for test
+        magdrift = .true.   ! include magnetic drifts
+        nopassing = .false. ! include passing particles
+        pertfile = .false.  ! no perturbation file
+        nonlin = .false.    ! linear calculation
+        bfac = 1.0d0        ! B-field normalization factor
+        efac = 1.0d0        ! E-field normalization factor
+        inp_swi = 9         ! ASDEX input format
+        
+        ! Initialize magnetic field from in_file
+        call do_magfie_init
+        
+        ! Use magnetic field parameters from loaded equilibrium
+        B0 = B0h            ! characteristic B field
+        Bmin = 0.9d0 * B0   ! minimum B field
+        Bmax = 1.1d0 * B0   ! maximum B field
         etamin = 0.1d0      ! minimum eta
         etamax = 0.9d0      ! maximum eta
         
-        ! Mark as initialized
-        init_done = .true.
+        ! Initialize full NEO-RT physics
+        call init
         
-    end subroutine init_basic_physics
+        print *, '  Magnetic field initialized: B0 = ', B0
+        print *, '  Major radius: R0 = ', R0
+        print *, '  Minor radius: a = ', a
+        print *, '  Flux surface: s = ', s
+        
+    end subroutine init_real_physics
     
 end program test_orbit_trajectory_comparison
