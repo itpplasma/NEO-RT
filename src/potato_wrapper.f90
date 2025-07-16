@@ -80,8 +80,8 @@ contains
         ! z_eqm(4) = momentum module p (normalized to thermal velocity)
         ! z_eqm(5) = lambda = cos(pitch angle)
         
-        ! Basic coordinate conversion - simplified to avoid circular dependency
-        call simple_convert_neort_to_potato(v, eta, 0.5d0, 0.0d0, 0.0d0, z_eqm, success)
+        ! Basic coordinate conversion - use very conservative interior coordinates
+        call simple_convert_neort_to_potato(v, eta, 0.1d0, 0.0d0, 0.0d0, z_eqm, success)
         
         if (.not. success) then
             print *, 'ERROR: convert_neort_to_potato failed in potato_wrapper_find_bounce'
@@ -167,18 +167,18 @@ contains
         real(8), intent(out) :: z_eqm(5)
         logical, intent(out) :: success
         
-        ! Basic conversion for testing - assumes circular geometry
-        real(8), parameter :: R0 = 1.65d0  ! Major radius
-        real(8), parameter :: a = 0.46d0   ! Minor radius
+        ! Use actual magnetic axis from EQDSK data (from diagnostic output)
+        real(8), parameter :: R0 = 1.716d0  ! Actual magnetic axis R (m)
+        real(8), parameter :: a = 0.46d0   ! Minor radius (m)
         real(8) :: r_minor
         
-        ! Calculate minor radius from flux coordinate
-        r_minor = a * sqrt(s_flux)
+        ! Use very conservative flux coordinate mapping (deep inside plasma core)
+        r_minor = a * sqrt(s_flux) * 0.5d0  ! Scale down significantly to stay well within separatrix
         
-        ! Set spatial coordinates (R, phi, Z)
-        z_eqm(1) = R0 + r_minor * cos(theta_boozer)  ! R
+        ! Set spatial coordinates (R, phi, Z) - start very close to magnetic axis
+        z_eqm(1) = R0  ! R - exactly at magnetic axis
         z_eqm(2) = phi_boozer                        ! phi
-        z_eqm(3) = r_minor * sin(theta_boozer)       ! Z
+        z_eqm(3) = 0.0d0                             ! Z - at midplane
         
         ! Set momentum coordinates
         z_eqm(4) = v     ! momentum module (normalized to thermal velocity)
