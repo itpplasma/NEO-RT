@@ -122,6 +122,7 @@ if(USE_THICK_ORBITS)
   list(APPEND NEO_RT_SOURCES src/freq_thick.f90)
   list(APPEND NEO_RT_SOURCES src/transport_thick.f90)
   list(APPEND NEO_RT_SOURCES src/thick_orbit_drift.f90)
+  list(APPEND NEO_RT_SOURCES src/torque_thick.f90)
 endif()
 
 if(USE_STANDALONE)
