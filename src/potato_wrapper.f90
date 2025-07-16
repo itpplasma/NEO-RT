@@ -52,7 +52,24 @@ contains
         real(8) :: z_eqm(5)
         real(8) :: dtau_in
         logical :: success
-        external :: velo
+        
+        ! External POTATO functions - explicit interfaces
+        interface
+            subroutine find_bounce(next, velo_ext, dtau_in, z_eqm, taub, delphi, extraset)
+                integer, intent(in) :: next
+                external :: velo_ext
+                real(8), intent(in) :: dtau_in
+                real(8), intent(inout) :: z_eqm(5)
+                real(8), intent(out) :: taub, delphi
+                real(8), intent(inout) :: extraset(:)
+            end subroutine find_bounce
+            
+            subroutine velo(tau, z, vz)
+                real(8), intent(in) :: tau
+                real(8), intent(inout) :: z(:)
+                real(8), intent(out) :: vz(:)
+            end subroutine velo
+        end interface
         
         if (.not. potato_initialized) then
             call potato_wrapper_init()
