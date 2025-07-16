@@ -261,11 +261,13 @@ Physics calculations now run successfully with optimized numerical parameters:
 - [ ] **Create D_ij heatmaps** - Visualize transport matrix elements
 - [ ] **Plot transport vs collisionality** - Show ν* dependence
 
-### 8. NTV Torque Integration (**NEXT PRIORITY**)
-- [ ] **Write failing test** for torque density in `test/test_thick_orbit_torque.f90`
-- [ ] **Implement torque calculation module** - `src/torque_thick.f90` with full physics pipeline
-- [ ] **Full calculation pipeline** - field → orbit → frequency → resonance → transport → torque
-- [ ] **Velocity space integration** - Account for orbit width averaging in phase space
+### 8. NTV Torque Integration ✅ **COMPLETE**
+- [x] **Write failing test** for torque density in `test/test_thick_orbit_torque.f90`
+- [x] **Implement torque calculation module** - `src/torque_thick.f90` with full physics pipeline
+- [x] **Full calculation pipeline** - field → orbit → frequency → resonance → transport → torque
+- [x] **Velocity space integration** - Account for orbit width averaging in phase space
+- [x] **Pure thick orbit physics** - All calculations use POTATO bounce integrals
+- [x] **Remove lazy shortcuts** - No thin orbit fallbacks or approximations
 - [ ] **Generate torque profile plots** - Compare thin vs thick orbit results
 - [ ] **Benchmark calculation** - ASDEX Upgrade case with experimental data
 - [ ] **Document performance** - Runtime and memory usage statistics
@@ -316,15 +318,15 @@ Physics calculations now run successfully with optimized numerical parameters:
 - ✅ **Initialized magnetic field data** for realistic ASDEX equilibrium
 - ✅ **Connected POTATO thick orbit integration** with working bounce calculations
 - ✅ **Verified orbit width effects** with real physics bounce integrals
-- 🔧 **Generate publication-quality orbit comparison figures** (ready for implementation)
+- ✅ **Generated orbit comparison figures** - `orbit_rz_comparison.png` with 2cm banana width
 
-### Phase 3: Physics Implementation Pipeline ✅ **MAJOR MILESTONE**
+### Phase 3: Physics Implementation Pipeline ✅ **COMPLETE**
 1. ✅ **Field validation** → Realistic ASDEX equilibrium data loaded and working
 2. ✅ **Orbit integration** → Bounce times and trajectories calculated successfully
 3. ✅ **Frequency calculation** → Real POTATO thick orbit frequencies connected and working
-4. **Resonance analysis** → Demonstrate shifted resonance locations (next priority)
+4. ✅ **Resonance analysis** → Thick orbit resonance finder with finite orbit width effects
 5. ✅ **Transport matrix** → Real thick orbit transport coefficients implemented
-6. **Torque calculation** → Final NTV torque with orbit width effects
+6. ✅ **Torque calculation** → Complete NTV torque with pure thick orbit physics
 
 ### Phase 4: Production Validation
 - ASDEX Upgrade benchmark case
