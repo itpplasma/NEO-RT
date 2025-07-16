@@ -209,9 +209,12 @@ Physics calculations now run successfully with optimized numerical parameters:
 - [ ] **Generate frequency comparison plots** - Show ω_θ and ω_φ differences
 - [ ] **Validate against analytical limits** - Check low-ρ* and deeply trapped limits
 
-### 6. Resonance Analysis with Visualization (**NEXT PRIORITY**)
-- [ ] **Write test** for resonance finder in `test/test_thick_orbit_resonance.f90`
-- [ ] **Update `src/resonance.f90`** - Connect to real thick orbit frequencies via freq_thick
+### 6. Resonance Analysis with Visualization ✅ **IMPLEMENTED**
+- [x] **Write test** for resonance finder in `test/test_thick_orbit_resonance.f90`
+- [x] **Update `src/resonance.f90`** - Connected to real thick orbit frequencies via freq_thick
+- [x] **Implement thick orbit resonance finder** - `driftorbit_coarse_thick()` with orbit width effects
+- [x] **Runtime dispatch** - `driftorbit_coarse_unified()` switches between thin/thick orbit calculations
+- [x] **Orbit width parameter** - `calculate_orbit_width_parameter()` for resonance broadening
 - [ ] **Create resonance diagram** - Plot n·ω_φ - m·ω_θ vs parameters
 - [ ] **Show orbit width broadening** - Visualize resonance width changes
 - [ ] **Document resonance shifts** - Quantify location changes due to thick orbits

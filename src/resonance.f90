@@ -1,8 +1,6 @@
 module neort_resonance
     use neort_freq, only: Om_th, Om_ph, d_Om_ds
-#ifdef USE_THICK_ORBITS
-    use neort_freq, only: Om_th_unified, Om_ph_unified, calculate_orbit_width_criterion
-#endif
+    use freq_thick, only: compute_canonical_frequencies_thick
     use driftorbit, only: mth, mph, nlev, vth, sign_vpar
     implicit none
 
@@ -133,7 +131,8 @@ contains
     end function driftorbit_root
     
     subroutine driftorbit_coarse_unified(v, eta_min, eta_max, roots, nroots)
-        ! Unified resonance finder with thick/thin orbit dispatch
+        ! Unified resonance finder with runtime thick/thin orbit dispatch
+        use runtime_config, only: get_use_thick_orbits
         real(8), intent(in) :: v, eta_min, eta_max
         real(8), intent(out) :: roots(:, :)
         integer, intent(out) :: nroots
@@ -143,9 +142,8 @@ contains
         
         real(8) :: orbit_width
         
-#ifdef USE_THICK_ORBITS
-        if (enable_thick_orbit_resonance) then
-            orbit_width = calculate_orbit_width_criterion(v, 0.5d0 * (eta_min + eta_max))
+        if (get_use_thick_orbits() .and. enable_thick_orbit_resonance) then
+            orbit_width = calculate_orbit_width_parameter(v, 0.5d0 * (eta_min + eta_max))
             
             if (orbit_width > orbit_width_threshold) then
                 ! Use thick orbit resonance calculation
@@ -153,7 +151,6 @@ contains
                 return
             end if
         end if
-#endif
         
         ! Use thin orbit calculation (original implementation)
         call driftorbit_coarse(v, eta_min, eta_max, roots, nroots)
@@ -167,41 +164,39 @@ contains
         integer, intent(out) :: nroots
         
         real(8) :: deta
-        real(8) :: Omph, dOmphdv, dOmphdeta
-        real(8) :: Omth, dOmthdv, dOmthdeta
-        real(8) :: res, dresdv, dresdeta
-        real(8) :: resold, dresdvold, dresdetaold
+        real(8) :: Omph_thick, Omth_thick
+        real(8) :: res, resold
         real(8) :: eta, orbit_width, resonance_width
         integer :: k, ninterv
+        logical :: freq_success
         
         ninterv = size(roots, 1)
         
         deta = (eta_max - eta_min)*1d0/ninterv
         nroots = 0
+        resold = 0d0
         
         do k = 0, ninterv
             eta = eta_min + k*deta
             
-#ifdef USE_THICK_ORBITS
-            ! Use unified frequency interface (includes thick orbit dispatch)
-            call Om_th_unified(v, eta, Omth, dOmthdv, dOmthdeta)
-            call Om_ph_unified(v, eta, Omph, dOmphdv, dOmphdeta)
+            ! Use thick orbit frequency calculation
+            call compute_canonical_frequencies_thick(v, eta, Omth_thick, Omph_thick, freq_success)
             
-            ! Account for finite orbit width in resonance detection
-            orbit_width = calculate_orbit_width_criterion(v, eta)
-            resonance_width = abs(Omth) * orbit_width  ! Broadened resonance
-#else
-            ! Fallback to thin orbit calculation
-            call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-            call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+            if (.not. freq_success) then
+                ! Fallback to thin orbit calculation if thick orbit fails
+                block
+                    real(8) :: dOmthdv_dummy, dOmthdeta_dummy, dOmphdv_dummy, dOmphdeta_dummy
+                    call Om_th(v, eta, Omth_thick, dOmthdv_dummy, dOmthdeta_dummy)
+                    call Om_ph(v, eta, Omph_thick, dOmphdv_dummy, dOmphdeta_dummy)
+                end block
+                resonance_width = 0.0d0
+            else
+                ! Account for finite orbit width in resonance detection
+                orbit_width = calculate_orbit_width_parameter(v, eta)
+                resonance_width = abs(Omth_thick) * orbit_width  ! Broadened resonance
+            end if
             
-            ! No orbit width effects for thin orbits
-            resonance_width = 0.0d0
-#endif
-            
-            res = mth*Omth + mph*Omph
-            dresdv = mth*dOmthdv + mph*dOmphdv
-            dresdeta = mth*dOmthdeta + mph*dOmphdeta
+            res = mth*Omth_thick + mph*Omph_thick
             
             if (k > 0) then
                 ! Modified resonance condition: |res| < resonance_width or sign change
@@ -213,10 +208,28 @@ contains
             end if
             
             resold = res
-            dresdvold = dresdv
-            dresdetaold = dresdeta
         end do
         
     end subroutine driftorbit_coarse_thick
+
+    function calculate_orbit_width_parameter(v, eta) result(orbit_width)
+        ! Calculate orbit width parameter for resonance broadening
+        real(8), intent(in) :: v, eta
+        real(8) :: orbit_width
+        
+        ! Physical parameters
+        real(8), parameter :: B_field = 2.5d0       ! Tesla
+        real(8), parameter :: mass_amu = 2.0d0      ! Deuterium
+        real(8), parameter :: L_B = 0.5d0           ! Magnetic scale length
+        real(8), parameter :: v_thermal_ref = 1.0d6 ! Reference thermal velocity
+        real(8) :: rho_gyro
+        
+        ! Calculate gyroradius
+        rho_gyro = (v / v_thermal_ref) * 1.66d-27 * mass_amu * v_thermal_ref / (1.6d-19 * B_field)
+        
+        ! Orbit width parameter (normalized to magnetic scale length)
+        orbit_width = rho_gyro / L_B
+        
+    end function calculate_orbit_width_parameter
 
 end module neort_resonance

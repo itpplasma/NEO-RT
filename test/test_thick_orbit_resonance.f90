@@ -2,6 +2,10 @@ program test_thick_orbit_resonance
     ! Test resonance calculation with thick orbit frequencies (Phase G.3.1)
     ! Test resonance condition: n·ω_φ - m·ω_θ = ω_mode
     
+    use neort_resonance
+    use freq_thick, only: compute_canonical_frequencies_thick
+    use runtime_config, only: set_use_thick_orbits
+    use driftorbit, only: mth, mph
     implicit none
     
     ! Test parameters
@@ -38,6 +42,35 @@ program test_thick_orbit_resonance
     ! Calculate frequencies with both methods
     call calculate_reference_frequencies(v_test, eta_test, Om_th_thin, Om_ph_thin, &
                                        Om_th_thick, Om_ph_thick)
+    
+    ! Test actual thick orbit resonance finder
+    print *, ''
+    print *, 'Test: Thick orbit resonance finder'
+    print *, '--------------------------------'
+    
+    ! Set mode numbers for resonance finder
+    mth = m_mode
+    mph = n_mode
+    
+    ! Test resonance finder
+    block
+        real(8), allocatable :: roots(:,:)
+        integer :: nroots
+        integer :: i
+        
+        allocate(roots(100, 2))
+        
+        ! Use thick orbit unified resonance finder  
+        call set_use_thick_orbits(.true.)
+        call driftorbit_coarse_unified(v_test, 0.2d0, 0.8d0, roots, nroots)
+        
+        print *, 'Found', nroots, 'resonances with thick orbit finder'
+        do i = 1, nroots
+            print *, '  η ∈ [', roots(i,1), ',', roots(i,2), ']'
+        end do
+        
+        deallocate(roots)
+    end block
     
     ! Evaluate resonance condition: n·ω_φ - m·ω_θ = ω_mode  
     resonance_thin = real(n_mode, 8) * Om_ph_thin - real(m_mode, 8) * Om_th_thin - omega_mode
@@ -114,25 +147,23 @@ contains
     subroutine calculate_reference_frequencies(v, eta, Om_th_thin, Om_ph_thin, &
                                              Om_th_thick, Om_ph_thick)
         ! Calculate frequencies with both methods for comparison
+        use neort_freq, only: Om_th, Om_ph
         implicit none
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: Om_th_thin, Om_ph_thin, Om_th_thick, Om_ph_thick
         
-        real(8) :: taub, delphi, orbit_width_param
+        real(8) :: dOmthdv, dOmthdeta, dOmphdv, dOmphdeta
         logical :: success
         
-        ! Thin orbit calculation (simplified)
-        taub = 1.0d-4 / v * 1.0d6    ! Bounce time ~ 1/v
-        delphi = 0.1d0 * eta         ! Toroidal shift proportional to pitch
+        ! Thin orbit calculation from NEO-RT
+        call Om_th(v, eta, Om_th_thin, dOmthdv, dOmthdeta)
+        call Om_ph(v, eta, Om_ph_thin, dOmphdv, dOmphdeta)
         
-        Om_th_thin = 2.0d0 * pi / taub
-        Om_ph_thin = delphi / taub
-        
-        ! Thick orbit calculation (approximation for testing)
-        call calculate_orbit_width_criterion(v, eta, orbit_width_param)
-        call approximate_thick_frequencies(v, eta, orbit_width_param, Om_th_thick, Om_ph_thick, success)
+        ! Thick orbit calculation from POTATO
+        call compute_canonical_frequencies_thick(v, eta, Om_th_thick, Om_ph_thick, success)
         
         if (.not. success) then
+            ! Fallback to thin orbit if thick orbit fails
             Om_th_thick = Om_th_thin
             Om_ph_thick = Om_ph_thin
         end if
