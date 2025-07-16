@@ -8,6 +8,7 @@ module orbit_interface
     private
     public :: orbit_calculator_t, orbit_calculator_factory
     public :: thin_orbit_calculator_t, thick_orbit_calculator_t
+    public :: thin_orbit_find_bounce_wrapper
     
     integer, parameter :: dp = real64
     
@@ -202,5 +203,37 @@ contains
         ! No cleanup needed for thick orbit calculator
         this%initialized = .false.
     end subroutine thick_orbit_cleanup
+    
+    subroutine thin_orbit_find_bounce_wrapper(v, eta, s_flux, taub, delphi, bounce_avg)
+        ! Wrapper function for thin orbit bounce calculation
+        ! Compatible with test interface expectations
+        real(dp), intent(in) :: v, eta, s_flux
+        real(dp), intent(out) :: taub, delphi
+        real(dp), intent(out) :: bounce_avg(6)
+        
+        ! Local variables
+        type(thin_orbit_calculator_t) :: calculator
+        real(dp) :: theta_boozer, phi_boozer
+        real(dp) :: extraset(7)
+        logical :: success
+        
+        ! Use default Boozer coordinates for testing
+        theta_boozer = 0.0d0
+        phi_boozer = 0.0d0
+        
+        ! Call the class method
+        call calculator%find_bounce(v, eta, s_flux, theta_boozer, phi_boozer, &
+                                   taub, delphi, extraset, success)
+        
+        ! Convert extraset to bounce_avg format (truncate to 6 elements)
+        bounce_avg(1:6) = extraset(1:6)
+        
+        ! If unsuccessful, set default values
+        if (.not. success) then
+            taub = 0.0d0
+            delphi = 0.0d0
+            bounce_avg = 0.0d0
+        end if
+    end subroutine thin_orbit_find_bounce_wrapper
     
 end module orbit_interface

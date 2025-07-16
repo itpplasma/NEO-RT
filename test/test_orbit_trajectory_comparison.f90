@@ -3,7 +3,7 @@ program test_orbit_trajectory_comparison
     ! This test verifies that orbit trajectories can be computed and compared
     ! Following TDD methodology: Write failing test first
     
-    use orbit_interface
+    use orbit_interface, only: thin_orbit_find_bounce_wrapper
     use potato_field_bridge, only: real_find_bounce_calculation
     
     implicit none
@@ -33,7 +33,7 @@ program test_orbit_trajectory_comparison
     print *, 'Test 1: Thin orbit bounce time calculation'
     test_count = test_count + 1
     
-    call thin_orbit_find_bounce(v_thermal, eta_test, s_test, taub_thin, delphi_thin, bounce_avg_thin)
+    call thin_orbit_find_bounce_wrapper(v_thermal, eta_test, s_test, taub_thin, delphi_thin, bounce_avg_thin)
     
     ! Test that bounce time is physical (positive and reasonable)
     test_passed = (taub_thin > 0.0d0) .and. (taub_thin < 1.0d0)  ! normalized time
