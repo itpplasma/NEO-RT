@@ -29,7 +29,7 @@ contains
 
     subroutine compute_canonical_frequencies_thick(v, eta, Om_th, Om_ph, success)
         ! Compute thick orbit canonical frequencies using POTATO integration
-        use potato_field_bridge, only: real_find_bounce_calculation
+        use orbit_interface, only: orbit_calculator_t, orbit_calculator_factory
         implicit none
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Om_th, Om_ph
@@ -37,6 +37,9 @@ contains
         
         real(dp) :: taub, delphi
         real(dp), parameter :: pi = 3.141592653589793_dp
+        real(dp) :: s_flux, theta_boozer, phi_boozer
+        real(dp) :: extraset(7)
+        class(orbit_calculator_t), allocatable :: calculator
         
         ! Initialize outputs
         success = .false.
@@ -49,8 +52,20 @@ contains
             if (success) return
         end if
         
-        ! Direct POTATO calculation (expensive)
-        call real_find_bounce_calculation(v, eta, taub, delphi, success)
+        ! Use default test Boozer coordinates
+        s_flux = 0.5_dp
+        theta_boozer = 0.0_dp
+        phi_boozer = 0.0_dp
+        
+        ! Create thick orbit calculator (force thick=true)
+        calculator = orbit_calculator_factory(.true.)
+        
+        ! Direct thick orbit calculation using POTATO
+        call calculator%find_bounce(v, eta, s_flux, theta_boozer, phi_boozer, &
+                                   taub, delphi, extraset, success)
+        
+        ! Cleanup
+        call calculator%cleanup()
         
         if (.not. success) then
             ! Fallback to approximate thick orbit scaling
