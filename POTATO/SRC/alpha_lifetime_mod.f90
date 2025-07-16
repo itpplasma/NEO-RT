@@ -5,13 +5,8 @@
     double precision :: dpsiast_dR,dpsiast_dZ !<=NEW in version 4
   end module parmot_mod
 !
-  module collis_alp
-    integer, parameter :: nsorts=3, ns=10000 !original: ns=10000
-    integer :: iswmod
-    logical :: swcoll=.false.
-    double precision, dimension(nsorts)    :: efcolf,velrat,enrat
-    double precision, dimension(nsorts,ns) :: efcolf_arr,velrat_arr,enrat_arr
-  end module collis_alp
+  ! module collis_alp removed to avoid symbol conflict with NEO-RT
+  ! Use collis_alp from NEO-RT src/collis_nbi.f90 instead
 !
   module elefie_mod
     double precision :: rbig
