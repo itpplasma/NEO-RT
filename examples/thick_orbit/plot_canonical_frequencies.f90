@@ -2,7 +2,7 @@ program plot_canonical_frequencies
     ! Plot canonical frequencies omega_theta and omega_phi vs eta
     ! for both thin and thick orbit calculations using real POTATO
     
-    use fortplotlib
+    use fortplot
     use potato_field_bridge, only: real_find_bounce_calculation, &
                                    initialize_potato_field
     

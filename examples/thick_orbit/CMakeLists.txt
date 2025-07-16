@@ -19,6 +19,10 @@ target_link_libraries(plot_canonical_frequencies_demo.x neo_rt fortplotlib::fort
 add_executable(plot_runtime_comparison.x plot_runtime_comparison.f90)
 target_link_libraries(plot_runtime_comparison.x neo_rt fortplotlib::fortplotlib)
 
+# Orbit R-Z comparison plotting example
+add_executable(plot_orbit_rz.x plot_orbit_rz.f90)
+target_link_libraries(plot_orbit_rz.x neo_rt fortplotlib::fortplotlib)
+
 # Optional: add as a test that can be run to verify the example works
 add_test(NAME thick_orbit_example
          COMMAND thick_orbit_example.x

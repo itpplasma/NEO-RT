@@ -5,7 +5,7 @@ program thick_orbit_example
     
     use potato_field_bridge, only: real_find_bounce_calculation, &
                                    initialize_potato_field
-    use fortplotlib, only: figure_t
+    use fortplot, only: figure_t
     
     implicit none
     
