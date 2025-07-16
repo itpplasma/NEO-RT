@@ -4,7 +4,7 @@
 1       ! ntor: number of toroidal harmonics
 0.1     ! cutoff: inner cutoff in psi/psi_a units
 0       ! icftype: type of coil file
-'/temp/ert/data/AUG/EQDSK/g30835.3200_ed6'  ! gfile: equilibrium file (ASDEX Upgrade EFIT)
+'/home/ert/data/AUG/EQDSK/g30835.3200_ed6'  ! gfile: equilibrium file (ASDEX Upgrade EFIT)
 'unused'  ! pfile: coil file (no perturbation for now)
 'convexwall.dat'  ! convexfile: convex file for stretchcoords (ASDEX Upgrade vessel geometry)
 'unused'  ! fluxdatapath: directory with data in flux coord.

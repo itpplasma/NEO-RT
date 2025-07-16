@@ -4,7 +4,7 @@
 72                                ntor         ! number of toroidal harmonics
 0.99                              cutoff       ! inner cutoff in psi/psi_a units
 4                                 icftype      ! type of coil file
-'../../BOOZER_TO_EFIT/efit.eqdsk'          gfile        ! equilibrium file
+'/home/ert/data/AUG/EQDSK/g30835.3200_ed6'          gfile        ! equilibrium file
 'unused'    pfile        ! coil        file
 'DATA/convexwall.dat'            convexfile   ! convex file for stretchcoords
 'DATA/ASDEX/FLUXDATA'                  fluxdatapath ! directory with data in flux coord.
