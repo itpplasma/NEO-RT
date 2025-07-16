@@ -5,6 +5,14 @@
 
 This means: frequencies, resonances, transport coefficients, and NTV torque calculations must work cleanly with thick orbits. No shortcuts, no approximations - full physics implementation.
 
+## Verification Strategy
+All implementations must be verified through visual comparison plots and quantitative tests:
+- **Orbit visualization**: R-Z plane trajectories comparing thin vs thick orbits
+- **Frequency analysis**: Canonical frequencies (ω_θ, ω_φ) with finite orbit width effects
+- **Resonance locations**: Shift in resonance conditions due to thick orbits
+- **Transport coefficients**: Changes in D_ij matrix elements
+- **Torque density**: Final NTV torque profiles showing finite orbit corrections
+
 ## ⚠️ **CRITICAL PHYSICS FIXES COMPLETED**
 
 ### ✅ **COMPLETED: Real Physics Implementation**
@@ -84,84 +92,138 @@ The fundamental field interface blocking POTATO integration has been fixed:
 - [x] **Test POTATO build** - Verified `USE_THICK_ORBITS=ON` builds without errors
 - [ ] **Validate thick vs thin differences** - Generate plots showing real physics differences with proper field initialization
 
-### 📊 **GENERATED PLOTS (with identical thin/thick results)**
+### 📊 **GENERATED PLOTS (currently showing identical thin/thick results)**
 - ✅ `bounce_time_comparison.png` - Bounce time vs pitch parameter
 - ✅ `canonical_frequencies.png` - Canonical frequencies comparison  
 - ✅ `poloidal_frequency_comparison.png` - Poloidal frequency trends
 - ✅ `toroidal_frequency_comparison.png` - Toroidal frequency trends
 - ✅ `toroidal_shift_comparison.png` - Toroidal shift comparison
+- ⬜ **NEW: `orbit_rz_comparison.png`** - R-Z plane orbit trajectories (thick vs thin)
 
-### 2. Remaining Physics Implementation (**BLOCKED by field interface**)
+### 2. Visual Verification Tools (**NEW PRIORITY**)
+- [ ] **Create `examples/thick_orbit/plot_orbit_rz.f90`** - Visualize single orbit in R-Z plane
+  - [ ] Plot thin orbit trajectory using NEO-RT `bounce()` 
+  - [ ] Plot thick orbit trajectory using POTATO `find_bounce()`
+  - [ ] Show orbit width effects and banana tip shifts
+  - [ ] Generate `orbit_rz_comparison.png` for documentation
+- [ ] **Extend frequency plots** - Add relative difference panels
+- [ ] **Create resonance visualization** - Show n·ω_φ - m·ω_θ = ω_mode graphically
+- [ ] **Transport matrix heatmap** - Visualize D_ij changes across parameter space
+
+### 3. Field Interface and Initialization (**UNBLOCKED - Field bridge complete**)
+- [ ] **Initialize POTATO field properly** - Ensure `field_divB0.inp` has correct data
+- [ ] **Test field evaluation** - Verify `psif`, `dpsidr`, `dpsidz` values are physical
+- [ ] **Implement EFIT reader** - Load realistic ASDEX Upgrade equilibrium
+- [ ] **Validate field consistency** - Check ∇·B = 0 and flux surface alignment
+- [ ] **Create field diagnostic plots** - Visualize |B|, flux surfaces in R-Z
+
+### 4. Core Physics Implementation (**Ready to implement**)
 - [ ] **Fix `src/thick_orbit_drift.f90`** - Replace simplified estimates with real POTATO bounce times
 - [ ] **Fix `src/transport_thick.f90`** - Remove thin orbit approximation fallback  
 - [ ] **Fix `src/freq_thick.f90`** - Connect to real POTATO instead of stub
-- [ ] **Implement EFIT field initialization** - Required for realistic magnetic equilibrium
-- [ ] **Fix coordinate conversion** - Remove hardcoded values, use real flux coordinates
-- [ ] **Fix magnetic field setup** - Connect to realistic ASDEX Upgrade EFIT data
-- [ ] **Test field consistency** - Validate EFIT vs Boozer coordinate consistency
+- [ ] **Remove hardcoded coordinate conversions** - Use proper flux coordinate system
+- [ ] **Implement proper velocity space integration** - Account for orbit width averaging
 
-### 4. Fix Frequency Calculations (**BLOCKING**)
+### 5. Frequency Calculations with Visual Verification
 - [ ] **Write failing test** for thick orbit frequencies in `test/test_thick_orbit_frequencies.f90`
 - [ ] **Fix `src/freq_thick.f90`** - Use real POTATO bounce times instead of estimates
 - [ ] **Fix `src/freq.f90`** - Implement proper thin/thick dispatch
-- [ ] **Fix frequency database** - Populate with real POTATO calculations
-- [ ] **Test frequency accuracy** - Validate against analytical limits
+- [ ] **Generate frequency comparison plots** - Show ω_θ and ω_φ differences
+- [ ] **Validate against analytical limits** - Check low-ρ* and deeply trapped limits
 
-### 5. Implement Resonance with Real Frequencies (**BLOCKING**)
+### 6. Resonance Analysis with Visualization
 - [ ] **Write failing test** for resonance finder in `test/test_thick_orbit_resonance.f90`
 - [ ] **Fix `src/resonance.f90`** - Connect to real thick orbit frequencies
-- [ ] **Implement resonance condition** - n·ω_φ - m·ω_θ = ω_mode with real frequencies
-- [ ] **Add finite orbit width effects** - Account for orbit width in resonance calculation
-- [ ] **Test resonance shifts** - Validate thick orbit effects on resonance locations
+- [ ] **Create resonance diagram** - Plot n·ω_φ - m·ω_θ vs parameters
+- [ ] **Show orbit width broadening** - Visualize resonance width changes
+- [ ] **Document resonance shifts** - Quantify location changes due to thick orbits
 
-### 6. Complete Transport Matrix (**BLOCKING**)
+### 7. Transport Matrix Verification
 - [ ] **Write failing test** for real transport matrix in `test/test_real_transport_matrix.f90`
 - [ ] **Fix transport coefficients** - Use real bounce-averaged drift velocities
-- [ ] **Connect to real frequencies** - Remove simplified frequency estimates
-- [ ] **Implement proper resonance** - Use real resonance conditions
-- [ ] **Test transport physics** - Validate Onsager symmetry with real physics
+- [ ] **Create D_ij heatmaps** - Visualize transport matrix elements
+- [ ] **Check Onsager symmetry** - Verify D_12 = D_21 within numerics
+- [ ] **Plot transport vs collisionality** - Show ν* dependence
 
-### 7. NTV Torque with Real Physics (**FINAL GOAL**)
+### 8. NTV Torque Integration (**FINAL GOAL**)
 - [ ] **Write failing test** for torque density in `test/test_thick_orbit_torque.f90`
-- [ ] **Integrate real transport coefficients** - Use all real physics components
-- [ ] **Full NTV workflow** - field → orbit → frequency → resonance → transport → torque
-- [ ] **Production validation** - ASDEX Upgrade benchmark with real data
-- [ ] **Performance optimization** - Achieve reasonable computational cost
+- [ ] **Full calculation pipeline** - field → orbit → frequency → resonance → transport → torque
+- [ ] **Generate torque profile plots** - Compare thin vs thick orbit results
+- [ ] **Benchmark calculation** - ASDEX Upgrade case with experimental data
+- [ ] **Document performance** - Runtime and memory usage statistics
 
 ## Success Criteria
 
+### Visual Verification Outputs
+- [ ] **orbit_rz_comparison.png** - Shows clear banana width differences
+- [ ] **frequency_differences.png** - Quantifies ω_θ and ω_φ shifts
+- [ ] **resonance_diagram.png** - Demonstrates resonance location changes
+- [ ] **transport_heatmap.png** - Visualizes D_ij matrix modifications
+- [ ] **torque_profile_comparison.png** - Final NTV torque with/without orbit width
+
 ### Physics Requirements
-- [ ] Torque profiles show finite orbit width corrections
-- [ ] Resonance locations shift by measurable amounts
-- [ ] Torque magnitude changes by >5% for relevant parameters
-- [ ] Conservation laws satisfied to machine precision
-- [ ] Results converge to thin orbit limit for ρ_gyro → 0
+- [ ] Orbit width visible in R-Z trajectories (Δr ~ ρ_gyro)
+- [ ] Frequency shifts > 1% for trapped particles at ρ_tor = 0.6
+- [ ] Resonance locations shift by ~Δω/ω for finite orbits
+- [ ] Transport coefficients show orbit width corrections
+- [ ] Torque profiles differ by >5% in relevant parameter regime
+
+### Quantitative Validation
+- [ ] Thin orbit limit: Results → NEO-RT as ρ* → 0
+- [ ] Deeply trapped: ω_θ/ω_b → 1 for κ → 0
+- [ ] Passing particles: Minimal corrections for κ → 1
+- [ ] Conservation: Energy, magnetic moment preserved
+- [ ] Symmetries: Onsager relations satisfied
 
 ### Technical Requirements
-- [ ] All tests pass with realistic EFIT data
-- [ ] Calculation completes in reasonable time
-- [ ] Memory usage remains manageable
-- [ ] Code maintains backwards compatibility
-- [ ] Documentation complete for users
+- [ ] All visualization examples run successfully
+- [ ] Plots generated automatically during tests
+- [ ] Reasonable runtime (<10x thin orbit calculation)
+- [ ] Memory usage scales linearly with orbit count
+- [ ] Backwards compatibility maintained
 
-### Validation Requirements
-- [ ] Benchmark against analytical test cases
-- [ ] Compare with other thick orbit codes
-- [ ] Validate against experimental data
-- [ ] Uncertainty quantification included
-- [ ] Publication-ready plots generated
+## Implementation Roadmap Summary
+
+### Phase 1: Visual Verification Infrastructure ✓
+- Build system working with POTATO integration
+- Field bridge layer complete (`field_eq_mod` variables accessible)
+- Basic plotting examples generating comparison plots
+- Coordinate transformation framework in place
+
+### Phase 2: Orbit Visualization (CURRENT FOCUS)
+- Create R-Z orbit trajectory comparison tool
+- Verify orbit width effects are visible
+- Document banana tip shifts and orbit topology changes
+- Generate publication-quality orbit comparison figures
+
+### Phase 3: Physics Implementation Pipeline
+1. **Field validation** → Ensure realistic equilibrium data
+2. **Orbit integration** → Compare bounce times and trajectories  
+3. **Frequency calculation** → Show finite orbit corrections
+4. **Resonance analysis** → Demonstrate shifted resonance locations
+5. **Transport matrix** → Verify modified diffusion coefficients
+6. **Torque calculation** → Final NTV torque with orbit width effects
+
+### Phase 4: Production Validation
+- ASDEX Upgrade benchmark case
+- Comparison with other finite orbit codes
+- Performance optimization
+- User documentation
 
 ## Key Implementation Insights
 
-**Technical Discoveries**:
-1. **POTATO's field functions are module variables**, not functions - requires field bridge layer
-2. **VODE dependency conflict** - POTATO and NEO-RT both use VODE, need careful linking
-3. **Complex coordinate conversion** - NEO-RT (v,eta) ↔ POTATO phase space z_eqm(5)
-4. **Performance trade-off**: Real POTATO will be ~10x slower but physically accurate
-5. **No spline optimization possible** - thick orbits require direct integration per particle
+**Technical Architecture**:
+1. **POTATO field bridge** - Module variables (`psif`, `dpsidr`, etc.) properly exposed
+2. **VODE linking** - Resolved by excluding `box_counting.f90` from POTATO build
+3. **Coordinate systems** - Boozer ↔ cylindrical conversion via `booz_to_cyl()`
+4. **Runtime dispatch** - `get_use_thick_orbits()` switches between implementations
+5. **Visualization** - `fortplotlib` for Fortran, matplotlib for Python analysis
 
-**⚠️ IMPORTANT LIMITATION: Spline Scaling Invalid for Thick Orbits**
+**Physics Considerations**:
+- **Orbit width**: Δr ~ ρ_gyro·q becomes significant for ρ* > 0.01
+- **Frequency shifts**: Δω/ω ~ (ρ*/ε)² for deeply trapped particles
+- **Resonance broadening**: Width increases with orbit excursion
+- **Transport**: Orbit averaging modifies neoclassical coefficients
+- **Performance**: ~10x slower but captures essential physics
 
-The current NEO-RT frequency optimization using splines assumes thin orbit scaling with velocity `v`, which breaks down for finite orbit width (thick orbits). Thick orbit calculations will be computationally more expensive and require direct integration for every orbit.
-
-**CRITICAL**: This is **real physics integration** - not interface framework. Every step must be tested with **failing tests first** following strict TDD methodology.
+**CRITICAL**: Every implementation must follow strict TDD methodology with visual verification at each step.
