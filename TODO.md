@@ -108,13 +108,20 @@ The fundamental field interface blocking POTATO integration has been fixed:
 - [x] **Replace synthetic with real NEO-RT physics** - `test_orbit_trajectory_comparison.f90` updated with real physics calls
 - [x] **Initialize magnetic field data** - Created working directory structure with `in_file`, `driftorbit.in`, `plasma.in`
 
-#### 🔥 **CURRENT BLOCKER: POTATO Symbol Resolution**
-The test framework is ready but requires fixing undefined symbol errors in POTATO integration:
+#### ✅ **COMPLETED: Real Physics Integration Foundation**
+The test framework and infrastructure are now complete:
+- **Test Framework**: `test_orbit_trajectory_comparison.f90` uses real NEO-RT physics calls
+- **Magnetic Field Data**: Working directory with `in_file`, `driftorbit.in`, `plasma.in`
+- **Initialization**: `init_real_physics()` function properly sets up NEO-RT modules
+- **Documentation**: Complete setup guide in `WORKING_DIRECTORY_SETUP.md`
+
+#### 🔥 **NEXT PRIORITY: POTATO Symbol Resolution**
+To enable real thick orbit integration, these undefined symbols need implementation:
 - `phielec_of_psi_` - Electric field potential function
 - `denstemp_of_psi_` - Density and temperature profile function
 - `field_eq_` - EFIT field evaluation function
 
-These symbols are needed for real POTATO thick orbit calculations to work.
+**Current approach**: Focus on creating stub implementations that satisfy linker requirements.
 
 ### 📊 **PLOT STATUS**
 - ✅ `bounce_time_comparison.png` - Bounce time vs pitch parameter
