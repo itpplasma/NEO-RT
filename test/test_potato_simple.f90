@@ -8,7 +8,7 @@ program test_potato_simple
     contains
     
     subroutine test_potato_stub_interface
-        use potato_stub, only: potato_find_bounce, potato_calculate_frequencies
+        use potato_wrapper, only: potato_wrapper_find_bounce, potato_wrapper_calculate_frequencies
         
         real(8) :: v, eta, taub, delphi, extraset(7)
         real(8) :: omega_bounce, omega_toroidal
@@ -19,8 +19,8 @@ program test_potato_simple
         eta = 0.5d0
         extraset = 0.0d0
         
-        call potato_find_bounce(v, eta, taub, delphi, extraset)
-        call potato_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
+        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
+        call potato_wrapper_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
         
         if (taub <= 0.0d0 .or. delphi <= 0.0d0 .or. &
             omega_bounce <= 0.0d0 .or. omega_toroidal <= 0.0d0) then

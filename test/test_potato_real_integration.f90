@@ -108,7 +108,7 @@ contains
         ! Test that real POTATO calculations give different results from stub
         block
             use potato_field_bridge, only: real_find_bounce_calculation
-            use potato_stub, only: potato_find_bounce
+            use potato_wrapper, only: potato_wrapper_find_bounce
             real(8) :: v, eta, taub_real, delphi_real, taub_stub, delphi_stub
             real(8) :: extraset_stub(7)
             logical :: success_real, success_stub
@@ -117,7 +117,7 @@ contains
             eta = 0.3d0
             
             call real_find_bounce_calculation(v, eta, taub_real, delphi_real, success_real)
-            call potato_find_bounce(v, eta, taub_stub, delphi_stub, extraset_stub)
+            call potato_wrapper_find_bounce(v, eta, taub_stub, delphi_stub, extraset_stub)
             success_stub = .true.
             
             test_passed = success_real .and. success_stub .and. &

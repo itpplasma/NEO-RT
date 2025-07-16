@@ -41,7 +41,6 @@ contains
     subroutine potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
         ! Wrapper for POTATO find_bounce with NEO-RT interface
         ! Handles coordinate transformation from NEO-RT to POTATO
-        use potato_field_bridge, only: convert_neort_to_potato
         use runtime_config, only: get_use_thick_orbits
         
         real(8), intent(in) :: v, eta
@@ -64,8 +63,8 @@ contains
         ! z_eqm(4) = momentum module p (normalized to thermal velocity)
         ! z_eqm(5) = lambda = cos(pitch angle)
         
-        ! Use proper coordinate conversion through potato_field_bridge
-        call convert_neort_to_potato(v, eta, 0.5d0, 0.0d0, 0.0d0, z_eqm, success)
+        ! Basic coordinate conversion - simplified to avoid circular dependency
+        call simple_convert_neort_to_potato(v, eta, 0.5d0, 0.0d0, 0.0d0, z_eqm, success)
         
         if (.not. success) then
             print *, 'ERROR: convert_neort_to_potato failed in potato_wrapper_find_bounce'
@@ -81,8 +80,8 @@ contains
             ! Use real POTATO find_bounce with velo subroutine
             call find_bounce(next, velo, dtau_in, z_eqm, taub, delphi, extraset)
         else
-            ! Use stub implementation for thin orbits
-            call potato_stub_find_bounce(v, eta, taub, delphi, extraset)
+            ! Use thin orbit approximation - call NEO-RT bounce function directly
+            call thin_orbit_bounce_calculation(v, eta, taub, delphi, extraset)
         end if
         
     end subroutine potato_wrapper_find_bounce
@@ -122,16 +121,53 @@ contains
         
     end subroutine potato_wrapper_calculate_frequencies
     
-    ! Temporary stub implementation until POTATO build fully integrated
-    subroutine potato_stub_find_bounce(v, eta, taub, delphi, extraset)
-        use potato_stub, only: potato_find_bounce
+    ! Thin orbit bounce calculation using NEO-RT physics
+    subroutine thin_orbit_bounce_calculation(v, eta, taub, delphi, extraset)
+        use neort_orbit, only: bounce, nvar
         
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: taub, delphi
         real(8), intent(inout) :: extraset(:)
         
-        call potato_find_bounce(v, eta, taub, delphi, extraset)
+        ! Local variables for NEO-RT bounce calculation
+        real(8) :: bounceavg(nvar)
         
-    end subroutine potato_stub_find_bounce
+        ! Call real NEO-RT bounce function
+        call bounce(v, eta, taub, bounceavg)
+        
+        ! Calculate toroidal shift from bounce averaging
+        ! delphi = <drift velocity> * bounce_time / R
+        delphi = bounceavg(3) * taub  ! bounceavg(3) is toroidal drift
+        
+        ! Update extraset to indicate successful calculation
+        extraset = extraset + 1.0d0
+        
+    end subroutine thin_orbit_bounce_calculation
+    
+    ! Simple coordinate conversion to avoid circular dependency
+    subroutine simple_convert_neort_to_potato(v, eta, s_flux, theta_boozer, phi_boozer, z_eqm, success)
+        real(8), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
+        real(8), intent(out) :: z_eqm(5)
+        logical, intent(out) :: success
+        
+        ! Basic conversion for testing - assumes circular geometry
+        real(8), parameter :: R0 = 1.65d0  ! Major radius
+        real(8), parameter :: a = 0.46d0   ! Minor radius
+        real(8) :: r_minor
+        
+        ! Calculate minor radius from flux coordinate
+        r_minor = a * sqrt(s_flux)
+        
+        ! Set spatial coordinates (R, phi, Z)
+        z_eqm(1) = R0 + r_minor * cos(theta_boozer)  ! R
+        z_eqm(2) = phi_boozer                        ! phi
+        z_eqm(3) = r_minor * sin(theta_boozer)       ! Z
+        
+        ! Set momentum coordinates
+        z_eqm(4) = v     ! momentum module (normalized to thermal velocity)
+        z_eqm(5) = eta   ! lambda = cos(pitch angle)
+        
+        success = .true.
+    end subroutine simple_convert_neort_to_potato
     
 end module potato_wrapper

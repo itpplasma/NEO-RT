@@ -66,7 +66,7 @@ program test_potato_bounce
     end subroutine setup_control
     
     subroutine test_potato_find_bounce_interface
-        use potato_stub, only: potato_find_bounce
+        use potato_wrapper, only: potato_wrapper_find_bounce
         
         print *, 'Testing POTATO find_bounce interface...'
         print *, 'test_potato_find_bounce_interface OK - POTATO stub accessible'
@@ -98,14 +98,14 @@ program test_potato_bounce
     end subroutine test_potato_bounce_vs_thin
     
     subroutine test_potato_bounce_direct_call
-        use potato_stub, only: potato_find_bounce
+        use potato_wrapper, only: potato_wrapper_find_bounce
         
         real(8) :: taub, delphi, extraset(7)
         
         print *, 'Testing direct POTATO bounce call...'
         
         extraset = 0.0d0
-        call potato_find_bounce(v, eta, taub, delphi, extraset)
+        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
         
         if (taub <= 0.0d0) then
             print *, 'test_potato_bounce_direct_call FAILED - invalid bounce time'

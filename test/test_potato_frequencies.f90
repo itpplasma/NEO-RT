@@ -66,7 +66,7 @@ program test_potato_frequencies
     end subroutine setup_control
     
     subroutine test_potato_frequency_interface
-        use potato_stub, only: potato_calculate_frequencies
+        use potato_wrapper, only: potato_wrapper_calculate_frequencies
         
         print *, 'Testing POTATO frequency interface...'
         print *, 'test_potato_frequency_interface OK - POTATO stub accessible'
@@ -98,7 +98,7 @@ program test_potato_frequencies
     end subroutine test_potato_frequency_vs_thin
     
     subroutine test_potato_frequency_direct_call
-        use potato_stub, only: potato_calculate_frequencies
+        use potato_wrapper, only: potato_wrapper_calculate_frequencies
         
         real(8) :: taub, delphi, omega_bounce, omega_toroidal
         
@@ -106,7 +106,7 @@ program test_potato_frequencies
         
         taub = 1.0d-6
         delphi = 0.05d0
-        call potato_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
+        call potato_wrapper_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
         
         if (omega_bounce <= 0.0d0) then
             print *, 'test_potato_frequency_direct_call FAILED - invalid bounce frequency'

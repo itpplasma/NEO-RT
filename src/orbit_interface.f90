@@ -122,15 +122,15 @@ contains
     subroutine thick_orbit_find_bounce(this, v, eta, s_flux, theta_boozer, phi_boozer, &
                                      taub, delphi, extraset, success)
         ! Thick orbit bounce calculation using POTATO
-        use potato_stub, only: potato_find_bounce
+        use potato_wrapper, only: potato_wrapper_find_bounce
         class(thick_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta, s_flux, theta_boozer, phi_boozer
         real(dp), intent(out) :: taub, delphi
         real(dp), intent(out) :: extraset(:)
         logical, intent(out) :: success
         
-        ! Call POTATO find_bounce directly (stub for now)
-        call potato_find_bounce(v, eta, taub, delphi, extraset)
+        ! Call POTATO find_bounce through wrapper
+        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
         
         ! POTATO stub always succeeds for now
         success = .true.
@@ -170,7 +170,7 @@ contains
     
     subroutine thick_orbit_calculate_frequencies(this, v, eta, Om_th, Om_ph, success)
         ! Thick orbit frequency calculation using POTATO
-        use potato_stub, only: potato_find_bounce, potato_calculate_frequencies
+        use potato_wrapper, only: potato_wrapper_find_bounce, potato_wrapper_calculate_frequencies
         class(thick_orbit_calculator_t), intent(in) :: this
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Om_th, Om_ph
@@ -181,10 +181,10 @@ contains
         real(dp) :: omega_bounce, omega_toroidal
         
         ! Get bounce time from POTATO
-        call potato_find_bounce(v, eta, taub, delphi, extraset)
+        call potato_wrapper_find_bounce(v, eta, taub, delphi, extraset)
         
         ! Calculate frequencies from bounce results
-        call potato_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
+        call potato_wrapper_calculate_frequencies(taub, delphi, omega_bounce, omega_toroidal)
         
         ! Map to NEO-RT frequency convention
         Om_th = omega_bounce      ! Poloidal bounce frequency
