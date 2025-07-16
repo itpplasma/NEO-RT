@@ -18,49 +18,32 @@ contains
 
     subroutine calculate_drift_velocities_thick(v, eta, vd_R, vd_Z, vd_phi, success)
         ! Calculate drift velocities with finite orbit width corrections
+        use thick_orbit_drift, only: calculate_bounce_averaged_drift
         implicit none
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: vd_R, vd_Z, vd_phi
         logical, intent(out) :: success
         
         ! Local variables
-        real(8) :: taub, delphi
-        real(8) :: R_start, Z_start, phi_start
-        real(8) :: v_parallel, v_perpendicular
-        real(8) :: rho_gyro, orbit_width_param
-        real(8) :: grad_B_drift_R, grad_B_drift_Z, curvature_drift_R, curvature_drift_Z
-        real(8) :: finite_orbit_correction_R, finite_orbit_correction_Z
-        logical :: bounce_success
+        real(8) :: v_drift_avg(3)  ! [R, phi, Z] components from thick orbit calculation
         
         success = .false.
         
-        ! Calculate orbit width parameter
-        rho_gyro = mass_deuterium * v / (charge_elementary * B_field_ref)
-        orbit_width_param = rho_gyro / 0.5d0  ! L_B = 0.5 m
+        ! Get real bounce-averaged drift velocities from POTATO thick orbit calculation
+        call calculate_bounce_averaged_drift(v, eta, v_drift_avg, success)
         
-        ! Starting position (simplified - center of plasma)
-        R_start = 1.8d0  ! Major radius (m)
-        Z_start = 0.0d0  ! Midplane
-        phi_start = 0.0d0
+        if (.not. success) then
+            ! Fallback to thin orbit approximation if thick orbit fails
+            print *, 'WARNING: Thick orbit drift calculation failed, using thin orbit fallback'
+            call calculate_thin_orbit_drift_velocities(v, eta, vd_R, vd_Z, vd_phi)
+            success = .true.
+            return
+        end if
         
-        ! Convert velocity parameters
-        v_parallel = v * sqrt(1.0d0 - eta)
-        v_perpendicular = v * sqrt(eta)
-        
-        ! Calculate bounce-averaged orbit using POTATO with error handling
-        bounce_success = .false.
-        
-        ! Try POTATO integration with simplified approach first
-        ! For now, use thin orbit approximation until POTATO integration is stable
-        call calculate_thin_orbit_drift_velocities(v, eta, vd_R, vd_Z, vd_phi)
-        
-        ! Apply finite orbit width corrections to thin orbit results
-        finite_orbit_correction_R = 1.0d0 + orbit_width_param**2
-        finite_orbit_correction_Z = 1.0d0 + 0.5d0 * orbit_width_param**2
-        
-        vd_R = vd_R * finite_orbit_correction_R
-        vd_Z = vd_Z * finite_orbit_correction_Z
-        ! vd_phi remains unchanged (parallel velocity)
+        ! Extract drift velocity components
+        vd_R = v_drift_avg(1)    ! Radial drift velocity
+        vd_phi = v_drift_avg(2)  ! Toroidal drift velocity  
+        vd_Z = v_drift_avg(3)    ! Vertical drift velocity
         
         success = .true.
         
@@ -68,44 +51,24 @@ contains
     
     subroutine calculate_perturbed_hamiltonian_thick(v, eta, H_pert, success)
         ! Calculate perturbed Hamiltonian along thick orbits
+        use thick_orbit_drift, only: calculate_bounce_averaged_hamiltonian
         implicit none
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: H_pert
         logical, intent(out) :: success
         
-        ! Local variables
-        real(8) :: taub, delphi
-        real(8) :: R_start, Z_start, phi_start
-        real(8) :: v_parallel, v_perpendicular
-        real(8) :: magnetic_moment, B_perturbation
-        real(8) :: orbit_width_param, rho_gyro
-        real(8) :: finite_orbit_correction
-        logical :: bounce_success
-        
         success = .false.
         
-        ! Calculate orbit width parameter
-        rho_gyro = mass_deuterium * v / (charge_elementary * B_field_ref)
-        orbit_width_param = rho_gyro / 0.5d0
+        ! Get real bounce-averaged perturbed Hamiltonian from POTATO thick orbit calculation
+        call calculate_bounce_averaged_hamiltonian(v, eta, H_pert, success)
         
-        ! Starting position
-        R_start = 1.8d0
-        Z_start = 0.0d0
-        phi_start = 0.0d0
-        
-        ! Convert velocity parameters
-        v_parallel = v * sqrt(1.0d0 - eta)
-        v_perpendicular = v * sqrt(eta)
-        
-        ! Calculate bounce-averaged orbit using POTATO with error handling
-        bounce_success = .false.
-        
-        ! For now, use thin orbit approximation with finite orbit width corrections
-        call calculate_thin_orbit_perturbed_hamiltonian(v, eta, H_pert)
-        
-        ! Apply finite orbit width correction
-        finite_orbit_correction = 1.0d0 + orbit_width_param**2
-        H_pert = H_pert * finite_orbit_correction
+        if (.not. success) then
+            ! Fallback to thin orbit approximation if thick orbit fails
+            print *, 'WARNING: Thick orbit Hamiltonian calculation failed, using thin orbit fallback'
+            call calculate_thin_orbit_perturbed_hamiltonian(v, eta, H_pert)
+            success = .true.
+            return
+        end if
         
         success = .true.
         
@@ -175,31 +138,50 @@ contains
     
     subroutine calculate_transport_coefficients_thick(v, eta, D11, D12, D22, success)
         ! Calculate transport coefficients with finite orbit width
+        use thick_orbit_drift, only: calculate_transport_coefficients
         implicit none
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: D11, D12, D22
         logical, intent(out) :: success
         
         ! Local variables
-        real(8) :: D11_thin, D12_thin, D22_thin
-        real(8) :: orbit_width_param, transport_enhancement
-        real(8) :: resonance_width, velocity_factor, pitch_factor
+        real(8) :: D_matrix(3,3)
+        integer :: n_mode, m_mode
+        real(8) :: omega_mode
         
         success = .false.
         
-        ! Calculate orbit width parameter
-        call calculate_orbit_width_parameter(v, eta, orbit_width_param)
+        ! Use typical resonant mode parameters for transport calculation
+        n_mode = 2    ! Toroidal mode number
+        m_mode = 3    ! Poloidal mode number  
+        omega_mode = 1.0d4  ! Mode frequency (rad/s)
         
-        ! Calculate baseline thin orbit transport coefficients
-        call calculate_baseline_transport_coefficients(v, eta, D11_thin, D12_thin, D22_thin)
+        ! Get real thick orbit transport coefficients
+        call calculate_transport_coefficients(n_mode, m_mode, omega_mode, D_matrix, success)
         
-        ! Apply finite orbit width enhancement
-        transport_enhancement = 1.0d0 + orbit_width_param**2
+        if (.not. success) then
+            ! Fallback to enhanced thin orbit approximation
+            print *, 'WARNING: Thick orbit transport calculation failed, using enhanced thin orbit'
+            block
+                real(8) :: D11_thin, D12_thin, D22_thin
+                real(8) :: orbit_width_param, transport_enhancement
+                
+                call calculate_orbit_width_parameter(v, eta, orbit_width_param)
+                call calculate_baseline_transport_coefficients(v, eta, D11_thin, D12_thin, D22_thin)
+                
+                transport_enhancement = 1.0d0 + orbit_width_param**2
+                D11 = D11_thin * transport_enhancement
+                D12 = D12_thin * transport_enhancement
+                D22 = D22_thin * transport_enhancement
+                success = .true.
+            end block
+            return
+        end if
         
-        ! Enhanced transport due to finite orbit width effects
-        D11 = D11_thin * transport_enhancement
-        D12 = D12_thin * transport_enhancement
-        D22 = D22_thin * transport_enhancement
+        ! Extract relevant transport coefficients
+        D11 = D_matrix(1,1)  ! Radial-radial
+        D12 = D_matrix(1,2)  ! Radial-toroidal
+        D22 = D_matrix(2,2)  ! Toroidal-toroidal
         
         success = .true.
         
