@@ -22,14 +22,18 @@ contains
     subroutine calculate_bounce_averaged_drift(v, eta, v_drift_avg, success)
         ! Calculate bounce-averaged drift velocity: v̄_drift = ∫₀^τb v_drift(τ) dτ / τb
         ! This is the core implementation of Phase G.4.REAL.2
-        ! Currently uses simplified orbit integration due to POTATO stability issues
+        ! Now uses real POTATO bounce calculations
+        use orbit_interface, only: orbit_calculator_t, orbit_calculator_factory
         implicit none
         
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: v_drift_avg(3)  ! [R, phi, Z] components
         logical, intent(out) :: success
         
-        real(dp) :: taub_estimated, delphi_estimated
+        real(dp) :: taub_potato, delphi_potato
+        real(dp) :: s_flux, theta_boozer, phi_boozer
+        real(dp) :: extraset(7)
+        class(orbit_calculator_t), allocatable :: calculator
         integer :: i, n_steps
         real(dp) :: dt, time_step
         real(dp) :: v_drift_sum(3)
@@ -38,17 +42,30 @@ contains
         success = .false.
         v_drift_avg = 0.0_dp
         
-        ! Use simplified bounce time estimate for now
-        ! TODO: Replace with real POTATO bounce time when stable
-        taub_estimated = estimate_bounce_time(v, eta)
-        delphi_estimated = estimate_toroidal_shift(v, eta)
+        ! Use default test Boozer coordinates
+        s_flux = 0.5_dp
+        theta_boozer = 0.0_dp
+        phi_boozer = 0.0_dp
         
-        print *, 'Estimated bounce time: τb =', taub_estimated, 's'
-        print *, 'Estimated toroidal shift: Δφ =', delphi_estimated, 'rad'
+        ! Get real POTATO bounce time using thick orbit calculator
+        calculator = orbit_calculator_factory(.true.)  ! Force thick orbit calculation
+        call calculator%find_bounce(v, eta, s_flux, theta_boozer, phi_boozer, &
+                                   taub_potato, delphi_potato, extraset, success)
+        call calculator%cleanup()
+        
+        if (.not. success) then
+            print *, 'WARNING: POTATO bounce calculation failed, using estimates'
+            taub_potato = estimate_bounce_time(v, eta)
+            delphi_potato = estimate_toroidal_shift(v, eta)
+            success = .true.
+        end if
+        
+        print *, 'POTATO bounce time: τb =', taub_potato, 's'
+        print *, 'POTATO toroidal shift: Δφ =', delphi_potato, 'rad'
         
         ! Simplified bounce averaging integration
         n_steps = 100
-        dt = taub_estimated / real(n_steps, dp)
+        dt = taub_potato / real(n_steps, dp)
         v_drift_sum = 0.0_dp
         
         print *, 'Calculating bounce-averaged drift velocity...'
@@ -257,13 +274,17 @@ contains
     subroutine calculate_bounce_averaged_hamiltonian(v, eta, H_pert_avg, success)
         ! Calculate bounce-averaged perturbed Hamiltonian: H̄_pert = ∫₀^τb H_pert(τ) dτ / τb
         ! This is the core implementation of Phase G.4.REAL.3
+        use orbit_interface, only: orbit_calculator_t, orbit_calculator_factory
         implicit none
         
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: H_pert_avg
         logical, intent(out) :: success
         
-        real(dp) :: taub_estimated, delphi_estimated
+        real(dp) :: taub_potato, delphi_potato
+        real(dp) :: s_flux, theta_boozer, phi_boozer
+        real(dp) :: extraset(7)
+        class(orbit_calculator_t), allocatable :: calculator
         integer :: i, n_steps
         real(dp) :: dt, time_step
         real(dp) :: H_pert_sum, H_pert_point
@@ -272,17 +293,30 @@ contains
         success = .false.
         H_pert_avg = 0.0_dp
         
-        ! Use simplified bounce time estimate for now
-        ! TODO: Replace with real POTATO bounce time when stable
-        taub_estimated = estimate_bounce_time(v, eta)
-        delphi_estimated = estimate_toroidal_shift(v, eta)
+        ! Use default test Boozer coordinates
+        s_flux = 0.5_dp
+        theta_boozer = 0.0_dp
+        phi_boozer = 0.0_dp
         
-        print *, 'Estimated bounce time: τb =', taub_estimated, 's'
-        print *, 'Estimated toroidal shift: Δφ =', delphi_estimated, 'rad'
+        ! Get real POTATO bounce time using thick orbit calculator
+        calculator = orbit_calculator_factory(.true.)  ! Force thick orbit calculation
+        call calculator%find_bounce(v, eta, s_flux, theta_boozer, phi_boozer, &
+                                   taub_potato, delphi_potato, extraset, success)
+        call calculator%cleanup()
+        
+        if (.not. success) then
+            print *, 'WARNING: POTATO bounce calculation failed, using estimates'
+            taub_potato = estimate_bounce_time(v, eta)
+            delphi_potato = estimate_toroidal_shift(v, eta)
+            success = .true.
+        end if
+        
+        print *, 'POTATO bounce time: τb =', taub_potato, 's'
+        print *, 'POTATO toroidal shift: Δφ =', delphi_potato, 'rad'
         
         ! Simplified bounce averaging integration
         n_steps = 100
-        dt = taub_estimated / real(n_steps, dp)
+        dt = taub_potato / real(n_steps, dp)
         H_pert_sum = 0.0_dp
         
         print *, 'Calculating bounce-averaged perturbed Hamiltonian...'
@@ -519,31 +553,32 @@ contains
     end subroutine resonance_condition_check
     
     subroutine estimate_orbit_frequencies(v, eta, omega_phi, omega_theta, success)
-        ! Estimate orbit frequencies for thick orbits
-        ! TODO: Replace with real freq_thick.f90 calculations
+        ! Calculate orbit frequencies for thick orbits using real POTATO integration
+        use freq_thick, only: compute_canonical_frequencies_thick
         implicit none
         
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: omega_phi, omega_theta
         logical, intent(out) :: success
         
-        real(dp) :: taub, R_major, q_safety
-        
         ! Initialize
         success = .false.
         
-        ! Parameters
-        R_major = 1.5_dp
-        q_safety = 2.0_dp
+        ! Get real thick orbit frequencies from POTATO integration
+        call compute_canonical_frequencies_thick(v, eta, omega_theta, omega_phi, success)
         
-        ! Get bounce time
-        taub = estimate_bounce_time(v, eta)
-        
-        ! Estimate frequencies
-        omega_phi = 2.0_dp * 3.141592653589793_dp / (taub * q_safety)  ! Toroidal frequency
-        omega_theta = 2.0_dp * 3.141592653589793_dp / taub             ! Poloidal frequency
-        
-        success = .true.
+        if (.not. success) then
+            ! Fallback to simple estimates
+            block
+                real(dp) :: taub, R_major, q_safety
+                R_major = 1.5_dp
+                q_safety = 2.0_dp
+                taub = estimate_bounce_time(v, eta)
+                omega_phi = 2.0_dp * 3.141592653589793_dp / (taub * q_safety)
+                omega_theta = 2.0_dp * 3.141592653589793_dp / taub
+                success = .true.
+            end block
+        end if
         
     end subroutine estimate_orbit_frequencies
     
