@@ -44,31 +44,22 @@ contains
         success = .false.
         torque_density = 0.0d0
         
-        ! Step 1: Calculate frequencies (thick or thin orbit)
-        if (get_use_thick_orbits()) then
-            call compute_canonical_frequencies_thick(v, eta, Om_theta, Om_phi, freq_success)
-            if (.not. freq_success) then
-                print *, 'WARNING: Thick orbit frequency calculation failed'
-                return
-            end if
-        else
-            call calculate_thin_orbit_frequencies(v, eta, Om_theta, Om_phi, freq_success)
-            if (.not. freq_success) then
-                print *, 'WARNING: Thin orbit frequency calculation failed'
-                return
-            end if
+        ! Step 1: Calculate frequencies using thick orbit bounce integrals
+        ! NO FALLBACK - this is a replacement, not a correction
+        call compute_canonical_frequencies_thick(v, eta, Om_theta, Om_phi, freq_success)
+        if (.not. freq_success) then
+            print *, 'ERROR: Thick orbit bounce integral calculation failed'
+            print *, 'This is a fundamental failure - cannot use thin orbit fallback'
+            return
         end if
         
         ! Step 2: Check resonance condition: n·ω_φ - m·ω_θ = ω_mode
         resonance_condition = real(n_mode, 8) * Om_phi - real(m_mode, 8) * Om_theta - omega_mode
         
-        ! Step 3: Calculate resonance width with orbit width effects
-        if (get_use_thick_orbits()) then
-            orbit_width = calculate_orbit_width_parameter(v, eta)
-            resonance_width = abs(Om_theta) * orbit_width
-        else
-            resonance_width = abs(Om_theta) * 0.01d0  ! Thin orbit intrinsic width
-        end if
+        ! Step 3: Calculate resonance width with finite orbit width effects
+        ! This is inherent to thick orbit physics - always use orbit width
+        orbit_width = calculate_orbit_width_parameter(v, eta)
+        resonance_width = abs(Om_theta) * orbit_width
         
         ! Step 4: Check if particle is resonant
         resonant = abs(resonance_condition) < resonance_width
@@ -79,12 +70,9 @@ contains
             return
         end if
         
-        ! Step 5: Calculate transport coefficients
-        if (get_use_thick_orbits()) then
-            call calculate_transport_coefficients_thick(v, eta, D11, D12, D22, transport_success)
-        else
-            call calculate_thin_orbit_transport_coefficients(v, eta, D11, D12, D22, transport_success)
-        end if
+        ! Step 5: Calculate transport coefficients using thick orbit bounce integrals
+        ! NO FALLBACK - this is a replacement, not a correction
+        call calculate_transport_coefficients_thick(v, eta, D11, D12, D22, transport_success)
         
         if (.not. transport_success) then
             print *, 'WARNING: Transport coefficient calculation failed'
@@ -243,46 +231,11 @@ contains
     
     ! Helper functions
     
-    subroutine calculate_thin_orbit_frequencies(v, eta, Om_theta, Om_phi, success)
-        ! Calculate thin orbit frequencies for comparison
-        use neort_freq, only: Om_th, Om_ph
-        implicit none
-        real(8), intent(in) :: v, eta
-        real(8), intent(out) :: Om_theta, Om_phi
-        logical, intent(out) :: success
-        
-        real(8) :: dOmthdv, dOmthdeta, dOmphdv, dOmphdeta
-        
-        call Om_th(v, eta, Om_theta, dOmthdv, dOmthdeta)
-        call Om_ph(v, eta, Om_phi, dOmphdv, dOmphdeta)
-        
-        success = .true.
-        
-    end subroutine calculate_thin_orbit_frequencies
+    ! NOTE: calculate_thin_orbit_frequencies REMOVED
+    ! This was a lazy shortcut - thick orbit physics uses bounce integrals only
     
-    subroutine calculate_thin_orbit_transport_coefficients(v, eta, D11, D12, D22, success)
-        ! Calculate thin orbit transport coefficients for comparison
-        implicit none
-        real(8), intent(in) :: v, eta
-        real(8), intent(out) :: D11, D12, D22
-        logical, intent(out) :: success
-        
-        ! Reference diffusion coefficient
-        real(8), parameter :: D_ref = 1.0d-3  ! m²/s
-        real(8) :: velocity_factor, pitch_factor
-        
-        ! Transport coefficients scale with velocity and pitch angle
-        velocity_factor = (v / 1.0d6)**2
-        pitch_factor = eta * (1.0d0 - eta)
-        
-        ! Simplified transport matrix
-        D11 = D_ref * velocity_factor * pitch_factor
-        D12 = D_ref * velocity_factor * pitch_factor * 0.5d0
-        D22 = D_ref * velocity_factor * eta
-        
-        success = .true.
-        
-    end subroutine calculate_thin_orbit_transport_coefficients
+    ! NOTE: calculate_thin_orbit_transport_coefficients REMOVED
+    ! This was a lazy shortcut - thick orbit physics uses bounce integrals only
     
     function maxwell_boltzmann_distribution(v, eta) result(f0)
         ! Maxwell-Boltzmann distribution function

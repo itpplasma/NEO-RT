@@ -68,8 +68,12 @@ contains
         call calculator%cleanup()
         
         if (.not. success) then
-            ! Fallback to approximate thick orbit scaling
-            call approximate_thick_orbit_frequencies(v, eta, Om_th, Om_ph, success)
+            ! CRITICAL: Thick orbit bounce integral failed
+            ! This is a fundamental physics calculation - cannot use approximations
+            print *, 'ERROR: POTATO thick orbit bounce integral failed for v=', v, 'eta=', eta
+            print *, 'This represents a failure in the thick orbit physics calculation'
+            Om_th = 0.0_dp
+            Om_ph = 0.0_dp
             return
         end if
         
@@ -79,8 +83,12 @@ contains
             Om_ph = delphi / taub             ! Toroidal frequency ω_φ
             success = .true.
         else
-            ! Invalid bounce time
-            call approximate_thick_orbit_frequencies(v, eta, Om_th, Om_ph, success)
+            ! Invalid bounce time from POTATO integration
+            print *, 'ERROR: Invalid bounce time from POTATO: taub=', taub
+            print *, 'This is a physics failure - cannot use approximations'
+            Om_th = 0.0_dp
+            Om_ph = 0.0_dp
+            success = .false.
         end if
         
     end subroutine compute_canonical_frequencies_thick
@@ -136,11 +144,11 @@ contains
                 freq_db%valid_table(i, j) = calc_success
                 
                 if (.not. calc_success) then
-                    ! Use approximation for failed points
-                    call approximate_thick_orbit_frequencies(v_val, eta_val, Om_th_val, Om_ph_val, calc_success)
-                    freq_db%Om_th_table(i, j) = Om_th_val
-                    freq_db%Om_ph_table(i, j) = Om_ph_val
-                    freq_db%valid_table(i, j) = calc_success
+                    ! CRITICAL: Thick orbit physics failed - mark as invalid
+                    freq_db%Om_th_table(i, j) = 0.0_dp
+                    freq_db%Om_ph_table(i, j) = 0.0_dp
+                    freq_db%valid_table(i, j) = .false.
+                    print *, 'WARNING: Thick orbit calculation failed at v=', v_val, 'eta=', eta_val
                 end if
             end do
         end do
@@ -230,33 +238,10 @@ contains
         
     end subroutine find_grid_indices
     
-    subroutine approximate_thick_orbit_frequencies(v, eta, Om_th, Om_ph, success)
-        ! Fallback approximation for thick orbit frequencies
-        implicit none
-        real(dp), intent(in) :: v, eta
-        real(dp), intent(out) :: Om_th, Om_ph
-        logical, intent(out) :: success
-        
-        real(dp), parameter :: pi = 3.141592653589793_dp
-        real(dp), parameter :: v_thermal = 1.0d6  ! m/s
-        real(dp) :: taub_thin, delphi_thin
-        real(dp) :: finite_orbit_correction
-        
-        ! Calculate thin orbit frequencies as baseline
-        taub_thin = 1.0d-4 / v * v_thermal    ! Thin orbit bounce time
-        delphi_thin = 0.1_dp * eta           ! Thin orbit toroidal shift
-        
-        ! Finite orbit width correction (approximate)
-        ! Correction factor ~ 1 + (ρ_gyro/L_B)²
-        finite_orbit_correction = 1.0_dp + 1.0d-6 * (v/v_thermal)**2
-        
-        ! Apply corrections to frequencies
-        Om_th = 2.0_dp * pi / taub_thin * finite_orbit_correction
-        Om_ph = delphi_thin / taub_thin * (1.0_dp + 0.5_dp * (finite_orbit_correction - 1.0_dp))
-        
-        success = .true.
-        
-    end subroutine approximate_thick_orbit_frequencies
+    ! NOTE: approximate_thick_orbit_frequencies REMOVED
+    ! This was a lazy shortcut that violated the physics principle.
+    ! Thick orbit frequencies MUST come from actual bounce integrals via POTATO.
+    ! No approximations or corrections - this is a fundamental physics replacement.
     
     function thick_frequency_interpolation_available() result(available)
         ! Check if frequency database is available for interpolation

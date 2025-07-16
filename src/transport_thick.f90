@@ -33,10 +33,9 @@ contains
         call calculate_bounce_averaged_drift(v, eta, v_drift_avg, success)
         
         if (.not. success) then
-            ! Fallback to thin orbit approximation if thick orbit fails
-            print *, 'WARNING: Thick orbit drift calculation failed, using thin orbit fallback'
-            call calculate_thin_orbit_drift_velocities(v, eta, vd_R, vd_Z, vd_phi)
-            success = .true.
+            ! CRITICAL: Thick orbit bounce integral failed
+            print *, 'ERROR: Thick orbit bounce-averaged drift calculation failed'
+            print *, 'This is a fundamental physics failure - no thin orbit fallback allowed'
             return
         end if
         
@@ -63,10 +62,9 @@ contains
         call calculate_bounce_averaged_hamiltonian(v, eta, H_pert, success)
         
         if (.not. success) then
-            ! Fallback to thin orbit approximation if thick orbit fails
-            print *, 'WARNING: Thick orbit Hamiltonian calculation failed, using thin orbit fallback'
-            call calculate_thin_orbit_perturbed_hamiltonian(v, eta, H_pert)
-            success = .true.
+            ! CRITICAL: Thick orbit bounce integral failed
+            print *, 'ERROR: Thick orbit bounce-averaged Hamiltonian calculation failed'
+            print *, 'This is a fundamental physics failure - no thin orbit fallback allowed'
             return
         end if
         
@@ -160,21 +158,9 @@ contains
         call calculate_transport_coefficients(n_mode, m_mode, omega_mode, D_matrix, success)
         
         if (.not. success) then
-            ! Fallback to enhanced thin orbit approximation
-            print *, 'WARNING: Thick orbit transport calculation failed, using enhanced thin orbit'
-            block
-                real(8) :: D11_thin, D12_thin, D22_thin
-                real(8) :: orbit_width_param, transport_enhancement
-                
-                call calculate_orbit_width_parameter(v, eta, orbit_width_param)
-                call calculate_baseline_transport_coefficients(v, eta, D11_thin, D12_thin, D22_thin)
-                
-                transport_enhancement = 1.0d0 + orbit_width_param**2
-                D11 = D11_thin * transport_enhancement
-                D12 = D12_thin * transport_enhancement
-                D22 = D22_thin * transport_enhancement
-                success = .true.
-            end block
+            ! CRITICAL: Thick orbit bounce integral failed
+            print *, 'ERROR: Thick orbit transport coefficient calculation failed'
+            print *, 'This is a fundamental physics failure - no thin orbit fallback allowed'
             return
         end if
         
