@@ -203,7 +203,7 @@ Physics calculations now run successfully with optimized numerical parameters:
 
 **Status**: ✅ **MAJOR BREAKTHROUGH ACHIEVED** - Bounce integral calculation now works reliably. VODE convergence warnings present but calculation proceeds to completion. Physics results generated successfully.
 
-### 📊 **PLOT STATUS (12 plots generated)**
+### 📊 **PLOT STATUS (15 plots generated)**
 - ✅ `bounce_time_comparison.png` - Bounce time vs pitch parameter
 - ✅ `canonical_frequencies.png` - Multi-panel canonical frequencies comparison  
 - ✅ `poloidal_frequency_comparison.png` - Poloidal frequency trends
@@ -216,6 +216,9 @@ Physics calculations now run successfully with optimized numerical parameters:
 - ✅ `resonance_map.png` - 2D resonance maps in velocity-eta space
 - ✅ `resonance_velocity_scan.png` - Resonance conditions vs velocity
 - ✅ `resonance_eta_scan.png` - Resonance conditions vs pitch angle
+- ✅ **`transport_heatmap.png`** - D_ij matrix elements across (v,η) parameter space
+- ✅ **`transport_matrix_structure.png`** - Transport matrix structure and Onsager symmetry
+- ✅ **`transport_vs_collisionality.png`** - Collisionality scaling in different regimes
 
 ### 2. Visual Verification Tools ✅ **COMPLETE**
 - [x] **Create `examples/thick_orbit/plot_orbit_rz.f90`** - Visualize single orbit in R-Z plane
@@ -225,7 +228,7 @@ Physics calculations now run successfully with optimized numerical parameters:
   - [x] **Generated `orbit_rz_comparison.png`** - Shows realistic 2cm banana width
 - [x] **Extend frequency plots** - Generated multi-panel canonical_frequencies.png
 - [x] **Create resonance visualization** - Generated resonance_map.png, resonance_velocity_scan.png, resonance_eta_scan.png
-- [ ] **Transport matrix heatmap** - Visualize D_ij changes across parameter space
+- [x] **Transport matrix heatmap** - Generated transport_heatmap.png, transport_matrix_structure.png, transport_vs_collisionality.png
 
 ### 3. Field Interface and Initialization (**UNBLOCKED - Field bridge complete**)
 - [ ] **Initialize POTATO field properly** - Ensure `field_divB0.inp` has correct data
@@ -264,8 +267,8 @@ Physics calculations now run successfully with optimized numerical parameters:
 - [x] **Write test** for real transport matrix - Integrated in transport_thick.f90
 - [x] **Fix transport coefficients** - Now uses real bounce-averaged drift velocities
 - [x] **Onsager symmetry validation** - Built into transport_thick module
-- [ ] **Create D_ij heatmaps** - Visualize transport matrix elements
-- [ ] **Plot transport vs collisionality** - Show ν* dependence
+- [x] **Create D_ij heatmaps** - Completed with transport_heatmap.png showing all matrix elements
+- [x] **Plot transport vs collisionality** - Generated transport_vs_collisionality.png with regime transitions
 
 ### 8. NTV Torque Integration ✅ **COMPLETE**
 - [x] **Write failing test** for torque density in `test/test_thick_orbit_torque.f90`
@@ -280,11 +283,11 @@ Physics calculations now run successfully with optimized numerical parameters:
 
 ## Success Criteria
 
-### Visual Verification Outputs
+### Visual Verification Outputs ✅ **15/17 COMPLETE**
 - [x] **orbit_rz_comparison.png** - Shows realistic 2cm banana width with real physics
 - [x] **frequency_differences.png** - Canonical frequencies multi-panel comparison
 - [x] **resonance_diagram.png** - Multiple resonance visualization plots generated
-- [ ] **transport_heatmap.png** - Visualizes D_ij matrix modifications
+- [x] **transport_heatmap.png** - D_ij matrix elements across parameter space
 - [ ] **torque_profile_comparison.png** - Final NTV torque with/without orbit width
 
 ### Physics Requirements
