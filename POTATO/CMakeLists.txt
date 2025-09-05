@@ -19,8 +19,8 @@ add_executable (potato.x
 )
 target_link_libraries(potato.x
 potato
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
+BLAS::BLAS
+LAPACK::LAPACK
 )
 
 
@@ -29,8 +29,8 @@ add_executable (test_profile.x
 )
 target_link_libraries(test_profile.x
 potato
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
+BLAS::BLAS
+LAPACK::LAPACK
 )
 
 add_executable (test_profile_fixed.x
@@ -38,6 +38,6 @@ add_executable (test_profile_fixed.x
 )
 target_link_libraries(test_profile_fixed.x
 potato_fixed
-${BLAS_LIBRARIES}
-${LAPACK_LIBRARIES}
+BLAS::BLAS
+LAPACK::LAPACK
 )
