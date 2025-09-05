@@ -32,9 +32,16 @@ add_library(potato_base
   resonant_int.f90
   eqmagprofs.f90
   box_counting.f90
+  neo2_reader.f90
 )
 find_or_fetch(vode)
-target_link_libraries(potato_base PUBLIC vode)
+target_link_libraries(potato_base PUBLIC 
+vode
+BLAS::BLAS
+LAPACK::LAPACK
+HDF5::HDF5
+fortplot::fortplot
+)
 
 add_library(potato
   profile_input.f90
