@@ -53,3 +53,4 @@ VER_2/BUILD/
 callgrind.out.*
 callgraph.dot
 gprofout.txt
+.claude/
