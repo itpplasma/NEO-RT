@@ -33,8 +33,8 @@ add_library(potato_base
   eqmagprofs.f90
   box_counting.f90
 )
-find_or_fetch(vode)
 target_link_libraries(potato_base PUBLIC vode)
+target_include_directories(potato_base PUBLIC "${PROJECT_BINARY_DIR}/vode")
 
 add_library(potato
   profile_input.f90

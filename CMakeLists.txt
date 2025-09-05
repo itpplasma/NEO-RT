@@ -46,6 +46,7 @@ include(Util)
 
 find_or_fetch(spline)
 find_or_fetch(vode)
+find_or_fetch(libneo)
 
 ### NetCDF
 find_program(NF_CONFIG "nf-config")
@@ -96,26 +97,22 @@ set(NEO_RT_SOURCES
   src/neort.f90
 )
 
-option(USE_STANDALONE "Use do_magfie_standalone" ON)
+find_or_fetch(NEO-2)
 
-if(USE_STANDALONE)
-  add_library("neo_rt" STATIC
-    ${NEO_RT_SOURCES}
-    src/do_magfie_standalone.f90
-  )
-  add_library(util_for_test STATIC test/util_for_test.f90)
-else()
-  find_or_fetch(NEO-2)
-  add_library("neo_rt" STATIC
-    ${NEO_RT_SOURCES}
-    src/do_magfie_neo.f90
-  )
-  add_dependencies(neo_rt neo2_ql)
-  target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/NEO-2/NEO-2-QL/OBJS")
-  target_link_libraries(neo_rt PUBLIC
-    neo2_ql
-  )
-endif()
+add_subdirectory(POTATO/SRC)
+
+add_library("neo_rt" STATIC
+  ${NEO_RT_SOURCES}
+  src/do_magfie_neo.f90
+)
+add_library(util_for_test STATIC test/util_for_test.f90)
+add_dependencies(neo_rt neo2_ql)
+target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/NEO-2/NEO-2-QL/OBJS")
+target_link_libraries(neo_rt PUBLIC
+  neo2_ql
+  LIBNEO::neo
+  potato_base
+)
 
 add_dependencies(neo_rt spline)
 target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/spline")

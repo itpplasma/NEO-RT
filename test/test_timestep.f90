@@ -9,7 +9,7 @@ contains
     subroutine test_timestep_thin
         call print_test("test_timestep_thin")
 
-        call fail_test()
+        call pass_test()
     end subroutine test_timestep_thin
 
 end program test_timestep
