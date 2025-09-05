@@ -89,7 +89,7 @@
   dtau=Rmax/dble(ntimstep)
 
 ! Load profiles
-  open(iunit,file='profile_poly.in')
+  open(iunit,file='profile_poly.in',status='old',action='read')
   read(iunit,*)  ! dummy
   read(iunit,*)  ! dummy
   read(iunit,*) polydens
@@ -114,7 +114,7 @@
   call find_poicut(rho_pol_max,npoicut)
 !
   if(plot_poicut) then
-    open(iunit,file='poicut.dat')
+    open(iunit,file='poicut.dat',status='replace',action='write')
     do i=0,npc
       write(iunit,*) rpc_arr(i),zpc_arr(i)
     enddo
@@ -264,7 +264,7 @@ subroutine test_prfs
 integer :: i,nsurf
 double precision :: psi,dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
 nsurf=1000
-    open(newunit=iunit,file='profile.out')
+    open(newunit=iunit,file='profile.out',status='replace',action='write')
         do i=1,nsurf
             psi = psi_axis + i*1d0/nsurf*(psi_sep-psi_axis)
             call phielec_of_psi(psi, phi_elec, dPhi_dpsi)
@@ -356,7 +356,7 @@ end subroutine test_prfs
   perpinv_max=enkin/bmod
   h_perpinv=perpinv_max/dble(nperpinv+1)
 !
-  open(iunit,file='canonical_freqs_vs_eta_posvpar.dat')
+  open(iunit,file='canonical_freqs_vs_eta_posvpar.dat',status='replace',action='write')
   write(iunit,*) '# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] for starting v_par > 0'
   sigma=1.d0
 !
@@ -376,7 +376,7 @@ end subroutine test_prfs
 !
   close(iunit)
 !
-  open(iunit,file='canonical_freqs_vs_eta_negvpar.dat')
+  open(iunit,file='canonical_freqs_vs_eta_negvpar.dat',status='replace',action='write')
   write(iunit,*) '# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] for starting v_par < 0'
   sigma=-1.d0
 !
