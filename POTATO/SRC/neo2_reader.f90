@@ -17,6 +17,7 @@ module neo2_reader
     type profiles_t
         real(dp), allocatable :: n(:)
         real(dp), allocatable :: T(:)
+        real(dp), allocatable :: phi_e(:)
     end type profiles_t
 
     interface h5read
@@ -141,6 +142,33 @@ module neo2_reader
         enddo
         
     end subroutine polyval
+    
+    subroutine polyint(coef_in, coef_out, const)
+        ! Integrate polynomial coefficients
+        ! Input: coef_in(0:n) represents polynomial of degree n
+        ! Output: coef_out(0:n+1) represents integrated polynomial of degree n+1
+        ! const: integration constant (value at x=0)
+        
+        real(dp), intent(in) :: coef_in(0:)
+        real(dp), intent(out) :: coef_out(0:)
+        real(dp), intent(in), optional :: const
+        
+        integer :: i, n
+        n = size(coef_in) - 1
+        
+        ! Integrate each term: x^k -> x^(k+1)/(k+1)
+        do i = 0, n
+            coef_out(i) = coef_in(i) / real(n - i + 1, dp)
+        enddo
+        
+        ! Add integration constant as the lowest order term
+        if (present(const)) then
+            coef_out(n+1) = const
+        else
+            coef_out(n+1) = 0.0_dp
+        endif
+        
+    end subroutine polyint
     
     subroutine h5_read_1d(file_id, name, array)
         integer(hid_t), intent(in) :: file_id

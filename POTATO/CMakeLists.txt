@@ -45,9 +45,9 @@ target_link_libraries(test_profile_fixed.x
 potato_fixed
 )
 
-add_executable(check_neo2_profiles.x
-   SRC/check_neo2_profiles.f90
+add_executable(import_neo2_profiles.x
+   SRC/import_neo2_profiles.f90
 )
-target_link_libraries(check_neo2_profiles.x
+target_link_libraries(import_neo2_profiles.x
    potato
 )
