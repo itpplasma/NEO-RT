@@ -50,8 +50,8 @@ contains
 
     ! Grids
     nu = 40
-    mth_min = -min(6, ceiling(2.0_real64*abs(mph*q)))
-    mth_max =  min(6,  ceiling(2.0_real64*abs(mph*q)))
+    mth_min = -ceiling(2.0_real64*abs(mph*q))
+    mth_max =  ceiling(2.0_real64*abs(mph*q))
     nm = mth_max - mth_min + 1
     allocate(ux(nu), ux_edges(nu+1))
     allocate(mth_vals(nm), mth_edges(nm+1))
@@ -70,22 +70,26 @@ contains
     call edges_from_centers(mth_vals, mth_edges)
 
     ! Compute contribution density vs ux and mth (torque integrand)
-    nonlin = .true.
+    ! Force linear contributions: temporarily set nonlin = .false.
+    nonlin = .false.
     do j = 1, nm
       mth = nint(mth_vals(j))
       do i = 1, nu
         v = ux(i)*vth
         contrib = 0.0_real64
 
-        ! Trapped only to reduce runtime; passing can be added if needed
-        sign_vpar = 1.0_real64
-        call set_to_trapped_region(etamin, etamax)
-        call accumulate_contrib(v, ux(i), contrib)
+        ! Passing (co- and counter-)
+        call accumulate_class(v, ux(i), +1.0_real64, .true., contrib)
+        call accumulate_class(v, ux(i), -1.0_real64, .true., contrib)
+
+        ! Trapped
+        call accumulate_class(v, ux(i), +1.0_real64, .false., contrib)
 
         z(j, i) = contrib
         y(i) = y(i) + contrib
       end do
     end do
+    ! Note: leave nonlin as originally set for subsequent diagnostics
 
     ! Plot sum over mth vs ux
     call figure()
@@ -148,6 +152,19 @@ contains
         contrib_out = contrib_out + Tphi_int(ux, taub, Hmn2)/abs(eta_res(2)) * att
       end do
     end subroutine accumulate_contrib
+
+    subroutine accumulate_class(v, ux, sign_vpar_in, is_passing, contrib_out)
+      real(real64), intent(in) :: v, ux, sign_vpar_in
+      logical, intent(in) :: is_passing
+      real(real64), intent(inout) :: contrib_out
+      sign_vpar = sign_vpar_in
+      if (is_passing) then
+        call set_to_passing_region(etamin, etamax)
+      else
+        call set_to_trapped_region(etamin, etamax)
+      end if
+      call accumulate_contrib(v, ux, contrib_out)
+    end subroutine accumulate_class
 
   end subroutine run_contrib_diag
 
