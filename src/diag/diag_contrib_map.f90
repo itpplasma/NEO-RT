@@ -8,7 +8,7 @@ module diag_contrib_map
   use neort_transport, only: timestep_transport, Tphi_int
   use neort_orbit, only: bounce_fast, nvar
   use neort_resonance, only: driftorbit_coarse, driftorbit_root
-  use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile, etamin, etamax, sign_vpar, sign_vpar_htheta
+  use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile, etamin, etamax, sign_vpar, sign_vpar_htheta, nopassing
   use do_magfie_mod, only: R0, s, q
   use do_magfie_mod, only: do_magfie_init
   use do_magfie_pert_mod, only: do_magfie_pert_init
@@ -78,12 +78,17 @@ contains
         v = ux(i)*vth
         contrib = 0.0_real64
 
-        ! Passing (co- and counter-)
-        call accumulate_class(v, ux(i), +1.0_real64, .true., contrib)
-        call accumulate_class(v, ux(i), -1.0_real64, .true., contrib)
+        ! Skip exactly zero speed to avoid degenerate bounce; integrand is zero there
+        if (ux(i) > 0.0_real64) then
+          ! Passing (co- and counter-) if enabled
+          if (.not. nopassing) then
+            call accumulate_class(v, ux(i), +1.0_real64, .true., contrib)
+            call accumulate_class(v, ux(i), -1.0_real64, .true., contrib)
+          end if
 
         ! Trapped
         call accumulate_class(v, ux(i), +1.0_real64, .false., contrib)
+        end if
 
         z(j, i) = contrib
         y(i) = y(i) + contrib
