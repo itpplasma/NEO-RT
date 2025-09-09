@@ -1,13 +1,13 @@
 module diag_bounce_nonlin
   use iso_fortran_env, only: real64
-  use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig
+  use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig, xlim, ylim
   use neort, only: read_control, init, check_magfie, runname => runname
   use neort_profiles, only: init_profile_input, init_plasma_input, init_profiles, vth
   use neort_nonlin, only: nonlinear_attenuation
   use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport
   use neort_orbit, only: bounce_fast, nvar
-  use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl
+  use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile
   use do_magfie_mod, only: R0, s
   use do_magfie_mod, only: do_magfie_init
   use do_magfie_pert_mod, only: do_magfie_pert_init
@@ -28,7 +28,7 @@ contains
     runname = trim(arg_runname)
     call read_control
     call do_magfie_init()
-    call do_magfie_pert_init()
+    if (pertfile) call do_magfie_pert_init()
     call init_profiles(R0)
 
     inquire(file="plasma.in", exist=file_exists)
@@ -56,7 +56,7 @@ contains
       call Om_th(v, eta(i), Omth, dOmthdv, dOmthdeta)
       taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
       call bounce_fast(v, eta(i), taub, bounceavg, timestep_transport)
-      Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(0.5_real64*v**2)**2
+      Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(0.5_real64*v**2))**2
 
       nonlin = .false.
       att_lin(i) = nonlinear_attenuation(ux, eta(i), bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
@@ -71,10 +71,11 @@ contains
     call title("Nonlinear attenuation vs eta")
     call xlabel("eta")
     call ylabel("attenuation factor")
+    call xlim(minval(eta), maxval(eta))
+    call ylim(0.0_real64, 1.2_real64)
     call legend()
     call savefig(trim(arg_runname)//"_bounce_nonlin.pdf")
 
   end subroutine run_bounce_nonlin_diag
 
 end module diag_bounce_nonlin
-
