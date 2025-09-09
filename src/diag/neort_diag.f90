@@ -3,7 +3,6 @@ program neort_diag
   use diag_bounce_nonlin, only: run_bounce_nonlin_diag
   use diag_atten_map,    only: run_atten_map_diag
   use diag_contrib_map,  only: run_contrib_diag
-  use diag_dnorm_breakdown, only: run_dnorm_breakdown
   implicit none
   character(len=256) :: diag, runname
   call get_command_argument(1, diag)
@@ -21,8 +20,6 @@ program neort_diag
      call run_atten_map_diag(trim(adjustl(runname)))
   case ("contrib")
      call run_contrib_diag(trim(adjustl(runname)))
-  case ("dnorm_breakdown")
-     call run_dnorm_breakdown(trim(adjustl(runname)))
   case default
      print *, "Unknown diagnostic:", trim(diag)
      stop 2

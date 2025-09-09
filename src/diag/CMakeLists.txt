@@ -3,7 +3,6 @@ add_library(neort_diaglib STATIC
   diag_bounce_nonlin.f90
   diag_atten_map.f90
   diag_contrib_map.f90
-  diag_dnorm_breakdown.f90
 )
 
 target_link_libraries(neort_diaglib PUBLIC
