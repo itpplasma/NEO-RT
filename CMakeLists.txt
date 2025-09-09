@@ -47,6 +47,15 @@ include(Util)
 find_or_fetch(spline)
 find_or_fetch(vode)
 
+# Fetch fortplot from GitHub (lazy-fortran/fortplot)
+include(FetchContent)
+FetchContent_Declare(
+  fortplot
+  GIT_REPOSITORY https://github.com/lazy-fortran/fortplot.git
+  GIT_TAG main
+)
+FetchContent_MakeAvailable(fortplot)
+
 ### NetCDF
 find_program(NF_CONFIG "nf-config")
 
@@ -138,3 +147,16 @@ target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 
 
 add_subdirectory(test)
+
+# Diagnostics
+add_subdirectory(src/diag)
+
+add_executable(neo_rt_diag.x
+  src/diag/neort_diag.f90
+)
+
+target_link_libraries(neo_rt_diag.x PRIVATE
+  neort_diaglib
+  neo_rt
+  fortplot::fortplot
+)
