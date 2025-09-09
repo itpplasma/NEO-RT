@@ -131,6 +131,7 @@ contains
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
+        call SET_OPTS_2(HMAX=taub, MXSTEP=200000)
 
         call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
 
@@ -231,6 +232,7 @@ contains
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
+        call SET_OPTS_2(MXSTEP=200000)
 
         ! check for passing orbit
         passing = .false.
