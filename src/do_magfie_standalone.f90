@@ -161,7 +161,7 @@ contains
         integer :: ksurf, kmode
         real(8) :: flux
         character(len=*) :: filename
-        open (unit=18, file=filename)
+        open (unit=18, file=filename, action='read', status='old')
         read (18, '(////)')
         read (18, *) m0b, n0b, nflux, nfp, flux, a, R0
         a = 100*a   ! m -> cm
