@@ -49,7 +49,7 @@ contains
     call check_magfie
 
     ! Grids
-    nu = 40
+    nu = 400
     mth_min = -ceiling(2.0_real64*abs(mph*q))
     mth_max =  ceiling(2.0_real64*abs(mph*q))
     nm = mth_max - mth_min + 1
