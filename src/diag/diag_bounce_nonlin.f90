@@ -3,19 +3,17 @@ module diag_bounce_nonlin
   use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig, xlim, ylim
   use neort, only: read_control, init, check_magfie, runname => runname
   use neort_profiles, only: init_profile_input, init_plasma_input, init_profiles, vth
-  use neort_nonlin, only: nonlinear_attenuation, omega_prime
-  use neort_freq, only: Om_th, Om_ph, d_Om_ds
-  use collis_alp, only: coleff
+  use neort_nonlin, only: nonlinear_attenuation
+  use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport
   use neort_orbit, only: bounce_fast, nvar
   use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile
-  use do_magfie_mod, only: R0, s, sign_theta
+  use do_magfie_mod, only: R0, s
   use do_magfie_mod, only: do_magfie_init
   use do_magfie_pert_mod, only: do_magfie_pert_init
-  use driftorbit, only: qi, iota, psi_pr
   implicit none
 
-  ! Helper routines
+contains
 
   subroutine run_bounce_nonlin_diag(arg_runname)
     character(*), intent(in) :: arg_runname
@@ -54,9 +52,6 @@ module diag_bounce_nonlin
       eta(i) = eta_min + (eta_max-eta_min)*(real(i-1,real64)/real(npts-1,real64))
     end do
 
-    ! Open debug file for eta_max diagnostics
-    call write_eta_max_header(trim(arg_runname)//'_dnorm_eta_max.txt', eta_min, eta_max)
-
     do j = 1, size(ux_list)
       ux = ux_list(j)
       v = ux*vth
@@ -69,10 +64,6 @@ module diag_bounce_nonlin
         nonlin = .true.
         att_nonlin(i, j) = nonlinear_attenuation(ux, eta(i), bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
       end do
-
-      ! Debug: compute full dnorm breakdown at eta_max (last point) and write line
-      call debug_eta_max_line(trim(arg_runname)//'_dnorm_eta_max.txt', ux, &
-        eta_max, v, att_nonlin(npts, j))
     end do
 
     call figure()
@@ -132,57 +123,5 @@ module diag_bounce_nonlin
     end do
     close(u)
   end subroutine write_data_file
-
-contains
-
-  subroutine write_eta_max_header(fname, eta_min, eta_max)
-    character(*), intent(in) :: fname
-    real(real64), intent(in) :: eta_min, eta_max
-    integer :: u
-    open(newunit=u, file=fname, status='replace', action='write')
-    write(u,'(A)') '# dnorm debug at eta_max'
-    write(u,'(A,F10.6)') '# s = ', s
-    write(u,'(A,ES12.5)') '# eta_min = ', eta_min
-    write(u,'(A,ES12.5)') '# eta_max = ', eta_max
-    write(u,'(A,I0)') '# mth = ', mth
-    write(u,'(A)') '# cols: ux theta_formula theta_plotted dnorm Ompr dpp dhh Hmn2 dOmdv dOmdeta dOmdpph'
-    close(u)
-  end subroutine write_eta_max_header
-
-  subroutine debug_eta_max_line(fname, ux, eta, v, theta_plotted)
-    character(*), intent(in) :: fname
-    real(real64), intent(in) :: ux, eta, v, theta_plotted
-    integer :: u
-    real(real64) :: Omth, dOmthdv, dOmthdeta
-    real(real64) :: Omph, dOmphdv, dOmphdeta
-    real(real64) :: dOmthds, dOmphds
-    real(real64) :: dOmdv, dOmdeta, dOmdpph, Ompr
-    real(real64) :: taub, bounceavg(nvar)
-    real(real64) :: Hmn2, dpp, dhh, fpeff, dres, dnorm, theta
-
-    call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-    call d_Om_ds(v, eta, dOmthds, dOmphds)
-    dOmdv   = mth*dOmthdv   + mph*dOmphdv
-    dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-    dOmdpph = -(qi/c*iota*sign_theta*psi_pr)**(-1) * (mth*dOmthds + mph*dOmphds)
-
-    taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
-    call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
-    Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_real64))**2
-
-    call coleff(ux, dpp, dhh, fpeff)
-    dhh = vth*dhh
-    dpp = vth**3*dpp
-
-    Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
-    dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(5) - eta)*(dOmdeta/Ompr)**2
-    dnorm = dres*sqrt(abs(Ompr)) / (abs(Hmn2)**(3.0_real64/2.0_real64))
-    call attenuation_factor(dnorm, theta)
-
-    open(newunit=u, file=fname, status='old', position='append', action='write')
-    write(u,'(F5.2,1X,11(1X,ES14.6))') ux, theta, theta_plotted, dnorm, Ompr, dpp, dhh, Hmn2, dOmdv, dOmdeta, dOmdpph
-    close(u)
-  end subroutine debug_eta_max_line
 
 end module diag_bounce_nonlin
