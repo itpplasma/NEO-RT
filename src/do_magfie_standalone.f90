@@ -269,7 +269,7 @@ contains
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
-        call boozer_read_pert('in_file_pert') ! TODO: general filename
+        call boozer_read_pert('in_file_pert', action='read', status='old')) ! TODO: general filename
 
         mph = nfp*modes(1, 1, 2)
 
