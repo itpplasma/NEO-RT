@@ -7,7 +7,7 @@ module neort_transport
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph
-    use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
+    use neort_orbit, only: bounce_fast, bounce_event, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt, &
@@ -71,7 +71,7 @@ contains
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
                 taub = 2d0*pi/abs(Omth)
-                call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
+                call bounce_event(v, eta, taub, bounceavg, timestep_transport)
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2d0)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)
