@@ -8,7 +8,8 @@ module diag_contrib_map
   use neort_transport, only: timestep_transport, Tphi_int
   use neort_orbit, only: bounce_fast, nvar
   use neort_resonance, only: driftorbit_coarse, driftorbit_root
-  use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile, etamin, etamax, sign_vpar, sign_vpar_htheta, nopassing
+  use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile, &
+                        etamin, etamax, sign_vpar, sign_vpar_htheta, nopassing
   use do_magfie_mod, only: R0, s, q
   use do_magfie_mod, only: do_magfie_init
   use do_magfie_pert_mod, only: do_magfie_pert_init
