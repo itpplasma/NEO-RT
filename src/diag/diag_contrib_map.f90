@@ -61,7 +61,7 @@ contains
     y = 0.0_real64
 
     do i = 1, nu
-      ux(i) = 0.3_real64 + (2.5_real64 - 0.3_real64) * real(i-1,real64) / real(nu-1,real64)
+      ux(i) = 0.3_real64 + (3.0_real64 - 0.3_real64) * real(i-1,real64) / real(nu-1,real64)
     end do
     do j = 1, nm
       mth_vals(j) = real(mth_min + (j-1), real64)
