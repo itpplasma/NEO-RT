@@ -49,7 +49,7 @@ contains
     call check_magfie
 
     ! Grids
-    nu = 400
+    nu = 401
     mth_min = -ceiling(2.0_real64*abs(mph*q))
     mth_max =  ceiling(2.0_real64*abs(mph*q))
     nm = mth_max - mth_min + 1
@@ -61,7 +61,7 @@ contains
     y = 0.0_real64
 
     do i = 1, nu
-      ux(i) = 0.3_real64 + (3.0_real64 - 0.3_real64) * real(i-1,real64) / real(nu-1,real64)
+      ux(i) = 0.0_real64 + (4.0_real64 - 0.0_real64) * real(i-1,real64) / real(nu-1,real64)
     end do
     do j = 1, nm
       mth_vals(j) = real(mth_min + (j-1), real64)
@@ -94,7 +94,7 @@ contains
     ! Plot sum over mth vs ux
     call figure()
     call plot(ux, y, label='sum over mth')
-    call title('Torque integrand vs ux (nonlinear)')
+    call title('Torque integrand vs ux (linear)')
     call xlabel('ux')
     call ylabel('dT/dx (arbitrary units)')
     call legend()
@@ -103,7 +103,7 @@ contains
     ! Heatmap over mth vs ux
     call figure()
     call pcolormesh(ux_edges, mth_edges, z, colormap='plasma')
-    call title('Torque integrand map (nonlinear)')
+    call title('Torque integrand map (linear)')
     call xlabel('ux')
     call ylabel('mth')
     call savefig(trim(arg_runname)//'_contrib_map.png')
@@ -137,6 +137,7 @@ contains
       real(real64) :: roots(100, 3)
       integer :: nroots, kr
       real(real64) :: att
+      real(real64) :: v_eff
 
       call driftorbit_coarse(v, etamin, etamax, roots, nroots)
       if (nroots == 0) return
@@ -144,10 +145,11 @@ contains
         eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
         eta = eta_res(1)
 
-        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+        v_eff = max(v, 1.0e-8_real64*vth)
+        call Om_th(v_eff, eta, Omth, dOmthdv, dOmthdeta)
         taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
-        call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
-        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_real64))**2
+        call bounce_fast(v_eff, eta, taub, bounceavg, timestep_transport)
+        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v_eff*v_eff/2.0_real64))**2
         att = nonlinear_attenuation(ux, eta, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
         contrib_out = contrib_out + Tphi_int(ux, taub, Hmn2)/abs(eta_res(2)) * att
       end do
