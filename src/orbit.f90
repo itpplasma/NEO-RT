@@ -124,6 +124,10 @@ contains
         neq = nvar
         rtol = 1d-9
         atol = 1d-10
+        ! Relax tolerances for non-linear auxiliary components only:
+        ! y(5) ~ <1/B>, y(6) ~ <B> can be large and stiff; do not overconstrain.
+        atol(5) = 1d-6
+        atol(6) = 1d-2
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
