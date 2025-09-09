@@ -124,13 +124,10 @@ contains
         neq = nvar
         rtol = 1d-9
         atol = 1d-10
-        ! Relax tolerances for non-linear auxiliary components only:
-        ! y(5) ~ <1/B>, y(6) ~ <B> can be large and stiff; do not overconstrain.
-        atol(5) = 1d-6
-        atol(6) = 1d-2
         itask = 1
         istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
+
         call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
 
         bounceavg = y/taub
@@ -279,30 +276,6 @@ contains
             call ts(v, eta, neq_, t_, y_, ydot_)
         end subroutine timestep_wrapper
     end function bounce_integral
-
-    subroutine bounce_event(v, eta, taub, bounceavg, ts)
-        ! Event-driven bounce average using full transport timestep 'ts'
-        real(8), intent(in) :: v, eta
-        real(8), intent(out) :: taub, bounceavg(nvar)
-        procedure(timestep_i) :: ts
-
-        real(8) :: bmod, htheta
-        real(8) :: y0(nvar)
-        real(8) :: roots(nvar+1)
-        real(8) :: taub_est
-
-        call evaluate_bfield_local(bmod, htheta)
-        sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
-        y0 = 1d-15
-        y0(1) = th0
-        y0(2) = sign_vpar_htheta*vpar(v, eta, bmod)
-        y0(3:6) = 0d0
-
-        taub_est = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
-        roots = bounce_integral(v, eta, nvar, y0, taub_est/5d0, ts)
-        taub = roots(1)
-        bounceavg = roots(2:)/taub
-    end subroutine bounce_event
 
     subroutine bounceroots(NEQ, T, Y, NG, GOUT)
         integer, intent(in) :: NEQ, NG
