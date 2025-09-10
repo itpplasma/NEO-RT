@@ -44,15 +44,17 @@ contains
         else
             reg = 'trapped'
         end if
-        write(msg,'(A,1X,A,1X,A,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I0)') &
-            'DVODE MXSTEP in', trim(where), trim(reg), v_in, eta_in, tcur, ist
-        call error(msg // &
-            '\n    tout=' // trim(to_es(tout)) // &
-            ' vth=' // trim(to_es(vth)) // ' Om_tE=' // trim(to_es(Om_tE)) // &
-            '\n    s=' // trim(to_es(s)) // ' R0=' // trim(to_es(R0)) // ' q=' // trim(to_es(q)) // ' iota=' // trim(to_es(iota)) // &
-            '\n    etatp=' // trim(to_es(etatp)) // ' etadt=' // trim(to_es(etadt)) // ' etamin=' // trim(to_es(etamin)) // ' etamax=' // trim(to_es(etamax)) // &
-            '\n    mth=' // trim(to_i(mth)) // ' mph=' // trim(to_es(mph)) // ' sign_vpar=' // trim(to_es(dble(sign_vpar))) // &
-            '\n    eps=' // trim(to_es(eps)) // ' psi_pr=' // trim(to_es(psi_pr)) )
+        write(0,'(A,1X,A,1X,A)') '[ERROR] DVODE MXSTEP in', trim(where), trim(reg)
+        write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v=', v_in, 'eta=', eta_in
+        write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,I0)') '  tcur=', tcur, 'tout=', tout, 'istate=', ist
+        write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  vth=', vth, 'Om_tE=', Om_tE
+        write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') &
+             '  s=', s, 'R0=', R0, 'q=', q, 'iota=', iota
+        write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') &
+             '  etatp=', etatp, 'etadt=', etadt, 'etamin=', etamin, 'etamax=', etamax
+        write(0,'(A,1X,I0,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  mth=', mth, 'mph=', mph, 'sign_vpar=', dble(sign_vpar)
+        write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  eps=', eps, 'psi_pr=', psi_pr
+        call error('DVODE MXSTEP')
     end subroutine dvode_error_context
 
     pure function to_es(x) result(sout)
