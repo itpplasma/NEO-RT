@@ -281,6 +281,8 @@ contains
                 end if
                 call error('VODE MXSTEP or failure in bounce_integral')
             end if
+            ! After the first successful step, restore the original sign convention
+            if (ti > 0d0) event_sign = sign_vpar_htheta
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then
                     exit
