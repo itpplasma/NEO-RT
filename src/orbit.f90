@@ -302,8 +302,8 @@ contains
         real(8), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = sign_vpar_htheta*(Y(1) - th0) ! trapped orbit return to starting point
-        GOUT(2) = sign_vpar_htheta*(2d0*pi - (Y(1) - th0))  ! passing orbit return
+        GOUT(1) = (Y(1) - th0)                    ! trapped orbit: return to starting theta
+        GOUT(2) = (2d0*pi - (Y(1) - th0))         ! passing orbit: advance by 2π in theta
         return
     end subroutine bounceroots
 
