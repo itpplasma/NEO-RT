@@ -222,9 +222,8 @@ contains
         logical :: passing
 
         real(8) :: atol(neq), rtol, tout
-        integer :: itask, istate, retries
+        integer :: itask, istate
         type(vode_opts) :: options
-        real(8) :: dt_curr
 
         rtol = 1d-9
         atol = 1d-10
@@ -240,41 +239,28 @@ contains
         n = 500
         rootstate = -1
 
-        ! Retry with smaller dt if event is not found
+        y = y0
+        yold = y0
         ti = 0d0
-        retries = 0
-        dt_curr = dt
-    retry_loop: do
-            y = y0
-            yold = y0
-            ti = 0d0
-            state = 1
-            istate = 1
-            do k = 2, n
-                yold = y
-                told = ti
+        state = 1
+        do k = 2, n
+            yold = y
+            told = ti
 
-                tout = ti + dt_curr
-                call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
-                            g_fcn=bounceroots)
-                if (istate < 0) then
-                    call error('VODE MXSTEP or failure in bounce_integral')
-                end if
-                if (istate == 3) then
-                    if (passing .or. (yold(1) - th0) < 0) then
-                        exit retry_loop
-                    end if
-                end if
-
-                istate = 2
-            end do
-            if (retries < 2) then
-                dt_curr = 0.5d0*dt_curr
-                retries = retries + 1
-            else
-                exit
+            tout = ti + dt
+            call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
+                        g_fcn=bounceroots)
+            if (istate < 0) then
+                call error('VODE MXSTEP or failure in bounce_integral')
             end if
-        end do retry_loop
+            if (istate == 3) then
+                if (passing .or. (yold(1) - th0) < 0) then
+                    exit
+                end if
+            end if
+
+            istate = 2
+        end do
         if (istate /= 3) then
             write (0, *) "ERROR: bounce_integral did not converge after 500 iterations"
             write (0, *) eta, etamin, etamax, y(1)
@@ -302,8 +288,8 @@ contains
         real(8), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = (Y(1) - th0)                    ! trapped orbit: return to starting theta
-        GOUT(2) = (2d0*pi - (Y(1) - th0))         ! passing orbit: advance by 2π in theta
+        GOUT(1) = sign_vpar_htheta*(Y(1) - th0) ! trapped orbit return to starting point
+        GOUT(2) = sign_vpar_htheta*(2d0*pi - (Y(1) - th0))  ! passing orbit return
         return
     end subroutine bounceroots
 
