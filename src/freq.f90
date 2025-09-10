@@ -72,7 +72,11 @@ contains
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
             end if
-            taub_est = bounce_time(v, eta)
+            if (k == netaspl - 1) then
+                taub_est = bounce_time(v, eta)
+            else
+                taub_est = bounce_time(v, eta, taub_estimate=taub_est)
+            end if
             taub = taub_est
             call bounce_fast(v, eta, taub, bounceavg, timestep)
             if (get_log_level() >= LOG_TRACE) then
@@ -150,7 +154,11 @@ contains
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
             end if
-            taub_est = bounce_time(v, eta)
+            if (k == netaspl_pass - 1) then
+                taub_est = bounce_time(v, eta)
+            else
+                taub_est = bounce_time(v, eta, taub_estimate=taub_est)
+            end if
             taub = taub_est
             call bounce_fast(v, eta, taub, bounceavg, timestep)
             if (get_log_level() >= LOG_TRACE) then
