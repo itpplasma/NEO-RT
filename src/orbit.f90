@@ -1,5 +1,5 @@
 module neort_orbit
-    use logger, only: error
+    use logger, only: error, trace, get_log_level, LOG_TRACE
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
     use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
@@ -214,6 +214,7 @@ contains
         procedure(timestep_i) :: ts
 
         integer :: n
+        character(len=256) :: dbg
 
         integer :: k, state, rootstate
         real(8) :: ti, told
@@ -251,6 +252,11 @@ contains
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
             if (istate < 0) then
+                if (get_log_level() <= LOG_TRACE) then
+                    write(dbg,'(A,1X,ES12.5,1X,ES12.5,1X,L1,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I4)') &
+                        'bounce_integral fail v eta pass ti tout y1 istate=', v, eta, passing, ti, tout, y(1), istate
+                    call trace(dbg)
+                end if
                 call error('VODE MXSTEP or failure in bounce_integral')
             end if
             if (istate == 3) then
@@ -262,6 +268,11 @@ contains
             istate = 2
         end do
         if (istate /= 3) then
+            if (get_log_level() <= LOG_TRACE) then
+                write(dbg,'(A,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,L1)') &
+                    'bounce_integral no-event v eta y1 th0 pass=', v, eta, y(1), th0, passing
+                call trace(dbg)
+            end if
             write (0, *) "ERROR: bounce_integral did not converge after 500 iterations"
             write (0, *) eta, etamin, etamax, y(1)
         end if
