@@ -244,7 +244,7 @@ contains
         yold = y0
         ti = 0d0
         state = 1
-        if (get_log_level() <= LOG_TRACE) then
+        if (get_log_level() >= LOG_TRACE) then
             write(*,'(A,2ES12.5,2A)') '[TRACE] bounce_integral start v,eta=', v, eta, ' pass=', merge('T','F',eta<etatp)
         end if
         do k = 2, n
@@ -254,7 +254,7 @@ contains
             tout = ti + dt
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
-            if (get_log_level() <= LOG_TRACE) then
+            if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I0,2A,ES12.5,2A,ES12.5,A,I0)') '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
             end if
             if (istate == 3) then
