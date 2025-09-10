@@ -5,7 +5,7 @@ module diag_bounce_debug
   use neort_profiles, only: init_profile_input, init_plasma_input, init_profiles, vth, Om_tE
   use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport
-  use neort_orbit, only: nvar
+  use neort_orbit, only: nvar, evaluate_bfield_local, vpar, th0, sign_vpar_htheta
   use neort_resonance, only: driftorbit_coarse, driftorbit_root
   use driftorbit, only: mth, mph, mi, pertfile, etamin, etamax, sign_vpar, &
                         etatp, etadt, efac
@@ -57,7 +57,7 @@ contains
     open(newunit=u, file=trim(arg_runname)//'_bounce_debug.txt', status='replace', action='write')
     write(u,'(A)') '# bounce debug: logs where integration stalls (MXSTEP)'
     write(u,'(A,F10.6)') '# s = ', s
-    write(u,'(A)') '# cols: branch mth ux eta Omth taub istate nst accrej last_h'
+    write(u,'(A)') '# cols: branch mth ux eta Omth taub istate NST NFE NETF HU HCUR'
 
     do j = 1, nm
       mth = mmin + (j - 1)
@@ -90,8 +90,8 @@ contains
     integer :: nroots, kr
     real(real64) :: Omth, dOmthdv, dOmthdeta, taub
     integer :: istate
-    integer :: istats(50)
-    real(real64) :: rstats(50)
+    integer :: istats(31)
+    real(real64) :: rstats(22)
 
     du = (vmax - vmin)/(real(vsteps_loc, real64)*vth)
     ux = vmin/vth + du/2.0_real64
@@ -105,9 +105,9 @@ contains
           call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
           taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
           call probe_bounce(v, eta, taub, istate, istats, rstats)
-          write(u,'(A,1X,I4,1X,F8.4,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I4,1X,I9,1X,ES12.5)') &
-               trim(label), mth, ux, eta, Omth, taub, istate, istats(1), rstats(6)
-        end do
+          write(u,'(A,1X,I4,1X,F8.4,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I4,3(1X,I9),2(1X,ES12.5))') &
+               trim(label), mth, ux, eta, Omth, taub, istate, istats(11), istats(12), istats(22), rstats(11), rstats(12)
+      end do
       end if
       ux = ux + du
     end do
@@ -119,7 +119,7 @@ contains
     integer, intent(out) :: istats(:)
     real(real64), intent(out) :: rstats(:)
 
-    real(real64) :: t1, t2
+    real(real64) :: t1, t2, bmod, htheta
     real(real64) :: y(nvar)
     real(real64) :: atol(nvar), rtol
     integer :: neq, itask
@@ -127,13 +127,15 @@ contains
 
     t1 = 0.0_real64
     t2 = taub
+    call evaluate_bfield_local(bmod, htheta)
+    sign_vpar_htheta = sign(1.0_real64, htheta)*sign_vpar
     y = 1.0e-15_real64
-    y(1) = 0.0_real64
-    y(2) = 0.0_real64
+    y(1) = th0
+    y(2) = sign_vpar_htheta*vpar(v, eta, bmod)
     y(3:6) = 0.0_real64
     neq = nvar
-    rtol = 1.0e-8_real64
-    atol = 1.0e-9_real64
+    rtol = 1.0e-9_real64
+    atol = 1.0e-10_real64
     itask = 1
     istate = 1
     options = set_normal_opts(abserr_vector=atol, relerr=rtol)
@@ -152,4 +154,3 @@ contains
   end subroutine probe_bounce
 
 end module diag_bounce_debug
-

@@ -222,13 +222,13 @@ contains
         logical :: passing
 
         real(8) :: atol(neq), rtol, tout
-        integer :: itask, istate
+        integer :: itask, istate, retries
         type(vode_opts) :: options
+        real(8) :: dt_curr
 
         rtol = 1d-9
         atol = 1d-10
         itask = 1
-        istate = 1
         options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
 
         ! check for passing orbit
@@ -237,31 +237,44 @@ contains
             passing = .true.
         end if
 
-        n = 2000
+        n = 500
         rootstate = -1
 
-        y = y0
-        yold = y0
+        ! Retry with smaller dt if event is not found
         ti = 0d0
-        state = 1
-        do k = 2, n
-            yold = y
-            told = ti
+        retries = 0
+        dt_curr = dt
+    retry_loop: do
+            y = y0
+            yold = y0
+            ti = 0d0
+            state = 1
+            istate = 1
+            do k = 2, n
+                yold = y
+                told = ti
 
-            tout = ti + dt
-            call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
-                        g_fcn=bounceroots)
-            if (istate < 0) then
-                call error('VODE MXSTEP or failure in bounce_integral')
-            end if
-            if (istate == 3) then
-                if (passing .or. (yold(1) - th0) < 0) then
-                    exit
+                tout = ti + dt_curr
+                call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
+                            g_fcn=bounceroots)
+                if (istate < 0) then
+                    call error('VODE MXSTEP or failure in bounce_integral')
                 end if
-            end if
+                if (istate == 3) then
+                    if (passing .or. (yold(1) - th0) < 0) then
+                        exit retry_loop
+                    end if
+                end if
 
-            istate = 2
-        end do
+                istate = 2
+            end do
+            if (retries < 2) then
+                dt_curr = 0.5d0*dt_curr
+                retries = retries + 1
+            else
+                exit
+            end if
+        end do retry_loop
         if (istate /= 3) then
             write (0, *) "ERROR: bounce_integral did not converge after 500 iterations"
             write (0, *) eta, etamin, etamax, y(1)
