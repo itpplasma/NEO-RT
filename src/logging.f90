@@ -17,30 +17,22 @@ contains
 
   subroutine trace(msg)
     character(*), intent(in) :: msg
-    if (current_level <= LOG_TRACE) then
-      write(6,'(A)') '[TRACE] ' // trim(msg)
-    end if
+    if (current_level <= LOG_TRACE) write(6,'(A)') '[TRACE] ' // trim(msg)
   end subroutine trace
 
   subroutine debug(msg)
     character(*), intent(in) :: msg
-    if (current_level <= LOG_DEBUG) then
-      write(6,'(A)') '[DEBUG] ' // trim(msg)
-    end if
+    if (current_level <= LOG_DEBUG) write(6,'(A)') '[DEBUG] ' // trim(msg)
   end subroutine debug
 
   subroutine info(msg)
     character(*), intent(in) :: msg
-    if (current_level <= LOG_INFO) then
-      write(6,'(A)') '[INFO ] ' // trim(msg)
-    end if
+    if (current_level <= LOG_INFO) write(6,'(A)') '[INFO ] ' // trim(msg)
   end subroutine info
 
   subroutine warning(msg)
     character(*), intent(in) :: msg
-    if (current_level <= LOG_WARNING) then
-      write(0,'(A)') '[WARN ] ' // trim(msg)
-    end if
+    if (current_level <= LOG_WARNING) write(0,'(A)') '[WARN ] ' // trim(msg)
   end subroutine warning
 
   subroutine error(msg)

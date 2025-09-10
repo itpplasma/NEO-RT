@@ -1,4 +1,5 @@
 module neort_freq
+    use logger, only: trace, get_log_level, LOG_TRACE
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce
@@ -53,6 +54,9 @@ contains
         do k = netaspl - 1, 0, -1
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
+            if (get_log_level() <= LOG_TRACE) then
+                write(*,'(A,I4,2A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
+            end if
             if (k == netaspl - 1) then
                 call bounce(v, eta, taub, bounceavg)
             else
@@ -112,6 +116,9 @@ contains
         do k = netaspl_pass - 1, 0, -1
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
+            if (get_log_level() <= LOG_TRACE) then
+                write(*,'(A,I4,2A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
+            end if
             if (k == netaspl_pass - 1) then
                 call bounce(v, eta, taub, bounceavg)
             else
