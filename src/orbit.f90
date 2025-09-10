@@ -245,6 +245,12 @@ contains
         yold = y0
         ti = 0d0
         state = 1
+        ! If event is satisfied exactly at t0 and the other event is on the wrong side,
+        ! nudge theta by a tiny epsilon in the direction of motion to avoid DVODE illegal start.
+        call timestep_wrapper(neq, ti, y, yold)  ! reuse yold here as ydot at t0
+        if (abs(y(1) - th0) < 1d-14) then
+            y(1) = th0 + sign(1d-12, yold(1))
+        end if
         ! Set event sign so that at t0: G2 is positive and G1 not exactly zero
         event_sign = sign_vpar_htheta
         if (abs(event_sign*(y(1) - th0)) < 1d-14 .and. event_sign*(2d0*pi - (y(1) - th0)) < 0d0) then
