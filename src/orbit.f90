@@ -1,5 +1,5 @@
 module neort_orbit
-    use logger, only: trace, get_log_level, LOG_TRACE
+    use logger, only: trace, get_log_level, LOG_TRACE, error
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
     use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
@@ -29,6 +29,44 @@ module neort_orbit
     end interface
 
 contains
+
+    subroutine dvode_error_context(where, v_in, eta_in, tcur, tout, ist)
+        use do_magfie_mod, only: s, iota, R0, q, psi_pr, eps
+        use driftorbit, only: etatp, etadt, etamin, etamax, mth, mph, sign_vpar
+        use neort_profiles, only: vth, Om_tE
+        character(*), intent(in) :: where
+        real(8), intent(in) :: v_in, eta_in, tcur, tout
+        integer, intent(in) :: ist
+        character(len=512) :: msg
+        character(len=64) :: reg
+        if (eta_in < etatp) then
+            reg = 'passing'
+        else
+            reg = 'trapped'
+        end if
+        write(msg,'(A,1X,A,1X,A,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I0)') &
+            'DVODE MXSTEP in', trim(where), trim(reg), v_in, eta_in, tcur, ist
+        call error(msg // &
+            '\n    tout=' // trim(to_es(tout)) // &
+            ' vth=' // trim(to_es(vth)) // ' Om_tE=' // trim(to_es(Om_tE)) // &
+            '\n    s=' // trim(to_es(s)) // ' R0=' // trim(to_es(R0)) // ' q=' // trim(to_es(q)) // ' iota=' // trim(to_es(iota)) // &
+            '\n    etatp=' // trim(to_es(etatp)) // ' etadt=' // trim(to_es(etadt)) // ' etamin=' // trim(to_es(etamin)) // ' etamax=' // trim(to_es(etamax)) // &
+            '\n    mth=' // trim(to_i(mth)) // ' mph=' // trim(to_es(mph)) // ' sign_vpar=' // trim(to_es(dble(sign_vpar))) // &
+            '\n    eps=' // trim(to_es(eps)) // ' psi_pr=' // trim(to_es(psi_pr)) )
+    end subroutine dvode_error_context
+
+    pure function to_es(x) result(sout)
+        real(8), intent(in) :: x
+        character(len=24) :: sout
+        write(sout,'(ES12.5)') x
+    end function to_es
+
+    pure function to_i(i) result(sout)
+        integer, intent(in) :: i
+        character(len=12) :: sout
+        write(sout,'(I0)') i
+        sout = adjustl(sout)
+    end function to_i
 
     subroutine bounce(v, eta, taub, bounceavg, taub_estimate)
         ! calculate all bounce averages
@@ -131,6 +169,9 @@ contains
         options = set_normal_opts(abserr_vector=atol, relerr=rtol)
 
         call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
+        if (istate == -1) then
+            call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
+        end if
 
         bounceavg = y/taub
         if (present(istate_out)) istate_out = istate
@@ -254,6 +295,9 @@ contains
             tout = ti + dt
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
+            if (istate == -1) then
+                call dvode_error_context('bounce_integral', v, eta, ti, tout, istate)
+            end if
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I0,2A,ES12.5,2A,ES12.5,A,I0)') '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
             end if
