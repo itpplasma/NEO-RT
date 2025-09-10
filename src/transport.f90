@@ -1,6 +1,6 @@
 module neort_transport
     use util, only: imun, pi, c, qi
-    use logger, only: trace, debug, warning
+    use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
     use do_magfie_pert_mod, only: do_magfie_pert_amp
@@ -98,7 +98,9 @@ contains
 
                 taub = 2d0*pi/abs(Omth)
                 call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
-                if (istate_dv /= 2) then
+                if (istate_dv == -1) then
+                    call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
+                else if (istate_dv /= 2) then
                     call warning(fmt_dbg('dvode istate=', dble(istate_dv), ' at mth=', dble(mth), ' ux=', ux, ' eta=', eta))
                 else
                     if (abs(eta - etatp) < 1d-8*etatp) then
