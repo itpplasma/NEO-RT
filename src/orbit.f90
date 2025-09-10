@@ -312,8 +312,14 @@ contains
             istate = 2
         end do
         if (istate /= 3) then
-            write (0, *) "ERROR: bounce_integral did not converge after 500 iterations"
-            write (0, *) eta, etamin, etamax, y(1)
+            write(0,'(A)') '[ERROR] bounce_integral: no event after 500 iterations'
+            write(0,'(A,1X,A)') '  region =', merge('passing','trapped',eta<etatp)
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'eta =', eta
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  ti =', ti, 'dt =', dt
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax, 'etatp =', etatp
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  theta(y1) =', y(1), 'th0 =', th0
+            write(0,'(A,1X,I0,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  mth =', mth, 'mph =', mph, 'sign_vpar =', dble(sign_vpar)
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'R0 =', R0, 'q =', q, 'iota =', iota
         end if
 
         bounce_integral(1) = ti
