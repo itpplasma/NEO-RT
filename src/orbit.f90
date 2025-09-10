@@ -244,6 +244,16 @@ contains
         yold = y0
         ti = 0d0
         state = 1
+        if (get_log_level() <= LOG_TRACE) then
+            ! Log initial conditions and event function values
+            call timestep_wrapper(neq, ti, y, yold)  ! reuse yold as ydot here
+            write(dbg,'(A,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,ES12.5)') &
+                 'bounce_integral init y1 y2 ydot1 ydot2 th0=', y(1), y(2), yold(1), yold(2), th0
+            call trace(dbg)
+            write(dbg,'(A,1X,ES12.5,1X,ES12.5)') 'G1,G2 at start=', &
+                 sign_vpar_htheta*(y(1)-th0), sign_vpar_htheta*(2d0*pi - (y(1)-th0))
+            call trace(dbg)
+        end if
         do k = 2, n
             yold = y
             told = ti
