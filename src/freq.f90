@@ -5,7 +5,7 @@ module neort_freq
     use neort_orbit, only: nvar, bounce
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
-        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta
+        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
     implicit none
 
@@ -46,6 +46,15 @@ contains
         v = vth
         etamin = etatp
         etamax = etatp + (etadt - etatp)*(1d0 - epsst_spl)
+        if (get_log_level() >= LOG_TRACE) then
+            write(*,'(A)') '[TRACE] init_Om_spl state:'
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etatp =', etatp, 'etadt =', etadt
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  epsst_spl =', epsst_spl, 'epst_spl =', epst_spl
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'q =', q, 'iota =', iota
+            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', int(mph), 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
+        end if
 
         ! logspace for eta
         b = log(epst_spl)
@@ -109,6 +118,15 @@ contains
         v = vth
         etamin = etatp*epssp_spl
         etamax = etatp
+        if (get_log_level() >= LOG_TRACE) then
+            write(*,'(A)') '[TRACE] init_Om_pass_spl state:'
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
+            write(*,'(A,1X,ES12.5)') '  etatp =', etatp
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  epssp_spl =', epssp_spl, 'epsp_spl =', epsp_spl
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'q =', q, 'iota =', iota
+            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', int(mph), 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
+        end if
 
         b = log((etamax - etamin)/etamax)
         aa = 1d0/(netaspl_pass - 1d0)*(log(epsp_spl) - b)
