@@ -14,6 +14,7 @@ module neort_orbit
 
     integer, parameter :: nvar = 7
     real(8) :: th0
+    real(8) :: event_sign = 1d0
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
@@ -244,6 +245,11 @@ contains
         yold = y0
         ti = 0d0
         state = 1
+        ! Set event sign so that at t0: G2 is positive and G1 not exactly zero
+        event_sign = sign_vpar_htheta
+        if (abs(event_sign*(y(1) - th0)) < 1d-14 .and. event_sign*(2d0*pi - (y(1) - th0)) < 0d0) then
+            event_sign = -event_sign
+        end if
         if (get_log_level() <= LOG_TRACE) then
             ! Log initial conditions and event function values
             call timestep_wrapper(neq, ti, y, yold)  ! reuse yold as ydot here
@@ -309,8 +315,8 @@ contains
         real(8), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = sign_vpar_htheta*(Y(1) - th0) ! trapped orbit return to starting point
-        GOUT(2) = sign_vpar_htheta*(2d0*pi - (Y(1) - th0))  ! passing orbit return
+        GOUT(1) = event_sign*(Y(1) - th0) ! trapped orbit return to starting point
+        GOUT(2) = event_sign*(2d0*pi - (Y(1) - th0))  ! passing orbit return
         return
     end subroutine bounceroots
 
