@@ -1,4 +1,5 @@
 module neort
+    use logger, only: set_log_level, LOG_INFO
     use neort_profiles, only: init_profile_input, init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
@@ -13,6 +14,9 @@ module neort
 
     ! Number of integration steps in v, set 0 for adaptive integration by quadpack
     integer :: vsteps = 256
+
+    ! Logging / debugging
+    integer :: log_level = LOG_INFO
 
 contains
 
@@ -53,7 +57,7 @@ contains
         real(8) :: qs, ms
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
-            nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps
+            nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, log_level
 
         open (unit=9, file=trim(adjustl(runname))//".in", status="old", form="formatted")
         read (9, nml=params)
@@ -62,6 +66,7 @@ contains
         M_t = M_t*efac/bfac
         qi = qs*qe
         mi = ms*mu
+        call set_log_level(log_level)
     end subroutine read_control
 
     subroutine init

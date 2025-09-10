@@ -1,5 +1,6 @@
 module neort_transport
     use util, only: imun, pi, c, qi
+    use logger, only: trace, debug, warning
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
     use do_magfie_pert_mod, only: do_magfie_pert_amp
@@ -13,11 +14,35 @@ module neort_transport
         etamin, etamax, A1, A2, nlev, pertfile, init_done, nonlin, m0, etatp, etadt, &
         sign_vpar_htheta, sign_vpar
 
-    implicit none
+  implicit none
 
-    real(8) :: Omth, dOmthdv, dOmthdeta
+  real(8) :: Omth, dOmthdv, dOmthdeta
 
 contains
+
+  pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
+    ! Helper to compose a short debug line
+    character(*), intent(in) :: msg1, msg2
+    character(*), intent(in), optional :: msg3, msg4
+    real(8), intent(in) :: v1, v2
+    real(8), intent(in), optional :: v3, v4
+    character(len=256) :: s
+    character(len=64) :: a1, a2, a3, a4
+    a3 = ''; a4 = ''
+    write(a1,'(ES12.5)') v1
+    write(a2,'(ES12.5)') v2
+    if (present(v3)) write(a3,'(ES12.5)') v3
+    if (present(v4)) write(a4,'(ES12.5)') v4
+    if (present(msg4)) then
+      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)//' '//trim(msg4)//trim(a4)
+    else if (present(msg3)) then
+      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)
+    else
+      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)
+    end if
+  end function fmt_dbg
+
+! original contains follows
 
     pure function D11int(ux, taub, Hmn2)
         real(8) :: D11int
@@ -51,6 +76,7 @@ contains
         real(8) :: ux, du, dD11, dD12, dT, v, eta
         real(8) :: eta_res(2)
         real(8) :: taub, bounceavg(nvar)
+        integer :: istate_dv
         real(8) :: Hmn2, attenuation_factor
         real(8) :: roots(nlev, 3)
         integer :: nroots, kr, ku
@@ -71,7 +97,14 @@ contains
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
                 taub = 2d0*pi/abs(Omth)
-                call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
+                call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
+                if (istate_dv /= 2) then
+                    call warning(fmt_dbg('dvode istate=', dble(istate_dv), ' at mth=', dble(mth), ' ux=', ux, ' eta=', eta))
+                else
+                    if (abs(eta - etatp) < 1d-8*etatp) then
+                        call trace(fmt_dbg('near etatp: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
+                    end if
+                end if
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2d0)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)

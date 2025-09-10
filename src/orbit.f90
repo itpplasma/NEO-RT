@@ -98,12 +98,13 @@ contains
         end if
     end function vperp
 
-    subroutine bounce_fast(v, eta, taub, bounceavg, ts)
+    subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
         use dvode_f90_m
 
         real(8), intent(in) :: v, eta, taub
         real(8), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
+        integer, intent(out), optional :: istate_out
 
         real(8) :: t1, t2, bmod, htheta
         real(8) :: y(nvar)
@@ -131,6 +132,7 @@ contains
         call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
 
         bounceavg = y/taub
+        if (present(istate_out)) istate_out = istate
 
     contains
 
