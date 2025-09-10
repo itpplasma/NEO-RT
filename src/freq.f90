@@ -1,8 +1,8 @@
 module neort_freq
-    use logger, only: trace, get_log_level, LOG_TRACE
+    use logger, only: debug, trace, get_log_level, LOG_TRACE
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
-    use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep, bounce_caller, bounce_k
+    use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
@@ -34,7 +34,7 @@ contains
         real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
         real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
-        print *, 'init_Om_spl'
+        call trace('init_Om_spl')
 
         taub0 = 0d0
         taub1 = 0d0
@@ -65,8 +65,6 @@ contains
         aa = 1d0/(netaspl - 1d0)*(log(etamax/etamin - 1d0) - b)
 
         do k = netaspl - 1, 0, -1
-            bounce_caller = 'init_Om_spl'
-            bounce_k = k
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
@@ -106,6 +104,8 @@ contains
             OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
 
+        call trace('init_Om_spl complete')
+
     end subroutine init_Om_spl
 
     subroutine init_Om_pass_spl
@@ -117,7 +117,7 @@ contains
         real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
         real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
-        print *, 'init_Om_pass_spl'
+        call trace('init_Om_pass_spl')
 
         taub0 = 0d0
         taub1 = 0d0
@@ -147,8 +147,6 @@ contains
         aa = 1d0/(netaspl_pass - 1d0)*(log(epsp_spl) - b)
 
         do k = netaspl_pass - 1, 0, -1
-            bounce_caller = 'init_Om_pass_spl'
-            bounce_k = k
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
@@ -187,6 +185,7 @@ contains
             d_OmtB_p = OmtB0 - k_OmtB_p*leta0
             OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
+        call trace('init_Om_pass_spl complete')
     end subroutine init_Om_pass_spl
 
     subroutine Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
@@ -279,17 +278,20 @@ contains
         dOmthdeta = sign_vpar*splineval(2)*v
     end subroutine Om_th
 
-    subroutine d_Om_ds(v, eta, dOmthds, dOmphds)
-        real(8), intent(in) :: v, eta
+    subroutine d_Om_ds(v, eta, taub_estimate, dOmthds, dOmphds)
+        real(8), intent(in) :: v, eta, taub_estimate
         real(8), intent(out) :: dOmthds, dOmphds
         real(8) :: s0, ds, bounceavg(nvar)
         real(8) :: taub, taub_est, Omth, Omph_noE
+
+        call trace('d_Om_ds')
+
         ! store current flux surface values
         s0 = s
 
         ds = 2d-8
         s = s0 - ds/2d0
-        taub_est = bounce_time(v, eta)
+        taub_est = bounce_time(v, eta, taub_estimate)
         taub = taub_est
         call bounce_fast(v, eta, taub, bounceavg, timestep)
         Omth = sign_vpar_htheta*2d0*pi/taub
@@ -307,7 +309,7 @@ contains
             end if
         end if
         s = s0 + ds/2d0
-        taub_est = bounce_time(v, eta)
+        taub_est = bounce_time(v, eta, taub_estimate)
         taub = taub_est
         call bounce_fast(v, eta, taub, bounceavg, timestep)
         dOmthds = sign_vpar_htheta*(2d0*pi/taub - sign_vpar_htheta*Omth)/ds
@@ -327,5 +329,6 @@ contains
 
         ! re-set current flux surface values
         s = s0
+        call trace('d_Om_ds complete')
     end subroutine d_Om_ds
 end module neort_freq

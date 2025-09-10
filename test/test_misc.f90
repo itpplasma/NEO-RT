@@ -1,5 +1,5 @@
 program test_misc
-    use util, only: readdata, disp, c, qi, mi
+    use util, only: readdata, disp, c, qi, mi, pi
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epssp_spl, &
         epsp_spl, sign_vpar, mth, nlev, nopassing, epsp, epst, dVds
     use do_magfie_mod, only: do_magfie, psi_pr, q, s, eps, R0
@@ -77,7 +77,7 @@ contains
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
             call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
-            call d_Om_ds(v, eta, dOmthds, dOmphds)
+            call d_Om_ds(v, eta, 2d0*pi/Omth, dOmthds, dOmphds)
             write (9, *) eta, etatp, etadt, &
                 Om_tE, OmtB, dOmtbdv, dOmtbdeta, &
                 Omth, dOmthdv, dOmthdeta, dOmthds, &

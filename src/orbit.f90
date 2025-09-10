@@ -1,5 +1,5 @@
 module neort_orbit
-    use logger, only: trace, get_log_level, LOG_TRACE, error
+    use logger, only: debug, trace, get_log_level, LOG_TRACE, error
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
     use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
@@ -153,6 +153,8 @@ contains
         integer :: neq, itask, istate
         type(vode_opts) :: options
 
+        call trace('bounce_fast')
+
         t1 = 0d0
         t2 = taub
 
@@ -178,6 +180,8 @@ contains
         bounceavg = y/taub
         if (present(istate_out)) istate_out = istate
 
+        call trace('bounce_fast complete')
+
     contains
 
         subroutine timestep_wrapper(neq_, t_, y_, ydot_)
@@ -201,6 +205,7 @@ contains
         integer, parameter :: neq = 2
         real(8) :: y0(neq), roots(neq+1)
         real(8) :: bmod, htheta
+        call trace('bounce_time')
 
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
@@ -216,7 +221,7 @@ contains
 
         roots = bounce_integral(v, eta, neq, y0, taub, timestep_poloidal_motion)
         taub = roots(1)
-
+        call trace('bounce_time complete')
     end function bounce_time
 
     subroutine timestep_poloidal_motion(v, eta, neq, t, y, ydot)
@@ -301,7 +306,7 @@ contains
                 call dvode_error_context('bounce_integral', v, eta, ti, tout, istate)
             end if
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I0,2A,ES12.5,2A,ES12.5,A,I0)') '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
+                print *, '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
             end if
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then

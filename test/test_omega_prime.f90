@@ -154,7 +154,7 @@ contains
         taub = 2d0*pi/abs(f % Omth)
         call bounce_fast(f % v, f % eta, taub, bounceavg, timestep_transport)
         call Om_ph(f % v, f % eta, f % Omph, f % dOmphdv, f % dOmphdeta)
-        call d_Om_ds(f % v, f % eta, f % dOmthds, f % dOmphds)
+        call d_Om_ds(f % v, f % eta, taub, f % dOmthds, f % dOmphds)
         f % Om = mth*f % Omth + mph*f % Omph
         f % dOmdv = mth*f % dOmthdv + mph*f % dOmphdv
         f % dOmdeta = mth*f % dOmthdeta + mph*f % dOmphdeta
