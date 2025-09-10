@@ -237,7 +237,7 @@ contains
             passing = .true.
         end if
 
-        n = 500
+        n = 2000
         rootstate = -1
 
         y = y0
