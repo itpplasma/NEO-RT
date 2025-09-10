@@ -2,7 +2,7 @@ module neort_freq
     use logger, only: trace, get_log_level, LOG_TRACE
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
-    use neort_orbit, only: nvar, bounce, bounce_caller, bounce_k
+    use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep, bounce_caller, bounce_k
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
@@ -32,7 +32,7 @@ contains
         integer :: k
         real(8) :: aa, b
         real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
-        real(8) :: v, eta, taub, bounceavg(nvar)
+        real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
         print *, 'init_Om_spl'
 
@@ -72,11 +72,9 @@ contains
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
             end if
-            if (k == netaspl - 1) then
-                call bounce(v, eta, taub, bounceavg)
-            else
-                call bounce(v, eta, taub, bounceavg, taub)
-            end if
+            taub_est = bounce_time(v, eta)
+            taub = taub_est
+            call bounce_fast(v, eta, taub, bounceavg, timestep)
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta, ' taub=', taub
             end if
@@ -113,7 +111,7 @@ contains
         real(8) :: aa, b
         integer :: k
         real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
-        real(8) :: v, eta, taub, bounceavg(nvar)
+        real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
         print *, 'init_Om_pass_spl'
 
@@ -152,11 +150,9 @@ contains
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
             end if
-            if (k == netaspl_pass - 1) then
-                call bounce(v, eta, taub, bounceavg)
-            else
-                call bounce(v, eta, taub, bounceavg, taub)
-            end if
+            taub_est = bounce_time(v, eta)
+            taub = taub_est
+            call bounce_fast(v, eta, taub, bounceavg, timestep)
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta, ' taub=', taub
             end if
@@ -279,13 +275,15 @@ contains
         real(8), intent(in) :: v, eta
         real(8), intent(out) :: dOmthds, dOmphds
         real(8) :: s0, ds, bounceavg(nvar)
-        real(8) :: taub, Omth, Omph_noE
+        real(8) :: taub, taub_est, Omth, Omph_noE
         ! store current flux surface values
         s0 = s
 
         ds = 2d-8
         s = s0 - ds/2d0
-        call bounce(v, eta, taub, bounceavg)
+        taub_est = bounce_time(v, eta)
+        taub = taub_est
+        call bounce_fast(v, eta, taub, bounceavg, timestep)
         Omth = sign_vpar_htheta*2d0*pi/taub
         if (magdrift) then
             if (eta > etatp) then
@@ -301,7 +299,9 @@ contains
             end if
         end if
         s = s0 + ds/2d0
-        call bounce(v, eta, taub, bounceavg, taub)
+        taub_est = bounce_time(v, eta)
+        taub = taub_est
+        call bounce_fast(v, eta, taub, bounceavg, timestep)
         dOmthds = sign_vpar_htheta*(2d0*pi/taub - sign_vpar_htheta*Omth)/ds
         if (magdrift) then
             if (eta > etatp) then
