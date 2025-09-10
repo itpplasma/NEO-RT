@@ -304,6 +304,8 @@ contains
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I0,A,ES12.5,A,ES12.5,A,I0)') &
                     '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
+                write(*,'(A,2(1X,ES12.5))') '        G1,G2=', &
+                    sign_vpar_htheta*(y(1)-th0), sign_vpar_htheta*(2d0*pi - (y(1)-th0))
             end if
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then
