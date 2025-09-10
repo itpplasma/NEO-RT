@@ -64,7 +64,7 @@ contains
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I4,2A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
+                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
             end if
             if (k == netaspl - 1) then
                 call bounce(v, eta, taub, bounceavg)
@@ -135,7 +135,7 @@ contains
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I4,2A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
+                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
             end if
             if (k == netaspl_pass - 1) then
                 call bounce(v, eta, taub, bounceavg)
