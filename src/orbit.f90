@@ -1,5 +1,4 @@
 module neort_orbit
-    use logger, only: error, trace, get_log_level, LOG_TRACE
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
     use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
@@ -14,7 +13,6 @@ module neort_orbit
 
     integer, parameter :: nvar = 7
     real(8) :: th0
-    real(8) :: event_sign = 1d0
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
@@ -245,27 +243,7 @@ contains
         yold = y0
         ti = 0d0
         state = 1
-        ! If event is satisfied exactly at t0 and the other event is on the wrong side,
-        ! nudge theta by a tiny epsilon in the direction of motion to avoid DVODE illegal start.
-        call timestep_wrapper(neq, ti, y, yold)  ! reuse yold here as ydot at t0
-        if (abs(y(1) - th0) < 1d-14) then
-            y(1) = th0 + sign(1d-12, yold(1))
-        end if
-        ! Set event sign so that at t0: G2 is positive and G1 not exactly zero
-        event_sign = sign_vpar_htheta
-        if (abs(event_sign*(y(1) - th0)) < 1d-14 .and. event_sign*(2d0*pi - (y(1) - th0)) < 0d0) then
-            event_sign = -event_sign
-        end if
-        if (get_log_level() <= LOG_TRACE) then
-            ! Log initial conditions and event function values
-            call timestep_wrapper(neq, ti, y, yold)  ! reuse yold as ydot here
-            write(dbg,'(A,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,ES12.5)') &
-                 'bounce_integral init y1 y2 ydot1 ydot2 th0=', y(1), y(2), yold(1), yold(2), th0
-            call trace(dbg)
-            write(dbg,'(A,1X,ES12.5,1X,ES12.5)') 'G1,G2 at start=', &
-                 sign_vpar_htheta*(y(1)-th0), sign_vpar_htheta*(2d0*pi - (y(1)-th0))
-            call trace(dbg)
-        end if
+        
         do k = 2, n
             yold = y
             told = ti
@@ -273,16 +251,6 @@ contains
             tout = ti + dt
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
-            if (istate < 0) then
-                if (get_log_level() <= LOG_TRACE) then
-                    write(dbg,'(A,1X,ES12.5,1X,ES12.5,1X,L1,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I4)') &
-                        'bounce_integral fail v eta pass ti tout y1 istate=', v, eta, passing, ti, tout, y(1), istate
-                    call trace(dbg)
-                end if
-                call error('VODE MXSTEP or failure in bounce_integral')
-            end if
-            ! After the first successful step, restore the original sign convention
-            if (ti > 0d0) event_sign = sign_vpar_htheta
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then
                     exit
@@ -292,11 +260,6 @@ contains
             istate = 2
         end do
         if (istate /= 3) then
-            if (get_log_level() <= LOG_TRACE) then
-                write(dbg,'(A,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,L1)') &
-                    'bounce_integral no-event v eta y1 th0 pass=', v, eta, y(1), th0, passing
-                call trace(dbg)
-            end if
             write (0, *) "ERROR: bounce_integral did not converge after 500 iterations"
             write (0, *) eta, etamin, etamax, y(1)
         end if
@@ -323,8 +286,8 @@ contains
         real(8), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = event_sign*(Y(1) - th0) ! trapped orbit return to starting point
-        GOUT(2) = event_sign*(2d0*pi - (Y(1) - th0))  ! passing orbit return
+        GOUT(1) = sign_vpar_htheta*(Y(1) - th0) ! trapped orbit return to starting point
+        GOUT(2) = sign_vpar_htheta*(2d0*pi - (Y(1) - th0))  ! passing orbit return
         return
     end subroutine bounceroots
 

@@ -1,6 +1,6 @@
 module neort_transport
     use util, only: imun, pi, c, qi
-    use logger, only: trace, debug, warning, error
+    
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
     use do_magfie_pert_mod, only: do_magfie_pert_amp
@@ -76,7 +76,7 @@ contains
         real(8) :: ux, du, dD11, dD12, dT, v, eta
         real(8) :: eta_res(2)
         real(8) :: taub, bounceavg(nvar)
-        integer :: istate_dv
+        
         real(8) :: Hmn2, attenuation_factor
         real(8) :: roots(nlev, 3)
         integer :: nroots, kr, ku
@@ -97,16 +97,7 @@ contains
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
                 taub = 2d0*pi/abs(Omth)
-                call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
-                if (istate_dv == -1) then
-                    call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
-                else if (istate_dv /= 2) then
-                    call warning(fmt_dbg('dvode istate=', dble(istate_dv), ' at mth=', dble(mth), ' ux=', ux, ' eta=', eta))
-                else
-                    if (abs(eta - etatp) < 1d-8*etatp) then
-                        call trace(fmt_dbg('near etatp: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
-                    end if
-                end if
+                call bounce_fast(v, eta, taub, bounceavg, timestep_transport)
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2d0)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)
