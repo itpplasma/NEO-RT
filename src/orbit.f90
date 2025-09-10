@@ -14,9 +14,6 @@ module neort_orbit
 
     integer, parameter :: nvar = 7
     real(8) :: th0
-    ! Debug tags for TRACE
-    character(len=32), public :: bounce_caller = ''
-    integer, public :: bounce_k = -999
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
@@ -291,8 +288,7 @@ contains
         ti = 0d0
         state = 1
         if (get_log_level() >= LOG_TRACE) then
-            write(*,'(A,1X,A,1X,I0,1X,ES12.5,1X,ES12.5,1X,A,1X,A)') &
-                '[TRACE] bounce_integral start caller=', trim(bounce_caller), bounce_k, v, eta, 'pass=', merge('T','F',eta<etatp)
+            write(*,'(A,2ES12.5,2A)') '[TRACE] bounce_integral start v,eta=', v, eta, ' pass=', merge('T','F',eta<etatp)
         end if
         do k = 2, n
             yold = y
@@ -305,10 +301,7 @@ contains
                 call dvode_error_context('bounce_integral', v, eta, ti, tout, istate)
             end if
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I0,A,ES12.5,A,ES12.5,A,I0)') &
-                    '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
-                write(*,'(A,2(1X,ES12.5))') '        G1,G2=', &
-                    sign_vpar_htheta*(y(1)-th0), sign_vpar_htheta*(2d0*pi - (y(1)-th0))
+                write(*,'(A,I0,2A,ES12.5,2A,ES12.5,A,I0)') '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
             end if
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then
