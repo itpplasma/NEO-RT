@@ -19,7 +19,7 @@ module neort_freq
     integer, parameter :: netaspl_pass = 100
     real(8) :: OmtB_pass_spl_coeff(netaspl_pass - 1, 5)
     real(8) :: Omth_pass_spl_coeff(netaspl_pass - 1, 5)
-    real(8) :: vres_pass_spl_coeff(netaspl - 1, 5)
+    real(8) :: vres_pass_spl_coeff(netaspl_pass - 1, 5)
 
     real(8) :: k_taub_p=0d0, d_taub_p=0d0, k_taub_t=0d0, d_taub_t=0d0 ! extrapolation at tp bound
     real(8) :: k_OmtB_p=0d0, d_Omtb_p=0d0, k_Omtb_t=0d0, d_Omtb_t=0d0 ! extrapolation at tp bound
@@ -70,6 +70,9 @@ contains
                 call bounce(v, eta, taub, bounceavg)
             else
                 call bounce(v, eta, taub, bounceavg, taub)
+            end if
+            if (get_log_level() >= LOG_TRACE) then
+                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -141,6 +144,9 @@ contains
                 call bounce(v, eta, taub, bounceavg)
             else
                 call bounce(v, eta, taub, bounceavg, taub)
+            end if
+            if (get_log_level() >= LOG_TRACE) then
+                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
