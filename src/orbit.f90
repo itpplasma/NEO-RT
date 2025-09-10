@@ -1,4 +1,5 @@
 module neort_orbit
+    use logger, only: error
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
     use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
@@ -250,6 +251,9 @@ contains
             tout = ti + dt
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
+            if (istate < 0) then
+                call error('VODE MXSTEP or failure in bounce_integral')
+            end if
             if (istate == 3) then
                 if (passing .or. (yold(1) - th0) < 0) then
                     exit
