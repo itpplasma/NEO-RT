@@ -2,9 +2,11 @@ module logger
   implicit none
   private
   ! Expose levels 1..5 as requested: 1=ERROR, 2=WARNING, 3=INFO, 4=DEBUG, 5=TRACE
-  integer, public, parameter :: LVL_ERROR=1, LVL_WARNING=2, LVL_INFO=3, LVL_DEBUG=4, LVL_TRACE=5
+  integer, public, parameter :: LVL_ERROR=1, LVL_WARNING=2, LVL_INFO=3, LVL_DEBUG=4, &
+  LVL_TRACE=5
   ! Backward-compatible aliases used in imports elsewhere
-  integer, public, parameter :: LOG_ERROR=LVL_ERROR, LOG_WARNING=LVL_WARNING, LOG_INFO=LVL_INFO, LOG_DEBUG=LVL_DEBUG, LOG_TRACE=LVL_TRACE
+  integer, public, parameter :: LOG_ERROR=LVL_ERROR, LOG_WARNING=LVL_WARNING, &
+  LOG_INFO=LVL_INFO, LOG_DEBUG=LVL_DEBUG, LOG_TRACE=LVL_TRACE
   integer :: current_level = LVL_INFO
   public :: set_log_level, get_log_level, trace, debug, info, warning, error
 contains
