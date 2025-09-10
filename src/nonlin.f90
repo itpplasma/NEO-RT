@@ -1,5 +1,6 @@
 module neort_nonlin
-    use util, only: c, mi
+    use logger, only: debug, trace, get_log_level, LOG_TRACE
+    use util, only: c, mi, pi
     use collis_alp, only: coleff
     use neort_freq, only: Om_th, Om_ph, d_Om_ds
     use neort_orbit, only: nvar
@@ -17,6 +18,8 @@ contains
         real(8) :: dpp, dhh, fpeff, dres, dnorm, Omph, dOmphdv, dOmphdeta, dOmdv, &
                    dOmdeta, Ompr, dOmphds, dOmthds, dOmdpph, v
 
+        call trace('nonlinear_attenuation')
+
         if (.not. nonlin) then
             nonlinear_attenuation = 1d0
             return
@@ -26,7 +29,7 @@ contains
 
         if (nonlin) then
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-            call d_Om_ds(v, eta, dOmthds, dOmphds)
+            call d_Om_ds(v, eta, 2d0*pi/Omth, dOmthds, dOmphds)
             dOmdv = mth*dOmthdv + mph*dOmphdv
             dOmdeta = mth*dOmthdeta + mph*dOmphdeta
             dOmdpph = -(qi/c*iota*sign_theta*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
@@ -38,6 +41,8 @@ contains
             dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3d0/2d0)
             call attenuation_factor(dnorm, nonlinear_attenuation)
         end if
+
+        call trace('nonlinear_attenuation complete')
     end function nonlinear_attenuation
 
     pure function omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)

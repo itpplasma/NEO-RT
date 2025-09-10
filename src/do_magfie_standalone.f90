@@ -7,6 +7,9 @@ module do_magfie_mod
 
     real(8), private :: s_prev = -1.0d0
     real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
+    ! Work arrays previously automatic on stack (size=nmode)
+    real(8), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
+    real(8), private, allocatable :: costerm(:), sinterm(:)
 
     real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
 
@@ -20,6 +23,8 @@ module do_magfie_mod
     integer, protected :: m0b, n0b, nflux, nfp, nmode
 
     real(8), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
+    ! Work arrays for booz_to_cyl (size=nmode)
+    real(8), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
 
     real(8), parameter :: ItoB = 2.0d-1*sign_theta ! Covarient B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
@@ -27,7 +32,7 @@ module do_magfie_mod
     integer :: ncol1, ncol2 ! number of columns in input file
 
     integer :: inp_swi ! type of input file
-contains
+    contains
 
     subroutine do_magfie_init
         ! Initializes spline and Fourier coefficients for later evaluation of
@@ -49,6 +54,16 @@ contains
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
+        end if
+
+        ! Allocate large work arrays once (avoid large automatic arrays on stack)
+        if (.not. allocated(B0mnc)) then
+            allocate(B0mnc(nmode), dB0dsmnc(nmode))
+            if (ncol2 >= 8) allocate(B0mns(nmode), dB0dsmns(nmode))
+            allocate(costerm(nmode), sinterm(nmode))
+        end if
+        if (.not. allocated(rmnc)) then
+            allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
         end if
 
         B00 = 1.0d4*modes0(1, 1, 6)*bfac
@@ -86,10 +101,9 @@ contains
         real(8), dimension(size(x)), intent(out) :: hcurl
 
         real(8) :: spl_val(3)
-        real(8) :: B0mnc(nmode), dB0dsmnc(nmode), B0mns(nmode), dB0dsmns(nmode)
         real(8) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
 
-        real(8) :: x1, costerm(nmode), sinterm(nmode)
+        real(8) :: x1
 
         ! safety measure in order not to extrapolate
         x1 = max(params0(1, 1), x(1))
@@ -191,7 +205,6 @@ contains
         real(8), intent(out) :: r(3)  ! Cylindrical coordinates (R, phi, Z)
 
         real(8) :: spl_val(3), x1
-        real(8) :: rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode)
 
         integer :: j
 
@@ -257,9 +270,12 @@ module do_magfie_pert_mod
 
     real(8), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
 
+    ! Work arrays (size=nmode)
+    real(8), private, allocatable :: Bmnc(:), Bmns(:)
+
     integer :: ncol1, ncol2 ! number of columns in input file
     real(8) :: mph ! toroidal perturbation mode
-contains
+    contains
 
     subroutine do_magfie_pert_init
         integer :: j, k
@@ -276,6 +292,12 @@ contains
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
+        end if
+
+        ! Allocate large work arrays once (avoid large automatic arrays on stack)
+        if (.not. allocated(Bmnc)) then
+            allocate(Bmnc(nmode))
+            if (ncol2 >= 8) allocate(Bmns(nmode))
         end if
 
         ! calculate spline coefficients
@@ -304,7 +326,6 @@ contains
         real(8), dimension(:), intent(in) :: x
         complex(8), intent(out) :: bamp
 
-        real(8) :: Bmnc(nmode), Bmns(nmode)
         real(8) :: x1
 
         ! safety measure in order not to extrapolate
