@@ -4,7 +4,7 @@ module neort_freq
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep, bounce_caller, bounce_k
     use neort_profiles, only: vth, Om_tE, dOm_tEds
-    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
     implicit none
@@ -44,7 +44,7 @@ contains
         OmtB1 = 0d0
 
         v = vth
-        etamin = etatp
+        etamin = (1d0 + epst)*etatp
         etamax = etatp + (etadt - etatp)*(1d0 - epsst_spl)
         ! Allocate coefficient arrays for trapped region splines
         if (.not. allocated(Omth_spl_coeff)) allocate(Omth_spl_coeff(netaspl - 1, 5))
