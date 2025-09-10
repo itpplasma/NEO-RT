@@ -2,7 +2,7 @@ module neort_freq
     use logger, only: trace, get_log_level, LOG_TRACE
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
-    use neort_orbit, only: nvar, bounce
+    use neort_orbit, only: nvar, bounce, bounce_caller, bounce_k
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
@@ -11,15 +11,15 @@ module neort_freq
 
     ! For splining in the trapped eta region
     integer, parameter :: netaspl = 100
-    real(8) :: OmtB_spl_coeff(netaspl - 1, 5)
-    real(8) :: Omth_spl_coeff(netaspl - 1, 5)
-    real(8) :: vres_spl_coeff(netaspl - 1, 5)
+    real(8), allocatable :: OmtB_spl_coeff(:, :)
+    real(8), allocatable :: Omth_spl_coeff(:, :)
+    real(8), allocatable :: vres_spl_coeff(:, :)
 
     ! For splining in the passing eta region
     integer, parameter :: netaspl_pass = 100
-    real(8) :: OmtB_pass_spl_coeff(netaspl_pass - 1, 5)
-    real(8) :: Omth_pass_spl_coeff(netaspl_pass - 1, 5)
-    real(8) :: vres_pass_spl_coeff(netaspl_pass - 1, 5)
+    real(8), allocatable :: OmtB_pass_spl_coeff(:, :)
+    real(8), allocatable :: Omth_pass_spl_coeff(:, :)
+    real(8), allocatable :: vres_pass_spl_coeff(:, :)
 
     real(8) :: k_taub_p=0d0, d_taub_p=0d0, k_taub_t=0d0, d_taub_t=0d0 ! extrapolation at tp bound
     real(8) :: k_OmtB_p=0d0, d_Omtb_p=0d0, k_Omtb_t=0d0, d_Omtb_t=0d0 ! extrapolation at tp bound
@@ -46,6 +46,10 @@ contains
         v = vth
         etamin = etatp
         etamax = etatp + (etadt - etatp)*(1d0 - epsst_spl)
+        ! Allocate coefficient arrays for trapped region splines
+        if (.not. allocated(Omth_spl_coeff)) allocate(Omth_spl_coeff(netaspl - 1, 5))
+        if (.not. allocated(OmtB_spl_coeff)) allocate(OmtB_spl_coeff(netaspl - 1, 5))
+        if (.not. allocated(vres_spl_coeff)) allocate(vres_spl_coeff(netaspl - 1, 5))
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A)') '[TRACE] init_Om_spl state:'
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
@@ -61,6 +65,8 @@ contains
         aa = 1d0/(netaspl - 1d0)*(log(etamax/etamin - 1d0) - b)
 
         do k = netaspl - 1, 0, -1
+            bounce_caller = 'init_Om_spl'
+            bounce_k = k
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
@@ -121,6 +127,10 @@ contains
         v = vth
         etamin = etatp*epssp_spl
         etamax = etatp
+        ! Allocate coefficient arrays for passing region splines
+        if (.not. allocated(Omth_pass_spl_coeff)) allocate(Omth_pass_spl_coeff(netaspl_pass - 1, 5))
+        if (.not. allocated(OmtB_pass_spl_coeff)) allocate(OmtB_pass_spl_coeff(netaspl_pass - 1, 5))
+        if (.not. allocated(vres_pass_spl_coeff)) allocate(vres_pass_spl_coeff(netaspl_pass - 1, 5))
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A)') '[TRACE] init_Om_pass_spl state:'
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
@@ -135,6 +145,8 @@ contains
         aa = 1d0/(netaspl_pass - 1d0)*(log(epsp_spl) - b)
 
         do k = netaspl_pass - 1, 0, -1
+            bounce_caller = 'init_Om_pass_spl'
+            bounce_k = k
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
