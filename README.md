@@ -1,48 +1,105 @@
 # NEO-RT
-Calculates NTV torque in resonant transport regimes using a Hamiltonian approach
+
+NEO-RT computes neoclassical toroidal viscosity (NTV) torque in resonant transport regimes using a Hamiltonian approach. The code reads Boozer-formatted magnetic field data, solves guiding-centre trajectories including resonant interactions, and evaluates transport coefficients and torque densities for individual flux surfaces.
+
+## Key capabilities
+
+- Modular Fortran implementation with a `neo_rt.x` solver and `neo_rt_diag.x` diagnostics executable.
+- Standalone magnetic-field interface (`do_magfie_standalone`) with optional coupling to NEO-2 through CMake options.
+- Support for trapped and passing particle contributions, optional torque integration, and nonlinear corrections that depend on thermodynamic profiles.
+- Batch-processing helpers and Python utilities for scanning multiple flux surfaces and plotting output torque profiles.
 
 ## Dependencies
-NEO-RT requires the GNU Fortran compiler, make, cmake, ninja, Python with NumPy, 
-BLAS/LAPACK, SuiteSparse, NetCDF. On Debian/Ubuntu they will be installed as `sudo`
-via
+
+The project is developed with GNU Fortran and CMake. The following dependencies are required to build the solver and diagnostics:
+
+- GNU Fortran (gfortran) and a C/C++ toolchain (`build-essential`).
+- CMake 3.22+ and Ninja.
+- BLAS and LAPACK implementations.
+- SuiteSparse (used by the magnetic-field routines).
+- NetCDF (Fortran interface, provides `nf-config`).
+- Python 3 with NumPy (for the regression tests and helper scripts).
+- Optional: [FORD](https://github.com/Fortran-FOSS-Programmers/ford) and Graphviz for documentation generation.
+
+On Debian/Ubuntu systems you can install the toolchain with:
+
 ```bash
 make deps
 ```
 
+This installs the runtime dependencies required for the default standalone build. NetCDF must provide the `nf-config` helper that CMake queries while configuring the project.
+
 ## Building
-Inside the NEO-RT folder run
+
+The default build uses CMake and Ninja via the provided `Makefile` wrapper. From the repository root run:
+
 ```bash
 make
 ```
-This will create the main binary `neo_rt.x` amongst other files in the `build`
-directory.
 
-## Running
+This creates `build/neo_rt.x` and `build/neo_rt_diag.x` together with intermediate static libraries. You can control the build configuration through `CONFIG=Release|Debug|Fast` when invoking `make`. To rebuild after changing configuration flags run `make clean` followed by `make CONFIG=Debug`.
 
-Single run with input file: `neo_rt.x <runname>` will run with input file `<runname>.in` .
-An example input file `driftorbit.in` can be found in `examples/base`.
-Note that the name of the input file is given without file ending, that
-is because this is also the name (prefix) to use for output files.
+CMake also exposes an option `USE_STANDALONE` (enabled by default) that uses the standalone magnetic-field reader. Set `-DUSE_STANDALONE=OFF` when configuring to link against an external NEO-2 checkout if required.
 
-Script to be called for batch runs on multiple flux surfaces: `run_driftorbit.py`
+## Running simulations
 
-## Input
-- `<runname>.in`: Given as first command line argument, contains run parameters 
-- `in_file`: Boozer coordinate file of axisymmetric part of the magnetic field
-- `in_file_pert`: Boozer coordinate file of non-axisymmetric perturbation
-- `plasma.in`: Plasma parameters, must be **equidistant in radius** `s` ! Required for torque and/or nonlinear.
-- `profile.in`: Profile parameters, required for derivatives used inside nonlinear runs.
+The solver operates on a single flux surface at a time. After building, execute the main program as
 
-Used by `run_driftorbit.py`:
+```bash
+./build/neo_rt.x <runname>
+```
 
-- `driftorbit.in.template`: Contains placeholders to be filled by profile data
-- `profile.in`: Radius `s`, toroidal mach number `Mt` and thermal velocity `vth` (the latter is not used anymore)
+The solver expects a namelist file `<runname>.in` that specifies the simulation parameters (see [`doc/running.md`](doc/running.md) for the complete description). Magnetic-field data are read from the Boozer files `in_file` (axisymmetric background) and, if `pertfile=.true.`, `in_file_pert` (non-axisymmetric perturbation) located in the working directory. Example input decks are provided in `examples/base`.
 
-## Output
+### Batch scans
 
-* `driftorbit_magfie_param.out`: magnetic field parameters
-* `driftorbit_torque.out`: torque density data
+For scans over several flux surfaces, use the helper script:
 
-## Postprocessing
+```bash
+python3 python/run_driftorbit.py --exe ./build/neo_rt.x 0 5
+```
 
-* `examples/plot_torque.py` is the most recent plotting utility for toroidal torque
+The script fills in template values from `driftorbit.in.template` using `profile.in` data and runs the solver for each requested flux surface. The executable path can also be supplied via the environment variable `NEORT_EXECUTABLE`.
+
+## Output overview
+
+Each run produces a set of plain-text files summarised below:
+
+| File | Description |
+| --- | --- |
+| `<runname>.out` | Transport coefficients (`D11`, `D12`) separated into trapped, co-passing, and counter-passing contributions. |
+| `<runname>_integral.out` | Velocity-space integrals and resonance bounds for each evaluated harmonic. |
+| `<runname>_magfie_param.out` | Magnetic-field and geometric parameters sampled on the target surface. |
+| `<runname>_magfie.out` | Magnetic-field line samples including perturbation amplitudes. |
+| `<runname>_torque.out` | Torque density components (written when `comptorque=.true.`). |
+| `<runname>_torque_integral.out` | Harmonic-resolved torque contributions (written when `comptorque=.true.`). |
+
+Detailed descriptions of all inputs and outputs are collected in [`doc/running.md`](doc/running.md) and [`doc/file_formats.md`](doc/file_formats.md).
+
+## Diagnostics utilities
+
+The build also produces `neo_rt_diag.x`, which links against the main library and the [fortplot](https://github.com/lazy-fortran/fortplot) plotting backend. Diagnostic drivers in `src/diag` provide additional post-processing routines for debugging, harmonic inspection, and attenuation maps.
+
+## Testing
+
+Regression and unit tests are provided for both the Fortran and Python components. After building the solver, run
+
+```bash
+make test
+```
+
+which executes the CTest suite together with the Python regression test in `test/ripple_plateau`.
+
+## Documentation
+
+FORD-based API documentation can be generated locally with
+
+```bash
+make doc
+```
+
+This command runs `ford doc.md` and writes the HTML output to `build/doc`. The same command is executed on GitHub Actions to publish documentation to GitHub Pages. Ensure that the `ford` Python package and Graphviz binaries are available before running the target locally.
+
+## License
+
+NEO-RT is distributed under the terms of the [MIT License](LICENSE).

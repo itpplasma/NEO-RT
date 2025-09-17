@@ -158,38 +158,56 @@ def run_multiple_flux_surfaces(executable_name: str,
 
 
 if __name__ == "__main__":
-  import numpy as np
-  import sys
+  import argparse
+  import os
 
-  if (len(sys.argv) < 2):
-    print("Usage:")
-    print("./run_driftorbit.py flux_surface_number_lower [flux_surface_number_upper]")
-    print("  where flux_surface_number_lower is an integer indicating")
-    print("  the flux surface which to use from the profile file.")
-    print("  If flux_surface_number_upper is given, then all flux")
-    print("  surfaces from lower (inclusive) to upper (exclusive) are run.")
+  parser = argparse.ArgumentParser(
+      description="Populate drift-orbit inputs and run neo_rt.x over one or more flux surfaces.")
+  parser.add_argument(
+      "lower_index",
+      type=int,
+      help="First flux-surface index to process (zero-based)")
+  parser.add_argument(
+      "upper_index",
+      type=int,
+      nargs="?",
+      help="Optional upper bound (exclusive). If omitted only lower_index is run.")
+  parser.add_argument(
+      "--exe",
+      default=os.environ.get("NEORT_EXECUTABLE", "neo_rt.x"),
+      help="Path to the neo_rt executable (default: %(default)s or $NEORT_EXECUTABLE)")
+  parser.add_argument(
+      "--template",
+      default="driftorbit.in.template",
+      help="Template input file to populate (default: %(default)s)")
+  parser.add_argument(
+      "--profile",
+      default="profile.in",
+      help="Profile file providing s, M_t, and vth columns (default: %(default)s)")
+  parser.add_argument(
+      "--prefix",
+      default="driftorbit",
+      help="Prefix for generated input/output files (default: %(default)s)")
 
-    sys.exit()
+  args = parser.parse_args()
 
-  template_file_name = 'driftorbit.in.template'
-  profile_file_name = 'profile.in'
-  executable_name = 'driftorbit_test'
-  base_output_file_name = 'driftorbit'
+  template_file_name = args.template
+  profile_file_name = args.profile
+  executable_name = args.exe
+  base_output_file_name = args.prefix
 
-  if (len(sys.argv) < 3):
-    profile_data = np.loadtxt(profile_file_name)
-
-    fsnum = int(sys.argv[1])
-
-    runname = '{}{}'.format(base_output_file_name, fsnum)
-
+  if args.upper_index is None:
+    fsnum = args.lower_index
+    runname = f"{base_output_file_name}{fsnum}"
     [[s, M_t, vth, epsm], profile_data] = get_profile_data_for_flux_surface(profile_file_name, fsnum)
-
     run_single_flux_surface(executable_name, template_file_name, runname, s, M_t, vth, epsm)
   else:
-    index_low = int(sys.argv[1])
-    index_high = int(sys.argv[2])
-
-    run_multiple_flux_surfaces(executable_name,  profile_file_name,
-        template_file_name, base_output_file_name,
-        index_low, index_high)
+    index_low = args.lower_index
+    index_high = args.upper_index
+    run_multiple_flux_surfaces(
+        executable_name,
+        profile_file_name,
+        template_file_name,
+        base_output_file_name,
+        index_low,
+        index_high)
