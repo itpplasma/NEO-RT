@@ -202,7 +202,7 @@ contains
         end do
 
         open (unit=9, file=trim(adjustl(runname))//".out", recl=1024)
-        write (9, *) "# M_t D11t D11ctr D11co D11 D12t D12ctr D12co D12"
+        write (9, *) "# M_t D11co D11ctr D11t D11 D12co D12ctr D12t D12"
         write (9, *) M_t, Dco(1), Dctr(1), Dt(1), Dco(1) + Dctr(1) + Dt(1), &
             Dco(2), Dctr(2), Dt(2), Dco(2) + Dctr(2) + Dt(2)
         close (unit=9)

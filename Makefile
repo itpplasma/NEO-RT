@@ -2,7 +2,7 @@ CONFIG ?= Release
 BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
-.PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps
+.PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps doc
 
 all: build
 
@@ -37,8 +37,10 @@ ctest: build
 pytest: build
 	cd test/ripple_plateau && python3 test_ripple_plateau.py
 
-doc: configure
-	cmake --build --preset default --target doc
+doc:
+	@if ! command -v ford >/dev/null; then echo "FORD executable not found. Install it with 'pip install ford'."; exit 1; fi
+	mkdir -p build/doc
+	ford doc.md
 
 clean:
 	rm -rf $(BUILD_DIR)
