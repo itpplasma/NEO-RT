@@ -1,25 +1,25 @@
 module neort_freq
-    use logger, only: trace, get_log_level, LOG_TRACE
+    use logger, only: debug, trace, get_log_level, LOG_TRACE
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
-    use neort_orbit, only: nvar, bounce
+    use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
     use neort_profiles, only: vth, Om_tE, dOm_tEds
-    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
-        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
+        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
     implicit none
 
     ! For splining in the trapped eta region
     integer, parameter :: netaspl = 100
-    real(8) :: OmtB_spl_coeff(netaspl - 1, 5)
-    real(8) :: Omth_spl_coeff(netaspl - 1, 5)
-    real(8) :: vres_spl_coeff(netaspl - 1, 5)
+    real(8), allocatable :: OmtB_spl_coeff(:, :)
+    real(8), allocatable :: Omth_spl_coeff(:, :)
+    real(8), allocatable :: vres_spl_coeff(:, :)
 
     ! For splining in the passing eta region
     integer, parameter :: netaspl_pass = 100
-    real(8) :: OmtB_pass_spl_coeff(netaspl_pass - 1, 5)
-    real(8) :: Omth_pass_spl_coeff(netaspl_pass - 1, 5)
-    real(8) :: vres_pass_spl_coeff(netaspl - 1, 5)
+    real(8), allocatable :: OmtB_pass_spl_coeff(:, :)
+    real(8), allocatable :: Omth_pass_spl_coeff(:, :)
+    real(8), allocatable :: vres_pass_spl_coeff(:, :)
 
     real(8) :: k_taub_p=0d0, d_taub_p=0d0, k_taub_t=0d0, d_taub_t=0d0 ! extrapolation at tp bound
     real(8) :: k_OmtB_p=0d0, d_Omtb_p=0d0, k_Omtb_t=0d0, d_Omtb_t=0d0 ! extrapolation at tp bound
@@ -32,9 +32,9 @@ contains
         integer :: k
         real(8) :: aa, b
         real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
-        real(8) :: v, eta, taub, bounceavg(nvar)
+        real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
-        print *, 'init_Om_spl'
+        call trace('init_Om_spl')
 
         taub0 = 0d0
         taub1 = 0d0
@@ -44,8 +44,21 @@ contains
         OmtB1 = 0d0
 
         v = vth
-        etamin = etatp
+        etamin = (1d0 + epst)*etatp
         etamax = etatp + (etadt - etatp)*(1d0 - epsst_spl)
+        ! Allocate coefficient arrays for trapped region splines
+        if (.not. allocated(Omth_spl_coeff)) allocate(Omth_spl_coeff(netaspl - 1, 5))
+        if (.not. allocated(OmtB_spl_coeff)) allocate(OmtB_spl_coeff(netaspl - 1, 5))
+        if (.not. allocated(vres_spl_coeff)) allocate(vres_spl_coeff(netaspl - 1, 5))
+        if (get_log_level() >= LOG_TRACE) then
+            write(*,'(A)') '[TRACE] init_Om_spl state:'
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etatp =', etatp, 'etadt =', etadt
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  epsst_spl =', epsst_spl, 'epst_spl =', epst_spl
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'q =', q, 'iota =', iota
+            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', int(mph), 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
+        end if
 
         ! logspace for eta
         b = log(epst_spl)
@@ -54,13 +67,18 @@ contains
         do k = netaspl - 1, 0, -1
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
-            if (get_log_level() <= LOG_TRACE) then
-                write(*,'(A,I4,2A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
+            if (get_log_level() >= LOG_TRACE) then
+                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
             end if
             if (k == netaspl - 1) then
-                call bounce(v, eta, taub, bounceavg)
+                taub_est = bounce_time(v, eta)
             else
-                call bounce(v, eta, taub, bounceavg, taub)
+                taub_est = bounce_time(v, eta, taub_estimate=taub_est)
+            end if
+            taub = taub_est
+            call bounce_fast(v, eta, taub, bounceavg, timestep)
+            if (get_log_level() >= LOG_TRACE) then
+                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -86,6 +104,8 @@ contains
             OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
 
+        call trace('init_Om_spl complete')
+
     end subroutine init_Om_spl
 
     subroutine init_Om_pass_spl
@@ -95,9 +115,9 @@ contains
         real(8) :: aa, b
         integer :: k
         real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
-        real(8) :: v, eta, taub, bounceavg(nvar)
+        real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
-        print *, 'init_Om_pass_spl'
+        call trace('init_Om_pass_spl')
 
         taub0 = 0d0
         taub1 = 0d0
@@ -109,6 +129,19 @@ contains
         v = vth
         etamin = etatp*epssp_spl
         etamax = etatp
+        ! Allocate coefficient arrays for passing region splines
+        if (.not. allocated(Omth_pass_spl_coeff)) allocate(Omth_pass_spl_coeff(netaspl_pass - 1, 5))
+        if (.not. allocated(OmtB_pass_spl_coeff)) allocate(OmtB_pass_spl_coeff(netaspl_pass - 1, 5))
+        if (.not. allocated(vres_pass_spl_coeff)) allocate(vres_pass_spl_coeff(netaspl_pass - 1, 5))
+        if (get_log_level() >= LOG_TRACE) then
+            write(*,'(A)') '[TRACE] init_Om_pass_spl state:'
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
+            write(*,'(A,1X,ES12.5)') '  etatp =', etatp
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  epssp_spl =', epssp_spl, 'epsp_spl =', epsp_spl
+            write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'q =', q, 'iota =', iota
+            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', int(mph), 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
+        end if
 
         b = log((etamax - etamin)/etamax)
         aa = 1d0/(netaspl_pass - 1d0)*(log(epsp_spl) - b)
@@ -116,13 +149,18 @@ contains
         do k = netaspl_pass - 1, 0, -1
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
-            if (get_log_level() <= LOG_TRACE) then
-                write(*,'(A,I4,2A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
+            if (get_log_level() >= LOG_TRACE) then
+                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
             end if
             if (k == netaspl_pass - 1) then
-                call bounce(v, eta, taub, bounceavg)
+                taub_est = bounce_time(v, eta)
             else
-                call bounce(v, eta, taub, bounceavg, taub)
+                taub_est = bounce_time(v, eta, taub_estimate=taub_est)
+            end if
+            taub = taub_est
+            call bounce_fast(v, eta, taub, bounceavg, timestep)
+            if (get_log_level() >= LOG_TRACE) then
+                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -147,6 +185,7 @@ contains
             d_OmtB_p = OmtB0 - k_OmtB_p*leta0
             OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
+        call trace('init_Om_pass_spl complete')
     end subroutine init_Om_pass_spl
 
     subroutine Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
@@ -239,17 +278,22 @@ contains
         dOmthdeta = sign_vpar*splineval(2)*v
     end subroutine Om_th
 
-    subroutine d_Om_ds(v, eta, dOmthds, dOmphds)
-        real(8), intent(in) :: v, eta
+    subroutine d_Om_ds(v, eta, taub_estimate, dOmthds, dOmphds)
+        real(8), intent(in) :: v, eta, taub_estimate
         real(8), intent(out) :: dOmthds, dOmphds
         real(8) :: s0, ds, bounceavg(nvar)
-        real(8) :: taub, Omth, Omph_noE
+        real(8) :: taub, taub_est, Omth, Omph_noE
+
+        call trace('d_Om_ds')
+
         ! store current flux surface values
         s0 = s
 
         ds = 2d-8
         s = s0 - ds/2d0
-        call bounce(v, eta, taub, bounceavg)
+        taub_est = bounce_time(v, eta, taub_estimate)
+        taub = taub_est
+        call bounce_fast(v, eta, taub, bounceavg, timestep)
         Omth = sign_vpar_htheta*2d0*pi/taub
         if (magdrift) then
             if (eta > etatp) then
@@ -265,7 +309,9 @@ contains
             end if
         end if
         s = s0 + ds/2d0
-        call bounce(v, eta, taub, bounceavg, taub)
+        taub_est = bounce_time(v, eta, taub_estimate)
+        taub = taub_est
+        call bounce_fast(v, eta, taub, bounceavg, timestep)
         dOmthds = sign_vpar_htheta*(2d0*pi/taub - sign_vpar_htheta*Omth)/ds
         if (magdrift) then
             if (eta > etatp) then
@@ -283,5 +329,6 @@ contains
 
         ! re-set current flux surface values
         s = s0
+        call trace('d_Om_ds complete')
     end subroutine d_Om_ds
 end module neort_freq

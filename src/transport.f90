@@ -81,6 +81,8 @@ contains
         real(8) :: roots(nlev, 3)
         integer :: nroots, kr, ku
 
+        call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
+
         D = 0d0
         T = 0d0
         du = (vmax - vmin)/(vsteps*vth)
@@ -127,6 +129,8 @@ contains
         Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         dsdreff = 2d0/a*sqrt(s)  ! TODO: Use exact value instead of this approximation
         D = dsdreff**(-2)*D/Dp
+
+        call debug("compute_transport_integral complete")
 
     end subroutine compute_transport_integral
 

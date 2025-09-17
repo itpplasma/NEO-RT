@@ -1,5 +1,5 @@
 module neort
-    use logger, only: set_log_level, LOG_INFO
+    use logger, only: debug, set_log_level, get_log_level, LOG_INFO, LOG_DEBUG
     use neort_profiles, only: init_profile_input, init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
@@ -70,6 +70,7 @@ contains
     end subroutine read_control
 
     subroutine init
+        call debug('init')
         init_done = .false.
         call init_fsa
         call init_misc
@@ -79,6 +80,7 @@ contains
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
         init_done = .true.
+        call debug('init complete')
     end subroutine init
 
     pure subroutine set_to_trapped_region(eta_min, eta_max)
@@ -180,6 +182,8 @@ contains
         real(8) :: Tco, Tctr, Tt
         integer :: mthmin, mthmax
 
+        call debug('compute_transport')
+
         Dco = 0d0
         Dctr = 0d0
         Dt = 0d0
@@ -209,6 +213,7 @@ contains
             write (9, *) s, dVds, M_t, Tco, Tctr, Tt
             close (unit=9)
         end if
+        call debug('compute_transport complete')
     end subroutine compute_transport
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)
@@ -217,6 +222,10 @@ contains
 
         real(8) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
         real(8) :: vminp, vmaxp, vmint, vmaxt
+
+        if (get_log_level() >= LOG_DEBUG) then
+            write (*, *) "compute_transport_harmonic: M_t = ", M_t, ", mth = ", j
+        end if
 
         mth = j
 
@@ -282,6 +291,8 @@ contains
         open (unit=10, file=trim(adjustl(runname))//"_torque_integral.out", recl=1024, position="append")
         write (10, *) mth, Tresco, Tresctr, Trest
         close (unit=10)
+
+        call debug('compute_transport_harmonic complete')
     end subroutine compute_transport_harmonic
 
     end module neort
