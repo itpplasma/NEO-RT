@@ -30,7 +30,7 @@ contains
         character(len=*), parameter :: profile_file = "profile.in"
 
         call get_command_argument(1, runname)
-        call read_control
+        call read_and_set_control
         call do_magfie_init  ! init axisymmetric part of field from infile
         if (pertfile) call do_magfie_pert_init ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_profiles(R0)
@@ -54,7 +54,7 @@ contains
         call compute_transport
     end subroutine main
 
-    subroutine read_control
+    subroutine read_and_set_control
         use driftorbit
         real(8) :: qs, ms
 
@@ -69,7 +69,7 @@ contains
         qi = qs*qe
         mi = ms*mu
         call set_log_level(log_level)
-    end subroutine read_control
+    end subroutine read_and_set_control
 
     subroutine set_control(s_, M_t_, qs_, ms_, vth_, epsmn_, m0_, mph_, comptorque_, magdrift_, &
                            nopassing_, noshear_, pertfile_, nonlin_, bfac_, efac_, inp_swi_, &
