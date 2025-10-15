@@ -116,18 +116,15 @@ contains
         deallocate (plasma)
     end subroutine read_and_init_plasma_input
 
-    subroutine init_profile_input(s, R0, efac, bfac)
+    subroutine init_profile_input(s, R0, efac, bfac, data)
         ! Init s profile for finite orbit width boxes in radial s
-
         real(8), intent(in) :: s, R0, efac, bfac
+        real(8), allocatable, intent(in) :: data(:, :)
 
         ! For splining electric precession frequency
         real(8), allocatable :: Mt_spl_coeff(:, :)
 
-        real(8), allocatable :: data(:, :)
         real(8) :: splineval(3)
-
-        call readdata("profile.in", 3, data)
 
         allocate (Mt_spl_coeff(size(data(:, 1)), 5))
 
@@ -140,6 +137,18 @@ contains
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
     end subroutine init_profile_input
+
+    subroutine read_and_init_profile_input(path, s, R0, efac, bfac)
+        character(len=*), intent(in) :: path
+        real(8), intent(in) :: s, R0, efac, bfac
+
+        real(8), allocatable :: data(:, :)
+
+        call readdata(path, 3, data)  ! allocates data
+        call init_profile_input(s, R0, efac, bfac, data)
+
+        deallocate (data)
+    end subroutine read_and_init_profile_input
 
     subroutine init_thermodynamic_forces(psi_pr, q)
         real(dp), intent(in) :: psi_pr, q
