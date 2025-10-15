@@ -2,7 +2,7 @@ module diag_contrib_map
   use iso_fortran_env, only: real64
   use fortplot, only: figure, plot, pcolormesh, title, xlabel, ylabel, legend, savefig
   use neort, only: read_control, init, check_magfie, runname => runname, set_to_passing_region, set_to_trapped_region
-  use neort_profiles, only: init_profile_input, init_plasma_input, init_profiles, vth, Om_tE
+  use neort_profiles, only: init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
   use neort_nonlin, only: nonlinear_attenuation
   use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport, Tphi_int
@@ -42,7 +42,7 @@ contains
     call init_profiles(R0)
 
     inquire(file="plasma.in", exist=file_exists)
-    if (file_exists) call init_plasma_input(s)
+    if (file_exists) call read_and_init_plasma_input("plasma.in", s)
     inquire(file="profile.in", exist=file_exists)
     if (file_exists) call init_profile_input(s, R0, 1.0_real64, 1.0_real64)
 

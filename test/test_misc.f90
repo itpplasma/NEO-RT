@@ -4,8 +4,8 @@ program test_misc
         epsp_spl, sign_vpar, mth, nlev, nopassing, epsp, epst, dVds
     use do_magfie_mod, only: do_magfie, psi_pr, q, s, eps, R0
     use do_magfie_pert_mod, only: mph
-    use neort_profiles, only: vth, Om_tE
-    use neort, only: main, init_plasma_input, runname
+    use neort_profiles, only: vth, Om_tE, read_and_init_plasma_input
+    use neort, only: main, runname
     use neort_orbit, only: bounce, nvar
     use neort_resonance, only: driftorbit_root, driftorbit_coarse
     use neort_magfie, only: init_fsa
@@ -174,7 +174,7 @@ contains
         x(1) = s
         x(2) = 0d0
         x(3) = 0d0
-        call init_plasma_input(s)
+        call read_and_init_plasma_input("plasma.in", s)
         call init_fsa
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         write (unit, *) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
