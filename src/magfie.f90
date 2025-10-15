@@ -39,7 +39,7 @@ contains
             B0 = B0 + bmod*dth
             eps = eps - cos(x(3))*bmod*dth
 
-            ! TODO: do fine search
+            ! TODO: do fine search for minima and maxima
             if ((Bmin < 0) .or. (bmod < Bmin)) then
                 Bmin = bmod
                 th0 = x(3)
@@ -50,6 +50,9 @@ contains
         dVds = 2d0*pi*dVds
         B0 = B0/(2d0*pi)
         eps = eps/(B0*pi)
+
+        etatp = 1d0/Bmax
+        etadt = 1d0/Bmin
 
         print *, " eps calc: ", eps
         print *, "      th0: ", th0
@@ -67,12 +70,5 @@ contains
         call disp('init_fsa: iota       = ', iota)
 
     end subroutine init_fsa
-
-    subroutine init_misc
-        ! TODO: fine search for minima and maxima
-        etatp = 1d0/Bmax
-        etadt = 1d0/Bmin
-    end subroutine init_misc
-
 
 end module neort_magfie
