@@ -71,6 +71,40 @@ contains
         call set_log_level(log_level)
     end subroutine read_control
 
+    subroutine set_control(s_, M_t_, qs_, ms_, vth_, epsmn_, m0_, mph_, comptorque_, magdrift_, &
+                           nopassing_, noshear_, pertfile_, nonlin_, bfac_, efac_, inp_swi_, &
+                           vsteps_, log_level_)
+        use iso_fortran_env, only: dp => real64
+        use driftorbit
+
+        real(8), intent(in) :: s_, qs_, ms_, epsmn_, mph_, bfac_, efac_
+        real(dp), intent(in) :: M_t_, vth_
+        integer, intent(in) :: m0_, inp_swi_, vsteps_, log_level_
+        logical, intent(in) :: comptorque_, magdrift_, nopassing_, noshear_, pertfile_, nonlin_
+
+        s = s_
+        M_t = M_t_ * efac_ / bfac_
+        vth = vth_
+        epsmn = epsmn_
+        m0 = m0_
+        mph = mph_
+        comptorque = comptorque_
+        magdrift = magdrift_
+        nopassing = nopassing_
+        noshear = noshear_
+        pertfile = pertfile_
+        nonlin = nonlin_
+        bfac = bfac_
+        efac = efac_
+        inp_swi = inp_swi_
+        vsteps = vsteps_
+        log_level = log_level_
+
+        qi = qs_ * qe
+        mi = ms_ * mu
+        call set_log_level(log_level)
+    end subroutine set_control
+
     subroutine init
         call debug('init')
         init_done = .false.
