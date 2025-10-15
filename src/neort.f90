@@ -1,6 +1,6 @@
 module neort
     use logger, only: debug, set_log_level, get_log_level, LOG_INFO, LOG_DEBUG
-    use neort_profiles, only: init_profile_input, read_and_init_plasma_input, &
+    use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_fsa
@@ -27,6 +27,7 @@ contains
 
         logical :: file_exists
         character(len=*), parameter :: plasma_file = "plasma.in"
+        character(len=*), parameter :: profile_file = "profile.in"
 
         call get_command_argument(1, runname)
         call read_control
@@ -41,11 +42,11 @@ contains
             error stop plasma_file // " required for nonlin or comptorque"
         end if
 
-        inquire(file="profile.in", exist=file_exists)
+        inquire(file=profile_file, exist=file_exists)
         if (file_exists) then
-            call init_profile_input(s, R0, efac, bfac)
+            call read_and_init_profile_input(profile_file, s, R0, efac, bfac)
         else if (nonlin) then
-            error stop "profile.in required for nonlin"
+            error stop profile_file // " required for nonlin"
         end if
 
         call init
