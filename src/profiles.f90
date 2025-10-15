@@ -28,29 +28,43 @@ contains
         dOm_tEds = 0d0
     end subroutine init_profiles
 
-    subroutine init_plasma_input(s)
+    subroutine read_plasma_input(path, nplasma, am1, am2, Z1, Z2, plasma)
+        character(len=*), intent(in) :: path
+        integer, intent(out) :: nplasma
+        real(dp), intent(out) :: am1, am2, Z1, Z2
+        real(dp), allocatable, intent(out) :: plasma(:, :)
+
+        integer :: k
+        integer, parameter :: NCOL = 6
+        integer, parameter :: fd = 1
+
+        open (fd, file=path, status="old")
+        read (fd, *)
+        read (fd, *) nplasma, am1, am2, Z1, Z2
+        read (fd, *)
+        allocate (plasma(nplasma, NCOL))
+        do k = 1, nplasma
+            read (fd, *) plasma(k, :)
+        end do
+        close (fd)
+
+    end subroutine read_plasma_input
+
+    subroutine init_plasma_input(s, nplasma, am1, am2, Z1, Z2, plasma)
         use spline, only: spline_coeff, spline_val_0
         real(dp), intent(in) :: s
+        integer, intent(in) :: nplasma
+        real(dp), intent(in) :: am1, am2, Z1, Z2
+        real(dp), allocatable, intent(in) :: plasma(:, :)
 
         real(dp), parameter :: pmass = 1.6726d-24
         integer, parameter :: NCOL = 6
 
-        real(dp) :: amb, am1, am2, Zb, Z1, Z2, dchichi, slowrate, dchichi_norm, slowrate_norm
+        real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
         real(dp) :: v0, ebeam
-        real(dp), allocatable :: plasma(:, :)
         real(dp), allocatable :: spl_coeff(:, :, :)
         real(dp) :: spl_val(3)
-        integer :: nplasma, k
-
-        open (1, file="plasma.in", status="old")
-        read (1, *)
-        read (1, *) nplasma, am1, am2, Z1, Z2
-        read (1, *)
-        allocate (plasma(nplasma, NCOL))
-        do k = 1, nplasma
-            read (1, *) plasma(k, :)
-        end do
-        close (1)
+        integer :: k
 
         allocate (spl_coeff(nplasma - 1, 5, NCOL))
 
@@ -87,6 +101,20 @@ contains
                         ebeam, v0, dchichi, slowrate, dchichi_norm, slowrate_norm)
 
     end subroutine init_plasma_input
+
+    subroutine read_and_init_plasma_input(path, s)
+        character(len=*), intent(in) :: path
+        real(dp), intent(in) :: s
+
+        integer :: nplasma
+        real(dp) :: am1, am2, Z1, Z2
+        real(dp), allocatable :: plasma(:, :)
+
+        call read_plasma_input(path, nplasma, am1, am2, Z1, Z2, plasma)  ! allocates plasma
+        call init_plasma_input(s, nplasma, am1, am2, Z1, Z2, plasma)
+
+        deallocate (plasma)
+    end subroutine read_and_init_plasma_input
 
     subroutine init_profile_input(s, R0, efac, bfac)
         ! Init s profile for finite orbit width boxes in radial s
