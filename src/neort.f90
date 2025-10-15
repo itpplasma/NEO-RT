@@ -3,7 +3,7 @@ module neort
     use neort_profiles, only: init_profile_input, init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
-    use neort_magfie, only: init_fsa, init_misc
+    use neort_magfie, only: init_fsa
     use neort_orbit, only: noshear
     use neort_freq, only: init_Om_spl, init_Om_pass_spl
     use neort_transport, only: compute_transport_integral
@@ -73,7 +73,6 @@ contains
         call debug('init')
         init_done = .false.
         call init_fsa
-        call init_misc
         call init_Om_spl       ! frequencies of trapped orbits
         if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
         sign_vpar = 1
