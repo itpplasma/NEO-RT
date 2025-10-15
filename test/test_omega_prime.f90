@@ -2,8 +2,9 @@ program test_omage_prime_prog
     use do_magfie_mod, only: do_magfie_init, params0, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_init
     use neort, only: read_control, check_magfie, init_profiles, init_profile_input, &
-                     init_plasma_input, init, compute_transport_harmonic, runname, &
+                     init, compute_transport_harmonic, runname, &
                      s, M_t, set_to_trapped_region
+    use neort_profiles, only: read_and_init_plasma_input
     use neort_orbit, only: th0, nvar, bounce_time, vpar, vperp, bounce_integral, &
                             bounce_fast, poloidal_velocity, evaluate_bfield_local
     use neort_freq, only: Om_th, Om_ph, d_Om_ds
@@ -103,7 +104,7 @@ contains
         call do_magfie_init
         if (pertfile) call do_magfie_pert_init
         call init_profiles(R0)
-        call init_plasma_input(s)
+        call read_and_init_plasma_input("plasma.in", s)
         call init_profile_input(s, R0, efac, bfac)
         call init
         call check_magfie
