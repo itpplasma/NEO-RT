@@ -1,7 +1,7 @@
 program test_omage_prime_prog
     use do_magfie_mod, only: do_magfie_init, params0, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_init
-    use neort, only: read_control, check_magfie, init_profiles, &
+    use neort, only: read_and_set_control, check_magfie, init_profiles, &
                      init, compute_transport_harmonic, runname, &
                      s, M_t, set_to_trapped_region
     use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input
@@ -39,8 +39,7 @@ contains
         type(freq_data_t) :: freq_data(NUM_SAMPLES)
 
         call get_command_argument(1, runname)
-
-        call read_control
+        call read_and_set_control
         call setup
         s0 = s
         v0 = 0.9d0*vth
