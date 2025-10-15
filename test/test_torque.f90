@@ -1,8 +1,8 @@
 program test_torque_prog
-    use neort, only: read_control, check_magfie, init_profiles, init_profile_input, &
+    use neort, only: read_control, check_magfie, init_profiles, &
                       init, compute_transport_harmonic, &
                       runname, s, M_t
-    use neort_profiles, only: read_and_init_plasma_input
+    use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input
     use driftorbit, only: A1, A2, ni1, vth, B0, a, efac
     use do_magfie_mod, only: do_magfie_init, do_magfie, R0, iota, bfac
     use util
@@ -29,7 +29,7 @@ contains
         call do_magfie_init
         call init_profiles(R0)
         call read_and_init_plasma_input("plasma.in", s)
-        call init_profile_input(s, R0, efac, bfac)
+        call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
         call init
         call check_magfie
 
