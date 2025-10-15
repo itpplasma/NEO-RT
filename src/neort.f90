@@ -1,6 +1,6 @@
 module neort
     use logger, only: debug, set_log_level, get_log_level, LOG_INFO, LOG_DEBUG
-    use neort_profiles, only: init_profile_input, init_plasma_input, &
+    use neort_profiles, only: init_profile_input, read_and_init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_fsa
@@ -26,6 +26,7 @@ contains
         use driftorbit, only: pertfile
 
         logical :: file_exists
+        character(len=*), parameter :: plasma_file = "plasma.in"
 
         call get_command_argument(1, runname)
         call read_control
@@ -33,11 +34,11 @@ contains
         if (pertfile) call do_magfie_pert_init ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_profiles(R0)
 
-        inquire(file="plasma.in", exist=file_exists)
+        inquire(file=plasma_file, exist=file_exists)
         if (file_exists) then
-            call init_plasma_input(s)
+            call read_and_init_plasma_input(plasma_file, s)
         else if (nonlin .or. comptorque) then
-            error stop "plasma.in required for nonlin or comptorque"
+            error stop plasma_file // " required for nonlin or comptorque"
         end if
 
         inquire(file="profile.in", exist=file_exists)
