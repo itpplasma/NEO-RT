@@ -39,7 +39,7 @@ contains
         type(freq_data_t) :: freq_data(NUM_SAMPLES)
 
         call get_command_argument(1, runname)
-        call read_and_set_control
+        call read_and_set_control(runname)
         call setup
         s0 = s
         v0 = 0.9d0*vth
@@ -100,13 +100,13 @@ contains
     end subroutine show_results
 
     subroutine setup
-        call do_magfie_init
-        if (pertfile) call do_magfie_pert_init
+        call do_magfie_init("in_file")
+        if (pertfile) call do_magfie_pert_init("in_file_pert")
         call init_profiles(R0)
         call read_and_init_plasma_input("plasma.in", s)
         call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
         call init
-        call check_magfie
+        call check_magfie(runname)
 
         mth = -3
         sign_vpar = 1
