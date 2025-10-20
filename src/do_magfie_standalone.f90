@@ -34,7 +34,9 @@ module do_magfie_mod
     integer :: inp_swi ! type of input file
     contains
 
-    subroutine do_magfie_init
+    subroutine do_magfie_init(path)
+        character(len=*), intent(in) :: path
+
         ! Initializes spline and Fourier coefficients for later evaluation of
         ! unperturbed axisymmetric magnetic field in do_magfie
         integer :: j, k
@@ -49,7 +51,7 @@ module do_magfie_mod
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
-        call boozer_read('in_file') ! TODO: general filename
+        call boozer_read(path)
 
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
@@ -277,7 +279,9 @@ module do_magfie_pert_mod
     real(8) :: mph ! toroidal perturbation mode
     contains
 
-    subroutine do_magfie_pert_init
+    subroutine do_magfie_pert_init(path)
+        character(len=*), intent(in) :: path
+
         integer :: j, k
         real(8) :: x(3)
         complex(8) :: dummy
@@ -285,7 +289,7 @@ module do_magfie_pert_mod
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
-        call boozer_read_pert('in_file_pert') ! TODO: general filename
+        call boozer_read_pert(path)
 
         mph = nfp*modes(1, 1, 2)
 
