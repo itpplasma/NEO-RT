@@ -31,9 +31,9 @@ contains
 
     ! Initialize environment just like main
     runname = trim(arg_runname)
-    call read_and_set_control
-    call do_magfie_init()
-    if (pertfile) call do_magfie_pert_init()
+    call read_and_set_control(runname)
+    call do_magfie_init("in_file")
+    if (pertfile) call do_magfie_pert_init("in_file_pert")
     call init_profiles(R0)
 
     inquire(file="plasma.in", exist=file_exists)
@@ -43,7 +43,7 @@ contains
     if (file_exists) call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
 
     call init
-    call check_magfie
+    call check_magfie(runname)
 
     vminp = 1.0d-6*vth
     vmaxp = 3.0d0*vth

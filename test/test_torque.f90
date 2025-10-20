@@ -25,13 +25,13 @@ contains
 
     subroutine setup
         runname = TEST_RUN
-        call read_and_set_control
-        call do_magfie_init
+        call read_and_set_control(runname)
+        call do_magfie_init("in_file")
         call init_profiles(R0)
         call read_and_init_plasma_input("plasma.in", s)
         call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
         call init
-        call check_magfie
+        call check_magfie(runname)
 
         Dco = 0d0
         Dctr = 0d0
@@ -39,7 +39,7 @@ contains
         Tco = 0d0
         Tctr = 0d0
         Tt = 0d0
-        call compute_transport_harmonic(MTH, Dco, Dctr, Dt, Tco, Tctr, Tt)
+        call compute_transport_harmonic(runname, MTH, Dco, Dctr, Dt, Tco, Tctr, Tt)
         call correct_transport_coeff(Dco)
         call correct_transport_coeff(Dctr)
         call correct_transport_coeff(Dt)
