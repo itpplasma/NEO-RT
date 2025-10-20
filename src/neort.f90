@@ -30,9 +30,9 @@ contains
         character(len=*), parameter :: profile_file = "profile.in"
 
         call get_command_argument(1, runname)
-        call read_and_set_control
-        call do_magfie_init  ! init axisymmetric part of field from infile
-        if (pertfile) call do_magfie_pert_init ! else epsmn*exp(imun*(m0*th + mph*ph))
+        call read_and_set_control(runname)
+        call do_magfie_init("in_file")  ! init axisymmetric part of field from infile
+        if (pertfile) call do_magfie_pert_init("in_file_pert")  ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_profiles(R0)
 
         inquire(file=plasma_file, exist=file_exists)
@@ -50,18 +50,20 @@ contains
         end if
 
         call init
-        call check_magfie
-        call compute_transport
+        call check_magfie(runname)
+        call compute_transport(runname)
     end subroutine main
 
-    subroutine read_and_set_control
+    subroutine read_and_set_control(base_path)
         use driftorbit
+
+        character(len=*), intent(in) :: base_path
         real(8) :: qs, ms
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
             nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, log_level
 
-        open (unit=9, file=trim(adjustl(runname))//".in", status="old", form="formatted")
+        open (unit=9, file=trim(adjustl(base_path)) // ".in", status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
 
@@ -96,7 +98,9 @@ contains
         eta_max = (1 - epsp)*etatp
     end subroutine set_to_passing_region
 
-    subroutine check_magfie
+    subroutine check_magfie(base_path)
+        character(len=*), intent(in) :: base_path
+
         integer, parameter :: nth = 50
         integer :: k
         real(8) :: thmin, thmax
@@ -108,7 +112,7 @@ contains
         Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
         Drp = 4*mph*q/(eps**2*sqrt(pi))  ! actually this is Drp/Dp
 
-        open (unit=9, file=trim(adjustl(runname))//"_magfie_param.out", recl=1024)
+        open (unit=9, file=trim(adjustl(base_path))//"_magfie_param.out", recl=1024)
 
         thmin = -pi
         thmax = pi
@@ -154,7 +158,7 @@ contains
 
         close (unit=9)
 
-        open (unit=9, file=trim(adjustl(runname))//"_magfie.out", recl=1024)
+        open (unit=9, file=trim(adjustl(base_path))//"_magfie.out", recl=1024)
         do k = 0, nth - 1
             x(3) = thmin + k*(thmax - thmin)/(nth - 1)
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
@@ -173,7 +177,9 @@ contains
         close (unit=9)
     end subroutine check_magfie
 
-    subroutine compute_transport
+    subroutine compute_transport(base_path)
+        character(len=*), intent(in) :: base_path
+
         integer :: j
 
         ! Transport coefficients D11, D12 in approximate effective radius r=2d0/a*sqrt(s)
@@ -199,17 +205,17 @@ contains
         mthmax = ceiling(2*abs(mph*q))
 
         do j = mthmin, mthmax
-            call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)
+            call compute_transport_harmonic(base_path, j, Dco, Dctr, Dt, Tco, Tctr, Tt)
         end do
 
-        open (unit=9, file=trim(adjustl(runname))//".out", recl=1024)
+        open (unit=9, file=trim(adjustl(base_path))//".out", recl=1024)
         write (9, *) "# M_t D11co D11ctr D11t D11 D12co D12ctr D12t D12"
         write (9, *) M_t, Dco(1), Dctr(1), Dt(1), Dco(1) + Dctr(1) + Dt(1), &
             Dco(2), Dctr(2), Dt(2), Dco(2) + Dctr(2) + Dt(2)
         close (unit=9)
 
         if (comptorque) then
-            open (unit=9, file=trim(adjustl(runname))//"_torque.out", recl=1024)
+            open (unit=9, file=trim(adjustl(base_path))//"_torque.out", recl=1024)
             write (9, *) "# s dVds M_t Tco Tctr Tt"
             write (9, *) s, dVds, M_t, Tco, Tctr, Tt
             close (unit=9)
@@ -217,7 +223,9 @@ contains
         call debug('compute_transport complete')
     end subroutine compute_transport
 
-    subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt)
+    subroutine compute_transport_harmonic(base_path, j, Dco, Dctr, Dt, Tco, Tctr, Tt)
+        character(len=*), intent(in) :: base_path
+
         integer, intent(in) :: j
         real(8), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
 
@@ -276,7 +284,7 @@ contains
             Drest(2), Dresco(2) + Dresctr(2) + Drest(2), &
             vmaxp/vth, vmaxt/vth
 
-        open (unit=10, file=trim(adjustl(runname))//"_integral.out", recl=1024, position="append")
+        open (unit=10, file=trim(adjustl(base_path))//"_integral.out", recl=1024, position="append")
         write (10, *) M_t, mth, Dresco(1), Dresctr(1), Drest(1), &
             Dresco(1) + Dresctr(1) + Drest(1), &
             Dresco(2), Dresctr(2), Drest(2), &
@@ -289,7 +297,7 @@ contains
         write (*, "(4ES12.2,2F12.2)") Tresco, Tresctr, &
             Trest, Tresco + Tresctr + Trest
 
-        open (unit=10, file=trim(adjustl(runname))//"_torque_integral.out", recl=1024, position="append")
+        open (unit=10, file=trim(adjustl(base_path))//"_torque_integral.out", recl=1024, position="append")
         write (10, *) mth, Tresco, Tresctr, Trest
         close (unit=10)
 
