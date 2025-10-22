@@ -26,13 +26,15 @@ contains
         use driftorbit, only: pertfile
 
         logical :: file_exists
+        character(len=*), parameter :: boozer_file = "in_file"
+        character(len=*), parameter :: boozer_pert_file = "in_file_pert"
         character(len=*), parameter :: plasma_file = "plasma.in"
         character(len=*), parameter :: profile_file = "profile.in"
 
         call get_command_argument(1, runname)
         call read_and_set_control(runname)
-        call do_magfie_init("in_file")  ! init axisymmetric part of field from infile
-        if (pertfile) call do_magfie_pert_init("in_file_pert")  ! else epsmn*exp(imun*(m0*th + mph*ph))
+        call do_magfie_init(boozer_file)  ! init axisymmetric part of field from infile
+        if (pertfile) call do_magfie_pert_init(boozer_pert_file)  ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_profiles(R0)
 
         inquire(file=plasma_file, exist=file_exists)
