@@ -1,7 +1,8 @@
 module diag_atten_map
   use iso_fortran_env, only: real64
   use fortplot, only: figure, pcolormesh, title, xlabel, ylabel, savefig
-  use neort, only: read_and_set_control, init, check_magfie, runname => runname
+  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, runname
+  use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth
   use neort_nonlin, only: nonlinear_attenuation
   use neort_freq, only: Om_th
@@ -26,6 +27,7 @@ contains
     real(real64) :: Hmn2
     integer :: mth_min, mth_max
     integer :: u
+    type(magfie_data_t) :: magfie_data
 
     ! Initialize like main
     runname = trim(arg_runname)
@@ -40,7 +42,8 @@ contains
     if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_real64, 1.0_real64)
 
     call init
-    call check_magfie(runname)
+    call check_magfie(magfie_data)
+    call write_magfie_data_to_files(magfie_data, runname)
 
     ! Max trapped eta value consistent with earlier diagnostic
     eta_max = etatp + (etadt - etatp)*(1.0_real64 - epsst_spl)
@@ -118,4 +121,3 @@ contains
   end subroutine edges_from_centers
 
 end module diag_atten_map
-
