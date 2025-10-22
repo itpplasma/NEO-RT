@@ -1,7 +1,9 @@
 module diag_contrib_map
   use iso_fortran_env, only: real64
   use fortplot, only: figure, plot, pcolormesh, title, xlabel, ylabel, legend, savefig
-  use neort, only: read_and_set_control, init, check_magfie, runname => runname, set_to_passing_region, set_to_trapped_region
+  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, &
+                   runname, set_to_passing_region, set_to_trapped_region
+  use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
   use neort_nonlin, only: nonlinear_attenuation
   use neort_freq, only: Om_th
@@ -33,6 +35,7 @@ contains
     integer :: nroots, kr
     real(real64) :: eta_res(2)
     real(real64) :: contrib
+    type(magfie_data_t) :: magfie_data
 
     ! Initialize environment
     runname = trim(arg_runname)
@@ -47,7 +50,8 @@ contains
     if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_real64, 1.0_real64)
 
     call init
-    call check_magfie(runname)
+    call check_magfie(magfie_data)
+    call write_magfie_data_to_files(magfie_data, runname)
 
     ! Grids
     nu = 401

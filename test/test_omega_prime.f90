@@ -1,9 +1,9 @@
 program test_omage_prime_prog
     use do_magfie_mod, only: do_magfie_init, params0, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_init
-    use neort, only: read_and_set_control, check_magfie, init_profiles, &
-                     init, compute_transport_harmonic, runname, &
-                     s, M_t, set_to_trapped_region
+    use neort, only: read_and_set_control, check_magfie, write_magfie_data_to_files, init_profiles, &
+                     init, runname, s, M_t, set_to_trapped_region
+    use neort_datatypes, only: magfie_data_t
     use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input
     use neort_orbit, only: th0, nvar, bounce_time, vpar, vperp, bounce_integral, &
                             bounce_fast, poloidal_velocity, evaluate_bfield_local
@@ -100,13 +100,15 @@ contains
     end subroutine show_results
 
     subroutine setup
+        type(magfie_data_t) :: magfie_data
         call do_magfie_init("in_file")
         if (pertfile) call do_magfie_pert_init("in_file_pert")
         call init_profiles(R0)
         call read_and_init_plasma_input("plasma.in", s)
         call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
         call init
-        call check_magfie(runname)
+        call check_magfie(magfie_data)
+        call write_magfie_data_to_files(magfie_data, runname)
 
         mth = -3
         sign_vpar = 1
