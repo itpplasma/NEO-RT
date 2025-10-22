@@ -1,7 +1,8 @@
 program test_torque_prog
     use neort, only: read_and_set_control, check_magfie, init_profiles, &
-                      init, compute_transport_harmonic, &
+                      init, compute_transport_harmonic, write_magfie_data_to_files, &
                       runname, s, M_t
+    use neort_datatypes, only: magfie_data_t
     use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input
     use driftorbit, only: A1, A2, ni1, vth, B0, a, efac
     use do_magfie_mod, only: do_magfie_init, do_magfie, R0, iota, bfac
@@ -17,6 +18,7 @@ program test_torque_prog
     real(8), parameter :: FLUX_SURFACE_AREA = DV_OVER_DS*AVG_NABLA_S
     real(8), parameter :: TOL = 1d-7
     character(1024) :: TEST_RUN = "driftorbit64.new"
+    type(magfie_data_t) :: magfie_data
 
     call setup
     call test_torque
@@ -31,7 +33,8 @@ contains
         call read_and_init_plasma_input("plasma.in", s)
         call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
         call init
-        call check_magfie(runname)
+        call check_magfie(magfie_data)
+        call write_magfie_data_to_files(magfie_data, runname)
 
         Dco = 0d0
         Dctr = 0d0

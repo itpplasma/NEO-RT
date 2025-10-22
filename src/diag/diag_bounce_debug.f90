@@ -1,7 +1,8 @@
 module diag_bounce_debug
   use iso_fortran_env, only: real64
-  use neort, only: read_and_set_control, init, check_magfie, runname => runname, &
-                   set_to_passing_region, set_to_trapped_region, vsteps
+  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, &
+                   set_to_passing_region, set_to_trapped_region, vsteps, runname
+  use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
   use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport
@@ -28,6 +29,7 @@ contains
     integer :: istate
     integer :: istats(50)
     real(real64) :: rstats(50)
+    type(magfie_data_t) :: magfie_data
 
     ! Initialize environment just like main
     runname = trim(arg_runname)
@@ -43,7 +45,8 @@ contains
     if (file_exists) call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
 
     call init
-    call check_magfie(runname)
+    call check_magfie(magfie_data)
+    call write_magfie_data_to_files(magfie_data, runname)
 
     vminp = 1.0d-6*vth
     vmaxp = 3.0d0*vth
@@ -152,4 +155,3 @@ contains
   end subroutine probe_bounce
 
 end module diag_bounce_debug
-
