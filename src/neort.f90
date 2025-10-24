@@ -36,7 +36,7 @@ contains
         character(len=*), parameter :: plasma_file = "plasma.in"
         character(len=*), parameter :: profile_file = "profile.in"
 
-        call get_command_argument(1, runname)
+        call get_command_argument(1, runname)  ! base of path is first argument
         call read_and_set_control(runname)
         call do_magfie_init(boozer_file)  ! init axisymmetric part of field from infile
         if (pertfile) call do_magfie_pert_init(boozer_pert_file)  ! else epsmn*exp(imun*(m0*th + mph*ph))
@@ -58,12 +58,13 @@ contains
 
         call init
         call check_magfie(magfie_data)
-        call write_magfie_data_to_files(magfie_data, runname)
         call compute_transport(transport_data)
+
+        call write_magfie_data_to_files(magfie_data, runname)
         call write_transport_data_to_files(transport_data, runname)
     end subroutine main
 
-    subroutine read_and_set_control(base_path)
+    subroutine read_and_set_control(base_path)  ! set global control parameters directly from file
         use driftorbit
 
         character(len=*), intent(in) :: base_path
@@ -84,7 +85,7 @@ contains
 
     subroutine set_control(s_, M_t_, qs_, ms_, vth_, epsmn_, m0_, mph_, comptorque_, magdrift_, &
                            nopassing_, noshear_, pertfile_, nonlin_, bfac_, efac_, inp_swi_, &
-                           vsteps_, log_level_)
+                           vsteps_, log_level_)  ! explicitly pass parameters to set
         use iso_fortran_env, only: dp => real64
         use driftorbit
 
