@@ -433,46 +433,45 @@ contains
 
         integer :: k
         real(8) :: total_D1, total_D2
-        integer, parameter :: unit = 10
+        integer, parameter :: unit1 = 9
+        integer, parameter :: unit2 = 10
 
-        open (unit=unit, file=trim(adjustl(base_path))//".out", recl=1024)
-        write (unit, *) "# M_t D11co D11ctr D11t D11 D12co D12ctr D12t D12"
+        open (unit=unit1, file=trim(adjustl(base_path))//".out", recl=1024)
+        write (unit1, *) "# M_t D11co D11ctr D11t D11 D12co D12ctr D12t D12"
         total_D1 = data%summary%Dco(1) + data%summary%Dctr(1) + data%summary%Dt(1)
         total_D2 = data%summary%Dco(2) + data%summary%Dctr(2) + data%summary%Dt(2)
-        write (unit, *) data%summary%M_t, data%summary%Dco(1), data%summary%Dctr(1), &
+        write (unit1, *) data%summary%M_t, data%summary%Dco(1), data%summary%Dctr(1), &
                         data%summary%Dt(1), total_D1, data%summary%Dco(2), data%summary%Dctr(2), &
                         data%summary%Dt(2), total_D2
-        close (unit=unit)
+        close (unit=unit1)
 
         if (data%torque%has_torque) then
-            open (unit=unit, file=trim(adjustl(base_path))//"_torque.out", recl=1024)
-            write (unit, *) "# s dVds M_t Tco Tctr Tt"
-            write (unit, *) data%torque%s, data%torque%dVds, data%torque%M_t, data%torque%Tco, &
-                            data%torque%Tctr, data%torque%Tt
-            close (unit=unit)
+            open (unit=unit1, file=trim(adjustl(base_path))//"_torque.out", recl=1024)
+            write (unit1, *) "# s dVds M_t Tco Tctr Tt"
+            write (unit1, *) data%torque%s, data%torque%dVds, data%torque%M_t, data%torque%Tco, &
+                             data%torque%Tctr, data%torque%Tt
+            close (unit=unit1)
         end if
 
+        open (unit=unit1, file=trim(adjustl(base_path))//"_integral.out", recl=1024)
+        open (unit=unit2, file=trim(adjustl(base_path))//"_torque_integral.out", recl=1024)
         do k = 1, size(data%harmonics)
-            open (unit=unit, file=trim(adjustl(base_path))//"_integral.out", recl=1024, &
-                  position="append")
             total_D1 = data%harmonics(k)%Dresco(1) + data%harmonics(k)%Dresctr(1) + &
                        data%harmonics(k)%Drest(1)
             total_D2 = data%harmonics(k)%Dresco(2) + data%harmonics(k)%Dresctr(2) + &
                        data%harmonics(k)%Drest(2)
-            write (unit, *) data%summary%M_t, data%harmonics(k)%mth, data%harmonics(k)%Dresco(1), &
-                            data%harmonics(k)%Dresctr(1), data%harmonics(k)%Drest(1), &
-                            total_D1, data%harmonics(k)%Dresco(2), data%harmonics(k)%Dresctr(2), &
-                            data%harmonics(k)%Drest(2), total_D2, &
-                            data%harmonics(k)%vminp_over_vth, data%harmonics(k)%vmaxp_over_vth, &
-                            data%harmonics(k)%vmint_over_vth, data%harmonics(k)%vmaxt_over_vth
-            close (unit=unit)
+            write (unit1, *) data%summary%M_t, data%harmonics(k)%mth, data%harmonics(k)%Dresco(1), &
+                             data%harmonics(k)%Dresctr(1), data%harmonics(k)%Drest(1), &
+                             total_D1, data%harmonics(k)%Dresco(2), data%harmonics(k)%Dresctr(2), &
+                             data%harmonics(k)%Drest(2), total_D2, &
+                             data%harmonics(k)%vminp_over_vth, data%harmonics(k)%vmaxp_over_vth, &
+                             data%harmonics(k)%vmint_over_vth, data%harmonics(k)%vmaxt_over_vth
 
-            open (unit=unit, file=trim(adjustl(base_path))//"_torque_integral.out", recl=1024, &
-                  position="append")
-            write (unit, *) data%harmonics(k)%mth, data%harmonics(k)%Tresco, &
-                            data%harmonics(k)%Tresctr, data%harmonics(k)%Trest
-            close (unit=unit)
+            write (unit2, *) data%harmonics(k)%mth, data%harmonics(k)%Tresco, &
+                             data%harmonics(k)%Tresctr, data%harmonics(k)%Trest
         end do
+        close (unit=unit1)
+        close (unit=unit2)
     end subroutine write_transport_data_to_files
 
     end module neort
