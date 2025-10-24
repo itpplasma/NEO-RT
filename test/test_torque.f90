@@ -2,7 +2,7 @@ program test_torque_prog
     use neort, only: read_and_set_control, check_magfie, init_profiles, &
                       init, compute_transport_harmonic, write_magfie_data_to_files, &
                       runname, s, M_t
-    use neort_datatypes, only: magfie_data_t
+    use neort_datatypes
     use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input
     use driftorbit, only: A1, A2, ni1, vth, B0, a, efac
     use do_magfie_mod, only: do_magfie_init, do_magfie, R0, iota, bfac
@@ -19,6 +19,7 @@ program test_torque_prog
     real(8), parameter :: TOL = 1d-7
     character(1024) :: TEST_RUN = "driftorbit64.new"
     type(magfie_data_t) :: magfie_data
+    type(transport_harmonic_t) :: harmonic_data
 
     call setup
     call test_torque
@@ -42,7 +43,7 @@ contains
         Tco = 0d0
         Tctr = 0d0
         Tt = 0d0
-        call compute_transport_harmonic(runname, MTH, Dco, Dctr, Dt, Tco, Tctr, Tt)
+        call compute_transport_harmonic(MTH, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic_data)
         call correct_transport_coeff(Dco)
         call correct_transport_coeff(Dctr)
         call correct_transport_coeff(Dt)
