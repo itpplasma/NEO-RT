@@ -29,6 +29,8 @@ contains
 
         logical :: file_exists
         type(magfie_data_t) :: magfie_data
+        type(transport_data_t) :: transport_data
+
         character(len=*), parameter :: boozer_file = "in_file"
         character(len=*), parameter :: boozer_pert_file = "in_file_pert"
         character(len=*), parameter :: plasma_file = "plasma.in"
@@ -57,7 +59,8 @@ contains
         call init
         call check_magfie(magfie_data)
         call write_magfie_data_to_files(magfie_data, runname)
-        call compute_transport(runname)
+        call compute_transport(transport_data)
+        call write_transport_data_to_files(transport_data, runname)
     end subroutine main
 
     subroutine read_and_set_control(base_path)
@@ -219,10 +222,10 @@ contains
         end do
     end subroutine check_magfie
 
-    subroutine compute_transport(base_path)
-        character(len=*), intent(in) :: base_path
+    subroutine compute_transport(result)
+        type(transport_data_t), intent(out) :: result
 
-        integer :: j
+        integer :: j, idx
 
         ! Transport coefficients D11, D12 in approximate effective radius r=2d0/a*sqrt(s)
         real(8) :: Dco(2), Dctr(2), Dt(2)
@@ -232,6 +235,8 @@ contains
         integer :: mthmin, mthmax
 
         call debug('compute_transport')
+
+        if (allocated(result%harmonics)) deallocate(result%harmonics)
 
         Dco = 0d0
         Dctr = 0d0
@@ -246,30 +251,46 @@ contains
         mthmin = -ceiling(2*abs(mph*q))
         mthmax = ceiling(2*abs(mph*q))
 
+        if (mthmax >= mthmin) then
+            allocate(result%harmonics(mthmax - mthmin + 1))
+        else
+            allocate(result%harmonics(0))
+        end if
+
+        idx = 0
         do j = mthmin, mthmax
-            call compute_transport_harmonic(base_path, j, Dco, Dctr, Dt, Tco, Tctr, Tt)
+            idx = idx + 1
+            call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, result%harmonics(idx))
         end do
 
-        open (unit=9, file=trim(adjustl(base_path))//".out", recl=1024)
-        write (9, *) "# M_t D11co D11ctr D11t D11 D12co D12ctr D12t D12"
-        write (9, *) M_t, Dco(1), Dctr(1), Dt(1), Dco(1) + Dctr(1) + Dt(1), &
-            Dco(2), Dctr(2), Dt(2), Dco(2) + Dctr(2) + Dt(2)
-        close (unit=9)
+        result%summary%M_t = M_t
+        result%summary%Dco = Dco
+        result%summary%Dctr = Dctr
+        result%summary%Dt = Dt
 
+        result%torque%has_torque = comptorque
         if (comptorque) then
-            open (unit=9, file=trim(adjustl(base_path))//"_torque.out", recl=1024)
-            write (9, *) "# s dVds M_t Tco Tctr Tt"
-            write (9, *) s, dVds, M_t, Tco, Tctr, Tt
-            close (unit=9)
+            result%torque%s = s
+            result%torque%dVds = dVds
+            result%torque%M_t = M_t
+            result%torque%Tco = Tco
+            result%torque%Tctr = Tctr
+            result%torque%Tt = Tt
+        else
+            result%torque%s = 0d0
+            result%torque%dVds = 0d0
+            result%torque%M_t = 0d0
+            result%torque%Tco = 0d0
+            result%torque%Tctr = 0d0
+            result%torque%Tt = 0d0
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
 
-    subroutine compute_transport_harmonic(base_path, j, Dco, Dctr, Dt, Tco, Tctr, Tt)
-        character(len=*), intent(in) :: base_path
-
+    subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
         integer, intent(in) :: j
         real(8), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
+        type(transport_harmonic_t), intent(out) :: harmonic
 
         real(8) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
         real(8) :: vminp, vmaxp, vmint, vmaxt
@@ -326,22 +347,22 @@ contains
             Drest(2), Dresco(2) + Dresctr(2) + Drest(2), &
             vmaxp/vth, vmaxt/vth
 
-        open (unit=10, file=trim(adjustl(base_path))//"_integral.out", recl=1024, position="append")
-        write (10, *) M_t, mth, Dresco(1), Dresctr(1), Drest(1), &
-            Dresco(1) + Dresctr(1) + Drest(1), &
-            Dresco(2), Dresctr(2), Drest(2), &
-            Dresco(2) + Dresctr(2) + Drest(2), vminp/vth, vmaxp/vth, &
-            vmint/vth, vmaxt/vth
-        close (unit=10)
-
         print *, ""
         print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
         write (*, "(4ES12.2,2F12.2)") Tresco, Tresctr, &
             Trest, Tresco + Tresctr + Trest
 
-        open (unit=10, file=trim(adjustl(base_path))//"_torque_integral.out", recl=1024, position="append")
-        write (10, *) mth, Tresco, Tresctr, Trest
-        close (unit=10)
+        harmonic%mth = mth
+        harmonic%Dresco = Dresco
+        harmonic%Dresctr = Dresctr
+        harmonic%Drest = Drest
+        harmonic%Tresco = Tresco
+        harmonic%Tresctr = Tresctr
+        harmonic%Trest = Trest
+        harmonic%vminp_over_vth = vminp/vth
+        harmonic%vmaxp_over_vth = vmaxp/vth
+        harmonic%vmint_over_vth = vmint/vth
+        harmonic%vmaxt_over_vth = vmaxt/vth
 
         call debug('compute_transport_harmonic complete')
     end subroutine compute_transport_harmonic
@@ -405,5 +426,53 @@ contains
         end do
         close (unit=unit)
     end subroutine write_magfie_data_to_files
+
+    subroutine write_transport_data_to_files(data, base_path)
+        type(transport_data_t), intent(in) :: data
+        character(len=*), intent(in) :: base_path
+
+        integer :: k
+        real(8) :: total_D1, total_D2
+        integer, parameter :: unit = 10
+
+        open (unit=unit, file=trim(adjustl(base_path))//".out", recl=1024)
+        write (unit, *) "# M_t D11co D11ctr D11t D11 D12co D12ctr D12t D12"
+        total_D1 = data%summary%Dco(1) + data%summary%Dctr(1) + data%summary%Dt(1)
+        total_D2 = data%summary%Dco(2) + data%summary%Dctr(2) + data%summary%Dt(2)
+        write (unit, *) data%summary%M_t, data%summary%Dco(1), data%summary%Dctr(1), &
+                        data%summary%Dt(1), total_D1, data%summary%Dco(2), data%summary%Dctr(2), &
+                        data%summary%Dt(2), total_D2
+        close (unit=unit)
+
+        if (data%torque%has_torque) then
+            open (unit=unit, file=trim(adjustl(base_path))//"_torque.out", recl=1024)
+            write (unit, *) "# s dVds M_t Tco Tctr Tt"
+            write (unit, *) data%torque%s, data%torque%dVds, data%torque%M_t, data%torque%Tco, &
+                            data%torque%Tctr, data%torque%Tt
+            close (unit=unit)
+        end if
+
+        do k = 1, size(data%harmonics)
+            open (unit=unit, file=trim(adjustl(base_path))//"_integral.out", recl=1024, &
+                  position="append")
+            total_D1 = data%harmonics(k)%Dresco(1) + data%harmonics(k)%Dresctr(1) + &
+                       data%harmonics(k)%Drest(1)
+            total_D2 = data%harmonics(k)%Dresco(2) + data%harmonics(k)%Dresctr(2) + &
+                       data%harmonics(k)%Drest(2)
+            write (unit, *) data%summary%M_t, data%harmonics(k)%mth, data%harmonics(k)%Dresco(1), &
+                            data%harmonics(k)%Dresctr(1), data%harmonics(k)%Drest(1), &
+                            total_D1, data%harmonics(k)%Dresco(2), data%harmonics(k)%Dresctr(2), &
+                            data%harmonics(k)%Drest(2), total_D2, &
+                            data%harmonics(k)%vminp_over_vth, data%harmonics(k)%vmaxp_over_vth, &
+                            data%harmonics(k)%vmint_over_vth, data%harmonics(k)%vmaxt_over_vth
+            close (unit=unit)
+
+            open (unit=unit, file=trim(adjustl(base_path))//"_torque_integral.out", recl=1024, &
+                  position="append")
+            write (unit, *) data%harmonics(k)%mth, data%harmonics(k)%Tresco, &
+                            data%harmonics(k)%Tresctr, data%harmonics(k)%Trest
+            close (unit=unit)
+        end do
+    end subroutine write_transport_data_to_files
 
     end module neort

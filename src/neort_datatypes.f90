@@ -52,4 +52,41 @@ module neort_datatypes
         type(magfie_tensors_t), allocatable :: tensors(:)
     end type magfie_data_t
 
+    type :: transport_summary_t
+        real(8) :: M_t
+        real(8) :: Dco(2)
+        real(8) :: Dctr(2)
+        real(8) :: Dt(2)
+    end type transport_summary_t
+
+    type :: torque_summary_t
+        logical :: has_torque
+        real(8) :: s
+        real(8) :: dVds
+        real(8) :: M_t
+        real(8) :: Tco
+        real(8) :: Tctr
+        real(8) :: Tt
+    end type torque_summary_t
+
+    type :: transport_harmonic_t
+        integer :: mth
+        real(8) :: Dresco(2)
+        real(8) :: Dresctr(2)
+        real(8) :: Drest(2)
+        real(8) :: Tresco
+        real(8) :: Tresctr
+        real(8) :: Trest
+        real(8) :: vminp_over_vth
+        real(8) :: vmaxp_over_vth
+        real(8) :: vmint_over_vth
+        real(8) :: vmaxt_over_vth
+    end type transport_harmonic_t
+
+    type :: transport_data_t
+        type(transport_summary_t) :: summary
+        type(torque_summary_t) :: torque
+        type(transport_harmonic_t), allocatable :: harmonics(:)
+    end type transport_data_t
+
 end module neort_datatypes
