@@ -151,7 +151,8 @@ contains
     end subroutine read_and_init_profile_input
 
     subroutine init_thermodynamic_forces(psi_pr, q)
-        real(dp), intent(in) :: psi_pr, q
+        real(dp), intent(in) :: psi_pr  ! torodial flux at plasma boundary == dpsi_tor/ds
+        real(dp), intent(in) :: q  ! safety factor
 
         A1 = dni1ds/ni1 - qi/(Ti1*ev)*sign_theta*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
         A2 = dTi1ds/Ti1
