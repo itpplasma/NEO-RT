@@ -79,7 +79,7 @@ contains
 
         rewind (lun)
 
-        allocate (data(nrow, 2))
+        allocate (data(nrow, ncol))
 
         do k = 1, nrow
             read (lun, *) data(k, :)
