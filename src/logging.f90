@@ -8,6 +8,9 @@ module logger
   integer, public, parameter :: LOG_ERROR=LVL_ERROR, LOG_WARNING=LVL_WARNING, &
   LOG_INFO=LVL_INFO, LOG_DEBUG=LVL_DEBUG, LOG_TRACE=LVL_TRACE
   integer :: current_level = LVL_INFO
+
+  !$omp threadprivate (current_level)
+
   public :: set_log_level, get_log_level, trace, debug, info, warning, error
 contains
   subroutine set_log_level(level)

@@ -24,6 +24,11 @@ module neort_freq
     real(8) :: k_taub_p=0d0, d_taub_p=0d0, k_taub_t=0d0, d_taub_t=0d0 ! extrapolation at tp bound
     real(8) :: k_OmtB_p=0d0, d_Omtb_p=0d0, k_Omtb_t=0d0, d_Omtb_t=0d0 ! extrapolation at tp bound
 
+    !$omp threadprivate (OmtB_spl_coeff, Omth_spl_coeff, vres_spl_coeff)
+    !$omp threadprivate (OmtB_pass_spl_coeff, Omth_pass_spl_coeff, vres_pass_spl_coeff)
+    !$omp threadprivate (k_taub_p, d_taub_p, k_taub_t, d_taub_t)
+    !$omp threadprivate (k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t)
+
 contains
     subroutine init_Om_spl
         ! Initialise splines for canonical frequencies of trapped orbits

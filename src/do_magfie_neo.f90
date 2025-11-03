@@ -25,6 +25,8 @@ module do_magfie_mod
 
     real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius changeable
 
+    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds, iota, R0, eps, bfac)
+
 contains
 
     subroutine do_magfie_init
@@ -83,6 +85,8 @@ module do_magfie_pert_mod
     use neo2_ql, only: read_in_namelists, set_default_values, init
 
     real(8) :: mph
+
+    !$omp threadprivate (mph)
 
 contains
 
