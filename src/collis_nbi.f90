@@ -5,6 +5,8 @@ module collis_alp
     logical :: swcoll = .false.
     double precision, dimension(nsorts) :: efcolf, velrat, enrat
 
+    !$omp threadprivate (iswmod, swcoll, efcolf, velrat, enrat)
+
 contains
 
     subroutine coleff(p, dpp, dhh, fpeff)

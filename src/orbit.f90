@@ -17,6 +17,7 @@ module neort_orbit
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
+    !$omp threadprivate (th0, noshear)
 
     interface
         subroutine timestep_i(v, eta, neq, t, y, ydot)

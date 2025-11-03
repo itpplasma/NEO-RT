@@ -20,6 +20,10 @@ module neort_profiles
     ! Thermodynamic forces in radial variable s_tor
     real(dp) :: A1 = 0d0, A2 = 0d0
 
+    !$omp threadprivate (vth, dvthds, M_t, dM_tds, Om_tE, dOm_tEds)
+    !$omp threadprivate (ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds)
+    !$omp threadprivate (A1, A2)
+
 contains
 
     subroutine init_profiles(R0)

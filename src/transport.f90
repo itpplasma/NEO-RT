@@ -18,6 +18,8 @@ module neort_transport
 
   real(8) :: Omth, dOmthdv, dOmthdeta
 
+  !$omp threadprivate (Omth, dOmthdv, dOmthdeta)
+
 contains
 
   pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
