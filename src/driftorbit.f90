@@ -49,4 +49,8 @@ module driftorbit
     ! Nonlinear calculation switch
     logical :: nonlin = .false.
 
+    !$omp threadprivate (efac, epsmn, m0, mth, magdrift, nopassing, pertfile, comptorque)
+    !$omp threadprivate (dVds, etadt, etatp, etamin, etamax, init_done)
+    !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta, nonlin)
+
 end module driftorbit
