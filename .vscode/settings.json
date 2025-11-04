@@ -5,5 +5,9 @@
         "${workspaceFolder}/build/NEO-2/COMMON",
         "${workspaceFolder}/build/spline",
         "${workspaceFolder}/build/NEO-2/NEO-2-QL"
-    ]
+    ],
+    "fortran.formatting.fprettifyArgs": [
+        "-c",
+        "${workspaceFolder}/.fprettify"
+    ],
 }
