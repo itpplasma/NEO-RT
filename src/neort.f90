@@ -119,6 +119,14 @@ contains
         call set_log_level(log_level)
     end subroutine set_control
 
+    subroutine set_s(s_)
+        use driftorbit
+
+        real(8), intent(in) :: s_
+
+        s = s_
+    end subroutine set_s
+
     subroutine init
         call debug('init')
         init_done = .false.
