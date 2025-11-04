@@ -1,5 +1,5 @@
 module neort
-    use logger, only: debug, set_log_level, get_log_level, LOG_INFO, LOG_DEBUG
+    use logger, only: debug, set_log_level, get_log_level, log_result, LOG_INFO
     use neort_datatypes
     use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
@@ -261,10 +261,10 @@ contains
 
         real(8) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
         real(8) :: vminp, vmaxp, vmint, vmaxt
+        character(len=256) :: buffer
 
-        if (get_log_level() >= LOG_DEBUG) then
-            write (*, *) "compute_transport_harmonic: M_t = ", M_t, ", mth = ", j
-        end if
+        write(buffer, '(A,ES12.5,A,I0)') "compute_transport_harmonic: M_t = ", M_t, ", mth = ", j
+        call debug(buffer)
 
         mth = j
 
@@ -305,19 +305,23 @@ contains
         Dt = Dt + Drest
         Tt = Tt + Trest
 
-        print *, ""
-        print *, "test_flux: Mt = ", M_t, ", mth = ", mth
-        write (*, "(4ES12.2,2F12.2)") Dresco(1), Dresctr(1), &
+        call log_result("")
+        write(buffer, '(A,ES12.5,A,I0)') "test_flux: Mt = ", M_t, ", mth = ", mth
+        call log_result(buffer)
+        write(buffer, '(4ES12.2,2F12.2)') Dresco(1), Dresctr(1), &
             Drest(1), Dresco(1) + Dresctr(1) + Drest(1), &
             vminp/vth, vmint/vth
-        write (*, "(4ES12.2,2F12.2)") Dresco(2), Dresctr(2), &
+        call log_result(buffer)
+        write(buffer, '(4ES12.2,2F12.2)') Dresco(2), Dresctr(2), &
             Drest(2), Dresco(2) + Dresctr(2) + Drest(2), &
             vmaxp/vth, vmaxt/vth
+        call log_result(buffer)
 
-        print *, ""
-        print *, "compute_torque: Mt = ", M_t, ", mth = ", mth
-        write (*, "(4ES12.2,2F12.2)") Tresco, Tresctr, &
-            Trest, Tresco + Tresctr + Trest
+        call log_result("")
+        write(buffer, '(A,ES12.5,A,I0)') "compute_torque: Mt = ", M_t, ", mth = ", mth
+        call log_result(buffer)
+        write(buffer, '(4ES12.2)') Tresco, Tresctr, Trest, Tresco + Tresctr + Trest
+        call log_result(buffer)
 
         harmonic%mth = mth
         harmonic%Dresco = Dresco
