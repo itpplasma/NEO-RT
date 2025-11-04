@@ -3,6 +3,7 @@ module neort_magfie
     use do_magfie_mod, only: s, do_magfie, eps, iota
     use neort_orbit, only: th0
     use driftorbit, only: B0, Bmin, Bmax, etadt, etatp, dVds
+    use logger, only: log_result
 
     implicit none
 
@@ -14,8 +15,10 @@ contains
         integer :: k
         real(8) :: thrange(nth), dth
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        character(len=256) :: buffer
 
-        print *, "       s: ", s
+        write(buffer, "(A,ES12.5)") "        s: ", s
+        call log_result(buffer)
 
         thrange = -pi + (/(k*2*pi/nth, k=1, nth)/)
 
@@ -26,7 +29,8 @@ contains
 
         dVds = 0d0
         B0 = 0d0
-        print *, " eps orig: ", eps
+        write(buffer, "(A,ES12.5)") " eps orig: ", eps
+        call log_result(buffer)
         eps = 0d0
 
         Bmin = -1d0
@@ -54,20 +58,33 @@ contains
         etatp = 1d0/Bmax
         etadt = 1d0/Bmin
 
-        print *, " eps calc: ", eps
-        print *, "      th0: ", th0
-        print *, "     dVds: ", dVds
-        print *, "       B0: ", B0
-        print *, "Bmin,Bmax: ", Bmin, Bmax
-        print *, "        x: ", x
-        print *, "     bmod: ", bmod
-        print *, "    sqrtg: ", sqrtg
-        print *, "     hder: ", hder
-        print *, "   hcovar: ", hcovar
-        print *, "   hctrvr: ", hctrvr
-        print *, "    hcurl: ", hcurl
+        write(buffer, "(A,ES12.5)") " eps calc: ", eps
+        call log_result(buffer)
+        write(buffer, "(A,ES12.5)") "      th0: ", th0
+        call log_result(buffer)
+        write(buffer, "(A,ES12.5)") "     dVds: ", dVds
+        call log_result(buffer)
+        write(buffer, "(A,ES12.5)") "       B0: ", B0
+        call log_result(buffer)
+        write(buffer, "(A,2ES12.5)") "Bmin,Bmax: ", Bmin, Bmax
+        call log_result(buffer)
+        write(buffer, "(A,3ES12.5)") "        x: ", x
+        call log_result(buffer)
+        write(buffer, "(A,ES12.5)") "     bmod: ", bmod
+        call log_result(buffer)
+        write(buffer, "(A,ES12.5)") "    sqrtg: ", sqrtg
+        call log_result(buffer)
+        write(buffer, "(A,3ES12.5)") "     hder: ", hder
+        call log_result(buffer)
+        write(buffer, "(A,3ES12.5)") "   hcovar: ", hcovar
+        call log_result(buffer)
+        write(buffer, "(A,3ES12.5)") "   hctrvr: ", hctrvr
+        call log_result(buffer)
+        write(buffer, "(A,3ES12.5)") "    hcurl: ", hcurl
+        call log_result(buffer)
 
-        call disp('init_fsa: iota       = ', iota)
+        write(buffer, "(A,ES12.5)") " init_fsa:  iota =", iota
+        call log_result(buffer)
 
     end subroutine init_fsa
 
