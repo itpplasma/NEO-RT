@@ -33,10 +33,13 @@ module do_magfie_mod
 
     integer :: inp_swi ! type of input file
 
-    !$omp threadprivate (s_prev, spl_val_c, spl_val_s, B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
-    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds, iota, R0, a, eps, B0h, B00)
+    !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
+    !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
+    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
+    !$omp threadprivate (q, dqds, iota, R0, a, eps, B0h, B00)
     !$omp threadprivate (bfac, params0, modes0, m0b, n0b, nflux, nfp, nmode)
-    !$omp threadprivate (spl_coeff1, spl_coeff2, rmnc, rmns, zmnc, zmns, ncol1, ncol2, inp_swi)
+    !$omp threadprivate (spl_coeff1, spl_coeff2, rmnc, rmns, zmnc, zmns)
+    !$omp threadprivate (ncol1, ncol2, inp_swi)
 
     contains
 
