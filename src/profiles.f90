@@ -107,6 +107,7 @@ contains
         call loacol_nbi(amb, am1, am2, Zb, Z1, Z2, ni1, ni2, Ti1, Ti2, Te, &
                         ebeam, v0, dchichi, slowrate, dchichi_norm, slowrate_norm)
 
+        deallocate(spl_coeff)
     end subroutine init_plasma_input
 
     subroutine read_and_init_plasma_input(path, s)
@@ -144,6 +145,8 @@ contains
         ! note: same functionality as init_profiles
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
+
+        deallocate(Mt_spl_coeff)
     end subroutine init_profile_input
 
     subroutine read_and_init_profile_input(path, s, R0, efac, bfac)
