@@ -25,7 +25,8 @@ module do_magfie_mod
 
     real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius changeable
 
-    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds, iota, R0, eps, bfac)
+    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
+    !$omp threadprivate (q, dqds, iota, R0, eps, bfac)
 
 contains
 
