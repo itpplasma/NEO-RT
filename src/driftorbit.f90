@@ -29,9 +29,6 @@ module driftorbit
     real(8) :: dVds = 0d0, etadt = 0d0, etatp = 0d0
     real(8) :: etamin = 0d0, etamax = 0d0
 
-    ! Check if init is done
-    logical :: init_done = .false.
-
     ! TODO: better B0 calculation (average magnetic field on flux surface)
     real(8) :: B0 = 0d0
     real(8) :: Bmin = 0d0, Bmax = 0d0

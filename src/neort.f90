@@ -93,14 +93,12 @@ contains
 
     subroutine init
         call debug('init')
-        init_done = .false.
         call init_fsa
         call init_Om_spl       ! frequencies of trapped orbits
         if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
-        init_done = .true.
         call debug('init complete')
     end subroutine init
 
