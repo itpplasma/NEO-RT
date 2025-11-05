@@ -9,7 +9,6 @@ module neort
     use neort_freq, only: init_Om_spl, init_Om_pass_spl
     use neort_transport, only: compute_transport_integral
     use do_magfie_mod, only: s
-    use driftorbit
 
     implicit none
 
@@ -163,6 +162,7 @@ contains
     subroutine check_magfie(data)
         use do_magfie_mod, only: do_magfie, sign_theta
         use do_magfie_pert_mod, only: do_magfie_pert_amp
+        use driftorbit
 
         type(magfie_data_t), intent(out) :: data
 
@@ -242,6 +242,8 @@ contains
     end subroutine check_magfie
 
     subroutine compute_transport(result)
+        use driftorbit
+
         type(transport_data_t), intent(out) :: result
 
         integer :: j, idx
@@ -307,6 +309,8 @@ contains
     end subroutine compute_transport
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
+        use driftorbit
+
         integer, intent(in) :: j
         real(8), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
         type(transport_harmonic_t), intent(out) :: harmonic
