@@ -1,6 +1,6 @@
 module neort
     use logger, only: debug, set_log_level, get_log_level, log_result, LOG_INFO
-    use neort_datatypes
+    use neort_datatypes, only: magfie_data_t, transport_data_t, transport_harmonic_t
     use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
@@ -26,9 +26,9 @@ module neort
 contains
 
     subroutine main
-        use do_magfie_mod, only: do_magfie_init
+        use do_magfie_mod, only: R0, bfac, do_magfie_init
         use do_magfie_pert_mod, only: do_magfie_pert_init
-        use driftorbit, only: pertfile
+        use driftorbit, only: pertfile, nonlin, comptorque, efac
 
         logical :: file_exists
         type(magfie_data_t) :: magfie_data
@@ -129,6 +129,9 @@ contains
     end subroutine set_s
 
     subroutine init
+        use do_magfie_mod, only: psi_pr, q
+        use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque
+
         call debug('init')
         call init_fsa(s)
         call init_Om_spl       ! frequencies of trapped orbits
@@ -140,13 +143,19 @@ contains
     end subroutine init
 
     pure subroutine set_to_trapped_region(eta_min, eta_max)
+        use driftorbit, only: epst, etatp, etadt
+
         real(8), intent(out) :: eta_min, eta_max
+
         eta_min = (1 + epst)*etatp
         eta_max = (1 - epst)*etadt
     end subroutine set_to_trapped_region
 
     pure subroutine set_to_passing_region(eta_min, eta_max)
+        use driftorbit, only: epsp, etatp
+
         real(8), intent(out) :: eta_min, eta_max
+
         eta_min = epsp*etatp
         eta_max = (1 - epsp)*etatp
     end subroutine set_to_passing_region
