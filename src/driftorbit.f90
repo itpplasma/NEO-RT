@@ -29,9 +29,6 @@ module driftorbit
     real(8) :: dVds, etadt, etatp
     real(8) :: etamin, etamax
 
-    ! Check if init is done
-    logical :: init_done
-
     ! TODO: better B0 calculation (average magnetic field on flux surface)
     real(8) :: B0
     real(8) :: Bmin, Bmax
@@ -50,7 +47,7 @@ module driftorbit
     logical :: nonlin = .false.
 
     !$omp threadprivate (efac, epsmn, m0, mth, magdrift, nopassing, pertfile, comptorque)
-    !$omp threadprivate (dVds, etadt, etatp, etamin, etamax, init_done)
+    !$omp threadprivate (dVds, etadt, etatp, etamin, etamax)
     !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta, nonlin)
 
 end module driftorbit
