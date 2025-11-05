@@ -114,6 +114,7 @@ module do_magfie_mod
         real(8) :: x1
 
         ! safety measure in order not to extrapolate
+        ! note: this is s
         x1 = max(params0(1, 1), x(1))
         x1 = min(params0(nflux, 1), x1)
 
