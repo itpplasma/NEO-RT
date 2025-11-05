@@ -55,16 +55,30 @@ module do_magfie_mod
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
         call boozer_read(path)
 
+        ! Allocate spline coefficient arrays (deallocate first if size changed)
+        if (allocated(spl_coeff1)) then
+            if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
+        end if
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
         end if
 
-        ! Allocate large work arrays once (avoid large automatic arrays on stack)
+        ! Allocate work arrays (deallocate first if size changed)
+        if (allocated(B0mnc)) then
+            if (size(B0mnc) /= nmode) then
+                deallocate(B0mnc, dB0dsmnc, costerm, sinterm)
+                if (allocated(B0mns)) deallocate(B0mns, dB0dsmns)
+            end if
+        end if
         if (.not. allocated(B0mnc)) then
             allocate(B0mnc(nmode), dB0dsmnc(nmode))
             if (ncol2 >= 8) allocate(B0mns(nmode), dB0dsmns(nmode))
             allocate(costerm(nmode), sinterm(nmode))
+        end if
+
+        if (allocated(rmnc)) then
+            if (size(rmnc) /= nmode) deallocate(rmnc, rmns, zmnc, zmns)
         end if
         if (.not. allocated(rmnc)) then
             allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
@@ -85,8 +99,14 @@ module do_magfie_mod
             end do
         end do
 
-        allocate (spl_val_c(3, nmode))
-        allocate (spl_val_s(3, nmode))
+        ! Allocate cached spline values (deallocate first if size changed)
+        if (allocated(spl_val_c)) then
+            if (size(spl_val_c, 2) /= nmode) deallocate(spl_val_c, spl_val_s)
+        end if
+        if (.not. allocated(spl_val_c)) then
+            allocate (spl_val_c(3, nmode))
+            allocate (spl_val_s(3, nmode))
+        end if
 
         x(1) = s
         x(2) = 0.0
@@ -189,8 +209,15 @@ module do_magfie_mod
         psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
-        if (.not. allocated(params0)) allocate (params0(nflux, ncol1 + 1))
-        if (.not. allocated(modes0)) allocate (modes0(nflux, nmode, ncol2 + 2))
+
+        ! Allocate params and modes (deallocate first if size changed)
+        if (allocated(params0)) then
+            if (size(params0, 1) /= nflux) deallocate(params0, modes0)
+        end if
+        if (.not. allocated(params0)) then
+            allocate (params0(nflux, ncol1 + 1))
+            allocate (modes0(nflux, nmode, ncol2 + 2))
+        end if
         do ksurf = 1, nflux
             read (18, '(/)')
             read (18, *) params0(ksurf, :)
@@ -296,12 +323,22 @@ module do_magfie_pert_mod
 
         mph = nfp*modes(1, 1, 2)
 
+        ! Allocate spline coefficient arrays (deallocate first if size changed)
+        if (allocated(spl_coeff1)) then
+            if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
+        end if
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
         end if
 
-        ! Allocate large work arrays once (avoid large automatic arrays on stack)
+        ! Allocate work arrays (deallocate first if size changed)
+        if (allocated(Bmnc)) then
+            if (size(Bmnc) /= nmode) then
+                deallocate(Bmnc)
+                if (allocated(Bmns)) deallocate(Bmns)
+            end if
+        end if
         if (.not. allocated(Bmnc)) then
             allocate(Bmnc(nmode))
             if (ncol2 >= 8) allocate(Bmns(nmode))
@@ -320,8 +357,14 @@ module do_magfie_pert_mod
             end do
         end do
 
-        allocate (spl_val_c(3, nmode))
-        allocate (spl_val_s(3, nmode))
+        ! Allocate cached spline values (deallocate first if size changed)
+        if (allocated(spl_val_c)) then
+            if (size(spl_val_c, 2) /= nmode) deallocate(spl_val_c, spl_val_s)
+        end if
+        if (.not. allocated(spl_val_c)) then
+            allocate (spl_val_c(3, nmode))
+            allocate (spl_val_s(3, nmode))
+        end if
 
         x(1) = s
         x(2) = 0.0
@@ -373,8 +416,15 @@ module do_magfie_pert_mod
         read (18, '(////)')
         read (18, *) mb, nb, nflux, nfp, flux, dummy, dummy
         nmode = (mb + 1)*(nb + 1)
-        if (.not. allocated(params)) allocate (params(nflux, ncol1 + 1))
-        if (.not. allocated(modes)) allocate (modes(nflux, nmode, ncol2 + 2))
+
+        ! Allocate params and modes (deallocate first if size changed)
+        if (allocated(params)) then
+            if (size(params, 1) /= nflux) deallocate(params, modes)
+        end if
+        if (.not. allocated(params)) then
+            allocate (params(nflux, ncol1 + 1))
+            allocate (modes(nflux, nmode, ncol2 + 2))
+        end if
         do ksurf = 1, nflux
             read (18, '(/)')
             read (18, *) params(ksurf, :)

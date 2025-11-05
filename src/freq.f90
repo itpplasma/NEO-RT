@@ -46,10 +46,12 @@ contains
         v = vth
         etamin = (1d0 + epst)*etatp
         etamax = etatp + (etadt - etatp)*(1d0 - epsst_spl)
-        ! Allocate coefficient arrays for trapped region splines
-        if (.not. allocated(Omth_spl_coeff)) allocate(Omth_spl_coeff(netaspl - 1, 5))
-        if (.not. allocated(OmtB_spl_coeff)) allocate(OmtB_spl_coeff(netaspl - 1, 5))
-        if (.not. allocated(vres_spl_coeff)) allocate(vres_spl_coeff(netaspl - 1, 5))
+        ! Allocate coefficient arrays for trapped region splines (size is constant)
+        if (.not. allocated(Omth_spl_coeff)) then
+            allocate(Omth_spl_coeff(netaspl - 1, 5))
+            allocate(OmtB_spl_coeff(netaspl - 1, 5))
+            allocate(vres_spl_coeff(netaspl - 1, 5))
+        end if
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A)') '[TRACE] init_Om_spl state:'
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
@@ -129,10 +131,12 @@ contains
         v = vth
         etamin = etatp*epssp_spl
         etamax = etatp
-        ! Allocate coefficient arrays for passing region splines
-        if (.not. allocated(Omth_pass_spl_coeff)) allocate(Omth_pass_spl_coeff(netaspl_pass - 1, 5))
-        if (.not. allocated(OmtB_pass_spl_coeff)) allocate(OmtB_pass_spl_coeff(netaspl_pass - 1, 5))
-        if (.not. allocated(vres_pass_spl_coeff)) allocate(vres_pass_spl_coeff(netaspl_pass - 1, 5))
+        ! Allocate coefficient arrays for passing region splines (size is constant)
+        if (.not. allocated(Omth_pass_spl_coeff)) then
+            allocate(Omth_pass_spl_coeff(netaspl_pass - 1, 5))
+            allocate(OmtB_pass_spl_coeff(netaspl_pass - 1, 5))
+            allocate(vres_pass_spl_coeff(netaspl_pass - 1, 5))
+        end if
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A)') '[TRACE] init_Om_pass_spl state:'
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
