@@ -175,7 +175,7 @@ contains
         x(2) = 0d0
         x(3) = 0d0
         call read_and_init_plasma_input("plasma.in", s)
-        call init_fsa
+        call init_fsa(s)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         write (unit, *) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
     end subroutine output_flux_surface_data

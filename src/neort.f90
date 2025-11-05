@@ -8,6 +8,7 @@ module neort
     use neort_orbit, only: noshear
     use neort_freq, only: init_Om_spl, init_Om_pass_spl
     use neort_transport, only: compute_transport_integral
+    use do_magfie_mod, only: s
     use driftorbit
 
     implicit none
@@ -93,7 +94,7 @@ contains
 
     subroutine init
         call debug('init')
-        call init_fsa
+        call init_fsa(s)
         call init_Om_spl       ! frequencies of trapped orbits
         if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
         sign_vpar = 1
