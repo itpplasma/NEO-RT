@@ -1,6 +1,6 @@
 module neort_magfie
     use util, only: disp, pi
-    use do_magfie_mod, only: s, do_magfie, eps, iota
+    use do_magfie_mod, only: do_magfie, eps, iota
     use neort_orbit, only: th0
     use driftorbit, only: B0, Bmin, Bmax, etadt, etatp, dVds
     use logger, only: log_result
@@ -9,8 +9,9 @@ module neort_magfie
 
 contains
 
-    subroutine init_fsa
+    subroutine init_fsa(s)
         ! Calculate the flux surface areas for normalization
+        real(8), intent(in) :: s
         integer, parameter :: nth = 1000
         integer :: k
         real(8) :: thrange(nth), dth
