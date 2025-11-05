@@ -266,10 +266,10 @@ module do_magfie_mod
 
     end subroutine booz_to_cyl
 
-    subroutine fast_sin_cos(m, x, sinterm, costerm)
+    subroutine fast_sin_cos(m, x, sinterm_, costerm_)
         ! Fast sine and cosine that assumes equally spaced ascending mode numbers
         real(8), intent(in) :: m(:), x
-        real(8), intent(out) :: sinterm(:), costerm(:)
+        real(8), intent(out) :: sinterm_(:), costerm_(:)
 
         real(8) :: dm
         complex(8) :: fourier_factor, rotation
@@ -279,11 +279,11 @@ module do_magfie_mod
         fourier_factor  = exp(imun*m(1)*x)
         rotation = exp(imun*dm*x)
 
-        costerm = (0.0d0, 0.0d0)
-        sinterm = (0.0d0, 0.0d0)
+        costerm_ = (0.0d0, 0.0d0)
+        sinterm_ = (0.0d0, 0.0d0)
         do j = 1, size(m)
-            costerm(j) = real(fourier_factor)
-            sinterm(j) = imag(fourier_factor)
+            costerm_(j) = real(fourier_factor)
+            sinterm_(j) = imag(fourier_factor)
             fourier_factor = fourier_factor*rotation
         end do
     end subroutine fast_sin_cos
