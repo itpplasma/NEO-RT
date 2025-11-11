@@ -155,7 +155,8 @@ contains
 
         real(8), allocatable :: data(:, :)
 
-        call readdata(path, 3, data)  ! allocates data
+        ! note: only the first two columns are needed
+        call readdata(path, 2, data)  ! allocates data
         call init_profile_input(s, R0, efac, bfac, data)
 
         deallocate (data)
