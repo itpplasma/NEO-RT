@@ -9,7 +9,7 @@ module neort_magfie
 
 contains
 
-    subroutine init_fsa(s)
+    subroutine init_flux_surface_average(s)
         ! Calculate the flux surface areas for normalization
         real(8), intent(in) :: s
         integer, parameter :: nth = 1000
@@ -84,9 +84,9 @@ contains
         write(buffer, "(A,3ES12.5)") "    hcurl: ", hcurl
         call log_result(buffer)
 
-        write(buffer, "(A,ES12.5)") " init_fsa:  iota =", iota
+        write(buffer, "(A,ES12.5)") "init_flux_surface_average: iota =", iota
         call log_result(buffer)
 
-    end subroutine init_fsa
+    end subroutine init_flux_surface_average
 
 end module neort_magfie

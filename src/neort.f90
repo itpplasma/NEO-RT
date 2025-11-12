@@ -4,9 +4,9 @@ module neort
     use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
-    use neort_magfie, only: init_fsa
+    use neort_magfie, only: init_flux_surface_average
     use neort_orbit, only: noshear
-    use neort_freq, only: init_Om_spl, init_Om_pass_spl
+    use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
     use neort_transport, only: compute_transport_integral
     use do_magfie_mod, only: s
 
@@ -96,9 +96,9 @@ contains
         use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque
 
         call debug('init')
-        call init_fsa(s)
-        call init_Om_spl       ! frequencies of trapped orbits
-        if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
+        call init_flux_surface_average(s)
+        call init_canon_freq_trapped_spline
+        if (.not. nopassing) call init_canon_freq_passing_spline
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
