@@ -61,12 +61,12 @@ Required when `nonlin=.true.` or `comptorque=.true.`. The file format matches th
 2. `nflux  am1  am2  Z1  Z2` – number of flux surfaces, ion masses (amu), and charges.
 3. Comment line (ignored).
 4. `nflux` data rows with six columns:
-   - `s` – Normalised toroidal flux.
-   - `n₁` – Density of species 1 (`1/m³`).
-   - `n₂` – Density of species 2 (`1/m³`).
-   - `T₁` – Temperature of species 1 (`eV`).
-   - `T₂` – Temperature of species 2 (`eV`).
-   - `T_e` – Electron temperature (`eV`).
+   - $s$ – Normalised toroidal flux.
+   - $n_1$ – Density of species 1 (1/cm³).
+   - $n_2$ – Density of species 2 (1/cm³).
+   - $T_1$ – Temperature of species 1 (eV).
+   - $T_2$ – Temperature of species 2 (eV).
+   - $T_e$ – Electron temperature (eV).
 
 The solver creates spline coefficients from these values to evaluate densities, temperatures, and their radial derivatives at the requested flux surface.
 
