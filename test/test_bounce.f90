@@ -19,7 +19,7 @@ program test_bounce_program
         use do_magfie_mod, only: R0
 
         call setup_control
-        call do_magfie_init
+        call do_magfie_init("in_file")
         call init
 
         Om_tE = vth*M_t/R0
