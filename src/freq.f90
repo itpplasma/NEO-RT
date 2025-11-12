@@ -30,7 +30,7 @@ module neort_freq
     !$omp threadprivate (k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t)
 
 contains
-    subroutine init_Om_spl
+    subroutine init_canon_freq_trapped_spline
         ! Initialise splines for canonical frequencies of trapped orbits
 
         real(8) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
@@ -39,7 +39,7 @@ contains
         real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
         real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
-        call trace('init_Om_spl')
+        call trace('init_canon_freq_trapped_spline')
 
         taub0 = 0d0
         taub1 = 0d0
@@ -58,7 +58,7 @@ contains
             allocate(vres_spl_coeff(netaspl - 1, 5))
         end if
         if (get_log_level() >= LOG_TRACE) then
-            write(*,'(A)') '[TRACE] init_Om_spl state:'
+            write(*,'(A)') '[TRACE] init_canon_freq_trapped_spline state:'
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etatp =', etatp, 'etadt =', etadt
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
@@ -75,7 +75,7 @@ contains
             eta = etamin*(1d0 + exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta
+                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta
             end if
             if (k == netaspl - 1) then
                 taub_est = bounce_time(v, eta)
@@ -85,7 +85,7 @@ contains
             taub = taub_est
             call bounce_fast(v, eta, taub, bounceavg, timestep)
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_spl k=', k, ' eta=', eta, ' taub=', taub
+                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -111,11 +111,11 @@ contains
             OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
 
-        call trace('init_Om_spl complete')
+        call trace('init_canon_freq_trapped_spline complete')
 
-    end subroutine init_Om_spl
+    end subroutine init_canon_freq_trapped_spline
 
-    subroutine init_Om_pass_spl
+    subroutine init_canon_freq_passing_spline
         ! Initialise splines for canonical frequencies of passing orbits
 
         real(8) :: etarange(netaspl_pass), Om_tB_v(netaspl_pass), Omth_v(netaspl_pass)
@@ -124,7 +124,7 @@ contains
         real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
         real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
-        call trace('init_Om_pass_spl')
+        call trace('init_canon_freq_passing_spline')
 
         taub0 = 0d0
         taub1 = 0d0
@@ -143,7 +143,7 @@ contains
             allocate(vres_pass_spl_coeff(netaspl_pass - 1, 5))
         end if
         if (get_log_level() >= LOG_TRACE) then
-            write(*,'(A)') '[TRACE] init_Om_pass_spl state:'
+            write(*,'(A)') '[TRACE] init_canon_freq_passing_spline state:'
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'Om_tE =', Om_tE
             write(*,'(A,1X,ES12.5)') '  etatp =', etatp
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
@@ -159,7 +159,7 @@ contains
             eta = etamax*(1d0 - exp(aa*k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta
+                write(*,'(A,I4,A,ES12.5)') '[TRACE] init_canon_freq_passing_spline k=', k, ' eta=', eta
             end if
             if (k == netaspl_pass - 1) then
                 taub_est = bounce_time(v, eta)
@@ -169,7 +169,7 @@ contains
             taub = taub_est
             call bounce_fast(v, eta, taub, bounceavg, timestep)
             if (get_log_level() >= LOG_TRACE) then
-                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_Om_pass_spl k=', k, ' eta=', eta, ' taub=', taub
+                write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_passing_spline k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
@@ -194,8 +194,8 @@ contains
             d_OmtB_p = OmtB0 - k_OmtB_p*leta0
             OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
-        call trace('init_Om_pass_spl complete')
-    end subroutine init_Om_pass_spl
+        call trace('init_canon_freq_passing_spline complete')
+    end subroutine init_canon_freq_passing_spline
 
     subroutine Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
         ! returns bounce averaged toroidal magnetic drift frequency

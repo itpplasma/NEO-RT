@@ -3,8 +3,7 @@ program test_multi_init
     ! This test verifies that the deallocation-before-reallocation pattern works correctly
     use iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: do_magfie_init, nmode, nflux
-    use neort_freq, only: init_Om_spl
-    use neort, only: read_and_set_control, set_s
+    use neort, only: read_and_set_control
 
     implicit none
 
