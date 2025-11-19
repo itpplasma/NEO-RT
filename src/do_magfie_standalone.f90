@@ -32,9 +32,20 @@ module do_magfie_mod
     integer :: ncol1, ncol2 ! number of columns in input file
 
     integer :: inp_swi ! type of input file
+
+    !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
+    !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
+    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
+    !$omp threadprivate (q, dqds, iota, R0, a, eps, B0h, B00)
+    !$omp threadprivate (bfac, params0, modes0, m0b, n0b, nflux, nfp, nmode)
+    !$omp threadprivate (spl_coeff1, spl_coeff2, rmnc, rmns, zmnc, zmns)
+    !$omp threadprivate (ncol1, ncol2, inp_swi)
+
     contains
 
-    subroutine do_magfie_init
+    subroutine do_magfie_init(path)
+        character(len=*), intent(in) :: path
+
         ! Initializes spline and Fourier coefficients for later evaluation of
         ! unperturbed axisymmetric magnetic field in do_magfie
         integer :: j, k
@@ -49,18 +60,32 @@ module do_magfie_mod
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
-        call boozer_read('in_file') ! TODO: general filename
+        call boozer_read(path)
 
+        ! Allocate spline coefficient arrays (deallocate first if size changed)
+        if (allocated(spl_coeff1)) then
+            if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
+        end if
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
         end if
 
-        ! Allocate large work arrays once (avoid large automatic arrays on stack)
+        ! Allocate work arrays (deallocate first if size changed)
+        if (allocated(B0mnc)) then
+            if (size(B0mnc) /= nmode) then
+                deallocate(B0mnc, dB0dsmnc, costerm, sinterm)
+                if (allocated(B0mns)) deallocate(B0mns, dB0dsmns)
+            end if
+        end if
         if (.not. allocated(B0mnc)) then
             allocate(B0mnc(nmode), dB0dsmnc(nmode))
             if (ncol2 >= 8) allocate(B0mns(nmode), dB0dsmns(nmode))
             allocate(costerm(nmode), sinterm(nmode))
+        end if
+
+        if (allocated(rmnc)) then
+            if (size(rmnc) /= nmode) deallocate(rmnc, rmns, zmnc, zmns)
         end if
         if (.not. allocated(rmnc)) then
             allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
@@ -81,8 +106,14 @@ module do_magfie_mod
             end do
         end do
 
-        allocate (spl_val_c(3, nmode))
-        allocate (spl_val_s(3, nmode))
+        ! Allocate cached spline values (deallocate first if size changed)
+        if (allocated(spl_val_c)) then
+            if (size(spl_val_c, 2) /= nmode) deallocate(spl_val_c, spl_val_s)
+        end if
+        if (.not. allocated(spl_val_c)) then
+            allocate (spl_val_c(3, nmode))
+            allocate (spl_val_s(3, nmode))
+        end if
 
         x(1) = s
         x(2) = 0.0
@@ -106,6 +137,7 @@ module do_magfie_mod
         real(8) :: x1
 
         ! safety measure in order not to extrapolate
+        ! note: this is s
         x1 = max(params0(1, 1), x(1))
         x1 = min(params0(nflux, 1), x1)
 
@@ -184,8 +216,15 @@ module do_magfie_mod
         psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
-        if (.not. allocated(params0)) allocate (params0(nflux, ncol1 + 1))
-        if (.not. allocated(modes0)) allocate (modes0(nflux, nmode, ncol2 + 2))
+
+        ! Allocate params and modes (deallocate first if size changed)
+        if (allocated(params0)) then
+            if (size(params0, 1) /= nflux) deallocate(params0, modes0)
+        end if
+        if (.not. allocated(params0)) then
+            allocate (params0(nflux, ncol1 + 1))
+            allocate (modes0(nflux, nmode, ncol2 + 2))
+        end if
         do ksurf = 1, nflux
             read (18, '(/)')
             read (18, *) params0(ksurf, :)
@@ -230,10 +269,10 @@ module do_magfie_mod
 
     end subroutine booz_to_cyl
 
-    subroutine fast_sin_cos(m, x, sinterm, costerm)
+    subroutine fast_sin_cos(m, x, sinterm_, costerm_)
         ! Fast sine and cosine that assumes equally spaced ascending mode numbers
         real(8), intent(in) :: m(:), x
-        real(8), intent(out) :: sinterm(:), costerm(:)
+        real(8), intent(out) :: sinterm_(:), costerm_(:)
 
         real(8) :: dm
         complex(8) :: fourier_factor, rotation
@@ -243,11 +282,11 @@ module do_magfie_mod
         fourier_factor  = exp(imun*m(1)*x)
         rotation = exp(imun*dm*x)
 
-        costerm = (0.0d0, 0.0d0)
-        sinterm = (0.0d0, 0.0d0)
+        costerm_ = (0.0d0, 0.0d0)
+        sinterm_ = (0.0d0, 0.0d0)
         do j = 1, size(m)
-            costerm(j) = real(fourier_factor)
-            sinterm(j) = imag(fourier_factor)
+            costerm_(j) = real(fourier_factor)
+            sinterm_(j) = imag(fourier_factor)
             fourier_factor = fourier_factor*rotation
         end do
     end subroutine fast_sin_cos
@@ -275,9 +314,16 @@ module do_magfie_pert_mod
 
     integer :: ncol1, ncol2 ! number of columns in input file
     real(8) :: mph ! toroidal perturbation mode
+
+    !$omp threadprivate (s_prev, spl_val_c, spl_val_s, Bmnc, Bmns)
+    !$omp threadprivate (params, modes, mb, nb, nflux, nfp, nmode)
+    !$omp threadprivate (spl_coeff1, spl_coeff2, ncol1, ncol2, mph)
+
     contains
 
-    subroutine do_magfie_pert_init
+    subroutine do_magfie_pert_init(path)
+        character(len=*), intent(in) :: path
+
         integer :: j, k
         real(8) :: x(3)
         complex(8) :: dummy
@@ -285,16 +331,26 @@ module do_magfie_pert_mod
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
-        call boozer_read_pert('in_file_pert') ! TODO: general filename
+        call boozer_read_pert(path)
 
         mph = nfp*modes(1, 1, 2)
 
+        ! Allocate spline coefficient arrays (deallocate first if size changed)
+        if (allocated(spl_coeff1)) then
+            if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
+        end if
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
         end if
 
-        ! Allocate large work arrays once (avoid large automatic arrays on stack)
+        ! Allocate work arrays (deallocate first if size changed)
+        if (allocated(Bmnc)) then
+            if (size(Bmnc) /= nmode) then
+                deallocate(Bmnc)
+                if (allocated(Bmns)) deallocate(Bmns)
+            end if
+        end if
         if (.not. allocated(Bmnc)) then
             allocate(Bmnc(nmode))
             if (ncol2 >= 8) allocate(Bmns(nmode))
@@ -313,8 +369,14 @@ module do_magfie_pert_mod
             end do
         end do
 
-        allocate (spl_val_c(3, nmode))
-        allocate (spl_val_s(3, nmode))
+        ! Allocate cached spline values (deallocate first if size changed)
+        if (allocated(spl_val_c)) then
+            if (size(spl_val_c, 2) /= nmode) deallocate(spl_val_c, spl_val_s)
+        end if
+        if (.not. allocated(spl_val_c)) then
+            allocate (spl_val_c(3, nmode))
+            allocate (spl_val_s(3, nmode))
+        end if
 
         x(1) = s
         x(2) = 0.0
@@ -366,8 +428,15 @@ module do_magfie_pert_mod
         read (18, '(////)')
         read (18, *) mb, nb, nflux, nfp, flux, dummy, dummy
         nmode = (mb + 1)*(nb + 1)
-        if (.not. allocated(params)) allocate (params(nflux, ncol1 + 1))
-        if (.not. allocated(modes)) allocate (modes(nflux, nmode, ncol2 + 2))
+
+        ! Allocate params and modes (deallocate first if size changed)
+        if (allocated(params)) then
+            if (size(params, 1) /= nflux) deallocate(params, modes)
+        end if
+        if (.not. allocated(params)) then
+            allocate (params(nflux, ncol1 + 1))
+            allocate (modes(nflux, nmode, ncol2 + 2))
+        end if
         do ksurf = 1, nflux
             read (18, '(/)')
             read (18, *) params(ksurf, :)

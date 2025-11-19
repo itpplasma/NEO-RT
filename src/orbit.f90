@@ -7,7 +7,7 @@ module neort_orbit
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etatp, etadt, etamin, etamax, epsmn, mth, mph, m0, mth, &
-        init_done, pertfile, magdrift, nonlin, epsst_spl, epssp_spl, epst_spl, epsp_spl, &
+        pertfile, magdrift, nonlin, epsst_spl, epssp_spl, epst_spl, epsp_spl, &
         sign_vpar, sign_vpar_htheta
 
     implicit none
@@ -17,6 +17,7 @@ module neort_orbit
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
+    !$omp threadprivate (th0, noshear)
 
     interface
         subroutine timestep_i(v, eta, neq, t, y, ydot)

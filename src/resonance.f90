@@ -51,6 +51,8 @@ contains
     end function driftorbit_nroot
 
     function driftorbit_root(v, tol, eta_min, eta_max)
+        use logger, only: warning
+
         real(8) :: driftorbit_root(2)
         real(8), intent(in) :: v, tol, eta_min, eta_max
         real(8) :: res, res_old, eta0, eta_old
@@ -61,6 +63,10 @@ contains
         logical :: slope_pos
         real(8) :: resmin, resmax
         real(8) :: eta
+
+        character(len=1024) :: msg
+        character, parameter :: TAB = char(9)
+        character, parameter :: LF = char(10)
 
         maxit = 100
         state = -2
@@ -88,9 +94,10 @@ contains
         end if
 
         if (driftorbit_nroot(v, etamin2, etamax2) == 0) then
-            print *, "ERROR: driftorbit_root couldn't bracket 0 for v/vth = ", v/vth
-            print *, "ERROR: etamin = ", etamin2, " etamax = ", etamax2
-
+            write (msg, "(a,g0,a,g0,a,g0)") &
+                  "driftorbit_root couldn't bracket 0 for v/vth = ", v / vth, LF // &
+                  TAB // "etamin = ", etamin2, ", etamax = ", etamax2
+            call warning(msg)
             return
         end if
 
@@ -119,12 +126,14 @@ contains
         end do
         if (state < 0) then
             driftorbit_root(2) = mph*dOmphdeta + mth*dOmthdeta
-            print *, "ERROR: driftorbit_root did not converge in 100 iterations"
-            print *, "v/vth  = ", v/vth, "mth    = ", mth, "sign_vpar= ", sign_vpar
-            print *, "etamin = ", eta_min, "etamax = ", eta_max, "eta = ", eta
-            print *, "resmin = ", resmin, "resmax = ", resmax, "res = ", res
-            print *, "resold = ", res_old, "res    = ", res
-            print *, "tol = ", tol
+            write (msg, "(a,i0,a,g0,a,i0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0)") &
+                  "driftorbit_root: did not converge within ", maxit, " iterations" // LF // &
+                  TAB // "v/vth = ", v / vth, ", mth = ", mth, ", sign_vpar = ", sign_vpar, LF // &
+                  TAB // "etamin = ", eta_min, ", etamax = ", eta_max, ", eta = ", eta, LF // &
+                  TAB // "resmin = ", resmin, ", resmax = ", resmax, ", res = ", res, LF // &
+                  TAB // "resold = ", res_old, ", res = ", res, LF // &
+                  TAB // "tol = ", tol
+            call warning(msg)
         end if
         eta = eta0
     end function driftorbit_root

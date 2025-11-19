@@ -3,6 +3,8 @@ module thetadata_mod
     integer :: npoiarg, iunitarg = 741
     double precision :: argmin, argstepinv
     double precision, dimension(:), allocatable :: argvals, thetavals
+
+    !$omp threadprivate (prop, npoiarg, iunitarg, argmin, argstepinv, argvals, thetavals)
 end module thetadata_mod
 
 subroutine attenuation_factor(D, Theta)
