@@ -36,26 +36,20 @@ module do_magfie_mod
     integer :: inp_swi = 0 ! type of input file
     contains
 
-    subroutine do_magfie_init(path)
+    subroutine read_boozer_file(path)
+        ! Main thread only: Read Boozer file and prepare shared spline data
+        ! This should be called ONCE before parallel region
         character(len=*), intent(in) :: path
-
-        ! Initializes spline and Fourier coefficients for later evaluation of
-        ! unperturbed axisymmetric magnetic field in do_magfie
         integer :: j, k
-        real(8) :: x(3)
-        real(8) :: bmod
-        real(8) :: sqrtg
-        real(8), dimension(size(x)) :: bder
-        real(8), dimension(size(x)) :: hcovar
-        real(8), dimension(size(x)) :: hctrvr
-        real(8), dimension(size(x)) :: hcurl
 
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
+
+        ! allocates params0, modes0 - SHARED arrays
         call boozer_read(path)
 
-        ! Allocate spline coefficient arrays (deallocate first if size changed)
+        ! Allocate SHARED spline coefficient arrays
         if (allocated(spl_coeff1)) then
             if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
         end if
@@ -64,54 +58,58 @@ module do_magfie_mod
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
         end if
 
-        ! Allocate work arrays (deallocate first if size changed)
-        if (allocated(B0mnc)) then
-            if (size(B0mnc) /= nmode) then
-                deallocate(B0mnc, dB0dsmnc, costerm, sinterm)
-                if (allocated(B0mns)) deallocate(B0mns, dB0dsmns)
-            end if
-        end if
+        do k = 1, ncol1
+            spl_coeff1(:, :, k) = spline_coeff(params0(:, 1), params0(:, k + 1))
+        end do
+
+        do j = 1, nmode
+            do k = 1, ncol2
+                spl_coeff2(:, :, k, j) = spline_coeff(params0(:, 1), modes0(:, j, k + 2))
+            end do
+        end do
+
+        ! Set B00 from first mode
+        B00 = 1.0d4*modes0(1, 1, 6)*bfac
+    end subroutine read_boozer_file
+
+    subroutine init_magfie_at_s()
+        ! Per-thread: Initialize magnetic field at current s value
+        ! Assumes s is already set via set_s()
+        ! Allocates threadprivate working buffers and computes s-dependent values
+        real(8) :: x(3), bmod, sqrtg
+        real(8), dimension(3) :: bder, hcovar, hctrvr, hcurl
+
+        ! Allocate threadprivate working buffers if not already allocated
         if (.not. allocated(B0mnc)) then
             allocate(B0mnc(nmode), dB0dsmnc(nmode))
             if (ncol2 >= 8) allocate(B0mns(nmode), dB0dsmns(nmode))
             allocate(costerm(nmode), sinterm(nmode))
         end if
 
-        if (allocated(rmnc)) then
-            if (size(rmnc) /= nmode) deallocate(rmnc, rmns, zmnc, zmns)
-        end if
         if (.not. allocated(rmnc)) then
             allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
         end if
 
-        B00 = 1.0d4*modes0(1, 1, 6)*bfac
-
-        ! calculate spline coefficients
-        do k = 1, ncol1
-            ! first column is s, so start with second column
-            spl_coeff1(:, :, k) = spline_coeff(params0(:, 1), params0(:, k + 1))
-        end do
-
-        do j = 1, nmode
-            do k = 1, ncol2
-                ! first two columns are mode numbers, so start with third column
-                spl_coeff2(:, :, k, j) = spline_coeff(params0(:, 1), modes0(:, j, k + 2))
-            end do
-        end do
-
-        ! Allocate cached spline values (deallocate first if size changed)
-        if (allocated(spl_val_c)) then
-            if (size(spl_val_c, 2) /= nmode) deallocate(spl_val_c, spl_val_s)
-        end if
         if (.not. allocated(spl_val_c)) then
             allocate (spl_val_c(3, nmode))
             allocate (spl_val_s(3, nmode))
         end if
 
+        ! Initialize cache
+        s_prev = -1.0d0
+
         x(1) = s
         x(2) = 0.0
         x(3) = 0.0
         call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+    end subroutine init_magfie_at_s
+
+    subroutine do_magfie_init(path)
+        ! Backward compatibility wrapper: calls read_boozer_file + init_magfie_at_s
+        character(len=*), intent(in) :: path
+
+        call read_boozer_file(path)
+        call init_magfie_at_s()
     end subroutine do_magfie_init
 
     subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
@@ -309,21 +307,20 @@ module do_magfie_pert_mod
     real(8) :: mph ! toroidal perturbation mode
     contains
 
-    subroutine do_magfie_pert_init(path)
+    subroutine read_boozer_pert_file(path)
+        ! Main thread only: Read perturbation Boozer file and prepare shared spline data
+        ! This should be called ONCE before parallel region
         character(len=*), intent(in) :: path
-
         integer :: j, k
-        real(8) :: x(3)
-        complex(8) :: dummy
 
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
         if (inp_swi == 9) ncol2 = 8 ! ASDEX
+
+        ! allocates params, modes - SHARED arrays
         call boozer_read_pert(path)
 
-        mph = nfp*modes(1, 1, 2)
-
-        ! Allocate spline coefficient arrays (deallocate first if size changed)
+        ! Allocate shared spline coefficient arrays
         if (allocated(spl_coeff1)) then
             if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
         end if
@@ -332,44 +329,53 @@ module do_magfie_pert_mod
             allocate (spl_coeff2(nflux - 1, 5, ncol2, nmode))
         end if
 
-        ! Allocate work arrays (deallocate first if size changed)
-        if (allocated(Bmnc)) then
-            if (size(Bmnc) /= nmode) then
-                deallocate(Bmnc)
-                if (allocated(Bmns)) deallocate(Bmns)
-            end if
-        end if
-        if (.not. allocated(Bmnc)) then
-            allocate(Bmnc(nmode))
-            if (ncol2 >= 8) allocate(Bmns(nmode))
-        end if
-
-        ! calculate spline coefficients
         do k = 1, ncol1
-            ! first column is s, so start with second column
             spl_coeff1(:, :, k) = spline_coeff(params(:, 1), params(:, k + 1))
         end do
 
         do j = 1, nmode
             do k = 1, ncol2
-                ! first two columns are mode numbers, so start with third column
                 spl_coeff2(:, :, k, j) = spline_coeff(params(:, 1), modes(:, j, k + 2))
             end do
         end do
+    end subroutine read_boozer_pert_file
 
-        ! Allocate cached spline values (deallocate first if size changed)
-        if (allocated(spl_val_c)) then
-            if (size(spl_val_c, 2) /= nmode) deallocate(spl_val_c, spl_val_s)
+    subroutine init_magfie_pert_at_s()
+        ! Per-thread: Initialize perturbation field at current s value
+        ! Assumes s is already set via set_s()
+        ! Allocates threadprivate working buffers and computes s-dependent values
+        real(8) :: x(3)
+        complex(8) :: dummy
+
+        ! Allocate threadprivate working buffers if not already allocated
+        if (.not. allocated(Bmnc)) then
+            allocate(Bmnc(nmode))
+            if (ncol2 >= 8) allocate(Bmns(nmode))
         end if
+
         if (.not. allocated(spl_val_c)) then
             allocate (spl_val_c(3, nmode))
             allocate (spl_val_s(3, nmode))
         end if
 
+        ! Initialize cache
+        s_prev = -1.0d0
+
+        ! Compute mph at current s
+        mph = nfp*modes(1, 1, 2)
+
         x(1) = s
         x(2) = 0.0
         x(3) = 0.0
         call do_magfie_pert_amp(x, dummy)
+    end subroutine init_magfie_pert_at_s
+
+    subroutine do_magfie_pert_init(path)
+        ! Backward compatibility wrapper: calls read_boozer_pert_file + init_magfie_pert_at_s
+        character(len=*), intent(in) :: path
+
+        call read_boozer_pert_file(path)
+        call init_magfie_pert_at_s()
     end subroutine do_magfie_pert_init
 
     subroutine do_magfie_pert_amp(x, bamp)
