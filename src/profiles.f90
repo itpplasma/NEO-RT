@@ -25,6 +25,14 @@ module neort_profiles
     !$omp threadprivate (ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds)
     !$omp threadprivate (A1, A2)
 
+    ! Plasma profile spline data
+    integer :: nplasma_global = 0
+    real(dp) :: am1_global = 0d0, am2_global = 0d0, Z1_global = 0d0, Z2_global = 0d0
+    real(dp), allocatable :: plasma_spl_coeff(:,:,:)
+
+    ! Rotation profile spline data
+    real(dp), allocatable :: Mt_spl_coeff(:,:)
+
 contains
 
     subroutine init_profiles(R0)
@@ -35,6 +43,76 @@ contains
         Om_tE = vth * M_t / R0  ! toroidal ExB drift frequency
         dOm_tEds = 0d0
     end subroutine init_profiles
+
+    subroutine prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma)
+        ! Main thread only: Prepare shared spline coefficients from plasma data
+        ! This should be called ONCE before parallel region
+        integer, intent(in) :: nplasma
+        real(dp), intent(in) :: am1, am2, Z1, Z2
+        real(dp), intent(in) :: plasma(:, :)
+
+        integer, parameter :: NCOL = 6
+        integer :: k
+
+        nplasma_global = nplasma
+        am1_global = am1
+        am2_global = am2
+        Z1_global = Z1
+        Z2_global = Z2
+
+        ! Allocate and compute spline coefficients (SHARED)
+        if (allocated(plasma_spl_coeff)) deallocate(plasma_spl_coeff)
+        allocate (plasma_spl_coeff(nplasma - 1, 5, NCOL))
+
+        do k = 1, 5
+            plasma_spl_coeff(:, :, k) = spline_coeff(plasma(:, 1), plasma(:, k + 1))
+        end do
+    end subroutine prepare_plasma_splines
+
+    subroutine init_plasma_at_s()
+        ! Per-thread: Interpolate plasma profiles at current s value
+        ! Assumes s is already set via set_s() and prepare_plasma_splines() was called
+        use do_magfie_mod, only: s
+        real(dp) :: spl_val(3)
+        real(dp), parameter :: pmass = 1.6726d-24
+        real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
+        real(dp) :: v0, ebeam
+
+        spl_val = spline_val_0(plasma_spl_coeff(:, :, 1), s)
+        ni1 = spl_val(1)
+        dni1ds = spl_val(2)
+
+        spl_val = spline_val_0(plasma_spl_coeff(:, :, 2), s)
+        ni2 = spl_val(1)
+        dni2ds = spl_val(2)
+
+        spl_val = spline_val_0(plasma_spl_coeff(:, :, 3), s)
+        Ti1 = spl_val(1)
+        dTi1ds = spl_val(2)
+
+        spl_val = spline_val_0(plasma_spl_coeff(:, :, 4), s)
+        Ti2 = spl_val(1)
+        dTi2ds = spl_val(2)
+
+        spl_val = spline_val_0(plasma_spl_coeff(:, :, 5), s)
+        Te = spl_val(1)
+        dTeds = spl_val(2)
+
+        ! Compute derived quantities
+        qi = Z1_global*qe
+        mi = am1_global*mu
+        vth = sqrt(2d0*Ti1*ev/mi)
+        dvthds = 0.5d0*sqrt(2d0*ev/(mi*Ti1))*dTi1ds
+
+        ! Call collision routine
+        v0 = vth
+        amb = 2d0
+        Zb = 1d0
+        ebeam = amb*pmass*v0**2/(2d0*ev)
+        call loacol_nbi(amb, am1_global, am2_global, Zb, Z1_global, Z2_global, &
+                        ni1, ni2, Ti1, Ti2, Te, ebeam, v0, &
+                        dchichi, slowrate, dchichi_norm, slowrate_norm)
+    end subroutine init_plasma_at_s
 
     subroutine read_plasma_input(path, nplasma, am1, am2, Z1, Z2, plasma)
         character(len=*), intent(in) :: path
@@ -111,19 +189,58 @@ contains
         deallocate(spl_coeff)
     end subroutine init_plasma_input
 
-    subroutine read_and_init_plasma_input(path, s)
+    subroutine read_and_init_plasma_input(path, s_in)
+        ! Backward compatibility wrapper: Read plasma file and initialize at given s
+        ! This combines read_plasma_input, prepare_plasma_splines, and init_plasma_at_s
+        use do_magfie_mod, only: s
         character(len=*), intent(in) :: path
-        real(dp), intent(in) :: s
+        real(dp), intent(in) :: s_in
 
         integer :: nplasma
         real(dp) :: am1, am2, Z1, Z2
         real(dp), allocatable :: plasma(:, :)
 
-        call read_plasma_input(path, nplasma, am1, am2, Z1, Z2, plasma)  ! allocates plasma
-        call init_plasma_input(s, nplasma, am1, am2, Z1, Z2, plasma)
+        call read_plasma_input(path, nplasma, am1, am2, Z1, Z2, plasma)
+
+        ! Prepare shared spline coefficients (main thread)
+        call prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma)
+
+        s = s_in
+        call init_plasma_at_s()
 
         deallocate (plasma)
     end subroutine read_and_init_plasma_input
+
+    subroutine prepare_profile_splines(data)
+        ! Main thread only: Prepare shared spline coefficients from rotation profile data
+        ! This should be called ONCE before parallel region
+        real(8), intent(in) :: data(:, :)
+
+        ! Deallocate if already allocated
+        if (allocated(Mt_spl_coeff)) deallocate(Mt_spl_coeff)
+
+        ! Allocate and compute spline coefficients (SHARED)
+        allocate (Mt_spl_coeff(size(data, 1), 5))
+        Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
+    end subroutine prepare_profile_splines
+
+    subroutine init_profile_at_s(R0, efac, bfac)
+        ! Per-thread: Interpolate rotation profile at current s value
+        ! Assumes s is already set and prepare_profile_splines() was called
+        use do_magfie_mod, only: s
+        real(8), intent(in) :: R0, efac, bfac
+        real(8) :: splineval(3)
+
+        ! Interpolate M_t at s (writes threadprivate variables)
+        splineval = spline_val_0(Mt_spl_coeff, s)
+
+        M_t = splineval(1)*efac/bfac
+        dM_tds = splineval(2)*efac/bfac
+
+        ! Compute ExB drift frequency (same functionality as init_profiles)
+        Om_tE = vth*M_t/R0
+        dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
+    end subroutine init_profile_at_s
 
     subroutine init_profile_input(s, R0, efac, bfac, data)
         ! Init s profile for finite orbit width boxes in radial s
@@ -131,14 +248,14 @@ contains
         real(8), allocatable, intent(in) :: data(:, :)
 
         ! For splining electric precession frequency
-        real(8), allocatable :: Mt_spl_coeff(:, :)
+        real(8), allocatable :: local_Mt_spl_coeff(:, :)
 
         real(8) :: splineval(3)
 
-        allocate (Mt_spl_coeff(size(data(:, 1)), 5))
+        allocate (local_Mt_spl_coeff(size(data(:, 1)), 5))
 
-        Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
-        splineval = spline_val_0(Mt_spl_coeff, s)
+        local_Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
+        splineval = spline_val_0(local_Mt_spl_coeff, s)
 
         M_t = splineval(1)*efac/bfac
         dM_tds = splineval(2)*efac/bfac
@@ -147,18 +264,25 @@ contains
         Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
-        deallocate(Mt_spl_coeff)
+        deallocate(local_Mt_spl_coeff)
     end subroutine init_profile_input
 
-    subroutine read_and_init_profile_input(path, s, R0, efac, bfac)
+    subroutine read_and_init_profile_input(path, s_in, R0, efac, bfac)
+        ! Backward compatibility wrapper: Read profile file and initialize at given s
+        ! This combines readdata, prepare_profile_splines, and init_profile_at_s
+        use do_magfie_mod, only: s
         character(len=*), intent(in) :: path
-        real(8), intent(in) :: s, R0, efac, bfac
+        real(8), intent(in) :: s_in, R0, efac, bfac
 
         real(8), allocatable :: data(:, :)
 
-        ! note: only the first two columns are needed
         call readdata(path, 2, data)  ! allocates data
-        call init_profile_input(s, R0, efac, bfac, data)
+
+        ! Prepare shared spline coefficients (main thread)
+        call prepare_profile_splines(data)
+
+        s = s_in
+        call init_profile_at_s(R0, efac, bfac)
 
         deallocate (data)
     end subroutine read_and_init_profile_input
