@@ -33,13 +33,17 @@ module do_magfie_mod
 
     integer :: inp_swi ! type of input file
 
+    ! Working buffers (per-thread cache and temporary arrays)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
     !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
+    !$omp threadprivate (rmnc, rmns, zmnc, zmns)
+
+    ! Flux-surface dependent quantities (computed per-thread for each s)
     !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
-    !$omp threadprivate (q, dqds, iota, R0, a, eps, B0h, B00)
-    !$omp threadprivate (bfac, params0, modes0, m0b, n0b, nflux, nfp, nmode)
-    !$omp threadprivate (spl_coeff1, spl_coeff2, rmnc, rmns, zmnc, zmns)
-    !$omp threadprivate (ncol1, ncol2, inp_swi)
+    !$omp threadprivate (q, dqds, iota, R0, eps, B0h)
+
+    ! Shared data (NOT threadprivate): bfac, params0, modes0, m0b, n0b, nflux,
+    ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00
 
     contains
 
@@ -315,9 +319,14 @@ module do_magfie_pert_mod
     integer :: ncol1, ncol2 ! number of columns in input file
     real(8) :: mph ! toroidal perturbation mode
 
+    ! Working buffers (per-thread cache and temporary arrays)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s, Bmnc, Bmns)
-    !$omp threadprivate (params, modes, mb, nb, nflux, nfp, nmode)
-    !$omp threadprivate (spl_coeff1, spl_coeff2, ncol1, ncol2, mph)
+
+    ! Flux-surface dependent quantities
+    !$omp threadprivate (mph)
+
+    ! Shared data (NOT threadprivate): params, modes, mb, nb, nflux, nfp, nmode,
+    ! spl_coeff1, spl_coeff2, ncol1, ncol2
 
     contains
 

@@ -20,7 +20,7 @@ module neort
     ! Logging / debugging
     integer :: log_level = LOG_INFO
 
-    !$omp threadprivate (runname, vsteps, log_level)
+    ! Shared read-only configuration (NOT threadprivate): runname, vsteps, log_level
 
 contains
 
