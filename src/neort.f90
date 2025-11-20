@@ -20,6 +20,8 @@ module neort
     ! Logging / debugging
     integer :: log_level = LOG_INFO
 
+    ! Shared read-only configuration (NOT threadprivate): runname, vsteps, log_level
+
 contains
 
     subroutine main

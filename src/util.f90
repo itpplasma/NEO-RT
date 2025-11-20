@@ -19,6 +19,10 @@ module util
         eV = 1.602176d-12          ! 1 electron volt
 
     real(8), public :: qi = 1d0*qe, mi = 2.014d0*mu
+
+    ! Flux-surface dependent (set from plasma data at each s)
+    !$omp threadprivate (qi, mi)
+
 contains
 
     subroutine disp(str, val)
