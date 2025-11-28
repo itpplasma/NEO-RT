@@ -44,6 +44,8 @@ endif()
 
 include(Util)
 
+set(BUILD_TESTING OFF CACHE BOOL "Disable tests for dependencies" FORCE)
+
 find_or_fetch(spline)
 find_or_fetch(vode)
 
@@ -104,6 +106,7 @@ set(NEO_RT_SOURCES
   src/nonlin.f90
   src/transport.f90
   src/neort.f90
+  src/neort_datatypes.f90
 )
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
@@ -113,7 +116,7 @@ if(USE_STANDALONE)
     ${NEO_RT_SOURCES}
     src/do_magfie_standalone.f90
   )
-  add_library(util_for_test STATIC test/util_for_test.f90)
+  add_library("util_for_test_${PROJECT_NAME}" STATIC test/util_for_test.f90)
 else()
   find_or_fetch(NEO-2)
   add_library("neo_rt" STATIC

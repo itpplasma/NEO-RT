@@ -7,7 +7,7 @@ module neort_orbit
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etatp, etadt, etamin, etamax, epsmn, mth, mph, m0, mth, &
-        init_done, pertfile, magdrift, nonlin, epsst_spl, epssp_spl, epst_spl, epsp_spl, &
+        pertfile, magdrift, nonlin, epsst_spl, epssp_spl, epst_spl, epsp_spl, &
         sign_vpar, sign_vpar_htheta
 
     implicit none
@@ -17,6 +17,7 @@ module neort_orbit
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
+    !$omp threadprivate (th0, noshear)
 
     interface
         subroutine timestep_i(v, eta, neq, t, y, ydot)
@@ -170,8 +171,8 @@ contains
         atol = 1d-10
         itask = 1
         istate = 1
-        options = set_normal_opts(abserr_vector=atol, relerr=rtol)
 
+        options = set_normal_opts(abserr_vector=atol, relerr=rtol)
         call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
         if (istate == -1) then
             call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
@@ -277,7 +278,6 @@ contains
         atol = 1d-10
         itask = 1
         istate = 1
-        options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
 
         ! check for passing orbit
         passing = .false.
@@ -300,6 +300,9 @@ contains
             told = ti
 
             tout = ti + dt
+            if (istate == 1) then
+                options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
+            end if
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
             if (istate == -1) then

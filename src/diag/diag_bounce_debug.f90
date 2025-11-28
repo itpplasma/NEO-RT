@@ -1,8 +1,9 @@
 module diag_bounce_debug
   use iso_fortran_env, only: real64
-  use neort, only: read_control, init, check_magfie, runname => runname, &
-                   set_to_passing_region, set_to_trapped_region, vsteps
-  use neort_profiles, only: init_profile_input, init_plasma_input, init_profiles, vth, Om_tE
+  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, &
+                   set_to_passing_region, set_to_trapped_region, vsteps, runname
+  use neort_datatypes, only: magfie_data_t
+  use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
   use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport
   use neort_orbit, only: nvar
@@ -28,22 +29,24 @@ contains
     integer :: istate
     integer :: istats(50)
     real(real64) :: rstats(50)
+    type(magfie_data_t) :: magfie_data
 
     ! Initialize environment just like main
     runname = trim(arg_runname)
-    call read_control
-    call do_magfie_init()
-    if (pertfile) call do_magfie_pert_init()
+    call read_and_set_control(runname)
+    call do_magfie_init("in_file")
+    if (pertfile) call do_magfie_pert_init("in_file_pert")
     call init_profiles(R0)
 
     inquire(file="plasma.in", exist=file_exists)
-    if (file_exists) call init_plasma_input(s)
+    if (file_exists) call read_and_init_plasma_input("plasma.in", s)
 
     inquire(file="profile.in", exist=file_exists)
-    if (file_exists) call init_profile_input(s, R0, efac, bfac)
+    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, efac, bfac)
 
     call init
-    call check_magfie
+    call check_magfie(magfie_data)
+    call write_magfie_data_to_files(magfie_data, runname)
 
     vminp = 1.0d-6*vth
     vmaxp = 3.0d0*vth
@@ -152,4 +155,3 @@ contains
   end subroutine probe_bounce
 
 end module diag_bounce_debug
-
