@@ -68,6 +68,7 @@ contains
 
     subroutine read_and_set_control(base_path)  ! set global control parameters directly from file
         use driftorbit
+        use do_magfie_pert_mod, only: set_mph
 
         character(len=*), intent(in) :: base_path
         real(8) :: qs, ms
@@ -82,6 +83,7 @@ contains
         M_t = M_t*efac/bfac
         qi = qs*qe
         mi = ms*mu
+        call set_mph(mph)
         call set_log_level(log_level)
     end subroutine read_and_set_control
 

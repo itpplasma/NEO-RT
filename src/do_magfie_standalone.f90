@@ -317,7 +317,8 @@ module do_magfie_pert_mod
     real(8), private, allocatable :: Bmnc(:), Bmns(:)
 
     integer :: ncol1, ncol2 ! number of columns in input file
-    real(8) :: mph ! toroidal perturbation mode
+    real(8) :: mph ! toroidal perturbation mode (threadprivate)
+    real(8) :: mph_shared = 0d0 ! shared copy for namelist input (when pertfile=.false.)
 
     ! Working buffers (per-thread cache and temporary arrays)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s, Bmnc, Bmns)
@@ -326,7 +327,7 @@ module do_magfie_pert_mod
     !$omp threadprivate (mph)
 
     ! Shared data (NOT threadprivate): params, modes, mb, nb, nflux, nfp, nmode,
-    ! spl_coeff1, spl_coeff2, ncol1, ncol2
+    ! spl_coeff1, spl_coeff2, ncol1, ncol2, mph_shared
 
     contains
 
@@ -392,6 +393,16 @@ module do_magfie_pert_mod
         x(3) = 0.0
         call do_magfie_pert_amp(x, dummy)
     end subroutine init_magfie_pert_at_s
+
+    subroutine set_mph(mph_value)
+        real(8), intent(in) :: mph_value
+        mph = mph_value
+        mph_shared = mph_value
+    end subroutine set_mph
+
+    subroutine init_mph_from_shared()
+        mph = mph_shared
+    end subroutine init_mph_from_shared
 
     subroutine do_magfie_pert_init(path)
         ! Backward compatibility wrapper: calls read_boozer_pert_file + init_magfie_pert_at_s
