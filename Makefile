@@ -32,7 +32,7 @@ build: configure
 test: ctest pytest
 
 ctest: build
-	cd $(BUILD_DIR) && ctest
+	cd $(BUILD_DIR) && ctest --rerun-failed --output-on-failure
 
 pytest: build
 	cd test/ripple_plateau && python3 test_ripple_plateau.py
