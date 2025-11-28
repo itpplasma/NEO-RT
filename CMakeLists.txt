@@ -44,6 +44,8 @@ endif()
 
 include(Util)
 
+set(BUILD_TESTING OFF CACHE BOOL "Disable tests for dependencies" FORCE)
+
 find_or_fetch(spline)
 find_or_fetch(vode)
 

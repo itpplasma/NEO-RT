@@ -10,3 +10,8 @@ add_test(NAME test_timestep
     COMMAND test_timestep.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_test(NAME test_parallel
+    COMMAND ${CMAKE_BINARY_DIR}/test_parallel.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)

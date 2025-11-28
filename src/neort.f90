@@ -68,6 +68,7 @@ contains
 
     subroutine read_and_set_control(base_path)  ! set global control parameters directly from file
         use driftorbit
+        use do_magfie_pert_mod, only: set_mph
 
         character(len=*), intent(in) :: base_path
         real(8) :: qs, ms
@@ -82,6 +83,7 @@ contains
         M_t = M_t*efac/bfac
         qi = qs*qe
         mi = ms*mu
+        call set_mph(mph)
         call set_log_level(log_level)
     end subroutine read_and_set_control
 
@@ -90,6 +92,7 @@ contains
                            vsteps_, log_level_)  ! explicitly pass parameters to set
         use iso_fortran_env, only: dp => real64
         use driftorbit
+        use do_magfie_pert_mod, only: set_mph
 
         real(8), intent(in) :: s_, qs_, ms_, epsmn_, mph_, bfac_, efac_
         real(dp), intent(in) :: M_t_, vth_
@@ -101,7 +104,7 @@ contains
         vth = vth_
         epsmn = epsmn_
         m0 = m0_
-        mph = mph_
+        call set_mph(mph_)
         comptorque = comptorque_
         magdrift = magdrift_
         nopassing = nopassing_
