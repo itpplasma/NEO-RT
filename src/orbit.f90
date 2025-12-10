@@ -172,7 +172,7 @@ contains
         itask = 1
         istate = 1
 
-        options = set_normal_opts(abserr_vector=atol, relerr=rtol)
+        options = set_opts(method_flag=10, abserr_vector=atol, relerr=rtol, mxstep=50000)
         call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
         if (istate == -1) then
             call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
@@ -300,7 +300,7 @@ contains
 
             tout = ti + dt
             if (istate == 1) then
-                options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=2)
+                options = set_opts(method_flag=10, abserr_vector=atol, relerr=rtol, nevents=2, mxstep=50000)
             end if
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
                         g_fcn=bounceroots)
