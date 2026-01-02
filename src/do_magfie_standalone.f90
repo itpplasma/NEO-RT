@@ -13,8 +13,10 @@ module do_magfie_mod
 
     real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
 
-    real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, &
-                       q, dqds, iota, R0, a, eps, B0h, B00
+    real(8) :: s = 0d0, psi_pr = 0d0, Bthcov = 0d0, Bphcov = 0d0, &
+                       dBthcovds = 0d0, dBphcovds = 0d0, &
+                       q = 0d0, dqds = 0d0, iota = 0d0, R0 = 0d0, a = 0d0, &
+                       eps = 0d0, B0h = 0d0, B00 = 0d0
     real(8) :: bfac = 1.0d0
     ! B0h is the 0th theta harmonic of bmod on current flux surface
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
@@ -29,9 +31,9 @@ module do_magfie_mod
     real(8), parameter :: ItoB = 2.0d-1*sign_theta ! Covarient B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
 
-    integer :: ncol1, ncol2 ! number of columns in input file
+    integer :: ncol1 = 0, ncol2 = 0 ! number of columns in input file
 
-    integer :: inp_swi ! type of input file
+    integer :: inp_swi = 0 ! type of input file
     contains
 
     subroutine do_magfie_init

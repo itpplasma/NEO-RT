@@ -26,15 +26,15 @@ module driftorbit
     logical :: comptorque = .true.    ! compute torque
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
-    real(8) :: dVds, etadt, etatp
-    real(8) :: etamin, etamax
+    real(8) :: dVds = 0d0, etadt = 0d0, etatp = 0d0
+    real(8) :: etamin = 0d0, etamax = 0d0
 
     ! Check if init is done
-    logical :: init_done
+    logical :: init_done = .false.
 
     ! TODO: better B0 calculation (average magnetic field on flux surface)
-    real(8) :: B0
-    real(8) :: Bmin, Bmax
+    real(8) :: B0 = 0d0
+    real(8) :: Bmin = 0d0, Bmax = 0d0
 
     real(8), parameter :: epst_spl = 1d-6, epsp_spl = 1d-6   ! dist to tpb for spline
     real(8), parameter :: epsst_spl = 1d-3, epssp_spl = 1d-3 ! dist to deep for spline

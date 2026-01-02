@@ -13,7 +13,7 @@ module neort_orbit
     implicit none
 
     integer, parameter :: nvar = 7
-    real(8) :: th0
+    real(8) :: th0 = 0d0
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
@@ -390,6 +390,7 @@ contains
         ydot(1) = y(2)*hctrvr(3)                                    ! theta
         ydot(2) = -0.5d0*v**2*eta*hctrvr(3)*hder(3)*bmod            ! v_par
         ydot(3) = Om_tB_v  ! for bounce average of Om_tB/v**2
+        ydot(4:) = 0d0     ! remaining integrands not computed here
     end subroutine timestep
 
 end module neort_orbit
