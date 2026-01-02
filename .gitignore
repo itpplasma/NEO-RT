@@ -54,3 +54,5 @@ callgrind.out.*
 callgraph.dot
 gprofout.txt
 .claude/
+__pycache__/
+.pytest_cache/
