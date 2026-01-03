@@ -38,8 +38,13 @@ module do_magfie_mod
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_arrays_initialized = .false.
 
+    ! Magic sentinel for auto-initializing threadprivate state in worker threads
+    ! DATA/initializers don't run in worker threads, so we use a magic value
+    integer, parameter :: MAGFIE_INIT_SENTINEL = 314159265
+    integer, save :: magfie_thread_init_state = 0
+
     ! Working buffers (per-thread cache and temporary arrays)
-    !$omp threadprivate (magfie_arrays_initialized)
+    !$omp threadprivate (magfie_arrays_initialized, magfie_thread_init_state)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
     !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
     !$omp threadprivate (rmnc, rmns, zmnc, zmns)
@@ -51,7 +56,15 @@ module do_magfie_mod
     ! Shared data (NOT threadprivate): bfac, params0, modes0, m0b, n0b, nflux,
     ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00, psi_pr, R0
 
-    contains
+contains
+
+    subroutine magfie_thread_init()
+        ! Initialize threadprivate variables for this thread
+        ! Must be called once per thread before using magfie routines
+        magfie_arrays_initialized = .false.
+        s_prev = -1.0d0
+    end subroutine magfie_thread_init
+
 
     subroutine read_boozer_file(path)
         ! Main thread only: Read Boozer file and prepare shared spline data
@@ -95,6 +108,13 @@ module do_magfie_mod
         ! Allocates threadprivate working buffers and computes s-dependent values
         real(8) :: x(3), bmod, sqrtg
         real(8), dimension(3) :: bder, hcovar, hctrvr, hcurl
+
+        ! Auto-initialize threadprivate state if not yet done for this thread
+        ! (DATA/initializers don't run in worker threads)
+        if (magfie_thread_init_state /= MAGFIE_INIT_SENTINEL) then
+            call magfie_thread_init()
+            magfie_thread_init_state = MAGFIE_INIT_SENTINEL
+        end if
 
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
         if (.not. magfie_arrays_initialized) then
@@ -338,8 +358,12 @@ module do_magfie_pert_mod
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_pert_arrays_initialized = .false.
 
+    ! Magic sentinel for auto-initializing threadprivate state in worker threads
+    integer, parameter :: MAGFIE_PERT_INIT_SENTINEL = 271828182
+    integer, save :: magfie_pert_thread_init_state = 0
+
     ! Working buffers (per-thread cache and temporary arrays)
-    !$omp threadprivate (magfie_pert_arrays_initialized)
+    !$omp threadprivate (magfie_pert_arrays_initialized, magfie_pert_thread_init_state)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s, Bmnc, Bmns)
 
     ! Flux-surface dependent quantities
@@ -348,7 +372,14 @@ module do_magfie_pert_mod
     ! Shared data (NOT threadprivate): params, modes, mb, nb, nflux, nfp, nmode,
     ! spl_coeff1, spl_coeff2, ncol1, ncol2, mph_shared
 
-    contains
+contains
+
+    subroutine magfie_pert_thread_init()
+        ! Initialize threadprivate variables for this thread
+        ! Must be called once per thread before using magfie_pert routines
+        magfie_pert_arrays_initialized = .false.
+        s_prev = -1.0d0
+    end subroutine magfie_pert_thread_init
 
     subroutine read_boozer_pert_file(path)
         ! Main thread only: Read perturbation Boozer file and prepare shared spline data
@@ -362,6 +393,9 @@ module do_magfie_pert_mod
 
         ! allocates params, modes - SHARED arrays
         call boozer_read_pert(path)
+
+        ! Update mph_shared from perturbation file (for use in parallel regions)
+        mph_shared = nfp*modes(1, 1, 2)
 
         ! Allocate shared spline coefficient arrays
         if (allocated(spl_coeff1)) then
@@ -389,6 +423,12 @@ module do_magfie_pert_mod
         ! Allocates threadprivate working buffers and computes s-dependent values
         real(8) :: x(3)
         complex(8) :: dummy
+
+        ! Auto-initialize threadprivate state if not yet done for this thread
+        if (magfie_pert_thread_init_state /= MAGFIE_PERT_INIT_SENTINEL) then
+            call magfie_pert_thread_init()
+            magfie_pert_thread_init_state = MAGFIE_PERT_INIT_SENTINEL
+        end if
 
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
         if (.not. magfie_pert_arrays_initialized) then
