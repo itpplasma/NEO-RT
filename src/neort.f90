@@ -97,7 +97,8 @@ contains
 
     subroutine init
         use do_magfie_mod, only: psi_pr, q
-        use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque
+        use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque, nonlin
+        use thetadata_mod, only: init_attenuation_data
 
         call debug('init')
         call init_flux_surface_average(s)
@@ -106,6 +107,7 @@ contains
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
+        if (nonlin) call init_attenuation_data()
         call debug('init complete')
     end subroutine init
 

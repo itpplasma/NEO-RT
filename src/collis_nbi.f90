@@ -1,9 +1,10 @@
 
 module collis_alp
     integer, parameter :: nsorts = 3, ns = 10000
-    integer :: iswmod
     logical :: swcoll = .false.
     double precision, dimension(nsorts) :: efcolf, velrat, enrat
+
+    !$omp threadprivate (swcoll, efcolf, velrat, enrat)
 
 contains
 
