@@ -28,6 +28,7 @@ contains
         use do_magfie_mod, only: R0, bfac, do_magfie_init
         use do_magfie_pert_mod, only: do_magfie_pert_init
         use driftorbit, only: pertfile, nonlin, comptorque, efac
+        use thetadata_mod, only: init_attenuation_data
 
         logical :: file_exists
         type(magfie_data_t) :: magfie_data
@@ -43,6 +44,7 @@ contains
         call do_magfie_init(boozer_file)  ! init axisymmetric part of field from infile
         if (pertfile) call do_magfie_pert_init(boozer_pert_file)  ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_profiles(R0)
+        if (nonlin) call init_attenuation_data()  ! must be before any parallel region
 
         inquire(file=plasma_file, exist=file_exists)
         if (file_exists) then
@@ -97,8 +99,7 @@ contains
 
     subroutine init
         use do_magfie_mod, only: psi_pr, q
-        use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque, nonlin
-        use thetadata_mod, only: init_attenuation_data
+        use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque
 
         call debug('init')
         call init_flux_surface_average(s)
@@ -107,7 +108,6 @@ contains
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
-        if (nonlin) call init_attenuation_data()
         call debug('init complete')
     end subroutine init
 

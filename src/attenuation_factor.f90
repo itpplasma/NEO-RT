@@ -11,7 +11,8 @@ module thetadata_mod
 contains
 
     subroutine init_attenuation_data()
-        ! Read attenuation factor data from file once (call before parallel region)
+        ! Read attenuation factor data from file once
+        ! MUST be called BEFORE any parallel region
         integer, parameter :: iunitarg = 741
         integer :: i
         double precision :: arglog, theta_val

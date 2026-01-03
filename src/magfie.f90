@@ -4,6 +4,7 @@ module neort_magfie
     use neort_orbit, only: th0
     use driftorbit, only: B0, Bmin, Bmax, etadt, etatp, dVds
     use logger, only: log_result
+    use dvode_f90_m, only: vode_thread_init
 
     implicit none
 
@@ -17,6 +18,9 @@ contains
         real(8) :: thrange(nth), dth
         real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         character(len=256) :: buffer
+
+        ! Initialize DVODE threadprivate variables for this thread
+        call vode_thread_init()
 
         write(buffer, "(A,ES12.5)") "        s: ", s
         call log_result(buffer)
