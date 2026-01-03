@@ -35,17 +35,21 @@ module do_magfie_mod
 
     integer :: inp_swi = 0 ! type of input file
 
+    ! Initialization flag for threadprivate allocatable arrays
+    logical, save :: magfie_arrays_initialized = .false.
+
     ! Working buffers (per-thread cache and temporary arrays)
+    !$omp threadprivate (magfie_arrays_initialized)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
     !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
     !$omp threadprivate (rmnc, rmns, zmnc, zmns)
 
     ! Flux-surface dependent quantities (computed per-thread for each s)
-    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
-    !$omp threadprivate (q, dqds, iota, R0, eps, B0h)
+    !$omp threadprivate (s, Bthcov, Bphcov, dBthcovds, dBphcovds)
+    !$omp threadprivate (q, dqds, iota, eps, B0h)
 
     ! Shared data (NOT threadprivate): bfac, params0, modes0, m0b, n0b, nflux,
-    ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00
+    ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00, psi_pr, R0
 
     contains
 
@@ -92,20 +96,31 @@ module do_magfie_mod
         real(8) :: x(3), bmod, sqrtg
         real(8), dimension(3) :: bder, hcovar, hctrvr, hcurl
 
-        ! Allocate threadprivate working buffers if not already allocated
-        if (.not. allocated(B0mnc)) then
+        ! Allocate threadprivate working buffers (safe for undefined allocation status)
+        if (.not. magfie_arrays_initialized) then
+            if (allocated(B0mnc)) deallocate(B0mnc)
+            if (allocated(dB0dsmnc)) deallocate(dB0dsmnc)
             allocate(B0mnc(nmode), dB0dsmnc(nmode))
-            if (ncol2 >= 8) allocate(B0mns(nmode), dB0dsmns(nmode))
+            if (ncol2 >= 8) then
+                if (allocated(B0mns)) deallocate(B0mns)
+                if (allocated(dB0dsmns)) deallocate(dB0dsmns)
+                allocate(B0mns(nmode), dB0dsmns(nmode))
+            end if
+            if (allocated(costerm)) deallocate(costerm)
+            if (allocated(sinterm)) deallocate(sinterm)
             allocate(costerm(nmode), sinterm(nmode))
-        end if
 
-        if (.not. allocated(rmnc)) then
+            if (allocated(rmnc)) deallocate(rmnc)
+            if (allocated(rmns)) deallocate(rmns)
+            if (allocated(zmnc)) deallocate(zmnc)
+            if (allocated(zmns)) deallocate(zmns)
             allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
-        end if
 
-        if (.not. allocated(spl_val_c)) then
-            allocate (spl_val_c(3, nmode))
-            allocate (spl_val_s(3, nmode))
+            if (allocated(spl_val_c)) deallocate(spl_val_c)
+            if (allocated(spl_val_s)) deallocate(spl_val_s)
+            allocate(spl_val_c(3, nmode), spl_val_s(3, nmode))
+
+            magfie_arrays_initialized = .true.
         end if
 
         ! Initialize cache
@@ -320,7 +335,11 @@ module do_magfie_pert_mod
     real(8) :: mph ! toroidal perturbation mode (threadprivate)
     real(8) :: mph_shared = 0d0 ! shared copy for namelist input (when pertfile=.false.)
 
+    ! Initialization flag for threadprivate allocatable arrays
+    logical, save :: magfie_pert_arrays_initialized = .false.
+
     ! Working buffers (per-thread cache and temporary arrays)
+    !$omp threadprivate (magfie_pert_arrays_initialized)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s, Bmnc, Bmns)
 
     ! Flux-surface dependent quantities
@@ -371,15 +390,20 @@ module do_magfie_pert_mod
         real(8) :: x(3)
         complex(8) :: dummy
 
-        ! Allocate threadprivate working buffers if not already allocated
-        if (.not. allocated(Bmnc)) then
+        ! Allocate threadprivate working buffers (safe for undefined allocation status)
+        if (.not. magfie_pert_arrays_initialized) then
+            if (allocated(Bmnc)) deallocate(Bmnc)
             allocate(Bmnc(nmode))
-            if (ncol2 >= 8) allocate(Bmns(nmode))
-        end if
+            if (ncol2 >= 8) then
+                if (allocated(Bmns)) deallocate(Bmns)
+                allocate(Bmns(nmode))
+            end if
 
-        if (.not. allocated(spl_val_c)) then
-            allocate (spl_val_c(3, nmode))
-            allocate (spl_val_s(3, nmode))
+            if (allocated(spl_val_c)) deallocate(spl_val_c)
+            if (allocated(spl_val_s)) deallocate(spl_val_s)
+            allocate(spl_val_c(3, nmode), spl_val_s(3, nmode))
+
+            magfie_pert_arrays_initialized = .true.
         end if
 
         ! Initialize cache

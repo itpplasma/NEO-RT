@@ -26,6 +26,9 @@ subroutine attenuation_factor(D, Theta)
             npoiarg = npoiarg + 1
         end do
 1       close (iunitarg)
+        ! Safe deallocation for threadprivate arrays with undefined allocation status
+        if (allocated(argvals)) deallocate(argvals)
+        if (allocated(thetavals)) deallocate(thetavals)
         allocate (argvals(npoiarg), thetavals(npoiarg))
         open (iunitarg, file='thetafun_inp.dat', action='read', status='old')
         do i = 1, npoiarg
