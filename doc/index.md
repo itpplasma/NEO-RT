@@ -47,6 +47,7 @@ Column definitions and units are tabulated in [Output file formats](file_formats
 ## Further reading
 
 - [Running NEO-RT](running.md) – Complete workflow for preparing inputs, executing runs, and collecting results.
+- [Library Interface](library.md) – Using NEO-RT as a library for embedding transport calculations in other codes.
 - `src/diag/*.f90` – Diagnostics drivers linked by `neo_rt_diag.x` for harmonic inspection and attenuation studies.
 - `examples/` – Sample input decks and Python utilities for plotting transport coefficients and torque profiles.
 
