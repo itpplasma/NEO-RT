@@ -8,10 +8,9 @@ contains
 
     subroutine main
         use do_magfie_mod, only: s
-        use neort_datatypes, only: magfie_data_t, transport_data_t
-        use neort_lib, only: neort_init, neort_prepare_splines_from_files, neort_compute_at_s, &
-                             neort_compute_no_splines, neort_deinit
         use neort, only: check_magfie, write_magfie_data_to_files, write_transport_data_to_files
+        use neort_datatypes, only: magfie_data_t
+        use neort_lib
         use util, only: files_exist
 
         character(len=*), parameter :: boozer_file = "in_file"

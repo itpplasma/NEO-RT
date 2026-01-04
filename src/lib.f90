@@ -1,9 +1,11 @@
 module neort_lib
     use iso_fortran_env, only: dp => real64
+    use neort_datatypes, only: transport_data_t
 
     implicit none
 
     private
+    public :: transport_data_t
     public :: neort_init
     public :: neort_prepare_splines
     public :: neort_prepare_splines_from_files
@@ -82,7 +84,6 @@ contains
         use do_magfie_pert_mod, only: init_magfie_pert_at_s, init_mph_from_shared
         use driftorbit, only: pertfile, nopassing, sign_vpar, etamin, etamax, efac, bfac, comptorque
         use neort, only: compute_transport, set_to_trapped_region
-        use neort_datatypes, only: transport_data_t
         use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
         use neort_magfie, only: init_flux_surface_average
         use neort_profiles, only: init_plasma_at_s, init_profile_at_s, init_thermodynamic_forces
@@ -114,7 +115,6 @@ contains
         use do_magfie_pert_mod, only: init_magfie_pert_at_s, init_mph_from_shared
         use driftorbit, only: pertfile, nopassing, sign_vpar, etamin, etamax, comptorque
         use neort, only: compute_transport, set_to_trapped_region
-        use neort_datatypes, only: transport_data_t
         use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
         use neort_magfie, only: init_flux_surface_average
         use neort_profiles, only: init_profiles, init_thermodynamic_forces
