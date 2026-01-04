@@ -116,6 +116,7 @@ set(NEO_RT_SOURCES
     src/transport.f90
     src/neort.f90
     src/neort_datatypes.f90
+    src/neort_lib.f90
 )
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
