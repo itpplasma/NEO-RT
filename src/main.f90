@@ -32,7 +32,7 @@ contains
             call neort_compute_no_splines(transport_data)
         end if
 
-        call check_magfie(magfie_data)
+        call check_magfie(magfie_data)  ! diagnostics
 
         call write_magfie_data_to_files(magfie_data, trim(runname))
         call write_transport_data_to_files(transport_data, trim(runname))

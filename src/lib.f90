@@ -101,10 +101,12 @@ contains
         call init_profile_at_s(R0, efac, bfac)
 
         call init_flux_surface_average(s_val)
-        call init_canon_freq_trapped_spline()
+        call init_canon_freq_trapped_spline()  ! sets etamin and etamax
         if (.not. nopassing) call init_canon_freq_passing_spline()
         sign_vpar = 1
-        call set_to_trapped_region(etamin, etamax)
+        call set_to_trapped_region(etamin, etamax)  ! overwrites etamin and etamax
+        ! psi_pr is the torodial flux at plasma boundary, fixed for all s
+        ! psi_pr=const., q is set in do_magfie
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
 
         call compute_transport(transport_data_out)
