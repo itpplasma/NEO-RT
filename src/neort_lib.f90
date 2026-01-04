@@ -8,6 +8,7 @@ module neort_lib
     public :: neort_prepare_splines
     public :: neort_prepare_splines_from_files
     public :: neort_compute_at_s
+    public :: neort_compute_no_splines
     public :: neort_deinit
 
 contains
@@ -64,8 +65,8 @@ contains
         real(dp), allocatable :: profile_data(:, :)
 
         call check_file(plasma_file, nonlin .or. comptorque, &
-                        " required if nonlin = .true. or comptorque = .true.")
-        call check_file(profile_file, nonlin, " required if nonlin = .true.")
+                        " required in spline mode (nonlin = .true. or comptorque = .true.)")
+        call check_file(profile_file, nonlin, " required in spline mode (nonlin = .true.)")
 
         call read_plasma_input(plasma_file, nplasma, am1, am2, Z1, Z2, plasma_data)
         call prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma_data)
@@ -107,6 +108,34 @@ contains
 
         call compute_transport(transport_data_out)
     end subroutine neort_compute_at_s
+
+    subroutine neort_compute_no_splines(transport_data_out)
+        use do_magfie_mod, only: init_magfie_at_s, R0, psi_pr, q, s
+        use do_magfie_pert_mod, only: init_magfie_pert_at_s, init_mph_from_shared
+        use driftorbit, only: pertfile, nopassing, sign_vpar, etamin, etamax, comptorque
+        use neort, only: compute_transport, set_to_trapped_region
+        use neort_datatypes, only: transport_data_t
+        use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
+        use neort_magfie, only: init_flux_surface_average
+        use neort_profiles, only: init_profiles, init_thermodynamic_forces
+
+        type(transport_data_t), intent(out) :: transport_data_out
+
+        call init_magfie_at_s()
+        if (pertfile) call init_magfie_pert_at_s()
+        call init_mph_from_shared()
+
+        call init_profiles(R0)
+
+        call init_flux_surface_average(s)
+        call init_canon_freq_trapped_spline()
+        if (.not. nopassing) call init_canon_freq_passing_spline()
+        sign_vpar = 1
+        call set_to_trapped_region(etamin, etamax)
+        if (comptorque) call init_thermodynamic_forces(psi_pr, q)
+
+        call compute_transport(transport_data_out)
+    end subroutine neort_compute_no_splines
 
     subroutine neort_deinit()
         use neort_profiles, only: plasma_spl_coeff, Mt_spl_coeff

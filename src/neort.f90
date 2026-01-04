@@ -18,7 +18,6 @@ contains
 
     subroutine read_and_set_control(base_path)
         ! set global control parameters directly from file
-        ! TODO: warn if unused values are non-zero
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph
         use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, nonlin, efac
