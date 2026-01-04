@@ -58,13 +58,18 @@ module do_magfie_mod
 
 contains
 
+    subroutine set_s(s_)
+        real(8), intent(in) :: s_
+
+        s = s_
+    end subroutine set_s
+
     subroutine magfie_thread_init()
         ! Initialize threadprivate variables for this thread
         ! Must be called once per thread before using magfie routines
         magfie_arrays_initialized = .false.
         s_prev = -1.0d0
     end subroutine magfie_thread_init
-
 
     subroutine read_boozer_file(path)
         ! Main thread only: Read Boozer file and prepare shared spline data
@@ -153,6 +158,7 @@ contains
     end subroutine init_magfie_at_s
 
     subroutine do_magfie_init(path)
+        ! init axisymmetric part of field from infile
         ! Backward compatibility wrapper: calls read_boozer_file + init_magfie_at_s
         character(len=*), intent(in) :: path
 
@@ -469,6 +475,7 @@ contains
     end subroutine init_mph_from_shared
 
     subroutine do_magfie_pert_init(path)
+        ! else epsmn*exp(imun*(m0*th + mph*ph))
         ! Backward compatibility wrapper: calls read_boozer_pert_file + init_magfie_pert_at_s
         character(len=*), intent(in) :: path
 

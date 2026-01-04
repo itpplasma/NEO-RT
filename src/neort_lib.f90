@@ -1,6 +1,5 @@
 module neort_lib
     use iso_fortran_env, only: dp => real64
-    use neort_datatypes, only: transport_data_t
 
     implicit none
 
@@ -13,21 +12,26 @@ module neort_lib
 
 contains
 
-    subroutine neort_init(config_file, boozer_file, boozer_pert_file)
-        use neort, only: read_and_set_control
+    subroutine neort_init(config_file_base, boozer_file, boozer_pert_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
         use driftorbit, only: pertfile, nonlin
+        use neort, only: read_and_set_control
         use thetadata_mod, only: init_attenuation_data
+        use util, only: check_file
 
-        character(len=*), intent(in) :: config_file
+        character(len=*), intent(in) :: config_file_base
         character(len=*), intent(in) :: boozer_file
         character(len=*), intent(in), optional :: boozer_pert_file
 
-        call read_and_set_control(config_file)
+        call check_file(trim(config_file_base) // ".in", .true., ".in could not be found")
+        call check_file(boozer_file, .true., " could not be found")
+
+        call read_and_set_control(config_file_base)
         call read_boozer_file(boozer_file)
 
         if (present(boozer_pert_file) .and. pertfile) then
+            call check_file(boozer_pert_file, .true., " required if pertfile = .true.")
             call read_boozer_pert_file(boozer_pert_file)
         end if
 
@@ -47,8 +51,9 @@ contains
     end subroutine neort_prepare_splines
 
     subroutine neort_prepare_splines_from_files(plasma_file, profile_file)
+        use driftorbit, only: nonlin, comptorque
         use neort_profiles, only: read_plasma_input, prepare_plasma_splines, prepare_profile_splines
-        use util, only: readdata
+        use util, only: check_file, readdata
 
         character(len=*), intent(in) :: plasma_file
         character(len=*), intent(in) :: profile_file
@@ -57,6 +62,10 @@ contains
         real(dp) :: am1, am2, Z1, Z2
         real(dp), allocatable :: plasma_data(:, :)
         real(dp), allocatable :: profile_data(:, :)
+
+        call check_file(plasma_file, nonlin .or. comptorque, &
+                        " required if nonlin = .true. or comptorque = .true.")
+        call check_file(profile_file, nonlin, " required if nonlin = .true.")
 
         call read_plasma_input(plasma_file, nplasma, am1, am2, Z1, Z2, plasma_data)
         call prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma_data)
@@ -68,13 +77,14 @@ contains
     end subroutine neort_prepare_splines_from_files
 
     subroutine neort_compute_at_s(s_val, transport_data_out)
-        use neort, only: set_s, compute_transport, set_to_trapped_region
-        use do_magfie_mod, only: init_magfie_at_s, R0, psi_pr, q
+        use do_magfie_mod, only: set_s, init_magfie_at_s, R0, psi_pr, q
         use do_magfie_pert_mod, only: init_magfie_pert_at_s, init_mph_from_shared
         use driftorbit, only: pertfile, nopassing, sign_vpar, etamin, etamax, efac, bfac, comptorque
-        use neort_profiles, only: init_plasma_at_s, init_profile_at_s, init_thermodynamic_forces
-        use neort_magfie, only: init_flux_surface_average
+        use neort, only: compute_transport, set_to_trapped_region
+        use neort_datatypes, only: transport_data_t
         use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
+        use neort_magfie, only: init_flux_surface_average
+        use neort_profiles, only: init_plasma_at_s, init_profile_at_s, init_thermodynamic_forces
 
         real(dp), intent(in) :: s_val
         type(transport_data_t), intent(out) :: transport_data_out

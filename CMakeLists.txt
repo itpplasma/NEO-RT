@@ -98,7 +98,7 @@ include_directories(${NETCDFINCLUDE_DIR})
 link_directories(${NETCDFLIB_DIR})
 add_link_options(${NETCDF_FLIBS})
 
-add_executable(${PROJECT_EXE_NAME} src/main.f90)
+add_executable(${PROJECT_EXE_NAME} src/program.f90)
 
 set(NEO_RT_SOURCES
     src/logging.f90
@@ -117,6 +117,7 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/neort_datatypes.f90
     src/neort_lib.f90
+    src/main.f90
 )
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)

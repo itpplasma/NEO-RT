@@ -118,4 +118,19 @@ contains
             y(:, j) = spl_val
         end do
     end subroutine
+
+    subroutine check_file(path, required, error_msg)
+        use logger, only: error
+
+        character(len=*), intent(in) :: path
+        logical, intent(in) :: required
+        character(len=*), intent(in) :: error_msg
+        logical :: exists
+
+        inquire(file=path, exist=exists)
+        if (.not. exists .and. required) then
+            call error(trim(path) // trim(error_msg))
+        end if
+    end subroutine check_file
+
 end module util
