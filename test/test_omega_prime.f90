@@ -2,7 +2,8 @@ program test_omage_prime_prog
     use do_magfie_mod, only: do_magfie_init, params0, sign_theta, s
     use do_magfie_pert_mod, only: do_magfie_pert_init
     use neort, only: read_and_set_control, check_magfie, write_magfie_data_to_files, init_profiles, &
-                     init, runname, set_to_trapped_region
+                     init, set_to_trapped_region
+    use neort_main, only: runname
     use neort_datatypes, only: magfie_data_t
     use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input, M_t
     use neort_orbit, only: th0, nvar, bounce_time, vpar, vperp, bounce_integral, &

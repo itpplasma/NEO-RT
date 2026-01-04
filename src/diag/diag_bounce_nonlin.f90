@@ -1,7 +1,8 @@
 module diag_bounce_nonlin
   use iso_fortran_env, only: real64
   use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig, xlim, ylim
-  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, runname
+  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files
+  use neort_main, only: runname
   use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth
   use neort_nonlin, only: nonlinear_attenuation

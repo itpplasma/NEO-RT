@@ -2,7 +2,8 @@ module diag_contrib_map
   use iso_fortran_env, only: real64
   use fortplot, only: figure, plot, pcolormesh, title, xlabel, ylabel, legend, savefig
   use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, &
-                   runname, set_to_passing_region, set_to_trapped_region
+                   set_to_passing_region, set_to_trapped_region
+  use neort_main, only: runname
   use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
   use neort_nonlin, only: nonlinear_attenuation

@@ -1,7 +1,8 @@
 module diag_bounce_debug
   use iso_fortran_env, only: real64
   use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, &
-                   set_to_passing_region, set_to_trapped_region, vsteps, runname
+                   set_to_passing_region, set_to_trapped_region, vsteps
+  use neort_main, only: runname
   use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
   use neort_freq, only: Om_th
