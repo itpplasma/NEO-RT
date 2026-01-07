@@ -189,8 +189,8 @@ contains
         end do
     end subroutine check_magfie
 
-    subroutine compute_transport(result)
-        type(transport_data_t), intent(out) :: result
+    subroutine compute_transport(result_)
+        type(transport_data_t), intent(out) :: result_
 
         integer :: j, idx
 
@@ -203,7 +203,7 @@ contains
 
         call debug('compute_transport')
 
-        if (allocated(result%harmonics)) deallocate(result%harmonics)
+        if (allocated(result_%harmonics)) deallocate(result_%harmonics)
 
         Dco = 0d0
         Dctr = 0d0
@@ -221,37 +221,37 @@ contains
         if (mthmax < mthmin) then
             ! Edge case: no valid harmonics (upper bound below lower bound).
             ! In this situation we intentionally allocate an empty array.
-            allocate(result%harmonics(0))
+            allocate(result_%harmonics(0))
         else
-            allocate(result%harmonics(mthmax - mthmin + 1))
+            allocate(result_%harmonics(mthmax - mthmin + 1))
         end if
 
         idx = 0
         do j = mthmin, mthmax
             idx = idx + 1
-            call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, result%harmonics(idx))
+            call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, result_%harmonics(idx))
         end do
 
-        result%summary%M_t = M_t
-        result%summary%Dco = Dco
-        result%summary%Dctr = Dctr
-        result%summary%Dt = Dt
+        result_%summary%M_t = M_t
+        result_%summary%Dco = Dco
+        result_%summary%Dctr = Dctr
+        result_%summary%Dt = Dt
 
-        result%torque%has_torque = comptorque
+        result_%torque%has_torque = comptorque
         if (comptorque) then
-            result%torque%s = s
-            result%torque%dVds = dVds
-            result%torque%M_t = M_t
-            result%torque%Tco = Tco
-            result%torque%Tctr = Tctr
-            result%torque%Tt = Tt
+            result_%torque%s = s
+            result_%torque%dVds = dVds
+            result_%torque%M_t = M_t
+            result_%torque%Tco = Tco
+            result_%torque%Tctr = Tctr
+            result_%torque%Tt = Tt
         else
-            result%torque%s = 0d0
-            result%torque%dVds = 0d0
-            result%torque%M_t = 0d0
-            result%torque%Tco = 0d0
-            result%torque%Tctr = 0d0
-            result%torque%Tt = 0d0
+            result_%torque%s = 0d0
+            result_%torque%dVds = 0d0
+            result_%torque%M_t = 0d0
+            result_%torque%Tco = 0d0
+            result_%torque%Tctr = 0d0
+            result_%torque%Tt = 0d0
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
