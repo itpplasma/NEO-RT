@@ -18,7 +18,7 @@ set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp -fmax-error
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wimplicit-interface -Wimplicit-procedure")
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-O0 -Wextra)
+    add_compile_options(-Og -Wextra)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbounds-check -finit-real=nan -fcheck=all")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -ffpe-trap=zero,overflow,invalid,underflow")
     add_compile_options()
