@@ -43,7 +43,7 @@ contains
 
   subroutine log_result(msg)
     character(*), intent(in) :: msg
-    if (current_level >= LVL_RESULT) write(6, *) trim(msg)
+    if (current_level >= LVL_RESULT) write(6,'(A)') trim(msg)
   end subroutine log_result
 
   subroutine error(msg)

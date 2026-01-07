@@ -215,7 +215,7 @@ contains
         if (allocated(Mt_spl_coeff)) deallocate(Mt_spl_coeff)
 
         ! Allocate and compute spline coefficients (SHARED)
-        allocate (Mt_spl_coeff(size(data, 1), 5))
+        allocate (Mt_spl_coeff(size(data, 1) - 1, 5))
         Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
     end subroutine prepare_profile_splines
 
@@ -247,7 +247,7 @@ contains
 
         real(8) :: splineval(3)
 
-        allocate (local_Mt_spl_coeff(size(data(:, 1)), 5))
+        allocate (local_Mt_spl_coeff(size(data, 1) - 1, 5))
 
         local_Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
         splineval = spline_val_0(local_Mt_spl_coeff, s)
