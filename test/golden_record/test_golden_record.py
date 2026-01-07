@@ -7,6 +7,9 @@ stored in golden.h5.
 
 Test cases are discovered from the HDF5 file groups. Case names follow the pattern
 '0pXXX' where XXX represents the s-value (e.g., '0p100' -> s=0.1).
+
+The golden.h5 file is automatically generated from the main branch if it does not
+exist. This ensures tests compare against a known-good reference.
 """
 
 import os
@@ -19,12 +22,16 @@ import h5py
 import numpy as np
 import pytest
 
+from ensure_golden import ensure_golden
+
 RTOL = 1e-8
 ATOL = 1e-15
 
 GOLDEN_DIR = Path(__file__).resolve().parent
-GOLDEN_H5 = GOLDEN_DIR / "golden.h5"
 INPUT_DIR = GOLDEN_DIR / "input"
+
+# Ensure golden.h5 exists before test discovery
+GOLDEN_H5 = ensure_golden()
 
 
 def s_from_case_name(case_name: str) -> float:

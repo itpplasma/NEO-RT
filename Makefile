@@ -2,7 +2,7 @@ CONFIG ?= Release
 BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
-.PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps doc
+.PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps doc golden
 
 all: build
 
@@ -36,6 +36,9 @@ ctest: build
 
 pytest: build
 	cd test && python -m pytest -v
+
+golden:
+	python3 test/golden_record/ensure_golden.py
 
 doc:
 	@if ! command -v ford >/dev/null; then echo "FORD executable not found. Install it with 'pip install ford'."; exit 1; fi

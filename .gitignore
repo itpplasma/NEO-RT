@@ -56,3 +56,5 @@ gprofout.txt
 .claude/
 __pycache__/
 .pytest_cache/
+test/golden_record/main_ref/
+test/golden_record/golden.h5
