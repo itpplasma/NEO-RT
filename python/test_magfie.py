@@ -6,10 +6,10 @@ from neo_rt_fffi import libneo_rt, magfie  # , magfie_pert
 # %%
 magfie.inp_swi = 8
 magfie.s = 0.15
-magfie.do_magfie_init()
+magfie.do_magfie_init("in_file")
 psipr = magfie.psi_pr
 
-# magfie_pert.do_magfie_pert_init()
+# magfie_pert.do_magfie_pert_init("in_file_pert")
 
 # %%
 x = np.zeros(3)

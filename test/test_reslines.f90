@@ -23,7 +23,7 @@ program test_reslines
   integer :: m3(nm3) = [-1,1]
 
   inp_swi = 9  ! ASDEX Upgrade format
-  call do_magfie_init
+  call do_magfie_init("in_file")
 
   open(newunit=fid, file='profile.in', action='read')
     do ks=1,ns

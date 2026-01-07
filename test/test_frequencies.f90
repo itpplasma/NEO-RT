@@ -23,7 +23,7 @@ program test_frequencies
 
   magdrift = .false.
   !print *, s
-  call do_magfie_init
+  call do_magfie_init("in_file")
 
   mth = 1                  ! Canonical poloidal harmonic
   mph = 2                  ! Canonical toroidal harmonic
