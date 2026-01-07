@@ -1,14 +1,14 @@
 module neort
     use logger, only: debug, set_log_level, get_log_level, log_result, LOG_INFO
-    use neort_datatypes
+    use neort_datatypes, only: magfie_data_t, transport_data_t, transport_harmonic_t
     use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, &
         init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
         dTi1ds, qi, mi, mu, qe
-    use neort_magfie, only: init_fsa
+    use neort_magfie, only: init_flux_surface_average
     use neort_orbit, only: noshear
-    use neort_freq, only: init_Om_spl, init_Om_pass_spl
+    use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
     use neort_transport, only: compute_transport_integral
-    use driftorbit
+    use do_magfie_mod, only: s
 
     implicit none
 
@@ -23,9 +23,9 @@ module neort
 contains
 
     subroutine main
-        use do_magfie_mod, only: do_magfie_init
+        use do_magfie_mod, only: R0, bfac, do_magfie_init
         use do_magfie_pert_mod, only: do_magfie_pert_init
-        use driftorbit, only: pertfile
+        use driftorbit, only: pertfile, nonlin, comptorque, efac
 
         logical :: file_exists
         type(magfie_data_t) :: magfie_data
@@ -83,27 +83,42 @@ contains
         call set_log_level(log_level)
     end subroutine read_and_set_control
 
+    subroutine set_s(s_)
+        use driftorbit
+
+        real(8), intent(in) :: s_
+
+        s = s_
+    end subroutine set_s
+
     subroutine init
+        use do_magfie_mod, only: psi_pr, q
+        use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque
+
         call debug('init')
-        init_done = .false.
-        call init_fsa
-        call init_Om_spl       ! frequencies of trapped orbits
-        if (.not. nopassing) call init_Om_pass_spl  ! frequencies of passing orbits
+        call init_flux_surface_average(s)
+        call init_canon_freq_trapped_spline
+        if (.not. nopassing) call init_canon_freq_passing_spline
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
-        init_done = .true.
         call debug('init complete')
     end subroutine init
 
     pure subroutine set_to_trapped_region(eta_min, eta_max)
+        use driftorbit, only: epst, etatp, etadt
+
         real(8), intent(out) :: eta_min, eta_max
+
         eta_min = (1 + epst)*etatp
         eta_max = (1 - epst)*etadt
     end subroutine set_to_trapped_region
 
     pure subroutine set_to_passing_region(eta_min, eta_max)
+        use driftorbit, only: epsp, etatp
+
         real(8), intent(out) :: eta_min, eta_max
+
         eta_min = epsp*etatp
         eta_max = (1 - epsp)*etatp
     end subroutine set_to_passing_region
@@ -111,6 +126,7 @@ contains
     subroutine check_magfie(data)
         use do_magfie_mod, only: do_magfie, sign_theta
         use do_magfie_pert_mod, only: do_magfie_pert_amp
+        use driftorbit
 
         type(magfie_data_t), intent(out) :: data
 
@@ -190,6 +206,8 @@ contains
     end subroutine check_magfie
 
     subroutine compute_transport(result_)
+        use driftorbit
+
         type(transport_data_t), intent(out) :: result_
 
         integer :: j, idx
@@ -257,6 +275,8 @@ contains
     end subroutine compute_transport
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
+        use driftorbit
+
         integer, intent(in) :: j
         real(8), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
         type(transport_harmonic_t), intent(out) :: harmonic

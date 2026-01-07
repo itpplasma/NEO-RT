@@ -8,7 +8,7 @@ program test_misc
     use neort, only: main, runname
     use neort_orbit, only: bounce, nvar
     use neort_resonance, only: driftorbit_root, driftorbit_coarse
-    use neort_magfie, only: init_fsa
+    use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: Om_th, Om_ph, Om_tB, d_Om_ds
     implicit none
 
@@ -175,7 +175,7 @@ contains
         x(2) = 0d0
         x(3) = 0d0
         call read_and_init_plasma_input("plasma.in", s)
-        call init_fsa
+        call init_flux_surface_average(s)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         write (unit, *) x(1), c*mi*vth*hcovar(2)*q/(qi*psi_pr), dVds, q, psi_pr, vth
     end subroutine output_flux_surface_data
