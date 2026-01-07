@@ -35,7 +35,7 @@ ctest: build
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
 
 pytest: build
-	cd test/ripple_plateau && python3 test_ripple_plateau.py
+	cd test && python -m pytest -v
 
 doc:
 	@if ! command -v ford >/dev/null; then echo "FORD executable not found. Install it with 'pip install ford'."; exit 1; fi
