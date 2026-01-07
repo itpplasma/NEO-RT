@@ -218,10 +218,12 @@ contains
         mthmin = -ceiling(2*abs(mph*q))
         mthmax = ceiling(2*abs(mph*q))
 
-        if (mthmax >= mthmin) then
-            allocate(result%harmonics(mthmax - mthmin + 1))
-        else
+        if (mthmax < mthmin) then
+            ! Edge case: no valid harmonics (upper bound below lower bound).
+            ! In this situation we intentionally allocate an empty array.
             allocate(result%harmonics(0))
+        else
+            allocate(result%harmonics(mthmax - mthmin + 1))
         end if
 
         idx = 0
