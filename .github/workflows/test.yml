@@ -14,15 +14,14 @@ permissions:
 
 jobs:
   build:
-
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        config: [Debug, Fast]
 
     steps:
     - uses: actions/checkout@v3
-    - name: Test
-      run: |
-        pwd
-        ls
+
     - name: Install build dependencies
       run: |
         make deps
@@ -33,7 +32,7 @@ jobs:
 
     - name: Build code
       run: |
-        make CONFIG=Debug
+        make CONFIG=${{ matrix.config }}
 
     - name: Run tests
       run: |
