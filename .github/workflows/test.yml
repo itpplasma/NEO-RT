@@ -33,7 +33,7 @@ jobs:
 
     - name: Build code
       run: |
-        make
+        make CONFIG=RelWithDebInfo
 
     - name: Run tests
       run: |
