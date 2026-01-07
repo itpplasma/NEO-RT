@@ -20,12 +20,15 @@ module neort
     ! Logging / debugging
     integer :: log_level = LOG_INFO
 
+    ! Shared read-only configuration (NOT threadprivate): runname, vsteps, log_level
+
 contains
 
     subroutine main
         use do_magfie_mod, only: R0, bfac, do_magfie_init
         use do_magfie_pert_mod, only: do_magfie_pert_init
         use driftorbit, only: pertfile, nonlin, comptorque, efac
+        use thetadata_mod, only: init_attenuation_data
 
         logical :: file_exists
         type(magfie_data_t) :: magfie_data
@@ -41,6 +44,7 @@ contains
         call do_magfie_init(boozer_file)  ! init axisymmetric part of field from infile
         if (pertfile) call do_magfie_pert_init(boozer_pert_file)  ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_profiles(R0)
+        if (nonlin) call init_attenuation_data()  ! must be before any parallel region
 
         inquire(file=plasma_file, exist=file_exists)
         if (file_exists) then
@@ -66,6 +70,7 @@ contains
 
     subroutine read_and_set_control(base_path)  ! set global control parameters directly from file
         use driftorbit
+        use do_magfie_pert_mod, only: set_mph
 
         character(len=*), intent(in) :: base_path
         real(8) :: qs, ms
@@ -80,6 +85,7 @@ contains
         M_t = M_t*efac/bfac
         qi = qs*qe
         mi = ms*mu
+        call set_mph(mph)
         call set_log_level(log_level)
     end subroutine read_and_set_control
 

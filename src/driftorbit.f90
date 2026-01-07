@@ -46,4 +46,11 @@ module driftorbit
     ! Nonlinear calculation switch
     logical :: nonlin = .false.
 
+    ! Flux-surface dependent and working variables (computed/modified per-thread)
+    !$omp threadprivate (mth, dVds, etadt, etatp, etamin, etamax)
+    !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta)
+
+    ! Shared read-only configuration (NOT threadprivate): efac, epsmn, m0,
+    ! magdrift, nopassing, pertfile, comptorque, nonlin
+
 end module driftorbit

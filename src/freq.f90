@@ -7,6 +7,7 @@ module neort_freq
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
+    use dvode_f90_m, only: vode_thread_init
     implicit none
 
     ! For splining in the trapped eta region
@@ -24,7 +25,40 @@ module neort_freq
     real(8) :: k_taub_p=0d0, d_taub_p=0d0, k_taub_t=0d0, d_taub_t=0d0 ! extrapolation at tp bound
     real(8) :: k_OmtB_p=0d0, d_Omtb_p=0d0, k_Omtb_t=0d0, d_Omtb_t=0d0 ! extrapolation at tp bound
 
+    ! Initialization flags for threadprivate allocatable arrays
+    logical :: freq_trapped_initialized = .false.
+    logical :: freq_passing_initialized = .false.
+
+    ! Magic sentinel for auto-initializing threadprivate state in worker threads
+    integer, parameter :: FREQ_INIT_SENTINEL = 161803398
+    integer, save :: freq_thread_init_state = 0
+
+    !$omp threadprivate (freq_trapped_initialized, freq_passing_initialized)
+    !$omp threadprivate (freq_thread_init_state)
+    !$omp threadprivate (OmtB_spl_coeff, Omth_spl_coeff, vres_spl_coeff)
+    !$omp threadprivate (OmtB_pass_spl_coeff, Omth_pass_spl_coeff, vres_pass_spl_coeff)
+    !$omp threadprivate (k_taub_p, d_taub_p, k_taub_t, d_taub_t)
+    !$omp threadprivate (k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t)
+
 contains
+
+    subroutine freq_thread_init()
+        ! Initialize threadprivate variables for this thread
+        ! Must be called once per thread before using frequency routines
+        ! Also initializes VODE threadprivate state since freq uses bounce integration
+        call vode_thread_init()
+        freq_trapped_initialized = .false.
+        freq_passing_initialized = .false.
+        k_taub_p = 0d0
+        d_taub_p = 0d0
+        k_taub_t = 0d0
+        d_taub_t = 0d0
+        k_OmtB_p = 0d0
+        d_Omtb_p = 0d0
+        k_Omtb_t = 0d0
+        d_Omtb_t = 0d0
+    end subroutine freq_thread_init
+
     subroutine init_canon_freq_trapped_spline
         ! Initialise splines for canonical frequencies of trapped orbits
 
@@ -33,6 +67,12 @@ contains
         real(8) :: aa, b
         real(8) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
         real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
+
+        ! Auto-initialize threadprivate state if not yet done for this thread
+        if (freq_thread_init_state /= FREQ_INIT_SENTINEL) then
+            call freq_thread_init()
+            freq_thread_init_state = FREQ_INIT_SENTINEL
+        end if
 
         call trace('init_canon_freq_trapped_spline')
 
@@ -46,11 +86,15 @@ contains
         v = vth
         etamin = (1d0 + epst)*etatp
         etamax = etatp + (etadt - etatp)*(1d0 - epsst_spl)
-        ! Allocate coefficient arrays for trapped region splines (size is constant)
-        if (.not. allocated(Omth_spl_coeff)) then
+        ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
+        if (.not. freq_trapped_initialized) then
+            if (allocated(Omth_spl_coeff)) deallocate(Omth_spl_coeff)
+            if (allocated(OmtB_spl_coeff)) deallocate(OmtB_spl_coeff)
+            if (allocated(vres_spl_coeff)) deallocate(vres_spl_coeff)
             allocate(Omth_spl_coeff(netaspl - 1, 5))
             allocate(OmtB_spl_coeff(netaspl - 1, 5))
             allocate(vres_spl_coeff(netaspl - 1, 5))
+            freq_trapped_initialized = .true.
         end if
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A)') '[TRACE] init_canon_freq_trapped_spline state:'
@@ -119,6 +163,12 @@ contains
         real(8) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
         real(8) :: v, eta, taub, taub_est, bounceavg(nvar)
 
+        ! Auto-initialize threadprivate state if not yet done for this thread
+        if (freq_thread_init_state /= FREQ_INIT_SENTINEL) then
+            call freq_thread_init()
+            freq_thread_init_state = FREQ_INIT_SENTINEL
+        end if
+
         call trace('init_canon_freq_passing_spline')
 
         taub0 = 0d0
@@ -131,11 +181,15 @@ contains
         v = vth
         etamin = etatp*epssp_spl
         etamax = etatp
-        ! Allocate coefficient arrays for passing region splines (size is constant)
-        if (.not. allocated(Omth_pass_spl_coeff)) then
+        ! Allocate coefficient arrays for passing region splines (safe for undefined allocation status)
+        if (.not. freq_passing_initialized) then
+            if (allocated(Omth_pass_spl_coeff)) deallocate(Omth_pass_spl_coeff)
+            if (allocated(OmtB_pass_spl_coeff)) deallocate(OmtB_pass_spl_coeff)
+            if (allocated(vres_pass_spl_coeff)) deallocate(vres_pass_spl_coeff)
             allocate(Omth_pass_spl_coeff(netaspl_pass - 1, 5))
             allocate(OmtB_pass_spl_coeff(netaspl_pass - 1, 5))
             allocate(vres_pass_spl_coeff(netaspl_pass - 1, 5))
+            freq_passing_initialized = .true.
         end if
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A)') '[TRACE] init_canon_freq_passing_spline state:'

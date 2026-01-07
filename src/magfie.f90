@@ -11,6 +11,7 @@ contains
 
     subroutine init_flux_surface_average(s)
         ! Calculate the flux surface areas for normalization
+        ! Note: thread initialization is now handled by auto-init pattern in each module
         real(8), intent(in) :: s
         integer, parameter :: nth = 1000
         integer :: k
