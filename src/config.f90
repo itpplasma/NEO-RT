@@ -11,7 +11,7 @@ module neort_config
         real(dp) :: vth = 0.0_dp  ! thermal velocity / cm/s !*!
         real(8) :: epsmn = 0.0  ! perturbation amplitude B1/B0 (if pertfile==F)
         real(8) :: mph = 0.0  ! toroidal perturbation mode (if pertfile==F, n>0!)
-        integer :: m0 = 0  ! poroidal perturbation mode (if pertfile==F)
+        integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         logical :: comptorque = .false.  ! compute torque
         logical :: magdrift = .false.  ! consider magnetic drift
         logical :: nopassing = .false.  ! neglect passing particles

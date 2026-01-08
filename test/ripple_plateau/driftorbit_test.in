@@ -8,7 +8,7 @@
     ms = 2.014d0           ! Particle mass [atomic unit]
     vth = 1.0d8            ! Thermal velocity [cm/s]
     epsmn = 1.0d-3         ! Perturbation amplitude B1/B0 (if pertfile==.false.)
-    m0 = 0                 ! Poroidal perturbation harmonic (if pertfile==.false.)
+    m0 = 0                 ! poloidal perturbation harmonic (if pertfile==.false.)
     mph = 18               ! Toroidal perturbation harmonic (if pertfile==.false., n>0!)
     magdrift = .false.     ! Consider magnetic drift
     nopassing = .false.    ! Neglect passing particles

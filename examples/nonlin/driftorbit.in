@@ -7,7 +7,7 @@
 2.014
 37280978.0          vth		       - thermal velocity
 1e-2 		    epsmn	       - perturbation amplitude B1/B0 (when pertfile==F)
-0		    m		       - poroidal perturbation mode (when pertfile==F)
+0		    m		       - poloidal perturbation mode (when pertfile==F)
 3 		    n		       - toroidal perturbation mode (when pertfile==F, MUST BE > 0)
 0		    mth		       - poloidal canonical mode (for single Mach no. run)
 1       	    mthnum	       - poloidal canonical mode count
