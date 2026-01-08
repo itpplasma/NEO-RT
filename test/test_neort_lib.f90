@@ -25,7 +25,7 @@ contains
         print *, "Test: single s computation..."
 
         call neort_init("driftorbit", "in_file")
-        call neort_prepare_splines_from_files("plasma.in", "profile.in")
+        call neort_prepare_splines("plasma.in", "profile.in")
         call neort_compute_at_s(TEST_S, result)
 
         if (abs(result%torque%s - TEST_S) > 1d-12) then
@@ -41,7 +41,6 @@ contains
             error stop "test_single_s: dVds should be positive"
         end if
 
-        call neort_deinit()
         print *, "  OK"
     end subroutine test_single_s
 
@@ -63,7 +62,7 @@ contains
         end do
 
         call neort_init("driftorbit", "in_file")
-        call neort_prepare_splines_from_files("plasma.in", "profile.in")
+        call neort_prepare_splines("plasma.in", "profile.in")
 
         !$omp parallel do schedule(dynamic)
         do i = 1, N_S
@@ -86,7 +85,6 @@ contains
             error stop "test_parallel_loop: not all dVds positive"
         end if
 
-        call neort_deinit()
         print *, "  OK"
     end subroutine test_parallel_loop
 
@@ -121,8 +119,6 @@ contains
             error stop "test_spline_update: torque should match"
         end if
 
-        deallocate(plasma_data, profile_data)
-        call neort_deinit()
         print *, "  OK"
     end subroutine test_spline_update
 

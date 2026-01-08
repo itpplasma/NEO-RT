@@ -1,6 +1,7 @@
 program test_torque_prog
-    use neort, only: read_and_set_control, check_magfie, init_profiles, &
+    use neort, only: check_magfie, init_profiles, &
                      init, compute_transport_harmonic, write_magfie_data_to_files
+    use neort_config, only: read_and_set_config
     use neort_main, only: runname
     use neort_datatypes
     use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input, M_t
@@ -28,7 +29,7 @@ contains
 
     subroutine setup
         runname = TEST_RUN
-        call read_and_set_control(runname)
+        call read_and_set_config(runname)
         call do_magfie_init("in_file")
         call init_profiles(R0)
         call read_and_init_plasma_input("plasma.in", s)

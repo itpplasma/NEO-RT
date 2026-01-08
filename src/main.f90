@@ -26,7 +26,7 @@ contains
         call neort_init(trim(runname), boozer_file, boozer_pert_file)
 
         if (files_exist(plasma_file, profile_file)) then
-            call neort_prepare_splines_from_files(plasma_file, profile_file)
+            call neort_prepare_splines(plasma_file, profile_file)
             call neort_compute_at_s(s, transport_data)
         else
             call neort_compute_no_splines(transport_data)
@@ -36,8 +36,6 @@ contains
 
         call write_magfie_data_to_files(magfie_data, trim(runname))
         call write_transport_data_to_files(transport_data, trim(runname))
-
-        call neort_deinit
     end subroutine main
 
 end module neort_main

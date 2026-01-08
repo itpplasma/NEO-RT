@@ -37,8 +37,6 @@ contains
     subroutine init_profiles(R0)
         real(dp), intent(in) :: R0
 
-        ! vth: set in read_and_set_control, overwritten in init_plasma_input
-        ! M_t: set in read_and_set_control, overwritten in init_profile_input
         Om_tE = vth * M_t / R0  ! toroidal ExB drift frequency
         dOm_tEds = 0d0
     end subroutine init_profiles

@@ -1,10 +1,12 @@
 module diag_bounce_nonlin
   use iso_fortran_env, only: real64
   use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig, xlim, ylim
-  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files
+  use neort, only: init, check_magfie, write_magfie_data_to_files
+  use neort_config, only: read_and_set_config
   use neort_main, only: runname
   use neort_datatypes, only: magfie_data_t
-  use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth
+  use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, &
+                            vth
   use neort_nonlin, only: nonlinear_attenuation
   use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport
@@ -31,7 +33,7 @@ contains
 
     ! Initialize NEO-RT environment similar to neort:main
     runname = trim(arg_runname)
-    call read_and_set_control(runname)
+    call read_and_set_config(runname)
     call do_magfie_init("in_file")
     if (pertfile) call do_magfie_pert_init("in_file_pert")
     call init_profiles(R0)

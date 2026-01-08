@@ -1,7 +1,8 @@
 module diag_bounce_debug
   use iso_fortran_env, only: real64
-  use neort, only: read_and_set_control, init, check_magfie, write_magfie_data_to_files, &
+  use neort, only: init, check_magfie, write_magfie_data_to_files, &
                    set_to_passing_region, set_to_trapped_region, vsteps
+  use neort_config, only: read_and_set_config
   use neort_main, only: runname
   use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
@@ -34,7 +35,7 @@ contains
 
     ! Initialize environment just like main
     runname = trim(arg_runname)
-    call read_and_set_control(runname)
+    call read_and_set_config(runname)
     call do_magfie_init("in_file")
     if (pertfile) call do_magfie_pert_init("in_file_pert")
     call init_profiles(R0)

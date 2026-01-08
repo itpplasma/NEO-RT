@@ -16,33 +16,6 @@ module neort
 
 contains
 
-    subroutine read_and_set_control(base_path)
-        ! set global control parameters directly from file
-        use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, nonlin, efac
-        use logger, only: set_log_level
-        use neort_orbit, only: noshear
-        use neort_profiles, only: M_t, vth
-
-        character(len=*), intent(in) :: base_path
-        real(8) :: qs, ms
-        integer :: log_level
-
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
-            nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, log_level
-
-        open (unit=9, file=trim(adjustl(base_path))//".in", status="old", form="formatted")
-        read (9, nml=params)
-        close (unit=9)
-
-        M_t = M_t * efac / bfac
-        qi = qs * qe
-        mi = ms * mu
-        call set_mph(mph)
-        call set_log_level(log_level)
-    end subroutine read_and_set_control
-
     subroutine init
         use do_magfie_mod, only: psi_pr, q
         use driftorbit, only: nopassing, sign_vpar, etamin, etamax, comptorque
