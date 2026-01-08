@@ -151,8 +151,10 @@ def main() -> None:
             src = INPUT_DIR / filename
             if not src.exists():
                 print(f"Error: Required input file missing: {src}")
+                print(f"INPUT_DIR contents: {list(INPUT_DIR.iterdir()) if INPUT_DIR.exists() else 'DIR NOT FOUND'}")
                 sys.exit(1)
             (out_dir / filename).symlink_to(src)
+            print(f"  Symlinked {filename} -> {src}")
 
         for run in runs:
             nml = template.copy()
@@ -161,25 +163,49 @@ def main() -> None:
             nml.write(out_dir / f"{run}.in", force=True)
 
         n_parallel: int = os.cpu_count() or 4
-        processes: list[subprocess.Popen] = []
+        processes: list[tuple[str, subprocess.Popen]] = []
+        failed_runs: list[tuple[str, int, str, str]] = []
 
         for run in runs:
             if len(processes) >= n_parallel:
-                processes[0].wait()
-                processes.pop(0)
+                name, proc = processes.pop(0)
+                stdout, stderr = proc.communicate()
+                if proc.returncode != 0:
+                    failed_runs.append((name, proc.returncode, stdout, stderr))
             print(f"Starting NEO-RT for run {run}...")
             p = subprocess.Popen(
                 [str(neort_exe), run],
                 cwd=out_dir,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
             )
-            processes.append(p)
+            processes.append((run, p))
 
-        for p in processes:
-            p.wait()
+        for name, proc in processes:
+            stdout, stderr = proc.communicate()
+            if proc.returncode != 0:
+                failed_runs.append((name, proc.returncode, stdout, stderr))
+
+        if failed_runs:
+            print("\nERROR: Some runs failed:")
+            for name, code, stdout, stderr in failed_runs:
+                print(f"\n=== {name} (exit code {code}) ===")
+                if stdout:
+                    print(f"stdout:\n{stdout}")
+                if stderr:
+                    print(f"stderr:\n{stderr}")
+            sys.exit(1)
 
         print("All runs completed.")
+
+        # Debug: list files in work directory
+        print(f"\nFiles in work directory:")
+        for f in sorted(out_dir.iterdir()):
+            if f.is_symlink():
+                print(f"  {f.name} -> {f.resolve()}")
+            else:
+                print(f"  {f.name} ({f.stat().st_size} bytes)")
         create_golden_h5(out_dir, GOLDEN_H5, runs)
 
     print("Done!")

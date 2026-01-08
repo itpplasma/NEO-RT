@@ -39,6 +39,16 @@ jobs:
       run: |
         make CONFIG=${{ matrix.config }}
 
-    - name: Run tests
+    - name: Run ctest
       run: |
-        make test
+        make ctest
+
+    - name: Run pytest (all tests for Fast)
+      if: matrix.config == 'Fast'
+      run: |
+        make pytest
+
+    - name: Run pytest (skip golden record for Debug)
+      if: matrix.config != 'Fast'
+      run: |
+        pytest -m "not fast_only"

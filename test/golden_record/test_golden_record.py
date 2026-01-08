@@ -144,6 +144,7 @@ def load_magfie(work_dir: Path, case: str) -> np.ndarray:
     return np.loadtxt(work_dir / f"{case}_magfie.out")
 
 
+@pytest.mark.fast_only
 @pytest.mark.parametrize("case", get_test_cases())
 def test_golden(case: str, executable: Path, tmp_path: Path) -> None:
     """Test that neo_rt.x output matches golden record."""
