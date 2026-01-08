@@ -29,7 +29,7 @@ reconfigure:
 build: configure
 	cmake --build $(BUILD_DIR) --config $(CONFIG)
 
-test: ctest pytest
+test: ctest golden pytest
 
 ctest: build
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
@@ -47,5 +47,7 @@ doc:
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf test/golden_record/main_ref
+	rm -f test/golden_record/golden.h5
 
 include examples/Makefile
