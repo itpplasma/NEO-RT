@@ -25,12 +25,13 @@ Use when computing transport across multiple flux surfaces with interpolated pro
 - Typically used with `comptorque = .true.`
 - Use cases: time evolution coupling, flux surface scans
 
-### Config-File Mode
+### Config-Only Mode
 
-Use for single-point calculations where all values come from the `.in` file:
+Use for single-point calculations where all values come from the config file or
+`config_t` struct:
 
 - No `plasma.in` or `profile.in` needed
-- Physics values (`s`, `M_t`, `vth`, `qi`, `mi`) read from config file
+- Physics values (`s`, `M_t`, `vth`, `qi`, `mi`) read from config file or `config_t`
 - Typically used with `comptorque = .false.`
 - Use cases: ripple tests, quick single-point calculations
 
@@ -44,13 +45,12 @@ This exports:
 
 | Symbol | Description |
 | --- | --- |
+| `config_t` | Configuration struct (mirrors the `.in` params namelist) |
 | `transport_data_t` | Result data type |
-| `neort_init` | Load config and magnetic field data |
-| `neort_prepare_splines` | Build profile splines from arrays |
-| `neort_prepare_splines_from_files` | Build profile splines from files |
+| `neort_init` | Load config and magnetic field data (file or struct) |
+| `neort_prepare_splines` | Build profile splines (files or arrays) |
 | `neort_compute_at_s` | Compute at flux surface (spline mode) |
 | `neort_compute_no_splines` | Compute using config values only |
-| `neort_deinit` | Deallocate shared data |
 
 ## Subroutine Reference
 
@@ -62,14 +62,23 @@ subroutine neort_init(config_file_base, boozer_file, boozer_pert_file)
     character(len=*), intent(in) :: boozer_file        ! Boozer coordinate file
     character(len=*), intent(in), optional :: boozer_pert_file  ! Perturbation file
 end subroutine
+
+subroutine neort_init(config, boozer_file, boozer_pert_file)
+    type(config_t), intent(in) :: config               ! In-memory config parameters
+    character(len=*), intent(in) :: boozer_file        ! Boozer coordinate file
+    character(len=*), intent(in), optional :: boozer_pert_file  ! Perturbation file
+end subroutine
 ```
 
-Reads the control file, loads Boozer magnetic field data, and optionally loads perturbation data. Call **once** at startup before any parallel region.
+Overloaded initializer. The file-based form reads the control file, then loads
+Boozer magnetic field data (and optional perturbations). The struct-based form
+uses `config_t` instead of a file. Call **once** at startup before any parallel
+region.
 
-### neort_prepare_splines_from_files
+### neort_prepare_splines (file-based)
 
 ```fortran
-subroutine neort_prepare_splines_from_files(plasma_file, profile_file)
+subroutine neort_prepare_splines(plasma_file, profile_file)
     character(len=*), intent(in) :: plasma_file   ! e.g., "plasma.in"
     character(len=*), intent(in) :: profile_file  ! e.g., "profile.in"
 end subroutine
@@ -77,7 +86,7 @@ end subroutine
 
 Reads plasma and rotation profile data from files and builds spline interpolants. Call from the **main thread** before parallel computation.
 
-### neort_prepare_splines
+### neort_prepare_splines (array-based)
 
 ```fortran
 subroutine neort_prepare_splines(nplasma, am1, am2, Z1, Z2, plasma_data, profile_data)
@@ -91,6 +100,11 @@ end subroutine
 
 Alternative to file-based initialization. Pass plasma profiles directly as arrays. Useful when profiles are computed externally.
 
+#### Notes on overwrites
+
+- The spline preparation routines override `M_t`, `vth`, and the particle charges/masses (`qi`, `mi`) with values derived from the supplied plasma/profile data.
+- Any values set previously through `config_t` or namelist input are replaced once spline mode is engaged, so set them back only if you later switch to config-only runs.
+
 ### neort_compute_at_s
 
 ```fortran
@@ -100,7 +114,7 @@ subroutine neort_compute_at_s(s_val, transport_data_out)
 end subroutine
 ```
 
-Computes transport coefficients and torque at the specified flux surface. **Thread-safe**: can be called in parallel over different `s` values. Requires prior call to `neort_prepare_splines*`.
+Computes transport coefficients and torque at the specified flux surface. **Thread-safe**: can be called in parallel over different `s` values. Requires prior call to `neort_prepare_splines`.
 
 ### neort_compute_no_splines
 
@@ -110,17 +124,23 @@ subroutine neort_compute_no_splines(transport_data_out)
 end subroutine
 ```
 
-Computes transport using `s`, `M_t`, `vth`, etc. from the config file. Use when `plasma.in` and `profile.in` are not available.
-
-### neort_deinit
-
-```fortran
-subroutine neort_deinit()
-```
-
-Deallocates shared spline data. Call for clean shutdown.
+Computes transport using `s`, `M_t`, `vth`, etc. from the config file or `config_t`. Use when `plasma.in` and `profile.in` are not available.
 
 ## Data Types
+
+### config_t
+
+```fortran
+type :: config_t
+    ! Same fields as the params namelist in <base>.in
+    real(8) :: s, qs, ms
+    real(8) :: epsmn, mph
+    real(8) :: bfac, efac
+    real(8) :: M_t, vth
+    integer :: m0, inp_swi, vsteps, log_level
+    logical :: comptorque, magdrift, nopassing, noshear, pertfile, nonlin
+end type
+```
 
 ### transport_data_t
 
@@ -181,7 +201,7 @@ program batch_calculation
     call neort_init("driftorbit", "in_file", "in_file_pert")
 
     ! Phase 2: Prepare splines
-    call neort_prepare_splines_from_files("plasma.in", "profile.in")
+    call neort_prepare_splines("plasma.in", "profile.in")
 
     ! Phase 3: Parallel computation
     !$omp parallel do schedule(dynamic)
@@ -190,7 +210,6 @@ program batch_calculation
     end do
 
     ! Process results...
-    call neort_deinit()
 end program
 ```
 
@@ -213,7 +232,7 @@ subroutine run_time_evolution()
         call prepare_profile_data(profile_data)
 
         ! Re-prepare splines with updated profiles
-        call neort_prepare_splines(size(plasma_data,1), am1, am2, Z1, Z2, &
+    call neort_prepare_splines(size(plasma_data,1), am1, am2, Z1, Z2, &
                                    plasma_data, profile_data)
 
         !$omp parallel do schedule(dynamic)
@@ -221,8 +240,6 @@ subroutine run_time_evolution()
             call neort_compute_at_s(s_tor(s_idx), transport_data(s_idx))
         end do
     end do
-
-    call neort_deinit()
 end subroutine
 ```
 
@@ -259,6 +276,6 @@ target_link_libraries(my_program PRIVATE neort)
 
 ## Thread Safety
 
-- `neort_init` and `neort_prepare_splines*` must be called from the **main thread** before any parallel region
+- `neort_init` and `neort_prepare_splines` must be called from the **main thread** before any parallel region
 - `neort_compute_at_s` is **thread-safe** and can be called concurrently
 - Shared data (splines, magnetic field) is read-only after initialization
