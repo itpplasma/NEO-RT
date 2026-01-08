@@ -4,12 +4,16 @@ Ensure golden record data exists by building from main branch if needed.
 
 This module handles:
 1. Cloning/pulling the main branch to a reference directory
-2. Building the main branch if needed
-3. Regenerating golden.h5 if the main branch has changed
+2. Building the main branch with the same CONFIG as the current build
+3. Regenerating golden.h5 if the main branch or CONFIG has changed
 
 The reference directory is cached locally to avoid unnecessary rebuilds.
+The golden.h5 is regenerated when either the main branch commit or the
+build CONFIG changes, ensuring tests compare against matching builds.
 """
 
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -17,8 +21,9 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 MAIN_REF_DIR = SCRIPT_DIR / "main_ref"
 GOLDEN_H5 = SCRIPT_DIR / "golden.h5"
-LAST_BUILT_COMMIT_FILE = MAIN_REF_DIR / ".last_built_commit"
+LAST_BUILD_STATE_FILE = MAIN_REF_DIR / ".last_build_state"
 REPO_URL = "https://github.com/itpplasma/NEO-RT"
+DEFAULT_CONFIG = "Fast"
 
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> str:
@@ -68,28 +73,46 @@ def pull_main_ref() -> bool:
     return False
 
 
-def get_current_commit() -> str:
-    """Get current HEAD commit hash in main_ref."""
-    return run_cmd(["git", "rev-parse", "HEAD"], cwd=MAIN_REF_DIR)
+def detect_current_config() -> str:
+    """Detect the CONFIG used in the current build from CMakeCache.txt."""
+    # Look for build directory relative to the repo root
+    repo_root = SCRIPT_DIR.parent.parent
+    cmake_cache = repo_root / "build" / "CMakeCache.txt"
+
+    if not cmake_cache.exists():
+        print(f"No CMakeCache.txt found at {cmake_cache}, using {DEFAULT_CONFIG}")
+        return DEFAULT_CONFIG
+
+    content = cmake_cache.read_text()
+    match = re.search(r"CMAKE_BUILD_TYPE:STRING=(\w+)", content)
+    if match:
+        config = match.group(1)
+        print(f"Detected build CONFIG: {config}")
+        return config
+
+    print(f"Could not detect CONFIG from CMakeCache.txt, using {DEFAULT_CONFIG}")
+    return DEFAULT_CONFIG
 
 
-def get_last_built_commit() -> str | None:
-    """Get the commit hash that was last built."""
-    if LAST_BUILT_COMMIT_FILE.exists():
-        return LAST_BUILT_COMMIT_FILE.read_text().strip()
+def get_last_config() -> str | None:
+    """Get the CONFIG that was last used to build main_ref."""
+    if LAST_BUILD_STATE_FILE.exists():
+        return LAST_BUILD_STATE_FILE.read_text().strip()
     return None
 
 
-def save_last_built_commit(commit: str) -> None:
-    """Save the commit hash that was just built."""
-    LAST_BUILT_COMMIT_FILE.write_text(commit)
+def save_last_config(config: str) -> None:
+    """Save the CONFIG that was just used to build main_ref."""
+    LAST_BUILD_STATE_FILE.write_text(config)
 
 
-def build_main_ref() -> Path:
-    """Build the main branch and return path to executable."""
-    print("Building main branch...")
+def build_main_ref(config: str) -> Path:
+    """Build the main branch with the given CONFIG and return path to executable."""
+    print(f"Building main branch with CONFIG={config}...")
+    # Clean first to ensure fresh build with correct config
+    subprocess.run(["make", "clean"], cwd=MAIN_REF_DIR, check=False)
     subprocess.run(
-        ["make", "CONFIG=Fast"],
+        ["make", f"CONFIG={config}"],
         cwd=MAIN_REF_DIR,
         check=True,
     )
@@ -114,8 +137,14 @@ def ensure_golden() -> Path:
     """
     Ensure golden.h5 exists and is up to date with main branch.
 
+    The golden record is rebuilt when either:
+    - The remote main branch has new commits
+    - The build CONFIG has changed (Fast vs Debug)
+
     Returns the path to golden.h5.
     """
+    current_config = detect_current_config()
+
     needs_clone = not MAIN_REF_DIR.exists()
     needs_build = False
     needs_regenerate = not GOLDEN_H5.exists()
@@ -130,18 +159,18 @@ def ensure_golden() -> Path:
             needs_build = True
             needs_regenerate = True
 
-    current_commit = get_current_commit()
-    last_built = get_last_built_commit()
-
-    if last_built != current_commit:
+    # Rebuild if config changed
+    last_config = get_last_config()
+    if last_config != current_config:
+        print(f"CONFIG changed: {last_config} -> {current_config}")
         needs_build = True
         needs_regenerate = True
 
     executable = MAIN_REF_DIR / "build" / "neo_rt.x"
 
     if needs_build or not executable.exists():
-        executable = build_main_ref()
-        save_last_built_commit(current_commit)
+        executable = build_main_ref(current_config)
+        save_last_config(current_config)
         needs_regenerate = True
 
     if needs_regenerate:
@@ -150,7 +179,7 @@ def ensure_golden() -> Path:
     if not GOLDEN_H5.exists():
         raise RuntimeError(f"Failed to create {GOLDEN_H5}")
 
-    print(f"Golden record ready: {GOLDEN_H5}")
+    print(f"Golden record ready: {GOLDEN_H5} (CONFIG={current_config})")
     return GOLDEN_H5
 
 
