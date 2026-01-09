@@ -1,0 +1,19 @@
+&params
+    s = ''
+    m_t = 0.036
+    qs = 1.0
+    ms = 2.014
+    epsmn = 1.0
+    m0 = -1
+    mph = 1
+    magdrift = .true.
+    nopassing = .false.
+    noshear = .false.
+    pertfile = .true.
+    nonlin = .false.
+    bfac = 1.0
+    efac = 1.0
+    inp_swi = 9
+    vsteps = 512
+    log_level = -1
+/

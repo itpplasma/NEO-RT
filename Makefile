@@ -2,7 +2,7 @@ CONFIG ?= Release
 BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
-.PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps doc
+.PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps doc golden
 
 all: build
 
@@ -29,13 +29,16 @@ reconfigure:
 build: configure
 	cmake --build $(BUILD_DIR) --config $(CONFIG)
 
-test: ctest pytest
+test: ctest golden pytest
 
 ctest: build
 	ctest --test-dir $(BUILD_DIR) --output-on-failure
 
 pytest: build
 	cd test && python -m pytest -v
+
+golden:
+	python3 test/golden_record/ensure_golden.py
 
 doc:
 	@if ! command -v ford >/dev/null; then echo "FORD executable not found. Install it with 'pip install ford'."; exit 1; fi
@@ -44,5 +47,7 @@ doc:
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf test/golden_record/main_ref
+	rm -f test/golden_record/golden.h5
 
 include examples/Makefile

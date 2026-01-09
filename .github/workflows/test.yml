@@ -19,6 +19,10 @@ jobs:
       matrix:
         config: [Debug, Fast]
 
+    strategy:
+      matrix:
+        config: [Fast, Debug]
+
     steps:
     - uses: actions/checkout@v3
 
@@ -28,12 +32,22 @@ jobs:
 
     - name: Install Python test dependencies
       run: |
-        pip install pytest numpy
+        pip install pytest numpy h5py f90nml scipy
 
     - name: Build code
       run: |
         make CONFIG=${{ matrix.config }}
 
-    - name: Run tests
+    - name: Run ctest
       run: |
-        make test
+        make ctest
+
+    - name: Run pytest (all tests for Fast)
+      if: matrix.config == 'Fast'
+      run: |
+        make pytest
+
+    - name: Run pytest (skip golden record for Debug)
+      if: matrix.config != 'Fast'
+      run: |
+        pytest -m "not fast_only"
