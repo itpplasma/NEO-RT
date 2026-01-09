@@ -1,8 +1,12 @@
 
 module collis_alp
+    use iso_fortran_env, only: dp => real64
+
+    implicit none
+
     integer, parameter :: nsorts = 3, ns = 10000
     logical :: swcoll = .false.
-    double precision, dimension(nsorts) :: efcolf, velrat, enrat
+    real(dp), dimension(nsorts) :: efcolf, velrat, enrat
 
     !$omp threadprivate (swcoll, efcolf, velrat, enrat)
 
@@ -29,24 +33,24 @@ contains
         implicit none
 
         integer i
-        double precision, intent(in) :: p
-        double precision, intent(out) :: dpp, dhh, fpeff
-        double precision :: plim, xbeta, dp, dh, dpd
+        real(dp), intent(in) :: p
+        real(dp), intent(out) :: dpp, dhh, fpeff
+        real(dp) :: plim, xbeta, d_p, dh, dpd
 
-        plim = max(p, 1.d-8)
+        plim = max(p, 1.0e-8_dp)
 
-        dpp = 0.0d0
-        dhh = 0.0d0
-        fpeff = 0.0d0
+        dpp = 0.0_dp
+        dhh = 0.0_dp
+        fpeff = 0.0_dp
 
         do i = 1, nsorts
             xbeta = p*velrat(i)
 
-            call onseff(xbeta, dp, dh, dpd)
+            call onseff(xbeta, d_p, dh, dpd)
 
-            dpp = dpp + dp*efcolf(i)
+            dpp = dpp + d_p*efcolf(i)
             dhh = dhh + dh*efcolf(i)
-            fpeff = fpeff + (dpd/plim - 2.0d0*dp*p*enrat(i))*efcolf(i)
+            fpeff = fpeff + (dpd/plim - 2.0_dp*d_p*p*enrat(i))*efcolf(i)
         end do
 
         dhh = dhh/plim**2
@@ -54,37 +58,37 @@ contains
         return
     end subroutine coleff
 
-    subroutine onseff(v, dp, dh, dpd)
-    !  dp - dimensionless dpp
+    subroutine onseff(v, d_p, dh, dpd)
+    !  d_p - dimensionless dpp
     !  dh - dhh*p^2     (p - dmls)
-    !  dpd - (1/p)(d/dp)p^2*dp   (p - dmls)
+    !  dpd - (1/p)(d/dp)p^2*d_p   (p - dmls)
 
         implicit none
 
         ! square root of pi
-        double precision, parameter :: sqp = 1.7724538d0
+        real(dp), parameter :: sqp = 1.7724538_dp
         ! cons=4./(3.*sqrt(pi))
-        double precision, parameter :: cons = .75225278d0
-        double precision, intent(in) :: v
-        double precision, intent(out) :: dp, dh, dpd
-        double precision :: v2, v3, ex, er
+        real(dp), parameter :: cons = 0.75225278_dp
+        real(dp), intent(in) :: v
+        real(dp), intent(out) :: d_p, dh, dpd
+        real(dp) :: v2, v3, ex, er
 
         v2 = v**2
         v3 = v2*v
-        if (v .lt. 0.01d0) then
-            dp = cons*(1.d0 - 0.6d0*v2)
-            dh = cons*(1.d0 - 0.2d0*v2)
-            dpd = 2.d0*cons*(1.d0 - 1.2d0*v2)
-        elseif (v .gt. 6.d0) then
-            dp = 1.d0/v3
-            dh = (1.d0 - 0.5d0/v2)/v
-            dpd = -1.d0/v3
+        if (v < 0.01_dp) then
+            d_p = cons*(1.0_dp - 0.6_dp*v2)
+            dh = cons*(1.0_dp - 0.2_dp*v2)
+            dpd = 2.0_dp*cons*(1.0_dp - 1.2_dp*v2)
+        elseif (v > 6.0_dp) then
+            d_p = 1.0_dp/v3
+            dh = (1.0_dp - 0.5_dp/v2)/v
+            dpd = -1.0_dp/v3
         else
             ex = exp(-v2)/sqp
             er = erf(v)
-            dp = er/v3 - 2.d0*ex/v2
-            dh = er*(1.d0 - 0.5d0/v2)/v + ex/v2
-            dpd = 4.d0*ex - dp
+            d_p = er/v3 - 2.0_dp*ex/v2
+            dh = er*(1.0_dp - 0.5_dp/v2)/v + ex/v2
+            dpd = 4.0_dp*ex - d_p
         end if
 
         return
@@ -124,36 +128,36 @@ contains
 
         implicit none
 
-        double precision :: amb, am1, am2, Zb, Z1, Z2, densi1, densi2, tempi1, tempi2, tempe, ebeam, dense
-        double precision :: v0, dchichi, slowrate, dchichi_norm, slowrate_norm, vti1, vti2, vte
-        double precision :: pi, pmass, emass, e, ev, alame, frecol_base, alami1, alami2
+        real(dp) :: amb, am1, am2, Zb, Z1, Z2, densi1, densi2, tempi1, tempi2, tempe, ebeam, dense
+        real(dp) :: v0, dchichi, slowrate, dchichi_norm, slowrate_norm, vti1, vti2, vte
+        real(dp) :: pi, pmass, emass, e, ev, alame, frecol_base, alami1, alami2
 
-        pi = 3.14159265358979d0
-        pmass = 1.6726d-24
-        emass = 9.1094d-28
-        e = 4.8032d-10
-        ev = 1.6022d-12
+        pi = 3.14159265358979_dp
+        pmass = 1.6726e-24_dp
+        emass = 9.1094e-28_dp
+        e = 4.8032e-10_dp
+        ev = 1.6022e-12_dp
 
         enrat(1) = ebeam/tempi1
         enrat(2) = ebeam/tempi2
         enrat(3) = ebeam/tempe
 
-        v0 = sqrt(2.d0*ebeam*ev/(amb*pmass))
-        vti1 = sqrt(2.d0*tempi1*ev/(pmass*am1))
-        vti2 = sqrt(2.d0*tempi2*ev/(pmass*am2))
-        vte = sqrt(2.d0*tempe*ev/emass)
+        v0 = sqrt(2.0_dp*ebeam*ev/(amb*pmass))
+        vti1 = sqrt(2.0_dp*tempi1*ev/(pmass*am1))
+        vti2 = sqrt(2.0_dp*tempi2*ev/(pmass*am2))
+        vte = sqrt(2.0_dp*tempe*ev/emass)
 
         velrat(1) = v0/vti1
         velrat(2) = v0/vti2
         velrat(3) = v0/vte
 
         dense = densi1*Z1 + densi2*Z2
-        alami1 = 23.d0 - log(max(epsilon(1.d0), &
+        alami1 = 23.0_dp - log(max(epsilon(1.0_dp), &
                                  sqrt(densi1*Z1**2/tempi1)*Zb*Z1*(amb + am1)/(amb*tempi1 + am1*ebeam)))
-        alami2 = 23.d0 - log(max(epsilon(1.d0), &
+        alami2 = 23.0_dp - log(max(epsilon(1.0_dp), &
                                  sqrt(densi2*Z2**2/tempi2)*Zb*Z2*(amb + am2)/(amb*tempi2 + am2*ebeam)))
-        alame = 24.d0 - log(sqrt(dense)/tempe)
-        frecol_base = 2.d0*pi*dense*e**4*Zb**2/((amb*pmass)**2*v0**3) ! usual
+        alame = 24.0_dp - log(sqrt(dense)/tempe)
+        frecol_base = 2.0_dp*pi*dense*e**4*Zb**2/((amb*pmass)**2*v0**3) ! usual
         frecol_base = frecol_base/v0                                  ! normalized
 
         efcolf(1) = frecol_base*Z1**2*alami1*densi1/dense

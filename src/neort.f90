@@ -1,4 +1,5 @@
 module neort
+    use iso_fortran_env, only: dp => real64
     use logger, only: debug, set_log_level, get_log_level, log_result, LOG_INFO
     use neort_datatypes, only: magfie_data_t, transport_data_t, transport_harmonic_t
     use neort_profiles, only: init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, &
@@ -32,7 +33,7 @@ contains
     pure subroutine set_to_trapped_region(eta_min, eta_max)
         use driftorbit, only: epst, etatp, etadt
 
-        real(8), intent(out) :: eta_min, eta_max
+        real(dp), intent(out) :: eta_min, eta_max
 
         eta_min = (1 + epst)*etatp
         eta_max = (1 - epst)*etadt
@@ -41,35 +42,37 @@ contains
     pure subroutine set_to_passing_region(eta_min, eta_max)
         use driftorbit, only: epsp, etatp
 
-        real(8), intent(out) :: eta_min, eta_max
+        real(dp), intent(out) :: eta_min, eta_max
 
         eta_min = epsp*etatp
         eta_max = (1 - epsp)*etatp
     end subroutine set_to_passing_region
 
     subroutine check_magfie(data)
-        use do_magfie_mod, only: do_magfie, sign_theta
-        use do_magfie_pert_mod, only: do_magfie_pert_amp
-        use driftorbit
+        use util, only: pi, c, imun, eV
+        use do_magfie_mod, only: do_magfie, sign_theta, R0, a, psi_pr, iota, q, Bthcov, Bphcov, &
+            dBthcovds, dBphcovds, eps
+        use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
+        use driftorbit, only: B0, etatp, etadt, M_t, Om_tE, m0, pertfile, nonlin, epsmn, dVds
 
         type(magfie_data_t), intent(out) :: data
 
         integer, parameter :: nth = 50
         integer :: k
-        real(8) :: thmin, thmax
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-        real(8) :: Dp, Drp
-        real(8) :: dpp, dhh, fpeff
-        complex(8) :: bn
+        real(dp) :: thmin, thmax
+        real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: D_plateau, Drp
+        real(dp) :: dpp, dhh, fpeff
+        complex(dp) :: bn
 
-        Dp = pi*vth**3/(16d0*R0*iota*(qi*B0/(mi*c))**2)
+        D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
         Drp = 4*mph*q/(eps**2*sqrt(pi))  ! actually this is Drp/Dp
 
         thmin = -pi
         thmax = pi
         x(1) = s
-        x(2) = 0d0
-        x(3) = 0d0
+        x(2) = 0.0_dp
+        x(3) = 0.0_dp
 
         data%params%s = s
         data%params%R0 = R0
@@ -86,20 +89,20 @@ contains
         data%params%dVds = dVds
         data%params%M_t = M_t
         data%params%Om_tE = Om_tE
-        data%params%Om_tBref = c*mi*vth**2/(2d0*qi*sign_theta*psi_pr)
+        data%params%Om_tBref = c*mi*vth**2/(2.0_dp*qi*sign_theta*psi_pr)
         data%params%vth = vth
-        data%params%T_in_eV = mi/2d0*vth**2/eV
-        data%params%m0 = 1d0*m0
-        data%params%n0 = 1d0*mph
-        data%params%Dp = Dp
+        data%params%T_in_eV = mi/2.0_dp*vth**2/eV
+        data%params%m0 = 1.0_dp*m0
+        data%params%n0 = 1.0_dp*mph
+        data%params%Dp = D_plateau
         data%params%Drp_over_Dp = Drp
         data%params%etatp = etatp
         data%params%etadt = etadt
         data%params%pertfile = pertfile
         data%params%nonlin = nonlin
-        dpp = 0d0
-        dhh = 0d0
-        fpeff = 0d0
+        dpp = 0.0_dp
+        dhh = 0.0_dp
+        fpeff = 0.0_dp
         data%params%dpp = dpp
         data%params%dhh = dhh
         data%params%fpeff = fpeff
@@ -130,29 +133,32 @@ contains
     end subroutine check_magfie
 
     subroutine compute_transport(result_)
-        use driftorbit
+        use driftorbit, only: mth, M_t, R0, etamin, etamax, sign_vpar, nopassing, comptorque, &
+            dVds, mph, dOm_tEds, dM_tds
+        use neort_profiles, only: Om_tE
+        use do_magfie_mod, only: q
 
         type(transport_data_t), intent(out) :: result_
 
         integer :: j, idx
 
-        ! Transport coefficients D11, D12 in approximate effective radius r=2d0/a*sqrt(s)
-        real(8) :: Dco(2), Dctr(2), Dt(2)
+        ! Transport coefficients D11, D12 in approximate effective radius r=2.0_dp/a*sqrt(s)
+        real(dp) :: Dco(2), Dctr(2), Dt(2)
 
         ! Torque density dTphi_int/ds for integration over normalized toroidal flux s
-        real(8) :: Tco, Tctr, Tt
+        real(dp) :: Tco, Tctr, Tt
         integer :: mthmin, mthmax
 
         call debug('compute_transport')
 
         if (allocated(result_%harmonics)) deallocate(result_%harmonics)
 
-        Dco = 0d0
-        Dctr = 0d0
-        Dt = 0d0
-        Tco = 0d0
-        Tctr = 0d0
-        Tt = 0d0
+        Dco = 0.0_dp
+        Dctr = 0.0_dp
+        Dt = 0.0_dp
+        Tco = 0.0_dp
+        Tctr = 0.0_dp
+        Tt = 0.0_dp
 
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
@@ -188,25 +194,25 @@ contains
             result_%torque%Tctr = Tctr
             result_%torque%Tt = Tt
         else
-            result_%torque%s = 0d0
-            result_%torque%dVds = 0d0
-            result_%torque%M_t = 0d0
-            result_%torque%Tco = 0d0
-            result_%torque%Tctr = 0d0
-            result_%torque%Tt = 0d0
+            result_%torque%s = 0.0_dp
+            result_%torque%dVds = 0.0_dp
+            result_%torque%M_t = 0.0_dp
+            result_%torque%Tco = 0.0_dp
+            result_%torque%Tctr = 0.0_dp
+            result_%torque%Tt = 0.0_dp
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
-        use driftorbit
+        use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing
 
         integer, intent(in) :: j
-        real(8), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
+        real(dp), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
         type(transport_harmonic_t), intent(out) :: harmonic
 
-        real(8) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
-        real(8) :: vminp, vmaxp, vmint, vmaxt
+        real(dp) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
+        real(dp) :: vminp, vmaxp, vmint, vmaxt
         character(len=256) :: buffer
 
         write(buffer, '(A,ES12.5,A,I0)') "compute_transport_harmonic: M_t = ", M_t, ", mth = ", j
@@ -214,15 +220,15 @@ contains
 
         mth = j
 
-        Drest = 0d0
-        Dresco = 0d0
-        Dresctr = 0d0
-        Tresco = 0d0
-        Tresctr = 0d0
-        Trest = 0d0
+        Drest = 0.0_dp
+        Dresco = 0.0_dp
+        Dresctr = 0.0_dp
+        Tresco = 0.0_dp
+        Tresctr = 0.0_dp
+        Trest = 0.0_dp
 
-        vminp = 1d-6*vth
-        vmaxp = 3d0*vth
+        vminp = 1.0e-6_dp*vth
+        vmaxp = 3.0_dp*vth
         vmint = vminp
         vmaxt = vmaxp
 
@@ -297,7 +303,7 @@ contains
         write (unit, *) "check_magfie: R0        = ", data%params%R0
         write (unit, *) "check_magfie: a         = ", data%params%a
         write (unit, *) "check_magfie: eps       = ", data%params%eps
-        write (unit, *) "check_magfie: A         = ", 1.0d0 / data%params%eps
+        write (unit, *) "check_magfie: A         = ", 1.0_dp / data%params%eps
         write (unit, *) "check_magfie: psi_pr    = ", data%params%psi_pr
         write (unit, *) "check_magfie: B0        = ", data%params%B0
         write (unit, *) "check_magfie: Bthcov    = ", data%params%Bthcov
@@ -349,7 +355,7 @@ contains
         character(len=*), intent(in) :: base_path
 
         integer :: k
-        real(8) :: total_D1, total_D2
+        real(dp) :: total_D1, total_D2
         integer, parameter :: unit1 = 9
         integer, parameter :: unit2 = 10
 

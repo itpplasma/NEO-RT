@@ -1,4 +1,5 @@
 module neort_magfie
+    use iso_fortran_env, only: dp => real64
     use util, only: disp, pi
     use do_magfie_mod, only: do_magfie, eps, iota
     use neort_orbit, only: th0
@@ -12,11 +13,11 @@ contains
     subroutine init_flux_surface_average(s)
         ! Calculate the flux surface areas for normalization
         ! Note: thread initialization is now handled by auto-init pattern in each module
-        real(8), intent(in) :: s
+        real(dp), intent(in) :: s
         integer, parameter :: nth = 1000
         integer :: k
-        real(8) :: thrange(nth), dth
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: thrange(nth), dth
+        real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         character(len=256) :: buffer
 
         write(buffer, "(A,ES12.5)") "        s: ", s
@@ -26,17 +27,17 @@ contains
 
         dth = thrange(2) - thrange(1)
         x(1) = s
-        x(2) = 0d0
-        x(3) = 0d0
+        x(2) = 0.0_dp
+        x(3) = 0.0_dp
 
-        dVds = 0d0
-        B0 = 0d0
+        dVds = 0.0_dp
+        B0 = 0.0_dp
         write(buffer, "(A,ES12.5)") " eps orig: ", eps
         call log_result(buffer)
-        eps = 0d0
+        eps = 0.0_dp
 
-        Bmin = -1d0
-        Bmax = 0d0
+        Bmin = -1.0_dp
+        Bmax = 0.0_dp
 
         do k = 1, nth
             x(3) = thrange(k)
@@ -53,12 +54,12 @@ contains
             if (bmod > Bmax) Bmax = bmod
         end do
 
-        dVds = 2d0*pi*dVds
-        B0 = B0/(2d0*pi)
+        dVds = 2.0_dp*pi*dVds
+        B0 = B0/(2.0_dp*pi)
         eps = eps/(B0*pi)
 
-        etatp = 1d0/Bmax
-        etadt = 1d0/Bmin
+        etatp = 1.0_dp/Bmax
+        etadt = 1.0_dp/Bmin
 
         write(buffer, "(A,ES12.5)") " eps calc: ", eps
         call log_result(buffer)

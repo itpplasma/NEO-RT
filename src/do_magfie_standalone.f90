@@ -1,34 +1,34 @@
 module do_magfie_mod
-
+    use iso_fortran_env, only: dp => real64
     use util
     use spline
 
     implicit none
 
-    real(8), private :: s_prev = -1.0d0
-    real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
+    real(dp), private :: s_prev = -1.0_dp
+    real(dp), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
     ! Work arrays previously automatic on stack (size=nmode)
-    real(8), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
-    real(8), private, allocatable :: costerm(:), sinterm(:)
+    real(dp), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
+    real(dp), private, allocatable :: costerm(:), sinterm(:)
 
-    real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
+    real(dp), parameter :: sign_theta = -1.0_dp  ! negative for left-handed
 
-    real(8) :: s = 0d0, psi_pr = 0d0, Bthcov = 0d0, Bphcov = 0d0, &
-                       dBthcovds = 0d0, dBphcovds = 0d0, &
-                       q = 0d0, dqds = 0d0, iota = 0d0, R0 = 0d0, a = 0d0, &
-                       eps = 0d0, B0h = 0d0, B00 = 0d0
-    real(8) :: bfac = 1.0d0
+    real(dp) :: s = 0.0_dp, psi_pr = 0.0_dp, Bthcov = 0.0_dp, Bphcov = 0.0_dp, &
+                       dBthcovds = 0.0_dp, dBphcovds = 0.0_dp, &
+                       q = 0.0_dp, dqds = 0.0_dp, iota = 0.0_dp, R0 = 0.0_dp, a = 0.0_dp, &
+                       eps = 0.0_dp, B0h = 0.0_dp, B00 = 0.0_dp
+    real(dp) :: bfac = 1.0_dp
     ! B0h is the 0th theta harmonic of bmod on current flux surface
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
-    real(8), allocatable, protected :: params0(:, :), modes0(:, :, :)
+    real(dp), allocatable, protected :: params0(:, :), modes0(:, :, :)
     integer, protected :: m0b, n0b, nflux, nfp, nmode
 
-    real(8), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
+    real(dp), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
     ! Work arrays for booz_to_cyl (size=nmode)
-    real(8), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
+    real(dp), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
 
-    real(8), parameter :: ItoB = 2.0d-1*sign_theta ! Covarient B (cgs) from I (SI)
+    real(dp), parameter :: ItoB = 2.0e-1_dp*sign_theta ! Covarient B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
 
     integer :: ncol1 = 0, ncol2 = 0 ! number of columns in input file
@@ -59,7 +59,7 @@ module do_magfie_mod
 contains
 
     subroutine set_s(s_)
-        real(8), intent(in) :: s_
+        real(dp), intent(in) :: s_
 
         s = s_
     end subroutine set_s
@@ -68,7 +68,7 @@ contains
         ! Initialize threadprivate variables for this thread
         ! Must be called once per thread before using magfie routines
         magfie_arrays_initialized = .false.
-        s_prev = -1.0d0
+        s_prev = -1.0_dp
     end subroutine magfie_thread_init
 
     subroutine read_boozer_file(path)
@@ -104,15 +104,15 @@ contains
         end do
 
         ! Set B00 from first mode
-        B00 = 1.0d4*modes0(1, 1, 6)*bfac
+        B00 = 1.0e4_dp*modes0(1, 1, 6)*bfac
     end subroutine read_boozer_file
 
     subroutine init_magfie_at_s()
         ! Per-thread: Initialize magnetic field at current s value
         ! Assumes s is already set via set_s()
         ! Allocates threadprivate working buffers and computes s-dependent values
-        real(8) :: x(3), bmod, sqrtg
-        real(8), dimension(3) :: bder, hcovar, hctrvr, hcurl
+        real(dp) :: x(3), bmod, sqrtg
+        real(dp), dimension(3) :: bder, hcovar, hctrvr, hcurl
 
         ! Auto-initialize threadprivate state if not yet done for this thread
         ! (DATA/initializers don't run in worker threads)
@@ -149,7 +149,7 @@ contains
         end if
 
         ! Initialize cache
-        s_prev = -1.0d0
+        s_prev = -1.0_dp
 
         x(1) = s
         x(2) = 0.0
@@ -168,18 +168,18 @@ contains
 
     subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
         ! Evaluate unperturbed axisymmetric magnetic field in point x = (s, ph, th)
-        real(8), dimension(:), intent(in) :: x
-        real(8), intent(out) :: bmod
-        real(8), intent(out) :: sqrtg
-        real(8), dimension(size(x)), intent(out) :: bder
-        real(8), dimension(size(x)), intent(out) :: hcovar
-        real(8), dimension(size(x)), intent(out) :: hctrvr
-        real(8), dimension(size(x)), intent(out) :: hcurl
+        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(out) :: bmod
+        real(dp), intent(out) :: sqrtg
+        real(dp), dimension(size(x)), intent(out) :: bder
+        real(dp), dimension(size(x)), intent(out) :: hcovar
+        real(dp), dimension(size(x)), intent(out) :: hctrvr
+        real(dp), dimension(size(x)), intent(out) :: hcurl
 
-        real(8) :: spl_val(3)
-        real(8) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
+        real(dp) :: spl_val(3)
+        real(dp) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
 
-        real(8) :: x1
+        real(dp) :: x1
 
         ! safety measure in order not to extrapolate
         ! note: this is s
@@ -202,26 +202,26 @@ contains
         ! calculate B-field from modes
         if (inp_swi == 8) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
-            dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
+            B0mnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
+            dB0dsmnc(:) = 1.0e4_dp*spl_val_c(2, :)*bfac
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm)
             bder(1) = sum(dB0dsmnc*costerm)/bmod
-            bder(2) = 0d0
+            bder(2) = 0.0_dp
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
         else if (inp_swi == 9) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
-            B0mnc(:) = 1d4*spl_val_c(1, :)*bfac
-            dB0dsmnc(:) = 1d4*spl_val_c(2, :)*bfac
+            B0mnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
+            dB0dsmnc(:) = 1.0e4_dp*spl_val_c(2, :)*bfac
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            B0mns(:) = 1d4*spl_val_s(1, :)*bfac
-            dB0dsmns(:) = 1d4*spl_val_s(2, :)*bfac
+            B0mns(:) = 1.0e4_dp*spl_val_s(1, :)*bfac
+            dB0dsmns(:) = 1.0e4_dp*spl_val_s(2, :)*bfac
             B0h = B0mnc(1)
 
             bmod = sum(B0mnc*costerm + B0mns*sinterm)
             bder(1) = sum(dB0dsmnc*costerm + dB0dsmns*sinterm)/bmod
-            bder(2) = 0d0
+            bder(2) = 0.0_dp
             bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm &
                           + modes0(1, :, 1)*B0mns*costerm)/bmod
         end if
@@ -230,17 +230,17 @@ contains
         sqgbmod = sqgbmod2/bmod
         sqrtg = sqgbmod/bmod
 
-        hcovar(1) = 0d0  ! TODO
+        hcovar(1) = 0.0_dp  ! TODO
         hcovar(2) = Bphcov/bmod
         hcovar(3) = Bthcov/bmod
 
-        hctrvr(1) = 0d0
+        hctrvr(1) = 0.0_dp
         hctrvr(2) = sign_theta*psi_pr/sqgbmod
         hctrvr(3) = sign_theta*iota*psi_pr/sqgbmod
 
-        hcurl(1) = 0d0  ! TODO
-        hcurl(3) = 0d0  ! TODO
-        hcurl(2) = 0d0  ! TODO
+        hcurl(1) = 0.0_dp  ! TODO
+        hcurl(3) = 0.0_dp  ! TODO
+        hcurl(2) = 0.0_dp  ! TODO
 
         s_prev = x1
 
@@ -250,7 +250,7 @@ contains
         ! Reads Boozer in_file and converts SI to CGS
 
         integer :: ksurf, kmode
-        real(8) :: flux
+        real(dp) :: flux
         character(len=*) :: filename
         open (unit=18, file=filename, action='read', status='old')
         read (18, '(////)')
@@ -258,7 +258,7 @@ contains
         a = 100*a   ! m -> cm
         R0 = 100*R0 ! m -> cm
 
-        psi_pr = 1.0d8*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
+        psi_pr = 1.0e8_dp*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1)*(n0b + 1)
 
@@ -285,10 +285,10 @@ contains
 
     subroutine booz_to_cyl(x, r)
 
-        real(8), intent(in) :: x(3)  ! Boozer coordinates (s, ph, th)
-        real(8), intent(out) :: r(3)  ! Cylindrical coordinates (R, phi, Z)
+        real(dp), intent(in) :: x(3)  ! Boozer coordinates (s, ph, th)
+        real(dp), intent(out) :: r(3)  ! Cylindrical coordinates (R, phi, Z)
 
-        real(8) :: spl_val(3), x1
+        real(dp) :: spl_val(3), x1
 
         integer :: j
 
@@ -299,36 +299,36 @@ contains
 
         do j = 1, nmode
             spl_val = spline_val_0(spl_coeff2(:, :, 1, j), x1)
-            rmnc(j) = 1.0d2*spl_val(1)
+            rmnc(j) = 1.0e2_dp*spl_val(1)
             spl_val = spline_val_0(spl_coeff2(:, :, 2, j), x1)
-            rmns(j) = 1.0d2*spl_val(1)
+            rmns(j) = 1.0e2_dp*spl_val(1)
             spl_val = spline_val_0(spl_coeff2(:, :, 3, j), x1)
-            zmnc(j) = 1.0d2*spl_val(1)
+            zmnc(j) = 1.0e2_dp*spl_val(1)
             spl_val = spline_val_0(spl_coeff2(:, :, 4, j), x1)
-            zmns(j) = 1.0d2*spl_val(1)
+            zmns(j) = 1.0e2_dp*spl_val(1)
         end do
 
         r(1) = sum(rmnc*cos(modes0(1, :, 1)*x(3)) + rmns*sin(modes0(1, :, 1)*x(3)))
-        r(2) = 0.0d0  ! TODO: phi
+        r(2) = 0.0_dp  ! TODO: phi
         r(3) = sum(zmnc*cos(modes0(1, :, 1)*x(3)) + zmns*sin(modes0(1, :, 1)*x(3)))
 
     end subroutine booz_to_cyl
 
     subroutine fast_sin_cos(m, x, sinterm_, costerm_)
         ! Fast sine and cosine that assumes equally spaced ascending mode numbers
-        real(8), intent(in) :: m(:), x
-        real(8), intent(out) :: sinterm_(:), costerm_(:)
+        real(dp), intent(in) :: m(:), x
+        real(dp), intent(out) :: sinterm_(:), costerm_(:)
 
-        real(8) :: dm
-        complex(8) :: fourier_factor, rotation
+        real(dp) :: dm
+        complex(dp) :: fourier_factor, rotation
         integer :: j
 
         dm = m(2) - m(1)
         fourier_factor  = exp(imun*m(1)*x)
         rotation = exp(imun*dm*x)
 
-        costerm_ = (0.0d0, 0.0d0)
-        sinterm_ = (0.0d0, 0.0d0)
+        costerm_ = (0.0_dp, 0.0_dp)
+        sinterm_ = (0.0_dp, 0.0_dp)
         do j = 1, size(m)
             costerm_(j) = real(fourier_factor)
             sinterm_(j) = imag(fourier_factor)
@@ -339,27 +339,27 @@ contains
 end module do_magfie_mod
 
 module do_magfie_pert_mod
-
+    use iso_fortran_env, only: dp => real64
     use util
     use spline
     use do_magfie_mod, only: s, bfac, inp_swi
 
     implicit none
 
-    real(8), private :: s_prev = -1.0d0
-    real(8), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
+    real(dp), private :: s_prev = -1.0_dp
+    real(dp), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
 
-    real(8), allocatable, protected :: params(:, :), modes(:, :, :)
+    real(dp), allocatable, protected :: params(:, :), modes(:, :, :)
     integer, protected :: mb, nb, nflux, nfp, nmode
 
-    real(8), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
+    real(dp), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
 
     ! Work arrays (size=nmode)
-    real(8), private, allocatable :: Bmnc(:), Bmns(:)
+    real(dp), private, allocatable :: Bmnc(:), Bmns(:)
 
     integer :: ncol1, ncol2 ! number of columns in input file
-    real(8) :: mph ! toroidal perturbation mode (threadprivate)
-    real(8) :: mph_shared = 0d0 ! shared copy for namelist input (when pertfile=.false.)
+    real(dp) :: mph ! toroidal perturbation mode (threadprivate)
+    real(dp) :: mph_shared = 0.0_dp ! shared copy for namelist input (when pertfile=.false.)
 
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_pert_arrays_initialized = .false.
@@ -384,7 +384,7 @@ contains
         ! Initialize threadprivate variables for this thread
         ! Must be called once per thread before using magfie_pert routines
         magfie_pert_arrays_initialized = .false.
-        s_prev = -1.0d0
+        s_prev = -1.0_dp
     end subroutine magfie_pert_thread_init
 
     subroutine read_boozer_pert_file(path)
@@ -427,8 +427,8 @@ contains
         ! Per-thread: Initialize perturbation field at current s value
         ! Assumes s is already set via set_s()
         ! Allocates threadprivate working buffers and computes s-dependent values
-        real(8) :: x(3)
-        complex(8) :: dummy
+        real(dp) :: x(3)
+        complex(dp) :: dummy
 
         ! Auto-initialize threadprivate state if not yet done for this thread
         if (magfie_pert_thread_init_state /= MAGFIE_PERT_INIT_SENTINEL) then
@@ -453,7 +453,7 @@ contains
         end if
 
         ! Initialize cache
-        s_prev = -1.0d0
+        s_prev = -1.0_dp
 
         ! Compute mph at current s
         mph = nfp*modes(1, 1, 2)
@@ -465,7 +465,7 @@ contains
     end subroutine init_magfie_pert_at_s
 
     subroutine set_mph(mph_value)
-        real(8), intent(in) :: mph_value
+        real(dp), intent(in) :: mph_value
         mph = mph_value
         mph_shared = mph_value
     end subroutine set_mph
@@ -484,10 +484,10 @@ contains
     end subroutine do_magfie_pert_init
 
     subroutine do_magfie_pert_amp(x, bamp)
-        real(8), dimension(:), intent(in) :: x
-        complex(8), intent(out) :: bamp
+        real(dp), dimension(:), intent(in) :: x
+        complex(dp), intent(out) :: bamp
 
-        real(8) :: x1
+        real(dp) :: x1
 
         ! safety measure in order not to extrapolate
         x1 = max(params(1, 1), x(1))
@@ -496,13 +496,13 @@ contains
         ! calculate B-field from modes
         if (inp_swi == 8) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            Bmnc(:) = 1d4*spl_val_c(1, :)*bfac
+            Bmnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
             bamp = sum(Bmnc*cos(modes(1, :, 1)*x(3)))
         else if (inp_swi == 9) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            Bmnc(:) = 1d4*spl_val_c(1, :)*bfac
-            Bmns(:) = 1d4*spl_val_s(1, :)*bfac
+            Bmnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
+            Bmns(:) = 1.0e4_dp*spl_val_s(1, :)*bfac
             bamp = fast_fourier_sum(Bmnc, Bmns, modes(1, :, 1), x(3))
         end if
 
@@ -510,9 +510,9 @@ contains
     end subroutine do_magfie_pert_amp
 
     subroutine do_magfie_pert(x, bmod)
-        real(8), dimension(:), intent(in) :: x
-        real(8), intent(out) :: bmod
-        complex(8) :: bamp
+        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(out) :: bmod
+        complex(dp) :: bamp
 
         call do_magfie_pert_amp(x, bamp)
         bmod = real(sum(bamp*exp(imun*nfp*modes(1, :, 2)*x(2))))
@@ -521,7 +521,7 @@ contains
 
     subroutine boozer_read_pert(filename)
         integer :: ksurf, kmode
-        real(8) :: flux, dummy
+        real(dp) :: flux, dummy
         character(len=*) :: filename
         open (unit=18, file=filename)
         read (18, '(////)')
@@ -550,11 +550,11 @@ contains
     end subroutine boozer_read_pert
 
     subroutine check_equal_space_ascending(m, kmode)
-        real(8), dimension(:), intent(in) :: m
+        real(dp), dimension(:), intent(in) :: m
         integer, intent(in) :: kmode
 
-        real(8), parameter :: tol = 1.0d-10
-        real(8) :: diff, diff2
+        real(dp), parameter :: tol = 1.0e-10_dp
+        real(dp) :: diff, diff2
 
         if (kmode < 3) return
 
@@ -566,10 +566,10 @@ contains
     end subroutine check_equal_space_ascending
 
     subroutine check_equal(m, kmode)
-        real(8), dimension(:), intent(in) :: m
+        real(dp), dimension(:), intent(in) :: m
         integer, intent(in) :: kmode
 
-        real(8), parameter :: tol = 1.0d-10
+        real(dp), parameter :: tol = 1.0e-10_dp
 
         if (kmode < 2) return
 
@@ -580,19 +580,19 @@ contains
 
     function fast_fourier_sum(fmnc, fmns, m, x)
         ! Fast Fourier sum that assumes equally spaced ascending mode numbers
-        real(8), dimension(:), intent(in) :: fmnc, fmns, m
-        real(8), intent(in) :: x
-        complex(8) :: fast_fourier_sum
+        real(dp), dimension(:), intent(in) :: fmnc, fmns, m
+        real(dp), intent(in) :: x
+        complex(dp) :: fast_fourier_sum
 
-        real(8) :: dm
-        complex(8) :: fourier_factor, rotation
+        real(dp) :: dm
+        complex(dp) :: fourier_factor, rotation
         integer :: j
 
         dm = m(2) - m(1)
         fourier_factor  = exp(imun*m(1)*x)
         rotation = exp(imun*dm*x)
 
-        fast_fourier_sum = (0.0d0, 0.0d0)
+        fast_fourier_sum = (0.0_dp, 0.0_dp)
         do j = 1, size(m)
             fast_fourier_sum = fast_fourier_sum + &
                 (fmnc(j) - imun*fmns(j))*fourier_factor

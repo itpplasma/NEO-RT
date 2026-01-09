@@ -1,5 +1,5 @@
 module diag_bounce_debug
-  use iso_fortran_env, only: real64
+  use iso_fortran_env, only: dp => real64
   use neort, only: init, check_magfie, write_magfie_data_to_files, &
                    set_to_passing_region, set_to_trapped_region, vsteps
   use neort_config, only: read_and_set_config
@@ -23,14 +23,14 @@ contains
     character(*), intent(in) :: arg_runname
     logical :: file_exists
     integer :: i, j, mmin, mmax, nm, u
-    real(real64) :: vminp, vmaxp, vmint, vmaxt
-    real(real64) :: du, ux, v
-    real(real64) :: roots(100,3), eta_res(2), eta
+    real(dp) :: vminp, vmaxp, vmint, vmaxt
+    real(dp) :: du, ux, v
+    real(dp) :: roots(100,3), eta_res(2), eta
     integer :: nroots, kr
-    real(real64) :: Omth, dOmthdv, dOmthdeta, taub
+    real(dp) :: Omth, dOmthdv, dOmthdeta, taub
     integer :: istate
     integer :: istats(50)
-    real(real64) :: rstats(50)
+    real(dp) :: rstats(50)
     type(magfie_data_t) :: magfie_data
 
     ! Initialize environment just like main
@@ -50,13 +50,13 @@ contains
     call check_magfie(magfie_data)
     call write_magfie_data_to_files(magfie_data, runname)
 
-    vminp = 1.0d-6*vth
-    vmaxp = 3.0d0*vth
+    vminp = 1.0e-6_dp*vth
+    vmaxp = 3.0_dp*vth
     vmint = vminp
     vmaxt = vmaxp
 
-    mmin = -ceiling(2.0_real64*abs(mph*q))
-    mmax =  ceiling(2.0_real64*abs(mph*q))
+    mmin = -ceiling(2.0_dp*abs(mph*q))
+    mmax =  ceiling(2.0_dp*abs(mph*q))
     nm = mmax - mmin + 1
 
     open(newunit=u, file=trim(arg_runname)//'_bounce_debug.txt', status='replace', action='write')
@@ -68,17 +68,17 @@ contains
       mth = mmin + (j - 1)
 
       ! Passing co
-      sign_vpar = 1.0_real64
+      sign_vpar = 1.0_dp
       call set_to_passing_region(etamin, etamax)
       call scan_branch('cop', vminp, vmaxp, vsteps, u)
 
       ! Passing ctr
-      sign_vpar = -1.0_real64
+      sign_vpar = -1.0_dp
       call set_to_passing_region(etamin, etamax)
       call scan_branch('ctr', vminp, vmaxp, vsteps, u)
 
       ! Trapped
-      sign_vpar = 1.0_real64
+      sign_vpar = 1.0_dp
       call set_to_trapped_region(etamin, etamax)
       call scan_branch('trap', vmint, vmaxt, vsteps, u)
     end do
@@ -87,28 +87,28 @@ contains
 
   subroutine scan_branch(label, vmin, vmax, vsteps_loc, u)
     character(*), intent(in) :: label
-    real(real64), intent(in) :: vmin, vmax
+    real(dp), intent(in) :: vmin, vmax
     integer, intent(in) :: vsteps_loc
     integer, intent(in) :: u
-    real(real64) :: du, ux, v
-    real(real64) :: roots(100,3), eta_res(2), eta
+    real(dp) :: du, ux, v
+    real(dp) :: roots(100,3), eta_res(2), eta
     integer :: nroots, kr
-    real(real64) :: Omth, dOmthdv, dOmthdeta, taub
+    real(dp) :: Omth, dOmthdv, dOmthdeta, taub
     integer :: istate
     integer :: istats(50)
-    real(real64) :: rstats(50)
+    real(dp) :: rstats(50)
 
-    du = (vmax - vmin)/(real(vsteps_loc, real64)*vth)
-    ux = vmin/vth + du/2.0_real64
-    do while (ux*vth <= vmax + 1d-12)
+    du = (vmax - vmin)/(real(vsteps_loc, dp)*vth)
+    ux = vmin/vth + du/2.0_dp
+    do while (ux*vth <= vmax + 1.0e-12_dp)
       v = ux*vth
       call driftorbit_coarse(v, etamin, etamax, roots, nroots)
       if (nroots > 0) then
         do kr = 1, nroots
-          eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+          eta_res = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr,1), roots(kr,2))
           eta = eta_res(1)
           call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-          taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
+          taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
           call probe_bounce(v, eta, taub, istate, istats, rstats)
           write(u,'(A,1X,I4,1X,F8.4,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I4,1X,I9,1X,ES12.5)') &
                trim(label), mth, ux, eta, Omth, taub, istate, istats(1), rstats(6)
@@ -119,26 +119,26 @@ contains
   end subroutine scan_branch
 
   subroutine probe_bounce(v, eta, taub, istate, istats, rstats)
-    real(real64), intent(in) :: v, eta, taub
+    real(dp), intent(in) :: v, eta, taub
     integer, intent(out) :: istate
     integer, intent(out) :: istats(:)
-    real(real64), intent(out) :: rstats(:)
+    real(dp), intent(out) :: rstats(:)
 
-    real(real64) :: t1, t2
-    real(real64) :: y(nvar)
-    real(real64) :: atol(nvar), rtol
+    real(dp) :: t1, t2
+    real(dp) :: y(nvar)
+    real(dp) :: atol(nvar), rtol
     integer :: neq, itask
     type(vode_opts) :: options
 
-    t1 = 0.0_real64
+    t1 = 0.0_dp
     t2 = taub
-    y = 1.0e-15_real64
-    y(1) = 0.0_real64
-    y(2) = 0.0_real64
-    y(3:6) = 0.0_real64
+    y = 1.0e-15_dp
+    y(1) = 0.0_dp
+    y(2) = 0.0_dp
+    y(3:6) = 0.0_dp
     neq = nvar
-    rtol = 1.0e-8_real64
-    atol = 1.0e-9_real64
+    rtol = 1.0e-8_dp
+    atol = 1.0e-9_dp
     itask = 1
     istate = 1
     options = set_normal_opts(abserr_vector=atol, relerr=rtol)
@@ -149,9 +149,9 @@ contains
   contains
     subroutine timestep_wrapper(neq_, t_, y_, ydot_)
       integer, intent(in) :: neq_
-      real(real64), intent(in) :: t_
-      real(real64), intent(in) :: y_(neq_)
-      real(real64), intent(out) :: ydot_(neq_)
+      real(dp), intent(in) :: t_
+      real(dp), intent(in) :: y_(neq_)
+      real(dp), intent(out) :: ydot_(neq_)
       call timestep_transport(v, eta, neq_, t_, y_, ydot_)
     end subroutine timestep_wrapper
   end subroutine probe_bounce

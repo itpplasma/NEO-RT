@@ -1,4 +1,5 @@
 module neort_orbit
+    use iso_fortran_env, only: dp => real64
     use logger, only: debug, trace, get_log_level, LOG_TRACE, error
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
@@ -13,7 +14,7 @@ module neort_orbit
     implicit none
 
     integer, parameter :: nvar = 7
-    real(8) :: th0 = 0d0
+    real(dp) :: th0 = 0.0_dp
 
     logical :: noshear = .false.      ! neglect magnetic shear
 
@@ -21,11 +22,12 @@ module neort_orbit
 
     interface
         subroutine timestep_i(v, eta, neq, t, y, ydot)
-            real(8), intent(in) :: v, eta
+            import :: dp
+            real(dp), intent(in) :: v, eta
             integer, intent(in) :: neq
-            real(8), intent(in) :: t
-            real(8), intent(in) :: y(neq)
-            real(8), intent(out) :: ydot(neq)
+            real(dp), intent(in) :: t
+            real(dp), intent(in) :: y(neq)
+            real(dp), intent(out) :: ydot(neq)
         end subroutine timestep_i
     end interface
 
@@ -36,7 +38,7 @@ contains
         use driftorbit, only: etatp, etadt, etamin, etamax, mth, mph, sign_vpar
         use neort_profiles, only: vth, Om_tE
         character(*), intent(in) :: where
-        real(8), intent(in) :: v_in, eta_in, tcur, tout
+        real(dp), intent(in) :: v_in, eta_in, tcur, tout
         integer, intent(in) :: ist
         character(len=512) :: msg
         character(len=64) :: reg
@@ -59,7 +61,7 @@ contains
     end subroutine dvode_error_context
 
     pure function to_es(x) result(sout)
-        real(8), intent(in) :: x
+        real(dp), intent(in) :: x
         character(len=24) :: sout
         write(sout,'(ES12.5)') x
     end function to_es
@@ -73,48 +75,48 @@ contains
 
     subroutine bounce(v, eta, taub, bounceavg, taub_estimate)
         ! calculate all bounce averages
-        real(8), intent(in) :: v, eta
-        real(8), intent(out) :: taub, bounceavg(nvar)
-        real(8), optional :: taub_estimate  ! estimated bounce time (user input)
-        real(8) :: findroot_res(nvar + 1)
-        real(8) :: bmod, htheta
-        real(8) :: y0(nvar)
+        real(dp), intent(in) :: v, eta
+        real(dp), intent(out) :: taub, bounceavg(nvar)
+        real(dp), optional :: taub_estimate  ! estimated bounce time (user input)
+        real(dp) :: findroot_res(nvar + 1)
+        real(dp) :: bmod, htheta
+        real(dp) :: y0(nvar)
 
         ! Initialize bounce-averated quantities y0. Their meaning
         ! is defined inside subroutine timestep (thin orbit integration)
         call evaluate_bfield_local(bmod, htheta)
-        sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
-        y0 = 1d-15
+        sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
+        y0 = 1.0e-15_dp
         y0(1) = th0         ! poloidal angle theta
         y0(2) = sign_vpar_htheta*vpar(v, eta, bmod)  ! parallel velocity vpar
-        y0(3) = 0d0         ! toroidal velocity v_ph for drift frequency Om_ph
-        y0(4) = 0d0         ! perturbed Hamiltonian real part
-        y0(5) = 0d0         ! perturbed Hamiltonian imaginary part
-        y0(6) = 0d0         ! 1/abs(B)
-        ! y0(7) = 0d0       ! abs(B)
+        y0(3) = 0.0_dp         ! toroidal velocity v_ph for drift frequency Om_ph
+        y0(4) = 0.0_dp         ! perturbed Hamiltonian real part
+        y0(5) = 0.0_dp         ! perturbed Hamiltonian imaginary part
+        y0(6) = 0.0_dp         ! 1/abs(B)
+        ! y0(7) = 0.0_dp       ! abs(B)
 
         ! If bounce time estimate exists (elliptic integrals),
         ! initialize taub with it, owtherwise estimate here.
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2.0_dp))
         end if
 
         ! Look for exactly one orbit turn via root-finding.
         ! Start by looking for 5 points per turn.
-        findroot_res = bounce_integral(v, eta, nvar, y0, taub/5d0, timestep)
+        findroot_res = bounce_integral(v, eta, nvar, y0, taub/5.0_dp, timestep)
 
         taub = findroot_res(1)
         bounceavg = findroot_res(2:)/taub
     end subroutine bounce
 
     subroutine evaluate_bfield_local(bmod, htheta)
-        real(8), intent(out) :: bmod, htheta
-        real(8) :: sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), intent(out) :: bmod, htheta
+        real(dp) :: sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
         x(1) = s
-        x(2) = 0d0
+        x(2) = 0.0_dp
         x(3) = th0
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         htheta = hctrvr(3)
@@ -122,53 +124,53 @@ contains
 
     pure function vpar(v, eta, bmod)
         !   parallel velocity
-        real(8) :: vpar
-        real(8), intent(in) :: v, eta, bmod
-        vpar = v*sqrt(1d0 - eta*bmod)
+        real(dp) :: vpar
+        real(dp), intent(in) :: v, eta, bmod
+        vpar = v*sqrt(1.0_dp - eta*bmod)
         if (isnan(vpar)) then
-            vpar = 0d0
+            vpar = 0.0_dp
         end if
     end function vpar
 
     pure function vperp(v, eta, bmod)
         !   perpendicular velocity
-        real(8) :: vperp
-        real(8), intent(in) :: v, eta, bmod
+        real(dp) :: vperp
+        real(dp), intent(in) :: v, eta, bmod
         vperp = v*sqrt(eta*bmod)
         if (isnan(vperp)) then
-            vperp = 0d0
+            vperp = 0.0_dp
         end if
     end function vperp
 
     subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
         use dvode_f90_m
 
-        real(8), intent(in) :: v, eta, taub
-        real(8), intent(out) :: bounceavg(nvar)
+        real(dp), intent(in) :: v, eta, taub
+        real(dp), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
 
-        real(8) :: t1, t2, bmod, htheta
-        real(8) :: y(nvar)
-        real(8) :: atol(nvar), rtol
+        real(dp) :: t1, t2, bmod, htheta
+        real(dp) :: y(nvar)
+        real(dp) :: atol(nvar), rtol
         integer :: neq, itask, istate
         type(vode_opts) :: options
 
         call trace('bounce_fast')
 
-        t1 = 0d0
+        t1 = 0.0_dp
         t2 = taub
 
         call evaluate_bfield_local(bmod, htheta)
-        sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
-        y = 1d-15
+        sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
+        y = 1.0e-15_dp
         y(1) = th0
         y(2) = sign_vpar_htheta*vpar(v, eta, bmod)
-        y(3:6) = 0d0
+        y(3:6) = 0.0_dp
 
         neq = nvar
-        rtol = 1d-9
-        atol = 1d-10
+        rtol = 1.0e-9_dp
+        atol = 1.0e-10_dp
         itask = 1
         istate = 1
 
@@ -188,9 +190,9 @@ contains
         subroutine timestep_wrapper(neq_, t_, y_, ydot_)
             ! Wrapper routine for timestep to work with VODE
             integer, intent(in) :: neq_
-            real(8), intent(in) :: t_
-            real(8), intent(in) :: y_(neq_)
-            real(8), intent(out) :: ydot_(neq_)
+            real(dp), intent(in) :: t_
+            real(dp), intent(in) :: y_(neq_)
+            real(dp), intent(out) :: ydot_(neq_)
 
             call ts(v, eta, neq_, t_, y_, ydot_)
         end subroutine timestep_wrapper
@@ -198,17 +200,17 @@ contains
 
     function bounce_time(v, eta, taub_estimate) result(taub)
 
-        real(8), intent(in) :: v, eta
-        real(8), intent(in), optional :: taub_estimate
-        real(8) :: taub
+        real(dp), intent(in) :: v, eta
+        real(dp), intent(in), optional :: taub_estimate
+        real(dp) :: taub
 
         integer, parameter :: neq = 2
-        real(8) :: y0(neq), roots(neq+1)
-        real(8) :: bmod, htheta
+        real(dp) :: y0(neq), roots(neq+1)
+        real(dp) :: bmod, htheta
         call trace('bounce_time')
 
         call evaluate_bfield_local(bmod, htheta)
-        sign_vpar_htheta = sign(1d0, htheta)*sign_vpar
+        sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
 
         y0(1) = th0         ! poloidal angle theta
         y0(2) = sign_vpar_htheta*vpar(v, eta, bmod)  ! parallel velocity vpar
@@ -216,7 +218,7 @@ contains
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2d0))
+            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2.0_dp))
         end if
 
         roots = bounce_integral(v, eta, neq, y0, taub, timestep_poloidal_motion)
@@ -225,15 +227,15 @@ contains
     end function bounce_time
 
     subroutine timestep_poloidal_motion(v, eta, neq, t, y, ydot)
-        real(8), intent(in) :: v, eta
+        real(dp), intent(in) :: v, eta
         integer, intent(in) :: neq
-        real(8), intent(in) :: t, y(neq)
-        real(8), intent(out) :: ydot(neq)
+        real(dp), intent(in) :: t, y(neq)
+        real(dp), intent(out) :: ydot(neq)
 
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
 
         x(1) = s
-        x(2) = 0d0
+        x(2) = 0.0_dp
         x(3) = y(1)
 
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
@@ -241,12 +243,12 @@ contains
     end subroutine timestep_poloidal_motion
 
     pure subroutine poloidal_velocity(v, eta, bmod, hthctr, hderth, v_par, ydot)
-        real(8), intent(in) :: v, eta, bmod, hthctr, hderth
-        real(8), intent(in) :: v_par
-        real(8), intent(out) :: ydot(2)
+        real(dp), intent(in) :: v, eta, bmod, hthctr, hderth
+        real(dp), intent(in) :: v_par
+        real(dp), intent(out) :: ydot(2)
 
         ydot(1) = v_par*hthctr                                  ! theta
-        ydot(2) = -v**2*eta/2d0*hthctr*hderth*bmod              ! v_par
+        ydot(2) = -v**2*eta/2.0_dp*hthctr*hderth*bmod              ! v_par
     end subroutine poloidal_velocity
 
     function bounce_integral(v, eta, neq, y0, dt, ts)
@@ -255,26 +257,26 @@ contains
         !
         use dvode_f90_m
 
-        real(8) :: bounce_integral(neq + 1)
-        real(8), intent(in) :: v, eta
+        real(dp) :: bounce_integral(neq + 1)
+        real(dp), intent(in) :: v, eta
         integer, intent(in) :: neq
-        real(8), intent(in) :: y0(neq), dt
+        real(dp), intent(in) :: y0(neq), dt
         procedure(timestep_i) :: ts
 
         integer :: n
 
         integer :: k, state, rootstate
-        real(8) :: ti, told
-        real(8) :: y(neq), yold(neq)
+        real(dp) :: ti, told
+        real(dp) :: y(neq), yold(neq)
 
         logical :: passing
 
-        real(8) :: atol(neq), rtol, tout
+        real(dp) :: atol(neq), rtol, tout
         integer :: itask, istate
         type(vode_opts) :: options
 
-        rtol = 1d-9
-        atol = 1d-10
+        rtol = 1.0e-9_dp
+        atol = 1.0e-10_dp
         itask = 1
         istate = 1
 
@@ -289,7 +291,7 @@ contains
 
         y = y0
         yold = y0
-        ti = 0d0
+        ti = 0.0_dp
         state = 1
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A,2ES12.5,2A)') '[TRACE] bounce_integral start v,eta=', v, eta, ' pass=', merge('T','F',eta<etatp)
@@ -337,9 +339,9 @@ contains
         subroutine timestep_wrapper(neq_, t_, y_, ydot_)
             ! Wrapper routine for timestep to work with VODE
             integer, intent(in) :: neq_
-            real(8), intent(in) :: t_
-            real(8), intent(in) :: y_(neq_)
-            real(8), intent(out) :: ydot_(neq_)
+            real(dp), intent(in) :: t_
+            real(dp), intent(in) :: y_(neq_)
+            real(dp), intent(out) :: ydot_(neq_)
 
             call ts(v, eta, neq_, t_, y_, ydot_)
         end subroutine timestep_wrapper
@@ -347,12 +349,12 @@ contains
 
     subroutine bounceroots(NEQ, T, Y, NG, GOUT)
         integer, intent(in) :: NEQ, NG
-        real(8), intent(in) :: T, Y(neq)
-        real(8), intent(out) :: GOUT(ng)
+        real(dp), intent(in) :: T, Y(neq)
+        real(dp), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
         GOUT(1) = sign_vpar_htheta*(Y(1) - th0) ! trapped orbit return to starting point
-        GOUT(2) = sign_vpar_htheta*(2d0*pi - (Y(1) - th0))  ! passing orbit return
+        GOUT(2) = sign_vpar_htheta*(2.0_dp*pi - (Y(1) - th0))  ! passing orbit return
         return
     end subroutine bounceroots
 
@@ -363,19 +365,19 @@ contains
         !  More integrands may be added starting from y(3)
         !
 
-        real(8), intent(in) :: v, eta
+        real(dp), intent(in) :: v, eta
         integer, intent(in) :: neq
-        real(8), intent(in) :: t
-        real(8), intent(in) :: y(neq)
-        real(8), intent(out) :: ydot(neq)
+        real(dp), intent(in) :: t
+        real(dp), intent(in) :: y(neq)
+        real(dp), intent(out) :: ydot(neq)
 
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-        real(8) :: Om_tB_v
-        real(8) :: shearterm
+        real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: Om_tB_v
+        real(dp) :: shearterm
 
 
         x(1) = s
-        x(2) = 0d0
+        x(2) = 0.0_dp
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
@@ -384,15 +386,15 @@ contains
             shearterm = 0
         end if
 
-        Om_tB_v = mi*c*q/(2d0*qi*sign_theta*psi_pr*bmod)*( &      ! Om_tB/v**2
-                  -(2d0 - eta*bmod)*bmod*hder(1) &
-                  + 2d0*(1d0 - eta*bmod)*hctrvr(3)* &
+        Om_tB_v = mi*c*q/(2.0_dp*qi*sign_theta*psi_pr*bmod)*( &      ! Om_tB/v**2
+                  -(2.0_dp - eta*bmod)*bmod*hder(1) &
+                  + 2.0_dp*(1.0_dp - eta*bmod)*hctrvr(3)* &
                   (dBthcovds + q*dBphcovds + shearterm))
 
         ydot(1) = y(2)*hctrvr(3)                                    ! theta
-        ydot(2) = -0.5d0*v**2*eta*hctrvr(3)*hder(3)*bmod            ! v_par
+        ydot(2) = -0.5_dp*v**2*eta*hctrvr(3)*hder(3)*bmod            ! v_par
         ydot(3) = Om_tB_v  ! for bounce average of Om_tB/v**2
-        ydot(4:) = 0d0     ! remaining integrands not computed here
+        ydot(4:) = 0.0_dp     ! remaining integrands not computed here
     end subroutine timestep
 
 end module neort_orbit

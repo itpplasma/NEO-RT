@@ -1,4 +1,5 @@
 program test_misc
+    use iso_fortran_env, only: dp => real64
     use util, only: readdata, disp, c, qi, mi, pi
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epssp_spl, &
         epsp_spl, sign_vpar, mth, nlev, nopassing, epsp, epst, dVds
@@ -24,28 +25,28 @@ contains
     subroutine test_torfreq
         integer, parameter :: n = 100
         integer :: k
-        real(8) :: Omph, dOmphdv, dOmphdeta, dOmphds
-        real(8) :: Omth, dOmthdv, dOmthdeta, dOmthds
-        real(8) :: OmtB, dOmtBdv, dOmtBdeta
-        real(8) :: aa, b
-        real(8) :: taub, bounceavg(nvar)
-        real(8) :: v, eta
+        real(dp) :: Omph, dOmphdv, dOmphdeta, dOmphds
+        real(dp) :: Omth, dOmthdv, dOmthdeta, dOmthds
+        real(dp) :: OmtB, dOmtBdv, dOmtBdeta
+        real(dp) :: aa, b
+        real(dp) :: taub, bounceavg(nvar)
+        real(dp) :: v, eta
 
         v = vth
 
         etamin = etatp
-        etamax = etatp + (etadt - etatp)*(1d0 - epsst_spl)
+        etamax = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
 
         b = log(epst_spl)
-        aa = 1d0/(n - 1d0)*(log(etamax/etamin - 1d0) - b)
+        aa = 1.0_dp/(n - 1.0_dp)*(log(etamax/etamin - 1.0_dp) - b)
         eta = etamax
 
         sign_vpar = 1
 
         call disp("test_torfreq: vth        = ", vth)
         call disp("test_torfreq: v/vth      = ", v/vth)
-        call disp("test_torfreq: mph        = ", 1d0*mph)
-        call disp("test_torfreq: mth        = ", 1d0*mth)
+        call disp("test_torfreq: mph        = ", 1.0_dp*mph)
+        call disp("test_torfreq: mth        = ", 1.0_dp*mth)
         call disp("test_torfreq: Om_tE      = ", Om_tE)
         call disp("test_torfreq: Om_tB_ref  = ", c*mi*vth**2/(2*qi*psi_pr))
         call bounce(v, eta, taub, bounceavg)
@@ -54,7 +55,7 @@ contains
         call disp("test_torfreq: etamax = ", etamax)
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
-        call disp("test_torfreq: Om_th_approx    = ", v/(q*R0*sqrt(2d0/eps)))
+        call disp("test_torfreq: Om_th_approx    = ", v/(q*R0*sqrt(2.0_dp/eps)))
         call disp("test_torfreq: Om_th_deeptrap  = ", Omth)
 
         open (unit=9, file=trim(adjustl(runname))//"_torfreq.out", recl=1024)
@@ -74,11 +75,11 @@ contains
             "14:dOmphdeta              "// &
             "15:dOmphds                "
         do k = 0, n - 1
-            eta = etamin*(1d0 + exp(aa*k + b))
+            eta = etamin*(1.0_dp + exp(aa*k + b))
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
             call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
-            call d_Om_ds(v, eta, 2d0*pi/Omth, dOmthds, dOmphds)
+            call d_Om_ds(v, eta, 2.0_dp*pi/Omth, dOmthds, dOmphds)
             write (9, *) eta, etatp, etadt, &
                 Om_tE, OmtB, dOmtbdv, dOmtbdeta, &
                 Omth, dOmthdv, dOmthdeta, dOmthds, &
@@ -90,15 +91,15 @@ contains
     subroutine test_resline
         integer, parameter :: n = 500
         integer :: k
-        real(8) :: vmin, vmax, v
-        real(8) :: etarest(2), etaresp(2)
-        real(8) :: roots(nlev, 3)
+        real(dp) :: vmin, vmax, v
+        real(dp) :: etarest(2), etaresp(2)
+        real(dp) :: roots(nlev, 3)
         integer :: nroots, kr
 
         print *, "test_resline"
 
-        vmin = 1d-6*vth
-        vmax = 10d0*vth
+        vmin = 1.0e-6_dp*vth
+        vmax = 10.0_dp*vth
 
         etaresp = etatp
         etarest = etatp
@@ -108,21 +109,21 @@ contains
         open (unit=10, file=trim(adjustl(runname))//"_resline_pct.out", recl=1024)
         open (unit=11, file=trim(adjustl(runname))//"_resline_t.out", recl=1024)
         do k = 0, n - 1
-            v = vmin + k/(n - 1d0)*(vmax - vmin)
+            v = vmin + k/(n - 1.0_dp)*(vmax - vmin)
 
             if (.not. nopassing) then
                 ! resonance (passing)
                 sign_vpar = 1
                 call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
                 do kr = 1, nroots
-                    etaresp = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                    write (9, *) v/vth, kr, etaresp(1), 0d0, etatp
+                    etaresp = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                    write (9, *) v/vth, kr, etaresp(1), 0.0_dp, etatp
                 end do
                 sign_vpar = -1
                 call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
                 do kr = 1, nroots
-                    etaresp = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                    write (10, *) v/vth, kr, etaresp(1), 0d0, etatp
+                    etaresp = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                    write (10, *) v/vth, kr, etaresp(1), 0.0_dp, etatp
                 end do
             end if
 
@@ -130,7 +131,7 @@ contains
             sign_vpar = 1
             call driftorbit_coarse(v, etatp*(1 + epst), etadt*(1 - epst), roots, nroots)
             do kr = 1, nroots
-                etarest = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                etarest = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                 write (11, *) v/vth, kr, etarest(1), etatp, etadt
             end do
         end do
@@ -141,7 +142,7 @@ contains
 
     subroutine test_profile
         integer :: k
-        real(8), allocatable :: data(:, :)
+        real(dp), allocatable :: data(:, :)
 
         print *, "test_profile"
 
@@ -153,15 +154,15 @@ contains
             s = data(k, 1)
             call output_flux_surface_data(9)
         end do
-        s = 0.96
+        s = 0.96_dp
         call output_flux_surface_data(9)
-        s = 0.97
+        s = 0.97_dp
         call output_flux_surface_data(9)
-        s = 0.98
+        s = 0.98_dp
         call output_flux_surface_data(9)
-        s = 0.99
+        s = 0.99_dp
         call output_flux_surface_data(9)
-        s = 1.0
+        s = 1.0_dp
         call output_flux_surface_data(9)
 
         close (unit=9)
@@ -171,10 +172,10 @@ contains
 
     subroutine output_flux_surface_data(unit)
         integer, intent(in) :: unit
-        real(8) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         x(1) = s
-        x(2) = 0d0
-        x(3) = 0d0
+        x(2) = 0.0_dp
+        x(3) = 0.0_dp
         call read_and_init_plasma_input("plasma.in", s)
         call init_flux_surface_average(s)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
