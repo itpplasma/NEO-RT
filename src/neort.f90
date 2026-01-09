@@ -1,8 +1,7 @@
 module neort
     use logger, only: debug, set_log_level, get_log_level, log_result, LOG_INFO
     use neort_datatypes, only: magfie_data_t, transport_data_t, transport_harmonic_t
-    use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, &
-                              init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, &
+    use neort_profiles, only: init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, &
                               dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline

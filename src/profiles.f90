@@ -133,59 +133,6 @@ contains
 
     end subroutine read_plasma_input
 
-    subroutine init_plasma_input(s, nplasma, am1, am2, Z1, Z2, plasma)
-        use spline, only: spline_coeff, spline_val_0
-        real(dp), intent(in) :: s
-        integer, intent(in) :: nplasma
-        real(dp), intent(in) :: am1, am2, Z1, Z2
-        real(dp), allocatable, intent(in) :: plasma(:, :)
-
-        real(dp), parameter :: pmass = 1.6726d-24
-        integer, parameter :: NCOL = 6
-
-        real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
-        real(dp) :: v0, ebeam
-        real(dp), allocatable :: spl_coeff(:, :, :)
-        real(dp) :: spl_val(3)
-        integer :: k
-
-        allocate (spl_coeff(nplasma - 1, 5, NCOL))
-
-        do k = 1, 5
-            spl_coeff(:, :, k) = spline_coeff(plasma(:, 1), plasma(:, k + 1))
-        end do
-
-        spl_val = spline_val_0(spl_coeff(:, :, 1), s)
-        ni1 = spl_val(1)
-        dni1ds = spl_val(2)
-        spl_val = spline_val_0(spl_coeff(:, :, 2), s)
-        ni2 = spl_val(1)
-        dni2ds = spl_val(2)
-        spl_val = spline_val_0(spl_coeff(:, :, 3), s)
-        Ti1 = spl_val(1)
-        dTi1ds = spl_val(2)
-        spl_val = spline_val_0(spl_coeff(:, :, 4), s)
-        Ti2 = spl_val(1)
-        dTi2ds = spl_val(2)
-        spl_val = spline_val_0(spl_coeff(:, :, 5), s)
-        Te = spl_val(1)
-        dTeds = spl_val(2)
-
-        qi = Z1*qe
-        mi = am1*mu
-        vth = sqrt(2d0*Ti1*ev/mi)
-        dvthds = 0.5d0*sqrt(2d0*ev/(mi*Ti1))*dTi1ds
-        v0 = vth
-        amb = 2d0
-        Zb = 1d0
-        ebeam = amb*pmass*v0**2/(2d0*ev)
-
-        call loacol_nbi(amb, am1, am2, Zb, Z1, Z2, ni1, ni2, Ti1, Ti2, Te, &
-                        ebeam, v0, dchichi, slowrate, dchichi_norm, slowrate_norm)
-
-        deallocate(spl_coeff)
-    end subroutine init_plasma_input
-
     subroutine read_and_init_plasma_input(path, s_in)
         ! Backward compatibility wrapper: Read plasma file and initialize at given s
         ! This combines read_plasma_input, prepare_plasma_splines, and init_plasma_at_s
@@ -238,31 +185,6 @@ contains
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
     end subroutine init_profile_at_s
-
-    subroutine init_profile_input(s, R0, efac, bfac, data)
-        ! Init s profile for finite orbit width boxes in radial s
-        real(8), intent(in) :: s, R0, efac, bfac
-        real(8), allocatable, intent(in) :: data(:, :)
-
-        ! For splining electric precession frequency
-        real(8), allocatable :: local_Mt_spl_coeff(:, :)
-
-        real(8) :: splineval(3)
-
-        allocate (local_Mt_spl_coeff(size(data, 1) - 1, 5))
-
-        local_Mt_spl_coeff = spline_coeff(data(:, 1), data(:, 2))
-        splineval = spline_val_0(local_Mt_spl_coeff, s)
-
-        M_t = splineval(1)*efac/bfac
-        dM_tds = splineval(2)*efac/bfac
-
-        ! note: same functionality as init_profiles
-        Om_tE = vth*M_t/R0                   ! toroidal ExB drift frequency
-        dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
-
-        deallocate(local_Mt_spl_coeff)
-    end subroutine init_profile_input
 
     subroutine read_and_init_profile_input(path, s_in, R0, efac, bfac)
         ! Backward compatibility wrapper: Read profile file and initialize at given s

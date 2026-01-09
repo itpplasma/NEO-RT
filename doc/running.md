@@ -55,7 +55,7 @@ Example Boozer files are provided in `examples/base`.
 
 ### Thermodynamic profiles (`plasma.in`)
 
-Required when `nonlin=.true.` or `comptorque=.true.`. The file format matches the expectations of `neort_profiles:init_plasma_input`:
+Required when `nonlin=.true.` or `comptorque=.true.`. The file format matches the expectations of `neort_profiles:read_plasma_input`:
 
 1. Comment line (ignored).
 2. `nflux  am1  am2  Z1  Z2` – number of flux surfaces, ion masses (amu), and charges.
