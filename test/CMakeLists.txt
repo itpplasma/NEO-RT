@@ -15,3 +15,8 @@ add_test(NAME test_parallel
     COMMAND ${CMAKE_BINARY_DIR}/test_parallel.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+
+add_test(NAME test_neort_lib
+    COMMAND ${CMAKE_BINARY_DIR}/test_neort_lib.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)

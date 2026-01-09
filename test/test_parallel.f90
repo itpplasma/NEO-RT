@@ -8,7 +8,8 @@ program test_parallel
     use neort_profiles, only: read_plasma_input, prepare_plasma_splines, init_plasma_at_s, &
                               prepare_profile_splines, init_profile_at_s, vth, dvthds, &
                               ni1, Ti1, M_t, Om_tE
-    use neort, only: read_and_set_control, init, compute_transport
+    use neort, only: init, compute_transport
+    use neort_config, only: read_and_set_config
     use driftorbit, only: efac, B0, Bmin, Bmax, dVds, etatp, etadt
     use neort_magfie, only: init_flux_surface_average
     use util, only: readdata
@@ -51,7 +52,7 @@ contains
         call set_log_level(-1)
 
         print *, "Reading input files..."
-        call read_and_set_control("driftorbit")
+        call read_and_set_config("driftorbit")
         call read_boozer_file("in_file")
         call read_plasma_input("plasma.in", nplasma, am1, am2, Z1, Z2, plasma)
         call prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma)

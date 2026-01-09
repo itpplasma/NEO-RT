@@ -98,24 +98,27 @@ include_directories(${NETCDFINCLUDE_DIR})
 link_directories(${NETCDFLIB_DIR})
 add_link_options(${NETCDF_FLIBS})
 
-add_executable(${PROJECT_EXE_NAME} src/main.f90)
+add_executable(${PROJECT_EXE_NAME} src/program.f90)
 
 set(NEO_RT_SOURCES
-    src/logging.f90
     src/attenuation_factor.f90
     src/collis_nbi.f90
-    src/polylag_3.f
-    src/util.f90
-    src/magfie.f90
-    src/profiles.f90
+    src/config.f90
+    src/datatypes.f90
     src/driftorbit.f90
     src/freq.f90
-    src/orbit.f90
-    src/resonance.f90
-    src/nonlin.f90
-    src/transport.f90
+    src/lib.f90
+    src/logging.f90
+    src/magfie.f90
+    src/main.f90
     src/neort.f90
-    src/neort_datatypes.f90
+    src/nonlin.f90
+    src/orbit.f90
+    src/polylag_3.f
+    src/profiles.f90
+    src/resonance.f90
+    src/transport.f90
+    src/util.f90
 )
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)

@@ -8,7 +8,7 @@
     ms = 2.014             ! Particle mass / 1u
     vth = 40000000.0       ! thermal velocity [cm/s]
     epsmn = 0.001          ! perturbation amplitude B1/B0 (if pertfile==F)
-    m0 = 0                 ! poroidal perturbation mode (if pertfile==F)
+    m0 = 0                 ! poloidal perturbation mode (if pertfile==F)
     mph = 3                ! toroidal perturbation mode (if pertfile==F, n>0!)
     magdrift = .true.      ! consider magnetic drift
     nopassing = .false.    ! neglect passing particles

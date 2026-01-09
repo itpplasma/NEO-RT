@@ -5,11 +5,12 @@ program test_misc
     use do_magfie_mod, only: do_magfie, psi_pr, q, s, eps, R0
     use do_magfie_pert_mod, only: mph
     use neort_profiles, only: vth, Om_tE, read_and_init_plasma_input
-    use neort, only: main, runname
+    use neort_main, only: main, runname
     use neort_orbit, only: bounce, nvar
     use neort_resonance, only: driftorbit_root, driftorbit_coarse
     use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: Om_th, Om_ph, Om_tB, d_Om_ds
+
     implicit none
 
     call main

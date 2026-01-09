@@ -118,4 +118,28 @@ contains
             y(:, j) = spl_val
         end do
     end subroutine
+
+    subroutine check_file(path, required, error_msg)
+        use logger, only: error
+
+        character(len=*), intent(in) :: path
+        logical, intent(in) :: required
+        character(len=*), intent(in) :: error_msg
+        logical :: exists
+
+        inquire(file=path, exist=exists)
+        if (.not. exists .and. required) then
+            call error(trim(path) // trim(error_msg))
+        end if
+    end subroutine check_file
+
+    function files_exist(plasma_file, profile_file) result(exist)
+        character(len=*), intent(in) :: plasma_file, profile_file
+        logical :: plasma_exists, profile_exists, exist
+
+        inquire(file=plasma_file, exist=plasma_exists)
+        inquire(file=profile_file, exist=profile_exists)
+        exist = plasma_exists .and. profile_exists
+    end function files_exist
+
 end module util

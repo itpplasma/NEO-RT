@@ -80,6 +80,33 @@ Detailed descriptions of all inputs and outputs are collected in [`doc/running.m
 
 The build also produces `neo_rt_diag.x`, which links against the main library and the [fortplot](https://github.com/lazy-fortran/fortplot) plotting backend. Diagnostic drivers in `src/diag` provide additional post-processing routines for debugging, harmonic inspection, and attenuation maps.
 
+## Library interface
+
+NEO-RT can be embedded into other codes via the `neort_lib` module. The API exposes both the spline-based mode and a config-only mode while remaining thread-safe for parallel loops:
+
+```fortran
+use neort_lib
+
+type(config_t) :: cfg
+
+cfg%s = 0.5d0
+cfg%comptorque = .true.
+
+call neort_init(cfg, "in_file", "in_file_pert")
+call neort_prepare_splines("plasma.in", "profile.in")
+
+!$omp parallel do
+do i = 1, n
+    call neort_compute_at_s(s_array(i), results(i))
+end do
+```
+
+For time-evolving profiles, call `neort_prepare_splines` with updated arrays before each batch of computations. See [`doc/library.md`](doc/library.md) for the complete API reference and usage examples.
+
+For single-point runs such as ripple tests, populate a `config_t` instance, call `neort_init(cfg, "in_file")`, and use `neort_compute_no_splines` instead of preparing splines.
+
+When spline mode is active the `M_t`, `vth`, `qi`, and `mi` values come from the supplied plasma/profile data and overwrite any prior config settings, so reset them if you later switch back to the config-only workflow.
+
 ## Testing
 
 Regression and unit tests are provided for both the Fortran and Python components. After building the solver, run

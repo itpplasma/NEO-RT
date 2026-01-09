@@ -1,101 +1,19 @@
 module neort
     use logger, only: debug, set_log_level, get_log_level, log_result, LOG_INFO
     use neort_datatypes, only: magfie_data_t, transport_data_t, transport_harmonic_t
-    use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, &
-        init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, dni1ds, Ti1, &
-        dTi1ds, qi, mi, mu, qe
+    use neort_profiles, only: init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, &
+                              dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_flux_surface_average
-    use neort_orbit, only: noshear
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
     use neort_transport, only: compute_transport_integral
     use do_magfie_mod, only: s
 
     implicit none
 
-    character(1024) :: runname
-
     ! Number of integration steps in v, set 0 for adaptive integration by quadpack
     integer :: vsteps = 256
 
-    ! Logging / debugging
-    integer :: log_level = LOG_INFO
-
-    ! Shared read-only configuration (NOT threadprivate): runname, vsteps, log_level
-
 contains
-
-    subroutine main
-        use do_magfie_mod, only: R0, bfac, do_magfie_init
-        use do_magfie_pert_mod, only: do_magfie_pert_init
-        use driftorbit, only: pertfile, nonlin, comptorque, efac
-        use thetadata_mod, only: init_attenuation_data
-
-        logical :: file_exists
-        type(magfie_data_t) :: magfie_data
-        type(transport_data_t) :: transport_data
-
-        character(len=*), parameter :: boozer_file = "in_file"
-        character(len=*), parameter :: boozer_pert_file = "in_file_pert"
-        character(len=*), parameter :: plasma_file = "plasma.in"
-        character(len=*), parameter :: profile_file = "profile.in"
-
-        call get_command_argument(1, runname)  ! base of path is first argument
-        call read_and_set_control(runname)
-        call do_magfie_init(boozer_file)  ! init axisymmetric part of field from infile
-        if (pertfile) call do_magfie_pert_init(boozer_pert_file)  ! else epsmn*exp(imun*(m0*th + mph*ph))
-        call init_profiles(R0)
-        if (nonlin) call init_attenuation_data()  ! must be before any parallel region
-
-        inquire(file=plasma_file, exist=file_exists)
-        if (file_exists) then
-            call read_and_init_plasma_input(plasma_file, s)
-        else if (nonlin .or. comptorque) then
-            error stop plasma_file // " required for nonlin or comptorque"
-        end if
-
-        inquire(file=profile_file, exist=file_exists)
-        if (file_exists) then
-            call read_and_init_profile_input(profile_file, s, R0, efac, bfac)
-        else if (nonlin) then
-            error stop profile_file // " required for nonlin"
-        end if
-
-        call init
-        call check_magfie(magfie_data)
-        call compute_transport(transport_data)
-
-        call write_magfie_data_to_files(magfie_data, runname)
-        call write_transport_data_to_files(transport_data, runname)
-    end subroutine main
-
-    subroutine read_and_set_control(base_path)  ! set global control parameters directly from file
-        use driftorbit
-        use do_magfie_pert_mod, only: set_mph
-
-        character(len=*), intent(in) :: base_path
-        real(8) :: qs, ms
-
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
-            nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, log_level
-
-        open (unit=9, file=trim(adjustl(base_path)) // ".in", status="old", form="formatted")
-        read (9, nml=params)
-        close (unit=9)
-
-        M_t = M_t*efac/bfac
-        qi = qs*qe
-        mi = ms*mu
-        call set_mph(mph)
-        call set_log_level(log_level)
-    end subroutine read_and_set_control
-
-    subroutine set_s(s_)
-        use driftorbit
-
-        real(8), intent(in) :: s_
-
-        s = s_
-    end subroutine set_s
 
     subroutine init
         use do_magfie_mod, only: psi_pr, q
@@ -473,4 +391,4 @@ contains
         close (unit=unit2)
     end subroutine write_transport_data_to_files
 
-    end module neort
+end module neort
