@@ -4,13 +4,13 @@ module neort_config
     implicit none
 
     type :: config_t
-        real(8) :: s = 0.0  ! radial coordinate (flux surface)
+        real(dp) :: s = 0.0_dp  ! radial coordinate (flux surface)
         real(dp) :: M_t = 0.0_dp  ! Mach number (for single Mach no. run) !*!
-        real(8) :: qs = 0.0  ! particle charge / elementary charge !*!
-        real(8) :: ms = 0.0  ! particle mass / u !*!
+        real(dp) :: qs = 0.0_dp  ! particle charge / elementary charge !*!
+        real(dp) :: ms = 0.0_dp  ! particle mass / u !*!
         real(dp) :: vth = 0.0_dp  ! thermal velocity / cm/s !*!
-        real(8) :: epsmn = 0.0  ! perturbation amplitude B1/B0 (if pertfile==F)
-        real(8) :: mph = 0.0  ! toroidal perturbation mode (if pertfile==F, n>0!)
+        real(dp) :: epsmn = 0.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
+        real(dp) :: mph = 0.0_dp  ! toroidal perturbation mode (if pertfile==F, n>0!)
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         logical :: comptorque = .false.  ! compute torque
         logical :: magdrift = .false.  ! consider magnetic drift
@@ -18,8 +18,8 @@ module neort_config
         logical :: noshear = .false.  ! neglect magnetic shear term with dqds
         logical :: pertfile = .false.  ! read perturbation from file
         logical :: nonlin = .false.  ! do nonlinear calculation
-        real(8) :: bfac = 1.0  ! scale B field by factor
-        real(8) :: efac = 1.0  ! scale E field by factor
+        real(dp) :: bfac = 1.0_dp  ! scale B field by factor
+        real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: log_level = 0  ! how much to log
@@ -77,7 +77,7 @@ contains
         use util, only: qe, mu, qi, mi
 
         character(len=*), intent(in) :: base_path
-        real(8) :: qs, ms
+        real(dp) :: qs, ms
         integer :: log_level
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
