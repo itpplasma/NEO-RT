@@ -130,7 +130,7 @@ contains
         call set_s(s_val)
 
         call init_magfie_at_s()
-        if (pertfile) call init_magfie_pert_at_s()
+        if (pertfile) call init_magfie_pert_at_s()  ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_mph_from_shared()
 
         call init_plasma_at_s()  ! overwrites qi, mi and vth from config

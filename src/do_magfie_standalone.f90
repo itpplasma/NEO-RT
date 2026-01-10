@@ -475,7 +475,6 @@ contains
     end subroutine init_mph_from_shared
 
     subroutine do_magfie_pert_init(path)
-        ! else epsmn*exp(imun*(m0*th + mph*ph))
         ! Backward compatibility wrapper: calls read_boozer_pert_file + init_magfie_pert_at_s
         character(len=*), intent(in) :: path
 
