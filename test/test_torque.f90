@@ -30,7 +30,7 @@ contains
 
     subroutine setup
         runname = TEST_RUN
-        call read_and_set_config(runname)
+        call read_and_set_config(trim(runname)//".in")
         call do_magfie_init("in_file")
         call init_profiles(R0)
         call read_and_init_plasma_input("plasma.in", s)

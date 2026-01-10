@@ -35,7 +35,7 @@ contains
 
     ! Initialize environment just like main
     runname = trim(arg_runname)
-    call read_and_set_config(runname)
+    call read_and_set_config(runname//".in")
     call do_magfie_init("in_file")
     if (pertfile) call do_magfie_pert_init("in_file_pert")
     call init_profiles(R0)

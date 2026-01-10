@@ -42,7 +42,7 @@ contains
         type(freq_data_t) :: freq_data(NUM_SAMPLES)
 
         call get_command_argument(1, runname)
-        call read_and_set_config(runname)
+        call read_and_set_config(trim(runname)//".in")
         call setup
         s0 = s
         v0 = 0.9_dp * vth

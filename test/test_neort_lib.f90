@@ -24,7 +24,7 @@ contains
 
         print *, "Test: single s computation..."
 
-        call neort_init("driftorbit", "in_file")
+        call neort_init("driftorbit.in", "in_file")
         call neort_prepare_splines("plasma.in", "profile.in")
         call neort_compute_at_s(TEST_S, result)
 
@@ -61,7 +61,7 @@ contains
             s_array(i) = 0.2_dp + 0.1_dp * real(i, dp)
         end do
 
-        call neort_init("driftorbit", "in_file")
+        call neort_init("driftorbit.in", "in_file")
         call neort_prepare_splines("plasma.in", "profile.in")
 
         !$omp parallel do schedule(dynamic)
@@ -100,7 +100,7 @@ contains
 
         print *, "Test: spline update (KAMEL use case)..."
 
-        call neort_init("driftorbit", "in_file")
+        call neort_init("driftorbit.in", "in_file")
 
         call read_plasma_input("plasma.in", nplasma, am1, am2, Z1, Z2, plasma_data)
         call readdata("profile.in", 2, profile_data)

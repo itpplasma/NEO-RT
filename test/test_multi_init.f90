@@ -17,7 +17,7 @@ program test_multi_init
     print *, ""
 
     ! Initialize once to load data
-    call read_and_set_config("driftorbit")
+    call read_and_set_config("driftorbit.in")
     call do_magfie_init("in_file")
 
     nmode_prev = nmode
