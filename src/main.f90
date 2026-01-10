@@ -23,7 +23,7 @@ contains
 
         call get_command_argument(1, runname)
 
-        call neort_init(trim(runname), boozer_file, boozer_pert_file)
+        call neort_init(trim(runname)//".in", boozer_file, boozer_pert_file)
 
         if (files_exist(plasma_file, profile_file)) then
             call neort_prepare_splines(plasma_file, profile_file)

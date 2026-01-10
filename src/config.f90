@@ -10,8 +10,8 @@ module neort_config
         real(dp) :: ms = 0.0_dp  ! particle mass / u !*!
         real(dp) :: vth = 0.0_dp  ! thermal velocity / cm/s !*!
         real(dp) :: epsmn = 0.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
-        real(dp) :: mph = 0.0_dp  ! toroidal perturbation mode (if pertfile==F, n>0!)
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
+        real(dp) :: mph = 0.0_dp  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
         logical :: magdrift = .false.  ! consider magnetic drift
         logical :: nopassing = .false.  ! neglect passing particles
@@ -64,9 +64,8 @@ contains
         call set_log_level(config%log_level)
     end subroutine set_config
 
-    subroutine read_and_set_config(base_path)
-        ! Set global control parameters directly from file
-        ! The file name is only the base without the extension '.in'
+    subroutine read_and_set_config(config_file)
+        ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph
         use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, nonlin, efac
@@ -76,14 +75,14 @@ contains
         use neort_profiles, only: M_t, vth
         use util, only: qe, mu, qi, mi
 
-        character(len=*), intent(in) :: base_path
+        character(len=*), intent(in) :: config_file
         real(dp) :: qs, ms
         integer :: log_level
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
             nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, log_level
 
-        open (unit=9, file=trim(adjustl(base_path))//".in", status="old", form="formatted")
+        open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
 
