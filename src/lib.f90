@@ -26,7 +26,7 @@ module neort_lib
 
 contains
 
-    subroutine init_from_config_file(config_file_base, boozer_file, boozer_pert_file)
+    subroutine init_from_config_file(config_file, boozer_file, boozer_pert_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
         use driftorbit, only: pertfile, nonlin
@@ -34,14 +34,14 @@ contains
         use thetadata_mod, only: init_attenuation_data
         use util, only: check_file
 
-        character(len=*), intent(in) :: config_file_base
+        character(len=*), intent(in) :: config_file
         character(len=*), intent(in) :: boozer_file
         character(len=*), intent(in), optional :: boozer_pert_file
 
-        call check_file(trim(config_file_base) // ".in", .true., ".in could not be found")
+        call check_file(config_file, .true., " could not be found")
         call check_file(boozer_file, .true., " could not be found")
 
-        call read_and_set_config(config_file_base)
+        call read_and_set_config(config_file)
         call read_boozer_file(boozer_file)
 
         if (present(boozer_pert_file) .and. pertfile) then
