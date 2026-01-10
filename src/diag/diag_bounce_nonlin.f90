@@ -119,7 +119,7 @@ contains
     write(u,'(A)') '# NEO-RT diagnostic: nonlinear attenuation vs eta'
     write(u,'(A,F10.6)') '# s = ', s
     write(u,'(A,I0)')    '# mth = ', mth
-    write(u,'(A,ES12.5)') '# mph = ', mph
+    write(u,'(A,I0)') '# mph = ', mph
     write(u,'(A,*(F5.2,1X))') '# ux values = ', uxvals
     write(u,'(A)') '# columns: eta  att(ux='//trim(adjustl(to_str(uxvals(1))))//')  '&
                    //'att(ux='//trim(adjustl(to_str(uxvals(2))))//')  '&

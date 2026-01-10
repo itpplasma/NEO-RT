@@ -56,7 +56,7 @@ contains
         mb = mi * (ux * vth)**2 / 2 * mi * c / qi
         mc = mi / (2.0_dp * Omth) * (ux * vth) * (1.0_dp - eta * bounceavg(6))
         md = mi * (ux * vth)**2 / 2.0_dp * Omth
-        me = -mth / mph
+        me = -dble(mth) / mph
         mf = 1.0_dp / mph
 
         dvdJ = mb * me / (ma * md * mf - mb * mc * mf)

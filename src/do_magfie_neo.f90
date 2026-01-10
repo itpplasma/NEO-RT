@@ -85,7 +85,7 @@ module do_magfie_pert_mod
                                        neo_magfie_pert_amp
     use neo2_ql, only: read_in_namelists, set_default_values, init
 
-    real(8) :: mph
+    integer :: mph
 
 contains
 
@@ -99,7 +99,7 @@ contains
 
         call neo_read_pert
         call neo_init_spline_pert
-        mph = m_phi
+        mph = nint(m_phi)
     end subroutine do_magfie_pert_init
 
     !

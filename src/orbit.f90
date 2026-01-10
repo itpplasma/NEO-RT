@@ -55,7 +55,7 @@ contains
              '  s=', s, 'R0=', R0, 'q=', q, 'iota=', iota
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') &
              '  etatp=', etatp, 'etadt=', etadt, 'etamin=', etamin, 'etamax=', etamax
-        write(0,'(A,1X,I0,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  mth=', mth, 'mph=', mph, 'sign_vpar=', dble(sign_vpar)
+        write(0,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,ES12.5)') '  mth=', mth, 'mph=', mph, 'sign_vpar=', dble(sign_vpar)
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  eps=', eps, 'psi_pr=', psi_pr
         call error('DVODE MXSTEP')
     end subroutine dvode_error_context
@@ -327,7 +327,7 @@ contains
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  ti =', ti, 'dt =', dt
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax, 'etatp =', etatp
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  theta(y1) =', y(1), 'th0 =', th0
-            write(0,'(A,1X,I0,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  mth =', mth, 'mph =', mph, 'sign_vpar =', dble(sign_vpar)
+            write(0,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,ES12.5)') '  mth =', mth, 'mph =', mph, 'sign_vpar =', dble(sign_vpar)
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'R0 =', R0, 'q =', q, 'iota =', iota
         end if
 
