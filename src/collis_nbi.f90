@@ -44,24 +44,24 @@ contains
         fpeff = 0.0_dp
 
         do i = 1, nsorts
-            xbeta = p*velrat(i)
+            xbeta = p * velrat(i)
 
             call onseff(xbeta, d_p, dh, dpd)
 
-            dpp = dpp + d_p*efcolf(i)
-            dhh = dhh + dh*efcolf(i)
-            fpeff = fpeff + (dpd/plim - 2.0_dp*d_p*p*enrat(i))*efcolf(i)
+            dpp = dpp + d_p * efcolf(i)
+            dhh = dhh + dh * efcolf(i)
+            fpeff = fpeff + (dpd / plim - 2.0_dp * d_p * p * enrat(i)) * efcolf(i)
         end do
 
-        dhh = dhh/plim**2
+        dhh = dhh / plim**2
 
         return
     end subroutine coleff
 
     subroutine onseff(v, d_p, dh, dpd)
-    !  d_p - dimensionless dpp
-    !  dh - dhh*p^2     (p - dmls)
-    !  dpd - (1/p)(d/dp)p^2*d_p   (p - dmls)
+        !  d_p - dimensionless dpp
+        !  dh - dhh*p^2     (p - dmls)
+        !  dpd - (1/p)(d/dp)p^2*d_p   (p - dmls)
 
         implicit none
 
@@ -74,21 +74,21 @@ contains
         real(dp) :: v2, v3, ex, er
 
         v2 = v**2
-        v3 = v2*v
+        v3 = v2 * v
         if (v < 0.01_dp) then
-            d_p = cons*(1.0_dp - 0.6_dp*v2)
-            dh = cons*(1.0_dp - 0.2_dp*v2)
-            dpd = 2.0_dp*cons*(1.0_dp - 1.2_dp*v2)
+            d_p = cons * (1.0_dp - 0.6_dp * v2)
+            dh = cons * (1.0_dp - 0.2_dp * v2)
+            dpd = 2.0_dp * cons * (1.0_dp - 1.2_dp * v2)
         elseif (v > 6.0_dp) then
-            d_p = 1.0_dp/v3
-            dh = (1.0_dp - 0.5_dp/v2)/v
-            dpd = -1.0_dp/v3
+            d_p = 1.0_dp / v3
+            dh = (1.0_dp - 0.5_dp / v2) / v
+            dpd = -1.0_dp / v3
         else
-            ex = exp(-v2)/sqp
+            ex = exp(-v2) / sqp
             er = erf(v)
-            d_p = er/v3 - 2.0_dp*ex/v2
-            dh = er*(1.0_dp - 0.5_dp/v2)/v + ex/v2
-            dpd = 4.0_dp*ex - d_p
+            d_p = er / v3 - 2.0_dp * ex / v2
+            dh = er * (1.0_dp - 0.5_dp / v2) / v + ex / v2
+            dpd = 4.0_dp * ex - d_p
         end if
 
         return
@@ -138,33 +138,35 @@ contains
         e = 4.8032e-10_dp
         ev = 1.6022e-12_dp
 
-        enrat(1) = ebeam/tempi1
-        enrat(2) = ebeam/tempi2
-        enrat(3) = ebeam/tempe
+        enrat(1) = ebeam / tempi1
+        enrat(2) = ebeam / tempi2
+        enrat(3) = ebeam / tempe
 
-        v0 = sqrt(2.0_dp*ebeam*ev/(amb*pmass))
-        vti1 = sqrt(2.0_dp*tempi1*ev/(pmass*am1))
-        vti2 = sqrt(2.0_dp*tempi2*ev/(pmass*am2))
-        vte = sqrt(2.0_dp*tempe*ev/emass)
+        v0 = sqrt(2.0_dp * ebeam * ev / (amb * pmass))
+        vti1 = sqrt(2.0_dp * tempi1 * ev / (pmass * am1))
+        vti2 = sqrt(2.0_dp * tempi2 * ev / (pmass * am2))
+        vte = sqrt(2.0_dp * tempe * ev / emass)
 
-        velrat(1) = v0/vti1
-        velrat(2) = v0/vti2
-        velrat(3) = v0/vte
+        velrat(1) = v0 / vti1
+        velrat(2) = v0 / vti2
+        velrat(3) = v0 / vte
 
-        dense = densi1*Z1 + densi2*Z2
+        dense = densi1 * Z1 + densi2 * Z2
         alami1 = 23.0_dp - log(max(epsilon(1.0_dp), &
-                                 sqrt(densi1*Z1**2/tempi1)*Zb*Z1*(amb + am1)/(amb*tempi1 + am1*ebeam)))
+                                   sqrt(densi1 * Z1**2 / tempi1) * Zb * Z1 * (amb + am1) / (amb * &
+                                                                             tempi1 + am1 * ebeam)))
         alami2 = 23.0_dp - log(max(epsilon(1.0_dp), &
-                                 sqrt(densi2*Z2**2/tempi2)*Zb*Z2*(amb + am2)/(amb*tempi2 + am2*ebeam)))
-        alame = 24.0_dp - log(sqrt(dense)/tempe)
-        frecol_base = 2.0_dp*pi*dense*e**4*Zb**2/((amb*pmass)**2*v0**3) ! usual
-        frecol_base = frecol_base/v0                                  ! normalized
+                                   sqrt(densi2 * Z2**2 / tempi2) * Zb * Z2 * (amb + am2) / (amb * &
+                                                                             tempi2 + am2 * ebeam)))
+        alame = 24.0_dp - log(sqrt(dense) / tempe)
+        frecol_base = 2.0_dp * pi * dense * e**4 * Zb**2 / ((amb * pmass)**2 * v0**3)  ! usual
+        frecol_base = frecol_base / v0  ! normalized
 
-        efcolf(1) = frecol_base*Z1**2*alami1*densi1/dense
-        efcolf(2) = frecol_base*Z2**2*alami2*densi2/dense
-        efcolf(3) = frecol_base*alame
+        efcolf(1) = frecol_base * Z1**2 * alami1 * densi1 / dense
+        efcolf(2) = frecol_base * Z2**2 * alami2 * densi2 / dense
+        efcolf(3) = frecol_base * alame
 
-        efcolf = efcolf*velrat
+        efcolf = efcolf * velrat
     end subroutine loacol_nbi
 
 end module collis_alp

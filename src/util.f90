@@ -10,17 +10,17 @@ module util
 
     complex(dp), parameter :: imun = (0.0_dp, 1.0_dp)
 
-    real(dp), parameter, public :: pi = 4*atan(1.0_dp)
+    real(dp), parameter, public :: pi = 4 * atan(1.0_dp)
 
     real(dp), parameter, public :: &
-        qe = 4.803204e-10_dp, & ! elementary charge
+        qe = 4.803204e-10_dp, &  ! elementary charge
         !me  = 9.109382e-28_dp,       & ! electron mass,
-        mu = 1.660538e-24_dp, & ! 1u
-        c = 2.997925e+10_dp, & ! speed of light
+        mu = 1.660538e-24_dp, &  ! 1u
+        c = 2.997925e+10_dp, &  ! speed of light
         !kb  = 1.381649e-16_dp,       & ! Boltzmann constant
-        eV = 1.602176e-12_dp          ! 1 electron volt
+        eV = 1.602176e-12_dp  ! 1 electron volt
 
-    real(dp), public :: qi = 1.0_dp*qe, mi = 2.014_dp*mu
+    real(dp), public :: qi = 1.0_dp * qe, mi = 2.014_dp * mu
 
     ! Flux-surface dependent (set from plasma data at each s)
     !$omp threadprivate (qi, mi)

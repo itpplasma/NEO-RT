@@ -54,12 +54,12 @@ contains
             if (bmod > Bmax) Bmax = bmod
         end do
 
-        dVds = 2.0_dp*pi*dVds
-        B0 = B0/(2.0_dp*pi)
-        eps = eps/(B0*pi)
+        dVds = 2.0_dp * pi * dVds
+        B0 = B0 / (2.0_dp * pi)
+        eps = eps / (B0 * pi)
 
-        etatp = 1.0_dp/Bmax
-        etadt = 1.0_dp/Bmin
+        etatp = 1.0_dp / Bmax
+        etadt = 1.0_dp / Bmin
 
         write(buffer, "(A,ES12.5)") " eps calc: ", eps
         call log_result(buffer)

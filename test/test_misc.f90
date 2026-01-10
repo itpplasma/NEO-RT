@@ -35,10 +35,10 @@ contains
         v = vth
 
         etamin = etatp
-        etamax = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
+        etamax = etatp + (etadt - etatp) * (1.0_dp - epsst_spl)
 
         b = log(epst_spl)
-        aa = 1.0_dp/(n - 1.0_dp)*(log(etamax/etamin - 1.0_dp) - b)
+        aa = 1.0_dp / (n - 1.0_dp) * (log(etamax / etamin - 1.0_dp) - b)
         eta = etamax
 
         sign_vpar = 1
@@ -98,8 +98,8 @@ contains
 
         print *, "test_resline"
 
-        vmin = 1.0e-6_dp*vth
-        vmax = 10.0_dp*vth
+        vmin = 1.0e-6_dp * vth
+        vmax = 10.0_dp * vth
 
         etaresp = etatp
         etarest = etatp
@@ -109,7 +109,7 @@ contains
         open (unit=10, file=trim(adjustl(runname))//"_resline_pct.out", recl=1024)
         open (unit=11, file=trim(adjustl(runname))//"_resline_t.out", recl=1024)
         do k = 0, n - 1
-            v = vmin + k/(n - 1.0_dp)*(vmax - vmin)
+            v = vmin + k / (n - 1.0_dp) * (vmax - vmin)
 
             if (.not. nopassing) then
                 ! resonance (passing)

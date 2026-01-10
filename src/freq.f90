@@ -85,9 +85,9 @@ contains
         OmtB1 = 0.0_dp
 
         v = vth
-        etamin = (1.0_dp + epst)*etatp
-        etamax = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
-        ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
+        etamin = (1.0_dp + epst) * etatp
+        etamax = etatp + (etadt - etatp) * (1.0_dp - epsst_spl)
+     ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
         if (.not. freq_trapped_initialized) then
             if (allocated(Omth_spl_coeff)) deallocate(Omth_spl_coeff)
             if (allocated(OmtB_spl_coeff)) deallocate(OmtB_spl_coeff)
@@ -109,10 +109,10 @@ contains
 
         ! logspace for eta
         b = log(epst_spl)
-        aa = 1.0_dp/(netaspl - 1.0_dp)*(log(etamax/etamin - 1.0_dp) - b)
+        aa = 1.0_dp / (netaspl - 1.0_dp) * (log(etamax / etamin - 1.0_dp) - b)
 
         do k = netaspl - 1, 0, -1
-            eta = etamin*(1.0_dp + exp(aa*k + b))
+            eta = etamin * (1.0_dp + exp(aa * k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta
@@ -202,11 +202,11 @@ contains
             write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', int(mph), 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
         end if
 
-        b = log((etamax - etamin)/etamax)
-        aa = 1.0_dp/(netaspl_pass - 1.0_dp)*(log(epsp_spl) - b)
+        b = log((etamax - etamin) / etamax)
+        aa = 1.0_dp / (netaspl_pass - 1.0_dp) * (log(epsp_spl) - b)
 
         do k = netaspl_pass - 1, 0, -1
-            eta = etamax*(1.0_dp - exp(aa*k + b))
+            eta = etamax * (1.0_dp - exp(aa * k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_canon_freq_passing_spline k=', k, ' eta=', eta
@@ -255,27 +255,29 @@ contains
         real(dp) :: splineval(3)
         real(dp) :: Omth, dOmthdv, dOmthdeta
         if (eta > etatp) then
-            if (eta > etatp*(1 + epst_spl)) then
+            if (eta > etatp * (1 + epst_spl)) then
                 splineval = spline_val_0(OmtB_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = sign_vpar*(k_OmtB_t*log(eta - etatp) + d_OmtB_t)*Omth/v
-                splineval(2) = sign_vpar*(Omth/v*k_OmtB_t/(eta - etatp) + &
-                                dOmthdeta/v*(k_OmtB_t*log(eta - etatp) + d_OmtB_t))
+                splineval(1) = sign_vpar * (k_OmtB_t * log(eta - etatp) + d_OmtB_t) * Omth / v
+                splineval(2) = sign_vpar * (Omth / v * k_OmtB_t / (eta - etatp) + &
+                                            dOmthdeta / v * (k_OmtB_t * log(eta - etatp) &
+                                                + d_OmtB_t))
             end if
         else
-            if (eta < etatp*(1 - epsp_spl)) then
+            if (eta < etatp * (1 - epsp_spl)) then
                 splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
             else ! extrapolation
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = sign_vpar*(k_OmtB_p*log(etatp - eta) + d_OmtB_p)*Omth/v
-                splineval(2) = sign_vpar*(Omth/v*k_OmtB_p/(eta - etatp) + &
-                                dOmthdeta/v*(k_OmtB_p*log(etatp - eta) + d_OmtB_p))
+                splineval(1) = sign_vpar * (k_OmtB_p * log(etatp - eta) + d_OmtB_p) * Omth / v
+                splineval(2) = sign_vpar * (Omth / v * k_OmtB_p / (eta - etatp) + &
+                                            dOmthdeta / v * (k_OmtB_p * log(etatp - eta) &
+                                                + d_OmtB_p))
             end if
         end if
-        OmtB = splineval(1)*v**2
-        dOmtBdv = 2.0_dp*splineval(1)*v
-        dOmtBdeta = splineval(2)*v**2
+        OmtB = splineval(1) * v**2
+        dOmtBdv = 2.0_dp * splineval(1) * v
+        dOmtBdeta = splineval(2) * v**2
     end subroutine Om_tB
 
     subroutine Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
@@ -320,21 +322,21 @@ contains
         if (eta > etatp) then
             if (eta > etatp*(1 + epst_spl)) then
                 splineval = spline_val_0(Omth_spl_coeff, eta)
-            else ! extrapolation
-                splineval(1) = 2.0_dp*pi/(k_taub_t*log(eta - etatp) + d_taub_t)
-                splineval(2) = -splineval(1)**2/(2.0_dp*pi)*k_taub_t/(eta - etatp)
+            else  ! extrapolation
+                splineval(1) = 2.0_dp * pi / (k_taub_t * log(eta - etatp) + d_taub_t)
+                splineval(2) = -splineval(1)**2 / (2.0_dp * pi) * k_taub_t / (eta - etatp)
             end if
         else
-            if (eta < etatp*(1 - epsp_spl)) then
+            if (eta < etatp * (1 - epsp_spl)) then
                 splineval = spline_val_0(Omth_pass_spl_coeff, eta)
-            else ! extrapolation
-                splineval(1) = 2.0_dp*pi/(k_taub_p*log(etatp - eta) + d_taub_p)
-                splineval(2) = -splineval(1)**2/(2.0_dp*pi)*k_taub_p/(eta - etatp)
+            else  ! extrapolation
+                splineval(1) = 2.0_dp * pi / (k_taub_p * log(etatp - eta) + d_taub_p)
+                splineval(2) = -splineval(1)**2 / (2.0_dp * pi) * k_taub_p / (eta - etatp)
             end if
         end if
-        Omth = sign_vpar*splineval(1)*v
-        dOmthdv = sign_vpar*splineval(1)
-        dOmthdeta = sign_vpar*splineval(2)*v
+        Omth = sign_vpar * splineval(1) * v
+        dOmthdv = sign_vpar * splineval(1)
+        dOmthdeta = sign_vpar * splineval(2) * v
     end subroutine Om_th
 
     subroutine d_Om_ds(v, eta, taub_estimate, dOmthds, dOmphds)
@@ -349,40 +351,41 @@ contains
         s0 = s
 
         ds = 2.0e-8_dp
-        s = s0 - ds/2.0_dp
+        s = s0 - ds / 2.0_dp
         taub_est = bounce_time(v, eta, taub_estimate)
         taub = taub_est
         call bounce_fast(v, eta, taub, bounceavg, timestep)
-        Omth = sign_vpar_htheta*2.0_dp*pi/taub
+        Omth = sign_vpar_htheta * 2.0_dp * pi / taub
         if (magdrift) then
             if (eta > etatp) then
-                Omph_noE = bounceavg(3)*v**2
+                Omph_noE = bounceavg(3) * v**2
             else
-                Omph_noE = bounceavg(3)*v**2 + Omth/iota
+                Omph_noE = bounceavg(3) * v**2 + Omth / iota
             end if
         else
             if (eta > etatp) then
                 Omph_noE = 0.0_dp
             else
-                Omph_noE = Omth/iota
+                Omph_noE = Omth / iota
             end if
         end if
-        s = s0 + ds/2.0_dp
+        s = s0 + ds / 2.0_dp
         taub_est = bounce_time(v, eta, taub_estimate)
         taub = taub_est
         call bounce_fast(v, eta, taub, bounceavg, timestep)
-        dOmthds = sign_vpar_htheta*(2.0_dp*pi/taub - sign_vpar_htheta*Omth)/ds
+        dOmthds = sign_vpar_htheta * (2.0_dp * pi / taub - sign_vpar_htheta * Omth) / ds
         if (magdrift) then
             if (eta > etatp) then
-                dOmphds = dOm_tEds + (bounceavg(3)*v**2 - Omph_noE)/ds
+                dOmphds = dOm_tEds + (bounceavg(3) * v**2 - Omph_noE) / ds
             else
-                dOmphds = dOm_tEds + (bounceavg(3)*v**2 + (2.0_dp*pi/taub)/iota - Omph_noE)/ds
+                dOmphds = dOm_tEds + (bounceavg(3) * v**2 + (2.0_dp * pi / taub) / iota - &
+                                      Omph_noE) / ds
             end if
         else
             if (eta > etatp) then
                 dOmphds = dOm_tEds
             else
-                dOmphds = dOm_tEds + ((2.0_dp*pi/taub)/iota - Omph_noE)/ds
+                dOmphds = dOm_tEds + ((2.0_dp * pi / taub) / iota - Omph_noE) / ds
             end if
         end if
 

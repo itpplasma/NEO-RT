@@ -42,7 +42,7 @@ contains
         close (iunitarg)
 
         argmin = argvals(1)
-        argstepinv = 1.0_dp/(argvals(2) - argvals(1))
+        argstepinv = 1.0_dp / (argvals(2) - argvals(1))
 
         attenuation_data_initialized = .true.
     end subroutine init_attenuation_data

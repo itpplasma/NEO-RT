@@ -6,7 +6,7 @@ module do_magfie_mod
     implicit none
 
     real(dp), private :: s_prev = -1.0_dp
-    real(dp), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
+    real(dp), private, allocatable :: spl_val_c(:, :), spl_val_s(:, :)
     ! Work arrays previously automatic on stack (size=nmode)
     real(dp), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
     real(dp), private, allocatable :: costerm(:), sinterm(:)
@@ -14,9 +14,9 @@ module do_magfie_mod
     real(dp), parameter :: sign_theta = -1.0_dp  ! negative for left-handed
 
     real(dp) :: s = 0.0_dp, psi_pr = 0.0_dp, Bthcov = 0.0_dp, Bphcov = 0.0_dp, &
-                       dBthcovds = 0.0_dp, dBphcovds = 0.0_dp, &
-                       q = 0.0_dp, dqds = 0.0_dp, iota = 0.0_dp, R0 = 0.0_dp, a = 0.0_dp, &
-                       eps = 0.0_dp, B0h = 0.0_dp, B00 = 0.0_dp
+                dBthcovds = 0.0_dp, dBphcovds = 0.0_dp, &
+                q = 0.0_dp, dqds = 0.0_dp, iota = 0.0_dp, R0 = 0.0_dp, a = 0.0_dp, &
+                eps = 0.0_dp, B0h = 0.0_dp, B00 = 0.0_dp
     real(dp) :: bfac = 1.0_dp
     ! B0h is the 0th theta harmonic of bmod on current flux surface
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
@@ -28,7 +28,7 @@ module do_magfie_mod
     ! Work arrays for booz_to_cyl (size=nmode)
     real(dp), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
 
-    real(dp), parameter :: ItoB = 2.0e-1_dp*sign_theta ! Covarient B (cgs) from I (SI)
+    real(dp), parameter :: ItoB = 2.0e-1_dp * sign_theta  ! Covarient B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
 
     integer :: ncol1 = 0, ncol2 = 0 ! number of columns in input file
@@ -104,7 +104,7 @@ contains
         end do
 
         ! Set B00 from first mode
-        B00 = 1.0e4_dp*modes0(1, 1, 6)*bfac
+        B00 = 1.0e4_dp * modes0(1, 1, 6) * bfac
     end subroutine read_boozer_file
 
     subroutine init_magfie_at_s()
@@ -187,56 +187,56 @@ contains
         x1 = min(params0(nflux, 1), x1)
 
         spl_val = spline_val_0(spl_coeff1(:, :, 3), x1)
-        Bthcov = ItoB*spl_val(1)*bfac
-        dBthcovds = ItoB*spl_val(2)*bfac
+        Bthcov = ItoB * spl_val(1) * bfac
+        dBthcovds = ItoB * spl_val(2) * bfac
         spl_val = spline_val_0(spl_coeff1(:, :, 2), x1)
-        Bphcov = ItoB*spl_val(1)*bfac
-        dBphcovds = ItoB*spl_val(2)*bfac
+        Bphcov = ItoB * spl_val(1) * bfac
+        dBphcovds = ItoB * spl_val(2) * bfac
         spl_val = spline_val_0(spl_coeff1(:, :, 1), x1)
         iota = spl_val(1)
-        q = 1/iota
-        dqds = -spl_val(2)/iota**2
+        q = 1 / iota
+        dqds = -spl_val(2) / iota**2
 
         call fast_sin_cos(modes0(1, :, 1), x(3), sinterm, costerm)
 
         ! calculate B-field from modes
         if (inp_swi == 8) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            B0mnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
-            dB0dsmnc(:) = 1.0e4_dp*spl_val_c(2, :)*bfac
+            B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+            dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
             B0h = B0mnc(1)
 
-            bmod = sum(B0mnc*costerm)
-            bder(1) = sum(dB0dsmnc*costerm)/bmod
+            bmod = sum(B0mnc * costerm)
+            bder(1) = sum(dB0dsmnc * costerm) / bmod
             bder(2) = 0.0_dp
-            bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm)/bmod
+            bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm) / bmod
         else if (inp_swi == 9) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
-            B0mnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
-            dB0dsmnc(:) = 1.0e4_dp*spl_val_c(2, :)*bfac
+            B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+            dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            B0mns(:) = 1.0e4_dp*spl_val_s(1, :)*bfac
-            dB0dsmns(:) = 1.0e4_dp*spl_val_s(2, :)*bfac
+            B0mns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
+            dB0dsmns(:) = 1.0e4_dp * spl_val_s(2, :) * bfac
             B0h = B0mnc(1)
 
-            bmod = sum(B0mnc*costerm + B0mns*sinterm)
-            bder(1) = sum(dB0dsmnc*costerm + dB0dsmns*sinterm)/bmod
+            bmod = sum(B0mnc * costerm + B0mns * sinterm)
+            bder(1) = sum(dB0dsmnc * costerm + dB0dsmns * sinterm) / bmod
             bder(2) = 0.0_dp
-            bder(3) = sum(-modes0(1, :, 1)*B0mnc*sinterm &
-                          + modes0(1, :, 1)*B0mns*costerm)/bmod
+            bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm &
+                          + modes0(1, :, 1) * B0mns * costerm) / bmod
         end if
 
-        sqgbmod2 = sign_theta*psi_pr*(Bphcov + iota*Bthcov)
-        sqgbmod = sqgbmod2/bmod
-        sqrtg = sqgbmod/bmod
+        sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
+        sqgbmod = sqgbmod2 / bmod
+        sqrtg = sqgbmod / bmod
 
         hcovar(1) = 0.0_dp  ! TODO
-        hcovar(2) = Bphcov/bmod
-        hcovar(3) = Bthcov/bmod
+        hcovar(2) = Bphcov / bmod
+        hcovar(3) = Bthcov / bmod
 
         hctrvr(1) = 0.0_dp
-        hctrvr(2) = sign_theta*psi_pr/sqgbmod
-        hctrvr(3) = sign_theta*iota*psi_pr/sqgbmod
+        hctrvr(2) = sign_theta * psi_pr / sqgbmod
+        hctrvr(3) = sign_theta * iota * psi_pr / sqgbmod
 
         hcurl(1) = 0.0_dp  ! TODO
         hcurl(3) = 0.0_dp  ! TODO
@@ -255,12 +255,12 @@ contains
         open (unit=18, file=filename, action='read', status='old')
         read (18, '(////)')
         read (18, *) m0b, n0b, nflux, nfp, flux, a, R0
-        a = 100*a   ! m -> cm
-        R0 = 100*R0 ! m -> cm
+        a = 100 * a  ! m -> cm
+        R0 = 100 * R0  ! m -> cm
 
-        psi_pr = 1.0e8_dp*flux/(2*pi)*bfac ! T -> Gauss, m -> cm
+        psi_pr = 1.0e8_dp * flux / (2 * pi) * bfac  ! T -> Gauss, m -> cm
 
-        nmode = (m0b + 1)*(n0b + 1)
+        nmode = (m0b + 1) * (n0b + 1)
 
         ! Allocate params and modes (deallocate first if size changed)
         if (allocated(params0)) then
@@ -299,18 +299,18 @@ contains
 
         do j = 1, nmode
             spl_val = spline_val_0(spl_coeff2(:, :, 1, j), x1)
-            rmnc(j) = 1.0e2_dp*spl_val(1)
+            rmnc(j) = 1.0e2_dp * spl_val(1)
             spl_val = spline_val_0(spl_coeff2(:, :, 2, j), x1)
-            rmns(j) = 1.0e2_dp*spl_val(1)
+            rmns(j) = 1.0e2_dp * spl_val(1)
             spl_val = spline_val_0(spl_coeff2(:, :, 3, j), x1)
-            zmnc(j) = 1.0e2_dp*spl_val(1)
+            zmnc(j) = 1.0e2_dp * spl_val(1)
             spl_val = spline_val_0(spl_coeff2(:, :, 4, j), x1)
-            zmns(j) = 1.0e2_dp*spl_val(1)
+            zmns(j) = 1.0e2_dp * spl_val(1)
         end do
 
-        r(1) = sum(rmnc*cos(modes0(1, :, 1)*x(3)) + rmns*sin(modes0(1, :, 1)*x(3)))
+        r(1) = sum(rmnc * cos(modes0(1, :, 1) * x(3)) + rmns * sin(modes0(1, :, 1) * x(3)))
         r(2) = 0.0_dp  ! TODO: phi
-        r(3) = sum(zmnc*cos(modes0(1, :, 1)*x(3)) + zmns*sin(modes0(1, :, 1)*x(3)))
+        r(3) = sum(zmnc * cos(modes0(1, :, 1) * x(3)) + zmns * sin(modes0(1, :, 1) * x(3)))
 
     end subroutine booz_to_cyl
 
@@ -347,7 +347,7 @@ module do_magfie_pert_mod
     implicit none
 
     real(dp), private :: s_prev = -1.0_dp
-    real(dp), private, allocatable :: spl_val_c(:,:), spl_val_s(:,:)
+    real(dp), private, allocatable :: spl_val_c(:, :), spl_val_s(:, :)
 
     real(dp), allocatable, protected :: params(:, :), modes(:, :, :)
     integer, protected :: mb, nb, nflux, nfp, nmode
@@ -357,9 +357,9 @@ module do_magfie_pert_mod
     ! Work arrays (size=nmode)
     real(dp), private, allocatable :: Bmnc(:), Bmns(:)
 
-    integer :: ncol1, ncol2 ! number of columns in input file
-    real(dp) :: mph ! toroidal perturbation mode (threadprivate)
-    real(dp) :: mph_shared = 0.0_dp ! shared copy for namelist input (when pertfile=.false.)
+    integer :: ncol1, ncol2  ! number of columns in input file
+    real(dp) :: mph  ! toroidal perturbation mode (threadprivate)
+    real(dp) :: mph_shared = 0.0_dp  ! shared copy for namelist input (when pertfile=.false.)
 
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_pert_arrays_initialized = .false.
@@ -496,13 +496,13 @@ contains
         ! calculate B-field from modes
         if (inp_swi == 8) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            Bmnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
-            bamp = sum(Bmnc*cos(modes(1, :, 1)*x(3)))
+            Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+            bamp = sum(Bmnc * cos(modes(1, :, 1) * x(3)))
         else if (inp_swi == 9) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            Bmnc(:) = 1.0e4_dp*spl_val_c(1, :)*bfac
-            Bmns(:) = 1.0e4_dp*spl_val_s(1, :)*bfac
+            Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+            Bmns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
             bamp = fast_fourier_sum(Bmnc, Bmns, modes(1, :, 1), x(3))
         end if
 

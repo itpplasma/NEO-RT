@@ -26,20 +26,20 @@ contains
             return
         end if
 
-        v = ux*vth
+        v = ux * vth
 
         if (nonlin) then
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-            call d_Om_ds(v, eta, 2.0_dp*pi/Omth, dOmthds, dOmphds)
-            dOmdv = mth*dOmthdv + mph*dOmphdv
-            dOmdeta = mth*dOmthdeta + mph*dOmphdeta
-            dOmdpph = -(qi/c*iota*sign_theta*psi_pr)**(-1)*(mth*dOmthds + mph*dOmphds)
+            call d_Om_ds(v, eta, 2.0_dp * pi / Omth, dOmthds, dOmphds)
+            dOmdv = mth * dOmthdv + mph * dOmphdv
+            dOmdeta = mth * dOmthdeta + mph * dOmphdeta
+            dOmdpph = -(qi / c * iota * sign_theta * psi_pr)**(-1) * (mth * dOmthds + mph * dOmphds)
             Ompr = omega_prime(ux, eta, bounceavg, Omth, dOmdv, dOmdeta, dOmdpph)
             call coleff(ux, dpp, dhh, fpeff)
-            dhh = vth*dhh
-            dpp = vth**3*dpp
-            dres = dpp*(dOmdv/Ompr)**2 + dhh*eta*(bounceavg(5) - eta)*(dOmdeta/Ompr)**2
-            dnorm = dres*sqrt(abs(Ompr))/sqrt(abs(Hmn2))**(3.0_dp/2.0_dp)
+            dhh = vth * dhh
+            dpp = vth**3 * dpp
+            dres = dpp * (dOmdv / Ompr)**2 + dhh * eta * (bounceavg(5) - eta) * (dOmdeta / Ompr)**2
+            dnorm = dres * sqrt(abs(Ompr)) / sqrt(abs(Hmn2))**(3.0_dp / 2.0_dp)
             call attenuation_factor(dnorm, nonlinear_attenuation)
         end if
 
@@ -52,17 +52,17 @@ contains
 
         real(dp) :: ma, mb, mc, md, me, mf, dvdJ, detadJ
 
-        ma = mi*(ux*vth)*mi*c/qi*eta
-        mb = mi*(ux*vth)**2/2*mi*c/qi
-        mc = mi/(2.0_dp*Omth)*(ux*vth)*(1.0_dp - eta*bounceavg(6))
-        md = mi*(ux*vth)**2/2.0_dp*Omth
-        me = -mth/mph
-        mf = 1.0_dp/mph
+        ma = mi * (ux * vth) * mi * c / qi * eta
+        mb = mi * (ux * vth)**2 / 2 * mi * c / qi
+        mc = mi / (2.0_dp * Omth) * (ux * vth) * (1.0_dp - eta * bounceavg(6))
+        md = mi * (ux * vth)**2 / 2.0_dp * Omth
+        me = -mth / mph
+        mf = 1.0_dp / mph
 
-        dvdJ = mb*me/(ma*md*mf - mb*mc*mf)
-        detadJ = ma*me/(mb*mc*mf - ma*md*mf)
+        dvdJ = mb * me / (ma * md * mf - mb * mc * mf)
+        detadJ = ma * me / (mb * mc * mf - ma * md * mf)
 
-        omega_prime = dOmdv*dvdJ + dOmdeta*detadJ + mph*dOmdpph
+        omega_prime = dOmdv * dvdJ + dOmdeta * detadJ + mph * dOmdpph
     end function omega_prime
 
 end module neort_nonlin

@@ -65,8 +65,8 @@ contains
         real(dp) :: dpp, dhh, fpeff
         complex(dp) :: bn
 
-        D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
-        Drp = 4*mph*q/(eps**2*sqrt(pi))  ! actually this is Drp/Dp
+        D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
+        Drp = 4 * mph * q / (eps**2 * sqrt(pi))  ! actually this is Drp/Dp
 
         thmin = -pi
         thmax = pi
@@ -89,11 +89,11 @@ contains
         data%params%dVds = dVds
         data%params%M_t = M_t
         data%params%Om_tE = Om_tE
-        data%params%Om_tBref = c*mi*vth**2/(2.0_dp*qi*sign_theta*psi_pr)
+        data%params%Om_tBref = c * mi * vth**2 / (2.0_dp * qi * sign_theta * psi_pr)
         data%params%vth = vth
-        data%params%T_in_eV = mi/2.0_dp*vth**2/eV
-        data%params%m0 = 1.0_dp*m0
-        data%params%n0 = 1.0_dp*mph
+        data%params%T_in_eV = mi / 2.0_dp * vth**2 / eV
+        data%params%m0 = 1.0_dp * m0
+        data%params%n0 = 1.0_dp * mph
         data%params%Dp = D_plateau
         data%params%Drp_over_Dp = Drp
         data%params%etatp = etatp
@@ -227,8 +227,8 @@ contains
         Tresctr = 0.0_dp
         Trest = 0.0_dp
 
-        vminp = 1.0e-6_dp*vth
-        vmaxp = 3.0_dp*vth
+        vminp = 1.0e-6_dp * vth
+        vmaxp = 3.0_dp * vth
         vmint = vminp
         vmaxt = vmaxp
 

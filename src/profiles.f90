@@ -23,10 +23,10 @@ module neort_profiles
     ! Plasma profile spline data
     integer :: nplasma_global = 0
     real(dp) :: am1_global = 0.0_dp, am2_global = 0.0_dp, Z1_global = 0.0_dp, Z2_global = 0.0_dp
-    real(dp), allocatable :: plasma_spl_coeff(:,:,:)
+    real(dp), allocatable :: plasma_spl_coeff(:, :, :)
 
     ! Rotation profile spline data
-    real(dp), allocatable :: Mt_spl_coeff(:,:)
+    real(dp), allocatable :: Mt_spl_coeff(:, :)
     ! Flux-surface dependent quantities (interpolated per-thread at each s)
     !$omp threadprivate (vth, dvthds, M_t, dM_tds, Om_tE, dOm_tEds)
     !$omp threadprivate (ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds)
@@ -96,16 +96,16 @@ contains
         dTeds = spl_val(2)
 
         ! Compute derived quantities
-        qi = Z1_global*qe
-        mi = am1_global*mu
-        vth = sqrt(2.0_dp*Ti1*ev/mi)
-        dvthds = 0.5_dp*sqrt(2.0_dp*ev/(mi*Ti1))*dTi1ds
+        qi = Z1_global * qe
+        mi = am1_global * mu
+        vth = sqrt(2.0_dp * Ti1 * ev / mi)
+        dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * Ti1)) * dTi1ds
 
         ! Call collision routine
         v0 = vth
         amb = 2.0_dp
         Zb = 1.0_dp
-        ebeam = amb*pmass*v0**2/(2.0_dp*ev)
+        ebeam = amb * pmass * v0**2 / (2.0_dp * ev)
         call loacol_nbi(amb, am1_global, am2_global, Zb, Z1_global, Z2_global, &
                         ni1, ni2, Ti1, Ti2, Te, ebeam, v0, &
                         dchichi, slowrate, dchichi_norm, slowrate_norm)
@@ -210,8 +210,9 @@ contains
         real(dp), intent(in) :: psi_pr  ! toroidal flux at plasma boundary == dpsi_tor/ds
         real(dp), intent(in) :: q  ! safety factor
 
-        A1 = dni1ds/ni1 - qi/(Ti1*ev)*sign_theta*psi_pr/(q*c)*Om_tE - 3.0_dp/2.0_dp*dTi1ds/Ti1
-        A2 = dTi1ds/Ti1
+        A1 = dni1ds / ni1 - qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c) * Om_tE - 3.0_dp / &
+             2.0_dp * dTi1ds / Ti1
+        A2 = dTi1ds / Ti1
     end subroutine init_thermodynamic_forces
 
 end module neort_profiles

@@ -87,12 +87,12 @@ contains
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
         y0 = 1.0e-15_dp
-        y0(1) = th0         ! poloidal angle theta
-        y0(2) = sign_vpar_htheta*vpar(v, eta, bmod)  ! parallel velocity vpar
-        y0(3) = 0.0_dp         ! toroidal velocity v_ph for drift frequency Om_ph
-        y0(4) = 0.0_dp         ! perturbed Hamiltonian real part
-        y0(5) = 0.0_dp         ! perturbed Hamiltonian imaginary part
-        y0(6) = 0.0_dp         ! 1/abs(B)
+        y0(1) = th0  ! poloidal angle theta
+        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)  ! parallel velocity vpar
+        y0(3) = 0.0_dp  ! toroidal velocity v_ph for drift frequency Om_ph
+        y0(4) = 0.0_dp  ! perturbed Hamiltonian real part
+        y0(5) = 0.0_dp  ! perturbed Hamiltonian imaginary part
+        y0(6) = 0.0_dp  ! 1/abs(B)
         ! y0(7) = 0.0_dp       ! abs(B)
 
         ! If bounce time estimate exists (elliptic integrals),
@@ -100,15 +100,15 @@ contains
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2.0_dp))
+            taub = 2.0 * pi / abs(vperp(v, eta, bmod) * iota / R0 * sqrt(eps / 2.0_dp))
         end if
 
         ! Look for exactly one orbit turn via root-finding.
         ! Start by looking for 5 points per turn.
-        findroot_res = bounce_integral(v, eta, nvar, y0, taub/5.0_dp, timestep)
+        findroot_res = bounce_integral(v, eta, nvar, y0, taub / 5.0_dp, timestep)
 
         taub = findroot_res(1)
-        bounceavg = findroot_res(2:)/taub
+        bounceavg = findroot_res(2:) / taub
     end subroutine bounce
 
     subroutine evaluate_bfield_local(bmod, htheta)
@@ -126,7 +126,7 @@ contains
         !   parallel velocity
         real(dp) :: vpar
         real(dp), intent(in) :: v, eta, bmod
-        vpar = v*sqrt(1.0_dp - eta*bmod)
+        vpar = v * sqrt(1.0_dp - eta * bmod)
         if (isnan(vpar)) then
             vpar = 0.0_dp
         end if
@@ -162,10 +162,10 @@ contains
         t2 = taub
 
         call evaluate_bfield_local(bmod, htheta)
-        sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
+        sign_vpar_htheta = sign(1.0_dp, htheta) * sign_vpar
         y = 1.0e-15_dp
         y(1) = th0
-        y(2) = sign_vpar_htheta*vpar(v, eta, bmod)
+        y(2) = sign_vpar_htheta * vpar(v, eta, bmod)
         y(3:6) = 0.0_dp
 
         neq = nvar
@@ -205,20 +205,20 @@ contains
         real(dp) :: taub
 
         integer, parameter :: neq = 2
-        real(dp) :: y0(neq), roots(neq+1)
+        real(dp) :: y0(neq), roots(neq + 1)
         real(dp) :: bmod, htheta
         call trace('bounce_time')
 
         call evaluate_bfield_local(bmod, htheta)
-        sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
+        sign_vpar_htheta = sign(1.0_dp, htheta) * sign_vpar
 
-        y0(1) = th0         ! poloidal angle theta
-        y0(2) = sign_vpar_htheta*vpar(v, eta, bmod)  ! parallel velocity vpar
+        y0(1) = th0  ! poloidal angle theta
+        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)  ! parallel velocity vpar
 
         if (present(taub_estimate)) then
             taub = taub_estimate
         else
-            taub = 2.0*pi/abs(vperp(v, eta, bmod)*iota/R0*sqrt(eps/2.0_dp))
+            taub = 2.0 * pi / abs(vperp(v, eta, bmod) * iota / R0 * sqrt(eps / 2.0_dp))
         end if
 
         roots = bounce_integral(v, eta, neq, y0, taub, timestep_poloidal_motion)
@@ -247,8 +247,8 @@ contains
         real(dp), intent(in) :: v_par
         real(dp), intent(out) :: ydot(2)
 
-        ydot(1) = v_par*hthctr                                  ! theta
-        ydot(2) = -v**2*eta/2.0_dp*hthctr*hderth*bmod              ! v_par
+        ydot(1) = v_par * hthctr  ! theta
+        ydot(2) = -v**2 * eta / 2.0_dp * hthctr * hderth * bmod  ! v_par
     end subroutine poloidal_velocity
 
     function bounce_integral(v, eta, neq, y0, dt, ts)
@@ -353,8 +353,8 @@ contains
         real(dp), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = sign_vpar_htheta*(Y(1) - th0) ! trapped orbit return to starting point
-        GOUT(2) = sign_vpar_htheta*(2.0_dp*pi - (Y(1) - th0))  ! passing orbit return
+        GOUT(1) = sign_vpar_htheta * (Y(1) - th0)  ! trapped orbit return to starting point
+        GOUT(2) = sign_vpar_htheta * (2.0_dp * pi - (Y(1) - th0))  ! passing orbit return
         return
     end subroutine bounceroots
 
@@ -375,26 +375,25 @@ contains
         real(dp) :: Om_tB_v
         real(dp) :: shearterm
 
-
         x(1) = s
         x(2) = 0.0_dp
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        shearterm = Bphcov*dqds
+        shearterm = Bphcov * dqds
         if (noshear) then
             shearterm = 0
         end if
 
-        Om_tB_v = mi*c*q/(2.0_dp*qi*sign_theta*psi_pr*bmod)*( &      ! Om_tB/v**2
-                  -(2.0_dp - eta*bmod)*bmod*hder(1) &
-                  + 2.0_dp*(1.0_dp - eta*bmod)*hctrvr(3)* &
-                  (dBthcovds + q*dBphcovds + shearterm))
+        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( &  ! Om_tB/v**2
+                  -(2.0_dp - eta * bmod) * bmod * hder(1) &
+                  + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
+                  (dBthcovds + q * dBphcovds + shearterm))
 
-        ydot(1) = y(2)*hctrvr(3)                                    ! theta
-        ydot(2) = -0.5_dp*v**2*eta*hctrvr(3)*hder(3)*bmod            ! v_par
+        ydot(1) = y(2) * hctrvr(3)  ! theta
+        ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod  ! v_par
         ydot(3) = Om_tB_v  ! for bounce average of Om_tB/v**2
-        ydot(4:) = 0.0_dp     ! remaining integrands not computed here
+        ydot(4:) = 0.0_dp  ! remaining integrands not computed here
     end subroutine timestep
 
 end module neort_orbit

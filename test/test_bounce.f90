@@ -23,15 +23,15 @@ program test_bounce_program
         call do_magfie_init("in_file")
         call init
 
-        Om_tE = vth*M_t/R0
-        dOm_tEds = vth*dM_tds/R0
+        Om_tE = vth * M_t / R0
+        dOm_tEds = vth * dM_tds / R0
 
-        etamin = (1+epst)*etatp
-        etamax = (1-epst)*etadt
+        etamin = (1 + epst) * etatp
+        etamax = (1 - epst) * etadt
         sign_vpar = 1
 
         v = vth
-        eta = 0.5_dp*(etamin + etamax)
+        eta = 0.5_dp * (etamin + etamax)
 
     end subroutine setup
 

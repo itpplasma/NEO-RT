@@ -19,16 +19,16 @@ contains
 
         ninterv = size(roots, 1)
 
-        deta = (eta_max - eta_min)*1.0_dp/ninterv
+        deta = (eta_max - eta_min) * 1.0_dp / ninterv
         nroots = 0
 
         do k = 0, ninterv
-            eta = eta_min + k*deta
+            eta = eta_min + k * deta
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-            res = mth*Omth + mph*Omph
-            dresdv = mth*dOmthdv + mph*dOmphdv
-            dresdeta = mth*dOmthdeta + mph*dOmphdeta
+            res = mth * Omth + mph * Omph
+            dresdv = mth * dOmthdv + mph * dOmphdv
+            dresdeta = mth * dOmthdeta + mph * dOmphdeta
             if (k > 0) then
                 if (sign(1.0_dp, res) /= sign(1.0_dp, resold)) then
                     nroots = nroots + 1
@@ -106,27 +106,27 @@ contains
             res_old = res
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-            res = mph*Omph + mth*Omth
+            res = mph * Omph + mth * Omth
 
             driftorbit_root(1) = eta
 
             if (abs(res) < tol) then
                 state = 1
-                driftorbit_root(2) = mph*dOmphdeta + mth*dOmthdeta
+                driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
                 exit
             elseif ((slope_pos .and. res > 0) .or. &
                     ((.not. slope_pos) .and. res < 0)) then
                 etamax2 = eta
                 eta_old = eta
-                eta = (eta + etamin2)/2.0_dp
+                eta = (eta + etamin2) / 2.0_dp
             else
                 etamin2 = eta
                 eta_old = eta
-                eta = (eta + etamax2)/2.0_dp
+                eta = (eta + etamax2) / 2.0_dp
             end if
         end do
         if (state < 0) then
-            driftorbit_root(2) = mph*dOmphdeta + mth*dOmthdeta
+            driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
             write (msg, "(a,i0,a,g0,a,i0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0)") &
                   "driftorbit_root: did not converge within ", maxit, " iterations" // LF // &
                   TAB // "v/vth = ", v / vth, ", mth = ", mth, ", sign_vpar = ", sign_vpar, LF // &

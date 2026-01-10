@@ -17,7 +17,7 @@ program test_torque_prog
     integer, parameter :: MTH = -3
     real(dp), parameter :: AVG_NABLA_S = 0.02162413513580247_dp
     real(dp), parameter :: DV_OVER_DS = 12621249.179676009_dp
-    real(dp), parameter :: FLUX_SURFACE_AREA = DV_OVER_DS*AVG_NABLA_S
+    real(dp), parameter :: FLUX_SURFACE_AREA = DV_OVER_DS * AVG_NABLA_S
     real(dp), parameter :: TOL = 1.0e-7_dp
     character(1024) :: TEST_RUN = "driftorbit64.new"
     type(magfie_data_t) :: magfie_data
@@ -66,14 +66,14 @@ contains
         write (*, "(4ES12.2,2F12.2)") TTco, TTctr, TTt, TTco + TTctr + TTt
         print *, ""
         print *, "Ratios to direct calculation:"
-        print *, "TTctr/Tctr = ", TTctr/Tctr
-        print *, "TTt/Tt = ", TTt/Tt
+        print *, "TTctr/Tctr = ", TTctr / Tctr
+        print *, "TTt/Tt = ", TTt / Tt
 
-        if (abs(TTctr/Tctr - 1.0_dp) > TOL) then
+        if (abs(TTctr / Tctr - 1.0_dp) > TOL) then
             error stop
         end if
 
-        if (abs(TTt/Tt - 1.0_dp) > TOL) then
+        if (abs(TTt / Tt - 1.0_dp) > TOL) then
             error stop
         end if
 
@@ -92,11 +92,11 @@ contains
         x(2) = 0.0_dp
         x(3) = 0.0_dp
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-        sqrtgBth = sqrtg*hctrvr(3)*bmod*AVG_NABLA_S
+        sqrtgBth = sqrtg * hctrvr(3) * bmod * AVG_NABLA_S
         print *, "sqrtgBth = ", sqrtgBth
 
-        D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
-        Tphi = (sqrtgBth/c)*qe*(-ni1*D_plateau*(D(1)*A1 + D(2)*A2))*AVG_NABLA_S
+        D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
+        Tphi = (sqrtgBth / c) * qe * (-ni1 * D_plateau * (D(1) * A1 + D(2) * A2)) * AVG_NABLA_S
         Tphi = Tphi
     end function torque_from_transport
 
@@ -104,13 +104,12 @@ contains
     ! This then finally cancels out in torque calculation
     subroutine correct_transport_coeff(D)
         real(dp), intent(inout) :: D(2)
-        D = D*(2.0_dp/a*sqrt(s))**2/AVG_NABLA_S**2
+        D = D * (2.0_dp / a * sqrt(s))**2 / AVG_NABLA_S**2
     end subroutine correct_transport_coeff
-
 
     ! Correct torque calculation
     subroutine correct_torque(T)
         real(dp), intent(inout) :: T
-        T = T/DV_OVER_DS
+        T = T / DV_OVER_DS
     end subroutine correct_torque
 end program test_torque_prog
