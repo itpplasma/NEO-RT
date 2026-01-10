@@ -128,6 +128,7 @@ contains
             ux = ux + du
         end do
 
+        ! Calculate D_plateau (plateau diffusion coefficient)
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
         dsdreff = 2.0_dp / a * sqrt(s)  ! TODO: Use exact value instead of this approximation
         D = dsdreff**(-2) * D / D_plateau
