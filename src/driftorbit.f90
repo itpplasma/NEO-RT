@@ -3,6 +3,7 @@
 ! Christopher Albert, since 2015
 
 module driftorbit
+    use iso_fortran_env, only: dp => real64
     use util
     use do_magfie_mod
     use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
@@ -13,11 +14,11 @@ module driftorbit
     implicit none
 
     ! Normalization factor for radial electric field
-    real(8) :: efac = 1d0
+    real(dp) :: efac = 1.0_dp
 
     ! Harmonics TODO: make dynamic, multiple harmonics
     ! Default values are overridden by config file in driftorbit_test:read_control
-    real(8) :: epsmn = 1d0            ! perturbation amplitude B1/B0
+    real(dp) :: epsmn = 1.0_dp            ! perturbation amplitude B1/B0
     integer :: m0 = 1                 ! Boozer poloidal perturbation mode
     integer :: mth = 1                ! canonical poloidal mode
     logical :: magdrift = .true.      ! consider magnetic drift
@@ -26,22 +27,22 @@ module driftorbit
     logical :: comptorque = .true.    ! compute torque
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
-    real(8) :: dVds = 0d0, etadt = 0d0, etatp = 0d0
-    real(8) :: etamin = 0d0, etamax = 0d0
+    real(dp) :: dVds = 0.0_dp, etadt = 0.0_dp, etatp = 0.0_dp
+    real(dp) :: etamin = 0.0_dp, etamax = 0.0_dp
 
     ! TODO: better B0 calculation (average magnetic field on flux surface)
-    real(8) :: B0 = 0d0
-    real(8) :: Bmin = 0d0, Bmax = 0d0
+    real(dp) :: B0 = 0.0_dp
+    real(dp) :: Bmin = 0.0_dp, Bmax = 0.0_dp
 
-    real(8), parameter :: epst_spl = 1d-6, epsp_spl = 1d-6   ! dist to tpb for spline
-    real(8), parameter :: epsst_spl = 1d-3, epssp_spl = 1d-3 ! dist to deep for spline
-    real(8), parameter :: epst = 1d-8, epsp = 1d-8 ! smallest eta distance to tp bound
+    real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp   ! dist to tpb for spline
+    real(dp), parameter :: epsst_spl = 1.0e-3_dp, epssp_spl = 1.0e-3_dp ! dist to deep for spline
+    real(dp), parameter :: epst = 1.0e-8_dp, epsp = 1.0e-8_dp ! smallest eta distance to tp bound
 
 
 
     ! Number of levels for coarse root finding
     integer, parameter :: nlev = 100
-    real(8) :: sign_vpar = 1d0, sign_vpar_htheta = 1d0
+    real(dp) :: sign_vpar = 1.0_dp, sign_vpar_htheta = 1.0_dp
 
     ! Nonlinear calculation switch
     logical :: nonlin = .false.

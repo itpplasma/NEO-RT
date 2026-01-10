@@ -1,4 +1,5 @@
 program test_reslines
+  use iso_fortran_env, only: dp => real64
   use util
   use do_magfie_mod, only: s, R0, a, inp_swi, do_magfie_init, do_magfie
   use do_magfie_pert_mod, only: mph
@@ -9,13 +10,13 @@ program test_reslines
   use neort_freq, only: Om_th, Om_ph
   implicit none
 
-  real(8), parameter  :: vnorm = sqrt(0.15)
+  real(dp), parameter  :: vnorm = sqrt(0.15_dp)
 
   integer :: fid
 
   integer, parameter :: ns = 250
   integer :: ks
-  real(8) :: profile(ns, 3)
+  real(dp) :: profile(ns, 3)
 
   integer, parameter :: nm2 = 11, nm3 = 2
   integer :: km2, km3
@@ -56,40 +57,40 @@ program test_reslines
 
   subroutine resline
 
-    real(8) :: v, eta_res(2)
-    real(8) :: roots(nlev, 3)
+    real(dp) :: v, eta_res(2)
+    real(dp) :: roots(nlev, 3)
     integer :: nroots, kr
 
     v = vnorm*vth
 
     ! Trapped
-    sign_vpar = 1d0
+    sign_vpar = 1.0_dp
     etamin = (1+epst)*etatp
     etamax = (1-epst)*etadt
     call driftorbit_coarse(v, etamin, etamax, roots, nroots)
     if(nroots == 0) return
     do kr = 1,nroots
-      eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+      eta_res = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr,1), roots(kr,2))
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, 0
       end do
     ! Co-passing
-    sign_vpar = 1d0
+    sign_vpar = 1.0_dp
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
     call driftorbit_coarse(v, etamin, etamax, roots, nroots)
     if(nroots == 0) return
     do kr = 1,nroots
-      eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+      eta_res = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr,1), roots(kr,2))
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, 1
       end do
     ! Ctr-passing
-    sign_vpar = -1d0
+    sign_vpar = -1.0_dp
     etamin = epsp*etatp
     etamax = (1-epsp)*etatp
     call driftorbit_coarse(v, etamin, etamax, roots, nroots)
     if(nroots == 0) return
     do kr = 1,nroots
-      eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr,1), roots(kr,2))
+      eta_res = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr,1), roots(kr,2))
       write(fid,*) s, v/vth, eta_res(1), mth, mph, kr, -1
     end do
 

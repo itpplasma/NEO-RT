@@ -1,5 +1,5 @@
 module diag_contrib_map
-  use iso_fortran_env, only: real64
+  use iso_fortran_env, only: dp => real64
   use fortplot, only: figure, plot, pcolormesh, title, xlabel, ylabel, legend, savefig
   use neort, only: init, check_magfie, write_magfie_data_to_files, &
                    set_to_passing_region, set_to_trapped_region
@@ -26,18 +26,18 @@ contains
     character(*), intent(in) :: arg_runname
     logical :: file_exists
     integer :: i, j, nu, nm, u
-    real(real64) :: v
-    real(real64), allocatable :: ux(:), ux_edges(:), mth_vals(:), mth_edges(:)
-    real(real64), allocatable :: z(:, :), y(:)
+    real(dp) :: v
+    real(dp), allocatable :: ux(:), ux_edges(:), mth_vals(:), mth_edges(:)
+    real(dp), allocatable :: z(:, :), y(:)
     integer :: mth_min, mth_max
 
     ! Temp variables for resonance calculation
-    real(real64) :: Omth, dOmthdv, dOmthdeta, taub, bounceavg(nvar)
-    real(real64) :: Hmn2, eta, du
-    real(real64) :: roots(100, 3)
+    real(dp) :: Omth, dOmthdv, dOmthdeta, taub, bounceavg(nvar)
+    real(dp) :: Hmn2, eta, du
+    real(dp) :: roots(100, 3)
     integer :: nroots, kr
-    real(real64) :: eta_res(2)
-    real(real64) :: contrib
+    real(dp) :: eta_res(2)
+    real(dp) :: contrib
     type(magfie_data_t) :: magfie_data
 
     ! Initialize environment
@@ -50,7 +50,7 @@ contains
     inquire(file="plasma.in", exist=file_exists)
     if (file_exists) call read_and_init_plasma_input("plasma.in", s)
     inquire(file="profile.in", exist=file_exists)
-    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_real64, 1.0_real64)
+    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_dp, 1.0_dp)
 
     call init
     call check_magfie(magfie_data)
@@ -58,21 +58,21 @@ contains
 
     ! Grids
     nu = 401
-    mth_min = -ceiling(2.0_real64*abs(mph*q))
-    mth_max =  ceiling(2.0_real64*abs(mph*q))
+    mth_min = -ceiling(2.0_dp*abs(mph*q))
+    mth_max =  ceiling(2.0_dp*abs(mph*q))
     nm = mth_max - mth_min + 1
     allocate(ux(nu), ux_edges(nu+1))
     allocate(mth_vals(nm), mth_edges(nm+1))
     allocate(z(nm, nu))
     allocate(y(nu))
-    z = 0.0_real64
-    y = 0.0_real64
+    z = 0.0_dp
+    y = 0.0_dp
 
     do i = 1, nu
-      ux(i) = 0.0_real64 + (4.0_real64 - 0.0_real64) * real(i-1,real64) / real(nu-1,real64)
+      ux(i) = 0.0_dp + (4.0_dp - 0.0_dp) * real(i-1,dp) / real(nu-1,dp)
     end do
     do j = 1, nm
-      mth_vals(j) = real(mth_min + (j-1), real64)
+      mth_vals(j) = real(mth_min + (j-1), dp)
     end do
     call edges_from_centers(ux, ux_edges)
     call edges_from_centers(mth_vals, mth_edges)
@@ -84,18 +84,18 @@ contains
       mth = nint(mth_vals(j))
       do i = 1, nu
         v = ux(i)*vth
-        contrib = 0.0_real64
+        contrib = 0.0_dp
 
         ! Skip exactly zero speed to avoid degenerate bounce; integrand is zero there
-        if (ux(i) > 0.0_real64) then
+        if (ux(i) > 0.0_dp) then
           ! Passing (co- and counter-) if enabled
           if (.not. nopassing) then
-            call accumulate_class(v, ux(i), +1.0_real64, .true., contrib)
-            call accumulate_class(v, ux(i), -1.0_real64, .true., contrib)
+            call accumulate_class(v, ux(i), +1.0_dp, .true., contrib)
+            call accumulate_class(v, ux(i), -1.0_dp, .true., contrib)
           end if
 
         ! Trapped
-        call accumulate_class(v, ux(i), +1.0_real64, .false., contrib)
+        call accumulate_class(v, ux(i), +1.0_dp, .false., contrib)
         end if
 
         z(j, i) = contrib
@@ -142,36 +142,36 @@ contains
   contains
 
     subroutine accumulate_contrib(v, ux, contrib_out)
-      real(real64), intent(in) :: v, ux
-      real(real64), intent(inout) :: contrib_out
-      real(real64) :: Omth, dOmthdv, dOmthdeta, taub, bounceavg(nvar), Hmn2
-      real(real64) :: eta
-      real(real64) :: eta_res(2)
-      real(real64) :: roots(100, 3)
+      real(dp), intent(in) :: v, ux
+      real(dp), intent(inout) :: contrib_out
+      real(dp) :: Omth, dOmthdv, dOmthdeta, taub, bounceavg(nvar), Hmn2
+      real(dp) :: eta
+      real(dp) :: eta_res(2)
+      real(dp) :: roots(100, 3)
       integer :: nroots, kr
-      real(real64) :: att
-      real(real64) :: v_eff
+      real(dp) :: att
+      real(dp) :: v_eff
 
       call driftorbit_coarse(v, etamin, etamax, roots, nroots)
       if (nroots == 0) return
       do kr = 1, nroots
-        eta_res = driftorbit_root(v, 1d-8*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+        eta_res = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
         eta = eta_res(1)
 
-        v_eff = max(v, 1.0e-8_real64*vth)
+        v_eff = max(v, 1.0e-8_dp*vth)
         call Om_th(v_eff, eta, Omth, dOmthdv, dOmthdeta)
-        taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
+        taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
         call bounce_fast(v_eff, eta, taub, bounceavg, timestep_transport)
-        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v_eff*v_eff/2.0_real64))**2
+        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v_eff*v_eff/2.0_dp))**2
         att = nonlinear_attenuation(ux, eta, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
         contrib_out = contrib_out + Tphi_int(ux, taub, Hmn2)/abs(eta_res(2)) * att
       end do
     end subroutine accumulate_contrib
 
     subroutine accumulate_class(v, ux, sign_vpar_in, is_passing, contrib_out)
-      real(real64), intent(in) :: v, ux, sign_vpar_in
+      real(dp), intent(in) :: v, ux, sign_vpar_in
       logical, intent(in) :: is_passing
-      real(real64), intent(inout) :: contrib_out
+      real(dp), intent(inout) :: contrib_out
       sign_vpar = sign_vpar_in
       if (is_passing) then
         call set_to_passing_region(etamin, etamax)
@@ -184,16 +184,16 @@ contains
   end subroutine run_contrib_diag
 
   subroutine edges_from_centers(c, e)
-    real(real64), intent(in) :: c(:)
-    real(real64), intent(out) :: e(:)
+    real(dp), intent(in) :: c(:)
+    real(dp), intent(out) :: e(:)
     integer :: n, i
     n = size(c)
     if (size(e) /= n+1) stop 'edges_from_centers: size mismatch'
-    e(1) = c(1) - 0.5_real64*(c(2)-c(1))
+    e(1) = c(1) - 0.5_dp*(c(2)-c(1))
     do i = 2, n
-      e(i) = 0.5_real64*(c(i-1)+c(i))
+      e(i) = 0.5_dp*(c(i-1)+c(i))
     end do
-    e(n+1) = c(n) + 0.5_real64*(c(n)-c(n-1))
+    e(n+1) = c(n) + 0.5_dp*(c(n)-c(n-1))
   end subroutine edges_from_centers
 
 end module diag_contrib_map

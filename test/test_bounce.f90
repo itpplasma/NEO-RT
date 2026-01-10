@@ -1,10 +1,11 @@
 program test_bounce_program
+    use iso_fortran_env, only: dp => real64
     use util, only: qe, mu
 
     implicit none
 
-    real(8), parameter :: tol = 1e-13
-    real(8) :: v, eta
+    real(dp), parameter :: tol = 1.0e-13_dp
+    real(dp) :: v, eta
 
     call setup
     call test_bounce
@@ -22,15 +23,15 @@ program test_bounce_program
         call do_magfie_init("in_file")
         call init
 
-        Om_tE = vth*M_t/R0
-        dOm_tEds = vth*dM_tds/R0
+        Om_tE = vth * M_t / R0
+        dOm_tEds = vth * dM_tds / R0
 
-        etamin = (1+epst)*etatp
-        etamax = (1-epst)*etadt
+        etamin = (1 + epst) * etatp
+        etamax = (1 - epst) * etadt
         sign_vpar = 1
 
         v = vth
-        eta = 0.5d0*(etamin + etamax)
+        eta = 0.5_dp * (etamin + etamax)
 
     end subroutine setup
 
@@ -39,14 +40,14 @@ program test_bounce_program
             mph, mth, magdrift, nopassing, pertfile, &
             nonlin, bfac, efac, inp_swi
         use neort_orbit, only: noshear
-        real(8) :: qs, ms
+        real(dp) :: qs, ms
 
-        s = 0.153d0
-        M_t = 0.1d0
-        qs = 1.0d0
-        ms = 2.014d0
-        vth = 37280978.0d0
-        epsmn = 1e-3
+        s = 0.153_dp
+        M_t = 0.1_dp
+        qs = 1.0_dp
+        ms = 2.014_dp
+        vth = 37280978.0_dp
+        epsmn = 1.0e-3_dp
         m0 = 0
         mph = 18
         mth = -1
@@ -55,8 +56,8 @@ program test_bounce_program
         noshear = .true.
         pertfile = .false.
         nonlin = .false.
-        bfac = 1.0d0
-        efac = 1.0d0
+        bfac = 1.0_dp
+        efac = 1.0_dp
         inp_swi = 8
 
         M_t = M_t*efac/bfac
@@ -67,12 +68,12 @@ program test_bounce_program
     subroutine test_bounce
         use neort_orbit, only: bounce, nvar
 
-        real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
+        real(dp) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
-        bounceavg = 0d0
+        bounceavg = 0.0_dp
         call bounce(v, eta, taub, bounceavg_tmp)
 
-        bounceavg = 0d0
+        bounceavg = 0.0_dp
         call bounce(v, eta, taub, bounceavg)
 
         if (maxval(abs(bounceavg - bounceavg_tmp)) > tol) then
@@ -86,18 +87,18 @@ program test_bounce_program
 
     subroutine test_bounce_fast
         use neort_orbit, only: bounce, bounce_fast, nvar, timestep
-        real(8) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
+        real(dp) :: taub, bounceavg(nvar), bounceavg_tmp(nvar)
 
-        bounceavg = 0d0
+        bounceavg = 0.0_dp
 
-        bounceavg = 0d0
+        bounceavg = 0.0_dp
         call bounce(v, eta, taub, bounceavg_tmp, taub)
 
-        bounceavg = 0d0
+        bounceavg = 0.0_dp
         call bounce_fast(v, eta, taub, bounceavg, timestep)
 
-        if (maxval(abs((bounceavg - bounceavg_tmp)/(bounceavg+1d-6))) &
-            > 1d-3) then
+        if (maxval(abs((bounceavg - bounceavg_tmp)/(bounceavg+1.0e-6_dp))) &
+            > 1.0e-3_dp) then
             print *, 'test_bounce_fast failed'
             error stop
         end if

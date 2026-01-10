@@ -1,5 +1,5 @@
 module diag_bounce_nonlin
-  use iso_fortran_env, only: real64
+  use iso_fortran_env, only: dp => real64
   use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig, xlim, ylim
   use neort, only: init, check_magfie, write_magfie_data_to_files
   use neort_config, only: read_and_set_config
@@ -22,13 +22,13 @@ contains
   subroutine run_bounce_nonlin_diag(arg_runname)
     character(*), intent(in) :: arg_runname
     logical :: file_exists
-    real(real64) :: v, eta_min, eta_max
+    real(dp) :: v, eta_min, eta_max
     integer :: i, j, npts
-    real(real64), allocatable :: eta(:)
-    real(real64), parameter :: ux_list(3) = [1.0_real64, 2.0_real64, 3.0_real64]
-    real(real64), allocatable :: att_nonlin(:, :)
-    real(real64) :: taub, bounceavg(nvar), Omth, dOmthdv, dOmthdeta
-    real(real64) :: ux, Hmn2
+    real(dp), allocatable :: eta(:)
+    real(dp), parameter :: ux_list(3) = [1.0_dp, 2.0_dp, 3.0_dp]
+    real(dp), allocatable :: att_nonlin(:, :)
+    real(dp) :: taub, bounceavg(nvar), Omth, dOmthdv, dOmthdeta
+    real(dp) :: ux, Hmn2
     type(magfie_data_t) :: magfie_data
 
     ! Initialize NEO-RT environment similar to neort:main
@@ -42,20 +42,20 @@ contains
     if (file_exists) call read_and_init_plasma_input("plasma.in", s)
 
     inquire(file="profile.in", exist=file_exists)
-    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_real64, 1.0_real64)
+    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_dp, 1.0_dp)
 
     call init
     call check_magfie(magfie_data)
     call write_magfie_data_to_files(magfie_data, runname)
 
     ! Sample attenuation over trapped pitch range for several ux values
-    eta_min = etatp*(1.0_real64 + 1.0e-4_real64)
-    eta_max = etatp + (etadt - etatp)*(1.0_real64 - epsst_spl)
+    eta_min = etatp*(1.0_dp + 1.0e-4_dp)
+    eta_max = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
     npts = 100
     allocate(eta(npts))
     allocate(att_nonlin(npts, size(ux_list)))
     do i = 1, npts
-      eta(i) = eta_min + (eta_max-eta_min)*(real(i-1,real64)/real(npts-1,real64))
+      eta(i) = eta_min + (eta_max-eta_min)*(real(i-1,dp)/real(npts-1,dp))
     end do
 
     do j = 1, size(ux_list)
@@ -63,9 +63,9 @@ contains
       v = ux*vth
       do i = 1, npts
         call Om_th(v, eta(i), Omth, dOmthdv, dOmthdeta)
-        taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
+        taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
         call bounce_fast(v, eta(i), taub, bounceavg, timestep_transport)
-        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_real64))**2
+        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_dp))**2
 
         nonlin = .true.
         att_nonlin(i, j) = nonlinear_attenuation(ux, eta(i), bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
@@ -87,7 +87,7 @@ contains
     call xlabel("eta")
     call ylabel("attenuation factor")
     call xlim(minval(eta), maxval(eta))
-    call ylim(0.0_real64, 1.2_real64)
+    call ylim(0.0_dp, 1.2_dp)
     call legend()
     call savefig(trim(arg_runname)//"_bounce_nonlin.png")
 
@@ -102,7 +102,7 @@ contains
   end subroutine run_bounce_nonlin_diag
 
   pure function to_str(x) result(s)
-    real(real64), intent(in) :: x
+    real(dp), intent(in) :: x
     character(len=16) :: s
     write(s,'(F4.1)') x
     s = adjustl(s)
@@ -110,9 +110,9 @@ contains
 
   subroutine write_data_file(fname, eta, att, uxvals)
     character(*), intent(in) :: fname
-    real(real64), intent(in) :: eta(:)
-    real(real64), intent(in) :: att(:, :)
-    real(real64), intent(in) :: uxvals(:)
+    real(dp), intent(in) :: eta(:)
+    real(dp), intent(in) :: att(:, :)
+    real(dp), intent(in) :: uxvals(:)
     integer :: i, u
 
     open(newunit=u, file=fname, status='replace', action='write')

@@ -18,8 +18,8 @@ program test_parallel
     implicit none
 
     integer, parameter :: N_THREADS = 8
-    real(dp), parameter :: TOL_INIT = 1.0d-12
-    real(dp), parameter :: TOL_TRANSPORT = 1.0d-10
+    real(dp), parameter :: TOL_INIT = 1.0e-12_dp
+    real(dp), parameter :: TOL_TRANSPORT = 1.0e-10_dp
 
     type :: init_results_t
         real(dp) :: s, psi_pr, Bthcov, Bphcov, q, iota, eps, B0h
@@ -63,7 +63,7 @@ contains
         print *, "Input files read."
         print *
 
-        test_s = 0.5d0
+        test_s = 0.5_dp
 
         !$omp parallel private(thread_id, x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
         thread_id = omp_get_thread_num() + 1
@@ -208,7 +208,7 @@ contains
         real(dp) :: diff, rel_diff
 
         diff = abs(expected - actual)
-        if (abs(expected) > 1d-30) then
+        if (abs(expected) > 1.0e-30_dp) then
             rel_diff = diff / abs(expected)
         else
             rel_diff = diff
