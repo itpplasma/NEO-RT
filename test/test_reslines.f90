@@ -10,7 +10,7 @@ program test_reslines
   use neort_freq, only: Om_th, Om_ph
   implicit none
 
-  real(dp), parameter  :: vnorm = sqrt(0.15d0)
+  real(dp), parameter  :: vnorm = sqrt(0.15_dp)
 
   integer :: fid
 
