@@ -17,10 +17,6 @@ jobs:
     runs-on: ubuntu-24.04
     strategy:
       matrix:
-        config: [Debug, Fast]
-
-    strategy:
-      matrix:
         config: [Fast, Debug]
 
     steps:
