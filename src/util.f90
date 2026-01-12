@@ -3,22 +3,24 @@
 ! Christopher Albert, 2015
 
 module util
+    use iso_fortran_env, only: dp => real64
+
     implicit none
     save
 
-    complex(8), parameter :: imun = (0d0, 1d0)
+    complex(dp), parameter :: imun = (0.0_dp, 1.0_dp)
 
-    real(8), parameter, public :: pi = 4*atan(1d0)
+    real(dp), parameter, public :: pi = 4 * atan(1.0_dp)
 
-    real(8), parameter, public :: &
-        qe = 4.803204d-10, & ! elementary charge
-        !me  = 9.109382d-28,       & ! electron mass,
-        mu = 1.660538d-24, & ! 1u
-        c = 2.997925d+10, & ! speed of light
-        !kb  = 1.381649d-16,       & ! Boltzmann constant
-        eV = 1.602176d-12          ! 1 electron volt
+    real(dp), parameter, public :: &
+        qe = 4.803204e-10_dp, &  ! elementary charge
+        !me  = 9.109382e-28_dp,       & ! electron mass,
+        mu = 1.660538e-24_dp, &  ! 1u
+        c = 2.997925e+10_dp, &  ! speed of light
+        !kb  = 1.381649e-16_dp,       & ! Boltzmann constant
+        eV = 1.602176e-12_dp  ! 1 electron volt
 
-    real(8), public :: qi = 1d0*qe, mi = 2.014d0*mu
+    real(dp), public :: qi = 1.0_dp * qe, mi = 2.014_dp * mu
 
     ! Flux-surface dependent (set from plasma data at each s)
     !$omp threadprivate (qi, mi)
@@ -27,15 +29,15 @@ contains
 
     subroutine disp(str, val)
         character(*) :: str
-        real(8) :: val
+        real(dp) :: val
         write (*, '("'//str//'" ES16.9E2)') val
     end subroutine disp
 
     function linspace(a, b, cnt)
         integer :: cnt
-        real(8) :: linspace(cnt)
+        real(dp) :: linspace(cnt)
         integer :: i
-        real(8) :: a, b, delta
+        real(dp) :: a, b, delta
 
         delta = (b - a)/(cnt - 1)
         linspace = a + delta*(/(i, i=0, cnt - 1)/)
@@ -69,8 +71,8 @@ contains
     subroutine readdata(filename, ncol, data)
         character(*), intent(in) :: filename
         integer, intent(in) :: ncol
-        real(8), allocatable, intent(out) :: data(:, :)
-        real(8) :: buf(ncol)
+        real(dp), allocatable, intent(out) :: data(:, :)
+        real(dp) :: buf(ncol)
         integer :: lun, nrow, io, k
 
         open (unit=newunit(lun), file=filename, status="old")
@@ -103,12 +105,12 @@ contains
     subroutine cached_spline(x, x_prev, spl_coeff, y)
         use spline, only: spline_val_0
 
-        real(8), intent(in) :: x, x_prev
-        real(8), intent(in) :: spl_coeff(:, :, :)
-        real(8), intent(inout) :: y(:, :)
+        real(dp), intent(in) :: x, x_prev
+        real(dp), intent(in) :: spl_coeff(:, :, :)
+        real(dp), intent(inout) :: y(:, :)
 
-        real(8), parameter :: tol = 1.0d-12
-        real(8) :: spl_val(3)
+        real(dp), parameter :: tol = 1.0e-12_dp
+        real(dp) :: spl_val(3)
         integer :: j
 
         if (abs(x - x_prev) < tol) return

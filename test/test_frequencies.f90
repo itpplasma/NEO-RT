@@ -1,4 +1,5 @@
 program test_frequencies
+  use iso_fortran_env, only: dp => real64
   use util
   use do_magfie_mod, only: s, R0, a, inp_swi, do_magfie_init, do_magfie
   use neort, only: init
@@ -9,14 +10,14 @@ program test_frequencies
   implicit none
 
   integer, parameter :: neta = 1000             ! Steps in eta
-  real(8), parameter :: M_t = 8.2512439552d-02  ! Unscaled Mach number
+  real(dp), parameter :: M_t = 8.2512439552e-02_dp  ! Unscaled Mach number
 
   integer :: i, fid
-  real(8) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
-  real(8), parameter :: scalfac_energy = 1.0d0
-  real(8), parameter :: scalfac_efield = 1.0d0
+  real(dp) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
+  real(dp), parameter :: scalfac_energy = 1.0_dp
+  real(dp), parameter :: scalfac_efield = 1.0_dp
 
-  real(8) :: v, eta
+  real(dp) :: v, eta
 
   inp_swi = 9  ! ASDEX Upgrade format
   s = 0.17     ! Normalized toroidal flux
@@ -27,7 +28,7 @@ program test_frequencies
 
   mth = 1                  ! Canonical poloidal harmonic
   mph = 2                  ! Canonical toroidal harmonic
-  vth = 4.5972926215d7     ! Unscaled thermal velocity
+  vth = 4.5972926215e7_dp     ! Unscaled thermal velocity
   Om_tE = vth*M_t/(R0*scalfac_efield)  ! ExB precession frequency
   vth = vth/sqrt(scalfac_energy)
 
@@ -37,7 +38,7 @@ program test_frequencies
 
   open(newunit=fid, file='canonical_freqs_vs_eta_t.dat')
   write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] trapped'
-  sign_vpar = 1d0
+  sign_vpar = 1.0_dp
   do i = 1,neta
     eta = etatp + i*(etadt-etatp)/neta
     call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
@@ -48,7 +49,7 @@ program test_frequencies
 
   open(newunit=fid, file='canonical_freqs_vs_eta_pco.dat')
   write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
-  sign_vpar = 1d0
+  sign_vpar = 1.0_dp
   do i = 0,neta-1
     eta = i*etatp/neta
     call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
@@ -59,7 +60,7 @@ program test_frequencies
 
   open(newunit=fid, file='canonical_freqs_vs_eta_pct.dat')
   write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
-  sign_vpar = -1d0
+  sign_vpar = -1.0_dp
   do i = 0,neta-1
     eta = i*etatp/neta
     call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)

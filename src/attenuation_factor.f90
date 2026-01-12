@@ -1,10 +1,12 @@
 module thetadata_mod
+    use iso_fortran_env, only: dp => real64
+
     implicit none
 
     logical :: attenuation_data_initialized = .false.
     integer :: npoiarg
-    double precision :: argmin, argstepinv
-    double precision, dimension(:), allocatable :: argvals, thetavals
+    real(dp) :: argmin, argstepinv
+    real(dp), dimension(:), allocatable :: argvals, thetavals
 
     ! All variables are shared (read-only after init_attenuation_data)
 
@@ -15,7 +17,7 @@ contains
         ! MUST be called BEFORE any parallel region
         integer, parameter :: iunitarg = 741
         integer :: i
-        double precision :: arglog, theta_val
+        real(dp) :: arglog, theta_val
 
         if (attenuation_data_initialized) return
 
@@ -40,7 +42,7 @@ contains
         close (iunitarg)
 
         argmin = argvals(1)
-        argstepinv = 1.d0/(argvals(2) - argvals(1))
+        argstepinv = 1.0_dp / (argvals(2) - argvals(1))
 
         attenuation_data_initialized = .true.
     end subroutine init_attenuation_data
@@ -48,17 +50,17 @@ contains
 end module thetadata_mod
 
 subroutine attenuation_factor(D, Theta)
-
+    use iso_fortran_env, only: dp => real64
     use thetadata_mod, only: npoiarg, argmin, argstepinv, argvals, thetavals
     use polylag_3, only: mp, indef, plag1d
 
     implicit none
 
-    double precision, intent(in) :: D
-    double precision, intent(out) :: Theta
-    double precision :: arglog, fun, der
+    real(dp), intent(in) :: D
+    real(dp), intent(out) :: Theta
+    real(dp) :: arglog, fun, der
     integer, dimension(mp) :: indu
-    double precision, dimension(mp) :: xp, fp
+    real(dp), dimension(mp) :: xp, fp
 
     arglog = log(D)
 

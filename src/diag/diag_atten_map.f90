@@ -1,5 +1,5 @@
 module diag_atten_map
-  use iso_fortran_env, only: real64
+  use iso_fortran_env, only: dp => real64
   use fortplot, only: figure, pcolormesh, title, xlabel, ylabel, savefig
   use neort, only: init, check_magfie, write_magfie_data_to_files
   use neort_config, only: read_and_set_config
@@ -22,11 +22,11 @@ contains
     character(*), intent(in) :: arg_runname
     logical :: file_exists
     integer :: i, j, nu, nm
-    real(real64) :: eta_max
-    real(real64), allocatable :: ux(:), ux_edges(:), mth_vals(:), mth_edges(:)
-    real(real64), allocatable :: z(:, :)
-    real(real64) :: v, Omth, dOmthdv, dOmthdeta, taub, bounceavg(nvar)
-    real(real64) :: Hmn2
+    real(dp) :: eta_max
+    real(dp), allocatable :: ux(:), ux_edges(:), mth_vals(:), mth_edges(:)
+    real(dp), allocatable :: z(:, :)
+    real(dp) :: v, Omth, dOmthdv, dOmthdeta, taub, bounceavg(nvar)
+    real(dp) :: Hmn2
     integer :: mth_min, mth_max
     integer :: u
     type(magfie_data_t) :: magfie_data
@@ -41,30 +41,30 @@ contains
     inquire(file="plasma.in", exist=file_exists)
     if (file_exists) call read_and_init_plasma_input("plasma.in", s)
     inquire(file="profile.in", exist=file_exists)
-    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_real64, 1.0_real64)
+    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_dp, 1.0_dp)
 
     call init
     call check_magfie(magfie_data)
     call write_magfie_data_to_files(magfie_data, runname)
 
     ! Max trapped eta value consistent with earlier diagnostic
-    eta_max = etatp + (etadt - etatp)*(1.0_real64 - epsst_spl)
+    eta_max = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
 
     ! Grids
     nu = 80
     nm = 0
-    mth_min = -ceiling(2.0_real64*abs(mph*q))
-    mth_max =  ceiling(2.0_real64*abs(mph*q))
+    mth_min = -ceiling(2.0_dp*abs(mph*q))
+    mth_max =  ceiling(2.0_dp*abs(mph*q))
     nm = mth_max - mth_min + 1
     allocate(ux(nu), ux_edges(nu+1))
     allocate(mth_vals(nm), mth_edges(nm+1))
     allocate(z(nm, nu))
 
     do i = 1, nu
-      ux(i) = 0.2_real64 + (3.0_real64 - 0.2_real64) * real(i-1,real64) / real(nu-1,real64)
+      ux(i) = 0.2_dp + (3.0_dp - 0.2_dp) * real(i-1,dp) / real(nu-1,dp)
     end do
     do j = 1, nm
-      mth_vals(j) = real(mth_min + (j-1), real64)
+      mth_vals(j) = real(mth_min + (j-1), dp)
     end do
 
     ! Compute cell edges for pcolormesh
@@ -78,9 +78,9 @@ contains
       do i = 1, nu
         v = ux(i)*vth
         call Om_th(v, eta_max, Omth, dOmthdv, dOmthdeta)
-        taub = 2.0_real64*acos(-1.0_real64)/abs(Omth)
+        taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
         call bounce_fast(v, eta_max, taub, bounceavg, timestep_transport)
-        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_real64))**2
+        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_dp))**2
         z(j, i) = nonlinear_attenuation(ux(i), eta_max, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
       end do
     end do
@@ -110,16 +110,16 @@ contains
   end subroutine run_atten_map_diag
 
   subroutine edges_from_centers(c, e)
-    real(real64), intent(in) :: c(:)
-    real(real64), intent(out) :: e(:)
+    real(dp), intent(in) :: c(:)
+    real(dp), intent(out) :: e(:)
     integer :: n, i
     n = size(c)
     if (size(e) /= n+1) stop 'edges_from_centers: size mismatch'
-    e(1) = c(1) - 0.5_real64*(c(2)-c(1))
+    e(1) = c(1) - 0.5_dp*(c(2)-c(1))
     do i = 2, n
-      e(i) = 0.5_real64*(c(i-1)+c(i))
+      e(i) = 0.5_dp*(c(i-1)+c(i))
     end do
-    e(n+1) = c(n) + 0.5_real64*(c(n)-c(n-1))
+    e(n+1) = c(n) + 0.5_dp*(c(n)-c(n-1))
   end subroutine edges_from_centers
 
 end module diag_atten_map

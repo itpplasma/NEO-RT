@@ -8,25 +8,25 @@ module neort_profiles
     implicit none
 
     ! Thermal velocity, Mach number, and their derivatives over s_tor
-    real(dp) :: vth = 0d0, dvthds = 0d0, M_t = 0d0, dM_tds = 0d0
+    real(dp) :: vth = 0.0_dp, dvthds = 0.0_dp, M_t = 0.0_dp, dM_tds = 0.0_dp
 
     ! Electric precession frequency and its derivative over s_tor
-    real(8) :: Om_tE = 0d0, dOm_tEds = 0d0
+    real(dp) :: Om_tE = 0.0_dp, dOm_tEds = 0.0_dp
 
     ! density and temperature profiles and their derivatives over s_tor
-    real(dp) :: ni1 = 0d0, ni2 = 0d0, Ti1 = 0d0, Ti2 = 0d0, Te = 0d0, dni1ds = 0d0, &
-                dni2ds = 0d0, dTi1ds = 0d0, dTi2ds = 0d0, dTeds = 0d0
+    real(dp) :: ni1 = 0.0_dp, ni2 = 0.0_dp, Ti1 = 0.0_dp, Ti2 = 0.0_dp, Te = 0.0_dp, dni1ds = 0.0_dp, &
+                dni2ds = 0.0_dp, dTi1ds = 0.0_dp, dTi2ds = 0.0_dp, dTeds = 0.0_dp
 
     ! Thermodynamic forces in radial variable s_tor
-    real(dp) :: A1 = 0d0, A2 = 0d0
+    real(dp) :: A1 = 0.0_dp, A2 = 0.0_dp
 
     ! Plasma profile spline data
     integer :: nplasma_global = 0
-    real(dp) :: am1_global = 0d0, am2_global = 0d0, Z1_global = 0d0, Z2_global = 0d0
-    real(dp), allocatable :: plasma_spl_coeff(:,:,:)
+    real(dp) :: am1_global = 0.0_dp, am2_global = 0.0_dp, Z1_global = 0.0_dp, Z2_global = 0.0_dp
+    real(dp), allocatable :: plasma_spl_coeff(:, :, :)
 
     ! Rotation profile spline data
-    real(dp), allocatable :: Mt_spl_coeff(:,:)
+    real(dp), allocatable :: Mt_spl_coeff(:, :)
     ! Flux-surface dependent quantities (interpolated per-thread at each s)
     !$omp threadprivate (vth, dvthds, M_t, dM_tds, Om_tE, dOm_tEds)
     !$omp threadprivate (ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds)
@@ -38,7 +38,7 @@ contains
         real(dp), intent(in) :: R0
 
         Om_tE = vth * M_t / R0  ! toroidal ExB drift frequency
-        dOm_tEds = 0d0
+        dOm_tEds = 0.0_dp
     end subroutine init_profiles
 
     subroutine prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma)
@@ -71,7 +71,7 @@ contains
         ! Assumes s is already set via set_s() and prepare_plasma_splines() was called
         use do_magfie_mod, only: s
         real(dp) :: spl_val(3)
-        real(dp), parameter :: pmass = 1.6726d-24
+        real(dp), parameter :: pmass = 1.6726e-24_dp
         real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
         real(dp) :: v0, ebeam
 
@@ -96,16 +96,16 @@ contains
         dTeds = spl_val(2)
 
         ! Compute derived quantities
-        qi = Z1_global*qe
-        mi = am1_global*mu
-        vth = sqrt(2d0*Ti1*ev/mi)
-        dvthds = 0.5d0*sqrt(2d0*ev/(mi*Ti1))*dTi1ds
+        qi = Z1_global * qe
+        mi = am1_global * mu
+        vth = sqrt(2.0_dp * Ti1 * ev / mi)
+        dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * Ti1)) * dTi1ds
 
         ! Call collision routine
         v0 = vth
-        amb = 2d0
-        Zb = 1d0
-        ebeam = amb*pmass*v0**2/(2d0*ev)
+        amb = 2.0_dp
+        Zb = 1.0_dp
+        ebeam = amb * pmass * v0**2 / (2.0_dp * ev)
         call loacol_nbi(amb, am1_global, am2_global, Zb, Z1_global, Z2_global, &
                         ni1, ni2, Ti1, Ti2, Te, ebeam, v0, &
                         dchichi, slowrate, dchichi_norm, slowrate_norm)
@@ -158,7 +158,7 @@ contains
     subroutine prepare_profile_splines(data)
         ! Main thread only: Prepare shared spline coefficients from rotation profile data
         ! This should be called ONCE before parallel region
-        real(8), intent(in) :: data(:, :)
+        real(dp), intent(in) :: data(:, :)
 
         ! Deallocate if already allocated
         if (allocated(Mt_spl_coeff)) deallocate(Mt_spl_coeff)
@@ -172,8 +172,8 @@ contains
         ! Per-thread: Interpolate rotation profile at current s value
         ! Assumes s is already set and prepare_profile_splines() was called
         use do_magfie_mod, only: s
-        real(8), intent(in) :: R0, efac, bfac
-        real(8) :: splineval(3)
+        real(dp), intent(in) :: R0, efac, bfac
+        real(dp) :: splineval(3)
 
         ! Interpolate M_t at s (writes threadprivate variables)
         splineval = spline_val_0(Mt_spl_coeff, s)
@@ -191,9 +191,9 @@ contains
         ! This combines readdata, prepare_profile_splines, and init_profile_at_s
         use do_magfie_mod, only: s
         character(len=*), intent(in) :: path
-        real(8), intent(in) :: s_in, R0, efac, bfac
+        real(dp), intent(in) :: s_in, R0, efac, bfac
 
-        real(8), allocatable :: data(:, :)
+        real(dp), allocatable :: data(:, :)
 
         call readdata(path, 2, data)  ! allocates data
 
@@ -210,8 +210,9 @@ contains
         real(dp), intent(in) :: psi_pr  ! toroidal flux at plasma boundary == dpsi_tor/ds
         real(dp), intent(in) :: q  ! safety factor
 
-        A1 = dni1ds/ni1 - qi/(Ti1*ev)*sign_theta*psi_pr/(q*c)*Om_tE - 3d0/2d0*dTi1ds/Ti1
-        A2 = dTi1ds/Ti1
+        A1 = dni1ds / ni1 - qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c) * Om_tE - 3.0_dp / &
+             2.0_dp * dTi1ds / Ti1
+        A2 = dTi1ds / Ti1
     end subroutine init_thermodynamic_forces
 
 end module neort_profiles

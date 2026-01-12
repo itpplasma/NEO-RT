@@ -20,7 +20,7 @@ contains
 
     subroutine test_single_s()
         type(transport_data_t) :: result
-        real(dp), parameter :: TEST_S = 0.5d0
+        real(dp), parameter :: TEST_S = 0.5_dp
 
         print *, "Test: single s computation..."
 
@@ -28,7 +28,7 @@ contains
         call neort_prepare_splines("plasma.in", "profile.in")
         call neort_compute_at_s(TEST_S, result)
 
-        if (abs(result%torque%s - TEST_S) > 1d-12) then
+        if (abs(result%torque%s - TEST_S) > 1.0e-12_dp) then
             print *, "ERROR: s value mismatch, expected", TEST_S, "got", result%torque%s
             error stop "test_single_s failed"
         end if
@@ -37,7 +37,7 @@ contains
             error stop "test_single_s: expected torque computation"
         end if
 
-        if (result%torque%dVds <= 0d0) then
+        if (result%torque%dVds <= 0.0_dp) then
             error stop "test_single_s: dVds should be positive"
         end if
 
@@ -49,7 +49,7 @@ contains
         integer, parameter :: N_THREADS = 4
         type(transport_data_t) :: results(N_S)
         real(dp) :: s_array(N_S)
-        real(dp), parameter :: TOL = 1d-10
+        real(dp), parameter :: TOL = 1.0e-10_dp
         integer :: i
         logical :: all_positive
 
@@ -58,7 +58,7 @@ contains
         call omp_set_num_threads(N_THREADS)
 
         do i = 1, N_S
-            s_array(i) = 0.2d0 + 0.1d0 * real(i, dp)
+            s_array(i) = 0.2_dp + 0.1_dp * real(i, dp)
         end do
 
         call neort_init("driftorbit", "in_file")
@@ -76,7 +76,7 @@ contains
                 print *, "ERROR: s mismatch at index", i
                 error stop "test_parallel_loop: s value mismatch"
             end if
-            if (results(i)%torque%dVds <= 0d0) then
+            if (results(i)%torque%dVds <= 0.0_dp) then
                 all_positive = .false.
             end if
         end do
@@ -93,7 +93,7 @@ contains
         use util, only: readdata
 
         type(transport_data_t) :: result1, result2
-        real(dp), parameter :: TEST_S = 0.5d0
+        real(dp), parameter :: TEST_S = 0.5_dp
         integer :: nplasma
         real(dp) :: am1, am2, Z1, Z2
         real(dp), allocatable :: plasma_data(:, :), profile_data(:, :)
@@ -111,11 +111,11 @@ contains
         call neort_prepare_splines(nplasma, am1, am2, Z1, Z2, plasma_data, profile_data)
         call neort_compute_at_s(TEST_S, result2)
 
-        if (abs(result1%torque%s - result2%torque%s) > 1d-12) then
+        if (abs(result1%torque%s - result2%torque%s) > 1.0e-12_dp) then
             error stop "test_spline_update: results should match"
         end if
 
-        if (abs(result1%torque%Tt - result2%torque%Tt) > 1d-10) then
+        if (abs(result1%torque%Tt - result2%torque%Tt) > 1.0e-10_dp) then
             error stop "test_spline_update: torque should match"
         end if
 
