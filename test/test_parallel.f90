@@ -52,7 +52,7 @@ contains
         call set_log_level(-1)
 
         print *, "Reading input files..."
-        call read_and_set_config("driftorbit")
+        call read_and_set_config("driftorbit.in")
         call read_boozer_file("in_file")
         call read_plasma_input("plasma.in", nplasma, am1, am2, Z1, Z2, plasma)
         call prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma)
