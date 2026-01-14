@@ -104,7 +104,7 @@ contains
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  epsst_spl =', epsst_spl, 'epst_spl =', epst_spl
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'q =', q, 'iota =', iota
-            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', int(mph), 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
+            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', mph, 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
         end if
 
         ! logspace for eta
@@ -199,7 +199,7 @@ contains
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  epssp_spl =', epssp_spl, 'epsp_spl =', epsp_spl
             write(*,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'q =', q, 'iota =', iota
-            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', int(mph), 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
+            write(*,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,L1)') '  mph =', mph, 'sign_vpar =', int(sign_vpar), 'nonlin =', nonlin
         end if
 
         b = log((etamax - etamin) / etamax)

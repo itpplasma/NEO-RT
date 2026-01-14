@@ -146,7 +146,7 @@ contains
 
         ! Transformed actions for Galileo transformation near resonance
         f%Jbar(1) = f%J(1)
-        f%Jbar(2) = f%J(2) - mth / mph * f%J(3)
+        f%Jbar(2) = f%J(2) - dble(mth) / mph * f%J(3)
         f%Jbar(3) = f%J(3) / mph
     end subroutine test_omega_prime
 

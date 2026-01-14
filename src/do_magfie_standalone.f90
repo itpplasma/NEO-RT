@@ -358,8 +358,8 @@ module do_magfie_pert_mod
     real(dp), private, allocatable :: Bmnc(:), Bmns(:)
 
     integer :: ncol1, ncol2  ! number of columns in input file
-    real(dp) :: mph  ! toroidal perturbation mode (threadprivate)
-    real(dp) :: mph_shared = 0.0_dp  ! shared copy for namelist input (when pertfile=.false.)
+    integer :: mph  ! toroidal perturbation mode (threadprivate)
+    integer :: mph_shared = 0  ! shared copy for namelist input (when pertfile=.false.)
 
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_pert_arrays_initialized = .false.
@@ -401,7 +401,7 @@ contains
         call boozer_read_pert(path)
 
         ! Update mph_shared from perturbation file (for use in parallel regions)
-        mph_shared = nfp*modes(1, 1, 2)
+        mph_shared = nint(nfp * modes(1, 1, 2))
 
         ! Allocate shared spline coefficient arrays
         if (allocated(spl_coeff1)) then
@@ -456,7 +456,7 @@ contains
         s_prev = -1.0_dp
 
         ! Compute mph at current s
-        mph = nfp*modes(1, 1, 2)
+        mph = nint(nfp * modes(1, 1, 2))
 
         x(1) = s
         x(2) = 0.0
@@ -465,7 +465,7 @@ contains
     end subroutine init_magfie_pert_at_s
 
     subroutine set_mph(mph_value)
-        real(dp), intent(in) :: mph_value
+        integer, intent(in) :: mph_value
         mph = mph_value
         mph_shared = mph_value
     end subroutine set_mph

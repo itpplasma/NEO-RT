@@ -97,7 +97,7 @@ contains
     write(u,'(A)') '# NEO-RT diagnostic: attenuation map at eta_max'
     write(u,'(A,F10.6)') '# s = ', s
     write(u,'(A,ES12.5)') '# eta_max = ', eta_max
-    write(u,'(A,ES12.5)') '# mph = ', mph
+    write(u,'(A,I0)') '# mph = ', mph
     write(u,'(A,ES12.5)') '# q = ', q
     write(u,'(A)') '# rows: mth from mth_min to mth_max; columns: ux grid values'
     write(u,'(A,I0,A,I0)') '# mth_min=', mth_min, ' mth_max=', mth_max
