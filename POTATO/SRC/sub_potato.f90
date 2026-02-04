@@ -380,7 +380,7 @@
 ! Computes the normalized toroidal moment p_phi=psi^* for given phase space
 ! coordinates of alpha_lifetime
 !
-  use field_eq_mod, only : psif     ,dpsidr,dpsidz
+  use field_sub, only : psif,dpsidr,dpsidz
   use parmot_mod,   only : ro0
 !
   implicit none
@@ -527,7 +527,8 @@
 ! integrals along the orbit of the powers of poloidal flux which are
 ! base functions phi_k for minimization of functional Eq.(29)
 !
-  use field_eq_mod,  only : psif,psi_sep
+  use field_sub, only : psif
+  use field_eq_mod, only : psi_sep
   use poicut_mod,    only : psimagaxis
   use orbit_dim_mod, only : neqm,next,numbasef
 !
@@ -561,7 +562,7 @@
 ! where x=1-(psi-psi_axis)(psi_b-psi_axis) and psi_b is poloidal flux
 ! at rho_pol boundary
 !
-  use field_eq_mod, only : psif
+  use field_sub, only : psif
   use poicut_mod,   only : psimagaxis,psi_bou
 !
   implicit none
@@ -629,7 +630,7 @@
 !
   subroutine gradpsi_times_gradb
 !
-  use field_eq_mod, only : psif,dpsidr,dpsidz
+  use field_sub, only : psif,dpsidr,dpsidz
 !
   implicit none
 !
@@ -658,7 +659,8 @@
 ! (O and X) points of the flow as well as the magnetic axis and can be
 ! used as a Poincare cut.
 !
-  use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep,rtf
+  use field_sub, only : psif,dpsidr,dpsidz
+  use field_eq_mod, only : psi_axis,psi_sep,rtf
   use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr
 !
   implicit none
@@ -809,7 +811,7 @@
 !
 ! Find cylindrical coordinates of the magnetic axis
 !
-  use field_eq_mod, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
+  use field_sub, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   use poicut_mod, only   : npc,rpc_arr,rmagaxis,zmagaxis,psimagaxis
 !
   implicit none
@@ -883,7 +885,8 @@
 ! coordinates of LFS and HFS intersections of the Poincare cut with the flux surface
 ! with given rho_pol. Results are stored in the module poicut_mod
 !
-  use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep
+  use field_sub, only : psif,dpsidr,dpsidz
+  use field_eq_mod, only : psi_axis,psi_sep
   use poicut_mod, only   : npc,rpc_arr,rmagaxis,zmagaxis,psimagaxis, &
                            rhopol_bou,psi_bou,Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
 !
@@ -989,7 +992,7 @@
   use find_all_roots_mod,   only : nroots,roots,relerr_allroots
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
-  use field_eq_mod,         only : psif
+  use field_sub, only : psif
   use bounds_fixpoints_mod, only : nbounds,R_bo,Z_bo,psiast_bo, &
                                    nregions,all_regions
   use cc_mod, only : wrbounds

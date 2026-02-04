@@ -281,7 +281,7 @@ end subroutine test_prfs
 ! Finds outer point on the Poincare cut with given poloidal flux
 ! Computes module of B and electrostatic potential there
 !
-  use field_eq_mod, only : psif
+  use field_sub, only : psif
   use poicut_mod, only : npc,rpc_arr,zpc_arr,rmagaxis
 !
   implicit none

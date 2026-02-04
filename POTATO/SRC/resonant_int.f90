@@ -368,7 +368,8 @@
   subroutine resonant_torque
 !
 !
-  use field_eq_mod,      only : psif,nrad,nzet,rad,zet,psi_sep
+  use field_sub, only : psif
+  use field_eq_mod, only : nrad,nzet,rad,zet,psi_sep
   use poicut_mod,        only : rmagaxis,zmagaxis,psimagaxis,psi_bou,rhopol_bou
   use global_invariants, only : toten,perpinv
   use poicut_mod,        only : Rbou_lfs,Zbou_lfs

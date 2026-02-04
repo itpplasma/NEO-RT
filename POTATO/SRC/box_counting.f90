@@ -25,7 +25,8 @@ end subroutine timestep_vode
 subroutine time_in_box(z, cnt, sbox, taub, tau)
   ! Returns time spent in boxes
   use dvode_f90_m, only: vode_opts, set_normal_opts, dvode_f90, get_stats
-  use field_eq_mod, only: psif, psi_axis, psi_sep
+  use field_sub, only: psif
+  use field_eq_mod, only: psi_axis, psi_sep
   use orbit_dim_mod, only: neqm
 
   implicit none

@@ -2,7 +2,7 @@
 !
   subroutine elefie(x, phi_elec, derphi)
 !
-  use field_eq_mod,      only : psif,dpsidr,dpsidz
+  use field_sub, only : psif,dpsidr,dpsidz
 !
   implicit none
 !
