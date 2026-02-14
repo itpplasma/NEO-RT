@@ -85,6 +85,7 @@
 !
   complex(8), parameter :: imun=(0.d0,1.d0)
 !
+  integer :: ierr
   double precision :: absHn2,bmod,phi_elec,taub,delphi
   double precision, dimension(neqm) :: z
   double precision, dimension(:), allocatable :: extraset
@@ -99,7 +100,12 @@
   next=0
   allocate(extraset(next))
 !
-  call find_bounce(next,velo,dtau,z,taub,delphi,extraset)
+  call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
+  if(ierr.ne.0) then
+    absHn2 = 0.d0
+    deallocate(extraset)
+    return
+  endif
 !
   taub_new=taub
   delphi_new=delphi
@@ -109,7 +115,12 @@
   allocate(extraset(next))
   extraset=0.d0
 !
-  call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset)
+  call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset,ierr)
+  if(ierr.ne.0) then
+    absHn2 = 0.d0
+    deallocate(extraset)
+    return
+  endif
 !
   absHn2=(extraset(2)/taub)**2+(extraset(3)/taub)**2
 !
@@ -380,11 +391,14 @@
                                 respoints_all_tmp,respoint
   use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
                                     ind_hist,xarr,amat_arr
+  use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
+                                thermen_max_input => thermen_max, &
+                                adaptive_jperp, npoi_init, nlagr_sampling, &
+                                eps_sampling, itermax_sampling
 
   implicit none
 !
   double precision, parameter :: pi=3.14159265358979d0
-  logical :: adaptive_jperp
   integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
   integer :: nrespoints
   double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
@@ -396,29 +410,21 @@
   double precision :: time_beg,time_end
   double precision :: dens, temp, ddens, dtemp
   double precision, dimension(:), allocatable :: torque_int_modes
-
-  ! Number of boxes in radius to localize torque contributions
-  integer, parameter :: nbox = 100
-  double precision :: sbox(nbox)
-  double precision :: taubox(nbox)
-!
-!Distribution of integral torque over boxes:
-  double precision, dimension(nbox) :: torquebox
+  double precision, dimension(:), allocatable :: sbox
+  double precision, dimension(:), allocatable :: taubox
+  double precision, dimension(:), allocatable :: torquebox
 !
   external :: get_matrix_res
 !
-  adaptive_jperp=.true.    !use adaptive integration over J_perp
-!  adaptive_jperp=.false.   !use non-adaptive integration over J_perp
+  allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
 !
 ! size of result matrix in get_matrix_res:
   n1=nmodes
   n2=1
-! Lagrange polynomial order for sampling adaptive grid:
-  nlagr=3
-! Error of sampling:
-  eps=1d-2
-! Maximum number of refinements:
-  itermax=5
+! Set adaptive sampling parameters from input:
+  nlagr=nlagr_sampling
+  eps=eps_sampling
+  itermax=itermax_sampling
 !
   numbasef=0 !no extra integrals sampled, pure orbit integration
   call linspace(1d0/nbox, 1d0, nbox, sbox)
@@ -427,7 +433,7 @@
 !
   call find_Phiminmax(phi_elec_min,phi_elec_max)
 !
-  thermen_max=6.d0   !maximum kinetic energy in units of temperature on the axis (used for upper energy integration limit)
+  thermen_max=thermen_max_input
 !
   call denstemp_of_psi(psimagaxis, dens, temp, ddens, dtemp)
 !
@@ -444,7 +450,7 @@
   print *,'miminum total energy = ',toten_min
   print *,'maximum total energy = ',toten_max
 !
-  nenerg=60 !40 !grid size for energy integration (number of energy levels)
+  nenerg=nenerg_input
 !
   torque_int=0.d0
   allocate(torque_int_modes(nmodes))
@@ -483,7 +489,7 @@
       nperp_max=0   !initial size of respoints_all(nperp_max) - will be increased by sample_matrix_out
       xbeg=0.d0                 !lower integration limit over normalized J_perp
       xend=perpinv_max*0.9999d0 !upper integration limit over normalized J_perp
-      npoi=51                   !initial equidistant grid size over J_perp
+      npoi=npoi_init            !initial equidistant grid size over J_perp
       icount=0                  !initialize the counter of resonant points
 !
 ! Generate J_perp grid with function values:

@@ -11,6 +11,14 @@
   use resint_mod,                   only : nmodes,marr,narr,delint_mode
   use poicut_mod,                   only : npc,rpc_arr,zpc_arr
   use phielec_of_psi_mod,           only : npolyphi, polyphi, polydens, polytemp
+  use logging_mod,                  only : init_logging, close_logging, get_log_unit, &
+                                          is_logging_enabled
+  use potato_input_mod,             only : read_potato_input, print_potato_input, &
+                                          itest_type, E_alpha, A_alpha, Z_alpha, &
+                                          rho_pol, rho_pol_max, scalfac_energy, &
+                                          scalfac_efield, Rmax_orbit, ntimstep, &
+                                          npoicut, m_min, m_max, n_tor, &
+                                          toten_plot, perpinv_plot, profile_file
 !
   implicit none
 !
@@ -23,55 +31,52 @@
 !
   logical :: classes_talk,plot_orbits,compute_equibrium_profiles,compute_resonant_torque,plot_poicut
 !
-  integer          :: npoicut,ifdir_type,ierr,ntimstep,itest_type,m,iunit,i
-  double precision :: v0,bmod_ref,E_alpha,A_alpha,Z_alpha
-  double precision :: rmax,rho_pol,rho_pol_max
-  double precision :: scalfac_energy, scalfac_efield
+  integer          :: ifdir_type,ierr,m,iunit,i,log_u
+  double precision :: v0,bmod_ref
   double precision, dimension(:,:), allocatable :: resint
 
 !
 !
+  call init_logging('potato.log')
+  log_u = get_log_unit()
+!
+  call read_potato_input('potato.in')
+  call print_potato_input(6)
+  if (is_logging_enabled()) call print_potato_input(log_u)
+!
   iunit=71
-!
-! Uncomment to plot B-mod perturbation Fourier amplitude Bmod_n, stops execution after writing data:
-!
-!  call test_bmodpert
-!
-! Type of test: 1 - plot orbits, 2 - equilibrium profiles, 3 - resonant torque
-  itest_type=3
 !
   select case(itest_type)
   case(1)
     print *, 'Plot orbits'
+    if (is_logging_enabled()) write(log_u, *) 'Plot orbits'
     plot_orbits=.true.
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.false.
   case(2)
     print *, 'Equilibrium profiles'
+    if (is_logging_enabled()) write(log_u, *) 'Equilibrium profiles'
     plot_orbits=.false.
     compute_equibrium_profiles=.true.
     compute_resonant_torque=.false.
   case(3)
     print *, 'Resonant torque'
+    if (is_logging_enabled()) write(log_u, *) 'Resonant torque'
     plot_orbits=.false.
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.true.
   case default
     print *,'unknown test'
+    if (is_logging_enabled()) write(log_u, *) 'unknown test'
     stop
   end select
 !
-  scalfac_energy=1.d0
-  scalfac_efield=1.d0
+!
+! Apply scaling to input parameters:
+  E_alpha=E_alpha/scalfac_energy
 !
 ! inverse relativistic temeprature $m_\alpha c^2 / T_\alpha$:
   rmu=1.d30
-! Normalization energy of alpha-species, eV:
-  E_alpha=5d3/scalfac_energy
-! Mass number of alpha species:
-  A_alpha=2.d0   !deuterium
-! Charge number of alpha species:
-  Z_alpha=1.d0   !deuterium
 !
 ! Normalization velocity, cm/s:
   v0=sqrt(2.d0*E_alpha*ev/(p_mass*A_alpha))
@@ -84,12 +89,10 @@
   Phi_eff=c*E_alpha*ev/(e_charge*Z_alpha*v0)
 !
 ! Set orbit integration step:
-  Rmax=200.d0
-  ntimstep=30
-  dtau=Rmax/dble(ntimstep)
+  dtau=Rmax_orbit/dble(ntimstep)
 
 ! Load profiles
-  open(iunit,file='profile_poly.in',status='old',action='read')
+  open(iunit,file=trim(profile_file),status='old',action='read')
   read(iunit,*)  ! dummy
   read(iunit,*)  ! dummy
   read(iunit,*) polydens
@@ -106,8 +109,6 @@
   polyphi = polyphi*Z_alpha*e_charge/(E_alpha*ev)
 !
 ! Find Poincare cut:
-  npoicut=10000     !number of equidistant points for interpolating the cut
-  rho_pol_max=0.9 !0.8   !maximum value of poloidal radius limiting the cut range
 !  plot_poicut=.true.
   plot_poicut=.false.
 !
@@ -128,13 +129,12 @@
 !
   if(ifdir_type.eq.1) then
     print *,'Direction of magnetic field AUG standard: co-passing orbits shifted to the HFS'
+    if (is_logging_enabled()) write(log_u, *) 'Direction of magnetic field AUG standard: co-passing orbits shifted to the HFS'
   else
     print *,'Direction of magnetic field AUG non-standard: co-passing orbits shifted to the LFS'
+    if (is_logging_enabled()) write(log_u, *) 'Direction of magnetic field AUG non-standard: co-passing orbits shifted to the LFS'
   endif
 !
-! Set outer boundary of the plasma volume where profiles are computed:
-!  rho_pol=sqrt(0.3d0) !poloidal radius
-  rho_pol=0.6d0 !0.5d0 !0.75d0 !0.8d0 !sqrt(0.3d0) !poloidal radius
 !
   call rhopol_boundary(rho_pol)
 !
@@ -161,13 +161,13 @@
 !
   if(plot_orbits) then
     print *,'Plotting the orbits'
+    if (is_logging_enabled()) write(log_u, *) 'Plotting the orbits'
 !
     numbasef=6 !corresponds to unperturbed profile computation (should be > 0 for integrate_class_doublecount)
     allocate(resint(numbasef,2))
 !
-! example from Fig.1 (electric field ampl=1.12d0):
-    toten=1.d0 !1.7521168986242395d0
-    perpinv=4.5d-5 !9.9881139234315119d-5
+    toten=toten_plot
+    perpinv=perpinv_plot
 !
 ! activate writing:
     wrbounds=.true. !write vpar^2 and psi^* curves vs cut parameter R_c, extremum and boundary points
@@ -209,6 +209,7 @@
 !
   if(compute_equibrium_profiles) then
     print *,'Computing equilibrium profiles'
+    if (is_logging_enabled()) write(log_u, *) 'Computing equilibrium profiles'
 !
 !compute analytical approximation for density and toroidal flow:
 !
@@ -233,13 +234,12 @@ call test_prfs
 call plot_canfreqs(v0)
 !stop
     print *,'Computing the resonant torque'
-    nmodes=11
+    if (is_logging_enabled()) write(log_u, *) 'Computing the resonant torque'
+    nmodes=m_max-m_min+1
     allocate(marr(nmodes),narr(nmodes),delint_mode(nmodes))
-    narr=1           !  toroidal harmonic index  m_3
-    nmodes=0
-    do m=-5,5
-      nmodes=nmodes+1
-      marr(nmodes)=m ! "poloidal" harmonic index m_2
+    narr=n_tor
+    do m=m_min,m_max
+      marr(m-m_min+1)=m
     enddo
 !
 !    dowrite=.true. !write canonical frequencies and bounce integrals for adaptive sampling grid and interpolation
@@ -252,6 +252,7 @@ call plot_canfreqs(v0)
 !
 ! End compute resonant torque
 !
+  call close_logging()
   stop
 !
   end program classify_orbits
@@ -283,17 +284,19 @@ end subroutine test_prfs
 !
   use field_sub, only : psif
   use poicut_mod, only : npc,rpc_arr,zpc_arr,rmagaxis
+  use logging_mod, only : get_log_unit, is_logging_enabled
 !
   implicit none
 !
   logical :: initprev
-  integer :: ierr,i
+  integer :: ierr,i,log_u
   double precision :: psipol,Rst,bmod,phi_elec,psif_prev
   double precision, dimension(3)    :: x
 !
   x(2)=0.d0
   ierr=1
   initprev=.false.
+  log_u = get_log_unit()
 !
   do i=1,npc
     if(rpc_arr(i).lt.rmagaxis) cycle
@@ -307,6 +310,7 @@ end subroutine test_prfs
         ierr=0
         Rst=x(1)
         print *,'R_cut_in < Rst < R_cut_out = ',rpc_arr(1),Rst,rpc_arr(npc)
+        if (is_logging_enabled()) write(log_u,*) 'R_cut_in < Rst < R_cut_out = ',rpc_arr(1),Rst,rpc_arr(npc)
         return
       endif
       psif_prev=psif
@@ -324,6 +328,8 @@ end subroutine test_prfs
 !
   use orbit_dim_mod,     only : neqm
   use global_invariants, only : dtau
+  use field_eq_mod,      only : psi_axis,psi_sep
+  use potato_input_mod,  only : enkin_over_temp,rho_pol
 !
   implicit none
 !
@@ -331,7 +337,7 @@ end subroutine test_prfs
   double precision, parameter :: pi=3.14159265358979d0
 !
   integer :: ierr,i,nperpinv,iunit
-  double precision :: psipol,Rst,bmod,phi_elec,enkin_over_temp,sigma
+  double precision :: psipol,Rst,bmod,phi_elec,sigma
   double precision :: enkin,perpinv_max,toten,perpinv,h_perpinv,v0
   double precision :: dens,temp,ddens,dtemp,psiast,dpsiast_dRst,taub,delphi
   double precision :: eta,omega_b,omega_tor
@@ -340,8 +346,7 @@ end subroutine test_prfs
 !
   external :: velo
 !
-  enkin_over_temp=1.d0 !2.d0     !<= kinetic energy normalized by local temperature
-  psipol=-6494590.22939024d0     !<= poloidal flux at the outer starting point
+  psipol=psi_axis+rho_pol**2*(psi_sep-psi_axis)
 !
   nperpinv=1000
   iunit=871
@@ -366,7 +371,8 @@ end subroutine test_prfs
     call starter_doublecount(toten,perpinv,sigma,Rst,   &
                              psiast,dpsiast_dRst,z,ierr)
 !
-    call find_bounce(next,velo,dtau,z,taub,delphi,extraset)
+    call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
+    if(ierr.ne.0) cycle
 !
     eta=perpinv/enkin
     omega_b=2.d0*pi*v0/taub
@@ -386,7 +392,8 @@ end subroutine test_prfs
     call starter_doublecount(toten,perpinv,sigma,Rst,   &
                              psiast,dpsiast_dRst,z,ierr)
 !
-    call find_bounce(next,velo,dtau,z,taub,delphi,extraset)
+    call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
+    if(ierr.ne.0) cycle
 !
     eta=perpinv/enkin
     omega_b=2.d0*pi*v0/taub

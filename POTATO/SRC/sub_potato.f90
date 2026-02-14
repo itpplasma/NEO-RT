@@ -96,7 +96,7 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 !
-  subroutine find_bounce(next,velo_ext,dtau_in,z_eqm,taub,delphi,extraset)
+  subroutine find_bounce(next,velo_ext,dtau_in,z_eqm,taub,delphi,extraset,ierr)
 !
 ! Integrates the orbit over one bounce time (finds this time). If needed
 ! (write_orb=.true.) writes it to the file with unit number "iunit1".
@@ -109,8 +109,10 @@
 ! taub           - bounce time (output)
 ! delphi         - toroidal shift per bounce time (output)
 ! extraset(next) - extra integrals along the orbit (inout)
+! ierr           - error flag, 0 = success, 1 = orbit left domain (output)
 !
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
+  use field_eq_mod, only : ierrfield
 !
   implicit none
 !
@@ -131,6 +133,7 @@
   double precision, dimension(neqm), intent(in) :: z_eqm
   double precision, dimension(next), intent(inout) :: extraset
   double precision, intent(out) :: taub, delphi
+  integer, intent(out) :: ierr
 
   logical :: firstpass
   integer :: ndim, iter
@@ -143,6 +146,7 @@
   external velo_ext
 !
   ndim = neqm+next
+  ierr = 0
 !
   z(1:neqm)=z_eqm
   if(next.gt.0) then
@@ -172,6 +176,12 @@
 ! first step:
 !
   call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
+  if(ierrfield.ne.0) then
+    write(*,'(A,2ES14.6,A,2ES14.6)') 'find_bounce: orbit left domain at R,Z=', &
+      z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
+    ierr = 1
+    return
+  endif
 !
   taub=dtau
   if(nousecut) then
@@ -199,6 +209,12 @@
     z_prev=z(3)
 !
     call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
+    if(ierrfield.ne.0) then
+      write(*,'(A,2ES14.6,A,2ES14.6)') 'find_bounce: orbit left domain at R,Z=', &
+        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
+      ierr = 1
+      return
+    endif
 !
     taub=taub+dtau
     if(nousecut) then
@@ -247,6 +263,12 @@
     dtau_newt=dnorm/vnorm
 !
     call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
+    if(ierrfield.ne.0) then
+      write(*,'(A,2ES14.6,A,2ES14.6)') 'find_bounce: orbit left domain at R,Z=', &
+        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
+      ierr = 1
+      return
+    endif
 !
     taub=taub+dtau_newt
   enddo
@@ -2399,7 +2421,8 @@
   if(next.eq.0) then
     if(fullbounce) then
 !
-      call find_bounce(next,velo,dtau,z,taub,delphi,extraset)
+      call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
+      if(ierr.ne.0) return
 !
     else
 !
@@ -2412,7 +2435,8 @@
   else
     extraset=0.d0
 !
-    call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset)
+    call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
+    if(ierr.ne.0) return
 !
   endif
 !
