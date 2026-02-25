@@ -141,6 +141,7 @@
   use orbit_dim_mod,      only : neqm
   use global_invariants,  only : toten,perpinv,cE_ref,Phi_eff
   use sample_matrix_mod,  only : npoi,xarr
+  use logging_mod,        only : tee_message
 !
   implicit none
 !
@@ -181,7 +182,8 @@
     call find_all_roots(get_rescond,xbeg,xend,ierr)
 !
     if(ierr.ne.0) then
-      print *,'integrate_class_resonances: error in find_all_roots'
+      call tee_message( &
+        'integrate_class_resonances: error in find_all_roots')
       customgrid=.false.
       deallocate(xcustom)
       return
@@ -206,7 +208,8 @@
                                psiast,dpsiast_dRst,z,ierr)
 !
       if(ierr.ne.0) then
-        print *,'integrate_class_resonances: error in starter_doublecount'
+        call tee_message( &
+          'integrate_class_resonances: error in starter_doublecount')
         cycle
       endif
 !
@@ -297,10 +300,12 @@
                                            respoints_all,respoints_all_tmp
   use cc_mod,                       only : wrbounds,dowrite
   use orbit_dim_mod,                only : write_orb
+  use logging_mod,                  only : tee_message, close_logging
 !
   logical :: classes_talk
 !
   integer :: ierr,mode
+  character(len=256) :: msg
 !
   wrbounds=.false.
   dowrite=.false.
@@ -312,14 +317,20 @@
   call find_bounds_fixpoints(ierr)
 !
   if(ierr.ne.0) then
-    print *,'get_matrix_res: find_bounds_fixpoints ierr = ',ierr
+    write(msg, '(A,I0)') &
+      'get_matrix_res: find_bounds_fixpoints ierr = ', ierr
+    call tee_message(trim(msg))
+    call close_logging()
     stop
   endif
 !
   call form_classes_doublecount(classes_talk,ierr)
 !
   if(ierr.ne.0) then
-    print *,'get_matrix_res: form_classes ierr = ',ierr
+    write(msg, '(A,I0)') &
+      'get_matrix_res: form_classes ierr = ', ierr
+    call tee_message(trim(msg))
+    call close_logging()
     stop
   endif
 !
@@ -341,7 +352,9 @@
         endif
       enddo
     else
-      print *,'get_matrix_res: sample_class_doublecount error',ierr
+      write(msg, '(A,I0)') &
+        'get_matrix_res: sample_class_doublecount error ', ierr
+      call tee_message(trim(msg))
       do mode=1,nmodes
         respoints_jp(mode,iclass)%nrespoi=0
         respoints_jp(mode,iclass)%toten_res=toten
@@ -395,6 +408,7 @@
                                 thermen_max_input => thermen_max, &
                                 adaptive_jperp, npoi_init, nlagr_sampling, &
                                 eps_sampling, itermax_sampling
+  use logging_mod,       only : tee_message
 
   implicit none
 !
@@ -409,6 +423,7 @@
   double precision :: xjperp,xenerg,totxint,step_energ
   double precision :: time_beg,time_end
   double precision :: dens, temp, ddens, dtemp
+  character(len=256) :: msg
   double precision, dimension(:), allocatable :: torque_int_modes
   double precision, dimension(:), allocatable :: sbox
   double precision, dimension(:), allocatable :: taubox
@@ -444,11 +459,21 @@
   toten_max=thermen_max+phi_elec_max
   toten_range=toten_max-toten_min
 !
-  print *,'maximum kinetic energy = ',thermen_max
-  print *,'miminum potential energy = ',phi_elec_min
-  print *,'maximum potential energy = ',phi_elec_max
-  print *,'miminum total energy = ',toten_min
-  print *,'maximum total energy = ',toten_max
+  write(msg, '(A,ES14.6)') &
+    'maximum kinetic energy = ', thermen_max
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'minimum potential energy = ', phi_elec_min
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'maximum potential energy = ', phi_elec_max
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'minimum total energy = ', toten_min
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'maximum total energy = ', toten_max
+  call tee_message(trim(msg))
 !
   nenerg=nenerg_input
 !
@@ -474,7 +499,8 @@
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
 !toten =   -3.1211921097605737d0
-    print *,'toten = ',toten
+    write(msg, '(A,ES22.14)') 'toten = ', toten
+    call tee_message(trim(msg))
 !
     call cpu_time(time_beg)
 !
@@ -587,11 +613,15 @@
       write(1901,*) ' '
 !
       deallocate(respoint)
-      print *,'number of J_perp points = ',npoi
+      write(msg, '(A,I0)') &
+        'number of J_perp points = ', npoi
+      call tee_message(trim(msg))
 !
 ! Sum up contributions of energy levels:
       torque_int=torque_int+torque_int_loc
-      print *,'method 1, torque_int_loc = ',torque_int_loc
+      write(msg, '(A,ES22.14)') &
+        'method 1, torque_int_loc = ', torque_int_loc
+      call tee_message(trim(msg))
 !
 ! Alternative computation via sampling matrix. Here distribution over resonances is also computed:
       do i=1,npoi
@@ -609,7 +639,9 @@
         write(1902,*) xarr(i),torque_int_loc,torque_int_modes
       enddo
       write(1902,*) ' '
-      print *,'method 2, torque_int_loc = ',torque_int_loc
+      write(msg, '(A,ES22.14)') &
+        'method 2, torque_int_loc = ', torque_int_loc
+      call tee_message(trim(msg))
 !
     else
 !
@@ -635,12 +667,18 @@
         torque_int_modes=torque_int_modes+perpinv_max*trapez_fac*amat(:,1)*step_energ
 ! Subintegrand of dimensional integral over energy for a total torque as function of J_perp:
         write(1902,*) perpinv,torque_int,torque_int_modes
-        print *,'perpinv:',iperp,'/',nperp,' toten:',ienerg,'/',nenerg
+        write(msg, '(A,I0,A,I0,A,I0,A,I0)') &
+          'perpinv:', iperp, '/', nperp, &
+          ' toten:', ienerg, '/', nenerg
+        call tee_message(trim(msg))
       enddo
     endif
 !
     call cpu_time(time_end)
-    print *,' toten:',ienerg,'/',nenerg,' cpu time = ',time_end-time_beg,' sec'
+    write(msg, '(A,I0,A,I0,A,F10.2,A)') &
+      ' toten:', ienerg, '/', nenerg, &
+      ' cpu time = ', time_end-time_beg, ' sec'
+    call tee_message(trim(msg))
 !
   enddo
 !
@@ -648,7 +686,9 @@
   close(1902)
 !
 ! Integral torque:
-  print *,'resonant torque  = ',torque_int
+  write(msg, '(A,ES22.14)') &
+    'resonant torque  = ', torque_int
+  call tee_message(trim(msg))
   open(1,file='integral_torque.dat')
   write(1,*) torque_int
   close(1)

@@ -52,7 +52,8 @@
      *rkqs)
 !
       use odeint_mod, only : kmax,kount,ialloc,dxsav,dydx,xp,y,yscal,yp
-!
+      use field_eq_mod, only : ierrfield
+      use logging_mod, only : tee_message
 ! 18.07.2016
 !      use gbpi_mod
 ! 18.07.2016 end
@@ -136,17 +137,19 @@
 !     *'stepsize smaller than minimum in odeint'
 ! 17.07.2016
         if(abs(hnext).lt.hmin) then
-       print*,'stepsize smaller than minimum in odeint'
-       write(99,*)'stepsize smaller than minimum in odeint, stop'
-       stop
-       endif
+          call tee_message(
+     *      'odeint: stepsize smaller than minimum')
+          ierrfield = 1
+          ialloc=0
+          call alloc_odeint(nvar)
+          return
+        endif
 ! 17.07.2016 end
         h=hnext
 16    continue
 ! 17.07.2016      pause 'too many steps in odeint'
-       print*,'too many steps in odeint'
-       write(99,*)'to many steps in odeint, stop'
-       stop
+      call tee_message('odeint: too many steps')
+      ierrfield = 1
 ! 17.07.2016 end
       ialloc=0
       call alloc_odeint(nvar)
@@ -232,6 +235,8 @@ CU    USES derivs
       SUBROUTINE rkqs(y,dydx,n,x,htry,eps,yscal,hdid,hnext,derivs)
 !
       use odeint_mod, only : yerr,ytemp1
+      use field_eq_mod, only : ierrfield
+      use logging_mod, only : tee_message
 !
       implicit double precision (a-h,o-z)
 !
@@ -257,12 +262,11 @@ CU    USES derivs,rkck
         h=sign(max(abs(htemp),0.1*abs(h)),h)
         xnew=x+h
 !        if(xnew.eq.x) pause 'stepsize underflow in rkqs'
-        if(xnew.eq.x) then 
-          print *,'stepsize underflow in rkqs, x,y = ',x,y
-! 17.02.2016
-          write(99,*)'stepsize underflow in rkqs, x,y = ',x,y
-! 17.02.2016 end
-          stop
+        if(xnew.eq.x) then
+          call tee_message(
+     *      'rkqs: stepsize underflow')
+          ierrfield = 1
+          return
         endif
         goto 1
       else

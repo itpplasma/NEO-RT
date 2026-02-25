@@ -7,6 +7,17 @@ module logging_mod
 
 contains
 
+    function timestamp() result(ts)
+        character(len=23) :: ts
+        character(len=8)  :: date_str
+        character(len=10) :: time_str
+
+        call date_and_time(date=date_str, time=time_str)
+        write(ts, '(A4,"-",A2,"-",A2," ",A2,":",A2,":",A2,".",A3)') &
+            date_str(1:4), date_str(5:6), date_str(7:8), &
+            time_str(1:2), time_str(3:4), time_str(5:6), time_str(8:10)
+    end function timestamp
+
     subroutine init_logging(filename)
         character(len=*), intent(in) :: filename
         integer :: ierr
@@ -14,7 +25,7 @@ contains
         open(newunit=log_unit, file=filename, status='replace', action='write', iostat=ierr)
         if (ierr == 0) then
             logging_enabled = .true.
-            write(log_unit, '(A)') '=== POTATO Log Started ==='
+            write(log_unit, '(A,": ",A)') timestamp(), '=== POTATO Log Started ==='
             flush(log_unit)
         else
             log_unit = -1
@@ -24,7 +35,7 @@ contains
 
     subroutine close_logging()
         if (logging_enabled) then
-            write(log_unit, '(A)') '=== POTATO Log Ended ==='
+            write(log_unit, '(A,": ",A)') timestamp(), '=== POTATO Log Ended ==='
             close(log_unit)
             logging_enabled = .false.
             log_unit = -1
@@ -45,12 +56,21 @@ contains
         enabled = logging_enabled
     end function is_logging_enabled
 
+    subroutine log_message(msg)
+        character(len=*), intent(in) :: msg
+
+        if (logging_enabled) then
+            write(log_unit, '(A,": ",A)') timestamp(), msg
+            flush(log_unit)
+        endif
+    end subroutine log_message
+
     subroutine tee_message(msg)
         character(len=*), intent(in) :: msg
 
         write(output_unit, '(A)') msg
         if (logging_enabled) then
-            write(log_unit, '(A)') msg
+            write(log_unit, '(A,": ",A)') timestamp(), msg
             flush(log_unit)
         endif
     end subroutine tee_message

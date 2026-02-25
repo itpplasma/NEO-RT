@@ -12,7 +12,7 @@
   use poicut_mod,                   only : npc,rpc_arr,zpc_arr
   use phielec_of_psi_mod,           only : npolyphi, polyphi, polydens, polytemp
   use logging_mod,                  only : init_logging, close_logging, get_log_unit, &
-                                          is_logging_enabled
+                                          is_logging_enabled, tee_message
   use potato_input_mod,             only : read_potato_input, print_potato_input, &
                                           itest_type, E_alpha, A_alpha, Z_alpha, &
                                           rho_pol, rho_pol_max, scalfac_energy, &
@@ -48,26 +48,23 @@
 !
   select case(itest_type)
   case(1)
-    print *, 'Plot orbits'
-    if (is_logging_enabled()) write(log_u, *) 'Plot orbits'
+    call tee_message('Plot orbits')
     plot_orbits=.true.
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.false.
   case(2)
-    print *, 'Equilibrium profiles'
-    if (is_logging_enabled()) write(log_u, *) 'Equilibrium profiles'
+    call tee_message('Equilibrium profiles')
     plot_orbits=.false.
     compute_equibrium_profiles=.true.
     compute_resonant_torque=.false.
   case(3)
-    print *, 'Resonant torque'
-    if (is_logging_enabled()) write(log_u, *) 'Resonant torque'
+    call tee_message('Resonant torque')
     plot_orbits=.false.
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.true.
   case default
-    print *,'unknown test'
-    if (is_logging_enabled()) write(log_u, *) 'unknown test'
+    call tee_message('unknown test')
+    call close_logging()
     stop
   end select
 !
@@ -92,6 +89,7 @@
   dtau=Rmax_orbit/dble(ntimstep)
 
 ! Load profiles
+  call tee_message('Loading profiles from '//trim(profile_file))
   open(iunit,file=trim(profile_file),status='old',action='read')
   read(iunit,*)  ! dummy
   read(iunit,*)  ! dummy
@@ -112,7 +110,9 @@
 !  plot_poicut=.true.
   plot_poicut=.false.
 !
+  call tee_message('Computing Poincare cut')
   call find_poicut(rho_pol_max,npoicut)
+  call tee_message('Poincare cut done')
 !
   if(plot_poicut) then
     open(iunit,file='poicut.dat',status='replace',action='write')
@@ -128,11 +128,13 @@
   call poltor_field_dir(ifdir_type)
 !
   if(ifdir_type.eq.1) then
-    print *,'Direction of magnetic field AUG standard: co-passing orbits shifted to the HFS'
-    if (is_logging_enabled()) write(log_u, *) 'Direction of magnetic field AUG standard: co-passing orbits shifted to the HFS'
+    call tee_message( &
+      'Direction of magnetic field AUG standard: ' // &
+      'co-passing orbits shifted to the HFS')
   else
-    print *,'Direction of magnetic field AUG non-standard: co-passing orbits shifted to the LFS'
-    if (is_logging_enabled()) write(log_u, *) 'Direction of magnetic field AUG non-standard: co-passing orbits shifted to the LFS'
+    call tee_message( &
+      'Direction of magnetic field AUG non-standard: ' // &
+      'co-passing orbits shifted to the LFS')
   endif
 !
 !
@@ -140,7 +142,9 @@
 !
 ! Pre-compute profiles of flux surface labels, safety factor, average nabla psi, flux surface area:
 !
+  call tee_message('Loading equilibrium magnetic profiles')
   call load_eqmagprofs
+  call tee_message('Equilibrium magnetic profiles loaded')
 !
 ! Test the interpolation of flux surface labels, safety factor, average nabla psi, flux surface area:
 !
@@ -160,8 +164,7 @@
 ! Plotting the orbits, frequencies, etc
 !
   if(plot_orbits) then
-    print *,'Plotting the orbits'
-    if (is_logging_enabled()) write(log_u, *) 'Plotting the orbits'
+    call tee_message('Plotting the orbits')
 !
     numbasef=6 !corresponds to unperturbed profile computation (should be > 0 for integrate_class_doublecount)
     allocate(resint(numbasef,2))
@@ -208,8 +211,7 @@
 ! Compute equilibrium profiles of density and toroidal guiding center flux density
 !
   if(compute_equibrium_profiles) then
-    print *,'Computing equilibrium profiles'
-    if (is_logging_enabled()) write(log_u, *) 'Computing equilibrium profiles'
+    call tee_message('Computing equilibrium profiles')
 !
 !compute analytical approximation for density and toroidal flow:
 !
@@ -233,8 +235,7 @@
 call test_prfs
 call plot_canfreqs(v0)
 !stop
-    print *,'Computing the resonant torque'
-    if (is_logging_enabled()) write(log_u, *) 'Computing the resonant torque'
+    call tee_message('Computing the resonant torque')
     nmodes=m_max-m_min+1
     allocate(marr(nmodes),narr(nmodes),delint_mode(nmodes))
     narr=n_tor
@@ -284,19 +285,19 @@ end subroutine test_prfs
 !
   use field_sub, only : psif
   use poicut_mod, only : npc,rpc_arr,zpc_arr,rmagaxis
-  use logging_mod, only : get_log_unit, is_logging_enabled
+  use logging_mod, only : tee_message
 !
   implicit none
 !
   logical :: initprev
-  integer :: ierr,i,log_u
+  integer :: ierr,i
   double precision :: psipol,Rst,bmod,phi_elec,psif_prev
   double precision, dimension(3)    :: x
+  character(len=256) :: msg
 !
   x(2)=0.d0
   ierr=1
   initprev=.false.
-  log_u = get_log_unit()
 !
   do i=1,npc
     if(rpc_arr(i).lt.rmagaxis) cycle
@@ -309,8 +310,10 @@ end subroutine test_prfs
       if((psif-psipol)*(psif_prev-psipol).lt.0.d0) then
         ierr=0
         Rst=x(1)
-        print *,'R_cut_in < Rst < R_cut_out = ',rpc_arr(1),Rst,rpc_arr(npc)
-        if (is_logging_enabled()) write(log_u,*) 'R_cut_in < Rst < R_cut_out = ',rpc_arr(1),Rst,rpc_arr(npc)
+        write(msg, '(A,3ES14.6)') &
+          'R_cut_in < Rst < R_cut_out = ', &
+          rpc_arr(1), Rst, rpc_arr(npc)
+        call tee_message(trim(msg))
         return
       endif
       psif_prev=psif
