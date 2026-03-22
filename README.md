@@ -107,6 +107,20 @@ For single-point runs such as ripple tests, populate a `config_t` instance, call
 
 When spline mode is active the `M_t`, `vth`, `qi`, and `mi` values come from the supplied plasma/profile data and overwrite any prior config settings, so reset them if you later switch back to the config-only workflow.
 
+## Examples
+
+The `examples/` directory contains ready-to-run input decks. To run the base example:
+
+```bash
+make examples-base
+```
+
+To list all available examples:
+
+```bash
+make examples-list
+```
+
 ## Testing
 
 Regression and unit tests are provided for both the Fortran and Python components. After building the solver, run
