@@ -20,4 +20,5 @@
     efac = 1.0             ! scale E field by factor
     inp_swi = 8            ! input switch for Boozer file
     vsteps = 256           ! integration steps in velocity space
+    log_level = 3          ! log level (0=result, 1=error, 2=warn, 3=info, 4=debug, 5=trace)
 /
