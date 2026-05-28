@@ -17,7 +17,16 @@ endfunction()
 
 function(fetch DEPENDENCY SOURCE_DIR)
     set(REPO_URL https://github.com/itpplasma/${DEPENDENCY}.git)
-    get_branch_or_main(${REPO_URL} REMOTE_BRANCH)
+    # <DEP>_BRANCH (cache or env) overrides the ref, so an upstream release can
+    # build this code against a candidate. Unset keeps the matching-branch default.
+    string(TOUPPER ${DEPENDENCY} _DEP_UPPER)
+    if(DEFINED ${_DEP_UPPER}_BRANCH AND NOT "${${_DEP_UPPER}_BRANCH}" STREQUAL "")
+        set(REMOTE_BRANCH "${${_DEP_UPPER}_BRANCH}")
+    elseif(DEFINED ENV{${_DEP_UPPER}_BRANCH} AND NOT "$ENV{${_DEP_UPPER}_BRANCH}" STREQUAL "")
+        set(REMOTE_BRANCH "$ENV{${_DEP_UPPER}_BRANCH}")
+    else()
+        get_branch_or_main(${REPO_URL} REMOTE_BRANCH)
+    endif()
     message(STATUS "Fetch ${DEPENDENCY} branch ${REMOTE_BRANCH} from ${REPO_URL}")
 
 
