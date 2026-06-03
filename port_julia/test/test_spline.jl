@@ -1,7 +1,7 @@
 # Cross-checks the Julia spline against the Fortran itpplasma spline reference
 # (spline_ref dump on stdin: COEFF and VAL lines), to rtol 1e-12.
-include("../src/Spline.jl")
-using .Spline
+include("../src/NeoRT.jl")
+using .NeoRT.Spline
 
 const NP = 9
 

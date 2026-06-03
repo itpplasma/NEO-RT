@@ -1,14 +1,14 @@
 # Cross-checks the Julia field port (do_magfie) against the Fortran do_magfie_mod
 # reference (field_ref dump on stdin), to rtol 1e-12.
-include("../src/Field.jl")
-using .Field
+include("../src/NeoRT.jl")
+using .NeoRT.Field
 
 close_enough(a, b) = abs(a - b) <= 1e-13 + 1e-12 * abs(b)
 
 function main()
     in_file = ARGS[1]
-    Field.FS.inp_swi = 9
-    Field.FS.bfac = 1.0
+    NeoRT.Field.FS.inp_swi = 9
+    NeoRT.Field.FS.bfac = 1.0
     do_magfie_init(in_file)
 
     nums = parse.(Float64, split(read(stdin, String)))

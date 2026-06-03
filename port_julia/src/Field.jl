@@ -5,8 +5,7 @@ threaded gate). Mirrors the verified C/Rust field.
 """
 module Field
 
-include("Spline.jl")
-using .Spline
+using ..Spline
 
 export do_magfie_init, do_magfie, do_magfie_pert_init, do_magfie_pert_amp, FS, FieldState
 
