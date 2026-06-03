@@ -38,14 +38,20 @@ static void evaluate_bfield_local(double *bmod, double *htheta)
 typedef void (*ts_fn)(double v, double eta, int neq, double t, const double *y,
                       double *ydot);
 
+void poloidal_velocity(double v, double eta, double bmod, double hthctr,
+                       double hderth, double v_par, double ydot[2])
+{
+    ydot[0] = v_par * hthctr;
+    ydot[1] = -v * v * eta / 2.0 * hthctr * hderth * bmod;
+}
+
 static void timestep_poloidal_motion(double v, double eta, int neq, double t,
                                      const double *y, double *ydot)
 {
     (void)neq; (void)t;
     double x[3] = {orbit_s, 0.0, y[0]}, bmod, sqrtg, hder[3], hcovar[3], hctrvr[3], hcurl[3];
     do_magfie(x, &bmod, &sqrtg, hder, hcovar, hctrvr, hcurl);
-    ydot[0] = y[1] * hctrvr[2];
-    ydot[1] = -v * v * eta / 2.0 * hctrvr[2] * hder[2] * bmod;
+    poloidal_velocity(v, eta, bmod, hctrvr[2], hder[2], y[1], ydot);
 }
 
 static void timestep(double v, double eta, int neq, double t, const double *y,
@@ -141,7 +147,8 @@ static void bounce_integral(double v, double eta, int neq, const double *y0,
     SUNContext_Free(&sctx);
 }
 
-void bounce_fast(double v, double eta, double taub, double bounceavg[ORBIT_NVAR])
+void bounce_fast_ext(double v, double eta, double taub, double bounceavg[ORBIT_NVAR],
+                     orbit_ts_fn ts, int *istate_out)
 {
     double bmod, htheta;
     evaluate_bfield_local(&bmod, &htheta);
@@ -159,7 +166,7 @@ void bounce_fast(double v, double eta, double taub, double bounceavg[ORBIT_NVAR]
     for (int i = 2; i < 6; i++)
         yv[i] = 0.0;
 
-    struct ode_ctx oc = {v, eta, ORBIT_NVAR, timestep};
+    struct ode_ctx oc = {v, eta, ORBIT_NVAR, ts};
     void *cv = CVodeCreate(CV_ADAMS, sctx);
     CVodeInit(cv, cv_rhs, 0.0, y);
     CVodeSStolerances(cv, 1.0e-9, 1.0e-10);
@@ -169,14 +176,21 @@ void bounce_fast(double v, double eta, double taub, double bounceavg[ORBIT_NVAR]
     CVodeSetNonlinearSolver(cv, NLS);
 
     double tret;
-    CVode(cv, taub, y, &tret, CV_NORMAL);
+    int flag = CVode(cv, taub, y, &tret, CV_NORMAL);
     for (int i = 0; i < ORBIT_NVAR; i++)
         bounceavg[i] = yv[i] / taub;
+    if (istate_out)
+        *istate_out = (flag < 0) ? -1 : 2; /* mirror DVODE istate (2=ok, -1=MXSTEP) */
 
     SUNNonlinSolFree(NLS);
     N_VDestroy(y);
     CVodeFree(&cv);
     SUNContext_Free(&sctx);
+}
+
+void bounce_fast(double v, double eta, double taub, double bounceavg[ORBIT_NVAR])
+{
+    bounce_fast_ext(v, eta, taub, bounceavg, timestep, NULL);
 }
 
 double bounce_time(double v, double eta, double taub_estimate, int have_estimate)

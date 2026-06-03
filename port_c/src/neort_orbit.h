@@ -24,6 +24,20 @@ double bounce_time(double v, double eta, double taub_estimate, int have_estimate
  * root-finding), return bounceavg = y/taub. Mirrors orbit.f90 bounce_fast. */
 void bounce_fast(double v, double eta, double taub, double bounceavg[ORBIT_NVAR]);
 
+/* RHS function type for a custom timestep (v, eta, neq, t, y, ydot). */
+typedef void (*orbit_ts_fn)(double v, double eta, int neq, double t,
+                            const double *y, double *ydot);
+
+/* Generalized bounce_fast with a custom RHS and CVODE istate out (2 = success).
+ * Used by transport with its perturbation-Hamiltonian timestep. */
+void bounce_fast_ext(double v, double eta, double taub, double bounceavg[ORBIT_NVAR],
+                     orbit_ts_fn ts, int *istate_out);
+
+/* Poloidal drift velocity RHS piece (orbit.f90 poloidal_velocity), reused by
+ * the transport timestep. */
+void poloidal_velocity(double v, double eta, double bmod, double hthctr,
+                       double hderth, double v_par, double ydot[2]);
+
 /* Full bounce: taub + bounce averages of the nvar integrands. */
 void bounce(double v, double eta, double *taub, double bounceavg[ORBIT_NVAR],
             double taub_estimate, int have_estimate);
