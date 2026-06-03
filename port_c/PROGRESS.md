@@ -14,7 +14,8 @@ Fortran reference dumper linked to libneo_rt + a C test (pattern: port_c/test).
 - [x] do_magfie_pert_mod amplitude (do_magfie_pert_amp) -- ported, bn cross-check pending.
 
 ## Remaining (golden path, port order)
-- [ ] profiles (neort_profiles): plasma.in/profile.in reading, thermodynamic forces.
+- [x] collis_alp (loacol_nbi/coleff/onseff) -- 21 checks (with profiles).
+- [x] profiles (neort_profiles): plasma.in/profile.in reading, thermodynamic forces -- 21 checks (vth,M_t,Om_tE,A1,A2,collision state).
 - [ ] driftorbit: resonance condition, velocity-space setup.
 - [ ] orbit (neort_orbit): bounce integrals -- **DVODE substitution, the 1e-8 risk**.
       Validate GSL msadams vs DVODE on one bounce integral BEFORE porting the rest.
