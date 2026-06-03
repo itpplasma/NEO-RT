@@ -129,3 +129,25 @@ number, or special-case the near-tpb extrapolation (e.g. tighter CVODE tol on th
 two seed points) to recover agreement.
 
 Run time (single case, vsteps=512, single-thread): C ~4.6 s vs Fortran ~6.5 s.
+
+## CORRECTION: full 9-case gate -- agreement is surface-dependent and worse
+
+Running all 9 cases at the C executable (single-threaded) vs golden:
+  0p100-0p500: main output (D11) good (~1e-4..1e-3); 0p500 best at ~6e-4
+  0p600: torque ~18%, integral sub-dominant up to ~78%
+  0p700: MAIN output (D11) 2.5%, integral up to 280%
+  0p800: main output 4.6%, torque 22%
+  0p900: main output 5.0%, torque_integral up to 5100% (near-zero harmonics)
+
+So the honest cross-language number is NOT 1e-3 -- dominant outputs at higher s
+diverge a few % (2.5-5%), and sub-dominant near-threshold harmonics far more.
+0p500 (the case used for the earlier estimate) is the best surface; it is not
+representative. The surface dependence (dominant D11 off a few % at high s)
+indicates higher-s dominant resonances sit in the near-separatrix /
+log-extrapolation-sensitive region, where CVODE and DVODE diverge most.
+
+Implication: a different-integrator port reproduces NEO-RT transport to a few %
+on dominant quantities (surface-dependent), 7 digits only where the dominant
+resonance is far from the separatrix (e.g. 0p500 mth=5). Matching DVODE to <1%
+everywhere likely needs DVODE's exact trajectory (port the Adams path), not a
+package. magfie/field output stays bit-exact regardless.
