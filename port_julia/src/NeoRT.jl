@@ -5,7 +5,11 @@ module NeoRT
 
 include("Spline.jl")
 include("Collis.jl")
+include("Cvode.jl")
+include("Driftorbit.jl")
 include("Field.jl")
 include("Profiles.jl")
+include("Magfie.jl")
+include("Orbit.jl")
 
 end # module
