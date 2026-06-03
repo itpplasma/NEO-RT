@@ -1,0 +1,16 @@
+[package]
+name = "neo_rt_rust"
+version = "0.1.0"
+edition = "2021"
+description = "Rust port of NEO-RT (golden path). Uses SUNDIALS CVODE + LAPACK via FFI."
+
+[[bin]]
+name = "test_spline"
+path = "src/bin/test_spline.rs"
+
+[lib]
+name = "neo_rt_rust"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 2
