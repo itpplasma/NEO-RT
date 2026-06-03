@@ -64,6 +64,9 @@ pub fn set_bfac(v: f64) {
 pub fn set_inp_swi(v: i32) {
     F.with(|c| c.borrow_mut().inp_swi = v);
 }
+pub fn set_eps(v: f64) {
+    F.with(|c| c.borrow_mut().eps = v);
+}
 
 /// Read a Boozer file, mirroring boozer_read (header skip 5, per-surface skip 2
 /// before params and 1 before modes). Returns (nflux, nmode, nfp, flux, a, R0,

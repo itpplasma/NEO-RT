@@ -22,3 +22,7 @@ opt-level = 2
 [[bin]]
 name = "test_profiles"
 path = "src/bin/test_profiles.rs"
+
+[[bin]]
+name = "test_orbit"
+path = "src/bin/test_orbit.rs"

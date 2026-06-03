@@ -5,3 +5,7 @@ pub mod spline;
 pub mod field;
 pub mod collis;
 pub mod profiles;
+pub mod cvode;
+pub mod driftorbit;
+pub mod magfie;
+pub mod orbit;
