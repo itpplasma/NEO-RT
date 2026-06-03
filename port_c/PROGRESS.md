@@ -26,7 +26,7 @@ Fortran reference dumper linked to libneo_rt + a C test (pattern: port_c/test).
 - [x] transport (compute_transport_integral, D11/D12/Tphi, timestep_transport).
 - [x] nonlin: nonlinear_attenuation (golden nonlin=false -> 1.0 exact) + omega_prime;
       nonlin=true path (attenuation_factor lookup) errors loudly, outside golden gate.
-- [ ] neort driver + output writers (the 5 .out files), main.
+- [x] neort driver + output writers + main -> neo_rt_c.x runs end-to-end (all 5 files).
 - [ ] CMake/Makefile producing neo_rt_c.x; run_gate.sh against it.
 
 ## Integrator substitution — de-risk result (DATA)
@@ -102,3 +102,30 @@ DECISION (user): relax the cross-language gate to rtol ~1e-7. Different correct
 Adams integrators differ at ~1e-8; 1e-7 gives clean margin and keeps the package
 approach. Port gate = compare port .out files to golden.h5 at rtol 1e-7 (a
 separate comparator; the Fortran's own test_golden_record stays at 1e-8).
+
+## MILESTONE: C executable runs end-to-end (+ achieved-tolerance reality)
+
+neo_rt_c.x builds and runs the full golden path, writing all 5 output files.
+Case 0p500 vs golden:
+  magfie            0.0      (bit-perfect: field+perturbation sampling exact)
+  dominant resonance mth=5 D11  matches to 7 digits (6.281342e-4 both)
+  most harmonics    ~1e-3 or better
+  near-threshold trapped (mth=1,2,3) trapped D11/torque  up to ~7-13% off
+
+Where the error lives: near the trapped-passing boundary the freq splines use
+LOG EXTRAPOLATION whose slope is built from two near-separatrix bounce points
+(eta within 1e-6 of etatp, taub -> infinity). There CVODE and DVODE diverge most
+(near-separatrix orbit), and the extrapolation amplifies it (measured 2% values /
+15% derivatives). This propagates to sub-dominant near-threshold trapped
+resonances and the trapped torque Tt.
+
+Net achieved cross-language agreement on the FULL transport:
+  totals D11/D12   ~6e-4 relative
+  trapped torque   ~1e-1 relative (sub-dominant, near-separatrix dominated)
+This is COARSER than the 1e-7 estimated from in-range frequencies. The 1e-7
+target holds for bulk/dominant quantities; near-separatrix trapped resonances are
+the limiter. Open question: accept ~1e-3 totals as the honest cross-language
+number, or special-case the near-tpb extrapolation (e.g. tighter CVODE tol on the
+two seed points) to recover agreement.
+
+Run time (single case, vsteps=512, single-thread): C ~4.6 s vs Fortran ~6.5 s.
