@@ -9,3 +9,6 @@ pub mod cvode;
 pub mod driftorbit;
 pub mod magfie;
 pub mod orbit;
+pub mod freq;
+pub mod resonance;
+pub mod transport;
