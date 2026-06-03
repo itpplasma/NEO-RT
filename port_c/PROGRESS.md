@@ -94,3 +94,8 @@ DECISION NEEDED (affects all three ports): either
      (contradicts "use a package", large per-language effort).
 The orbit/field/profile layers are bit-faithful; only the integrator trajectory
 divergence drives this.
+
+DECISION (user): relax the cross-language gate to rtol ~1e-7. Different correct
+Adams integrators differ at ~1e-8; 1e-7 gives clean margin and keeps the package
+approach. Port gate = compare port .out files to golden.h5 at rtol 1e-7 (a
+separate comparator; the Fortran's own test_golden_record stays at 1e-8).
