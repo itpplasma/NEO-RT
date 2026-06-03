@@ -17,10 +17,12 @@ Fortran reference dumper linked to libneo_rt + a C test (pattern: port_c/test).
 - [x] collis_alp (loacol_nbi/coleff/onseff) -- 21 checks (with profiles).
 - [x] profiles (neort_profiles): plasma.in/profile.in reading, thermodynamic forces -- 21 checks (vth,M_t,Om_tE,A1,A2,collision state).
 - [ ] driftorbit: resonance condition, velocity-space setup.
-- [ ] orbit (neort_orbit): bounce integrals -- **DVODE substitution, the 1e-8 risk**.
-      Validate GSL msadams vs DVODE on one bounce integral BEFORE porting the rest.
+- [x] magfie (neort_magfie): flux-surface average (eps,B0,Bmin,Bmax,etatp,etadt,th0).
+- [x] orbit (neort_orbit): bounce/bounce_time via CVODE+root-finding -- 18 checks vs DVODE
+      on real trapped+passing orbits, all <1e-8 (worst 8.07e-9, event-location sensitivity).
 - [ ] freq (neort_freq): canonical frequencies + frequency splines.
-- [ ] magfie (neort_magfie): check_magfie sampling -> _magfie.out (bn, eps_exp columns).
+- [ ] freq (neort_freq): canonical frequencies + frequency splines.
+- [ ] magfie sampling (check_magfie) -> _magfie.out bn, eps_exp columns.
 - [ ] resonance, transport, nonlin (nonlin off in golden, must still link).
 - [ ] neort driver + output writers (the 5 .out files), main.
 - [ ] CMake/Makefile producing neo_rt_c.x; run_gate.sh against it.

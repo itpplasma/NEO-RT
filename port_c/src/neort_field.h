@@ -13,6 +13,8 @@ extern double field_Bthcov, field_Bphcov, field_dBthcovds, field_dBphcovds;
 extern double field_q, field_dqds, field_iota, field_eps, field_B0h;
 extern int field_nflux, field_nmode;
 
+#define FIELD_SIGN_THETA (-1.0)  /* do_magfie_mod sign_theta parameter */
+
 /* Read axisymmetric Boozer file and build splines (call once). */
 void do_magfie_init(const char *path);
 
