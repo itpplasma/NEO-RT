@@ -11,5 +11,8 @@ include("Field.jl")
 include("Profiles.jl")
 include("Magfie.jl")
 include("Orbit.jl")
+include("Freq.jl")
+include("Resonance.jl")
+include("Transport.jl")
 
 end # module
