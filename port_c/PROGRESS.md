@@ -16,11 +16,10 @@ Fortran reference dumper linked to libneo_rt + a C test (pattern: port_c/test).
 ## Remaining (golden path, port order)
 - [x] collis_alp (loacol_nbi/coleff/onseff) -- 21 checks (with profiles).
 - [x] profiles (neort_profiles): plasma.in/profile.in reading, thermodynamic forces -- 21 checks (vth,M_t,Om_tE,A1,A2,collision state).
-- [ ] driftorbit: resonance condition, velocity-space setup.
+- [x] driftorbit: state module (declarations only; logic lives in freq/resonance/transport).
 - [x] magfie (neort_magfie): flux-surface average (eps,B0,Bmin,Bmax,etatp,etadt,th0).
 - [x] orbit (neort_orbit): bounce/bounce_time via CVODE+root-finding -- 18 checks vs DVODE
       on real trapped+passing orbits, all <1e-8 (worst 8.07e-9, event-location sensitivity).
-- [ ] freq (neort_freq): canonical frequencies + frequency splines.
 - [ ] freq (neort_freq): canonical frequencies + frequency splines.
 - [ ] magfie sampling (check_magfie) -> _magfie.out bn, eps_exp columns.
 - [ ] resonance, transport, nonlin (nonlin off in golden, must still link).
