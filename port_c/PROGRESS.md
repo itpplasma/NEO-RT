@@ -41,6 +41,19 @@ Mitigation if it fails: port DVODE's Adams (method_flag=10) path to C for
 bit-reproducible trajectories, instead of a package. Decide after porting orbit
 and running the real bounce integral through both.
 
+UPDATE (after reading orbit.f90): bounce_integral uses DVODE ROOT-FINDING
+(g_fcn=bounceroots, nevents=2) to locate the orbit turning point. GSL gsl_odeiv2
+has NO event location -> GSL cannot reproduce this faithfully. SUNDIALS CVODE
+HAS root-finding (CVodeRootInit) and in CV_ADAMS mode is the true package match
+for DVODE (Adams + events). So the integrator is CVODE, not GSL. Open task: fix
+the earlier CVODE SUNContext segfault (MPI/context init), then run the real
+bounce integral DVODE vs CVODE and check 1e-8.
+
+Orbit RHS (timestep): nvar=7, ydot(1)=vpar*hctrvr(3), ydot(2)=-0.5 v^2 eta
+hctrvr(3) hder(3) bmod, ydot(3)=Om_tB/v^2 (magnetic drift), ydot(4:)=0 here
+(perturbed-Hamiltonian integrands added by a transport-side timestep variant).
+Events: G1=sign_vpar_htheta*(theta-th0), G2=sign_vpar_htheta*(2pi-(theta-th0)).
+
 ## Key facts
 - Golden cases: inp_swi=9, pertfile=T, vsteps=512, s=0.1..0.9.
 - DVODE call: Adams (method_flag=10), rtol=1e-9, atol=1e-10, events nevents=2.
