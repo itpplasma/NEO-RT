@@ -2,3 +2,4 @@
 //! numerics use SUNDIALS CVODE + LAPACK via FFI for parity with the C port.
 
 pub mod spline;
+pub mod field;

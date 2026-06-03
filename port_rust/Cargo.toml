@@ -8,6 +8,10 @@ description = "Rust port of NEO-RT (golden path). Uses SUNDIALS CVODE + LAPACK v
 name = "test_spline"
 path = "src/bin/test_spline.rs"
 
+[[bin]]
+name = "test_field"
+path = "src/bin/test_field.rs"
+
 [lib]
 name = "neo_rt_rust"
 path = "src/lib.rs"
