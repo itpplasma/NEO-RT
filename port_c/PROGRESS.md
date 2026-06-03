@@ -22,7 +22,8 @@ Fortran reference dumper linked to libneo_rt + a C test (pattern: port_c/test).
       on real trapped+passing orbits, all <1e-8 (worst 8.07e-9, event-location sensitivity).
 - [ ] freq (neort_freq): canonical frequencies + frequency splines.
 - [ ] magfie sampling (check_magfie) -> _magfie.out bn, eps_exp columns.
-- [ ] resonance, transport, nonlin (nonlin off in golden, must still link).
+- [x] resonance (driftorbit_coarse/nroot/root) -- bisection on freq layer; validated via executable gate.
+- [ ] transport (compute_transport_integral, D11/D12/Tphi, timestep_transport) + nonlin stub.
 - [ ] neort driver + output writers (the 5 .out files), main.
 - [ ] CMake/Makefile producing neo_rt_c.x; run_gate.sh against it.
 

@@ -24,6 +24,7 @@ void do_magfie(const double x[3], double *bmod, double *sqrtg, double bder[3],
                double hcovar[3], double hctrvr[3], double hcurl[3]);
 
 /* Perturbation field. */
+extern int field_pert_mph;   /* toroidal mode number nint(nfp*n) from pert file */
 void do_magfie_pert_init(const char *path);
 void do_magfie_pert_amp(const double x[3], double _Complex *bamp);
 

@@ -16,6 +16,7 @@ double field_psi_pr = 0, field_R0 = 0, field_a = 0, field_B00 = 0;
 double field_Bthcov = 0, field_Bphcov = 0, field_dBthcovds = 0, field_dBphcovds = 0;
 double field_q = 0, field_dqds = 0, field_iota = 0, field_eps = 0, field_B0h = 0;
 int field_nflux = 0, field_nmode = 0;
+int field_pert_mph = 0;
 
 /* ---- module state for the axisymmetric field (do_magfie_mod) ---- */
 static int ncol1 = 5, ncol2 = 0;
@@ -246,6 +247,11 @@ void do_magfie_pert_init(const char *path)
     boozer_read(path, p_ncol2, &p_nflux, &p_nmode, &p_nfp, &flux, &a, &R0, &p_params,
                 &p_modes);
     p_nseg = p_nflux - 1;
+    /* mph_shared = nint(nfp * modes(1,1,2)); column index 1 is the n value. */
+    {
+        double nv = p_modes[(0 * p_nmode + 0) * (p_ncol2 + 2) + 1];
+        field_pert_mph = (int)lround(p_nfp * nv);
+    }
     double *dummy1;
     /* build splines into p_spl2 (we only need the mode splines for the amplitude). */
     int seg = p_nseg, pcols = p_ncol1 + 1, mcols = p_ncol2 + 2;

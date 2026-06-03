@@ -4,6 +4,7 @@ double do_efac = 1.0;
 double do_epsmn = 1.0;
 int do_m0 = 1;
 int do_mth = 1;
+int do_mph = 1;
 int do_magdrift = 1;
 int do_nopassing = 0;
 int do_pertfile = 0;

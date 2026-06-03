@@ -9,6 +9,7 @@ extern double do_efac;       /* radial E-field normalization */
 extern double do_epsmn;      /* perturbation amplitude B1/B0 */
 extern int do_m0;            /* Boozer poloidal perturbation mode */
 extern int do_mth;           /* canonical poloidal mode */
+extern int do_mph;           /* toroidal perturbation mode (from pert file) */
 extern int do_magdrift;      /* consider magnetic drift */
 extern int do_nopassing;     /* neglect passing particles */
 extern int do_pertfile;      /* read perturbation from file */
