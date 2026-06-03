@@ -24,6 +24,22 @@ Fortran reference dumper linked to libneo_rt + a C test (pattern: port_c/test).
 - [ ] neort driver + output writers (the 5 .out files), main.
 - [ ] CMake/Makefile producing neo_rt_c.x; run_gate.sh against it.
 
+## Integrator substitution — de-risk result (DATA)
+
+Packages available: GSL 2.8 (gsl_odeiv2_step_msadams), SUNDIALS CVODE 7 (CV_ADAMS).
+Experiment: same smooth ODE (damped pendulum), same IC, same tolerances as the
+code (Adams, rtol=1e-9, atol=1e-10), DVODE vs GSL msadams:
+  GSL msadams vs DVODE: y1 rel=5.68e-9, y2 rel=5.49e-9  -> passes 1e-8, <2x margin.
+
+Interpretation: the golden record IS DVODE's 1e-9-converged trajectory. A
+substitute integrator reproduces it only to ~DVODE's truncation level (~5e-9),
+so the 1e-8 gate passes with thin margin on smooth integrals. RISK: orbit bounce
+integrals use root-finding events (nevents=2); event location depends on the
+integrator interpolant, which can exceed the ~5e-9 gap and break 1e-8.
+Mitigation if it fails: port DVODE's Adams (method_flag=10) path to C for
+bit-reproducible trajectories, instead of a package. Decide after porting orbit
+and running the real bounce integral through both.
+
 ## Key facts
 - Golden cases: inp_swi=9, pertfile=T, vsteps=512, s=0.1..0.9.
 - DVODE call: Adams (method_flag=10), rtol=1e-9, atol=1e-10, events nevents=2.
