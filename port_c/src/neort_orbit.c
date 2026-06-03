@@ -14,6 +14,7 @@ int orbit_noshear = 0;
 
 static double orbit_s = 0.0;
 void orbit_set_s(double s) { orbit_s = s; }
+double orbit_get_s(void) { return orbit_s; }
 
 double vpar(double v, double eta, double bmod)
 {
@@ -133,6 +134,44 @@ static void bounce_integral(double v, double eta, int neq, const double *y0,
     out[0] = ti;
     for (int i = 0; i < neq; i++)
         out[1 + i] = yv[i];
+
+    SUNNonlinSolFree(NLS);
+    N_VDestroy(y);
+    CVodeFree(&cv);
+    SUNContext_Free(&sctx);
+}
+
+void bounce_fast(double v, double eta, double taub, double bounceavg[ORBIT_NVAR])
+{
+    double bmod, htheta;
+    evaluate_bfield_local(&bmod, &htheta);
+    g_sign_vpar_htheta = (htheta >= 0 ? 1.0 : -1.0) * do_sign_vpar;
+    do_sign_vpar_htheta = g_sign_vpar_htheta;
+
+    SUNContext sctx;
+    SUNContext_Create(SUN_COMM_NULL, &sctx);
+    N_Vector y = N_VNew_Serial(ORBIT_NVAR, sctx);
+    double *yv = N_VGetArrayPointer(y);
+    for (int i = 0; i < ORBIT_NVAR; i++)
+        yv[i] = 1.0e-15;
+    yv[0] = orbit_th0;
+    yv[1] = g_sign_vpar_htheta * vpar(v, eta, bmod);
+    for (int i = 2; i < 6; i++)
+        yv[i] = 0.0;
+
+    struct ode_ctx oc = {v, eta, ORBIT_NVAR, timestep};
+    void *cv = CVodeCreate(CV_ADAMS, sctx);
+    CVodeInit(cv, cv_rhs, 0.0, y);
+    CVodeSStolerances(cv, 1.0e-9, 1.0e-10);
+    CVodeSetMaxNumSteps(cv, 50000);
+    CVodeSetUserData(cv, &oc);
+    SUNNonlinearSolver NLS = SUNNonlinSol_FixedPoint(y, 0, sctx);
+    CVodeSetNonlinearSolver(cv, NLS);
+
+    double tret;
+    CVode(cv, taub, y, &tret, CV_NORMAL);
+    for (int i = 0; i < ORBIT_NVAR; i++)
+        bounceavg[i] = yv[i] / taub;
 
     SUNNonlinSolFree(NLS);
     N_VDestroy(y);

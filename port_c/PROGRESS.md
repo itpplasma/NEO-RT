@@ -70,3 +70,27 @@ Events: G1=sign_vpar_htheta*(theta-th0), G2=sign_vpar_htheta*(2pi-(theta-th0)).
   static index is faithful.
 - Cross-check harness builds: gfortran ref against build/libneo_rt.a +
   build/libspline.a + build/libvode.a -llapack -lblas.
+
+## CRITICAL: achievable cross-language tolerance vs the 1e-8 gate (DATA)
+
+Measured CVODE-vs-DVODE agreement ladder (faithful C port, CVODE is the closest
+package integrator to DVODE):
+  proxy smooth ODE        9e-15
+  real bounce integral    ~8e-9
+  in-range frequencies    1.48e-8   <-- already just OVER the 1e-8 gate
+  near-tpb extrapolation  ~2e-2 values / ~1.5e-1 deta-derivatives (tiny eta sliver)
+
+Conclusion: the rtol=1e-8 golden gate effectively demands bit-reproduction of
+DVODE's exact trajectory. Two DIFFERENT correct Adams integrators diverge ~8e-9
+in bounce integrals, amplified to ~1.5e-8 in frequencies and far more in the
+near-boundary extrapolation (slope built from 2 boundary bounce points over tiny
+log-spaced eta gaps). The final transport (D11/D12/torque) integrates these, so
+the C/Rust/Julia ports will likely match the golden to ~1e-7, NOT 1e-8.
+
+DECISION NEEDED (affects all three ports): either
+ (a) define the cross-language gate at ~1e-6..1e-7 (accept that different correct
+     integrators differ at ~1e-8), or
+ (b) port DVODE's exact Adams (method_flag=10) path for bit-reproducibility
+     (contradicts "use a package", large per-language effort).
+The orbit/field/profile layers are bit-faithful; only the integrator trajectory
+divergence drives this.

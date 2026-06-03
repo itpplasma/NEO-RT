@@ -10,14 +10,19 @@
 extern double orbit_th0;     /* starting poloidal angle */
 extern int orbit_noshear;    /* neglect magnetic shear */
 
-/* Set the flux-surface coordinate s used by the orbit RHS (do_magfie_mod s). */
+/* Set/get the flux-surface coordinate s used by the orbit RHS (do_magfie_mod s). */
 void orbit_set_s(double s);
+double orbit_get_s(void);
 
 double vpar(double v, double eta, double bmod);
 double vperp(double v, double eta, double bmod);
 
 /* Bounce time: integrate poloidal motion (2 vars) to one turn via root-finding. */
 double bounce_time(double v, double eta, double taub_estimate, int have_estimate);
+
+/* Fixed-interval bounce average: integrate the nvar system from 0 to taub (no
+ * root-finding), return bounceavg = y/taub. Mirrors orbit.f90 bounce_fast. */
+void bounce_fast(double v, double eta, double taub, double bounceavg[ORBIT_NVAR]);
 
 /* Full bounce: taub + bounce averages of the nvar integrands. */
 void bounce(double v, double eta, double *taub, double bounceavg[ORBIT_NVAR],
