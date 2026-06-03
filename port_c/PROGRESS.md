@@ -45,9 +45,17 @@ UPDATE (after reading orbit.f90): bounce_integral uses DVODE ROOT-FINDING
 (g_fcn=bounceroots, nevents=2) to locate the orbit turning point. GSL gsl_odeiv2
 has NO event location -> GSL cannot reproduce this faithfully. SUNDIALS CVODE
 HAS root-finding (CVodeRootInit) and in CV_ADAMS mode is the true package match
-for DVODE (Adams + events). So the integrator is CVODE, not GSL. Open task: fix
-the earlier CVODE SUNContext segfault (MPI/context init), then run the real
-bounce integral DVODE vs CVODE and check 1e-8.
+for DVODE (Adams + events). So the integrator is CVODE, not GSL.
+
+RESOLVED: CVODE (CV_ADAMS + SUNNonlinSol_FixedPoint) vs DVODE on the proxy ODE at
+rtol=1e-9/atol=1e-10 agree to 9e-15 (machine precision) -- they share the VODE
+Adams algorithm lineage. This is the decision: use SUNDIALS CVODE. Margin under
+the 1e-8 gate is ~6 orders. Build flags: -lsundials_cvode -lsundials_core -lmpi
+(SUNDIALS here is MPI-enabled, SUN_COMM_NULL needs -lmpi). CV_ADAMS REQUIRES an
+explicit fixed-point nonlinear solver (default Newton needs a linear solver and
+segfaults). Events: CVodeRootInit(cv, 2, rootfn) mirrors g_fcn=bounceroots.
+Still to confirm on the REAL bounce integral once orbit is ported, but the
+proxy result removes the integrator as a project risk.
 
 Orbit RHS (timestep): nvar=7, ydot(1)=vpar*hctrvr(3), ydot(2)=-0.5 v^2 eta
 hctrvr(3) hder(3) bmod, ydot(3)=Om_tB/v^2 (magnetic drift), ydot(4:)=0 here
