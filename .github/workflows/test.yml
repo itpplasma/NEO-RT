@@ -6,11 +6,21 @@ on:
   pull_request:
     branches: [ "main" ]
 
-  # Allows you to run this workflow manually from the Actions tab
+  # Allows you to run this workflow manually, and lets an upstream libneo
+  # release dispatch it against a candidate ref.
   workflow_dispatch:
+    inputs:
+      libneo_ref:
+        description: libneo branch, tag or commit to build against
+        required: false
+        default: ''
 
 permissions:
   contents: read
+
+env:
+  # Propagates through the NEO-2 dependency to the transitive libneo fetch.
+  LIBNEO_REF: ${{ inputs.libneo_ref }}
 
 jobs:
   build:
