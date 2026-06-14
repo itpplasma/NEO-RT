@@ -8,7 +8,6 @@ module neort_freq
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
-    use dvode_f90_m, only: vode_thread_init
     implicit none
 
     ! For splining in the trapped eta region
@@ -46,8 +45,6 @@ contains
     subroutine freq_thread_init()
         ! Initialize threadprivate variables for this thread
         ! Must be called once per thread before using frequency routines
-        ! Also initializes VODE threadprivate state since freq uses bounce integration
-        call vode_thread_init()
         freq_trapped_initialized = .false.
         freq_passing_initialized = .false.
         k_taub_p = 0.0_dp

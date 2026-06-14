@@ -143,7 +143,9 @@ contains
     end function vperp
 
     subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
-        use dvode_f90_m
+        use fortnum_ode_dop853, only: ode_solve_dop
+        use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
+            FORTNUM_CONVERGENCE_ERROR
 
         real(dp), intent(in) :: v, eta, taub
         real(dp), intent(out) :: bounceavg(nvar)
@@ -151,10 +153,10 @@ contains
         integer, intent(out), optional :: istate_out
 
         real(dp) :: t1, t2, bmod, htheta
-        real(dp) :: y(nvar)
-        real(dp) :: atol(nvar), rtol
-        integer :: neq, itask, istate
-        type(vode_opts) :: options
+        real(dp) :: y0(nvar)
+        real(dp), allocatable :: t_out(:), y_out(:, :)
+        type(fortnum_status_t) :: status
+        integer :: istate
 
         call trace('bounce_fast')
 
@@ -163,39 +165,44 @@ contains
 
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1.0_dp, htheta) * sign_vpar
-        y = 1.0e-15_dp
-        y(1) = th0
-        y(2) = sign_vpar_htheta * vpar(v, eta, bmod)
-        y(3:6) = 0.0_dp
+        y0 = 1.0e-15_dp
+        y0(1) = th0
+        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)
+        y0(3:6) = 0.0_dp
 
-        neq = nvar
-        rtol = 1.0e-9_dp
-        atol = 1.0e-10_dp
-        itask = 1
-        istate = 1
+        call ode_solve_dop(bounce_rhs, t1, t2, y0, t_out, y_out, status, &
+            rtol=1.0e-9_dp, atol=1.0e-10_dp)
 
-        options = set_opts(method_flag=10, abserr_vector=atol, relerr=rtol, mxstep=50000)
-        call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
+        ! Map the fortnum status onto the legacy istate convention the callers
+        ! already branch on: 2 = success, -1 = step budget exhausted (the old
+        ! DVODE MXSTEP case), anything else = unexpected failure.
+        if (status%code == FORTNUM_OK) then
+            istate = 2
+        else if (status%code == FORTNUM_CONVERGENCE_ERROR) then
+            istate = -1
+        else
+            istate = 0
+        end if
         if (istate == -1) then
             call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
         end if
 
-        bounceavg = y/taub
+        bounceavg = y_out(:, size(y_out, 2)) / taub
         if (present(istate_out)) istate_out = istate
 
         call trace('bounce_fast complete')
 
     contains
 
-        subroutine timestep_wrapper(neq_, t_, y_, ydot_)
-            ! Wrapper routine for timestep to work with VODE
-            integer, intent(in) :: neq_
+        subroutine bounce_rhs(t_, y_, dydt_, rhs_ctx)
             real(dp), intent(in) :: t_
-            real(dp), intent(in) :: y_(neq_)
-            real(dp), intent(out) :: ydot_(neq_)
-
-            call ts(v, eta, neq_, t_, y_, ydot_)
-        end subroutine timestep_wrapper
+            real(dp), intent(in) :: y_(:)
+            real(dp), intent(out) :: dydt_(:)
+            class(*), intent(in), optional :: rhs_ctx
+            associate (dummy => rhs_ctx)
+            end associate
+            call ts(v, eta, size(y_), t_, y_, dydt_)
+        end subroutine bounce_rhs
     end subroutine bounce_fast
 
     function bounce_time(v, eta, taub_estimate) result(taub)

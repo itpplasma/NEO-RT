@@ -14,7 +14,9 @@ module diag_bounce_debug
                         etatp, etadt, efac
   use do_magfie_mod, only: R0, s, q, bfac, do_magfie_init
   use do_magfie_pert_mod, only: do_magfie_pert_init
-  use dvode_f90_m, only: dvode_f90, set_normal_opts, vode_opts, get_stats
+  use fortnum_ode, only: ode_problem_t, ode_workspace_t, ode_solution_t
+  use fortnum_ode_dop853, only: ode_integrate_dop
+  use fortnum_status, only: fortnum_status_t, FORTNUM_OK
   implicit none
 
 contains
@@ -124,36 +126,52 @@ contains
     integer, intent(out) :: istats(:)
     real(dp), intent(out) :: rstats(:)
 
-    real(dp) :: t1, t2
-    real(dp) :: y(nvar)
-    real(dp) :: atol(nvar), rtol
-    integer :: neq, itask
-    type(vode_opts) :: options
+    real(dp) :: y0(nvar)
+    type(ode_problem_t) :: problem
+    type(ode_workspace_t) :: workspace
+    type(ode_solution_t) :: solution
+    type(fortnum_status_t) :: status
 
-    t1 = 0.0_dp
-    t2 = taub
-    y = 1.0e-15_dp
-    y(1) = 0.0_dp
-    y(2) = 0.0_dp
-    y(3:6) = 0.0_dp
-    neq = nvar
-    rtol = 1.0e-8_dp
-    atol = 1.0e-9_dp
-    itask = 1
-    istate = 1
-    options = set_normal_opts(abserr_vector=atol, relerr=rtol)
+    istats = 0
+    rstats = 0.0_dp
 
-    call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
-    call get_stats(rstats, istats)
+    y0 = 1.0e-15_dp
+    y0(1) = 0.0_dp
+    y0(2) = 0.0_dp
+    y0(3:6) = 0.0_dp
+
+    problem%rhs => probe_rhs
+    problem%t0 = 0.0_dp
+    problem%t1 = taub
+    problem%y0 = y0
+    problem%rtol = 1.0e-8_dp
+    problem%atol = 1.0e-9_dp
+
+    call ode_integrate_dop(problem, workspace, solution, status)
+
+    ! Report the integrator diagnostics in the slots scan_branch prints:
+    ! istats(1) = accepted steps, rstats(6) = last step size.
+    if (status%code == FORTNUM_OK) then
+      istate = 2
+    else
+      istate = -1
+    end if
+    istats(1) = solution%nsteps
+    istats(2) = solution%nrejected
+    if (allocated(solution%h) .and. solution%nsteps > 0) then
+      rstats(6) = solution%h(solution%nsteps)
+    end if
 
   contains
-    subroutine timestep_wrapper(neq_, t_, y_, ydot_)
-      integer, intent(in) :: neq_
+    subroutine probe_rhs(t_, y_, dydt_, ctx_)
       real(dp), intent(in) :: t_
-      real(dp), intent(in) :: y_(neq_)
-      real(dp), intent(out) :: ydot_(neq_)
-      call timestep_transport(v, eta, neq_, t_, y_, ydot_)
-    end subroutine timestep_wrapper
+      real(dp), intent(in) :: y_(:)
+      real(dp), intent(out) :: dydt_(:)
+      class(*), intent(in), optional :: ctx_
+      associate (dummy => ctx_)
+      end associate
+      call timestep_transport(v, eta, size(y_), t_, y_, dydt_)
+    end subroutine probe_rhs
   end subroutine probe_bounce
 
 end module diag_bounce_debug
