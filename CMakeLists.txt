@@ -66,7 +66,7 @@ include(FetchContent)
 if(NOT TARGET fortnum)
     FetchContent_Declare(
         fortnum
-        GIT_REPOSITORY git@github.com:lazy-fortran/fortnum.git
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
         GIT_TAG a7faa3c
     )
     FetchContent_MakeAvailable(fortnum)
