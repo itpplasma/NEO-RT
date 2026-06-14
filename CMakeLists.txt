@@ -62,6 +62,16 @@ find_or_fetch(spline)
 find_or_fetch(vode)
 
 include(FetchContent)
+
+if(NOT TARGET fortnum)
+    FetchContent_Declare(
+        fortnum
+        GIT_REPOSITORY git@github.com:lazy-fortran/fortnum.git
+        GIT_TAG a7faa3c
+    )
+    FetchContent_MakeAvailable(fortnum)
+endif()
+
 FetchContent_Declare(
     fortplot
     GIT_REPOSITORY https://github.com/lazy-fortran/fortplot.git
@@ -156,6 +166,7 @@ find_package(LAPACK)
 
 target_link_libraries(neo_rt PUBLIC
     vode
+    fortnum
     spline
     BLAS::BLAS
     LAPACK::LAPACK
