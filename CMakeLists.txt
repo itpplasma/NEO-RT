@@ -59,7 +59,6 @@ endif()
 set(BUILD_TESTING OFF)
 
 find_or_fetch(spline)
-find_or_fetch(vode)
 
 include(FetchContent)
 
@@ -158,14 +157,11 @@ endif()
 target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}")
 add_dependencies(neo_rt spline)
 target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/spline")
-add_dependencies(neo_rt vode)
-target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/vode")
 
 find_package(BLAS)
 find_package(LAPACK)
 
 target_link_libraries(neo_rt PUBLIC
-    vode
     fortnum
     spline
     BLAS::BLAS
