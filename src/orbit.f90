@@ -304,28 +304,43 @@ contains
         type(ode_event_result_t) :: event_res
         type(fortnum_status_t) :: status
         logical :: passing
-        integer :: direction
+        integer :: direction, chunk
+        real(dp) :: t_chunk, y_chunk(neq)
 
         passing = (eta < etatp)
 
-        ! Passing orbits return after a full 2*pi turn in the sign_vpar_htheta
-        ! direction; trapped orbits return to th0 with theta rising from below
-        ! (the original (yold(1)-th0) < 0 accept filter). Pick the event branch
-        ! and crossing direction accordingly.
+        ! Reproduce the old DVODE bounceroots events. The orbit completes its
+        ! turn when theta advances by +2*pi (passing) or returns to th0
+        ! (trapped); theta itself advances regardless of the sign of
+        ! sign_vpar_htheta, which only fixes the crossing direction of the
+        ! sign_vpar_htheta-weighted root.
+        !   passing: g = sign_vpar_htheta*(2*pi - (theta - th0)),
+        !            d g/dt = -sign_vpar_htheta * dtheta/dt, dtheta/dt > 0
+        !   trapped: g = sign_vpar_htheta*(theta - th0),
+        !            crossed from below (the old (yold(1)-th0) < 0 filter),
+        !            d g/dt = +sign_vpar_htheta * dtheta/dt, dtheta/dt > 0
         if (passing) then
+            if (sign_vpar_htheta > 0.0_dp) then
+                direction = ODE_EVENT_FALLING
+            else
+                direction = ODE_EVENT_RISING
+            end if
+        else
             if (sign_vpar_htheta > 0.0_dp) then
                 direction = ODE_EVENT_RISING
             else
                 direction = ODE_EVENT_FALLING
             end if
-        else
-            direction = ODE_EVENT_RISING
         end if
 
+        ! DVODE advanced in dt-sized chunks and stopped at the first turn
+        ! event. ode_integrate_dop has no terminal-event support, so mirror
+        ! that here: integrate one chunk, scan it, and re-seed from the chunk
+        ! endpoint until the direction-consistent crossing is bracketed. This
+        ! both locates events that take many estimated periods near the
+        ! passing/trapped boundary and avoids integrating the full n_turns*dt
+        ! span (which for near-separatrix orbits can exhaust max_steps).
         problem%rhs => bounce_int_rhs
-        problem%t0 = 0.0_dp
-        problem%t1 = real(n_turns - 1, dp) * dt
-        problem%y0 = y0
         problem%rtol = 1.0e-9_dp
         problem%atol = 1.0e-10_dp
         problem%event => bounce_event
@@ -337,25 +352,40 @@ contains
                 ' pass=', merge('T','F', passing)
         end if
 
-        call ode_integrate_dop(problem, workspace, solution, status)
-        if (status%code == FORTNUM_CONVERGENCE_ERROR) then
-            call dvode_error_context('bounce_integral', v, eta, problem%t0, problem%t1, -1)
-        end if
+        y_chunk = y0
+        t_chunk = 0.0_dp
+        event_res%found = .false.
 
-        call ode_event_scan(problem%rhs, problem%event, solution, &
-            problem%event_direction, problem%event_tol, event_res, status)
+        do chunk = 1, n_turns - 1
+            problem%t0 = t_chunk
+            problem%t1 = t_chunk + dt
+            problem%y0 = y_chunk
+
+            call ode_integrate_dop(problem, workspace, solution, status)
+            if (status%code == FORTNUM_CONVERGENCE_ERROR) then
+                call dvode_error_context('bounce_integral', v, eta, &
+                    problem%t0, problem%t1, -1)
+            end if
+
+            call ode_event_scan(problem%rhs, problem%event, solution, &
+                problem%event_direction, problem%event_tol, event_res, status)
+            if (event_res%found) exit
+
+            t_chunk = solution%t(size(solution%t))
+            y_chunk = solution%y(:, size(solution%t))
+        end do
 
         if (.not. event_res%found) then
             write(0,'(A)') '[ERROR] bounce_integral: no bounce event located'
             write(0,'(A,1X,A)') '  region =', merge('passing','trapped', passing)
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'eta =', eta
-            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  t1 =', problem%t1, 'dt =', dt
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  t =', t_chunk, 'dt =', dt
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax, 'etatp =', etatp
-            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  theta(y1) =', solution%y(1, size(solution%t)), 'th0 =', th0
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  theta(y1) =', y_chunk(1), 'th0 =', th0
             write(0,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,ES12.5)') '  mth =', mth, 'mph =', mph, 'sign_vpar =', dble(sign_vpar)
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'R0 =', R0, 'q =', q, 'iota =', iota
-            bounce_integral(1) = solution%t(size(solution%t))
-            bounce_integral(2:) = solution%y(:, size(solution%t))
+            bounce_integral(1) = t_chunk
+            bounce_integral(2:) = y_chunk
             return
         end if
 
@@ -382,11 +412,11 @@ contains
             associate (dummy_t => t_, dummy_c => ctx_)
             end associate
             if (passing) then
-                ! Full 2*pi turn in the sign_vpar_htheta direction.
-                g = (y_(1) - th0) - sign_vpar_htheta * 2.0_dp * pi
+                ! Passing orbit completes a full +2*pi turn in theta.
+                g = sign_vpar_htheta * (2.0_dp * pi - (y_(1) - th0))
             else
-                ! Return to the starting poloidal angle.
-                g = y_(1) - th0
+                ! Trapped orbit returns to the starting poloidal angle.
+                g = sign_vpar_htheta * (y_(1) - th0)
             end if
         end function bounce_event
     end function bounce_integral
