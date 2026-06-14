@@ -143,7 +143,8 @@ contains
     end function vperp
 
     subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
-        use fortnum_ode_dop853, only: ode_solve_dop
+        use fortnum_ode, only: ode_problem_t, ode_workspace_t, ode_solution_t
+        use fortnum_ode_dop853, only: ode_integrate_dop
         use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
             FORTNUM_CONVERGENCE_ERROR
 
@@ -152,9 +153,21 @@ contains
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
 
+        ! Resolve the bounce period into at least this many DOP853 steps by
+        ! capping hmax at taub/max_steps_per_turn. The bounceavg(3:4) integrands
+        ! carry the perturbed Hamiltonian, which oscillates at the resonant
+        ! harmonic (up to ~mth + q*mph cycles per bounce). Those components are
+        ! driven, not fed back into the orbit dynamics, so the rtol error
+        ! estimate barely constrains them and the unconstrained adaptive step
+        ! grows too coarse, leaving the oscillatory integral under-resolved. The
+        ! cap recovers the DVODE result to four significant figures.
+        integer, parameter :: max_steps_per_turn = 200
+
         real(dp) :: t1, t2, bmod, htheta
         real(dp) :: y0(nvar)
-        real(dp), allocatable :: t_out(:), y_out(:, :)
+        type(ode_problem_t) :: problem
+        type(ode_workspace_t) :: workspace
+        type(ode_solution_t) :: solution
         type(fortnum_status_t) :: status
         integer :: istate
 
@@ -170,8 +183,15 @@ contains
         y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)
         y0(3:6) = 0.0_dp
 
-        call ode_solve_dop(bounce_rhs, t1, t2, y0, t_out, y_out, status, &
-            rtol=1.0e-9_dp, atol=1.0e-10_dp)
+        problem%rhs => bounce_rhs
+        problem%t0 = t1
+        problem%t1 = t2
+        problem%y0 = y0
+        problem%rtol = 1.0e-9_dp
+        problem%atol = 1.0e-10_dp
+        problem%hmax = abs(taub) / real(max_steps_per_turn, dp)
+
+        call ode_integrate_dop(problem, workspace, solution, status)
 
         ! Map the fortnum status onto the legacy istate convention the callers
         ! already branch on: 2 = success, -1 = step budget exhausted (the old
@@ -187,7 +207,7 @@ contains
             call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
         end if
 
-        bounceavg = y_out(:, size(y_out, 2)) / taub
+        bounceavg = solution%y(:, size(solution%t)) / taub
         if (present(istate_out)) istate_out = istate
 
         call trace('bounce_fast complete')
