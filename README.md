@@ -41,6 +41,16 @@ This creates `build/neo_rt.x` and `build/neo_rt_diag.x` together with intermedia
 
 CMake also exposes an option `USE_STANDALONE` (enabled by default) that uses the standalone magnetic-field reader. Set `-DUSE_STANDALONE=OFF` when configuring to link against an external NEO-2 checkout if required.
 
+To build against a specific libneo branch, tag, or commit, pass `-DLIBNEO_REF=<ref>` at configure time or `LIBNEO_REF=<ref>` on the make command line:
+
+```bash
+make LIBNEO_REF=my-branch
+# or directly
+cmake -S . -B build -DLIBNEO_REF=my-branch
+```
+
+Unset (the default) falls back to the automatic ref resolution in `cmake/Util.cmake`.
+
 ## Running simulations
 
 The solver operates on a single flux surface at a time. After building, execute the main program as
