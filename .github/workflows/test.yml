@@ -48,12 +48,15 @@ jobs:
       run: |
         make ctest
 
+    # The libneo gate dispatches this workflow (report-only) and wants only the
+    # fast ctest tier; the golden-record pytest is the slow suite and stays on
+    # NEO-RT's own push/PR runs.
     - name: Run pytest (all tests for Fast)
-      if: matrix.config == 'Fast'
+      if: github.event_name != 'workflow_dispatch' && matrix.config == 'Fast'
       run: |
         make pytest
 
     - name: Run pytest (skip golden record for Debug)
-      if: matrix.config != 'Fast'
+      if: github.event_name != 'workflow_dispatch' && matrix.config != 'Fast'
       run: |
         pytest -m "not fast_only"
