@@ -2,6 +2,16 @@ CONFIG ?= Release
 BUILD_DIR := build
 BUILD_NINJA := $(BUILD_DIR)/build.ninja
 
+# Prevent ambient shell variables from silently reaching cmake or child make.
+unexport LIBNEO_REF
+
+# Forward only an explicit command-line value to cmake.
+# Environment-sourced values are blocked by unexport and never forwarded.
+_LIBNEO_REF_FLAG :=
+ifeq ($(origin LIBNEO_REF), command line)
+_LIBNEO_REF_FLAG := -DLIBNEO_REF=$(LIBNEO_REF)
+endif
+
 .PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps doc golden
 
 all: build
@@ -19,12 +29,12 @@ deps-debian:
 	sudo apt-get install -y libblas-dev liblapack-dev libsuitesparse-dev libnetcdf-dev libnetcdff-dev
 
 $(BUILD_NINJA):
-	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON
+	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON $(_LIBNEO_REF_FLAG)
 
 configure: $(BUILD_NINJA)
 
 reconfigure:
-	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON
+	cmake -S . -B$(BUILD_DIR) -GNinja -DCMAKE_BUILD_TYPE=$(CONFIG) -DCMAKE_COLOR_DIAGNOSTICS=ON $(_LIBNEO_REF_FLAG)
 
 build: configure
 	cmake --build $(BUILD_DIR) --config $(CONFIG)

@@ -3,9 +3,9 @@ include(FetchContent)
 # Resolve a first-party itpplasma dependency and add it to the build.
 #
 # Ref precedence (first match wins):
-#   1. <DEP>_REF      cache or env: a branch, tag or commit, validated against the
-#                     remote and ignored if absent. An upstream release sets this
-#                     to build this code against a candidate ref.
+#   1. <DEP>_REF      CMake cache variable: a branch, tag or commit, validated against the
+#                     remote and ignored if absent. Pass as -D<DEP>_REF=<ref> at configure
+#                     time. An upstream release sets this to build against a candidate ref.
 #   2. <DEP>_GIT_TAG  cache: an explicit pinned tag (e.g. reference builds).
 #   3. <DEP>_RELEASE  cache: the release branch this code tracks by default.
 #   4. the current branch if it exists in the remote, otherwise main.
@@ -20,8 +20,6 @@ function(find_or_fetch DEPENDENCY)
     set(_override "")
     if(DEFINED ${_DEP}_REF AND NOT "${${_DEP}_REF}" STREQUAL "")
         set(_override "${${_DEP}_REF}")
-    elseif(DEFINED ENV{${_DEP}_REF} AND NOT "$ENV{${_DEP}_REF}" STREQUAL "")
-        set(_override "$ENV{${_DEP}_REF}")
     endif()
     if(NOT "${_override}" STREQUAL "")
         execute_process(
