@@ -67,7 +67,7 @@ if(NOT TARGET fortnum)
     FetchContent_Declare(
         fortnum
         GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-        GIT_TAG 974dcf12e2599ffa5882380207d753c8e8e0a9f6
+        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
     )
     FetchContent_MakeAvailable(fortnum)
 endif()
