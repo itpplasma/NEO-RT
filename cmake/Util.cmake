@@ -6,9 +6,8 @@ include(FetchContent)
 #   1. <DEP>_REF      CMake cache variable: a branch, tag or commit, validated against the
 #                     remote and ignored if absent. Pass as -D<DEP>_REF=<ref> at configure
 #                     time. An upstream release sets this to build against a candidate ref.
-#   2. <DEP>_GIT_TAG  cache: an explicit pinned tag (e.g. reference builds).
-#   3. <DEP>_RELEASE  cache: the release branch this code tracks by default.
-#   4. the current branch if it exists in the remote, otherwise main.
+#   2. <DEP>_RELEASE  cache: the release branch this code tracks by default.
+#   3. the current branch if it exists in the remote, otherwise main.
 #
 # The dependency is always fetched at the resolved ref; there is no local-path
 # shortcut.
@@ -32,9 +31,6 @@ function(find_or_fetch DEPENDENCY)
         else()
             message(WARNING "${_DEP}_REF='${_override}' not found in ${REPO_URL}; ignoring")
         endif()
-    endif()
-    if("${_ref}" STREQUAL "" AND DEFINED ${_DEP}_GIT_TAG)
-        set(_ref "${${_DEP}_GIT_TAG}")
     endif()
     if("${_ref}" STREQUAL "" AND DEFINED ${_DEP}_RELEASE AND NOT "${${_DEP}_RELEASE}" STREQUAL "")
         set(_ref "${${_DEP}_RELEASE}")
