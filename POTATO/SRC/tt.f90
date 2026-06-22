@@ -20,8 +20,10 @@
                                           npoicut, m_min, m_max, n_tor, &
                                           toten_plot, perpinv_plot, profile_file, &
                                           edge_extension, &
-                                          orbit_Rstart, orbit_Zstart, orbit_lambda
-  use field_eq_mod,                 only : allow_sol
+                                          orbit_Rstart, orbit_Zstart, orbit_lambda, &
+                                          freq_Rmin, freq_Rmax, freq_n
+  use field_eq_mod,                 only : allow_sol, psi_axis, psi_sep
+  use field_sub,                    only : psif
 !
   implicit none
 !
@@ -33,14 +35,18 @@
   double precision,parameter  :: ev=1.6022d-12
 !
   logical :: classes_talk,plot_orbits,compute_equibrium_profiles,compute_resonant_torque,plot_poicut
-  logical :: trace_single_orbit
+  logical :: trace_single_orbit,freq_scan
 !
   integer          :: ifdir_type,ierr,m,iunit,i,log_u
   double precision :: v0,bmod_ref
   double precision, dimension(:,:), allocatable :: resint
   double precision, dimension(neqm) :: z_single
   double precision :: taub_single,delphi_single,extraset_single(1)
-  external :: find_bounce, velo
+  external :: find_bounce, velo, magfie
+! frequency radial scan (itest_type=5):
+  integer          :: ifreq
+  double precision :: Rstep,omega_b,omega_phi,s_norm,rhopol
+  double precision :: bmod_d,sqrtg_d,bder_d(3),hcovar_d(3),hctrvr_d(3),hcurl_d(3),x_d(3)
 
 !
 !
@@ -57,6 +63,7 @@
   iunit=71
 !
   trace_single_orbit=.false.
+  freq_scan=.false.
   select case(itest_type)
   case(1)
     call tee_message('Plot orbits')
@@ -79,6 +86,12 @@
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.false.
     trace_single_orbit=.true.
+  case(5)
+    call tee_message('Frequency radial scan')
+    plot_orbits=.false.
+    compute_equibrium_profiles=.false.
+    compute_resonant_torque=.false.
+    freq_scan=.true.
   case default
     call tee_message('unknown test')
     call close_logging()
@@ -188,6 +201,47 @@
     write_orb=.false.
     write(*,'(A,ES14.6,A,ES14.6,A,I0)') ' single orbit: taub=',taub_single, &
           '  delphi=',delphi_single,'  ierr=',ierr
+  endif
+!
+!.......................................
+!
+! Frequency radial scan: at each midplane start radius trace one bounce and
+! record bounce frequency omega_b = 2 pi v0 / taub and toroidal precession
+! frequency omega_phi = delphi v0 / taub against the flux label rho_pol.
+!
+  if(freq_scan) then
+    call tee_message('Frequency radial scan')
+    write_orb=.false.
+    open(iunit,file='freq_scan.dat',status='replace',action='write')
+    write(iunit,'(A)') '# R_start[cm] rho_pol omega_b[1/s] omega_phi[1/s] '// &
+                       'taub delphi ierr'
+    Rstep=(freq_Rmax-freq_Rmin)/dble(max(freq_n-1,1))
+    do ifreq=1,freq_n
+      z_single(1)=freq_Rmin+Rstep*dble(ifreq-1)
+      z_single(2)=0.d0
+      z_single(3)=orbit_Zstart
+      z_single(4)=1.d0
+      z_single(5)=orbit_lambda
+! flux label of the start point: evaluate the field there, then normalize psi.
+      x_d=z_single(1:3)
+      call magfie(x_d,bmod_d,sqrtg_d,bder_d,hcovar_d,hctrvr_d,hcurl_d)
+      s_norm=(psif-psi_axis)/(psi_sep-psi_axis)
+      rhopol=sqrt(max(s_norm,0.d0))
+      extraset_single=0.d0
+      call find_bounce(0,velo,dtau,z_single,taub_single,delphi_single, &
+                       extraset_single,ierr)
+      if(ierr.eq.0 .and. taub_single.gt.0.d0) then
+        omega_b=2.d0*pi*v0/taub_single
+        omega_phi=delphi_single*v0/taub_single
+        write(iunit,'(6ES16.7,I3)') z_single(1),rhopol,omega_b,omega_phi, &
+                                    taub_single,delphi_single,ierr
+      else
+        write(iunit,'(6ES16.7,I3)') z_single(1),rhopol,0.d0,0.d0, &
+                                    taub_single,delphi_single,ierr
+      endif
+    enddo
+    close(iunit)
+    call tee_message('Frequency radial scan done -> freq_scan.dat')
   endif
 !
 
