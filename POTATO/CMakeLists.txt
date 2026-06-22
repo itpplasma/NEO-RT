@@ -5,7 +5,7 @@ enable_language(Fortran)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
-add_compile_options(-cpp -g -fbacktrace -Wfatal-errors -std=f2008)
+add_compile_options(-cpp -g -fbacktrace)
 add_compile_options(-O3 -march=native -mtune=native)
 
 include(Util)

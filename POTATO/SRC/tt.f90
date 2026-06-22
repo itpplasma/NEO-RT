@@ -2,7 +2,7 @@
   program classify_orbits
 !
   use parmot_mod,                   only : rmu,ro0
-  use orbit_dim_mod,                only : write_orb,iunit1,numbasef
+  use orbit_dim_mod,                only : write_orb,iunit1,numbasef,neqm
   use get_matrix_mod,               only : iclass
   use global_invariants,            only : dtau,toten,perpinv,cE_ref,Phi_eff
   use bounds_fixpoints_mod,         only : nregions
@@ -18,7 +18,10 @@
                                           rho_pol, rho_pol_max, scalfac_energy, &
                                           scalfac_efield, Rmax_orbit, ntimstep, &
                                           npoicut, m_min, m_max, n_tor, &
-                                          toten_plot, perpinv_plot, profile_file
+                                          toten_plot, perpinv_plot, profile_file, &
+                                          edge_extension, &
+                                          orbit_Rstart, orbit_Zstart, orbit_lambda
+  use field_eq_mod,                 only : allow_sol
 !
   implicit none
 !
@@ -30,10 +33,14 @@
   double precision,parameter  :: ev=1.6022d-12
 !
   logical :: classes_talk,plot_orbits,compute_equibrium_profiles,compute_resonant_torque,plot_poicut
+  logical :: trace_single_orbit
 !
   integer          :: ifdir_type,ierr,m,iunit,i,log_u
   double precision :: v0,bmod_ref
   double precision, dimension(:,:), allocatable :: resint
+  double precision, dimension(neqm) :: z_single
+  double precision :: taub_single,delphi_single,extraset_single(1)
+  external :: find_bounce, velo
 
 !
 !
@@ -44,8 +51,12 @@
   call print_potato_input(6)
   if (is_logging_enabled()) call print_potato_input(log_u)
 !
+! Allow orbits to cross the separatrix into the scrape-off layer when requested:
+  allow_sol = edge_extension
+!
   iunit=71
 !
+  trace_single_orbit=.false.
   select case(itest_type)
   case(1)
     call tee_message('Plot orbits')
@@ -62,6 +73,12 @@
     plot_orbits=.false.
     compute_equibrium_profiles=.false.
     compute_resonant_torque=.true.
+  case(4)
+    call tee_message('Trace single orbit')
+    plot_orbits=.false.
+    compute_equibrium_profiles=.false.
+    compute_resonant_torque=.false.
+    trace_single_orbit=.true.
   case default
     call tee_message('unknown test')
     call close_logging()
@@ -150,7 +167,29 @@
 !
 !  call test_eqmagprofs  !WARNING: contains "stop" inside, comment this test out to continue
 !
-
+!.......................................
+!
+! Trace a single guiding-center orbit over one bounce period and write it.
+! With edge_extension=.true. the orbit may cross the separatrix into the SOL.
+!
+  if(trace_single_orbit) then
+    call tee_message('Tracing single orbit over one bounce')
+    z_single(1)=orbit_Rstart   ! R [cm]
+    z_single(2)=0.d0           ! phi
+    z_single(3)=orbit_Zstart   ! Z [cm]
+    z_single(4)=1.d0           ! p, monoenergetic at E_alpha
+    z_single(5)=orbit_lambda   ! pitch cosine v_par/v
+    write_orb=.true.
+    iunit1=100
+    extraset_single=0.d0
+    call find_bounce(0,velo,dtau,z_single,taub_single,delphi_single, &
+                     extraset_single,ierr)
+    close(iunit1)
+    write_orb=.false.
+    write(*,'(A,ES14.6,A,ES14.6,A,I0)') ' single orbit: taub=',taub_single, &
+          '  delphi=',delphi_single,'  ierr=',ierr
+  endif
+!
 
 
 

@@ -48,11 +48,23 @@ module potato_input_mod
     double precision :: toten_plot = 1d0
     double precision :: perpinv_plot = 4.5d-5
 
+    ! Single-orbit trace (itest_type=4): start point on the poloidal plane and
+    ! pitch cosine of one guiding-center orbit, traced over one bounce period.
+    double precision :: orbit_Rstart = 210d0   ! start major radius [cm]
+    double precision :: orbit_Zstart = 0d0     ! start height [cm]
+    double precision :: orbit_lambda = 0.4d0   ! pitch cosine v_par/v at start
+
     ! Canonical frequency plot
     double precision :: enkin_over_temp = 1d0
 
     ! Profile input file
     character(len=256) :: profile_file = 'profile_poly.in'
+
+    ! Edge extension: when .true. the orbit integrator accepts guiding-center
+    ! points outside the separatrix (scrape-off layer), so bananas whose tips
+    ! cross the last closed flux surface can be traced in the extended
+    ! equilibrium field. Sets field_eq_mod::allow_sol. Default .false.
+    logical :: edge_extension = .false.
 
     namelist /potato_nml/ &
         itest_type, E_alpha, A_alpha, Z_alpha, &
@@ -63,7 +75,8 @@ module potato_input_mod
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, &
         toten_plot, perpinv_plot, enkin_over_temp, &
-        profile_file
+        profile_file, edge_extension, &
+        orbit_Rstart, orbit_Zstart, orbit_lambda
 
 contains
 
@@ -126,6 +139,10 @@ contains
         write(iunit, '(A,ES12.5)') '  perpinv_plot     = ', perpinv_plot
         write(iunit, '(A,ES12.5)') '  enkin_over_temp  = ', enkin_over_temp
         write(iunit, '(A,A)') '  profile_file     = ', trim(profile_file)
+        write(iunit, '(A,L1)') '  edge_extension   = ', edge_extension
+        write(iunit, '(A,ES12.5)') '  orbit_Rstart     = ', orbit_Rstart
+        write(iunit, '(A,ES12.5)') '  orbit_Zstart     = ', orbit_Zstart
+        write(iunit, '(A,ES12.5)') '  orbit_lambda     = ', orbit_lambda
         write(iunit, '(A)') '================================'
     end subroutine print_potato_input
 
