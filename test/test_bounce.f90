@@ -9,9 +9,10 @@ program test_bounce_program
 
     call setup
     call test_bounce
+    call test_bounce_time
     call test_bounce_fast
 
-    contains
+contains
 
     subroutine setup
         use neort, only: init
@@ -83,6 +84,23 @@ program test_bounce_program
 
         print *, 'test_bounce OK'
     end subroutine test_bounce
+
+
+    subroutine test_bounce_time
+        use neort_orbit, only: bounce, bounce_time, nvar
+
+        real(dp) :: taub, taub_ref, bounceavg(nvar)
+
+        call bounce(v, eta, taub_ref, bounceavg)
+        taub = bounce_time(v, eta)
+
+        if (abs(taub - taub_ref) / taub_ref > 1.0e-8_dp) then
+            print *, 'test_bounce_time failed', taub, taub_ref
+            error stop
+        end if
+
+        print *, 'test_bounce_time OK'
+    end subroutine test_bounce_time
 
 
     subroutine test_bounce_fast

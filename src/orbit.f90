@@ -16,7 +16,7 @@ module neort_orbit
     integer, parameter :: nvar = 7
     real(dp) :: th0 = 0.0_dp
 
-    logical :: noshear = .false.      ! neglect magnetic shear
+    logical :: noshear = .false. ! neglect magnetic shear
 
     !$omp threadprivate (th0)
 
@@ -52,9 +52,9 @@ contains
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,I0)') '  tcur=', tcur, 'tout=', tout, 'istate=', ist
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  vth=', vth, 'Om_tE=', Om_tE
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') &
-             '  s=', s, 'R0=', R0, 'q=', q, 'iota=', iota
+            '  s=', s, 'R0=', R0, 'q=', q, 'iota=', iota
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') &
-             '  etatp=', etatp, 'etadt=', etadt, 'etamin=', etamin, 'etamax=', etamax
+            '  etatp=', etatp, 'etadt=', etadt, 'etamin=', etamin, 'etamax=', etamax
         write(0,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,ES12.5)') '  mth=', mth, 'mph=', mph, 'sign_vpar=', dble(sign_vpar)
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  eps=', eps, 'psi_pr=', psi_pr
         call error('DVODE MXSTEP')
@@ -77,7 +77,7 @@ contains
         ! calculate all bounce averages
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: taub, bounceavg(nvar)
-        real(dp), optional :: taub_estimate  ! estimated bounce time (user input)
+        real(dp), optional :: taub_estimate ! estimated bounce time (user input)
         real(dp) :: findroot_res(nvar + 1)
         real(dp) :: bmod, htheta
         real(dp) :: y0(nvar)
@@ -87,12 +87,12 @@ contains
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
         y0 = 1.0e-15_dp
-        y0(1) = th0  ! poloidal angle theta
-        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)  ! parallel velocity vpar
-        y0(3) = 0.0_dp  ! toroidal velocity v_ph for drift frequency Om_ph
-        y0(4) = 0.0_dp  ! perturbed Hamiltonian real part
-        y0(5) = 0.0_dp  ! perturbed Hamiltonian imaginary part
-        y0(6) = 0.0_dp  ! 1/abs(B)
+        y0(1) = th0 ! poloidal angle theta
+        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod) ! parallel velocity vpar
+        y0(3) = 0.0_dp ! toroidal velocity v_ph for drift frequency Om_ph
+        y0(4) = 0.0_dp ! perturbed Hamiltonian real part
+        y0(5) = 0.0_dp ! perturbed Hamiltonian imaginary part
+        y0(6) = 0.0_dp ! 1/abs(B)
         ! y0(7) = 0.0_dp       ! abs(B)
 
         ! If bounce time estimate exists (elliptic integrals),
@@ -212,8 +212,8 @@ contains
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1.0_dp, htheta) * sign_vpar
 
-        y0(1) = th0  ! poloidal angle theta
-        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)  ! parallel velocity vpar
+        y0(1) = th0 ! poloidal angle theta
+        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod) ! parallel velocity vpar
 
         if (present(taub_estimate)) then
             taub = taub_estimate
@@ -221,7 +221,7 @@ contains
             taub = 2.0 * pi / abs(vperp(v, eta, bmod) * iota / R0 * sqrt(eps / 2.0_dp))
         end if
 
-        roots = bounce_integral(v, eta, neq, y0, taub, timestep_poloidal_motion)
+        roots = bounce_integral(v, eta, neq, y0, taub / 5.0_dp, timestep_poloidal_motion)
         taub = roots(1)
         call trace('bounce_time complete')
     end function bounce_time
@@ -247,8 +247,8 @@ contains
         real(dp), intent(in) :: v_par
         real(dp), intent(out) :: ydot(2)
 
-        ydot(1) = v_par * hthctr  ! theta
-        ydot(2) = -v**2 * eta / 2.0_dp * hthctr * hderth * bmod  ! v_par
+        ydot(1) = v_par * hthctr ! theta
+        ydot(2) = -v**2 * eta / 2.0_dp * hthctr * hderth * bmod ! v_par
     end subroutine poloidal_velocity
 
     function bounce_integral(v, eta, neq, y0, dt, ts)
@@ -305,7 +305,7 @@ contains
                 options = set_opts(method_flag=10, abserr_vector=atol, relerr=rtol, nevents=2, mxstep=50000)
             end if
             call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
-                        g_fcn=bounceroots)
+                g_fcn=bounceroots)
             if (istate == -1) then
                 call dvode_error_context('bounce_integral', v, eta, ti, tout, istate)
             end if
@@ -353,8 +353,8 @@ contains
         real(dp), intent(out) :: GOUT(ng)
         associate (dummy => T)
         end associate
-        GOUT(1) = sign_vpar_htheta * (Y(1) - th0)  ! trapped orbit return to starting point
-        GOUT(2) = sign_vpar_htheta * (2.0_dp * pi - (Y(1) - th0))  ! passing orbit return
+        GOUT(1) = sign_vpar_htheta * (Y(1) - th0) ! trapped orbit return to starting point
+        GOUT(2) = sign_vpar_htheta * (2.0_dp * pi - (Y(1) - th0)) ! passing orbit return
         return
     end subroutine bounceroots
 
@@ -385,15 +385,15 @@ contains
             shearterm = 0
         end if
 
-        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( &  ! Om_tB/v**2
-                  -(2.0_dp - eta * bmod) * bmod * hder(1) &
-                  + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
-                  (dBthcovds + q * dBphcovds + shearterm))
+        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
+            -(2.0_dp - eta * bmod) * bmod * hder(1) &
+            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
+            (dBthcovds + q * dBphcovds + shearterm))
 
-        ydot(1) = y(2) * hctrvr(3)  ! theta
-        ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod  ! v_par
-        ydot(3) = Om_tB_v  ! for bounce average of Om_tB/v**2
-        ydot(4:) = 0.0_dp  ! remaining integrands not computed here
+        ydot(1) = y(2) * hctrvr(3) ! theta
+        ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod ! v_par
+        ydot(3) = Om_tB_v ! for bounce average of Om_tB/v**2
+        ydot(4:) = 0.0_dp ! remaining integrands not computed here
     end subroutine timestep
 
 end module neort_orbit
