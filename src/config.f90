@@ -77,7 +77,7 @@ contains
 
         character(len=*), intent(in) :: config_file
         real(dp) :: qs, ms
-        integer :: log_level
+        integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
             nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, log_level

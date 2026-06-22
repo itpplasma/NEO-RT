@@ -19,7 +19,7 @@ example_value = $($(call example_var,$1,$2))
 examples-list:
 	@printf "Available examples: %s\n" "$(EXAMPLE_TARGETS)"
 
-examples-%: build | $(NEO_RT_BIN)
+examples-%: build
 	$(call run_example,$*)
 
 # Internal helper: run a single example by name.

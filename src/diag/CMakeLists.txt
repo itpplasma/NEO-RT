@@ -13,6 +13,7 @@ target_link_libraries(neort_diaglib PUBLIC
 
 target_include_directories(neort_diaglib PUBLIC
   ${PROJECT_BINARY_DIR}
+  ${PROJECT_BINARY_DIR}/modules
 )
 
 set_target_properties(neort_diaglib PROPERTIES

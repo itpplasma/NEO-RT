@@ -41,6 +41,16 @@ This creates `build/neo_rt.x` and `build/neo_rt_diag.x` together with intermedia
 
 CMake also exposes an option `USE_STANDALONE` (enabled by default) that uses the standalone magnetic-field reader. Set `-DUSE_STANDALONE=OFF` when configuring to link against an external NEO-2 checkout if required.
 
+To build against a specific libneo branch, tag, or commit, pass `-DLIBNEO_REF=<ref>` at configure time or `LIBNEO_REF=<ref>` on the make command line:
+
+```bash
+make LIBNEO_REF=my-branch
+# or directly
+cmake -S . -B build -DLIBNEO_REF=my-branch
+```
+
+Unset (the default) falls back to the automatic ref resolution in `cmake/Util.cmake`.
+
 ## Running simulations
 
 The solver operates on a single flux surface at a time. After building, execute the main program as
@@ -106,6 +116,20 @@ For time-evolving profiles, call `neort_prepare_splines` with updated arrays bef
 For single-point runs such as ripple tests, populate a `config_t` instance, call `neort_init(cfg, "in_file")`, and use `neort_compute_no_splines` instead of preparing splines.
 
 When spline mode is active the `M_t`, `vth`, `qi`, and `mi` values come from the supplied plasma/profile data and overwrite any prior config settings, so reset them if you later switch back to the config-only workflow.
+
+## Examples
+
+The `examples/` directory contains ready-to-run input decks. To run the base example:
+
+```bash
+make examples-base
+```
+
+To list all available examples:
+
+```bash
+make examples-list
+```
 
 ## Testing
 
