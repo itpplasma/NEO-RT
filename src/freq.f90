@@ -85,7 +85,11 @@ contains
         OmtB1 = 0.0_dp
 
         v = vth
-        etamin = (1.0_dp + epst) * etatp
+        ! Start the spline knots where the spline is actually evaluated
+        ! (eta > etatp*(1+epst_spl)); knots closer to the trapped-passing
+        ! boundary sit in the logarithmic taub singularity and make the global
+        ! cubic spline ring. The region below is covered by the log extrapolation.
+        etamin = (1.0_dp + epst_spl) * etatp
         etamax = etatp + (etadt - etatp) * (1.0_dp - epsst_spl)
      ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
         if (.not. freq_trapped_initialized) then
