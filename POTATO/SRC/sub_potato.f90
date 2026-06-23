@@ -2487,7 +2487,7 @@
 ! toroidal displacement per bounce time and bounce integrals
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
-                                npoi,xarr,amat_arr
+                                npoi,xarr,amat_arr,isentinel
   use orbit_dim_mod,     only : next,numbasef,fb_relerr,fb_abserr, &
                                 fb_max_abs_delphi,fb_max_tau, &
                                 clip_resonance_classes
@@ -2500,7 +2500,7 @@
   implicit none
 !
   double precision, parameter :: twopi=6.28318530717958648d0
-  integer :: iunit,ierr,i
+  integer :: iunit,ierr,i,k
   double precision :: psiastbeg,psiastend,widthclass,dphi_cap
   double precision :: fb_relerr_save,fb_abserr_save
   double precision :: fb_max_abs_delphi_save,fb_max_tau_save
@@ -2551,9 +2551,38 @@
   call clip_class_to_closing(xbeg,xend)
 !
   if(xend.gt.xbeg) then
+! Omega_b is amat row 2; get_matrix_doublecount stores 0 there when find_bounce
+! skips an X-point-grazing (non-closing) orbit.  Mark row 2 as the sentinel so
+! sample_matrix does not refine across those scattered 0<->finite steps, which
+! otherwise explode the grid to >1e5 nodes and exhaust itermax (the class is then
+! dropped, the main cause of sparse near-separatrix resonance coverage).
+    isentinel=2
     call sample_matrix(get_matrix_doublecount,ierr)
+    isentinel=0
   else
     ierr=1
+  endif
+!
+! Drop the non-closing grazer nodes (Omega_b=0): the resonance search must
+! interpolate closing orbits only.  Grazers carry no resonance for |m|<=m_max
+! (m ~ n Omega_phi/Omega_b -> infinity as Omega_b->0), and bridging the removed
+! nodes with the smooth closing Omega_b cannot create an in-range sign change.
+  if(ierr.eq.0) then
+    k=0
+    do i=1,npoi
+      if(amat_arr(2,1,i).ne.0.d0) then
+        k=k+1
+        if(k.ne.i) then
+          xarr(k)=xarr(i)
+          amat_arr(:,:,k)=amat_arr(:,:,i)
+        endif
+      endif
+    enddo
+    if(k.ge.nlagr+1) then
+      npoi=k
+    else
+      ierr=1   ! too few closing nodes to interpolate this class
+    endif
   endif
 !
   fb_relerr=fb_relerr_save

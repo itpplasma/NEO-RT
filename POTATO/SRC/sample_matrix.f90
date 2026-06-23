@@ -1,5 +1,8 @@
   module sample_matrix_mod
     integer :: nlagr,n1,n2,npoi,itermax,nstiff,i_int
+! >0 marks a matrix row whose value 0 flags an invalid (non-closing orbit) node.
+! sample_matrix then refuses to refine across such nodes (see sample_matrix.f90).
+    integer :: isentinel = 0
     double precision :: x,xbeg,xend,eps
     double precision, dimension(:),     allocatable :: xarr
     double precision, dimension(:,:),   allocatable :: amat
@@ -89,6 +92,14 @@
     ENDDO
   ENDDO
   DO inew=1,npoi-1
+! Do not refine across a sentinel node (row isentinel = 0): the 0<->finite step
+! is a find_bounce X-point-grazer skip, not a feature to resolve, and refining it
+! explodes the grid.  sample_class_doublecount compacts these nodes out before
+! the resonance search, so they never reach the interpolation/root finder.
+    if(isentinel.gt.0) then
+      if(amat_arr(isentinel,1,inew).eq.0.d0 .or. &
+         amat_arr(isentinel,1,inew+1).eq.0.d0) cycle
+    endif
     x=0.5d0*(xarr(inew)+xarr(inew+1))
     ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
     iend=ibeg+nlagr
@@ -169,6 +180,10 @@
       ENDDO
     ENDDO
     DO inew=1,npoi-1
+      if(isentinel.gt.0) then
+        if(amat_arr(isentinel,1,inew).eq.0.d0 .or. &
+           amat_arr(isentinel,1,inew+1).eq.0.d0) cycle
+      endif
       x=0.5d0*(xarr(inew)+xarr(inew+1))
       ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
       iend=ibeg+nlagr
