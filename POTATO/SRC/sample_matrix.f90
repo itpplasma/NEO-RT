@@ -16,12 +16,22 @@
 !
   INTEGER, PARAMETER :: nder=0
   DOUBLE PRECISION, PARAMETER :: symm_break=0.01d0
+! Floor each row's refinement scale at this fraction of its global maximum.  The
+! adaptive split test compares the local interpolation error to eps times the
+! row's scale.  Without the floor that scale is the local stencil maximum, so a
+! row spanning many orders of magnitude (the bounce-integral weights, rows 4+)
+! gets its negligible small-value tail refined to full relative accuracy -- the
+! cause of the grid explosion (96k of 134k nodes in one #30835 class).  Flooring
+! at refine_floor*global_max leaves moderate-range rows (psiast and the resonance
+! frequencies, rows 1-3, whose global~local) untouched, so resonance positions
+! are unchanged, while the wide-range weights stop refining where they are small.
+  DOUBLE PRECISION, PARAMETER :: refine_floor=1.d-2
   INTEGER :: i,j,iter,npoi_old,iold,inew,ibeg,iend,nshift,npoilag,ierr
   INTEGER,          DIMENSION(:),     ALLOCATABLE :: isplit
 !
   DOUBLE PRECISION :: h,hh
   DOUBLE PRECISION, DIMENSION(:),     ALLOCATABLE :: xold
-  DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod
+  DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod,amat_glob
   COMPLEX(8),   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
   COMPLEX(8),   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
 !
@@ -68,11 +78,16 @@
     amat_arr(:,:,i)=amat
   ENDDO
 !
-  ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2))
+  ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2),amat_glob(n1,n2))
 !
 ! first check which intervals should be splitted
   ALLOCATE(isplit(npoi))
   isplit=0
+  DO i=1,n1
+    DO j=1,n2
+      amat_glob(i,j)=MAXVAL(ABS(amat_arr(i,j,1:npoi)))
+    ENDDO
+  ENDDO
   DO inew=1,npoi-1
     x=0.5d0*(xarr(inew)+xarr(inew+1))
     ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
@@ -95,7 +110,7 @@
     ENDDO
     DO i=1,n1
       DO j=1,n2
-        IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*amat_maxmod(i,j)) isplit(inew)=1
+        IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*max(amat_maxmod(i,j),refine_floor*amat_glob(i,j))) isplit(inew)=1
       ENDDO
     ENDDO
   ENDDO
@@ -148,6 +163,11 @@
 ! check which intervals should be splitted
     ALLOCATE(isplit(npoi))
     isplit=0
+    DO i=1,n1
+      DO j=1,n2
+        amat_glob(i,j)=MAXVAL(ABS(amat_arr(i,j,1:npoi)))
+      ENDDO
+    ENDDO
     DO inew=1,npoi-1
       x=0.5d0*(xarr(inew)+xarr(inew+1))
       ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
@@ -170,7 +190,7 @@
       ENDDO
       DO i=1,n1
         DO j=1,n2
-          IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*amat_maxmod(i,j)) isplit(inew)=1
+          IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*max(amat_maxmod(i,j),refine_floor*amat_glob(i,j))) isplit(inew)=1
         ENDDO
       ENDDO
     ENDDO
