@@ -38,9 +38,12 @@
   h=(xend-xbeg)/npoilag/(1.d0+symm_break)
   hh=symm_break*h/npoilag
 !
-  if(allocated(amat)) then
-    DEALLOCATE(amat,xarr,amat_arr)
-  endif
+! amat is the shared sample_matrix_mod array; callers (e.g. the resonance class
+! preclip) may have allocated it alone, so deallocate each array on its own
+! status rather than gating all three on amat being allocated.
+  if(allocated(amat))     DEALLOCATE(amat)
+  if(allocated(xarr))     DEALLOCATE(xarr)
+  if(allocated(amat_arr)) DEALLOCATE(amat_arr)
 !
   ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi))
 !
