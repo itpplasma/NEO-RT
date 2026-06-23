@@ -32,6 +32,11 @@ if(NOT TARGET fortnum)
     )
     FetchContent_MakeAvailable(fortnum)
 endif()
+# fortnum relies on a GNU implicit-typing extension rejected by f2018; build it
+# permissively rather than under the project-wide standard.
+if(TARGET fortnum)
+    target_compile_options(fortnum PRIVATE -std=gnu)
+endif()
 
 add_subdirectory(SRC)
 
