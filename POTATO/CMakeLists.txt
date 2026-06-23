@@ -5,7 +5,7 @@ enable_language(Fortran)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
-add_compile_options(-cpp -g -fbacktrace -Wfatal-errors -std=f2018)
+add_compile_options(-g -fbacktrace)
 add_compile_options(-O3 -march=native -mtune=native)
 
 include(Util)
@@ -32,11 +32,21 @@ if(NOT TARGET fortnum)
     )
     FetchContent_MakeAvailable(fortnum)
 endif()
-# fortnum relies on a GNU implicit-typing extension rejected by f2018; build it
-# permissively rather than under the project-wide standard.
+# fortnum relies on a GNU implicit-typing extension; pin it to the GNU standard.
 if(TARGET fortnum)
     target_compile_options(fortnum PRIVATE -std=gnu)
 endif()
+
+# libneo supplies the field, magfie and spline code POTATO used to carry as its
+# own copies. Link the upstream library so fixes (e.g. the stretch_coords
+# convex-wall load) propagate instead of drifting in a fork.
+find_or_fetch(libneo)
+
+# Hold POTATO's own sources to f2018, stop at the first diagnostic, and run the C
+# preprocessor. Applied after the dependency fetches above so the upstream
+# libraries (libneo, fortplot, fortnum) build under their own standards instead
+# of inheriting these; -cpp in particular makes CMake mis-parse libneo's .f90.
+add_compile_options(-cpp -Wfatal-errors -std=f2018)
 
 add_subdirectory(SRC)
 
