@@ -18,6 +18,13 @@
   IMPLICIT NONE
 !
   INTEGER, PARAMETER :: nder=0
+! Node cap.  A few near-separatrix classes have Omega_b, Omega_phi of order
+! 1e-4..1e-6, where the bounce-integration noise exceeds the eps grid tolerance,
+! so the split test never converges and the grid runs to >1e5 nodes -- each node a
+! find_bounce, which is the cost.  Those classes carry no in-range resonance
+! (|m| = |n Omega_phi/Omega_b| << 1), so stop sampling at npmax and let the root
+! search (cheap interpolation) run on the last grid instead of grinding.
+  INTEGER, PARAMETER :: npmax=5000
   DOUBLE PRECISION, PARAMETER :: symm_break=0.01d0
 ! Floor each row's refinement scale at this fraction of its global maximum.  The
 ! adaptive split test compares the local interpolation error to eps times the
@@ -147,6 +154,13 @@
     DO iold=1,npoi_old-1
       IF(isplit(iold).EQ.1) npoi=npoi+1
     ENDDO
+    IF(npoi.GT.npmax) THEN
+! Cap reached: keep the last grid (xarr still holds npoi_old nodes) and accept it
+! so the root search runs; compaction in sample_class_doublecount drops sentinels.
+      npoi=npoi_old
+      ierr=0
+      RETURN
+    ENDIF
     IF(ALLOCATED(xarr)) THEN
       DEALLOCATE(xarr,amat_arr)
     ENDIF
