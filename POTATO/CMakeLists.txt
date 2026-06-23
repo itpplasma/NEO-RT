@@ -32,6 +32,10 @@ if(NOT TARGET fortnum)
     )
     FetchContent_MakeAvailable(fortnum)
 endif()
+# fortnum relies on a GNU implicit-typing extension; pin it to the GNU standard.
+if(TARGET fortnum)
+    target_compile_options(fortnum PRIVATE -std=gnu)
+endif()
 
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
