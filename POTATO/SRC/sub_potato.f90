@@ -2418,12 +2418,10 @@
 ! node; otherwise leave the original drop-on-fail behaviour.  No per-node print --
 ! it floods the sampler.
   if(ierr.ne.0) then
-    if(clip_resonance_classes) then
-      amat(1,1)=0.d0
-      amat(2,1)=1.d30
-      amat(3,1)=1.d30
-      if(next.gt.0) amat(4:3+next,1)=0.d0
-    endif
+    amat(1,1)=0.d0
+    amat(2,1)=0.d0          ! Omega_b=0 : orbit does not close (tau_b -> infinity)
+    amat(3,1)=0.d0
+    if(next.gt.0) amat(4:3+next,1)=0.d0
     return
   endif
 !
@@ -2435,12 +2433,10 @@
 !
       call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
       if(ierr.ne.0) then
-        if(clip_resonance_classes) then
-          amat(1,1)=psiast
-          amat(2,1)=1.d30
-          amat(3,1)=1.d30
-          if(next.gt.0) amat(4:3+next,1)=0.d0
-        endif
+        amat(1,1)=psiast
+        amat(2,1)=0.d0
+        amat(3,1)=0.d0
+        if(next.gt.0) amat(4:3+next,1)=0.d0
         return
       endif
 !
@@ -2457,12 +2453,10 @@
 !
     call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
     if(ierr.ne.0) then
-      if(clip_resonance_classes) then
-        amat(1,1)=psiast
-        amat(2,1)=1.d30
-        amat(3,1)=1.d30
-        if(next.gt.0) amat(4:3+next,1)=0.d0
-      endif
+      amat(1,1)=psiast
+      amat(2,1)=0.d0
+      amat(3,1)=0.d0
+      if(next.gt.0) amat(4:3+next,1)=0.d0
       return
     endif
 !
@@ -2545,31 +2539,21 @@
   fb_max_tau_save=fb_max_tau
   fb_relerr=1.d-4
   fb_abserr=1.d-6
-  if(clip_resonance_classes) then
-    fb_max_abs_delphi=1.5d0*twopi*dble(max(abs(m_min),abs(m_max))) &
-                      /dble(abs(n_tor))
-    fb_max_tau=200.d0*dtau
-    dphi_cap=fb_max_abs_delphi
-    call preclip_class_to_dphi(xbeg,xend,dphi_cap)
-  endif
+  dphi_cap=0.d0   ! legacy, unused
 !
-  call sample_matrix(get_matrix_doublecount,ierr)
+! The class coordinate runs past the trapped-passing/X-point separatrix into a
+! region where the orbit no longer closes (find_bounce fails, Omega_b=0).  That
+! closing->non-closing step, and the tau_b divergence just before it, are what
+! made the adaptive grid refine without end.  Clip the endpoint to the closing
+! boundary so sample_matrix sees a smooth, all-closing interval.  Done with the
+! clip flag on or off; only the X-point classes (whose endpoint does not close)
+! pay for the boundary search.
+  call clip_class_to_closing(xbeg,xend)
 !
-! Classes touching the X-point / trapped-passing separatrix carry the outer
-! (high-rho) resonances, but there tau_b and Delta_phi_b diverge and the
-! interpolant cannot converge within itermax, so the whole class was dropped
-! (ierr=2) and its resonances lost.  No resonance with |m|<=m_max exists past
-! |Delta_phi_b| = 2 pi m_max / n_tor, so re-clip the search interval to the grid
-! span where |Delta_phi_b| stays within 1.5x that cap (a buffer that keeps the
-! m_max root while cutting the divergent tail) and re-sample the bounded
-! sub-interval.  If the clipped class still does not converge, its interpolant is
-! not reliable enough for per-mode root finding, so leave ierr set and skip the
-! class upstream.
-  if(ierr.ne.0 .and. clip_resonance_classes) then
-    call clip_bounds_to_dphi(xbeg,xend,dphi_cap)
-    if(xend.gt.xbeg) then
-      call sample_matrix(get_matrix_doublecount,ierr)
-    endif
+  if(xend.gt.xbeg) then
+    call sample_matrix(get_matrix_doublecount,ierr)
+  else
+    ierr=1
   endif
 !
   fb_relerr=fb_relerr_save
@@ -2585,6 +2569,46 @@
   endif
 !
  contains
+!
+ logical function class_closes(xx)
+! True if the orbit at class coordinate xx closes (Omega_b = amat(2,1) > 0).
+   use sample_matrix_mod, only : n1,n2,x,amat
+   implicit none
+   double precision, intent(in) :: xx
+   external :: get_matrix_doublecount
+   if(.not.allocated(amat)) allocate(amat(n1,n2))
+   x=xx
+   call get_matrix_doublecount
+   class_closes=amat(2,1).gt.0.d0
+ end function class_closes
+!
+ subroutine clip_class_to_closing(xb,xe)
+! Clip the separatrix-side endpoint to the closing boundary.  If the endpoint
+! orbit already closes the class is smooth -- nothing to do (cheap, the common
+! case).  Otherwise bisect [closing, non-closing] for the boundary x_sep and set
+! the endpoint just inside it, so the sampled interval is all-closing and smooth.
+   implicit none
+   double precision, intent(inout) :: xb,xe
+   double precision :: a,b,xm
+   integer :: it
+   if(xe.le.xb) return
+   if(class_closes(xe)) return            ! endpoint closes: smooth class, no clip
+   if(.not.class_closes(xb)) then         ! nothing closes: empty class
+     xe=xb
+     return
+   endif
+   a=xb                                   ! closes
+   b=xe                                   ! does not close
+   do it=1,20
+     xm=0.5d0*(a+b)
+     if(class_closes(xm)) then
+       a=xm
+     else
+       b=xm
+     endif
+   enddo
+   xe=a                                   ! last coordinate that still closes
+ end subroutine clip_class_to_closing
 !
  subroutine preclip_class_to_dphi(xb,xe,dphi_cap)
    use sample_matrix_mod, only : n1,n2,x,amat
