@@ -1,6 +1,7 @@
 program test_profile
     use phielec_of_psi_mod, only : npolyphi, polyphi, polydens, polytemp
-    use field_eq_mod, only : psif,dpsidr,dpsidz,psi_axis,psi_sep
+    use field_sub, only : psif,dpsidr,dpsidz
+    use field_eq_mod, only : psi_axis,psi_sep
     implicit none
 
     integer, parameter :: nsurf = 100

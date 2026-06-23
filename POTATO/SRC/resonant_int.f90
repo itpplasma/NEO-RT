@@ -85,6 +85,7 @@
 !
   complex(8), parameter :: imun=(0.d0,1.d0)
 !
+  integer :: ierr
   double precision :: absHn2,bmod,phi_elec,taub,delphi
   double precision, dimension(neqm) :: z
   double precision, dimension(:), allocatable :: extraset
@@ -99,7 +100,12 @@
   next=0
   allocate(extraset(next))
 !
-  call find_bounce(next,velo,dtau,z,taub,delphi,extraset)
+  call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
+  if(ierr.ne.0) then
+    absHn2 = 0.d0
+    deallocate(extraset)
+    return
+  endif
 !
   taub_new=taub
   delphi_new=delphi
@@ -109,7 +115,12 @@
   allocate(extraset(next))
   extraset=0.d0
 !
-  call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset)
+  call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset,ierr)
+  if(ierr.ne.0) then
+    absHn2 = 0.d0
+    deallocate(extraset)
+    return
+  endif
 !
   absHn2=(extraset(2)/taub)**2+(extraset(3)/taub)**2
 !
@@ -130,6 +141,7 @@
   use orbit_dim_mod,      only : neqm
   use global_invariants,  only : toten,perpinv,cE_ref,Phi_eff
   use sample_matrix_mod,  only : npoi,xarr
+  use logging_mod,        only : tee_message
 !
   implicit none
 !
@@ -170,7 +182,8 @@
     call find_all_roots(get_rescond,xbeg,xend,ierr)
 !
     if(ierr.ne.0) then
-      print *,'integrate_class_resonances: error in find_all_roots'
+      call tee_message( &
+        'integrate_class_resonances: error in find_all_roots')
       customgrid=.false.
       deallocate(xcustom)
       return
@@ -195,7 +208,8 @@
                                psiast,dpsiast_dRst,z,ierr)
 !
       if(ierr.ne.0) then
-        print *,'integrate_class_resonances: error in starter_doublecount'
+        call tee_message( &
+          'integrate_class_resonances: error in starter_doublecount')
         cycle
       endif
 !
@@ -286,10 +300,12 @@
                                            respoints_all,respoints_all_tmp
   use cc_mod,                       only : wrbounds,dowrite
   use orbit_dim_mod,                only : write_orb
+  use logging_mod,                  only : tee_message, close_logging
 !
   logical :: classes_talk
 !
   integer :: ierr,mode
+  character(len=256) :: msg
 !
   wrbounds=.false.
   dowrite=.false.
@@ -301,14 +317,20 @@
   call find_bounds_fixpoints(ierr)
 !
   if(ierr.ne.0) then
-    print *,'get_matrix_res: find_bounds_fixpoints ierr = ',ierr
+    write(msg, '(A,I0)') &
+      'get_matrix_res: find_bounds_fixpoints ierr = ', ierr
+    call tee_message(trim(msg))
+    call close_logging()
     stop
   endif
 !
   call form_classes_doublecount(classes_talk,ierr)
 !
   if(ierr.ne.0) then
-    print *,'get_matrix_res: form_classes ierr = ',ierr
+    write(msg, '(A,I0)') &
+      'get_matrix_res: form_classes ierr = ', ierr
+    call tee_message(trim(msg))
+    call close_logging()
     stop
   endif
 !
@@ -330,7 +352,9 @@
         endif
       enddo
     else
-      print *,'get_matrix_res: sample_class_doublecount error',ierr
+      write(msg, '(A,I0)') &
+        'get_matrix_res: sample_class_doublecount error ', ierr
+      call tee_message(trim(msg))
       do mode=1,nmodes
         respoints_jp(mode,iclass)%nrespoi=0
         respoints_jp(mode,iclass)%toten_res=toten
@@ -368,7 +392,8 @@
   subroutine resonant_torque
 !
 !
-  use field_eq_mod,      only : psif,nrad,nzet,rad,zet,psi_sep
+  use field_sub, only : psif
+  use field_eq_mod, only : nrad,nzet,rad,zet,psi_sep
   use poicut_mod,        only : rmagaxis,zmagaxis,psimagaxis,psi_bou,rhopol_bou
   use global_invariants, only : toten,perpinv
   use poicut_mod,        only : Rbou_lfs,Zbou_lfs
@@ -379,11 +404,15 @@
                                 respoints_all_tmp,respoint
   use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
                                     ind_hist,xarr,amat_arr
+  use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
+                                thermen_max_input => thermen_max, &
+                                adaptive_jperp, npoi_init, nlagr_sampling, &
+                                eps_sampling, itermax_sampling
+  use logging_mod,       only : tee_message
 
   implicit none
 !
   double precision, parameter :: pi=3.14159265358979d0
-  logical :: adaptive_jperp
   integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
   integer :: nrespoints
   double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
@@ -394,30 +423,23 @@
   double precision :: xjperp,xenerg,totxint,step_energ
   double precision :: time_beg,time_end
   double precision :: dens, temp, ddens, dtemp
+  character(len=256) :: msg
   double precision, dimension(:), allocatable :: torque_int_modes
-
-  ! Number of boxes in radius to localize torque contributions
-  integer, parameter :: nbox = 100
-  double precision :: sbox(nbox)
-  double precision :: taubox(nbox)
-!
-!Distribution of integral torque over boxes:
-  double precision, dimension(nbox) :: torquebox
+  double precision, dimension(:), allocatable :: sbox
+  double precision, dimension(:), allocatable :: taubox
+  double precision, dimension(:), allocatable :: torquebox
 !
   external :: get_matrix_res
 !
-  adaptive_jperp=.true.    !use adaptive integration over J_perp
-!  adaptive_jperp=.false.   !use non-adaptive integration over J_perp
+  allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
 !
 ! size of result matrix in get_matrix_res:
   n1=nmodes
   n2=1
-! Lagrange polynomial order for sampling adaptive grid:
-  nlagr=3
-! Error of sampling:
-  eps=1d-2
-! Maximum number of refinements:
-  itermax=5
+! Set adaptive sampling parameters from input:
+  nlagr=nlagr_sampling
+  eps=eps_sampling
+  itermax=itermax_sampling
 !
   numbasef=0 !no extra integrals sampled, pure orbit integration
   call linspace(1d0/nbox, 1d0, nbox, sbox)
@@ -426,7 +448,7 @@
 !
   call find_Phiminmax(phi_elec_min,phi_elec_max)
 !
-  thermen_max=6.d0   !maximum kinetic energy in units of temperature on the axis (used for upper energy integration limit)
+  thermen_max=thermen_max_input
 !
   call denstemp_of_psi(psimagaxis, dens, temp, ddens, dtemp)
 !
@@ -437,13 +459,23 @@
   toten_max=thermen_max+phi_elec_max
   toten_range=toten_max-toten_min
 !
-  print *,'maximum kinetic energy = ',thermen_max
-  print *,'miminum potential energy = ',phi_elec_min
-  print *,'maximum potential energy = ',phi_elec_max
-  print *,'miminum total energy = ',toten_min
-  print *,'maximum total energy = ',toten_max
+  write(msg, '(A,ES14.6)') &
+    'maximum kinetic energy = ', thermen_max
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'minimum potential energy = ', phi_elec_min
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'maximum potential energy = ', phi_elec_max
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'minimum total energy = ', toten_min
+  call tee_message(trim(msg))
+  write(msg, '(A,ES14.6)') &
+    'maximum total energy = ', toten_max
+  call tee_message(trim(msg))
 !
-  nenerg=60 !40 !grid size for energy integration (number of energy levels)
+  nenerg=nenerg_input
 !
   torque_int=0.d0
   allocate(torque_int_modes(nmodes))
@@ -467,7 +499,8 @@
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
 !toten =   -3.1211921097605737d0
-    print *,'toten = ',toten
+    write(msg, '(A,ES22.14)') 'toten = ', toten
+    call tee_message(trim(msg))
 !
     call cpu_time(time_beg)
 !
@@ -482,7 +515,7 @@
       nperp_max=0   !initial size of respoints_all(nperp_max) - will be increased by sample_matrix_out
       xbeg=0.d0                 !lower integration limit over normalized J_perp
       xend=perpinv_max*0.9999d0 !upper integration limit over normalized J_perp
-      npoi=51                   !initial equidistant grid size over J_perp
+      npoi=npoi_init            !initial equidistant grid size over J_perp
       icount=0                  !initialize the counter of resonant points
 !
 ! Generate J_perp grid with function values:
@@ -580,11 +613,15 @@
       write(1901,*) ' '
 !
       deallocate(respoint)
-      print *,'number of J_perp points = ',npoi
+      write(msg, '(A,I0)') &
+        'number of J_perp points = ', npoi
+      call tee_message(trim(msg))
 !
 ! Sum up contributions of energy levels:
       torque_int=torque_int+torque_int_loc
-      print *,'method 1, torque_int_loc = ',torque_int_loc
+      write(msg, '(A,ES22.14)') &
+        'method 1, torque_int_loc = ', torque_int_loc
+      call tee_message(trim(msg))
 !
 ! Alternative computation via sampling matrix. Here distribution over resonances is also computed:
       do i=1,npoi
@@ -602,7 +639,9 @@
         write(1902,*) xarr(i),torque_int_loc,torque_int_modes
       enddo
       write(1902,*) ' '
-      print *,'method 2, torque_int_loc = ',torque_int_loc
+      write(msg, '(A,ES22.14)') &
+        'method 2, torque_int_loc = ', torque_int_loc
+      call tee_message(trim(msg))
 !
     else
 !
@@ -628,12 +667,18 @@
         torque_int_modes=torque_int_modes+perpinv_max*trapez_fac*amat(:,1)*step_energ
 ! Subintegrand of dimensional integral over energy for a total torque as function of J_perp:
         write(1902,*) perpinv,torque_int,torque_int_modes
-        print *,'perpinv:',iperp,'/',nperp,' toten:',ienerg,'/',nenerg
+        write(msg, '(A,I0,A,I0,A,I0,A,I0)') &
+          'perpinv:', iperp, '/', nperp, &
+          ' toten:', ienerg, '/', nenerg
+        call tee_message(trim(msg))
       enddo
     endif
 !
     call cpu_time(time_end)
-    print *,' toten:',ienerg,'/',nenerg,' cpu time = ',time_end-time_beg,' sec'
+    write(msg, '(A,I0,A,I0,A,F10.2,A)') &
+      ' toten:', ienerg, '/', nenerg, &
+      ' cpu time = ', time_end-time_beg, ' sec'
+    call tee_message(trim(msg))
 !
   enddo
 !
@@ -641,7 +686,9 @@
   close(1902)
 !
 ! Integral torque:
-  print *,'resonant torque  = ',torque_int
+  write(msg, '(A,ES22.14)') &
+    'resonant torque  = ', torque_int
+  call tee_message(trim(msg))
   open(1,file='integral_torque.dat')
   write(1,*) torque_int
   close(1)

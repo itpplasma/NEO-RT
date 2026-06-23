@@ -1,0 +1,53 @@
+&potato_nml
+! Calculation type: 1=orbits, 2=equilibrium profiles, 3=resonant torque
+  itest_type = 3
+
+! Species parameters
+  E_alpha = 5d3        ! Reference energy [eV]
+  A_alpha = 2d0        ! Mass number (deuterium)
+  Z_alpha = 1d0        ! Charge number (deuterium)
+
+! Flux surface
+  rho_pol = 0.6d0      ! Poloidal radius for calculation
+  rho_pol_max = 0.9d0  ! Max rho_pol for Poincare cut
+
+! Scaling factors
+  scalfac_energy = 1d0
+  scalfac_efield = 1d0
+
+! Orbit integration
+  Rmax_orbit = 200d0   ! Max R for orbit integration
+  ntimstep = 30        ! Number of time steps
+
+! Poincare cut
+  npoicut = 10000      ! Number of equidistant points
+
+! Mode numbers for resonant torque
+  m_min = -5           ! Min poloidal mode number m_2
+  m_max = 5            ! Max poloidal mode number m_2
+  n_tor = 1            ! Toroidal mode number m_3
+
+! Energy grid
+  nenerg = 60          ! Energy grid points
+  thermen_max = 6d0    ! Max kinetic energy in units of T
+
+! Box counting
+  nbox = 100           ! Number of radial bins
+
+! Adaptive J_perp integration
+  adaptive_jperp = .true.
+  npoi_init = 51       ! Initial equidistant grid size
+  nlagr_sampling = 3   ! Lagrange polynomial order
+  eps_sampling = 1d-2  ! Sampling tolerance
+  itermax_sampling = 5 ! Max refinement iterations
+
+! Orbit plotting (itest_type=1)
+  toten_plot = 1d0        ! Total energy for orbit plot
+  perpinv_plot = 4.5d-5   ! Perpendicular invariant for orbit plot
+
+! Canonical frequency plot
+  enkin_over_temp = 1d0   ! Kinetic energy / local temperature
+
+! Profile input file
+  profile_file = 'profile_poly.in'
+/

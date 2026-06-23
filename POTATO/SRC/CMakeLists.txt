@@ -1,5 +1,7 @@
 add_library(potato_base
   libneo_kinds.f90
+  logging_mod.f90
+  potato_input_mod.f90
   math_constants.f90
   alpha_lifetime_mod.f90
   chamb_divB0.f90

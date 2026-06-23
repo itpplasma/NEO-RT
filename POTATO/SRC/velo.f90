@@ -2,7 +2,7 @@
 !
   subroutine elefie(x, phi_elec, derphi)
 !
-  use field_eq_mod,      only : psif,dpsidr,dpsidz
+  use field_sub, only : psif,dpsidr,dpsidz
 !
   implicit none
 !
@@ -90,12 +90,9 @@
 !
       call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
-! TODO: error handling magfie
       if(ierrfield.ne.0) then
-!        vz=0.d0
-!        return
-         print *,'velo: magfie error',ierrfield
-         stop
+        vz=0.d0
+        return
       endif
 ! in elefie: x(i)   - space coords (input, see above)
 !            derphi - derivatives of the dimensionless electric potential

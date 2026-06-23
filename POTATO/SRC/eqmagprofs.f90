@@ -11,7 +11,7 @@
 !
 ! Preloads the profiles for eqmagprofs (see below) using field line integration
 !
-  use field_eq_mod, only   : psif
+  use field_sub, only : psif
   use poicut_mod, only     : npc,rpc_arr,zpc_arr,rmagaxis,zmagaxis
   use eqmagprofs_mod, only : nsurf,sig_pol,sig_tor,profs_mag
 !
@@ -138,7 +138,7 @@
 !
   subroutine rhs(phi,y,dy)
 !
-  use field_eq_mod, only : dpsidr,dpsidz
+  use field_sub, only : dpsidr,dpsidz
 !
   implicit none
 !
