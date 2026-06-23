@@ -21,6 +21,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fortplot)
 
+# fortnum provides the variable-order Adams ODE integrator with event/root
+# detection used by find_bounce to locate the bounce return (replacing the
+# fixed-step Poincare-cut crossing search). Same pin as the NEO-RT migration.
+if(NOT TARGET fortnum)
+    FetchContent_Declare(
+        fortnum
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
+    )
+    FetchContent_MakeAvailable(fortnum)
+endif()
+
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
 # fixes (e.g. the stretch_coords convex-wall load) propagate instead of drifting.
@@ -28,8 +40,8 @@ find_or_fetch(libneo)
 
 # Hold POTATO's own sources to f2018, stop at the first diagnostic, and run the C
 # preprocessor. Applied after the dependency fetches above so the upstream
-# libraries (libneo, fortplot) build under their own standards instead of
-# inheriting these; -cpp in particular makes CMake mis-parse libneo's .f90.
+# libraries (libneo, fortplot, fortnum) build under their own standards instead
+# of inheriting these; -cpp in particular makes CMake mis-parse libneo's .f90.
 add_compile_options(-cpp -Wfatal-errors -std=f2018)
 
 add_subdirectory(SRC)

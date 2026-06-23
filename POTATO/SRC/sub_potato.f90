@@ -81,6 +81,18 @@
     logical             :: write_orb=.false.
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
+! Orbit-integrator tolerances used by find_bounce.  6 significant digits is far
+! tighter than the ~10% code-to-code benchmark and the eps~1d-3 class grid need,
+! while keeping orbit integration (the dominant cost) affordable.  The class
+! sampler relaxes these further for its grid build (see sample_class_doublecount).
+    double precision    :: fb_relerr=1d-6, fb_abserr=1d-8
+    double precision    :: fb_max_abs_delphi=huge(1d0)
+    double precision    :: fb_max_tau=huge(1d0)
+! Keep the outer X-point -> rho_pol-boundary classes (clip their search interval
+! to the |Delta_phi_b| resonance cap instead of dropping them) so resonances are
+! found out to the edge, matching NEO-RT.  Default off: keeping them integrates
+! many long-period orbits and needs the find_bounce low-energy speed-up first.
+    logical             :: clip_resonance_classes=.false.
   end module orbit_dim_mod
 !
 !------------------------------------------------------
@@ -111,194 +123,173 @@
 ! extraset(next) - extra integrals along the orbit (inout)
 ! ierr           - error flag, 0 = success, 1 = orbit left domain (output)
 !
-  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
+  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,fb_relerr, &
+                            fb_abserr,fb_max_abs_delphi,fb_max_tau
   use field_eq_mod, only : ierrfield
   use logging_mod, only : log_message
+  use fortnum_ode, only : ODE_EVENT_RISING
+  use fortnum_ode_vode, only : vode_state_t, vode_init, vode_integrate_to
+  use fortnum_status, only : fortnum_status_t, FORTNUM_OK
 !
   implicit none
 !
-! nousecut - way to close the orbit during primary search:
-! .true. - without using Poincare cut, can be used for general Phi distributions
-! .false. - with using the cut, valid for Phi=Phi(psi) only
-!  logical, parameter :: nousecut=.true.
-  logical, parameter :: nousecut=.false.
+! relative/absolute error of orbit integrator (module-settable; the sampler
+! relaxes them for speed, see orbit_dim_mod):
+  double precision :: relerr
+  double precision :: abserr
+! Step budget per orbit. A confined orbit closes in O(1e2..1e3) variable-order
+! Adams steps; even the longest kept orbits (|Delta_phi_b| up to ~1.5x the
+! resonance cap, tens of toroidal transits) close well under this. An orbit on
+! the trapped-passing separatrix has a diverging bounce time and never closes, so
+! cap the budget and skip it (ierr=1) instead of grinding to 50000 steps -- those
+! non-closing grazers are the bulk of the sampler cost and are discarded by the
+! class clip anyway.
+  integer, parameter :: max_orbit_steps=10000
+! Finite non-writing chunks let resonance sampling reject non-closing tails once
+! their toroidal displacement is beyond the largest requested resonance.
+  double precision, parameter :: nonwrite_chunk_factor=20.d0
 !
-! maximum number of Newton iterations for closing the orbit:
-  integer, parameter :: niter=20
-!
-! relative error of orbit integrator:
-  double precision, parameter :: relerr=1d-10 !8
-
   integer, intent(in) :: next
   double precision, intent(in) :: dtau_in
   double precision, dimension(neqm), intent(in) :: z_eqm
   double precision, dimension(next), intent(inout) :: extraset
   double precision, intent(out) :: taub, delphi
   integer, intent(out) :: ierr
-
-  logical :: firstpass
-  integer :: ndim, iter
-  double precision :: dtau
-  double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
-  double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
-  double precision :: dZ_dR,sign_delZ,Z_tmp
-  double precision, dimension(neqm+next) :: z,z_start,vz
-  character(len=256) :: msg
+!
+  integer :: ndim, nleg
+  double precision :: t_root, dt_leg, tau_max, vel_pol, RNorm, ZNorm
+  double precision, dimension(neqm+next) :: z_start, vz
+  double precision, dimension(neqm+next) :: atol
+  double precision, dimension(:), allocatable :: yout
+  type(vode_state_t) :: vstate
+  type(fortnum_status_t) :: status
+  logical :: root_found
 !
   external velo_ext
 !
   ndim = neqm+next
   ierr = 0
+  relerr = fb_relerr
+  abserr = fb_abserr
+  atol = abserr
 !
-  z(1:neqm)=z_eqm
-  if(next.gt.0) then
-    z(neqm+1:ndim)=extraset
+  z_start(1:neqm)=z_eqm
+  if(next.gt.0) z_start(neqm+1:ndim)=extraset
+  Rorb_max=z_start(1)
+!
+! Bounce detection by RETURN TO THE START POINT, not by a Poincare-cut crossing.
+! The cut crossing fails for deeply trapped orbits (a small banana never reaches
+! the cut) -- exactly what stalled the old fixed-step search at low v/vth. The
+! orbit closes when its displacement projected on the start velocity direction
+! returns through zero moving in the start direction (a rising zero). This is
+! the original start-point closing condition and is well defined for trapped,
+! deeply trapped and passing orbits alike. fortnum's variable-order Adams
+! integrator locates the root on its own interpolant, so taub is exact and no
+! separate Newton closing is needed.
+  call velo_ext(0.d0, z_start, vz)
+  vel_pol = sqrt(vz(1)**2 + vz(3)**2)
+  RNorm = vz(1)/vel_pol
+  ZNorm = vz(3)/vel_pol
+!
+  call vode_init(vstate, ndim, 0.d0, z_start)
+  vstate%max_steps = max_orbit_steps
+  dt_leg = merge(dtau_in, nonwrite_chunk_factor*dtau_in, write_orb)
+  tau_max = min(2000.d0*dtau_in,fb_max_tau)
+!
+  if(write_orb) write (iunit1,*) z_start(1:neqm), 0.d0
+!
+! Step off the start plane once without event detection (the start sits exactly
+! on it: a rising zero at t=0 that must not be mistaken for the return).
+  call vode_integrate_to(rhs_w, vstate, dtau_in, relerr, atol, yout, status)
+  if(status%code /= FORTNUM_OK .or. ierrfield /= 0) then
+    call report_left(z_start, yout)
+    return
   endif
-  Rorb_max=z(1)
+  Rorb_max=max(Rorb_max, yout(1))
+  if(write_orb) call write_orbit_point(yout)
 !
-!  dtau=dtau_in/max(z(4),1d-3)
-  dtau=dtau_in
-!
-! Primary search:
-!
-  z_start=z
-!
-  call velo_ext(dtau,z,vz)
-!
-! unit 2D vector in the direction of the guiding center velocity in RZ-plane:
-!
-  vel_pol=sqrt(vz(1)**2+vz(3)**2)
-  RNorm=vz(1)/vel_pol
-  ZNorm=vz(3)/vel_pol
-!
-  tau0=0.d0
-!
-  if(write_orb) write (iunit1,*) z(1:neqm),vz(5)
-!
-! first step:
-!
-  call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
-  if(ierrfield.ne.0) then
-    write(msg,'(A,2ES14.6,A,2ES14.6)') &
-      'find_bounce: orbit left domain at R,Z=', &
-      z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-    write(*,'(A)') trim(msg)
-    call log_message(trim(msg))
-    ierr = 1
+! Integrate to the return. write_orb dumps the orbit, advancing in dtau_in-sized
+! legs and writing each; otherwise one far leg suffices since the event stops it
+! at the bounce.
+  root_found=.false.
+  do nleg=1,2*max_orbit_steps
+    call vode_integrate_to(rhs_w, vstate, vstate%tn+dt_leg, relerr, atol, &
+                           yout, status, event=return_event, &
+                           event_dir=ODE_EVENT_RISING, t_root=t_root, &
+                           root_found=root_found)
+    if(status%code /= FORTNUM_OK .or. ierrfield /= 0) then
+      call report_left(z_start, yout)
+      return
+    endif
+    Rorb_max=max(Rorb_max, yout(1))
+    if(write_orb) call write_orbit_point(yout)
+    if(root_found) exit
+    if(abs(yout(2)-z_start(2)).gt.fb_max_abs_delphi) then
+      call report_left(z_start, yout)
+      return
+    endif
+    if(.not.write_orb) then
+      if(vstate%tn.ge.tau_max) then
+        call report_left(z_start, yout)
+        return
+      endif
+    endif
+  enddo
+  if(.not.root_found) then
+    call report_left(z_start, yout)
     return
   endif
 !
-  taub=dtau
-  if(nousecut) then
-! initialize sqrt(2) of the poloidal length of the step
-    dL2_pol=2.d0*(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
-  else
-! initialize Poincare cut crossing check
+  taub = t_root
+  if(next.gt.0) extraset=yout(neqm+1:ndim)
+  delphi = yout(2)-z_start(2)
 !
-    call get_poicut(z(1),Z_tmp,dZ_dR)
+  if(write_orb) write (iunit1,*) 'NaN NaN NaN NaN NaN NaN'
 !
-    sign_delZ=sign(1.d0,z(3)-Z_tmp)
-    firstpass=.true.
-    dL2_pol=2.d0*(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
-  endif
+  contains
 !
-  if(write_orb) then
+  subroutine rhs_w(t_, y_, dydt_, ctx_)
+    double precision, intent(in) :: t_
+    double precision, intent(in) :: y_(:)
+    double precision, intent(out) :: dydt_(:)
+    class(*), intent(in), optional :: ctx_
+    if(present(ctx_)) continue
+    call velo_ext(t_, y_, dydt_)
+  end subroutine rhs_w
 !
-    call velo_ext(dtau,z,vz)
+  function return_event(t_, y_, ctx_) result(g)
+    double precision, intent(in) :: t_
+    double precision, intent(in) :: y_(:)
+    class(*), intent(in), optional :: ctx_
+    double precision :: g
+    if(present(ctx_)) continue
+    if(t_ < 0.d0) continue
+    g = (y_(1)-z_start(1))*RNorm + (y_(3)-z_start(3))*ZNorm
+  end function return_event
 !
-    write (iunit1,*) z(1:neqm),vz(5)
-  endif
+  subroutine write_orbit_point(y_)
+    double precision, intent(in) :: y_(:)
+    call velo_ext(0.d0, y_, vz)
+    write (iunit1,*) y_(1:neqm), vz(5)
+  end subroutine write_orbit_point
 !
-  do
-    r_prev=z(1)
-    z_prev=z(3)
-!
-    call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
-    if(ierrfield.ne.0) then
-      write(msg,'(A,2ES14.6,A,2ES14.6)') &
-        'find_bounce: orbit left domain at R,Z=', &
-        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-      write(*,'(A)') trim(msg)
-      call log_message(trim(msg))
-      ierr = 1
-      return
-    endif
-!
-    taub=taub+dtau
-    if(nousecut) then
-! check if poloidal distance to the starting point is smaller than
-! sqrt(2) of the poloidal length of the step:
-      dL2_pol=2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2)
-      dL2_pol_start=(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
-      if(dL2_pol_start.lt.dL2_pol) exit
-    else
-! check if Poincare cut has been crossed
-!
-      call get_poicut(z(1),Z_tmp,dZ_dR)
-!
-      if(sign_delZ*(z(3)-Z_tmp).lt.0.d0) then
-        if(firstpass) then
-! first crossing (continue integration)
-          firstpass=.false.
-          sign_delZ=-sign_delZ
-        else
-! second crossing (stop integration)
-          exit
-        endif
-      endif
-    endif
-!
+  subroutine report_left(zs, zc)
+    double precision, intent(in) :: zs(:), zc(:)
+    character(len=256) :: msg
+! Orbits grazing the X-point / trapped-passing separatrix do not close.  During
+! phase-space sampling this is a normal, expected outcome (the class is clipped
+! to the closing region), and there are many such orbits, so the per-orbit
+! string format + stdout write + log_message dominated the runtime (top self-time
+! in perf).  Emit the diagnostic only in explicit orbit-dump mode.
     if(write_orb) then
-!
-      call velo_ext(dtau,z,vz)
-!
-      write (iunit1,*) z(1:neqm),vz(5)
-    endif
-    Rorb_max=max(Rorb_max,z(1))
-  enddo
-!
-! End primary search
-!
-! Newton adjustment
-!
-  do iter=1,niter
-!
-    call velo_ext(dtau,z,vz)
-!
-    vnorm=vz(1)*RNorm+vz(3)*ZNorm
-    dnorm=(z_start(1)-z(1))*RNorm+(z_start(3)-z(3))*ZNorm
-    if(dnorm**2.lt.dL2_pol*relerr) exit
-    dtau_newt=dnorm/vnorm
-!
-    call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
-    if(ierrfield.ne.0) then
       write(msg,'(A,2ES14.6,A,2ES14.6)') &
-        'find_bounce: orbit left domain at R,Z=', &
-        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
+        'find_bounce: orbit not closed from R,Z=', zs(1), zs(3), &
+        ' last R,Z=', zc(1), zc(3)
       write(*,'(A)') trim(msg)
       call log_message(trim(msg))
-      ierr = 1
-      return
     endif
-!
-    taub=taub+dtau_newt
-  enddo
-!
-  if(next.gt.0) then
-    extraset=z(neqm+1:ndim)
-  endif
-!
-  if(write_orb) then
-!
-    call velo_ext(dtau,z,vz)
-!
-    write (iunit1,*) z(1:neqm),vz(5)
-    write (iunit1,*) 'NaN NaN NaN NaN NaN NaN'
-  endif
-!
-! End Newton adjustment
-!
-  delphi=z(2)-z_start(2)
+    ierr = 1
+  end subroutine report_left
 !
   end subroutine find_bounce
 !
@@ -2395,7 +2386,7 @@
 ! of class parameter x for adaptive refinement of interpolation grid over x
 !
   use sample_matrix_mod, only : n1,n2,x,amat
-  use orbit_dim_mod,     only : neqm,next
+  use orbit_dim_mod,     only : neqm,next,clip_resonance_classes
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
@@ -2421,8 +2412,17 @@
   call starter_doublecount(toten,perpinv,sigma,Rst,   &
                            psiast,dpsiast_dRst,z,ierr)
 !
+! No valid orbit here (start off the cut or negative kinetic energy).  With the
+! class clip on, mark an out-of-cap sentinel so clip_bounds_to_dphi discards the
+! node; otherwise leave the original drop-on-fail behaviour.  No per-node print --
+! it floods the sampler.
   if(ierr.ne.0) then
-    print *,'get_matrix: error in starter'
+    if(clip_resonance_classes) then
+      amat(1,1)=0.d0
+      amat(2,1)=1.d30
+      amat(3,1)=1.d30
+      if(next.gt.0) amat(4:3+next,1)=0.d0
+    endif
     return
   endif
 !
@@ -2433,7 +2433,15 @@
     if(fullbounce) then
 !
       call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-      if(ierr.ne.0) return
+      if(ierr.ne.0) then
+        if(clip_resonance_classes) then
+          amat(1,1)=psiast
+          amat(2,1)=1.d30
+          amat(3,1)=1.d30
+          if(next.gt.0) amat(4:3+next,1)=0.d0
+        endif
+        return
+      endif
 !
     else
 !
@@ -2447,7 +2455,15 @@
     extraset=0.d0
 !
     call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) return
+    if(ierr.ne.0) then
+      if(clip_resonance_classes) then
+        amat(1,1)=psiast
+        amat(2,1)=1.d30
+        amat(3,1)=1.d30
+        if(next.gt.0) amat(4:3+next,1)=0.d0
+      endif
+      return
+    endif
 !
   endif
 !
@@ -2471,16 +2487,22 @@
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
                                 npoi,xarr,amat_arr
-  use orbit_dim_mod,     only : next,numbasef
+  use orbit_dim_mod,     only : next,numbasef,fb_relerr,fb_abserr, &
+                                fb_max_abs_delphi,fb_max_tau, &
+                                clip_resonance_classes
   use get_matrix_mod,    only : relerror,relmargin,iclass
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
+  use potato_input_mod,  only : m_min,m_max,n_tor
   use cc_mod, only : dowrite
 !
   implicit none
 !
+  double precision, parameter :: twopi=6.28318530717958648d0
   integer :: iunit,ierr,i
-  double precision :: psiastbeg,psiastend,widthclass
+  double precision :: psiastbeg,psiastend,widthclass,dphi_cap
+  double precision :: fb_relerr_save,fb_abserr_save
+  double precision :: fb_max_abs_delphi_save,fb_max_tau_save
 !
   external :: get_matrix_doublecount
 !
@@ -2507,16 +2529,139 @@
 !
   eps=relerror
 !
+! The grid interpolates to eps~1d-3, so the orbit integration needs no more than
+! that; relax the integrator tolerance for the (cost-dominant) sampling, then
+! restore the tight default for the accurate weight integration in pertham.
+  fb_relerr_save=fb_relerr
+  fb_abserr_save=fb_abserr
+  fb_max_abs_delphi_save=fb_max_abs_delphi
+  fb_max_tau_save=fb_max_tau
+  fb_relerr=1.d-4
+  fb_abserr=1.d-6
+  if(clip_resonance_classes) then
+    fb_max_abs_delphi=1.5d0*twopi*dble(max(abs(m_min),abs(m_max))) &
+                      /dble(abs(n_tor))
+    fb_max_tau=200.d0*dtau
+    dphi_cap=fb_max_abs_delphi
+    call preclip_class_to_dphi(xbeg,xend,dphi_cap)
+  endif
+!
   call sample_matrix(get_matrix_doublecount,ierr)
 !
-  if(dowrite) then
+! Classes touching the X-point / trapped-passing separatrix carry the outer
+! (high-rho) resonances, but there tau_b and Delta_phi_b diverge and the
+! interpolant cannot converge within itermax, so the whole class was dropped
+! (ierr=2) and its resonances lost.  No resonance with |m|<=m_max exists past
+! |Delta_phi_b| = 2 pi m_max / n_tor, so re-clip the search interval to the grid
+! span where |Delta_phi_b| stays within 1.5x that cap (a buffer that keeps the
+! m_max root while cutting the divergent tail) and re-sample the bounded
+! sub-interval.  If the clipped class still does not converge, its interpolant is
+! not reliable enough for per-mode root finding, so leave ierr set and skip the
+! class upstream.
+  if(ierr.ne.0 .and. clip_resonance_classes) then
+    call clip_bounds_to_dphi(xbeg,xend,dphi_cap)
+    if(xend.gt.xbeg) then
+      call sample_matrix(get_matrix_doublecount,ierr)
+    endif
+  endif
+!
+  fb_relerr=fb_relerr_save
+  fb_abserr=fb_abserr_save
+  fb_max_abs_delphi=fb_max_abs_delphi_save
+  fb_max_tau=fb_max_tau_save
+!
+ if(dowrite) then
     print *,'npoi = ',npoi
     do i=1,npoi
       write(iunit,*) xarr(i),amat_arr(:,1,i)
     enddo
   endif
 !
-  end subroutine sample_class_doublecount
+ contains
+!
+ subroutine preclip_class_to_dphi(xb,xe,dphi_cap)
+   use sample_matrix_mod, only : n1,n2,x,amat
+   implicit none
+   integer, parameter :: nprobe=9
+   integer :: i,ilo,ihi
+   double precision, intent(inout) :: xb,xe
+   double precision, intent(in) :: dphi_cap
+   double precision :: dx
+   double precision :: xprobe(nprobe)
+   double precision :: dphi_probe(nprobe)
+   external :: get_matrix_doublecount
+!
+   if(xe.le.xb) return
+   if(.not.allocated(amat)) allocate(amat(n1,n2))
+!
+   dx=(xe-xb)/dble(nprobe-1)
+   do i=1,nprobe
+     xprobe(i)=xb+dx*dble(i-1)
+     x=xprobe(i)
+     call get_matrix_doublecount
+     dphi_probe(i)=abs(amat(3,1))
+   enddo
+!
+   ilo=0
+   ihi=0
+   do i=1,nprobe
+     if(dphi_probe(i).le.dphi_cap) then
+       if(ilo.eq.0) ilo=i
+       ihi=i
+     endif
+   enddo
+!
+   if(ilo.eq.0) then
+     xe=xb
+     return
+   endif
+!
+   if(ilo.gt.1) ilo=ilo-1
+   if(ihi.lt.nprobe) ihi=ihi+1
+   xb=xprobe(ilo)
+   xe=xprobe(ihi)
+ end subroutine preclip_class_to_dphi
+!
+ end subroutine sample_class_doublecount
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine clip_bounds_to_dphi(xb,xe,dphi_cap)
+!
+! Shrinks the class search interval [xb,xe] to the span of the (partially
+! sampled) grid where |Delta_phi_b| <= dphi_cap, discarding the separatrix tail
+! where Delta_phi_b diverges.  Uses the grid (xarr) and matrix (amat_arr, row 3
+! = Delta_phi_b) left by the preceding sample_matrix call, so it needs no extra
+! orbit integration.  The physical (resonance-bearing) part is contiguous, so
+! the first and last in-cap grid nodes bracket it.
+!
+  use sample_matrix_mod, only : npoi,xarr,amat_arr
+!
+  implicit none
+!
+  double precision, intent(inout) :: xb,xe
+  double precision, intent(in)    :: dphi_cap
+  integer :: i,ilo,ihi
+!
+  ilo=0
+  ihi=0
+  do i=1,npoi
+    if(abs(amat_arr(3,1,i)).le.dphi_cap) then
+      if(ilo.eq.0) ilo=i
+      ihi=i
+    endif
+  enddo
+!
+  if(ilo.eq.0) then
+! no node within the cap: nothing to resolve, collapse the interval to skip it
+    xe=xb
+    return
+  endif
+!
+  xb=xarr(ilo)
+  xe=xarr(ihi)
+!
+  end subroutine clip_bounds_to_dphi
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !

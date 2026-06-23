@@ -28,6 +28,7 @@ find_or_fetch(vode)
 target_compile_options(vode PRIVATE -std=legacy)
 target_link_libraries(potato_base PUBLIC
 vode
+fortnum
 LIBNEO::magfie
 mc_efit
 BLAS::BLAS
