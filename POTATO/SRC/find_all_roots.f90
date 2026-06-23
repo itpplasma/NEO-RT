@@ -5,7 +5,8 @@
 !
   module find_all_roots_mod
     logical :: customgrid=.false.
-    integer :: nroots, nsearch_min=100, ncustom, niter=100
+    logical :: fail_fast=.false.
+    integer :: nroots, nsearch_min=100, ncustom, niter=100, max_roots_abort=0
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
   end module find_all_roots_mod
@@ -25,7 +26,7 @@
 !
   use find_all_roots_mod, only : nsearch_min,niter,relerr_allroots,  &
                                  customgrid,ncustom,xcustom,         &
-                                 nroots,roots
+                                 nroots,roots,fail_fast,max_roots_abort
 !
   implicit none
 !
@@ -33,9 +34,11 @@
   double precision :: x,x1in,x2in,f,df,hx,dx,errdist,xb,xe,dfb,dfe,xxtr,fxtr
   double precision :: x1,x2
   double precision, dimension(:), allocatable :: xarr,farr,dfarr,dummy1d
+  logical :: abort_search
   external :: fun
 !
   ierr=0
+  abort_search=.false.
   x1=x1in
   x2=x2in
 !
@@ -137,6 +140,7 @@
         x=(farr(i)*xarr(i-1)-farr(i-1)*xarr(i))/(farr(i)-farr(i-1))
 !
         call addroot
+        if(abort_search) exit
 !
       endif
     else
@@ -166,6 +170,7 @@
         x=(fxtr*xarr(i-1)-farr(i-1)*xxtr)/(fxtr-farr(i-1))
 !
         call addroot
+        if(abort_search) exit
 !
       endif
       if(fxtr*farr(i).le.0.d0) then
@@ -173,9 +178,11 @@
         x=(farr(i)*xxtr-fxtr*xarr(i))/(farr(i)-fxtr)
 !
         call addroot
+        if(abort_search) exit
 !
       endif
     endif
+    if(abort_search) exit
   enddo
 !
 !------------
@@ -189,6 +196,12 @@
 ! Root adjustment by Newton method
 !
   double precision :: xx
+!
+  if(max_roots_abort.gt.0 .and. nroots.ge.max_roots_abort) then
+    ierr=2
+    abort_search=.true.
+    return
+  endif
 !
 ! extend storage arragy for a new root:
   nroots=nroots+1
@@ -222,9 +235,22 @@
   enddo
 !
   if(iter.gt.niter) then
+    ierr=1
+    if(fail_fast) then
+      abort_search=.true.
+      nroots=nroots-1
+      if(nroots.eq.0) then
+        deallocate(roots)
+      else
+        dummy1d=roots(1:nroots)
+        deallocate(roots)
+        allocate(roots(nroots))
+        roots=dummy1d
+      endif
+      return
+    endif
     print *,'No convergence of Newton in find_all_roots: error = ',sngl(abs(dx)), &
             ' tolerance = ',sngl(errdist)
-    ierr=1
   endif
 !
   roots(nroots)=x

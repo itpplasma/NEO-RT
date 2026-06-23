@@ -21,6 +21,18 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fortplot)
 
+# fortnum provides the variable-order Adams ODE integrator with event/root
+# detection used by find_bounce to locate the bounce return (replacing the
+# fixed-step Poincare-cut crossing search). Same pin as the NEO-RT migration.
+if(NOT TARGET fortnum)
+    FetchContent_Declare(
+        fortnum
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
+    )
+    FetchContent_MakeAvailable(fortnum)
+endif()
+
 add_subdirectory(SRC)
 
 add_executable (potato.x

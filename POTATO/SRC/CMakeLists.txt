@@ -37,8 +37,9 @@ add_library(potato_base
   neo2_reader.f90
 )
 find_or_fetch(vode)
-target_link_libraries(potato_base PUBLIC 
+target_link_libraries(potato_base PUBLIC
 vode
+fortnum
 BLAS::BLAS
 LAPACK::LAPACK
 HDF5::HDF5

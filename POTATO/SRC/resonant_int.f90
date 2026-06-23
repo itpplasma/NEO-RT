@@ -134,44 +134,57 @@
 !
 ! Computes sum over resonances $x=x^{res}_{(\bm,k)}$ in Eq.(104) for a given class $k$
 !
-  use find_all_roots_mod, only : customgrid,ncustom,xcustom,nroots,roots
-  use get_matrix_mod,     only : relmargin,iclass
+  use find_all_roots_mod, only : customgrid,ncustom,xcustom,nroots,roots, &
+                                 relerr_allroots,fail_fast,max_roots_abort
+  use get_matrix_mod,     only : iclass
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
   use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp
-  use orbit_dim_mod,      only : neqm
-  use global_invariants,  only : toten,perpinv,cE_ref,Phi_eff
-  use sample_matrix_mod,  only : npoi,xarr
+  use orbit_dim_mod,      only : neqm,fb_max_abs_delphi,fb_max_tau
+  use global_invariants,  only : toten,perpinv,cE_ref,Phi_eff,dtau
+! xbeg,xend are the search bounds set (and clipped to the |Delta_phi_b| cap) by
+! the preceding sample_class_doublecount, so the root search runs over exactly
+! the sampled interval.
+  use sample_matrix_mod,  only : npoi,xarr,xbeg,xend,eps
   use logging_mod,        only : tee_message
 !
   implicit none
 !
   double precision, parameter :: pi=3.14159265358979d0, twopi=2.d0*pi, &
                                  pi32_over4m=-0.25d0*pi**1.5d0
+  integer, parameter :: max_roots_per_class_mode=32
 !
-  integer          :: mode,iroot,ierr
-  double precision :: relmargin_loc,widthclass,xbeg,xend
+  integer          :: mode,iroot,ierr,max_roots_abort_save
   double precision :: rescond,dresconddx,psiast,dpsiastdx,taub,delphi
   double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
   double precision :: toten_loc,perpinv_loc,fmaxw,A1ast,A2ast
   double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
+  double precision :: relerr_allroots_save,fb_max_abs_delphi_save,fb_max_tau_save
   double precision, dimension(neqm) :: z
+  character(len=256) :: msg
+  logical :: fail_fast_save
 !
   toten_loc=toten
   perpinv_loc=perpinv
 !
   sigma=sigma_class(iclass)
   delta_R=R_class_end(iclass)-R_class_beg(iclass)
-!old=>  relmargin_loc=1.d-8
-!old=>  widthclass=1.d0
-  relmargin_loc=relmargin                                      !<=new
-  widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0) !<=new
 !
-  call classbounds(ifuntype(iclass),relmargin_loc,widthclass,xbeg,xend)
-!
-  customgrid=.true.
-  ncustom=npoi
-  allocate(xcustom(ncustom))
-  xcustom=xarr
+  ncustom=count(xarr.ge.xbeg .and. xarr.le.xend)
+  customgrid=ncustom.ge.2
+  if(customgrid) then
+    allocate(xcustom(ncustom))
+    xcustom=pack(xarr,xarr.ge.xbeg .and. xarr.le.xend)
+  endif
+  relerr_allroots_save=relerr_allroots
+  relerr_allroots=max(1.d-8,1.d-2*eps)
+  fail_fast_save=fail_fast
+  fail_fast=.true.
+  max_roots_abort_save=max_roots_abort
+  max_roots_abort=max_roots_per_class_mode+1
+  fb_max_abs_delphi_save=fb_max_abs_delphi
+  fb_max_tau_save=fb_max_tau
+  fb_max_abs_delphi=1.5d0*twopi*dble(maxval(abs(marr)))/dble(abs(narr(1)))
+  fb_max_tau=200.d0*dtau
 !
 !
   do mode=1,nmodes
@@ -181,12 +194,24 @@
 !
     call find_all_roots(get_rescond,xbeg,xend,ierr)
 !
+    if(ierr.eq.2 .or. nroots.gt.max_roots_per_class_mode) then
+      write(msg,'(A,ES12.4,A,ES12.4,A,I0,A,I0,A,I0,A,I0)') &
+        'skipped oscillatory roots: toten=',toten,' perpinv=',perpinv, &
+        ' iclass=',iclass,' mode=',mode,' m=',marr(mode), &
+        ' nroots=',nroots
+      call tee_message(trim(msg))
+      respoints_jp(mode,iclass)%nrespoi=0
+      respoints_jp(mode,iclass)%toten_res=toten
+      respoints_jp(mode,iclass)%perpinv_res=perpinv
+      cycle
+    endif
+!
     if(ierr.ne.0) then
-      call tee_message( &
-        'integrate_class_resonances: error in find_all_roots')
-      customgrid=.false.
-      deallocate(xcustom)
-      return
+      call tee_message('integrate_class_resonances: skipped unpolished roots')
+      respoints_jp(mode,iclass)%nrespoi=0
+      respoints_jp(mode,iclass)%toten_res=toten
+      respoints_jp(mode,iclass)%perpinv_res=perpinv
+      cycle
     endif
 !
     respoints_jp(mode,iclass)%nrespoi=nroots
@@ -254,7 +279,12 @@
   enddo
 !
   customgrid=.false.
-  deallocate(xcustom)
+  relerr_allroots=relerr_allroots_save
+  fail_fast=fail_fast_save
+  max_roots_abort=max_roots_abort_save
+  fb_max_abs_delphi=fb_max_abs_delphi_save
+  fb_max_tau=fb_max_tau_save
+  if(allocated(xcustom)) deallocate(xcustom)
 !
 !------------
   contains
@@ -421,6 +451,7 @@
   double precision :: omdens,trapez_fac,perpinv_max
   double precision :: torque_int,torque_int_loc
   double precision :: xjperp,xenerg,totxint,step_energ
+  double precision :: w_energ,dw_energ
   double precision :: time_beg,time_end
   double precision :: dens, temp, ddens, dtemp
   character(len=256) :: msg
@@ -483,8 +514,10 @@
 !
   torquebox=0.d0
 !
-  step_energ=toten_range/dble(nenerg) !integration step over total energy
-!step_energ=0.22521463755624047d0
+! Energy grid uniform in velocity w = sqrt(toten - toten_min) ~ v, so the scan
+! starts at low energy while still covering the same maximum v/vth range as
+! NEO-RT. The energy integral keeps its value through d(toten) = 2 w dw.
+  dw_energ=sqrt(toten_range)/dble(nenerg)
 !
   if(adaptive_jperp) then
     open(1901,file='subint_ofH0int_104_vsJperp_fromresp.dat')
@@ -493,12 +526,10 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
-!  do ienerg=1,nenerg
   do ienerg=2,nenerg
-!  do ienerg= 20,20 !10,10 !20,20 !<=fix energy for debugging
-    xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
-    toten=toten_min+toten_range*xenerg
-!toten =   -3.1211921097605737d0
+    w_energ=(dble(ienerg)-0.5d0)*dw_energ
+    toten=toten_min+w_energ**2
+    step_energ=2.d0*w_energ*dw_energ
     write(msg, '(A,ES22.14)') 'toten = ', toten
     call tee_message(trim(msg))
 !
