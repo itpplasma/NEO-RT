@@ -37,7 +37,10 @@ add_library(potato_base
   neo2_reader.f90
 )
 find_or_fetch(vode)
-target_link_libraries(potato_base PUBLIC 
+# vode (dvode_f90_m) uses labeled DO termination, deleted in f2018; build it with
+# the permissive legacy standard rather than the project-wide f2018.
+target_compile_options(vode PRIVATE -std=legacy)
+target_link_libraries(potato_base PUBLIC
 vode
 BLAS::BLAS
 LAPACK::LAPACK
