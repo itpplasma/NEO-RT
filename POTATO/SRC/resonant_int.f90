@@ -292,25 +292,33 @@
 !
   subroutine get_rescond(x,rescond,dresconddx)
 !
-! Computes resonance condition $F(x)=\Delta\varphi_b+2\pi m_2/m_3$
-! and its derivative $F^\prime(x)$ for $F(x)=0$ root finding.
-! Computes as by-products normalized toroidal momentum $\psi^\ast$,
-! bounce time $\tau_b$ and toroidal displacement $\Delta\varphi_b$.
+! Resonance condition in the canonical FREQUENCIES, $F(x)=m\,\Omega_b+n\,\Omega_\varphi$,
+! and its derivative, for $F(x)=0$ root finding.  This is the bounce-drift
+! resonance $m\,\Omega_b+n\,\Omega_\varphi=0$ -- the same roots as
+! $\Delta\varphi_b+2\pi m/n=0$ (multiply by $\tau_b/2\pi$), but $\Omega_b=2\pi/\tau_b$
+! and $\Omega_\varphi=\Delta\varphi_b/\tau_b$ stay finite at the separatrix where
+! $\tau_b\to\infty$, so the interpolated grid (built by get_matrix_doublecount,
+! which now stores the frequencies in rows 2,3) converges instead of diverging.
+! By-products $\psi^\ast$, $\tau_b$, $\Delta\varphi_b$ are recovered for the weight.
 !
   use sample_matrix_mod, only : n1
 !
   implicit none
 !
-  double precision :: x,rescond,dresconddx
+  double precision, parameter :: twopi=6.28318530717958648d0
+  double precision :: x,rescond,dresconddx,omega_b,omega_phi,rm2
   double precision, dimension(n1) :: vec,dvec
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  psiast=vec(1)               ! $\psi^\ast$
-  taub=vec(2)                 ! $\tau_b$
-  delphi=vec(3)               ! $\Delta\varphi_b$
-  rescond=delphi+twopim2/rm3
-  dresconddx=dvec(3)
+  psiast=vec(1)                          ! $\psi^\ast$
+  omega_b=vec(2)                         ! $\Omega_b=2\pi/\tau_b$
+  omega_phi=vec(3)                       ! $\Omega_\varphi=\Delta\varphi_b/\tau_b$
+  taub=twopi/omega_b                     ! recover $\tau_b$ (finite at the root)
+  delphi=omega_phi*taub                  ! recover $\Delta\varphi_b$
+  rm2=twopim2/twopi                      ! poloidal harmonic $m=$ twopim2$/2\pi$
+  rescond=rm2*omega_b+rm3*omega_phi      ! $m\,\Omega_b+n\,\Omega_\varphi$
+  dresconddx=rm2*dvec(2)+rm3*dvec(3)
 !
   end subroutine get_rescond
 !
