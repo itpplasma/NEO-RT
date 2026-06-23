@@ -2395,6 +2395,7 @@
 !
   logical :: fullbounce
   integer :: ierr,k
+  double precision, parameter :: twopi_gmd=6.28318530717958648d0
   double precision :: psiast,dpsiast_dRst,taub,delphi,xi,dxi_dx,Rst,sigma,delta_R, &
                       tau_fr,dphi_fr
   double precision, dimension(neqm) :: z
@@ -2467,9 +2468,15 @@
 !
   endif
 !
+! Interpolate the canonical FREQUENCIES, not the bounce time / toroidal shift:
+! Omega_b = 2 pi / tau_b and Omega_phi = Delta_phi_b / tau_b stay finite and
+! smooth at the separatrix (Omega_b -> 0) where tau_b, Delta_phi_b diverge.  The
+! resonance m*Omega_b + n*Omega_phi = 0 has the same roots as Delta_phi_b + 2 pi
+! m/n = 0 (loss-free), but the polynomial grid converges instead of diverging.
+! get_rescond recovers tau_b = 2 pi / Omega_b.
   amat(1,1)=psiast
-  amat(2,1)=taub
-  amat(3,1)=delphi
+  amat(2,1)=twopi_gmd/taub
+  amat(3,1)=delphi/taub
 !
   if(next.gt.0) then
     amat(4:3+next,1)=extraset
