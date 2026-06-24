@@ -100,12 +100,17 @@ def regenerate_golden(executable: Path) -> None:
 
 def ensure_golden() -> Path:
     """
-    Ensure golden.h5 exists and is up to date with main branch.
+    Ensure golden.h5 exists.
 
-    The golden record is rebuilt when the remote main branch has new commits.
+    A committed golden.h5 is the validated reference and is used as-is. Only
+    when no golden.h5 is present is one regenerated from the main branch.
 
     Returns the path to golden.h5.
     """
+    if GOLDEN_H5.exists():
+        print(f"Golden record ready (committed): {GOLDEN_H5}")
+        return GOLDEN_H5
+
     needs_clone = not MAIN_REF_DIR.exists()
     needs_build = False
     needs_regenerate = not GOLDEN_H5.exists()

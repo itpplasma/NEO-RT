@@ -143,18 +143,30 @@ contains
     end function vperp
 
     subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
-        use dvode_f90_m
+        use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
+        use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
+            FORTNUM_CONVERGENCE_ERROR
 
         real(dp), intent(in) :: v, eta, taub
         real(dp), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
 
+        ! Nonstiff variable-order Adams (fortnum vode, DVODE MF=10) integrated
+        ! over the single bounce span [0, taub], relative tolerance 1e-9 and a
+        ! per-component absolute tolerance 1e-10 (DVODE ITOL=2). This is the
+        ! same method NEO-RT drove through DVODE before the migration, so the
+        ! variable-order controller resolves the oscillatory bounceavg(3:4)
+        ! Hamiltonian integrands without an artificial step cap.
+        real(dp), parameter :: rtol = 1.0e-9_dp
+        real(dp), parameter :: atol_val = 1.0e-10_dp
+
         real(dp) :: t1, t2, bmod, htheta
-        real(dp) :: y(nvar)
-        real(dp) :: atol(nvar), rtol
-        integer :: neq, itask, istate
-        type(vode_opts) :: options
+        real(dp) :: y0(nvar), atol(nvar)
+        real(dp), allocatable :: yend(:)
+        type(vode_state_t) :: vstate
+        type(fortnum_status_t) :: status
+        integer :: istate
 
         call trace('bounce_fast')
 
@@ -163,39 +175,45 @@ contains
 
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1.0_dp, htheta) * sign_vpar
-        y = 1.0e-15_dp
-        y(1) = th0
-        y(2) = sign_vpar_htheta * vpar(v, eta, bmod)
-        y(3:6) = 0.0_dp
+        y0 = 1.0e-15_dp
+        y0(1) = th0
+        y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)
+        y0(3:6) = 0.0_dp
 
-        neq = nvar
-        rtol = 1.0e-9_dp
-        atol = 1.0e-10_dp
-        itask = 1
-        istate = 1
+        atol = atol_val
+        call vode_init(vstate, nvar, t1, y0)
+        call vode_integrate_to(bounce_rhs, vstate, t2, rtol, atol, yend, status)
 
-        options = set_opts(method_flag=10, abserr_vector=atol, relerr=rtol, mxstep=50000)
-        call dvode_f90(timestep_wrapper, neq, y, t1, t2, itask, istate, options)
+        ! Map the fortnum status onto the legacy istate convention the callers
+        ! already branch on: 2 = success, -1 = step budget exhausted (the old
+        ! DVODE MXSTEP case), anything else = unexpected failure.
+        if (status%code == FORTNUM_OK) then
+            istate = 2
+        else if (status%code == FORTNUM_CONVERGENCE_ERROR) then
+            istate = -1
+        else
+            istate = 0
+        end if
         if (istate == -1) then
             call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
         end if
 
-        bounceavg = y/taub
+        bounceavg = yend / taub
         if (present(istate_out)) istate_out = istate
 
         call trace('bounce_fast complete')
 
     contains
 
-        subroutine timestep_wrapper(neq_, t_, y_, ydot_)
-            ! Wrapper routine for timestep to work with VODE
-            integer, intent(in) :: neq_
+        subroutine bounce_rhs(t_, y_, dydt_, rhs_ctx)
             real(dp), intent(in) :: t_
-            real(dp), intent(in) :: y_(neq_)
-            real(dp), intent(out) :: ydot_(neq_)
-
-            call ts(v, eta, neq_, t_, y_, ydot_)
-        end subroutine timestep_wrapper
+            real(dp), intent(in) :: y_(:)
+            real(dp), intent(out) :: dydt_(:)
+            class(*), intent(in), optional :: rhs_ctx
+            associate (dummy => rhs_ctx)
+            end associate
+            call ts(v, eta, size(y_), t_, y_, dydt_)
+        end subroutine bounce_rhs
     end subroutine bounce_fast
 
     function bounce_time(v, eta, taub_estimate) result(taub)
@@ -255,7 +273,9 @@ contains
         !
         !  Finds the root of an orbit after the first turn
         !
-        use dvode_f90_m
+        use fortnum_ode, only: ODE_EVENT_ANY
+        use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
+        use fortnum_status, only: fortnum_status_t, FORTNUM_CONVERGENCE_ERROR
 
         real(dp) :: bounce_integral(neq + 1)
         real(dp), intent(in) :: v, eta
@@ -263,100 +283,122 @@ contains
         real(dp), intent(in) :: y0(neq), dt
         procedure(timestep_i) :: ts
 
-        integer :: n
+        ! Number of dt-sized chunks the search window spans, matching the old
+        ! chunked DVODE search that advanced in dt steps up to this many turns.
+        integer, parameter :: n_turns = 500
+        real(dp), parameter :: rtol = 1.0e-9_dp
+        real(dp), parameter :: atol_val = 1.0e-10_dp
 
-        integer :: k, state, rootstate
-        real(dp) :: ti, told
-        real(dp) :: y(neq), yold(neq)
+        type(vode_state_t) :: vstate
+        type(fortnum_status_t) :: status
+        real(dp), allocatable :: y_out(:)
+        real(dp) :: atol(neq), t_now, t_root, theta_before
+        logical :: passing, found
+        integer :: chunk
 
-        logical :: passing
+        passing = (eta < etatp)
+        atol = atol_val
 
-        real(dp) :: atol(neq), rtol, tout
-        integer :: itask, istate
-        type(vode_opts) :: options
-
-        rtol = 1.0e-9_dp
-        atol = 1.0e-10_dp
-        itask = 1
-        istate = 1
-
-        ! check for passing orbit
-        passing = .false.
-        if (eta < etatp) then
-            passing = .true.
-        end if
-
-        n = 500
-        rootstate = -1
-
-        y = y0
-        yold = y0
-        ti = 0.0_dp
-        state = 1
         if (get_log_level() >= LOG_TRACE) then
-            write(*,'(A,2ES12.5,2A)') '[TRACE] bounce_integral start v,eta=', v, eta, ' pass=', merge('T','F',eta<etatp)
+            write(*,'(A,2ES12.5,2A)') '[TRACE] bounce_integral start v,eta=', v, eta, &
+                ' pass=', merge('T','F', passing)
         end if
-        do k = 2, n
-            yold = y
-            told = ti
 
-            tout = ti + dt
-            if (istate == 1) then
-                options = set_opts(method_flag=10, abserr_vector=atol, relerr=rtol, nevents=2, mxstep=50000)
-            end if
-            call dvode_f90(timestep_wrapper, neq, y, ti, tout, itask, istate, options, &
-                g_fcn=bounceroots)
-            if (istate == -1) then
-                call dvode_error_context('bounce_integral', v, eta, ti, tout, istate)
-            end if
-            if (get_log_level() >= LOG_TRACE) then
-                print *, '[TRACE] step k=', k, ' ti=', ti, ' y1=', y(1), ' istate=', istate
-            end if
-            if (istate == 3) then
-                if (passing .or. (yold(1) - th0) < 0) then
-                    exit
-                end if
+        ! Reproduce the DVODE bounceroots search: two event functions monitored
+        ! with NEVENTS=2, advancing in dt-sized chunks, stop at the first root
+        ! of either that satisfies the turn acceptance test. fortnum vode
+        ! locates the root on its own Nordsieck interpolant (relerr 1e-9,
+        ! per-component abserr 1e-10, ITOL=2), so taub is the located root.
+        !   g1 = theta - th0          (trapped: return to th0)
+        !   g2 = 2*pi - (theta - th0) (passing: full +2*pi turn)
+        ! DVODE accepted a root when passing, or when theta entered from below
+        ! th0 (the old (yold(1)-th0) < 0 filter); otherwise it kept integrating.
+        call vode_init(vstate, neq, 0.0_dp, y0)
+        t_now = 0.0_dp
+        theta_before = y0(1)
+        found = .false.
+
+        do chunk = 1, n_turns - 1
+            ! Step one dt-sized window. The integration is never re-initialised:
+            ! after a turn root vode stops at the root and continues from there
+            ! on the next call, so the next window ends dt past wherever this
+            ! one stopped. theta_before is the poloidal angle at the end of the
+            ! previous window (DVODE's yold), used by the acceptance filter.
+            call vode_integrate_to(bounce_int_rhs, vstate, t_now + dt, &
+                rtol, atol, y_out, status, &
+                event=root_theta, event_dir=ODE_EVENT_ANY, &
+                event2=root_turn, event_dir2=ODE_EVENT_ANY, &
+                t_root=t_root, root_found=found)
+            if (status%code == FORTNUM_CONVERGENCE_ERROR) then
+                call dvode_error_context('bounce_integral', v, eta, &
+                    t_now, t_now + dt, -1)
             end if
 
-            istate = 2
+            if (found) then
+                if (passing .or. (theta_before - th0) < 0.0_dp) exit
+                ! Reject this turning point: keep integrating, the next window
+                ! ends dt past the located root (DVODE istate=2 continuation).
+                found = .false.
+                theta_before = y_out(1)
+                t_now = t_root
+                cycle
+            end if
+
+            theta_before = y_out(1)
+            t_now = t_now + dt
         end do
-        if (istate /= 3) then
-            write(0,'(A)') '[ERROR] bounce_integral: no event after 500 iterations'
-            write(0,'(A,1X,A)') '  region =', merge('passing','trapped',eta<etatp)
+
+        if (.not. found) then
+            write(0,'(A)') '[ERROR] bounce_integral: no bounce event located'
+            write(0,'(A,1X,A)') '  region =', merge('passing','trapped', passing)
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v =', v, 'eta =', eta
-            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  ti =', ti, 'dt =', dt
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  t =', t_now, 'dt =', dt
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  etamin =', etamin, 'etamax =', etamax, 'etatp =', etatp
-            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  theta(y1) =', y(1), 'th0 =', th0
+            write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  theta(y1) =', vstate%yh(1, 1), 'th0 =', th0
             write(0,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,ES12.5)') '  mth =', mth, 'mph =', mph, 'sign_vpar =', dble(sign_vpar)
             write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,1X,ES12.5)') '  s =', s, 'R0 =', R0, 'q =', q, 'iota =', iota
+            bounce_integral(1) = t_now
+            bounce_integral(2:) = vstate%yh(:, 1)
+            return
         end if
 
-        bounce_integral(1) = ti
-        bounce_integral(2:) = y
+        bounce_integral(1) = t_root
+        bounce_integral(2:) = y_out
 
     contains
 
-        subroutine timestep_wrapper(neq_, t_, y_, ydot_)
-            ! Wrapper routine for timestep to work with VODE
-            integer, intent(in) :: neq_
+        subroutine bounce_int_rhs(t_, y_, dydt_, ctx_)
             real(dp), intent(in) :: t_
-            real(dp), intent(in) :: y_(neq_)
-            real(dp), intent(out) :: ydot_(neq_)
+            real(dp), intent(in) :: y_(:)
+            real(dp), intent(out) :: dydt_(:)
+            class(*), intent(in), optional :: ctx_
+            associate (dummy => ctx_)
+            end associate
+            call ts(v, eta, size(y_), t_, y_, dydt_)
+        end subroutine bounce_int_rhs
 
-            call ts(v, eta, neq_, t_, y_, ydot_)
-        end subroutine timestep_wrapper
+        ! DVODE bounceroots GOUT(1): theta returns to th0 (trapped turn).
+        function root_theta(t_, y_, ctx_) result(g)
+            real(dp), intent(in) :: t_
+            real(dp), intent(in) :: y_(:)
+            class(*), intent(in), optional :: ctx_
+            real(dp) :: g
+            associate (dummy_t => t_, dummy_c => ctx_)
+            end associate
+            g = y_(1) - th0
+        end function root_theta
+
+        ! DVODE bounceroots GOUT(2): theta advances by 2*pi (passing turn).
+        function root_turn(t_, y_, ctx_) result(g)
+            real(dp), intent(in) :: t_
+            real(dp), intent(in) :: y_(:)
+            class(*), intent(in), optional :: ctx_
+            real(dp) :: g
+            associate (dummy_t => t_, dummy_c => ctx_)
+            end associate
+            g = 2.0_dp * pi - (y_(1) - th0)
+        end function root_turn
     end function bounce_integral
-
-    subroutine bounceroots(NEQ, T, Y, NG, GOUT)
-        integer, intent(in) :: NEQ, NG
-        real(dp), intent(in) :: T, Y(neq)
-        real(dp), intent(out) :: GOUT(ng)
-        associate (dummy => T)
-        end associate
-        GOUT(1) = sign_vpar_htheta * (Y(1) - th0) ! trapped orbit return to starting point
-        GOUT(2) = sign_vpar_htheta * (2.0_dp * pi - (Y(1) - th0)) ! passing orbit return
-        return
-    end subroutine bounceroots
 
     subroutine timestep(v, eta, neq, t, y, ydot)
         !
