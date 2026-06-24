@@ -189,6 +189,12 @@ contains
         else
             ydot(5:6) = 0.0_dp
         end if
+
+        ! Zero any trailing integrands this routine does not compute (the unused
+        ! abs(B) slot, y(7)). The DOP853 solver carries every component through
+        ! its stage combinations, so an uninitialised derivative leaves a
+        ! denormal in the state that trips the underflow FPE trap.
+        ydot(7:) = 0.0_dp
     end subroutine timestep_transport
 
 end module neort_transport
