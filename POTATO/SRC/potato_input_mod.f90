@@ -33,6 +33,10 @@ module potato_input_mod
     ! Energy grid
     integer :: nenerg = 60
     double precision :: thermen_max = 6d0   ! Max kinetic energy [T units]
+    ! Lowest slice starts at this kinetic energy [T units]; the toten grid begins
+    ! at phi_max + enkin_min_over_temp*T so every orbit keeps at least this much
+    ! kinetic energy, cutting off the cold near-boundary band.
+    double precision :: enkin_min_over_temp = 0.1d0
 
     ! Box counting
     integer :: nbox = 100
@@ -79,7 +83,7 @@ module potato_input_mod
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, &
         Rmax_orbit, ntimstep, npoicut, &
         m_min, m_max, n_tor, &
-        nenerg, thermen_max, nbox, &
+        nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
@@ -138,6 +142,7 @@ contains
         write(iunit, '(A,I0)') '  n_tor            = ', n_tor
         write(iunit, '(A,I0)') '  nenerg           = ', nenerg
         write(iunit, '(A,ES12.5)') '  thermen_max      = ', thermen_max
+        write(iunit, '(A,ES12.5)') '  enkin_min_over_temp = ', enkin_min_over_temp
         write(iunit, '(A,I0)') '  nbox             = ', nbox
         write(iunit, '(A,L1)') '  adaptive_jperp   = ', adaptive_jperp
         write(iunit, '(A,I0)') '  npoi_init        = ', npoi_init

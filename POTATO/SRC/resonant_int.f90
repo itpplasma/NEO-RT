@@ -490,6 +490,7 @@
                                     ind_hist,xarr,amat_arr
   use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
                                 thermen_max_input => thermen_max, &
+                                enkin_min_over_temp, &
                                 adaptive_jperp, npoi_init, nlagr_sampling, &
                                 eps_sampling, itermax_sampling
   use logging_mod,       only : tee_message
@@ -539,8 +540,11 @@
 !
   thermen_max=thermen_max*temp  !maximum kinetic energy in units of reference energy
 !
-! Energy integration limits:
-  toten_min=phi_elec_min
+! Energy integration limits.  Start the toten grid so the lowest slice keeps at
+! least enkin_min_over_temp*T of kinetic energy at the deepest potential well
+! (phi_elec_max), cutting off the cold near-boundary band that otherwise breeds
+! spurious low-energy resonances.
+  toten_min=phi_elec_max+enkin_min_over_temp*temp
   toten_max=thermen_max+phi_elec_max
   toten_range=toten_max-toten_min
 !
@@ -568,10 +572,8 @@
 !
   torquebox=0.d0
 !
-! Energy grid uniform in velocity w = sqrt(toten - toten_min) ~ v, so the scan
-! starts at low energy while still covering the same maximum v/vth range as
-! NEO-RT. The energy integral keeps its value through d(toten) = 2 w dw.
-  dw_energ=sqrt(toten_range)/dble(nenerg)
+! Integration step over total energy (uniform energy grid).
+  step_energ=toten_range/dble(nenerg)
 !
   if(adaptive_jperp) then
     open(1901,file='subint_ofH0int_104_vsJperp_fromresp.dat')
@@ -580,10 +582,9 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
-  do ienerg=2,nenerg
-    w_energ=(dble(ienerg)-0.5d0)*dw_energ
-    toten=toten_min+w_energ**2
-    step_energ=2.d0*w_energ*dw_energ
+  do ienerg=1,nenerg
+    xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
+    toten=toten_min+toten_range*xenerg
     write(msg, '(A,ES22.14)') 'toten = ', toten
     call tee_message(trim(msg))
 !
