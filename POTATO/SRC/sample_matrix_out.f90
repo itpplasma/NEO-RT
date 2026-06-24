@@ -5,6 +5,12 @@
     double precision, dimension(:),     allocatable :: xarr
     double precision, dimension(:,:),   allocatable :: amat
     double precision, dimension(:,:,:), allocatable :: amat_arr
+! The J_perp adaptive grid scratch is per-energy-slice state: the energy loop
+! (resonant_torque) builds one J_perp grid per slice and the slices run in
+! parallel, so each thread keeps its own grid.  The config (nlagr,n1,n2,itermax,
+! eps) is set per slice at the top of the loop, so no copyin is needed.
+    !$omp threadprivate(nlagr,n1,n2,npoi,itermax,icount,x,xbeg,xend,eps, &
+    !$omp               ind_hist,xarr,amat,amat_arr)
   end module sample_matrix_out_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

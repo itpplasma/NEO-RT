@@ -8,11 +8,11 @@
     integer :: nroots, nsearch_min=100, ncustom, niter=100
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
-! nroots,roots are the outputs of find_all_roots.  The per-mode resonance loop in
-! integrate_class_resonances runs find_all_roots in parallel, so each thread needs
-! its own.  The search inputs (customgrid,ncustom,xcustom,...) are set once before
-! the loop and read only, so they stay shared.
-    !$omp threadprivate(nroots,roots)
+! Per-energy-slice/per-class search state: the energy loop runs slices in parallel
+! and each class sets its own merged grid (customgrid,ncustom,xcustom) and gets its
+! own outputs (nroots,roots), so all are threadprivate.  nsearch_min,niter,
+! relerr_allroots are read-only config and stay shared.
+    !$omp threadprivate(customgrid,ncustom,xcustom,nroots,roots)
   end module find_all_roots_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

@@ -49,6 +49,13 @@
     type(respoints_fix_jperp),            dimension(:),   allocatable :: respoints_all, &
                                                                          respoints_all_tmp
     type(respoint_single),                dimension(:),   allocatable :: respoint
+! Per-energy-slice resonance bookkeeping: the energy loop (resonant_torque) runs
+! slices in parallel, and each slice fills its own J_perp grid of resonant points
+! (respoints_all/_tmp, respoints_jp, respoint) and per-mode integral (delint_mode),
+! and sizes them with its own nperp_max.  Threadprivate so slices do not collide.
+! nmodes,marr,narr are set once before the loop and read only, so they stay shared.
+    !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all, &
+    !$omp               respoints_all_tmp,respoint)
   end module resint_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -453,6 +460,7 @@
                                 adaptive_jperp, npoi_init, nlagr_sampling, &
                                 eps_sampling, itermax_sampling
   use logging_mod,       only : tee_message
+  !$ use omp_lib, only : omp_set_max_active_levels
 
   implicit none
 !
@@ -480,13 +488,8 @@
 !
   allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
 !
-! size of result matrix in get_matrix_res:
-  n1=nmodes
-  n2=1
-! Set adaptive sampling parameters from input:
-  nlagr=nlagr_sampling
-  eps=eps_sampling
-  itermax=itermax_sampling
+! n1,n2,nlagr,eps,itermax (sample_matrix_out_mod) are threadprivate per-slice grid
+! config; they are set inside the energy loop so each thread seeds its own.
 !
   numbasef=0 !no extra integrals sampled, pure orbit integration
   call linspace(1d0/nbox, 1d0, nbox, sbox)
@@ -543,9 +546,28 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
+! Coarse-grain parallelism: the total-energy slices are independent, so run them
+! in parallel.  All per-slice scratch (the class and J_perp grids, the resonant-
+! point bookkeeping, the orbit invariants toten,perpinv,sigma,dtau) is
+! threadprivate, so each slice keeps its own; the torque sums reduce.  Cap the
+! active level at one so the inner per-class/per-mode regions stay serial inside
+! each slice instead of oversubscribing.  File writes go to libgfortran's
+! per-unit lock; resonance lines are compared sorted, so their interleaving is
+! immaterial.
+  !$ call omp_set_max_active_levels(1)
+  !$omp parallel do default(shared) schedule(dynamic) &
+  !$omp   private(xenerg,perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
+  !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
+  !$omp   reduction(+:torque_int,torque_int_modes,torquebox)
   do ienerg=1,nenerg
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
+! per-slice J_perp grid config (sample_matrix_out_mod is threadprivate):
+    n1=nmodes
+    n2=1
+    nlagr=nlagr_sampling
+    eps=eps_sampling
+    itermax=itermax_sampling
 !toten =   -3.1211921097605737d0
     write(msg, '(A,ES22.14)') 'toten = ', toten
     call tee_message(trim(msg))
@@ -728,6 +750,7 @@
     call tee_message(trim(msg))
 !
   enddo
+  !$omp end parallel do
 !
   if(adaptive_jperp) close(1901)
   close(1902)

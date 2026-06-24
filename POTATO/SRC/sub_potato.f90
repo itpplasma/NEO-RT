@@ -20,6 +20,13 @@
     double precision :: dtau,toten,perpinv,sigma
 ! reference energy $\cE_{ref}$, effective potential $\Phi_{eff}$:
     double precision :: cE_ref,Phi_eff
+! dtau,toten,perpinv,sigma are the per-slice/per-orbit invariants: the energy loop
+! (resonant_torque) runs each total-energy slice in parallel, and every slice
+! sets and reads its own toten (and the J_perp node its own perpinv, the class its
+! own sigma, the orbit its own dtau).  Threadprivate so concurrent slices do not
+! clobber each other.  cE_ref,Phi_eff are set once at startup (tt.f90) and read
+! only, so they stay shared.
+    !$omp threadprivate(dtau,toten,perpinv,sigma)
   end module global_invariants
 !
   module poicut_mod
@@ -62,6 +69,10 @@
     integer :: nbounds,nregions
     double precision,     dimension(:),   allocatable :: R_bo,Z_bo,psiast_bo
     type(allowed_region), dimension(:,:), allocatable :: all_regions
+! Per-slice scratch: the orbit-region/boundary formation runs once per energy
+! slice, and the slices run in parallel (resonant_torque), so each thread builds
+! its own regions.
+    !$omp threadprivate(nbounds,nregions,R_bo,Z_bo,psiast_bo,all_regions)
   end module bounds_fixpoints_mod
 !
   module form_classes_doublecount_mod
