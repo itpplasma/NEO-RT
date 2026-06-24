@@ -1,25 +1,11 @@
+# The field, magfie, spline and kinds/constants sources live in libneo and are
+# linked below (LIBNEO::magfie pulls in libneo's core). Only POTATO-specific
+# sources are compiled here. binsrc/plag_coeff stay local: POTATO calls them as
+# bare external subroutines, whereas libneo wraps them in *_sub modules.
 add_library(potato_base
-  libneo_kinds.f90
   logging_mod.f90
   potato_input_mod.f90
-  math_constants.f90
   alpha_lifetime_mod.f90
-  chamb_divB0.f90
-  magfie_cyl.f90
-  period_mod.f90
-  input_files.f90
-  field_c_mod.f90
-  field_mod.f90
-  inthecore_mod.f90
-  field_eq_mod.f90
-  field_divB0.f90
-  bdivfree_mod.f90
-  amn_mod.f90
-  theta_rz_mod.f90
-  extract_fluxcoord_mod.f90
-  bdivfree.f90
-  spl_three_to_five.f90
-  spline5_RZ.f90
   velo.f90
   odeint_allroutines.f
   plag_coeff.f90
@@ -37,8 +23,13 @@ add_library(potato_base
   neo2_reader.f90
 )
 find_or_fetch(vode)
-target_link_libraries(potato_base PUBLIC 
+# vode (dvode_f90_m) uses labeled DO termination, deleted in f2018; build it with
+# the permissive legacy standard rather than POTATO's f2018.
+target_compile_options(vode PRIVATE -std=legacy)
+target_link_libraries(potato_base PUBLIC
 vode
+LIBNEO::magfie
+mc_efit
 BLAS::BLAS
 LAPACK::LAPACK
 HDF5::HDF5
