@@ -26,12 +26,22 @@
 !
     integer          :: nmodes,nperp_max=0
     double precision :: twopim2,rm3,taub_new,delphi_new
+    !$omp threadprivate(twopim2,rm3,taub_new,delphi_new)
 ! Energy and perpendicular invariant of the resonant orbit, set by pertham and
 ! read by velo_res for the perturbed-Hamiltonian Fourier integral.  Held separate
 ! from the global class invariants toten,perpinv so the per-mode resonance loop
 ! never writes those -- they stay the shared, read-only class values, which lets
 ! the loop be parallelized without making toten,perpinv threadprivate.
     double precision :: toten_orb,perpinv_orb
+    !$omp threadprivate(toten_orb,perpinv_orb)
+! By-products of the resonance condition get_rescond ($\psi^\ast$, bounce time,
+! toroidal shift), recovered for the orbit weight.  get_rescond is an internal
+! procedure of integrate_class_resonances that is also passed as the dummy root
+! function to find_all_roots; with gfortran's trampoline for that dummy-procedure
+! call, a host-local PRIVATE variable written through it is not seen as private,
+! so these must be threadprivate module state instead of privatized host locals.
+    double precision :: psiast_res,taub_res,delphi_res
+    !$omp threadprivate(psiast_res,taub_res,delphi_res)
     integer, dimension(:), allocatable :: marr,narr
     double precision, dimension(:), allocatable :: delint_mode
 !
@@ -143,7 +153,8 @@
                                  relerr_allroots,fail_fast,max_roots_abort
   use get_matrix_mod,     only : iclass
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
-  use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp
+  use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
+                                 psiast_res,taub_res,delphi_res
   use orbit_dim_mod,      only : neqm,fb_max_abs_delphi,fb_max_tau
   use global_invariants,  only : toten,perpinv,cE_ref,Phi_eff,dtau
 ! xbeg,xend are the search bounds set (and clipped to the |Delta_phi_b| cap) by
@@ -151,6 +162,7 @@
 ! the sampled interval.
   use sample_matrix_mod,  only : npoi,xarr,xbeg,xend,eps
   use logging_mod,        only : tee_message
+  use interp_cache_mod,   only : interp_cache_reset
 !
   implicit none
 !
@@ -159,7 +171,7 @@
   integer, parameter :: max_roots_per_class_mode=32
 !
   integer          :: mode,iroot,ierr,max_roots_abort_save
-  double precision :: rescond,dresconddx,psiast,dpsiastdx,taub,delphi
+  double precision :: rescond,dresconddx,dpsiastdx
   double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
   double precision :: fmaxw,A1ast,A2ast
   double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
@@ -189,6 +201,27 @@
   fb_max_tau=200.d0*dtau
 !
 !
+! Parallel over modes: each mode is independent.  It runs its own find_all_roots
+! (nroots,roots threadprivate) and per-root pertham (twopim2,rm3,taub_new,
+! delphi_new,toten_orb,perpinv_orb,next, and the interp cache threadprivate), and
+! writes only its disjoint column respoints_jp(mode,iclass) and delint_mode(mode).
+! toten,perpinv stay shared read-only (the class invariants); the grid arrays and
+! customgrid,ncustom,xcustom are shared read-only too.  The threadprivate
+! form-class bounds it reads (ifuntype,R_class_beg,R_class_end,sigma_class) are
+! copyin'd.  The get_rescond by-products psiast_res,taub_res,delphi_res are
+! threadprivate module state (resint_mod), NOT host-local privates: get_rescond
+! is passed as the dummy root function to find_all_roots, and gfortran's
+! trampoline for that call does not honor a host-local private, so privatizing
+! them here silently corrupted the weights.  reslines write(31415) and
+! tee_message go in a critical section.  Each thread resets its interp cache at
+! entry so it drops the previous class's grid before reusing its buffer.
+  !$omp parallel default(shared) &
+  !$omp   private(mode,iroot,ierr,rescond,dresconddx,dpsiastdx) &
+  !$omp   private(one_res,Rst,xi,dxi_dx,dpsiast_dRst,absHn2,fmaxw,A1ast,A2ast) &
+  !$omp   private(dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi,z,msg) &
+  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class)
+  call interp_cache_reset
+  !$omp do schedule(dynamic)
   do mode=1,nmodes
     twopim2=twopi*dble(marr(mode))
     rm3=dble(narr(mode))
@@ -201,7 +234,9 @@
         'skipped oscillatory roots: toten=',toten,' perpinv=',perpinv, &
         ' iclass=',iclass,' mode=',mode,' m=',marr(mode), &
         ' nroots=',nroots
+      !$omp critical (reslines_log)
       call tee_message(trim(msg))
+      !$omp end critical (reslines_log)
       respoints_jp(mode,iclass)%nrespoi=0
       respoints_jp(mode,iclass)%toten_res=toten
       respoints_jp(mode,iclass)%perpinv_res=perpinv
@@ -209,7 +244,9 @@
     endif
 !
     if(ierr.ne.0) then
+      !$omp critical (reslines_log)
       call tee_message('integrate_class_resonances: skipped unpolished roots')
+      !$omp end critical (reslines_log)
       respoints_jp(mode,iclass)%nrespoi=0
       respoints_jp(mode,iclass)%toten_res=toten
       respoints_jp(mode,iclass)%perpinv_res=perpinv
@@ -232,16 +269,20 @@
       Rst=R_class_beg(iclass)+delta_R*xi
 !
       call starter_doublecount(toten,perpinv,sigma,Rst,   &
-                               psiast,dpsiast_dRst,z,ierr)
+                               psiast_res,dpsiast_dRst,z,ierr)
 !
       if(ierr.ne.0) then
+        !$omp critical (reslines_log)
         call tee_message( &
           'integrate_class_resonances: error in starter_doublecount')
+        !$omp end critical (reslines_log)
         cycle
       endif
 !
       if(.true.) then
-        write(31415,*) toten,perpinv,psiast,marr(mode),narr(mode)   !<=resonant line for plotting
+        !$omp critical (reslines_log)
+        write(31415,*) toten,perpinv,psiast_res,marr(mode),narr(mode)   !<=resonant line for plotting
+        !$omp end critical (reslines_log)
       endif
 !
       respoints_jp(mode,iclass)%z_res(:,iroot)=z
@@ -249,9 +290,9 @@
       dpsiastdx=dpsiast_dRst*delta_R*dxi_dx     !$\difp{\psi^\ast}{x}$
 !
       call pertham(z,absHn2)
-      call equilmaxw(psiast,fmaxw)
-      call denstemp_of_psi(psiast,dens,temp,ddens,dtemp)
-      call phielec_of_psi(psiast,phi_elec,dPhi_dpsi)
+      call equilmaxw(psiast_res,fmaxw)
+      call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
+      call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
 !
 ! toten,perpinv are never written in this loop (pertham writes toten_orb,
 ! perpinv_orb instead), so they still hold the class invariants set on entry --
@@ -263,12 +304,12 @@
 !
 ! Expression under summation signs except the last line in Eq.(104) (former Eq.(94)):
       one_res=abs(dpsiastdx/dresconddx)*absHn2*fmaxw            &
-!ERROR, SEE in RED=>             *(Phi_eff*taub*(A1ast+A2ast*(toten-phi_elec)/temp)+delphi/temp)
-             *Phi_eff*taub*(A1ast+A2ast*(toten-phi_elec)/temp)  !<=ERROR CORRECTED
+!ERROR, SEE in RED=>             *(Phi_eff*taub_res*(A1ast+A2ast*(toten-phi_elec)/temp)+delphi_res/temp)
+             *Phi_eff*taub_res*(A1ast+A2ast*(toten-phi_elec)/temp)  !<=ERROR CORRECTED
 !
 ! emulator of box average (Heaviside function replaced with one in (104) - result is integral torque in
 ! the whole volume normalized by the reference energy $\cE_{ref}$):
-      one_res=one_res*taub
+      one_res=one_res*taub_res
 ! end emulator of box average
 !
 ! multiply expression under summation over modes with toroidal mode number, with factor $-\pi^{3/2}/4$
@@ -276,10 +317,12 @@
       one_res=one_res*rm3*pi32_over4m*cE_ref
 !
       respoints_jp(mode,iclass)%w_res(iroot)=one_res
-      respoints_jp(mode,iclass)%taub(iroot)=taub
+      respoints_jp(mode,iclass)%taub(iroot)=taub_res
       delint_mode(mode)=delint_mode(mode)+one_res
     enddo
   enddo
+  !$omp end do
+  !$omp end parallel
 !
   customgrid=.false.
   relerr_allroots=relerr_allroots_save
@@ -314,11 +357,11 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  psiast=vec(1)                          ! $\psi^\ast$
+  psiast_res=vec(1)                      ! $\psi^\ast$
   omega_b=vec(2)                         ! $\Omega_b=2\pi/\tau_b$
   omega_phi=vec(3)                       ! $\Omega_\varphi=\Delta\varphi_b/\tau_b$
-  taub=twopi/omega_b                     ! recover $\tau_b$ (finite at the root)
-  delphi=omega_phi*taub                  ! recover $\Delta\varphi_b$
+  taub_res=twopi/omega_b                 ! recover $\tau_b$ (finite at the root)
+  delphi_res=omega_phi*taub_res          ! recover $\Delta\varphi_b$
   rm2=twopim2/twopi                      ! poloidal harmonic $m=$ twopim2$/2\pi$
   rescond=rm2*omega_b+rm3*omega_phi      ! $m\,\Omega_b+n\,\Omega_\varphi$
   dresconddx=rm2*dvec(2)+rm3*dvec(3)

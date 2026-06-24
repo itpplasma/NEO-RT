@@ -83,10 +83,15 @@
     double precision    :: Rorb_max
 ! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
 ! it integrates.  The grid-build node-fill loops run find_bounce in parallel, so
-! each thread needs its own copy.  The surrounding module scalars (next,numbasef,
-! fb_relerr,...) are set before the parallel region and read only, so they stay
-! shared.
-    !$omp threadprivate(Rorb_max)
+! each thread needs its own copy.
+! next is the extra-integral count.  In the parallelized resonance mode loop
+! (integrate_class_resonances) pertham writes it (next=0 then next=3 for its two
+! find_bounce calls) and velo_res reads it for array dims, so each thread needs
+! its own next.  The grid-build regions in sample_matrix never write next; they
+! copyin the master value (next=0, set in sample_class_doublecount) to keep the
+! prior shared semantics.  numbasef,fb_relerr,... are set before any parallel
+! region and read only, so they stay shared.
+    !$omp threadprivate(Rorb_max,next)
 ! Orbit-integrator tolerances used by find_bounce.  6 significant digits is far
 ! tighter than the ~10% code-to-code benchmark and the eps~1d-3 class grid need,
 ! while keeping orbit integration (the dominant cost) affordable.  The class
@@ -120,6 +125,11 @@
     integer :: ncache=0, n1cache=0
     double precision, dimension(:),   allocatable :: xcache
     double precision, dimension(:,:), allocatable :: veccache, dveccache
+! The cache is per-thread scratch: the resonance mode loop reads and fills it from
+! every thread, so each thread keeps its own buffer.  interp_cache_reset must be
+! called inside the parallel region so every thread drops the previous class's
+! grid before reusing its buffer.
+    !$omp threadprivate(ncache,n1cache,xcache,veccache,dveccache)
   contains
     subroutine interp_cache_reset
       ncache=0

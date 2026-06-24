@@ -9,6 +9,7 @@
     integer :: nroots, nsearch_min=100, ncustom, niter=100, max_roots_abort=0
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
+    !$omp threadprivate(nroots,roots)
   end module find_all_roots_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
