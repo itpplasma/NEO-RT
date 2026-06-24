@@ -433,7 +433,7 @@
   use field_sub, only : psif
   use field_eq_mod, only : nrad,nzet,rad,zet,psi_sep
   use poicut_mod,        only : rmagaxis,zmagaxis,psimagaxis,psi_bou,rhopol_bou
-  use global_invariants, only : toten,perpinv
+  use global_invariants, only : toten,perpinv,dtau
   use poicut_mod,        only : Rbou_lfs,Zbou_lfs
   use get_matrix_mod,    only : iclass
   use form_classes_doublecount_mod, only : nclasses
@@ -639,8 +639,11 @@
 ! and
 ! respoint(i)%perpinv_res
 ! respectively
+! Cap box-counting at the find_bounce acceptance bound (resonant_int.f90 sets
+! fb_max_tau=200*dtau during the root search): a root with |taub| beyond it sits
+! at an interpolated Omega_b~0 near the separatrix and is not integrable.
         call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
-          respoint(i)%taub, taubox)
+          respoint(i)%taub, 200.d0*dtau, taubox)
         write(1901,*) respoint(i)%toten_res, &
           respoint(i)%perpinv_res, &
           ! tormom_of_RZ(respoint(i)%toten_res, respoint(i)%perpinv_res, TODO ), &
