@@ -54,6 +54,13 @@ module potato_input_mod
     double precision :: orbit_Zstart = 0d0     ! start height [cm]
     double precision :: orbit_lambda = 0.4d0   ! pitch cosine v_par/v at start
 
+    ! Frequency radial scan (itest_type=5): trace one bounce at each of freq_n
+    ! midplane start radii from freq_Rmin to freq_Rmax (pitch orbit_lambda),
+    ! and write rho_pol, omega_b, omega_phi to freq_scan.dat.
+    double precision :: freq_Rmin = 178d0      ! inner start radius [cm]
+    double precision :: freq_Rmax = 221d0      ! outer start radius [cm], into SOL
+    integer          :: freq_n = 40            ! number of surfaces
+
     ! Canonical frequency plot
     double precision :: enkin_over_temp = 1d0
 
@@ -76,7 +83,8 @@ module potato_input_mod
         itermax_sampling, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, &
-        orbit_Rstart, orbit_Zstart, orbit_lambda
+        orbit_Rstart, orbit_Zstart, orbit_lambda, &
+        freq_Rmin, freq_Rmax, freq_n
 
 contains
 
@@ -143,6 +151,9 @@ contains
         write(iunit, '(A,ES12.5)') '  orbit_Rstart     = ', orbit_Rstart
         write(iunit, '(A,ES12.5)') '  orbit_Zstart     = ', orbit_Zstart
         write(iunit, '(A,ES12.5)') '  orbit_lambda     = ', orbit_lambda
+        write(iunit, '(A,ES12.5)') '  freq_Rmin        = ', freq_Rmin
+        write(iunit, '(A,ES12.5)') '  freq_Rmax        = ', freq_Rmax
+        write(iunit, '(A,I0)') '  freq_n           = ', freq_n
         write(iunit, '(A)') '================================'
     end subroutine print_potato_input
 
