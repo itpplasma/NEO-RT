@@ -59,9 +59,18 @@ endif()
 set(BUILD_TESTING OFF)
 
 find_or_fetch(spline)
-find_or_fetch(vode)
 
 include(FetchContent)
+
+if(NOT TARGET fortnum)
+    FetchContent_Declare(
+        fortnum
+        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
+    )
+    FetchContent_MakeAvailable(fortnum)
+endif()
+
 FetchContent_Declare(
     fortplot
     GIT_REPOSITORY https://github.com/lazy-fortran/fortplot.git
@@ -148,14 +157,12 @@ endif()
 target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}")
 add_dependencies(neo_rt spline)
 target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/spline")
-add_dependencies(neo_rt vode)
-target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/vode")
 
 find_package(BLAS)
 find_package(LAPACK)
 
 target_link_libraries(neo_rt PUBLIC
-    vode
+    fortnum
     spline
     BLAS::BLAS
     LAPACK::LAPACK
