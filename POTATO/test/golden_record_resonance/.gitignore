@@ -1,0 +1,13 @@
+# The repo root ignores *.dat (run outputs). The committed synthetic fixtures
+# here are inputs, not outputs, so track them while still ignoring any stray
+# run artifacts a local invocation might drop in this directory.
+!convexwall.dat
+!bmod_n.dat
+fort.*
+*.log
+eqmagprofs.dat
+profile.out
+canonical_freqs_vs_eta_*.dat
+boxcounted_torque.dat
+integral_torque.dat
+subint_*.dat

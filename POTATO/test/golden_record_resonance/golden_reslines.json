@@ -1,0 +1,8 @@
+{
+  "_comment": "Golden record for the public-safe circular-equilibrium resonance gate. Per-energy-slice resonance-line counts produced by potato.x on the committed circular case (build off feature/potato-resonances, fixed get_rescond dummy-procedure handling). Each slice is keyed by its total-energy value (toten, first column of fort.31415); the count is the number of resonance lines written for that slice. The buggy commit 363fe03 (privatized get_rescond by-products corrupting the weights/roots) yields markedly lower counts (per-slice ~82 and ~120 vs ~133 and ~200), so a +-2% gate around these numbers separates correct from buggy.",
+  "total_reslines": 333,
+  "slices": [
+    {"toten": 14.914654849581828, "count": 133},
+    {"toten": 17.446573461490452, "count": 200}
+  ]
+}

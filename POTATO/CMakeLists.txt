@@ -82,3 +82,28 @@ add_executable(import_neo2_profiles.x
 target_link_libraries(import_neo2_profiles.x
    potato
 )
+
+# Public-safe golden-record gate for the OpenMP resonance solver. Runs potato.x
+# on a synthetic concentric-circle equilibrium (no AUG #30835 data) and checks
+# the per-energy-slice resonance-line counts against a committed golden record,
+# plus OMP=1 vs OMP=4 determinism. Catches the get_rescond weight-corruption
+# regression. Registered only when Python 3 and numpy are available so the gate
+# is opt-in for environments without the Python test deps.
+enable_testing()
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -c "import numpy"
+        RESULT_VARIABLE _have_numpy
+        OUTPUT_QUIET ERROR_QUIET)
+    if(_have_numpy EQUAL 0)
+        add_test(
+            NAME resonance_golden
+            COMMAND ${Python3_EXECUTABLE} -m pytest -v
+                ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance/test_resonance_golden.py
+        )
+        set_tests_properties(resonance_golden PROPERTIES
+            ENVIRONMENT "POTATO_EXE=$<TARGET_FILE:potato.x>"
+            TIMEOUT 300)
+    endif()
+endif()
