@@ -1,19 +1,9 @@
-  module sample_matrix_mod
-    integer :: nlagr,n1,n2,npoi,itermax,nstiff,i_int
-! >0 marks a matrix row whose value 0 flags an invalid (non-closing orbit) node.
-! sample_matrix then refuses to refine across such nodes (see sample_matrix.f90).
-    integer :: isentinel = 0
-    double precision :: x,xbeg,xend,eps
-    double precision, dimension(:),     allocatable :: xarr
-    double precision, dimension(:,:),   allocatable :: amat
-    double precision, dimension(:,:,:), allocatable :: amat_arr
-  end module sample_matrix_mod
-!
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
   SUBROUTINE sample_matrix(get_matrix,ierr)
 !
   USE sample_matrix_mod
+  USE form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
 !
   IMPLICIT NONE
 !
@@ -36,8 +26,8 @@
 ! frequencies, rows 1-3, whose global~local) untouched, so resonance positions
 ! are unchanged, while the wide-range weights stop refining where they are small.
   DOUBLE PRECISION, PARAMETER :: refine_floor=1.d-2
-  INTEGER :: i,j,iter,npoi_old,iold,inew,ibeg,iend,nshift,npoilag,ierr
-  INTEGER,          DIMENSION(:),     ALLOCATABLE :: isplit
+  INTEGER :: i,j,iter,npoi_old,iold,inew,ibeg,iend,nshift,npoilag,ierr,nnew,k
+  INTEGER,          DIMENSION(:),     ALLOCATABLE :: isplit,newslots
 !
   DOUBLE PRECISION :: h,hh
   DOUBLE PRECISION, DIMENSION(:),     ALLOCATABLE :: xold
@@ -82,11 +72,22 @@
     x=xbeg+h*(i-1)+hh*(i-1)**2
     xarr(i)=x
   ENDDO
+! Initial interior fill: one independent get_matrix (starter+find_bounce) per
+! node, writing the disjoint slot amat_arr(:,:,i).  This is the find_bounce-heavy
+! cost.  x and amat are threadprivate scratch; the form-class bounds are already
+! threadprivate upstream, so copyin seeds each worker with the master values.
+! toten,perpinv,next stay SHARED and read-only here (the grid build never calls
+! pertham, so nothing writes them in the region); making them threadprivate is
+! what silently corrupted near-separatrix classes before.
+  !$omp parallel do default(shared) private(i) schedule(dynamic) &
+  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class)
   DO i=2,npoi-1
+    if(.not.allocated(amat)) allocate(amat(n1,n2))
     x=xarr(i)
     CALL get_matrix
     amat_arr(:,:,i)=amat
   ENDDO
+  !$omp end parallel do
 !
   ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2),amat_glob(n1,n2))
 !
@@ -166,7 +167,13 @@
     ENDIF
     ALLOCATE(xarr(npoi),amat_arr(n1,n2,npoi))
 !
-! fill new arrays:
+! Serial layout pass: copy the retained old nodes into their new slots and, for
+! each split interval, reserve the new node's slot inew with its midpoint xarr.
+! Record the new-node slots in newslots so the find_bounce-heavy get_matrix calls
+! run in the parallel fill below instead of here.  Layout (slot assignment, array
+! re-allocation, the isplit decision) stays serial.
+    ALLOCATE(newslots(npoi))
+    nnew=0
     inew=0
     DO iold=1,npoi_old-1
       inew=inew+1
@@ -174,16 +181,30 @@
       amat_arr(:,:,inew)=amat_old(:,:,iold)
       IF(isplit(iold).EQ.1) THEN
         inew=inew+1
-        x=0.5d0*(xold(iold)+xold(iold+1))
-        CALL get_matrix
-        xarr(inew)=x
-        amat_arr(:,:,inew)=amat
+        xarr(inew)=0.5d0*(xold(iold)+xold(iold+1))
+        nnew=nnew+1
+        newslots(nnew)=inew
       ENDIF
     ENDDO
     inew=inew+1
     xarr(inew)=xold(npoi_old)
     amat_arr(:,:,inew)=amat_old(:,:,npoi_old)
     DEALLOCATE(isplit)
+!
+! Parallel fill pass: one independent get_matrix per new node, writing the
+! disjoint slot amat_arr(:,:,newslots(k)).  Same per-thread scratch (x,amat) and
+! copyin of the shared form-class bounds as the initial fill; toten,perpinv,next
+! stay shared and read-only.
+    !$omp parallel do default(shared) private(k) schedule(dynamic) &
+    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class)
+    DO k=1,nnew
+      if(.not.allocated(amat)) allocate(amat(n1,n2))
+      x=xarr(newslots(k))
+      CALL get_matrix
+      amat_arr(:,:,newslots(k))=amat
+    ENDDO
+    !$omp end parallel do
+    DEALLOCATE(newslots)
 !
 ! check which intervals should be splitted
     ALLOCATE(isplit(npoi))

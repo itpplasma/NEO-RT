@@ -81,6 +81,12 @@
     logical             :: write_orb=.false.
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
+! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
+! it integrates.  The grid-build node-fill loops run find_bounce in parallel, so
+! each thread needs its own copy.  The surrounding module scalars (next,numbasef,
+! fb_relerr,...) are set before the parallel region and read only, so they stay
+! shared.
+    !$omp threadprivate(Rorb_max)
 ! Orbit-integrator tolerances used by find_bounce.  6 significant digits is far
 ! tighter than the ~10% code-to-code benchmark and the eps~1d-3 class grid need,
 ! while keeping orbit integration (the dominant cost) affordable.  The class
