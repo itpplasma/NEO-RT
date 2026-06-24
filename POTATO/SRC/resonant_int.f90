@@ -26,6 +26,12 @@
 !
     integer          :: nmodes,nperp_max=0
     double precision :: twopim2,rm3,taub_new,delphi_new
+! Energy and perpendicular invariant of the resonant orbit, set by pertham and
+! read by velo_res for the perturbed-Hamiltonian Fourier integral.  Held separate
+! from the global class invariants toten,perpinv so the per-mode resonance loop
+! never writes those -- they stay the shared, read-only class values, which lets
+! the loop be parallelized without making toten,perpinv threadprivate.
+    double precision :: toten_orb,perpinv_orb
     integer, dimension(:), allocatable :: marr,narr
     double precision, dimension(:), allocatable :: delint_mode
 !
@@ -45,8 +51,7 @@
 ! of the perturbed Hamiltonian $\hat H_\bm$, Eq.(102) (former Eq.(93))
 !
   use orbit_dim_mod,     only : neqm,next,numbasef
-  use global_invariants, only : toten,perpinv
-  use resint_mod,        only : twopim2,rm3,taub_new,delphi_new
+  use resint_mod,        only : twopim2,rm3,taub_new,delphi_new,toten_orb,perpinv_orb
 !
   implicit none
 !
@@ -60,7 +65,7 @@
   call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
   call bmod_pert(z(1),z(3),bmod_n)
 !
-  comfac=(2.d0*(toten-phi_elec)/bmod-perpinv)*bmod_n &
+  comfac=(2.d0*(toten_orb-phi_elec)/bmod-perpinv_orb)*bmod_n &
         *exp(imun*(rm3*z(2)-(twopim2+delphi_new*rm3)*z(6)/taub_new))
 !
   vz(6)=1.d0
@@ -77,8 +82,8 @@
 ! Hamiltoninan, $|\hat H_\bm|^2$, with $\hat H_\bm$ defined by Eq.(102) (former Eq.(93)).
 !
   use orbit_dim_mod,     only : neqm,next     ,write_orb,iunit1
-  use global_invariants, only : toten,perpinv,dtau
-  use resint_mod,        only : taub_new,delphi_new
+  use global_invariants, only : dtau
+  use resint_mod,        only : taub_new,delphi_new,toten_orb,perpinv_orb
 !
 !
   implicit none
@@ -94,8 +99,8 @@
 !
   call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
 !
-  toten=z(4)**2+phi_elec
-  perpinv=z(4)**2*(1.d0-z(5)**2)/bmod
+  toten_orb=z(4)**2+phi_elec
+  perpinv_orb=z(4)**2*(1.d0-z(5)**2)/bmod
 !
   next=0
   allocate(extraset(next))
@@ -156,15 +161,12 @@
   integer          :: mode,iroot,ierr,max_roots_abort_save
   double precision :: rescond,dresconddx,psiast,dpsiastdx,taub,delphi
   double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
-  double precision :: toten_loc,perpinv_loc,fmaxw,A1ast,A2ast
+  double precision :: fmaxw,A1ast,A2ast
   double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
   double precision :: relerr_allroots_save,fb_max_abs_delphi_save,fb_max_tau_save
   double precision, dimension(neqm) :: z
   character(len=256) :: msg
   logical :: fail_fast_save
-!
-  toten_loc=toten
-  perpinv_loc=perpinv
 !
   sigma=sigma_class(iclass)
   delta_R=R_class_end(iclass)-R_class_beg(iclass)
@@ -251,8 +253,9 @@
       call denstemp_of_psi(psiast,dens,temp,ddens,dtemp)
       call phielec_of_psi(psiast,phi_elec,dPhi_dpsi)
 !
-      toten=toten_loc
-      perpinv=perpinv_loc
+! toten,perpinv are never written in this loop (pertham writes toten_orb,
+! perpinv_orb instead), so they still hold the class invariants set on entry --
+! no save/restore needed.
 !
 ! Non-local thermodynamic forces Eq.(95) (former Eq.(87)):
       A2ast=dtemp/temp
