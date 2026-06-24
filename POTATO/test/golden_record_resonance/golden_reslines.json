@@ -1,8 +1,9 @@
 {
-  "_comment": "Golden record for the public-safe circular-equilibrium resonance gate. Per-energy-slice resonance-line counts produced by potato.x on the committed circular case (build off feature/potato-resonances, fixed get_rescond dummy-procedure handling). Each slice is keyed by its total-energy value (toten, first column of fort.31415); the count is the number of resonance lines written for that slice. The buggy commit 363fe03 (privatized get_rescond by-products corrupting the weights/roots) yields markedly lower counts (per-slice ~82 and ~120 vs ~133 and ~200), so a +-2% gate around these numbers separates correct from buggy.",
-  "total_reslines": 333,
+  "_comment": "Golden record for the public-safe circular-equilibrium resonance gate. Per-energy-slice resonance-line counts produced by potato.x on the committed circular case. Each slice is keyed by its total-energy value (toten, first column of fort.31415); the count is the number of resonance lines written for that slice. Regenerated for the configurable uniform-energy grid (enkin_min_over_temp default 0.1; toten starts at phi_max + 0.1*T) after making libneo's ierrfield threadprivate, which removed the OpenMP race that the new energy slices exposed. The OMP-determinism half of the gate checks the sorted reslines are identical at 1 and 4 threads; a privatization regression in the resonance weights drops the counts well below these numbers.",
+  "total_reslines": 660,
   "slices": [
-    {"toten": 14.914654849581828, "count": 133},
-    {"toten": 17.446573461490452, "count": 200}
+    {"toten": 18.220600840510961, "count": 200},
+    {"toten": 18.607267507177632, "count": 191},
+    {"toten": 18.993934173844298, "count": 269}
   ]
 }
