@@ -26,12 +26,22 @@
 !
     integer          :: nmodes,nperp_max=0
     double precision :: twopim2,rm3,taub_new,delphi_new
+    !$omp threadprivate(twopim2,rm3,taub_new,delphi_new)
 ! Energy and perpendicular invariant of the resonant orbit, set by pertham and
 ! read by velo_res for the perturbed-Hamiltonian Fourier integral.  Held separate
 ! from the global class invariants toten,perpinv so the per-mode resonance loop
 ! never writes those -- they stay the shared, read-only class values, which lets
 ! the loop be parallelized without making toten,perpinv threadprivate.
     double precision :: toten_orb,perpinv_orb
+    !$omp threadprivate(toten_orb,perpinv_orb)
+! By-products of the resonance condition get_rescond ($\psi^\ast$, bounce time,
+! toroidal shift), recovered for the orbit weight.  get_rescond is an internal
+! procedure of integrate_class_resonances that is also passed as the dummy root
+! function to find_all_roots; with gfortran's trampoline for that dummy-procedure
+! call, a host-local PRIVATE variable written through it is not seen as private,
+! so these must be threadprivate module state instead of privatized host locals.
+    double precision :: psiast_res,taub_res,delphi_res
+    !$omp threadprivate(psiast_res,taub_res,delphi_res)
     integer, dimension(:), allocatable :: marr,narr
     double precision, dimension(:), allocatable :: delint_mode
 !
@@ -142,11 +152,13 @@
   use find_all_roots_mod, only : customgrid,ncustom,xcustom,nroots,roots
   use get_matrix_mod,     only : relmargin,iclass
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
-  use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp
+  use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
+                                 psiast_res,taub_res,delphi_res
   use orbit_dim_mod,      only : neqm
   use global_invariants,  only : toten,perpinv,cE_ref,Phi_eff
   use sample_matrix_mod,  only : npoi,xarr
   use logging_mod,        only : tee_message
+  use interp_cache_mod,   only : interp_cache_reset
 !
   implicit none
 !
@@ -155,7 +167,7 @@
 !
   integer          :: mode,iroot,ierr
   double precision :: relmargin_loc,widthclass,xbeg,xend
-  double precision :: rescond,dresconddx,psiast,dpsiastdx,taub,delphi
+  double precision :: rescond,dresconddx,dpsiastdx
   double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
   double precision :: fmaxw,A1ast,A2ast
   double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
@@ -175,7 +187,26 @@
   allocate(xcustom(ncustom))
   xcustom=xarr
 !
-!
+! Parallel over modes: each mode is independent.  It runs its own find_all_roots
+! (nroots,roots threadprivate) and per-root starter+pertham (twopim2,rm3,taub_new,
+! delphi_new,toten_orb,perpinv_orb,next, and the interp cache threadprivate), and
+! writes only its disjoint column respoints_jp(mode,iclass) and delint_mode(mode).
+! toten,perpinv stay shared read-only (the class invariants); customgrid,ncustom,
+! xcustom and the grid arrays are shared read-only too.  The threadprivate
+! form-class bounds it reads (ifuntype,R_class_beg,R_class_end,sigma_class) are
+! copyin'd.  The get_rescond by-products psiast_res,taub_res,delphi_res are
+! threadprivate module state (resint_mod), NOT host-local privates: get_rescond
+! is passed as the dummy root function to find_all_roots, and gfortran's
+! trampoline for that call does not honor a host-local private.  reslines
+! write(31415) and tee_message go in a critical section.  Each thread resets its
+! interp cache at entry so it drops the previous class's grid before reusing it.
+  !$omp parallel default(shared) &
+  !$omp   private(mode,iroot,ierr,rescond,dresconddx,dpsiastdx) &
+  !$omp   private(one_res,Rst,xi,dxi_dx,dpsiast_dRst,absHn2,fmaxw,A1ast,A2ast) &
+  !$omp   private(dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi,z) &
+  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class)
+  call interp_cache_reset
+  !$omp do schedule(dynamic)
   do mode=1,nmodes
     twopim2=twopi*dble(marr(mode))
     rm3=dble(narr(mode))
@@ -184,11 +215,14 @@
     call find_all_roots(get_rescond,xbeg,xend,ierr)
 !
     if(ierr.ne.0) then
+      !$omp critical (reslines_log)
       call tee_message( &
         'integrate_class_resonances: error in find_all_roots')
-      customgrid=.false.
-      deallocate(xcustom)
-      return
+      !$omp end critical (reslines_log)
+      respoints_jp(mode,iclass)%nrespoi=0
+      respoints_jp(mode,iclass)%toten_res=toten
+      respoints_jp(mode,iclass)%perpinv_res=perpinv
+      cycle
     endif
 !
     respoints_jp(mode,iclass)%nrespoi=nroots
@@ -207,16 +241,20 @@
       Rst=R_class_beg(iclass)+delta_R*xi
 !
       call starter_doublecount(toten,perpinv,sigma,Rst,   &
-                               psiast,dpsiast_dRst,z,ierr)
+                               psiast_res,dpsiast_dRst,z,ierr)
 !
       if(ierr.ne.0) then
+        !$omp critical (reslines_log)
         call tee_message( &
           'integrate_class_resonances: error in starter_doublecount')
+        !$omp end critical (reslines_log)
         cycle
       endif
 !
       if(.true.) then
-        write(31415,*) toten,perpinv,psiast,marr(mode),narr(mode)   !<=resonant line for plotting
+        !$omp critical (reslines_log)
+        write(31415,*) toten,perpinv,psiast_res,marr(mode),narr(mode)   !<=resonant line for plotting
+        !$omp end critical (reslines_log)
       endif
 !
       respoints_jp(mode,iclass)%z_res(:,iroot)=z
@@ -224,9 +262,9 @@
       dpsiastdx=dpsiast_dRst*delta_R*dxi_dx     !$\difp{\psi^\ast}{x}$
 !
       call pertham(z,absHn2)
-      call equilmaxw(psiast,fmaxw)
-      call denstemp_of_psi(psiast,dens,temp,ddens,dtemp)
-      call phielec_of_psi(psiast,phi_elec,dPhi_dpsi)
+      call equilmaxw(psiast_res,fmaxw)
+      call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
+      call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
 !
 ! toten,perpinv are never written in this loop (pertham writes toten_orb,
 ! perpinv_orb instead), so they still hold the class invariants set on entry --
@@ -238,12 +276,12 @@
 !
 ! Expression under summation signs except the last line in Eq.(104) (former Eq.(94)):
       one_res=abs(dpsiastdx/dresconddx)*absHn2*fmaxw            &
-!ERROR, SEE in RED=>             *(Phi_eff*taub*(A1ast+A2ast*(toten-phi_elec)/temp)+delphi/temp)
-             *Phi_eff*taub*(A1ast+A2ast*(toten-phi_elec)/temp)  !<=ERROR CORRECTED
+!ERROR, SEE in RED=>             *(Phi_eff*taub_res*(A1ast+A2ast*(toten-phi_elec)/temp)+delphi_res/temp)
+             *Phi_eff*taub_res*(A1ast+A2ast*(toten-phi_elec)/temp)  !<=ERROR CORRECTED
 !
 ! emulator of box average (Heaviside function replaced with one in (104) - result is integral torque in
 ! the whole volume normalized by the reference energy $\cE_{ref}$):
-      one_res=one_res*taub
+      one_res=one_res*taub_res
 ! end emulator of box average
 !
 ! multiply expression under summation over modes with toroidal mode number, with factor $-\pi^{3/2}/4$
@@ -251,10 +289,12 @@
       one_res=one_res*rm3*pi32_over4m*cE_ref
 !
       respoints_jp(mode,iclass)%w_res(iroot)=one_res
-      respoints_jp(mode,iclass)%taub(iroot)=taub
+      respoints_jp(mode,iclass)%taub(iroot)=taub_res
       delint_mode(mode)=delint_mode(mode)+one_res
     enddo
   enddo
+  !$omp end do
+  !$omp end parallel
 !
   customgrid=.false.
   deallocate(xcustom)
@@ -279,10 +319,10 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  psiast=vec(1)               ! $\psi^\ast$
-  taub=vec(2)                 ! $\tau_b$
-  delphi=vec(3)               ! $\Delta\varphi_b$
-  rescond=delphi+twopim2/rm3
+  psiast_res=vec(1)           ! $\psi^\ast$
+  taub_res=vec(2)             ! $\tau_b$
+  delphi_res=vec(3)           ! $\Delta\varphi_b$
+  rescond=delphi_res+twopim2/rm3
   dresconddx=dvec(3)
 !
   end subroutine get_rescond
@@ -432,6 +472,9 @@
   double precision, dimension(:), allocatable :: sbox
   double precision, dimension(:), allocatable :: taubox
   double precision, dimension(:), allocatable :: torquebox
+! Per-resonance-point box times, filled by the parallel time_in_box pass and
+! consumed by the serial accumulate/write pass below.
+  double precision, dimension(:,:), allocatable :: taubox_all
 !
   external :: get_matrix_res
 !
@@ -591,30 +634,29 @@
 ! Computation of the integral torque:
       torque_int_loc=0.d0
 !
+! Box counter (time_in_box) integrates each resonant orbit through the radial
+! boxes via dvode -- the dominant per-point cost.  Points are independent and
+! dvode_f90_m is threadprivate/thread-safe, so run them in parallel into the
+! per-point taubox_all.  z_res(1:5) is the orbit start at the Poincare cut.
+      allocate(taubox_all(nbox,nrespoints))
+      !$omp parallel do default(shared) private(i) schedule(dynamic)
       do i=1,nrespoints
-! Here box counter should be used. Below we compute an integral torque as a sum of orbit weights:
-        torque_int_loc=torque_int_loc+respoint(i)%w_res
-! Quantity torque_int_loc is a contribution of one energy level to the integral torque. Width of energy
-! interval is already included in the weight.
-! For box counter use the starting coordinates of the orbit at the Poincare cut. They are stored in
-! respoint(i)%z_res(1:5)
-! Weight of the orbit is stored in
-! respoint(i)%w_res
-! If needed, there are also total energy and perpendicular invariant available in
-! respoint(i)%toten_res
-! and
-! respoint(i)%perpinv_res
-! respectively
         call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
-          respoint(i)%taub, taubox)
+          respoint(i)%taub, taubox_all(:,i))
+      enddo
+      !$omp end parallel do
+!
+! Serial accumulate/write pass: torque_int_loc is a running prefix sum written
+! per row to fort.1901, so it stays serial and in order; torquebox sums the
+! per-point box times.  Width of the energy interval is already in the weight.
+      do i=1,nrespoints
+        torque_int_loc=torque_int_loc+respoint(i)%w_res
         write(1901,*) respoint(i)%toten_res, &
           respoint(i)%perpinv_res, &
-          ! tormom_of_RZ(respoint(i)%toten_res, respoint(i)%perpinv_res, TODO ), &
-          torque_int_loc    !,taubox/respoint(i)%taub
-!
-        torquebox=torquebox+respoint(i)%w_res*taubox/respoint(i)%taub   !<=sum up resonances in boxes
-!
+          torque_int_loc
+        torquebox=torquebox+respoint(i)%w_res*taubox_all(:,i)/respoint(i)%taub
       enddo
+      deallocate(taubox_all)
       write(1901,*) ' '
 !
       deallocate(respoint)

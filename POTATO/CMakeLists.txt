@@ -12,6 +12,11 @@ include(Util)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS Fortran)
+# OpenMP parallelizes the find_bounce-heavy resonance grid build
+# (SRC/sample_matrix.f90) and the per-mode resonance root search
+# (SRC/resonant_int.f90).  Linked to potato_base so -fopenmp reaches POTATO's own
+# sources and the runtime is linked.
+find_package(OpenMP REQUIRED)
 
 include(FetchContent)
 FetchContent_Declare(

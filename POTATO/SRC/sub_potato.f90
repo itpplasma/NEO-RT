@@ -81,6 +81,15 @@
     logical             :: write_orb=.false.
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
+! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
+! it integrates.  next is the extra-integral count: in the parallel resonance
+! mode loop pertham writes it (next=0 then next=3 for its two find_bounce calls)
+! and velo_res reads it for array dims, so each thread needs its own.  The
+! find_bounce-heavy node-fill loops run in parallel, so both must be threadprivate.
+! The grid-build regions never write next; they copyin the master value to keep
+! the prior shared semantics.  numbasef is set before any parallel region and
+! read only, so it stays shared.
+    !$omp threadprivate(Rorb_max,next)
   end module orbit_dim_mod
 !
 !------------------------------------------------------
@@ -89,6 +98,28 @@
     double precision :: relerror=1.d-4, relmargin=1.d-4
     integer          :: iclass
   end module get_matrix_mod
+!
+!------------------------------------------------------
+!
+  module interp_cache_mod
+! Exact memoization of interpolate_class_doublecount, keyed on the class
+! coordinate x.  Within one integrate_class_resonances call the grid and iclass
+! are fixed, but the modes scan the same x values (only the mode-dependent m,n
+! combination changes), so the interpolation -- whose cost is dominated by
+! plag_coeff -- is otherwise recomputed identically across modes.  A hit returns
+! the stored result bit-for-bit, so resonance points are unchanged.  The cache is
+! per-thread scratch: the parallel mode loop reads and fills it from every thread,
+! so each thread keeps its own buffer and calls interp_cache_reset inside the
+! parallel region to drop the previous class's grid before reusing it.
+    integer :: ncache=0, n1cache=0
+    double precision, dimension(:),   allocatable :: xcache
+    double precision, dimension(:,:), allocatable :: veccache, dveccache
+    !$omp threadprivate(ncache,n1cache,xcache,veccache,dveccache)
+  contains
+    subroutine interp_cache_reset
+      ncache=0
+    end subroutine interp_cache_reset
+  end module interp_cache_mod
 !
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -2476,6 +2507,7 @@
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
   use cc_mod, only : dowrite
+  use interp_cache_mod,  only : interp_cache_reset
 !
   implicit none
 !
@@ -2509,6 +2541,10 @@
 !
   call sample_matrix(get_matrix_doublecount,ierr)
 !
+! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
+! so interpolate_class_doublecount never returns a value from the old grid.
+  call interp_cache_reset
+!
   if(dowrite) then
     print *,'npoi = ',npoi
     do i=1,npoi
@@ -2529,15 +2565,26 @@
   use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr
   use get_matrix_mod,    only : iclass
   use form_classes_doublecount_mod, only : ifuntype
+  use interp_cache_mod,  only : ncache,xcache,veccache,dveccache
 !
   implicit none
 !
   integer, parameter :: nder=1
-  integer            :: k,npoilag,nshift,ibeg,iend
+  integer            :: k,npoilag,nshift,ibeg,iend,ic
   double precision   :: x,xin,xi,xib,dxi_dx,dxi_dxb,dpphi_dxib,xi_inf,a,b
 !
   double precision, dimension(n1)             :: vec,dvec
   double precision, dimension(0:nder,nlagr+1) :: coef
+!
+! Exact memoization (see interp_cache_mod): a hit at this x returns the stored
+! vec,dvec bit-for-bit; the scan is far cheaper than the plag_coeff/matmul work.
+  do ic=1,ncache
+    if(xcache(ic).eq.x) then
+      vec=veccache(1:n1,ic)
+      dvec=dveccache(1:n1,ic)
+      return
+    endif
+  enddo
 !
   npoilag=nlagr+1
   nshift=nlagr/2
@@ -2687,7 +2734,59 @@
     end select
   endif
 !
+! Store this (x,vec,dvec) for reuse by later modes at the same x.
+  call interp_cache_store(x,vec,dvec)
+!
   end subroutine interpolate_class_doublecount
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine interp_cache_store(x,vec,dvec)
+!
+  use sample_matrix_mod, only : n1
+  use interp_cache_mod,  only : ncache,n1cache,xcache,veccache,dveccache
+!
+  implicit none
+!
+  double precision, intent(in) :: x
+  double precision, dimension(n1), intent(in) :: vec,dvec
+!
+  integer :: ncap,newcap
+  double precision, dimension(:),   allocatable :: xtmp
+  double precision, dimension(:,:), allocatable :: vectmp,dvectmp
+!
+! Row count change forces a fresh buffer (and would mean a new grid anyway).
+  if(allocated(xcache)) then
+    if(n1cache.ne.n1) then
+      deallocate(xcache,veccache,dveccache)
+    endif
+  endif
+!
+  if(.not.allocated(xcache)) then
+    newcap=64
+    allocate(xcache(newcap),veccache(n1,newcap),dveccache(n1,newcap))
+    n1cache=n1
+    ncache=0
+  endif
+!
+  ncap=size(xcache)
+  if(ncache.ge.ncap) then
+    newcap=2*ncap
+    allocate(xtmp(newcap),vectmp(n1,newcap),dvectmp(n1,newcap))
+    xtmp(1:ncap)=xcache
+    vectmp(:,1:ncap)=veccache
+    dvectmp(:,1:ncap)=dveccache
+    call move_alloc(xtmp,xcache)
+    call move_alloc(vectmp,veccache)
+    call move_alloc(dvectmp,dveccache)
+  endif
+!
+  ncache=ncache+1
+  xcache(ncache)=x
+  veccache(1:n1,ncache)=vec
+  dveccache(1:n1,ncache)=dvec
+!
+  end subroutine interp_cache_store
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
