@@ -10,6 +10,7 @@ add_library(potato_base
   odeint_allroutines.f
   plag_coeff.f90
   find_all_roots.f90
+  sample_matrix_mod.f90
   sample_matrix.f90
   sample_matrix_out.f90
   sub_potato.f90
@@ -35,6 +36,7 @@ BLAS::BLAS
 LAPACK::LAPACK
 HDF5::HDF5
 fortplot::fortplot
+OpenMP::OpenMP_Fortran
 )
 
 add_library(potato
