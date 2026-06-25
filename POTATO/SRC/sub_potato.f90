@@ -20,6 +20,10 @@
     double precision :: dtau,toten,perpinv,sigma
 ! reference energy $\cE_{ref}$, effective potential $\Phi_{eff}$:
     double precision :: cE_ref,Phi_eff
+! Total-energy slices run independently in resonant_torque.  These invariants
+! are the mutable per-slice/per-orbit state read by the orbit and class builders.
+! Keep the normalization constants shared; they are set once at startup.
+    !$omp threadprivate(dtau,toten,perpinv,sigma)
   end module global_invariants
 !
   module poicut_mod
@@ -59,9 +63,12 @@
       logical,          dimension(:), allocatable :: xpoint
     end type
 !
-    integer :: nbounds,nregions
-    double precision,     dimension(:),   allocatable :: R_bo,Z_bo,psiast_bo
-    type(allowed_region), dimension(:,:), allocatable :: all_regions
+! The region set is returned to the caller instead of held as module state, so
+! concurrent energy slices do not share derived-type allocatable scratch.
+    type region_set_t
+      integer :: nregions = 0
+      type(allowed_region), dimension(:,:), allocatable :: all_regions
+    end type
   end module bounds_fixpoints_mod
 !
   module form_classes_doublecount_mod
@@ -97,6 +104,7 @@
   module get_matrix_mod
     double precision :: relerror=1.d-4, relmargin=1.d-4
     integer          :: iclass
+    !$omp threadprivate(iclass)
   end module get_matrix_mod
 !
 !------------------------------------------------------
@@ -1050,19 +1058,22 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_bounds_fixpoints(ierr)
+  subroutine find_bounds_fixpoints(regions,ierr)
 !
   use global_invariants,    only : toten,perpinv,sigma
   use find_all_roots_mod,   only : nroots,roots,relerr_allroots
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use field_sub, only : psif
-  use bounds_fixpoints_mod, only : nbounds,R_bo,Z_bo,psiast_bo, &
-                                   nregions,all_regions
+  use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
 !
   implicit none
 !
+  type(region_set_t), intent(inout) :: regions
+  integer :: nbounds,nregions
+  double precision,     dimension(:),   allocatable :: R_bo,Z_bo,psiast_bo
+  type(allowed_region), dimension(:,:), allocatable :: all_regions
   logical, parameter :: doublecount=.true.
   integer, parameter :: niter=100
   double precision, parameter :: relerr=1d-12
@@ -1182,6 +1193,7 @@
     else
 ! vpar2<0 in the whole domain, no regions in the domain
       nregions=0
+      regions%nregions=0
       ierr=2
       return
     endif
@@ -1785,6 +1797,11 @@
 !
 !------------
 !
+  regions%nregions=nregions
+  call move_alloc(all_regions,regions%all_regions)
+!
+!------------
+!
   contains
 !
 !------------
@@ -2164,7 +2181,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine form_classes_doublecount(classes_talk,ierr)
+  subroutine form_classes_doublecount(regions,classes_talk,ierr)
 !
 ! Here "class" means segments coming from splitting by X-points of the domains of allowed motion
 ! for particles starting at the Poincare with a given parallel velocity sign. The routine
@@ -2173,15 +2190,18 @@
 !
   use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class,  &
                                            R_class_beg,R_class_end
-  use bounds_fixpoints_mod,         only : nregions,all_regions
+  use bounds_fixpoints_mod,         only : region_set_t
   use poicut_mod,                   only : Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use global_invariants,            only : toten,perpinv,sigma
 !
   implicit none
 !
+  type(region_set_t), intent(in) :: regions
   logical :: classes_talk
   integer          :: ierr,isig,ireg,nxp,ixp,icl,i
   integer, dimension(:), allocatable :: ibt_b,ibt_e
+!
+  associate(nregions => regions%nregions, all_regions => regions%all_regions)
 !
   ierr=0
 !
@@ -2275,6 +2295,8 @@
   endif
 !
   deallocate(ibt_b,ibt_e)
+!
+  end associate
 !
   end subroutine form_classes_doublecount
 !

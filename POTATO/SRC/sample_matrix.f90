@@ -8,6 +8,7 @@
 ! grid-build regions, which never write it, so each worker starts from the master
 ! value.
   USE orbit_dim_mod, only : next
+  USE global_invariants, only : dtau,toten,perpinv,sigma
 !
   IMPLICIT NONE
 !
@@ -56,15 +57,11 @@
     x=xbeg+h*(i-1)+hh*(i-1)**2
     xarr(i)=x
   ENDDO
-! Initial interior fill: one independent get_matrix (starter+find_bounce) per
-! node, writing the disjoint slot amat_arr(:,:,i).  This is the find_bounce-heavy
-! cost.  x and amat are threadprivate scratch; the form-class bounds are already
-! threadprivate, so copyin seeds each worker with the master values.  toten,perpinv
-! stay SHARED and read-only here (the grid build never calls pertham, so nothing
-! writes them); next is threadprivate but unwritten here, so copyin seeds each
-! worker with the master value to keep the prior shared behavior.
-  !$omp parallel do default(shared) private(i) schedule(dynamic) &
-  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next)
+! Initial interior fill. The class grid is threadprivate per energy slice, so
+! keep this inactive when called outside the outer energy team.
+  !$omp parallel do if(.false.) default(shared) private(i) schedule(dynamic) &
+  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next, &
+  !$omp          dtau,toten,perpinv,sigma)
   DO i=2,npoi-1
     if(.not.allocated(amat)) allocate(amat(n1,n2))
     x=xarr(i)
@@ -155,11 +152,11 @@
     amat_arr(:,:,inew)=amat_old(:,:,npoi_old)
     DEALLOCATE(isplit)
 !
-! Parallel fill pass: one independent get_matrix per new node, writing the
-! disjoint slot amat_arr(:,:,newslots(k)).  Same per-thread scratch (x,amat) and
-! copyin of the shared form-class bounds and next as the initial fill.
-    !$omp parallel do default(shared) private(k) schedule(dynamic) &
-    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next)
+! Fill pass for new nodes. See the initial fill above for why this region stays
+! inactive.
+    !$omp parallel do if(.false.) default(shared) private(k) schedule(dynamic) &
+    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next, &
+    !$omp          dtau,toten,perpinv,sigma)
     DO k=1,nnew
       if(.not.allocated(amat)) allocate(amat(n1,n2))
       x=xarr(newslots(k))

@@ -2,6 +2,7 @@ cmake_minimum_required (VERSION 3.22)
 
 project(POTATO)
 enable_language(Fortran)
+enable_testing()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
@@ -67,3 +68,17 @@ add_executable(import_neo2_profiles.x
 target_link_libraries(import_neo2_profiles.x
    potato
 )
+
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_golden_displacement
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py
+            $<TARGET_FILE:potato.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/golden_zero_mid.json
+    )
+    set_tests_properties(potato_golden_displacement PROPERTIES
+        SKIP_RETURN_CODE 77
+        TIMEOUT 240
+    )
+endif()
