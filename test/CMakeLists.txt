@@ -20,3 +20,8 @@ add_test(NAME test_neort_lib
     COMMAND ${CMAKE_BINARY_DIR}/test_neort_lib.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+
+add_test(NAME test_chartmap_input
+    COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_input.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)

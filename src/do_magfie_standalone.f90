@@ -56,6 +56,19 @@ module do_magfie_mod
     ! Shared data (NOT threadprivate): bfac, params0, modes0, m0b, n0b, nflux,
     ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00, psi_pr, R0
 
+    ! inp_swi == 10: Boozer chartmap (NetCDF) input via libneo reader.
+    ! Shared read-only arrays; populated once by read_boozer_chartmap_file.
+    integer :: cm_n_rho = 0, cm_n_theta = 0
+    real(dp) :: cm_torflux = 0.0_dp, cm_h_theta = 0.0_dp
+    real(dp) :: cm_rho_min = 0.0_dp, cm_rho_max = 0.0_dp
+    real(dp), allocatable, protected :: cm_rho(:)
+    real(dp), allocatable, protected :: cm_s_aphi(:)        ! s abscissa for A_phi
+    real(dp), allocatable, protected :: cm_spl_aphi(:, :)   ! spline of A_phi(s)
+    real(dp), allocatable, protected :: cm_spl_Bth(:, :)    ! spline of B_theta(rho)
+    real(dp), allocatable, protected :: cm_spl_Bph(:, :)    ! spline of B_phi(rho)
+    ! (n_rho-1, 5, n_theta): for each theta grid index, spline of Bmod vs rho
+    real(dp), allocatable, protected :: cm_spl_bmod(:, :, :)
+
 contains
 
     subroutine set_s(s_)
@@ -76,6 +89,11 @@ contains
         ! This should be called ONCE before parallel region
         character(len=*), intent(in) :: path
         integer :: j, k
+
+        if (inp_swi == 10) then
+            call read_boozer_chartmap_file(path)
+            return
+        end if
 
         ncol1 = 5
         if (inp_swi == 8) ncol2 = 4 ! tok_circ
@@ -123,27 +141,29 @@ contains
 
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
         if (.not. magfie_arrays_initialized) then
-            if (allocated(B0mnc)) deallocate(B0mnc)
-            if (allocated(dB0dsmnc)) deallocate(dB0dsmnc)
-            allocate(B0mnc(nmode), dB0dsmnc(nmode))
-            if (ncol2 >= 8) then
-                if (allocated(B0mns)) deallocate(B0mns)
-                if (allocated(dB0dsmns)) deallocate(dB0dsmns)
-                allocate(B0mns(nmode), dB0dsmns(nmode))
+            if (inp_swi /= 10) then
+                if (allocated(B0mnc)) deallocate(B0mnc)
+                if (allocated(dB0dsmnc)) deallocate(dB0dsmnc)
+                allocate(B0mnc(nmode), dB0dsmnc(nmode))
+                if (ncol2 >= 8) then
+                    if (allocated(B0mns)) deallocate(B0mns)
+                    if (allocated(dB0dsmns)) deallocate(dB0dsmns)
+                    allocate(B0mns(nmode), dB0dsmns(nmode))
+                end if
+                if (allocated(costerm)) deallocate(costerm)
+                if (allocated(sinterm)) deallocate(sinterm)
+                allocate(costerm(nmode), sinterm(nmode))
+
+                if (allocated(rmnc)) deallocate(rmnc)
+                if (allocated(rmns)) deallocate(rmns)
+                if (allocated(zmnc)) deallocate(zmnc)
+                if (allocated(zmns)) deallocate(zmns)
+                allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
+
+                if (allocated(spl_val_c)) deallocate(spl_val_c)
+                if (allocated(spl_val_s)) deallocate(spl_val_s)
+                allocate(spl_val_c(3, nmode), spl_val_s(3, nmode))
             end if
-            if (allocated(costerm)) deallocate(costerm)
-            if (allocated(sinterm)) deallocate(sinterm)
-            allocate(costerm(nmode), sinterm(nmode))
-
-            if (allocated(rmnc)) deallocate(rmnc)
-            if (allocated(rmns)) deallocate(rmns)
-            if (allocated(zmnc)) deallocate(zmnc)
-            if (allocated(zmns)) deallocate(zmns)
-            allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
-
-            if (allocated(spl_val_c)) deallocate(spl_val_c)
-            if (allocated(spl_val_s)) deallocate(spl_val_s)
-            allocate(spl_val_c(3, nmode), spl_val_s(3, nmode))
 
             magfie_arrays_initialized = .true.
         end if
@@ -162,7 +182,11 @@ contains
         ! Backward compatibility wrapper: calls read_boozer_file + init_magfie_at_s
         character(len=*), intent(in) :: path
 
-        call read_boozer_file(path)
+        if (inp_swi == 10) then
+            call read_boozer_chartmap_file(path)
+        else
+            call read_boozer_file(path)
+        end if
         call init_magfie_at_s()
     end subroutine do_magfie_init
 
@@ -178,8 +202,12 @@ contains
 
         real(dp) :: spl_val(3)
         real(dp) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
-
         real(dp) :: x1
+
+        if (inp_swi == 10) then
+            call do_magfie_chartmap(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+            return
+        end if
 
         ! safety measure in order not to extrapolate
         ! note: this is s
@@ -245,6 +273,155 @@ contains
         s_prev = x1
 
     end subroutine do_magfie
+
+    subroutine do_magfie_chartmap(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        ! Evaluate field from Boozer chartmap data (inp_swi == 10).
+        ! x = (s, phi, theta); Boozer convention theta is the poloidal angle.
+        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(out) :: bmod
+        real(dp), intent(out) :: sqrtg
+        real(dp), dimension(size(x)), intent(out) :: bder
+        real(dp), dimension(size(x)), intent(out) :: hcovar
+        real(dp), dimension(size(x)), intent(out) :: hctrvr
+        real(dp), dimension(size(x)), intent(out) :: hcurl
+
+        real(dp) :: spl_val(3), rho1, s1, dAphi_ds
+        real(dp) :: bmod0, bmod1, dBmod_drho, dBmod_dth
+        real(dp) :: sqgbmod, sqgbmod2
+        real(dp) :: alpha, th_shift
+        integer :: k_th, k_th1
+
+        s1 = max(cm_s_aphi(1), x(1))
+        s1 = min(cm_s_aphi(size(cm_s_aphi)), s1)
+        rho1 = max(cm_rho_min, sqrt(s1))
+        rho1 = min(cm_rho_max, rho1)
+
+        ! Radial profiles from chartmap splines.
+        spl_val = spline_val_0(cm_spl_aphi, s1)
+        dAphi_ds = spl_val(2)
+        ! iota = -dA_phi/ds / torflux  (A_phi = -torflux * integral iota ds)
+        iota = -dAphi_ds / cm_torflux
+        q = 1.0_dp / iota
+        dqds = spl_val(3) / (cm_torflux * iota**2)
+
+        spl_val = spline_val_0(cm_spl_Bth, rho1)
+        Bthcov = spl_val(1) * bfac
+        ! chain rule: dBthcov/ds = dBthcov/drho * drho/ds, drho/ds = 1/(2*rho)
+        dBthcovds = spl_val(2) * bfac / (2.0_dp * rho1)
+
+        spl_val = spline_val_0(cm_spl_Bph, rho1)
+        Bphcov = spl_val(1) * bfac
+        dBphcovds = spl_val(2) * bfac / (2.0_dp * rho1)
+
+        ! psi_pr = torflux / (2*pi), constant across surfaces in Boozer coords.
+        psi_pr = cm_torflux / (2.0_dp * pi) * bfac
+
+        ! Bmod on (rho, theta) grid: wrap theta to [0, 2*pi) then interpolate.
+        th_shift = x(3) - floor(x(3) / (2.0_dp * pi)) * 2.0_dp * pi
+        k_th = int(th_shift / cm_h_theta)
+        k_th = max(0, min(cm_n_theta - 2, k_th))
+        k_th1 = k_th + 1
+        alpha = (th_shift - real(k_th, dp) * cm_h_theta) / cm_h_theta
+
+        ! Spline in rho at k_th grid point (1-based index k_th+1).
+        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
+        bmod0 = spl_val(1) * bfac
+        dBmod_drho = spl_val(2) * bfac
+
+        ! Spline in rho at next theta grid point (periodic wrap).
+        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
+        bmod1 = spl_val(1) * bfac
+
+        bmod = (1.0_dp - alpha) * bmod0 + alpha * bmod1
+        B0h = bmod
+
+        ! dBmod/ds via chain rule through rho.
+        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
+        dBmod_drho = (1.0_dp - alpha) * spl_val(2) * bfac
+        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
+        dBmod_drho = dBmod_drho + alpha * spl_val(2) * bfac
+        bder(1) = dBmod_drho / (2.0_dp * rho1 * bmod)
+        bder(2) = 0.0_dp
+        ! dBmod/dtheta by finite difference across the theta grid cell.
+        dBmod_dth = (bmod1 - bmod0) / (cm_h_theta * bmod)
+        bder(3) = dBmod_dth
+
+        sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
+        sqgbmod = sqgbmod2 / bmod
+        sqrtg = sqgbmod / bmod
+
+        hcovar(1) = 0.0_dp
+        hcovar(2) = Bphcov / bmod
+        hcovar(3) = Bthcov / bmod
+
+        hctrvr(1) = 0.0_dp
+        hctrvr(2) = sign_theta * psi_pr / sqgbmod
+        hctrvr(3) = sign_theta * iota * psi_pr / sqgbmod
+
+        hcurl(1) = 0.0_dp
+        hcurl(3) = 0.0_dp
+        hcurl(2) = 0.0_dp
+
+    end subroutine do_magfie_chartmap
+
+    subroutine read_boozer_chartmap_file(path)
+        ! Read a Boozer chartmap NetCDF file via libneo's boozer_chartmap_io reader
+        ! and build the shared spline arrays for do_magfie_chartmap.
+        use boozer_chartmap_io, only: read_boozer_chartmap
+        use boozer_chartmap_types, only: boozer_chartmap_data_t
+
+        character(len=*), intent(in) :: path
+
+        type(boozer_chartmap_data_t) :: d
+        integer :: j, n_s_aphi
+
+        call read_boozer_chartmap(path, d)
+
+        cm_n_rho = d%n_rho
+        cm_n_theta = d%n_theta
+        cm_torflux = d%torflux
+        cm_h_theta = d%h_theta
+        cm_rho_min = d%rho(1)
+        cm_rho_max = d%rho(d%n_rho)
+        n_s_aphi = d%n_s
+        R0 = d%rmajor * 100.0_dp  ! m -> cm
+        ! psi_pr stored globally (constant across flux surfaces)
+        psi_pr = d%torflux / (2.0_dp * pi) * bfac
+
+        if (allocated(cm_rho)) deallocate(cm_rho)
+        if (allocated(cm_s_aphi)) deallocate(cm_s_aphi)
+        if (allocated(cm_spl_aphi)) deallocate(cm_spl_aphi)
+        if (allocated(cm_spl_Bth)) deallocate(cm_spl_Bth)
+        if (allocated(cm_spl_Bph)) deallocate(cm_spl_Bph)
+        if (allocated(cm_spl_bmod)) deallocate(cm_spl_bmod)
+
+        allocate(cm_rho(cm_n_rho))
+        cm_rho = d%rho
+
+        allocate(cm_s_aphi(n_s_aphi))
+        cm_s_aphi = d%s
+
+        allocate(cm_spl_aphi(n_s_aphi - 1, 5))
+        cm_spl_aphi = spline_coeff(d%s, d%A_phi)
+
+        allocate(cm_spl_Bth(cm_n_rho - 1, 5))
+        cm_spl_Bth = spline_coeff(d%rho, d%B_theta)
+
+        allocate(cm_spl_Bph(cm_n_rho - 1, 5))
+        cm_spl_Bph = spline_coeff(d%rho, d%B_phi)
+
+        ! Bmod grid: (n_rho, n_theta, n_phi). For the do_magfie evaluation we
+        ! use the phi=0 slice (index 1), which equals the phi=2pi/nfp plane
+        ! for a field with nfp-fold symmetry; works for axisymmetric too.
+        allocate(cm_spl_bmod(cm_n_rho - 1, 5, cm_n_theta))
+        do j = 1, cm_n_theta
+            cm_spl_bmod(:, :, j) = spline_coeff(d%rho, d%Bmod(:, j, 1))
+        end do
+
+        ! B00: (0,0) mode of Bmod = rho=0 surface average; approximate with rho=rho_min.
+        B00 = d%Bmod(1, 1, 1) * bfac
+
+    end subroutine read_boozer_chartmap_file
 
     subroutine boozer_read(filename)
         ! Reads Boozer in_file and converts SI to CGS
