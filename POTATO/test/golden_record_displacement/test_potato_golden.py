@@ -15,9 +15,7 @@ except ImportError:
 
 
 SKIP = 77
-DEFAULT_CASE = Path(
-    "/home/ert/proj/potato_benchmarks/rung4_torque_30835/run/potato_zero_mid"
-)
+DEFAULT_CASE = Path("potato_benchmarks/rung4_torque_30835/run/potato_zero_mid")
 
 
 def numeric_hash(path, sort_rows, digits):
