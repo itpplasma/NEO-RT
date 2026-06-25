@@ -1,7 +1,7 @@
 program test_misc
     use iso_fortran_env, only: dp => real64
     use util, only: readdata, disp, c, qi, mi, pi
-    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epssp_spl, &
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, &
         epsp_spl, sign_vpar, mth, nlev, nopassing, epsp, epst, dVds
     use do_magfie_mod, only: do_magfie, psi_pr, q, s, eps, R0
     use do_magfie_pert_mod, only: mph

@@ -2,7 +2,7 @@ program test_neort_lib
     use iso_fortran_env, only: dp => real64
     use logger, only: set_log_level
     use neort_lib
-    use omp_lib, only: omp_get_thread_num, omp_set_num_threads
+    use omp_lib, only: omp_set_num_threads
 
     implicit none
 
