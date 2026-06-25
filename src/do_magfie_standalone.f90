@@ -324,9 +324,8 @@ contains
 
         ! Bmod on (rho, theta) grid: wrap theta to [0, 2*pi) then interpolate.
         th_shift = x(3) - floor(x(3) / (2.0_dp * pi)) * 2.0_dp * pi
-        k_th = int(th_shift / cm_h_theta)
-        k_th = max(0, min(cm_n_theta - 2, k_th))
-        k_th1 = k_th + 1
+        k_th = max(0, min(cm_n_theta - 1, int(th_shift / cm_h_theta)))
+        k_th1 = mod(k_th + 1, cm_n_theta)
         alpha = (th_shift - real(k_th, dp) * cm_h_theta) / cm_h_theta
 
         ! Spline in rho at k_th grid point (1-based index k_th+1).
