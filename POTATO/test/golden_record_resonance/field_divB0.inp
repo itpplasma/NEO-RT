@@ -1,0 +1,13 @@
+0                                 ipert     ! 0 = equilibrium field only (no coil perturbation)
+1                                 iequil    ! 1 = include equilibrium
+1.00                              ampl
+72                                ntor
+0.99                              cutoff
+4                                 icftype   ! EFIT g-file with fpol (use_fpol path)
+'circ.eqdsk'          gfile       ! public-safe circular synthetic equilibrium
+'unused'            pfile
+'convexwall.dat'      convexfile
+'unused'            fluxdatapath
+0                                 nwindow_r
+0                                 nwindow_z
+1                                 ieqfile   ! 1 = EFIT

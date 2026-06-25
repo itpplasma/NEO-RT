@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-df = pd.read_csv("/tmp/test_omega_prime.dat", delim_whitespace=True, comment='#')
+df = pd.read_csv("test_omega_prime.dat", delim_whitespace=True, comment='#')
 
 # %% Omth derivatives
 model = LinearRegression()

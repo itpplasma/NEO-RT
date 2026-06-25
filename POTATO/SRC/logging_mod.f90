@@ -5,6 +5,10 @@ module logging_mod
     integer, save :: log_unit = -1
     logical, save :: logging_enabled = .false.
 
+    ! Batch flushes to cut per-line fsync cost and future OMP log-unit contention.
+    integer, parameter :: flush_threshold = 256
+    integer, save :: msgs_since_flush = 0
+
 contains
 
     function timestamp() result(ts)
@@ -36,6 +40,7 @@ contains
     subroutine close_logging()
         if (logging_enabled) then
             write(log_unit, '(A,": ",A)') timestamp(), '=== POTATO Log Ended ==='
+            flush(log_unit)
             close(log_unit)
             logging_enabled = .false.
             log_unit = -1
@@ -43,7 +48,10 @@ contains
     end subroutine close_logging
 
     subroutine flush_log()
-        if (logging_enabled) flush(log_unit)
+        if (logging_enabled) then
+            flush(log_unit)
+            msgs_since_flush = 0
+        endif
     end subroutine flush_log
 
     function get_log_unit() result(unit_num)
@@ -59,20 +67,32 @@ contains
     subroutine log_message(msg)
         character(len=*), intent(in) :: msg
 
+        !$omp critical (potato_logging)
         if (logging_enabled) then
             write(log_unit, '(A,": ",A)') timestamp(), msg
-            flush(log_unit)
+            msgs_since_flush = msgs_since_flush + 1
+            if (msgs_since_flush >= flush_threshold) then
+                flush(log_unit)
+                msgs_since_flush = 0
+            endif
         endif
+        !$omp end critical (potato_logging)
     end subroutine log_message
 
     subroutine tee_message(msg)
         character(len=*), intent(in) :: msg
 
+        !$omp critical (potato_logging)
         write(output_unit, '(A)') msg
         if (logging_enabled) then
             write(log_unit, '(A,": ",A)') timestamp(), msg
-            flush(log_unit)
+            msgs_since_flush = msgs_since_flush + 1
+            if (msgs_since_flush >= flush_threshold) then
+                flush(log_unit)
+                msgs_since_flush = 0
+            endif
         endif
+        !$omp end critical (potato_logging)
     end subroutine tee_message
 
 end module logging_mod

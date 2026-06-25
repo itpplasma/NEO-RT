@@ -22,9 +22,9 @@ subroutine timestep_vode(n, tau, z, vz)
   call velo(tau, z, vz)
 end subroutine timestep_vode
 
-subroutine time_in_box(z, cnt, sbox, taub, tau)
+subroutine time_in_box(z, cnt, sbox, taub, taub_max, tau)
   ! Returns time spent in boxes
-  use dvode_f90_m, only: vode_opts, set_normal_opts, dvode_f90, get_stats
+  use dvode_f90_m, only: vode_opts, set_opts, dvode_f90, get_stats
   use field_sub, only: psif
   use field_eq_mod, only: psi_axis, psi_sep
   use orbit_dim_mod, only: neqm
@@ -35,27 +35,34 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
   integer, intent(in)    :: cnt        ! Box boundary count
   real(8), intent(in)    :: sbox(cnt)  ! Box boundaries
   real(8), intent(in)    :: taub       ! Bounce time
+  real(8), intent(in)    :: taub_max   ! Largest integrable bounce time (find_bounce cap)
   real(8), intent(out)   :: tau(cnt)   ! Time in each box
 
-  real(8) :: delphi
-  real(8) :: sprev, snext ! Previous and next flux radius box
+  real(8) :: smid
   real(8) :: y(neqm)
 
-  integer(4) :: nmax  ! Maximum loop iterations
-
-  integer(4) :: k
+  integer(4) :: k, nsample
   real(8) :: ti
 
-  real(8) :: atol(neqm), rtol, tout, rstats(22)
-  integer(4) :: itask, istate, istats(31), numevents
+  real(8) :: atol(neqm), rtol, tout
+  integer(4) :: itask, istate, method_flag
   type (vode_opts) :: options
   real(8) :: bmod, phi_elec, s
-  real(8) :: sold, told, yold(neqm)
-  integer(4) :: sind, sind0 ! s index
-
-  integer(4) :: jroots(2)
+  real(8) :: sold, told
+  integer(4) :: sind ! s index
 
   external timestep_vode
+
+  tau = 0d0
+
+  ! A near-separatrix resonance root carries an interpolated Omega_b ~ 0, so its
+  ! recovered bounce time |taub| runs orders of magnitude past taub_max (the
+  ! find_bounce acceptance cap, 200*dtau). VODE cannot integrate such an orbit --
+  ! it grinds to mxstep on every subinterval and returns a zero residence
+  ! distribution anyway -- so skip it up front, the same way find_bounce skips
+  ! the matching Omega_b=0 grazer. taub<=0 (interpolant overshoot through zero)
+  ! is likewise unintegrable. Same zero contribution, no grind, no log flood.
+  if (taub <= 0d0 .or. taub > taub_max) return
 
   y = z
 
@@ -63,83 +70,57 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
   atol = 1d-13
   itask = 1
   istate = 1
-  numevents = 2
-  options = set_normal_opts(abserr_vector=atol, relerr=rtol, nevents=numevents)
+  method_flag = 10
+  options = set_opts(method_flag=method_flag, abserr_vector=atol, &
+    relerr=rtol, mxstep=2000)
 
-  nmax = 3*size(sbox)
-  tau = 0d0
+  nsample = min(256, max(64, size(sbox)))
   ti = 0d0
 
   call get_bmod_and_Phi(z(1:3), bmod, phi_elec)
 
   s = abs((psif-psi_axis)/(psi_sep-psi_axis))
-  sind = size(sbox)+1
-  sprev = -1e5
-  snext = 1e5
-  do k = 1,size(sbox)
-    if(sbox(k)>s) then
-        sind = k
-        snext = sbox(k)
-        if(k>1) sprev = sbox(k-1)
-        exit
-    end if
-  enddo
-  sind0 = sind
-
+  sold = s
   told = 0d0
-  do k = 1,nmax
-    yold = y
-    sold = s
-    tout = taub
+  do k = 1,nsample
+    tout = taub*dble(k)/dble(nsample)
     call dvode_f90( &
-        timestep_vode, neqm, y, ti, tout, itask, istate, options, &
-        g_fcn = sroots )
-    if (istate == 2) exit
-    if (istate == 3) then
-        tau(sind) = tau(sind) + ti-told
-        told = ti
-        call get_stats(rstats, istats, numevents, jroots)
-        if (jroots(2).ne.0) then
-          sind = sind + 1 ! moving outwards
-          sprev = snext
-          if (sind == size(sbox)+1) then
-              snext = 1e5
-          else
-              snext = sbox(sind)
-          end if
-        end if
-        if (jroots(1).ne.0) then
-          sind = sind - 1 ! moving inwards
-          snext = sprev
-          if (sind == 1) then
-              sprev = -1e5
-          else
-              sprev = sbox(sind-1)
-          end if
-        end if
-    elseif (istate == -1) then
-      print *, 'Error in VODE: k =', k
-      istate = 1
-      exit
+        timestep_vode, neqm, y, ti, tout, itask, istate, options)
+    if (istate == -1) then
+      print *, 'time_in_box: VODE exceeded mxstep at k =', k, &
+        ' ti =', ti, ' taub =', taub
+      tau = 0d0
+      return
+    endif
+    if (istate /= 2) then
+      print *, 'time_in_box: VODE failed with istate =', istate, &
+        ' k =', k, ' ti =', ti, ' taub =', taub
+      tau = 0d0
+      return
     end if
-  end do
 
-  tau(sind) = tau(sind) + taub-told
+    call get_bmod_and_Phi(y(1:3), bmod, phi_elec)
+
+    s = abs((psif-psi_axis)/(psi_sep-psi_axis))
+    smid = 0.5d0*(sold+s)
+    sind = radial_box_index(smid)
+    tau(sind) = tau(sind) + ti-told
+    sold = s
+    told = ti
+  end do
 
 contains
 
-  subroutine sroots(neqext, t, yext, ng, gout)
-    ! For finding roots between boxes
+  integer function radial_box_index(sval)
+    real(8), intent(in) :: sval
+    integer :: ibox
 
-    integer, intent(in) :: neqext, ng
-    real(8), intent(in) :: t, yext(neqext)
-    real(8), intent(out) :: gout(ng)
-
-    call get_bmod_and_Phi(yext(1:3), bmod, phi_elec)
-
-    s = abs((psif-psi_axis)/(psi_sep-psi_axis))
-
-    gout(1) = s - sprev
-    gout(2) = s - snext
-  end subroutine sroots
+    radial_box_index = size(sbox)
+    do ibox = 1,size(sbox)
+      if (sval <= sbox(ibox)) then
+        radial_box_index = ibox
+        exit
+      endif
+    enddo
+  end function radial_box_index
 end subroutine time_in_box

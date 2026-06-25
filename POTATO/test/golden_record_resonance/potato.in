@@ -1,0 +1,26 @@
+&potato_nml
+  itest_type = 3
+  edge_extension = .false.
+  E_alpha = 5d3
+  A_alpha = 2d0
+  Z_alpha = 1d0
+  rho_pol = 0.5d0
+  rho_pol_max = 0.65d0
+  scalfac_energy = 1d0
+  scalfac_efield = 1d0
+  Rmax_orbit = 200d0
+  ntimstep = 20
+  npoicut = 1000
+  m_min = -3
+  m_max = 3
+  n_tor = 2
+  nenerg = 3
+  thermen_max = 3d0
+  nbox = 50
+  adaptive_jperp = .true.
+  npoi_init = 9
+  nlagr_sampling = 3
+  eps_sampling = 1.5d-1
+  itermax_sampling = 1
+  profile_file = 'profile_poly.in'
+/

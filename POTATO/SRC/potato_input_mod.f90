@@ -45,6 +45,7 @@ module potato_input_mod
     integer :: nlagr_sampling = 3
     double precision :: eps_sampling = 1d-2
     integer :: itermax_sampling = 5
+    logical :: clip_resonance_classes = .true.
 
     ! Orbit plotting
     double precision :: toten_plot = 1d0
@@ -86,7 +87,7 @@ module potato_input_mod
         m_min, m_max, n_tor, &
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
-        itermax_sampling, &
+        itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
@@ -150,6 +151,7 @@ contains
         write(iunit, '(A,I0)') '  nlagr_sampling   = ', nlagr_sampling
         write(iunit, '(A,ES12.5)') '  eps_sampling     = ', eps_sampling
         write(iunit, '(A,I0)') '  itermax_sampling = ', itermax_sampling
+        write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
         write(iunit, '(A,ES12.5)') '  toten_plot       = ', toten_plot
         write(iunit, '(A,ES12.5)') '  perpinv_plot     = ', perpinv_plot
         write(iunit, '(A,ES12.5)') '  enkin_over_temp  = ', enkin_over_temp

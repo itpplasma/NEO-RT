@@ -133,6 +133,8 @@ set(NEO_RT_SOURCES
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
 
 if(USE_STANDALONE)
+    find_or_fetch(libneo)
+
     add_library("neo_rt" STATIC
         ${NEO_RT_SOURCES}
         src/do_magfie_standalone.f90
@@ -167,6 +169,17 @@ target_link_libraries(neo_rt PUBLIC
     BLAS::BLAS
     LAPACK::LAPACK
 )
+
+if(USE_STANDALONE)
+    target_link_libraries(neo_rt PUBLIC neo)
+    get_target_property(_neo_incdirs neo INTERFACE_INCLUDE_DIRECTORIES)
+    if(_neo_incdirs)
+        target_include_directories(neo_rt PUBLIC ${_neo_incdirs})
+    endif()
+    target_include_directories(neo_rt PUBLIC
+        "${CMAKE_BINARY_DIR}/libneo"
+    )
+endif()
 
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 

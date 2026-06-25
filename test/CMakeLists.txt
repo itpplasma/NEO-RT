@@ -20,3 +20,22 @@ add_test(NAME test_neort_lib
     COMMAND ${CMAKE_BINARY_DIR}/test_neort_lib.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+
+# test_chartmap_input: Boozer chartmap field I/O test (inp_swi=10).
+#
+# The reference chartmap fixture (test/fixtures/circ_chartmap.nc) was generated
+# once from examples/circ.bc via the libneo converters (bc_to_booz_xform +
+# booz_xform_to_boozer_chartmap, nrho=50 ntheta=64 nzeta=4) and committed into
+# the repo.  No converter toolchain is required at test time.
+#
+# Phase 1: sign/sanity check (bmod>0, sqrtg>0, iota>0, Bthcov>0, Bphcov>0).
+# Phase 2: cross-check vs the .bc path (relative tolerance 1e-4).
+# Both phases run unconditionally in CI.
+add_test(NAME test_chartmap_input
+    COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_input.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_chartmap_input PROPERTIES
+    ENVIRONMENT
+        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
+)

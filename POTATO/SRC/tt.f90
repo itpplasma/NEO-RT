@@ -2,7 +2,8 @@
   program classify_orbits
 !
   use parmot_mod,                   only : rmu,ro0
-  use orbit_dim_mod,                only : write_orb,iunit1,numbasef,neqm
+  use orbit_dim_mod,                only : write_orb,iunit1,numbasef,neqm, &
+                                          orbit_clip_resonance_classes => clip_resonance_classes
   use get_matrix_mod,               only : iclass
   use global_invariants,            only : dtau,toten,perpinv,cE_ref,Phi_eff
   use bounds_fixpoints_mod,         only : region_set_t
@@ -20,6 +21,7 @@
                                           npoicut, m_min, m_max, n_tor, &
                                           toten_plot, perpinv_plot, profile_file, &
                                           edge_extension, &
+                                          input_clip_resonance_classes => clip_resonance_classes, &
                                           orbit_Rstart, orbit_Zstart, orbit_lambda, &
                                           freq_Rmin, freq_Rmax, freq_n
   use field_eq_mod,                 only : allow_sol, psi_axis, psi_sep
@@ -60,6 +62,7 @@
 !
 ! Allow orbits to cross the separatrix into the scrape-off layer when requested:
   allow_sol = edge_extension
+  orbit_clip_resonance_classes = input_clip_resonance_classes
 !
   iunit=71
 !
