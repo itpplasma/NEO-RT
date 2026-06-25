@@ -33,10 +33,8 @@ module potato_input_mod
     ! Energy grid
     integer :: nenerg = 60
     double precision :: thermen_max = 6d0   ! Max kinetic energy [T units]
-    ! Lowest slice starts at this kinetic energy [T units]; the toten grid begins
-    ! at phi_max + enkin_min_over_temp*T so every orbit keeps at least this much
-    ! kinetic energy, cutting off the cold near-boundary band.
-    double precision :: enkin_min_over_temp = 0.1d0
+    ! Lowest slice starts at this kinetic energy [T units] when set.
+    double precision :: enkin_min_over_temp = 0d0
 
     ! Box counting
     integer :: nbox = 100
@@ -77,10 +75,14 @@ module potato_input_mod
     ! equilibrium field. Sets field_eq_mod::allow_sol. Default .false.
     logical :: edge_extension = .false.
 
+    ! Accepted for old case files.
+    logical :: plot_poicut = .false.
+    logical :: plot_equilibrium = .false.
+
     namelist /potato_nml/ &
         itest_type, E_alpha, A_alpha, Z_alpha, &
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, &
-        Rmax_orbit, ntimstep, npoicut, &
+        Rmax_orbit, ntimstep, npoicut, plot_poicut, plot_equilibrium, &
         m_min, m_max, n_tor, &
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
