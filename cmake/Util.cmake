@@ -58,6 +58,7 @@ function(find_or_fetch DEPENDENCY)
             ${CMAKE_CURRENT_BINARY_DIR}/${DEPENDENCY}
             EXCLUDE_FROM_ALL
         )
+        set(${_DEP}_SOURCE_DIR "${${DEPENDENCY}_SOURCE_DIR}" PARENT_SCOPE)
     endif()
 endfunction()
 

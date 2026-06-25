@@ -1,11 +1,25 @@
-# The field, magfie, spline and kinds/constants sources live in libneo and are
-# linked below (LIBNEO::magfie pulls in libneo's core). Only POTATO-specific
-# sources are compiled here. binsrc/plag_coeff stay local: POTATO calls them as
-# bare external subroutines, whereas libneo wraps them in *_sub modules.
 add_library(potato_base
+  ${LIBNEO_SOURCE_DIR}/src/libneo_kinds.f90
   logging_mod.f90
   potato_input_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/math_constants.f90
   alpha_lifetime_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/MC/chamb_divB0.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/magfie_cyl.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/period_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/input_files.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/field_c_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/field_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/inthecore_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/field_eq_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/field_divB0.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/bdivfree_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/amn_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/theta_rz_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/extract_fluxcoord_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/bdivfree.f90
+  ${LIBNEO_SOURCE_DIR}/src/spl_three_to_five.f90
+  ${LIBNEO_SOURCE_DIR}/src/magfie/spline5_RZ.f90
   velo.f90
   odeint_allroutines.f
   plag_coeff.f90
@@ -29,8 +43,6 @@ find_or_fetch(vode)
 target_compile_options(vode PRIVATE -std=legacy)
 target_link_libraries(potato_base PUBLIC
 vode
-LIBNEO::magfie
-mc_efit
 BLAS::BLAS
 LAPACK::LAPACK
 HDF5::HDF5
