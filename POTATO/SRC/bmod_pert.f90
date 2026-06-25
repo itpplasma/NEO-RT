@@ -24,8 +24,17 @@ end module bmod_pert_mod
   complex(8)   :: bmod_n
   double precision, dimension(:,:), allocatable :: bmod_n_re,bmod_n_im
 !
+! Lazy one-time load of the perturbation spline. bmod_pert is called only from
+! velo_res inside the OpenMP resonance loop (integrate_class_resonances), so the
+! first-call init races across threads: without a lock several threads read the
+! file and allocate the shared module arrays at once, and a thread reaching the
+! spline below while rad/splbmod are mid-allocation dereferences unallocated
+! memory. Double-checked locking (same pattern as libneo stretch_coords) runs the
+! read/allocate exactly once; afterwards prop is .false. and the fast path skips
+! the lock entirely.
   if(prop) then
-    prop=.false.
+  !$omp critical (bmod_pert_init)
+  if(prop) then
 
     open(iunit_bn,form='unformatted',file='bmod_n.dat', status='old')
     read(iunit_bn) nrad,nzet
@@ -59,6 +68,11 @@ end module bmod_pert_mod
     call s2dcut(nrad,nzet,hrad,hzet,bmod_n_im,imi,ima,jmi,jma,icp,splbmod_im,ipoint)
 !
     deallocate(bmod_n_re,bmod_n_im)
+! Publish only after every array is filled, so a thread that took the lock next
+! sees a fully built spline instead of a half-allocated one.
+    prop=.false.
+  endif
+  !$omp end critical (bmod_pert_init)
   endif
 !
   rrr=max(rad(1),min(rad(nrad),R))

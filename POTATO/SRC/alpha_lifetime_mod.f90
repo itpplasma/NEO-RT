@@ -3,6 +3,12 @@
     logical :: gradpsiast=.false.             !<=NEW in version 4
     double precision :: rmu,ro0
     double precision :: dpsiast_dR,dpsiast_dZ !<=NEW in version 4
+! gradpsiast and dpsiast_dR/dZ are per-orbit scratch: starter_doublecount sets
+! gradpsiast=.true. around a velo call that writes dpsiast_dR/dZ, then resets it.
+! The grid-build node-fill loops run starter+velo in parallel, so each thread
+! needs its own copy.  rmu,ro0 are physical constants set once and read only,
+! so they stay shared.
+    !$omp threadprivate(gradpsiast,dpsiast_dR,dpsiast_dZ)
   end module parmot_mod
 !
   module collis_alp
