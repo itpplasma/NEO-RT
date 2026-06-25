@@ -20,15 +20,16 @@ DEFAULT_CASE = Path(
 )
 
 
-def numeric_hash(path, sort_rows):
+def numeric_hash(path, sort_rows, digits):
     data = np.loadtxt(path)
     if data.ndim == 1:
         data = data.reshape(1, -1)
     if sort_rows:
         order = np.lexsort(tuple(data[:, i] for i in range(data.shape[1] - 1, -1, -1)))
         data = data[order]
+    value_format = f"{{value:.{digits}e}}"
     payload = "\n".join(
-        " ".join(f"{value:.17e}" for value in row) for row in data
+        " ".join(value_format.format(value=value) for value in row) for row in data
     ) + "\n"
     return list(data.shape), hashlib.sha256(payload.encode("ascii")).hexdigest()
 
@@ -84,9 +85,17 @@ def main():
             return 1
 
         for name, expected in golden["files"].items():
-            shape, digest = numeric_hash(work / name, expected.get("sort_rows", False))
+            shape, digest = numeric_hash(
+                work / name,
+                expected.get("sort_rows", False),
+                expected.get("digits", 17),
+            )
             if shape != expected["shape"] or digest != expected["sha256"]:
-                print(f"{name} mismatch: shape={shape} sha256={digest}")
+                print(
+                    f"{name} mismatch: shape={shape} sha256={digest} "
+                    f"expected_shape={expected['shape']} "
+                    f"expected_sha256={expected['sha256']}"
+                )
                 return 1
 
     return 0
