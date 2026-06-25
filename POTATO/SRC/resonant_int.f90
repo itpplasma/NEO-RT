@@ -351,11 +351,14 @@
   use cc_mod,                       only : wrbounds,dowrite
   use orbit_dim_mod,                only : write_orb
   use logging_mod,                  only : tee_message, close_logging
+  use bounds_fixpoints_mod,         only : region_set_t
 !
   logical :: classes_talk
 !
   integer :: ierr,mode
   character(len=256) :: msg
+! Region set owned per J_perp node (hence per energy slice, hence per thread).
+  type(region_set_t) :: regions
 !
   wrbounds=.false.
   dowrite=.false.
@@ -364,7 +367,7 @@
 !
   perpinv=x
 !
-  call find_bounds_fixpoints(ierr)
+  call find_bounds_fixpoints(regions,ierr)
 !
   if(ierr.ne.0) then
     write(msg, '(A,I0)') &
@@ -374,7 +377,7 @@
     stop
   endif
 !
-  call form_classes_doublecount(classes_talk,ierr)
+  call form_classes_doublecount(regions,classes_talk,ierr)
 !
   if(ierr.ne.0) then
     write(msg, '(A,I0)') &

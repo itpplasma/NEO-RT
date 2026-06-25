@@ -66,13 +66,19 @@
       logical,          dimension(:), allocatable :: xpoint
     end type
 !
-    integer :: nbounds,nregions
-    double precision,     dimension(:),   allocatable :: R_bo,Z_bo,psiast_bo
-    type(allowed_region), dimension(:,:), allocatable :: all_regions
-! Per-slice scratch: the orbit-region/boundary formation runs once per energy
-! slice, and the slices run in parallel (resonant_torque), so each thread builds
-! its own regions.
-    !$omp threadprivate(nbounds,nregions,R_bo,Z_bo,psiast_bo,all_regions)
+! The region set is passed by argument from find_bounds_fixpoints to its
+! consumers, not held as module state, so the energy-slice parallel loop keeps one
+! set per thread (one caller-local per energy slice) without threadprivate on a
+! derived type with allocatable components, which gfortran does not copy per
+! thread reliably.  It is wrapped in a plain derived type so the producer/consumer
+! can take it as a scalar argument: a scalar derived-type dummy needs no explicit
+! interface, unlike an allocatable dummy, and these routines are external (the
+! caller would otherwise pass the allocatable wrongly).  nbounds,R_bo,Z_bo,
+! psiast_bo are scratch local to find_bounds_fixpoints.
+    type region_set_t
+      integer :: nregions = 0
+      type(allowed_region), dimension(:,:), allocatable :: all_regions
+    end type
   end module bounds_fixpoints_mod
 !
   module form_classes_doublecount_mod
@@ -1061,18 +1067,25 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_bounds_fixpoints(ierr)
+  subroutine find_bounds_fixpoints(regions,ierr)
 !
   use global_invariants,    only : toten,perpinv,sigma
   use find_all_roots_mod,   only : nroots,roots,relerr_allroots
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use field_sub, only : psif
-  use bounds_fixpoints_mod, only : nbounds,R_bo,Z_bo,psiast_bo, &
-                                   nregions,all_regions
+  use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
 !
   implicit none
+!
+! The region set is returned to the caller, which owns it (one set per energy
+! slice).  nregions,all_regions are built as locals and handed to regions at the
+! end; nbounds,R_bo,Z_bo,psiast_bo are scratch.
+  type(region_set_t), intent(inout) :: regions
+  integer :: nregions,nbounds
+  type(allowed_region), dimension(:,:), allocatable :: all_regions
+  double precision, dimension(:), allocatable :: R_bo,Z_bo,psiast_bo
 !
   logical, parameter :: doublecount=.true.
   integer, parameter :: niter=100
@@ -1193,6 +1206,7 @@
     else
 ! vpar2<0 in the whole domain, no regions in the domain
       nregions=0
+      regions%nregions=0
       ierr=2
       return
     endif
@@ -1794,6 +1808,10 @@
     close(5006)
   endif
 !
+! Hand the assembled region set to the caller (it owns it per slice).
+  regions%nregions=nregions
+  call move_alloc(all_regions,regions%all_regions)
+!
 !------------
 !
   contains
@@ -2175,7 +2193,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine form_classes_doublecount(classes_talk,ierr)
+  subroutine form_classes_doublecount(regions,classes_talk,ierr)
 !
 ! Here "class" means segments coming from splitting by X-points of the domains of allowed motion
 ! for particles starting at the Poincare with a given parallel velocity sign. The routine
@@ -2184,15 +2202,20 @@
 !
   use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class,  &
                                            R_class_beg,R_class_end
-  use bounds_fixpoints_mod,         only : nregions,all_regions
+  use bounds_fixpoints_mod,         only : region_set_t
   use poicut_mod,                   only : Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use global_invariants,            only : toten,perpinv,sigma
 !
   implicit none
 !
+! The region set is supplied by the caller (find_bounds_fixpoints filled it).
+! Alias its members so the body below reads them under their plain names.
+  type(region_set_t), intent(in) :: regions
   logical :: classes_talk
   integer          :: ierr,isig,ireg,nxp,ixp,icl,i
   integer, dimension(:), allocatable :: ibt_b,ibt_e
+!
+  associate(nregions => regions%nregions, all_regions => regions%all_regions)
 !
   ierr=0
 !
@@ -2286,6 +2309,8 @@
   endif
 !
   deallocate(ibt_b,ibt_e)
+!
+  end associate
 !
   end subroutine form_classes_doublecount
 !

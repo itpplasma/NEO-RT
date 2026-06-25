@@ -5,7 +5,7 @@
   use orbit_dim_mod,                only : write_orb,iunit1,numbasef,neqm
   use get_matrix_mod,               only : iclass
   use global_invariants,            only : dtau,toten,perpinv,cE_ref,Phi_eff
-  use bounds_fixpoints_mod,         only : nregions
+  use bounds_fixpoints_mod,         only : region_set_t
   use form_classes_doublecount_mod, only : nclasses
   use cc_mod,                       only : wrbounds,dowrite
   use resint_mod,                   only : nmodes,marr,narr,delint_mode
@@ -34,6 +34,7 @@
   double precision,parameter  :: p_mass=1.6726d-24
   double precision,parameter  :: ev=1.6022d-12
 !
+  type(region_set_t) :: regions
   logical :: classes_talk,plot_orbits,compute_equibrium_profiles,compute_resonant_torque,plot_poicut
   logical :: trace_single_orbit,freq_scan
 !
@@ -270,11 +271,11 @@
     dowrite=.true. !write canonical frequencies and bounce integrals for adaptive sampling grid and interpolation
     write_orb=.true. !write orbits during adaptive sampling of classes
 !
-    call find_bounds_fixpoints(ierr)
+    call find_bounds_fixpoints(regions,ierr)
 !
     classes_talk=.true.
 !
-    call form_classes_doublecount(classes_talk,ierr)
+    call form_classes_doublecount(regions,classes_talk,ierr)
 !
     do iclass=1,nclasses
 ! data is written to fort.* files:
