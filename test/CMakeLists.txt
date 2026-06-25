@@ -29,7 +29,7 @@ add_test(NAME test_neort_lib
 # the repo.  No converter toolchain is required at test time.
 #
 # Phase 1: sign/sanity check (bmod>0, sqrtg>0, iota>0, Bthcov>0, Bphcov>0).
-# Phase 2: cross-check vs the .bc path (relative tolerance 1.5 %).
+# Phase 2: cross-check vs the .bc path (relative tolerance 1e-4).
 # Both phases run unconditionally in CI.
 add_test(NAME test_chartmap_input
     COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_input.x

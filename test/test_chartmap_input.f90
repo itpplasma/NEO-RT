@@ -31,7 +31,7 @@ program test_chartmap_input
     real(dp) :: bmod_bc, sqrtg_bc
     real(dp) :: bder_bc(3), hcovar_bc(3), hctrvr_bc(3), hcurl_bc(3)
     real(dp) :: iota_bc, Bth_bc, Bph_bc, psip_bc
-    real(dp), parameter :: tol_rel = 1.5e-2_dp  ! 1.5%: chartmap rho/s-grid interpolation
+    real(dp), parameter :: tol_rel = 1.0e-4_dp  ! tightened: FP-accurate fixture from libneo #347
     logical :: run_crosscheck
 
     call set_log_level(-1)
