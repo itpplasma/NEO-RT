@@ -4,40 +4,22 @@
 !
   USE sample_matrix_mod
   USE form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
-  USE get_matrix_mod, only : iclass
-  USE global_invariants, only : dtau
-! next is threadprivate (set per mode in the resonance loop); copyin it into the
+! next is threadprivate (the resonance mode loop writes it); copyin it into the
 ! grid-build regions, which never write it, so each worker starts from the master
-! value (0).
+! value.
   USE orbit_dim_mod, only : next
+  USE global_invariants, only : dtau,toten,perpinv,sigma
 !
   IMPLICIT NONE
 !
   INTEGER, PARAMETER :: nder=0
-! Node cap.  A few near-separatrix classes have Omega_b, Omega_phi of order
-! 1e-4..1e-6, where the bounce-integration noise exceeds the eps grid tolerance,
-! so the split test never converges and the grid runs to >1e5 nodes -- each node a
-! find_bounce, which is the cost.  Those classes carry no in-range resonance
-! (|m| = |n Omega_phi/Omega_b| << 1), so stop sampling at npmax and let the root
-! search (cheap interpolation) run on the last grid instead of grinding.
-  INTEGER, PARAMETER :: npmax=5000
   DOUBLE PRECISION, PARAMETER :: symm_break=0.01d0
-! Floor each row's refinement scale at this fraction of its global maximum.  The
-! adaptive split test compares the local interpolation error to eps times the
-! row's scale.  Without the floor that scale is the local stencil maximum, so a
-! row spanning many orders of magnitude (the bounce-integral weights, rows 4+)
-! gets its negligible small-value tail refined to full relative accuracy -- the
-! cause of the grid explosion (96k of 134k nodes in one #30835 class).  Flooring
-! at refine_floor*global_max leaves moderate-range rows (psiast and the resonance
-! frequencies, rows 1-3, whose global~local) untouched, so resonance positions
-! are unchanged, while the wide-range weights stop refining where they are small.
-  DOUBLE PRECISION, PARAMETER :: refine_floor=1.d-2
   INTEGER :: i,j,iter,npoi_old,iold,inew,ibeg,iend,nshift,npoilag,ierr,nnew,k
   INTEGER,          DIMENSION(:),     ALLOCATABLE :: isplit,newslots
 !
   DOUBLE PRECISION :: h,hh
   DOUBLE PRECISION, DIMENSION(:),     ALLOCATABLE :: xold
-  DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod,amat_glob
+  DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod
   COMPLEX(8),   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
   COMPLEX(8),   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
 !
@@ -54,12 +36,9 @@
   h=(xend-xbeg)/npoilag/(1.d0+symm_break)
   hh=symm_break*h/npoilag
 !
-! amat is the shared sample_matrix_mod array; callers (e.g. the resonance class
-! preclip) may have allocated it alone, so deallocate each array on its own
-! status rather than gating all three on amat being allocated.
-  if(allocated(amat))     DEALLOCATE(amat)
-  if(allocated(xarr))     DEALLOCATE(xarr)
-  if(allocated(amat_arr)) DEALLOCATE(amat_arr)
+  if(allocated(amat)) then
+    DEALLOCATE(amat,xarr,amat_arr)
+  endif
 !
   ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi))
 !
@@ -78,17 +57,11 @@
     x=xbeg+h*(i-1)+hh*(i-1)**2
     xarr(i)=x
   ENDDO
-! Initial interior fill: one independent get_matrix (starter+find_bounce) per
-! node, writing the disjoint slot amat_arr(:,:,i).  This is the find_bounce-heavy
-! cost.  x and amat are threadprivate scratch; the form-class bounds are already
-! threadprivate upstream, so copyin seeds each worker with the master values.
-! toten,perpinv stay SHARED and read-only here (the grid build never calls
-! pertham, so nothing writes them in the region); making them threadprivate is
-! what silently corrupted near-separatrix classes before.  next is threadprivate
-! (the resonance mode loop writes it), but the grid build never writes it, so
-! copyin seeds each worker with the master value (0) to keep the shared behavior.
-  !$omp parallel do default(shared) private(i) schedule(dynamic) &
-  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next,iclass,dtau)
+! Initial interior fill. The class grid is threadprivate per energy slice, so
+! keep this inactive when called outside the outer energy team.
+  !$omp parallel do if(.false.) default(shared) private(i) schedule(dynamic) &
+  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next, &
+  !$omp          dtau,toten,perpinv,sigma)
   DO i=2,npoi-1
     if(.not.allocated(amat)) allocate(amat(n1,n2))
     x=xarr(i)
@@ -97,25 +70,12 @@
   ENDDO
   !$omp end parallel do
 !
-  ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2),amat_glob(n1,n2))
+  ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2))
 !
 ! first check which intervals should be splitted
   ALLOCATE(isplit(npoi))
   isplit=0
-  DO i=1,n1
-    DO j=1,n2
-      amat_glob(i,j)=MAXVAL(ABS(amat_arr(i,j,1:npoi)))
-    ENDDO
-  ENDDO
   DO inew=1,npoi-1
-! Do not refine across a sentinel node (row isentinel = 0): the 0<->finite step
-! is a find_bounce X-point-grazer skip, not a feature to resolve, and refining it
-! explodes the grid.  sample_class_doublecount compacts these nodes out before
-! the resonance search, so they never reach the interpolation/root finder.
-    if(isentinel.gt.0) then
-      if(amat_arr(isentinel,1,inew).eq.0.d0 .or. &
-         amat_arr(isentinel,1,inew+1).eq.0.d0) cycle
-    endif
     x=0.5d0*(xarr(inew)+xarr(inew+1))
     ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
     iend=ibeg+nlagr
@@ -137,7 +97,7 @@
     ENDDO
     DO i=1,n1
       DO j=1,n2
-        IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*max(amat_maxmod(i,j),refine_floor*amat_glob(i,j))) isplit(inew)=1
+        IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*amat_maxmod(i,j)) isplit(inew)=1
       ENDDO
     ENDDO
   ENDDO
@@ -163,13 +123,6 @@
     DO iold=1,npoi_old-1
       IF(isplit(iold).EQ.1) npoi=npoi+1
     ENDDO
-    IF(npoi.GT.npmax) THEN
-! Cap reached: keep the last grid (xarr still holds npoi_old nodes) and accept it
-! so the root search runs; compaction in sample_class_doublecount drops sentinels.
-      npoi=npoi_old
-      ierr=0
-      RETURN
-    ENDIF
     IF(ALLOCATED(xarr)) THEN
       DEALLOCATE(xarr,amat_arr)
     ENDIF
@@ -199,13 +152,11 @@
     amat_arr(:,:,inew)=amat_old(:,:,npoi_old)
     DEALLOCATE(isplit)
 !
-! Parallel fill pass: one independent get_matrix per new node, writing the
-! disjoint slot amat_arr(:,:,newslots(k)).  Same per-thread scratch (x,amat) and
-! copyin of the shared form-class bounds as the initial fill; toten,perpinv stay
-! shared and read-only.  next is threadprivate but unwritten here, so copyin
-! seeds each worker with the master value (0), preserving the shared behavior.
-    !$omp parallel do default(shared) private(k) schedule(dynamic) &
-    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next,iclass,dtau)
+! Fill pass for new nodes. See the initial fill above for why this region stays
+! inactive.
+    !$omp parallel do if(.false.) default(shared) private(k) schedule(dynamic) &
+    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next, &
+    !$omp          dtau,toten,perpinv,sigma)
     DO k=1,nnew
       if(.not.allocated(amat)) allocate(amat(n1,n2))
       x=xarr(newslots(k))
@@ -218,16 +169,7 @@
 ! check which intervals should be splitted
     ALLOCATE(isplit(npoi))
     isplit=0
-    DO i=1,n1
-      DO j=1,n2
-        amat_glob(i,j)=MAXVAL(ABS(amat_arr(i,j,1:npoi)))
-      ENDDO
-    ENDDO
     DO inew=1,npoi-1
-      if(isentinel.gt.0) then
-        if(amat_arr(isentinel,1,inew).eq.0.d0 .or. &
-           amat_arr(isentinel,1,inew+1).eq.0.d0) cycle
-      endif
       x=0.5d0*(xarr(inew)+xarr(inew+1))
       ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
       iend=ibeg+nlagr
@@ -249,7 +191,7 @@
       ENDDO
       DO i=1,n1
         DO j=1,n2
-          IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*max(amat_maxmod(i,j),refine_floor*amat_glob(i,j))) isplit(inew)=1
+          IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*amat_maxmod(i,j)) isplit(inew)=1
         ENDDO
       ENDDO
     ENDDO

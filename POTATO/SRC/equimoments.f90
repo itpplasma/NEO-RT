@@ -14,6 +14,7 @@
   use get_matrix_mod,    only : iclass
   use form_classes_doublecount_mod, only : nclasses
   use orbit_dim_mod,     only : numbasef
+  use bounds_fixpoints_mod, only : region_set_t
 
   implicit none
 !
@@ -21,6 +22,7 @@
   double precision, parameter :: pi=3.14159265358979d0
   logical :: classes_talk
   integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
+  type(region_set_t) :: regions
   double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
   double precision :: bmod,phi_elec,phi_elec_min,phi_elec_max
   double precision :: toten_min,toten_max,thermen_max,toten_range
@@ -110,7 +112,7 @@ print *,'toten = ',toten
       perpinv=perpinv_max*(1.d0-xjperp**2)
 !print *,' perpinv=',perpinv
 !
-      call find_bounds_fixpoints(ierr)
+      call find_bounds_fixpoints(regions,ierr)
 !
       if(ierr.ne.0) then
         print *,'find_bounds_fixpoints ierr = ',ierr
@@ -120,7 +122,7 @@ print *,'toten = ',toten
 !      classes_talk=.true.
       classes_talk=.false.
 !
-      call form_classes_doublecount(classes_talk,ierr)
+      call form_classes_doublecount(regions,classes_talk,ierr)
 !
       if(ierr.ne.0) then
         print *,'form_classes ierr = ',ierr

@@ -1,0 +1,30 @@
+{
+  "case": "rung4_torque_30835/potato_zero_mid",
+  "integral_torque": -15227.499606180565,
+  "files": {
+    "fort.31415": {
+      "shape": [5548, 5],
+      "sha256": "cd0f017c8a0ca85262802b64b6983d6558c8514af94bc5a090cdec1d4fdf3608",
+      "sort_rows": true,
+      "digits": 17
+    },
+    "subint_ofH0int_104_vsJperp_fromresp.dat": {
+      "shape": [5548, 3],
+      "sha256": "be0509de88eca016b09f8eb06c853083dcb5a8f22b182bd4711873a11ce693bd",
+      "sort_rows": true,
+      "digits": 10
+    },
+    "subint_ofH0int_104_vsJperp_adapt.dat": {
+      "shape": [1343, 47],
+      "sha256": "6a6ec780a2b84a0f16e170b4a1e155cd93831df88b049fb55bcd1bb9361da66d",
+      "sort_rows": true,
+      "digits": 10
+    },
+    "boxcounted_torque.dat": {
+      "shape": [200, 3],
+      "sha256": "8a8142af1b3b7d060a310dba62d24020eb7bc86f1bcf7a2df1f1c28cd0637057",
+      "sort_rows": true,
+      "digits": 10
+    }
+  }
+}

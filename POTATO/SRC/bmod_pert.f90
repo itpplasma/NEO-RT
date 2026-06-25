@@ -29,9 +29,9 @@ end module bmod_pert_mod
 ! first-call init races across threads: without a lock several threads read the
 ! file and allocate the shared module arrays at once, and a thread reaching the
 ! spline below while rad/splbmod are mid-allocation dereferences unallocated
-! memory. Double-checked locking (same pattern as libneo stretch_coords) runs
-! the read/allocate exactly once; afterwards prop is .false. and the fast path
-! skips the lock entirely.
+! memory. Double-checked locking (same pattern as libneo stretch_coords) runs the
+! read/allocate exactly once; afterwards prop is .false. and the fast path skips
+! the lock entirely.
   if(prop) then
   !$omp critical (bmod_pert_init)
   if(prop) then

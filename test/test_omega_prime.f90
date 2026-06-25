@@ -3,13 +3,13 @@ program test_omage_prime_prog
     use do_magfie_mod, only: do_magfie_init, params0, sign_theta, s
     use do_magfie_pert_mod, only: do_magfie_pert_init
     use neort, only: check_magfie, write_magfie_data_to_files, init_profiles, &
-                     init, set_to_trapped_region
+        init, set_to_trapped_region
     use neort_config, only: read_and_set_config
     use neort_main, only: runname
     use neort_datatypes, only: magfie_data_t
-    use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input, M_t
+    use neort_profiles, only: read_and_init_plasma_input, read_and_init_profile_input
     use neort_orbit, only: th0, nvar, bounce_time, vpar, vperp, bounce_integral, &
-                            bounce_fast, poloidal_velocity, evaluate_bfield_local
+        bounce_fast, poloidal_velocity, evaluate_bfield_local
     use neort_freq, only: Om_th, Om_ph, d_Om_ds
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use neort_transport, only: timestep_transport
@@ -219,7 +219,7 @@ contains
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot(:2))
 
-        ydot(3) = mi * ydot(2)**2  ! Jpar
+        ydot(3) = mi * ydot(2)**2 ! Jpar
     end subroutine timestep_invariants
 
     pure function Jperp(v, eta)
@@ -249,7 +249,7 @@ contains
             psi(1) = 0.0_dp
             do i = 2, size(sx)
                 psi(i) = psi(i - 1) &
-                         + psi_pr*trapz_step(sx(i - 1), sx(i), iota(i - 1), iota(i))
+                    + psi_pr*trapz_step(sx(i - 1), sx(i), iota(i - 1), iota(i))
             end do
         end associate
     end subroutine psi_pol_grid
@@ -307,7 +307,7 @@ contains
         real(dp), intent(in) :: ux, eta, Omth, dOmdv, dOmdeta, dOmdpph
         real(dp) :: omega_prime_old
         omega_prime_old = mth * (eta * dOmdeta - ux * vth / 2 * dOmdv) / (mi * (ux * vth)**2 / &
-                                                                          (2.0_dp * Omth)) + dOmdpph
+            (2.0_dp * Omth)) + dOmdpph
     end function omega_prime_old
 
 end program test_omage_prime_prog

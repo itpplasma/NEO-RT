@@ -1,5 +1,5 @@
 program test_timestep
-    use util_for_test, only: print_test, pass_test, fail_test
+    use util_for_test, only: print_test, pass_test
     implicit none
 
     call test_timestep_thin()

@@ -20,6 +20,9 @@
     double precision :: dtau,toten,perpinv,sigma
 ! reference energy $\cE_{ref}$, effective potential $\Phi_{eff}$:
     double precision :: cE_ref,Phi_eff
+! Total-energy slices run independently in resonant_torque.  These invariants
+! are the mutable per-slice/per-orbit state read by the orbit and class builders.
+! Keep the normalization constants shared; they are set once at startup.
     !$omp threadprivate(dtau,toten,perpinv,sigma)
   end module global_invariants
 !
@@ -60,10 +63,12 @@
       logical,          dimension(:), allocatable :: xpoint
     end type
 !
-    integer :: nbounds,nregions
-    double precision,     dimension(:),   allocatable :: R_bo,Z_bo,psiast_bo
-    type(allowed_region), dimension(:,:), allocatable :: all_regions
-    !$omp threadprivate(nbounds,nregions,R_bo,Z_bo,psiast_bo,all_regions)
+! The region set is returned to the caller instead of held as module state, so
+! concurrent energy slices do not share derived-type allocatable scratch.
+    type region_set_t
+      integer :: nregions = 0
+      type(allowed_region), dimension(:,:), allocatable :: all_regions
+    end type
   end module bounds_fixpoints_mod
 !
   module form_classes_doublecount_mod
@@ -84,28 +89,14 @@
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
 ! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
-! it integrates.  The grid-build node-fill loops run find_bounce in parallel, so
-! each thread needs its own copy.
-! next is the extra-integral count.  In the parallelized resonance mode loop
-! (integrate_class_resonances) pertham writes it (next=0 then next=3 for its two
-! find_bounce calls) and velo_res reads it for array dims, so each thread needs
-! its own next.  The grid-build regions in sample_matrix never write next; they
-! copyin the master value (next=0, set in sample_class_doublecount) to keep the
-! prior shared semantics.  numbasef is set before any parallel region and read
-! only, so it stays shared.
-! Orbit-integrator tolerances used by find_bounce.  6 significant digits is far
-! tighter than the ~10% code-to-code benchmark and the eps~1d-3 class grid need,
-! while keeping orbit integration (the dominant cost) affordable.  The class
-! sampler relaxes these further for its grid build (see sample_class_doublecount).
-    double precision    :: fb_relerr=1d-6, fb_abserr=1d-8
-    double precision    :: fb_max_abs_delphi=huge(1d0)
-    double precision    :: fb_max_tau=huge(1d0)
-    !$omp threadprivate(Rorb_max,next,fb_relerr,fb_abserr,fb_max_abs_delphi,fb_max_tau)
-! Keep the outer X-point -> rho_pol-boundary classes (clip their search interval
-! to the |Delta_phi_b| resonance cap instead of dropping them) so resonances are
-! found out to the edge, matching NEO-RT.  Default off: keeping them integrates
-! many long-period orbits and needs the find_bounce low-energy speed-up first.
-    logical             :: clip_resonance_classes=.false.
+! it integrates.  next is the extra-integral count: in the parallel resonance
+! mode loop pertham writes it (next=0 then next=3 for its two find_bounce calls)
+! and velo_res reads it for array dims, so each thread needs its own.  The
+! find_bounce-heavy node-fill loops run in parallel, so both must be threadprivate.
+! The grid-build regions never write next; they copyin the master value to keep
+! the prior shared semantics.  numbasef is set before any parallel region and
+! read only, so it stays shared.
+    !$omp threadprivate(Rorb_max,next)
   end module orbit_dim_mod
 !
 !------------------------------------------------------
@@ -113,25 +104,24 @@
   module get_matrix_mod
     double precision :: relerror=1.d-4, relmargin=1.d-4
     integer          :: iclass
-    !$omp threadprivate(relerror,relmargin,iclass)
+    !$omp threadprivate(iclass)
   end module get_matrix_mod
+!
+!------------------------------------------------------
 !
   module interp_cache_mod
 ! Exact memoization of interpolate_class_doublecount, keyed on the class
 ! coordinate x.  Within one integrate_class_resonances call the grid and iclass
-! are fixed, but the 45 modes scan the same x values (only the mode-dependent
-! m,n combination changes), so the interpolation -- whose cost is dominated by
-! plag_coeff -- is otherwise recomputed identically across modes.  Entries are
-! (x, vec, dvec); a hit returns the stored result bit-for-bit, so resonance
-! points are unchanged.  interp_cache_reset must be called whenever the grid is
-! rebuilt (new class / new sample_matrix), so stale entries never leak.
+! are fixed, but the modes scan the same x values (only the mode-dependent m,n
+! combination changes), so the interpolation -- whose cost is dominated by
+! plag_coeff -- is otherwise recomputed identically across modes.  A hit returns
+! the stored result bit-for-bit, so resonance points are unchanged.  The cache is
+! per-thread scratch: the parallel mode loop reads and fills it from every thread,
+! so each thread keeps its own buffer and calls interp_cache_reset inside the
+! parallel region to drop the previous class's grid before reusing it.
     integer :: ncache=0, n1cache=0
     double precision, dimension(:),   allocatable :: xcache
     double precision, dimension(:,:), allocatable :: veccache, dveccache
-! The cache is per-thread scratch: the resonance mode loop reads and fills it from
-! every thread, so each thread keeps its own buffer.  interp_cache_reset must be
-! called inside the parallel region so every thread drops the previous class's
-! grid before reusing its buffer.
     !$omp threadprivate(ncache,n1cache,xcache,veccache,dveccache)
   contains
     subroutine interp_cache_reset
@@ -160,173 +150,194 @@
 ! extraset(next) - extra integrals along the orbit (inout)
 ! ierr           - error flag, 0 = success, 1 = orbit left domain (output)
 !
-  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,fb_relerr, &
-                            fb_abserr,fb_max_abs_delphi,fb_max_tau
+  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
   use field_eq_mod, only : ierrfield
   use logging_mod, only : log_message
-  use fortnum_ode, only : ODE_EVENT_RISING
-  use fortnum_ode_vode, only : vode_state_t, vode_init, vode_integrate_to
-  use fortnum_status, only : fortnum_status_t, FORTNUM_OK
 !
   implicit none
 !
-! relative/absolute error of orbit integrator (module-settable; the sampler
-! relaxes them for speed, see orbit_dim_mod):
-  double precision :: relerr
-  double precision :: abserr
-! Step budget per orbit. A confined orbit closes in O(1e2..1e3) variable-order
-! Adams steps; even the longest kept orbits (|Delta_phi_b| up to ~1.5x the
-! resonance cap, tens of toroidal transits) close well under this. An orbit on
-! the trapped-passing separatrix has a diverging bounce time and never closes, so
-! cap the budget and skip it (ierr=1) instead of grinding to 50000 steps -- those
-! non-closing grazers are the bulk of the sampler cost and are discarded by the
-! class clip anyway.
-  integer, parameter :: max_orbit_steps=10000
-! Finite non-writing chunks let resonance sampling reject non-closing tails once
-! their toroidal displacement is beyond the largest requested resonance.
-  double precision, parameter :: nonwrite_chunk_factor=20.d0
+! nousecut - way to close the orbit during primary search:
+! .true. - without using Poincare cut, can be used for general Phi distributions
+! .false. - with using the cut, valid for Phi=Phi(psi) only
+!  logical, parameter :: nousecut=.true.
+  logical, parameter :: nousecut=.false.
 !
+! maximum number of Newton iterations for closing the orbit:
+  integer, parameter :: niter=20
+!
+! relative error of orbit integrator:
+  double precision, parameter :: relerr=1d-10 !8
+
   integer, intent(in) :: next
   double precision, intent(in) :: dtau_in
   double precision, dimension(neqm), intent(in) :: z_eqm
   double precision, dimension(next), intent(inout) :: extraset
   double precision, intent(out) :: taub, delphi
   integer, intent(out) :: ierr
-!
-  integer :: ndim, nleg
-  double precision :: t_root, dt_leg, tau_max, vel_pol, RNorm, ZNorm
-  double precision, dimension(neqm+next) :: z_start, vz
-  double precision, dimension(neqm+next) :: atol
-  double precision, dimension(:), allocatable :: yout
-  type(vode_state_t) :: vstate
-  type(fortnum_status_t) :: status
-  logical :: root_found
+
+  logical :: firstpass
+  integer :: ndim, iter
+  double precision :: dtau
+  double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
+  double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
+  double precision :: dZ_dR,sign_delZ,Z_tmp
+  double precision, dimension(neqm+next) :: z,z_start,vz
+  character(len=256) :: msg
 !
   external velo_ext
 !
   ndim = neqm+next
   ierr = 0
-  relerr = fb_relerr
-  abserr = fb_abserr
-  atol = abserr
 !
-  z_start(1:neqm)=z_eqm
-  if(next.gt.0) z_start(neqm+1:ndim)=extraset
-  Rorb_max=z_start(1)
-!
-! Bounce detection by RETURN TO THE START POINT, not by a Poincare-cut crossing.
-! The cut crossing fails for deeply trapped orbits (a small banana never reaches
-! the cut) -- exactly what stalled the old fixed-step search at low v/vth. The
-! orbit closes when its displacement projected on the start velocity direction
-! returns through zero moving in the start direction (a rising zero). This is
-! the original start-point closing condition and is well defined for trapped,
-! deeply trapped and passing orbits alike. fortnum's variable-order Adams
-! integrator locates the root on its own interpolant, so taub is exact and no
-! separate Newton closing is needed.
-  call velo_ext(0.d0, z_start, vz)
-  vel_pol = sqrt(vz(1)**2 + vz(3)**2)
-  RNorm = vz(1)/vel_pol
-  ZNorm = vz(3)/vel_pol
-!
-  call vode_init(vstate, ndim, 0.d0, z_start)
-  vstate%max_steps = max_orbit_steps
-  dt_leg = merge(dtau_in, nonwrite_chunk_factor*dtau_in, write_orb)
-  tau_max = min(2000.d0*dtau_in,fb_max_tau)
-!
-  if(write_orb) write (iunit1,*) z_start(1:neqm), 0.d0
-!
-! Step off the start plane once without event detection (the start sits exactly
-! on it: a rising zero at t=0 that must not be mistaken for the return).
-  call vode_integrate_to(rhs_w, vstate, dtau_in, relerr, atol, yout, status)
-  if(status%code /= FORTNUM_OK .or. ierrfield /= 0) then
-    call report_left(z_start, yout)
-    return
+  z(1:neqm)=z_eqm
+  if(next.gt.0) then
+    z(neqm+1:ndim)=extraset
   endif
-  Rorb_max=max(Rorb_max, yout(1))
-  if(write_orb) call write_orbit_point(yout)
+  Rorb_max=z(1)
 !
-! Integrate to the return. write_orb dumps the orbit, advancing in dtau_in-sized
-! legs and writing each; otherwise one far leg suffices since the event stops it
-! at the bounce.
-  root_found=.false.
-  do nleg=1,2*max_orbit_steps
-    call vode_integrate_to(rhs_w, vstate, vstate%tn+dt_leg, relerr, atol, &
-                           yout, status, event=return_event, &
-                           event_dir=ODE_EVENT_RISING, t_root=t_root, &
-                           root_found=root_found)
-    if(status%code /= FORTNUM_OK .or. ierrfield /= 0) then
-      call report_left(z_start, yout)
-      return
-    endif
-    Rorb_max=max(Rorb_max, yout(1))
-    if(write_orb) call write_orbit_point(yout)
-    if(root_found) exit
-    if(abs(yout(2)-z_start(2)).gt.fb_max_abs_delphi) then
-      call report_left(z_start, yout)
-      return
-    endif
-    if(.not.write_orb) then
-      if(vstate%tn.ge.tau_max) then
-        call report_left(z_start, yout)
-        return
-      endif
-    endif
-  enddo
-  if(.not.root_found) then
-    call report_left(z_start, yout)
+!  dtau=dtau_in/max(z(4),1d-3)
+  dtau=dtau_in
+!
+! Primary search:
+!
+  z_start=z
+!
+  call velo_ext(dtau,z,vz)
+!
+! unit 2D vector in the direction of the guiding center velocity in RZ-plane:
+!
+  vel_pol=sqrt(vz(1)**2+vz(3)**2)
+  RNorm=vz(1)/vel_pol
+  ZNorm=vz(3)/vel_pol
+!
+  tau0=0.d0
+!
+  if(write_orb) write (iunit1,*) z(1:neqm),vz(5)
+!
+! first step:
+!
+  call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
+  if(ierrfield.ne.0) then
+    write(msg,'(A,2ES14.6,A,2ES14.6)') &
+      'find_bounce: orbit left domain at R,Z=', &
+      z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
+    write(*,'(A)') trim(msg)
+    call log_message(trim(msg))
+    ierr = 1
     return
   endif
 !
-  taub = t_root
-  if(next.gt.0) extraset=yout(neqm+1:ndim)
-  delphi = yout(2)-z_start(2)
+  taub=dtau
+  if(nousecut) then
+! initialize sqrt(2) of the poloidal length of the step
+    dL2_pol=2.d0*(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
+  else
+! initialize Poincare cut crossing check
 !
-  if(write_orb) write (iunit1,*) 'NaN NaN NaN NaN NaN NaN'
+    call get_poicut(z(1),Z_tmp,dZ_dR)
 !
-  contains
+    sign_delZ=sign(1.d0,z(3)-Z_tmp)
+    firstpass=.true.
+    dL2_pol=2.d0*(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
+  endif
 !
-  subroutine rhs_w(t_, y_, dydt_, ctx_)
-    double precision, intent(in) :: t_
-    double precision, intent(in) :: y_(:)
-    double precision, intent(out) :: dydt_(:)
-    class(*), intent(in), optional :: ctx_
-    if(present(ctx_)) continue
-    call velo_ext(t_, y_, dydt_)
-  end subroutine rhs_w
+  if(write_orb) then
 !
-  function return_event(t_, y_, ctx_) result(g)
-    double precision, intent(in) :: t_
-    double precision, intent(in) :: y_(:)
-    class(*), intent(in), optional :: ctx_
-    double precision :: g
-    if(present(ctx_)) continue
-    if(t_ < 0.d0) continue
-    g = (y_(1)-z_start(1))*RNorm + (y_(3)-z_start(3))*ZNorm
-  end function return_event
+    call velo_ext(dtau,z,vz)
 !
-  subroutine write_orbit_point(y_)
-    double precision, intent(in) :: y_(:)
-    call velo_ext(0.d0, y_, vz)
-    write (iunit1,*) y_(1:neqm), vz(5)
-  end subroutine write_orbit_point
+    write (iunit1,*) z(1:neqm),vz(5)
+  endif
 !
-  subroutine report_left(zs, zc)
-    double precision, intent(in) :: zs(:), zc(:)
-    character(len=256) :: msg
-! Orbits grazing the X-point / trapped-passing separatrix do not close.  During
-! phase-space sampling this is a normal, expected outcome (the class is clipped
-! to the closing region), and there are many such orbits, so the per-orbit
-! string format + stdout write + log_message dominated the runtime (top self-time
-! in perf).  Emit the diagnostic only in explicit orbit-dump mode.
-    if(write_orb) then
+  do
+    r_prev=z(1)
+    z_prev=z(3)
+!
+    call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
+    if(ierrfield.ne.0) then
       write(msg,'(A,2ES14.6,A,2ES14.6)') &
-        'find_bounce: orbit not closed from R,Z=', zs(1), zs(3), &
-        ' last R,Z=', zc(1), zc(3)
+        'find_bounce: orbit left domain at R,Z=', &
+        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
       write(*,'(A)') trim(msg)
       call log_message(trim(msg))
+      ierr = 1
+      return
     endif
-    ierr = 1
-  end subroutine report_left
+!
+    taub=taub+dtau
+    if(nousecut) then
+! check if poloidal distance to the starting point is smaller than
+! sqrt(2) of the poloidal length of the step:
+      dL2_pol=2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2)
+      dL2_pol_start=(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
+      if(dL2_pol_start.lt.dL2_pol) exit
+    else
+! check if Poincare cut has been crossed
+!
+      call get_poicut(z(1),Z_tmp,dZ_dR)
+!
+      if(sign_delZ*(z(3)-Z_tmp).lt.0.d0) then
+        if(firstpass) then
+! first crossing (continue integration)
+          firstpass=.false.
+          sign_delZ=-sign_delZ
+        else
+! second crossing (stop integration)
+          exit
+        endif
+      endif
+    endif
+!
+    if(write_orb) then
+!
+      call velo_ext(dtau,z,vz)
+!
+      write (iunit1,*) z(1:neqm),vz(5)
+    endif
+    Rorb_max=max(Rorb_max,z(1))
+  enddo
+!
+! End primary search
+!
+! Newton adjustment
+!
+  do iter=1,niter
+!
+    call velo_ext(dtau,z,vz)
+!
+    vnorm=vz(1)*RNorm+vz(3)*ZNorm
+    dnorm=(z_start(1)-z(1))*RNorm+(z_start(3)-z(3))*ZNorm
+    if(dnorm**2.lt.dL2_pol*relerr) exit
+    dtau_newt=dnorm/vnorm
+!
+    call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
+    if(ierrfield.ne.0) then
+      write(msg,'(A,2ES14.6,A,2ES14.6)') &
+        'find_bounce: orbit left domain at R,Z=', &
+        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
+      write(*,'(A)') trim(msg)
+      call log_message(trim(msg))
+      ierr = 1
+      return
+    endif
+!
+    taub=taub+dtau_newt
+  enddo
+!
+  if(next.gt.0) then
+    extraset=z(neqm+1:ndim)
+  endif
+!
+  if(write_orb) then
+!
+    call velo_ext(dtau,z,vz)
+!
+    write (iunit1,*) z(1:neqm),vz(5)
+    write (iunit1,*) 'NaN NaN NaN NaN NaN NaN'
+  endif
+!
+! End Newton adjustment
+!
+  delphi=z(2)-z_start(2)
 !
   end subroutine find_bounce
 !
@@ -1047,19 +1058,22 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine find_bounds_fixpoints(ierr)
+  subroutine find_bounds_fixpoints(regions,ierr)
 !
   use global_invariants,    only : toten,perpinv,sigma
   use find_all_roots_mod,   only : nroots,roots,relerr_allroots
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use field_sub, only : psif
-  use bounds_fixpoints_mod, only : nbounds,R_bo,Z_bo,psiast_bo, &
-                                   nregions,all_regions
+  use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
 !
   implicit none
 !
+  type(region_set_t), intent(inout) :: regions
+  integer :: nbounds,nregions
+  double precision,     dimension(:),   allocatable :: R_bo,Z_bo,psiast_bo
+  type(allowed_region), dimension(:,:), allocatable :: all_regions
   logical, parameter :: doublecount=.true.
   integer, parameter :: niter=100
   double precision, parameter :: relerr=1d-12
@@ -1179,6 +1193,7 @@
     else
 ! vpar2<0 in the whole domain, no regions in the domain
       nregions=0
+      regions%nregions=0
       ierr=2
       return
     endif
@@ -1782,6 +1797,11 @@
 !
 !------------
 !
+  regions%nregions=nregions
+  call move_alloc(all_regions,regions%all_regions)
+!
+!------------
+!
   contains
 !
 !------------
@@ -2161,7 +2181,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine form_classes_doublecount(classes_talk,ierr)
+  subroutine form_classes_doublecount(regions,classes_talk,ierr)
 !
 ! Here "class" means segments coming from splitting by X-points of the domains of allowed motion
 ! for particles starting at the Poincare with a given parallel velocity sign. The routine
@@ -2170,15 +2190,18 @@
 !
   use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class,  &
                                            R_class_beg,R_class_end
-  use bounds_fixpoints_mod,         only : nregions,all_regions
+  use bounds_fixpoints_mod,         only : region_set_t
   use poicut_mod,                   only : Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use global_invariants,            only : toten,perpinv,sigma
 !
   implicit none
 !
+  type(region_set_t), intent(in) :: regions
   logical :: classes_talk
   integer          :: ierr,isig,ireg,nxp,ixp,icl,i
   integer, dimension(:), allocatable :: ibt_b,ibt_e
+!
+  associate(nregions => regions%nregions, all_regions => regions%all_regions)
 !
   ierr=0
 !
@@ -2272,6 +2295,8 @@
   endif
 !
   deallocate(ibt_b,ibt_e)
+!
+  end associate
 !
   end subroutine form_classes_doublecount
 !
@@ -2423,7 +2448,7 @@
 ! of class parameter x for adaptive refinement of interpolation grid over x
 !
   use sample_matrix_mod, only : n1,n2,x,amat
-  use orbit_dim_mod,     only : neqm,next,clip_resonance_classes
+  use orbit_dim_mod,     only : neqm,next
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
@@ -2432,7 +2457,6 @@
 !
   logical :: fullbounce
   integer :: ierr,k
-  double precision, parameter :: twopi_gmd=6.28318530717958648d0
   double precision :: psiast,dpsiast_dRst,taub,delphi,xi,dxi_dx,Rst,sigma,delta_R, &
                       tau_fr,dphi_fr
   double precision, dimension(neqm) :: z
@@ -2450,15 +2474,8 @@
   call starter_doublecount(toten,perpinv,sigma,Rst,   &
                            psiast,dpsiast_dRst,z,ierr)
 !
-! No valid orbit here (start off the cut or negative kinetic energy).  With the
-! class clip on, mark an out-of-cap sentinel so clip_bounds_to_dphi discards the
-! node; otherwise leave the original drop-on-fail behaviour.  No per-node print --
-! it floods the sampler.
   if(ierr.ne.0) then
-    amat(1,1)=0.d0
-    amat(2,1)=0.d0          ! Omega_b=0 : orbit does not close (tau_b -> infinity)
-    amat(3,1)=0.d0
-    if(next.gt.0) amat(4:3+next,1)=0.d0
+    print *,'get_matrix: error in starter'
     return
   endif
 !
@@ -2469,13 +2486,7 @@
     if(fullbounce) then
 !
       call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-      if(ierr.ne.0) then
-        amat(1,1)=psiast
-        amat(2,1)=0.d0
-        amat(3,1)=0.d0
-        if(next.gt.0) amat(4:3+next,1)=0.d0
-        return
-      endif
+      if(ierr.ne.0) return
 !
     else
 !
@@ -2489,25 +2500,13 @@
     extraset=0.d0
 !
     call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) then
-      amat(1,1)=psiast
-      amat(2,1)=0.d0
-      amat(3,1)=0.d0
-      if(next.gt.0) amat(4:3+next,1)=0.d0
-      return
-    endif
+    if(ierr.ne.0) return
 !
   endif
 !
-! Interpolate the canonical FREQUENCIES, not the bounce time / toroidal shift:
-! Omega_b = 2 pi / tau_b and Omega_phi = Delta_phi_b / tau_b stay finite and
-! smooth at the separatrix (Omega_b -> 0) where tau_b, Delta_phi_b diverge.  The
-! resonance m*Omega_b + n*Omega_phi = 0 has the same roots as Delta_phi_b + 2 pi
-! m/n = 0 (loss-free), but the polynomial grid converges instead of diverging.
-! get_rescond recovers tau_b = 2 pi / Omega_b.
   amat(1,1)=psiast
-  amat(2,1)=twopi_gmd/taub
-  amat(3,1)=delphi/taub
+  amat(2,1)=taub
+  amat(3,1)=delphi
 !
   if(next.gt.0) then
     amat(4:3+next,1)=extraset
@@ -2524,24 +2523,18 @@
 ! toroidal displacement per bounce time and bounce integrals
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
-                                npoi,xarr,amat_arr,isentinel
-  use orbit_dim_mod,     only : next,numbasef,fb_relerr,fb_abserr, &
-                                fb_max_abs_delphi,fb_max_tau, &
-                                clip_resonance_classes
+                                npoi,xarr,amat_arr
+  use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relerror,relmargin,iclass
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
-  use potato_input_mod,  only : m_min,m_max,n_tor
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
 !
   implicit none
 !
-  double precision, parameter :: twopi=6.28318530717958648d0
-  integer :: iunit,ierr,i,k
-  double precision :: psiastbeg,psiastend,widthclass,dphi_cap
-  double precision :: fb_relerr_save,fb_abserr_save
-  double precision :: fb_max_abs_delphi_save,fb_max_tau_save
+  integer :: iunit,ierr,i
+  double precision :: psiastbeg,psiastend,widthclass
 !
   external :: get_matrix_doublecount
 !
@@ -2568,202 +2561,20 @@
 !
   eps=relerror
 !
-! The grid interpolates to eps~1d-3, so the orbit integration needs no more than
-! that; relax the integrator tolerance for the (cost-dominant) sampling, then
-! restore the tight default for the accurate weight integration in pertham.
-  fb_relerr_save=fb_relerr
-  fb_abserr_save=fb_abserr
-  fb_max_abs_delphi_save=fb_max_abs_delphi
-  fb_max_tau_save=fb_max_tau
-  fb_relerr=1.d-4
-  fb_abserr=1.d-6
-  dphi_cap=0.d0   ! legacy, unused
-!
-! The class coordinate runs past the trapped-passing/X-point separatrix into a
-! region where the orbit no longer closes (find_bounce fails, Omega_b=0).  That
-! closing->non-closing step, and the tau_b divergence just before it, are what
-! made the adaptive grid refine without end.  Clip the endpoint to the closing
-! boundary so sample_matrix sees a smooth, all-closing interval.  Done with the
-! clip flag on or off; only the X-point classes (whose endpoint does not close)
-! pay for the boundary search.
-  call clip_class_to_closing(xbeg,xend)
-!
-  if(xend.gt.xbeg) then
-! Omega_b is amat row 2; get_matrix_doublecount stores 0 there when find_bounce
-! skips an X-point-grazing (non-closing) orbit.  Mark row 2 as the sentinel so
-! sample_matrix does not refine across those scattered 0<->finite steps, which
-! otherwise explode the grid to >1e5 nodes and exhaust itermax (the class is then
-! dropped, the main cause of sparse near-separatrix resonance coverage).
-    isentinel=2
-    call sample_matrix(get_matrix_doublecount,ierr)
-    isentinel=0
-  else
-    ierr=1
-  endif
-!
-! Drop the non-closing grazer nodes (Omega_b=0): the resonance search must
-! interpolate closing orbits only.  Grazers carry no resonance for |m|<=m_max
-! (m ~ n Omega_phi/Omega_b -> infinity as Omega_b->0), and bridging the removed
-! nodes with the smooth closing Omega_b cannot create an in-range sign change.
-  if(ierr.eq.0) then
-    k=0
-    do i=1,npoi
-      if(amat_arr(2,1,i).ne.0.d0) then
-        k=k+1
-        if(k.ne.i) then
-          xarr(k)=xarr(i)
-          amat_arr(:,:,k)=amat_arr(:,:,i)
-        endif
-      endif
-    enddo
-    if(k.ge.nlagr+1) then
-      npoi=k
-    else
-      ierr=1   ! too few closing nodes to interpolate this class
-    endif
-  endif
-!
-  fb_relerr=fb_relerr_save
-  fb_abserr=fb_abserr_save
-  fb_max_abs_delphi=fb_max_abs_delphi_save
-  fb_max_tau=fb_max_tau_save
+  call sample_matrix(get_matrix_doublecount,ierr)
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
 ! so interpolate_class_doublecount never returns a value from the old grid.
   call interp_cache_reset
 !
- if(dowrite) then
+  if(dowrite) then
     print *,'npoi = ',npoi
     do i=1,npoi
       write(iunit,*) xarr(i),amat_arr(:,1,i)
     enddo
   endif
 !
- contains
-!
- logical function class_closes(xx)
-! True if the orbit at class coordinate xx closes (Omega_b = amat(2,1) > 0).
-   use sample_matrix_mod, only : n1,n2,x,amat
-   implicit none
-   double precision, intent(in) :: xx
-   external :: get_matrix_doublecount
-   if(.not.allocated(amat)) allocate(amat(n1,n2))
-   x=xx
-   call get_matrix_doublecount
-   class_closes=amat(2,1).gt.0.d0
- end function class_closes
-!
- subroutine clip_class_to_closing(xb,xe)
-! Clip the separatrix-side endpoint to the closing boundary.  If the endpoint
-! orbit already closes the class is smooth -- nothing to do (cheap, the common
-! case).  Otherwise bisect [closing, non-closing] for the boundary x_sep and set
-! the endpoint just inside it, so the sampled interval is all-closing and smooth.
-   implicit none
-   double precision, intent(inout) :: xb,xe
-   double precision :: a,b,xm
-   integer :: it
-   if(xe.le.xb) return
-   if(class_closes(xe)) return            ! endpoint closes: smooth class, no clip
-   if(.not.class_closes(xb)) then         ! nothing closes: empty class
-     xe=xb
-     return
-   endif
-   a=xb                                   ! closes
-   b=xe                                   ! does not close
-   do it=1,20
-     xm=0.5d0*(a+b)
-     if(class_closes(xm)) then
-       a=xm
-     else
-       b=xm
-     endif
-   enddo
-   xe=a                                   ! last coordinate that still closes
- end subroutine clip_class_to_closing
-!
- subroutine preclip_class_to_dphi(xb,xe,dphi_cap)
-   use sample_matrix_mod, only : n1,n2,x,amat
-   implicit none
-   integer, parameter :: nprobe=9
-   integer :: i,ilo,ihi
-   double precision, intent(inout) :: xb,xe
-   double precision, intent(in) :: dphi_cap
-   double precision :: dx
-   double precision :: xprobe(nprobe)
-   double precision :: dphi_probe(nprobe)
-   external :: get_matrix_doublecount
-!
-   if(xe.le.xb) return
-   if(.not.allocated(amat)) allocate(amat(n1,n2))
-!
-   dx=(xe-xb)/dble(nprobe-1)
-   do i=1,nprobe
-     xprobe(i)=xb+dx*dble(i-1)
-     x=xprobe(i)
-     call get_matrix_doublecount
-     dphi_probe(i)=abs(amat(3,1))
-   enddo
-!
-   ilo=0
-   ihi=0
-   do i=1,nprobe
-     if(dphi_probe(i).le.dphi_cap) then
-       if(ilo.eq.0) ilo=i
-       ihi=i
-     endif
-   enddo
-!
-   if(ilo.eq.0) then
-     xe=xb
-     return
-   endif
-!
-   if(ilo.gt.1) ilo=ilo-1
-   if(ihi.lt.nprobe) ihi=ihi+1
-   xb=xprobe(ilo)
-   xe=xprobe(ihi)
- end subroutine preclip_class_to_dphi
-!
- end subroutine sample_class_doublecount
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  subroutine clip_bounds_to_dphi(xb,xe,dphi_cap)
-!
-! Shrinks the class search interval [xb,xe] to the span of the (partially
-! sampled) grid where |Delta_phi_b| <= dphi_cap, discarding the separatrix tail
-! where Delta_phi_b diverges.  Uses the grid (xarr) and matrix (amat_arr, row 3
-! = Delta_phi_b) left by the preceding sample_matrix call, so it needs no extra
-! orbit integration.  The physical (resonance-bearing) part is contiguous, so
-! the first and last in-cap grid nodes bracket it.
-!
-  use sample_matrix_mod, only : npoi,xarr,amat_arr
-!
-  implicit none
-!
-  double precision, intent(inout) :: xb,xe
-  double precision, intent(in)    :: dphi_cap
-  integer :: i,ilo,ihi
-!
-  ilo=0
-  ihi=0
-  do i=1,npoi
-    if(abs(amat_arr(3,1,i)).le.dphi_cap) then
-      if(ilo.eq.0) ilo=i
-      ihi=i
-    endif
-  enddo
-!
-  if(ilo.eq.0) then
-! no node within the cap: nothing to resolve, collapse the interval to skip it
-    xe=xb
-    return
-  endif
-!
-  xb=xarr(ilo)
-  xe=xarr(ihi)
-!
-  end subroutine clip_bounds_to_dphi
+  end subroutine sample_class_doublecount
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -2945,8 +2756,7 @@
     end select
   endif
 !
-! Store this (x,vec,dvec) for reuse by later modes at the same x.  Grow the
-! cache arrays geometrically; reuse the existing buffers when n1 is unchanged.
+! Store this (x,vec,dvec) for reuse by later modes at the same x.
   call interp_cache_store(x,vec,dvec)
 !
   end subroutine interpolate_class_doublecount

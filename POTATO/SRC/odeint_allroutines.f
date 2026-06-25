@@ -19,13 +19,22 @@
 !
 !------------------------------------------------------------------------------
       module odeint_mod
-        integer :: kmax=0, kount=0, kmaxx=200, ialloc
+        integer :: kmax=0, kmaxx=200
         double precision :: dxsav=0.d0
+! Per-integration scratch and counters.  odeint allocates dydx..ytemp1 per call
+! (alloc_odeint) and find_bounce runs the integrator in parallel (the resonance
+! grid build and the per-mode loop), so each thread needs its own copies, else
+! threads race to allocate the shared arrays ("already allocated").  kount,ialloc
+! are written at the top of each odeint call before any read, so they need no
+! copyin.  kmax,kmaxx,dxsav are set-once read-only config and stay shared.
+        integer :: kount=0, ialloc
         double precision, dimension(:),   allocatable :: dydx,xp,y,yscal
         double precision, dimension(:,:), allocatable :: yp
         double precision, dimension(:),   allocatable :: ak2,ak3,ak4,ak5
         double precision, dimension(:),   allocatable :: ak6,ytemp
         double precision, dimension(:),   allocatable :: yerr,ytemp1
+!$omp threadprivate(kount,ialloc,dydx,xp,y,yscal,yp,ak2,ak3,ak4,
+!$omp+ak5,ak6,ytemp,yerr,ytemp1)
       end module odeint_mod
 !
 !------------------------------------------------------------------------------

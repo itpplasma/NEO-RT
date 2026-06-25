@@ -5,8 +5,10 @@
     double precision, dimension(:),     allocatable :: xarr
     double precision, dimension(:,:),   allocatable :: amat
     double precision, dimension(:,:,:), allocatable :: amat_arr
-    !$omp threadprivate(nlagr,n1,n2,npoi,itermax,icount,x,xbeg,xend,eps)
-    !$omp threadprivate(ind_hist,xarr,amat,amat_arr)
+! The adaptive J_perp grid is per-energy-slice scratch.  Energy slices may run
+! concurrently, so each worker keeps its own grid and interpolation workspace.
+    !$omp threadprivate(nlagr,n1,n2,npoi,itermax,icount,x,xbeg,xend,eps, &
+    !$omp               ind_hist,xarr,amat,amat_arr)
   end module sample_matrix_out_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
