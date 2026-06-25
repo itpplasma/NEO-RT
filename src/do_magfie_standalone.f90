@@ -304,17 +304,23 @@ contains
         q = 1.0_dp / iota
         dqds = spl_val(3) / (cm_torflux * iota**2)
 
+        ! Chartmap stores B_theta/B_phi in G*cm with the sign from buco/bvco (no
+        ! sign_theta flip).  The .bc path applies ItoB = sign_theta * mu0/(2*pi)*1e6
+        ! which introduces an extra sign_theta factor.  Apply it here so that Bthcov
+        ! and Bphcov carry the same sign convention as the .bc path.
         spl_val = spline_val_0(cm_spl_Bth, rho1)
-        Bthcov = spl_val(1) * bfac
+        Bthcov = sign_theta * spl_val(1) * bfac
         ! chain rule: dBthcov/ds = dBthcov/drho * drho/ds, drho/ds = 1/(2*rho)
-        dBthcovds = spl_val(2) * bfac / (2.0_dp * rho1)
+        dBthcovds = sign_theta * spl_val(2) * bfac / (2.0_dp * rho1)
 
         spl_val = spline_val_0(cm_spl_Bph, rho1)
-        Bphcov = spl_val(1) * bfac
-        dBphcovds = spl_val(2) * bfac / (2.0_dp * rho1)
+        Bphcov = sign_theta * spl_val(1) * bfac
+        dBphcovds = sign_theta * spl_val(2) * bfac / (2.0_dp * rho1)
 
-        ! psi_pr = torflux / (2*pi), constant across surfaces in Boozer coords.
-        psi_pr = cm_torflux / (2.0_dp * pi) * bfac
+        ! psi_pr matches the .bc path: .bc stores flux < 0 for this orientation so
+        ! psi_pr = flux*1e8/(2*pi) < 0, while torflux in the chartmap = |psi_pr|.
+        ! Set psi_pr = -cm_torflux so sign_theta*psi_pr has the same sign in both paths.
+        psi_pr = -cm_torflux * bfac
 
         ! Bmod on (rho, theta) grid: wrap theta to [0, 2*pi) then interpolate.
         th_shift = x(3) - floor(x(3) / (2.0_dp * pi)) * 2.0_dp * pi
@@ -341,6 +347,8 @@ contains
         spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
         dBmod_drho = dBmod_drho + alpha * spl_val(2) * bfac
         bder(1) = dBmod_drho / (2.0_dp * rho1 * bmod)
+        ! x(2) is the toroidal angle phi; Bmod has no phi dependence in axisymmetric
+        ! (nfp=1, phi=0 slice) Boozer coordinates, so bder(2)=0 is exact.
         bder(2) = 0.0_dp
         ! dBmod/dtheta by finite difference across the theta grid cell.
         dBmod_dth = (bmod1 - bmod0) / (cm_h_theta * bmod)
@@ -385,8 +393,9 @@ contains
         cm_rho_max = d%rho(d%n_rho)
         n_s_aphi = d%n_s
         R0 = d%rmajor * 100.0_dp  ! m -> cm
-        ! psi_pr stored globally (constant across flux surfaces)
-        psi_pr = d%torflux / (2.0_dp * pi) * bfac
+        ! psi_pr stored globally; negate torflux to match the .bc sign convention
+        ! (chartmap torflux > 0, .bc psi_pr = flux*1e8/(2*pi) < 0 for typical orientation).
+        psi_pr = -d%torflux * bfac
 
         if (allocated(cm_rho)) deallocate(cm_rho)
         if (allocated(cm_s_aphi)) deallocate(cm_s_aphi)
