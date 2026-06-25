@@ -67,6 +67,7 @@ contains
     subroutine log_message(msg)
         character(len=*), intent(in) :: msg
 
+        !$omp critical (potato_logging)
         if (logging_enabled) then
             write(log_unit, '(A,": ",A)') timestamp(), msg
             msgs_since_flush = msgs_since_flush + 1
@@ -75,11 +76,13 @@ contains
                 msgs_since_flush = 0
             endif
         endif
+        !$omp end critical (potato_logging)
     end subroutine log_message
 
     subroutine tee_message(msg)
         character(len=*), intent(in) :: msg
 
+        !$omp critical (potato_logging)
         write(output_unit, '(A)') msg
         if (logging_enabled) then
             write(log_unit, '(A,": ",A)') timestamp(), msg
@@ -89,6 +92,7 @@ contains
                 msgs_since_flush = 0
             endif
         endif
+        !$omp end critical (potato_logging)
     end subroutine tee_message
 
 end module logging_mod

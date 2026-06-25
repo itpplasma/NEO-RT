@@ -4,6 +4,8 @@
 !
   USE sample_matrix_mod
   USE form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
+  USE get_matrix_mod, only : iclass
+  USE global_invariants, only : dtau
 ! next is threadprivate (set per mode in the resonance loop); copyin it into the
 ! grid-build regions, which never write it, so each worker starts from the master
 ! value (0).
@@ -86,7 +88,7 @@
 ! (the resonance mode loop writes it), but the grid build never writes it, so
 ! copyin seeds each worker with the master value (0) to keep the shared behavior.
   !$omp parallel do default(shared) private(i) schedule(dynamic) &
-  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next)
+  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next,iclass,dtau)
   DO i=2,npoi-1
     if(.not.allocated(amat)) allocate(amat(n1,n2))
     x=xarr(i)
@@ -203,7 +205,7 @@
 ! shared and read-only.  next is threadprivate but unwritten here, so copyin
 ! seeds each worker with the master value (0), preserving the shared behavior.
     !$omp parallel do default(shared) private(k) schedule(dynamic) &
-    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next)
+    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next,iclass,dtau)
     DO k=1,nnew
       if(.not.allocated(amat)) allocate(amat(n1,n2))
       x=xarr(newslots(k))

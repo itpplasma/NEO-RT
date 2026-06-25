@@ -49,6 +49,8 @@
     type(respoints_fix_jperp),            dimension(:),   allocatable :: respoints_all, &
                                                                          respoints_all_tmp
     type(respoint_single),                dimension(:),   allocatable :: respoint
+    !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all)
+    !$omp threadprivate(respoints_all_tmp,respoint)
   end module resint_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -219,7 +221,7 @@
   !$omp   private(mode,iroot,ierr,rescond,dresconddx,dpsiastdx) &
   !$omp   private(one_res,Rst,xi,dxi_dx,dpsiast_dRst,absHn2,fmaxw,A1ast,A2ast) &
   !$omp   private(dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi,z,msg) &
-  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class)
+  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,iclass,dtau)
   call interp_cache_reset
   !$omp do schedule(dynamic)
   do mode=1,nmodes
@@ -494,6 +496,7 @@
                                 adaptive_jperp, npoi_init, nlagr_sampling, &
                                 eps_sampling, itermax_sampling
   use logging_mod,       only : tee_message
+  !$ use omp_lib, only : omp_set_max_active_levels
 
   implicit none
 !
@@ -506,7 +509,6 @@
   double precision :: omdens,trapez_fac,perpinv_max
   double precision :: torque_int,torque_int_loc
   double precision :: xjperp,xenerg,totxint,step_energ
-  double precision :: w_energ,dw_energ
   double precision :: time_beg,time_end
   double precision :: dens, temp, ddens, dtemp
   character(len=256) :: msg
@@ -514,18 +516,11 @@
   double precision, dimension(:), allocatable :: sbox
   double precision, dimension(:), allocatable :: taubox
   double precision, dimension(:), allocatable :: torquebox
+  double precision, dimension(:,:), allocatable :: taubox_all
 !
   external :: get_matrix_res
 !
-  allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
-!
-! size of result matrix in get_matrix_res:
-  n1=nmodes
-  n2=1
-! Set adaptive sampling parameters from input:
-  nlagr=nlagr_sampling
-  eps=eps_sampling
-  itermax=itermax_sampling
+  allocate(sbox(nbox), torquebox(nbox))
 !
   numbasef=0 !no extra integrals sampled, pure orbit integration
   call linspace(1d0/nbox, 1d0, nbox, sbox)
@@ -582,9 +577,20 @@
     open(1902,file='subint_ofH0int_104_vsJperp_equi.dat')
   endif
 !
+  !$ call omp_set_max_active_levels(1)
+  !$omp parallel do default(shared) schedule(dynamic) &
+  !$omp   private(xenerg,perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
+  !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox,taubox_all) &
+  !$omp   reduction(+:torque_int,torque_int_modes,torquebox) copyin(dtau)
   do ienerg=1,nenerg
     xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
     toten=toten_min+toten_range*xenerg
+    if(.not.allocated(delint_mode)) allocate(delint_mode(nmodes))
+    n1=nmodes
+    n2=1
+    nlagr=nlagr_sampling
+    eps=eps_sampling
+    itermax=itermax_sampling
     write(msg, '(A,ES22.14)') 'toten = ', toten
     call tee_message(trim(msg))
 !
@@ -672,6 +678,12 @@
 ! Computation of the integral torque:
       torque_int_loc=0.d0
 !
+      allocate(taubox(nbox), taubox_all(nbox,nrespoints))
+      do i=1,nrespoints
+        call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
+          respoint(i)%taub, 200.d0*dtau, taubox_all(:,i))
+      enddo
+!
       do i=1,nrespoints
 ! Here box counter should be used. Below we compute an integral torque as a sum of orbit weights:
         torque_int_loc=torque_int_loc+respoint(i)%w_res
@@ -689,16 +701,15 @@
 ! Cap box-counting at the find_bounce acceptance bound (resonant_int.f90 sets
 ! fb_max_tau=200*dtau during the root search): a root with |taub| beyond it sits
 ! at an interpolated Omega_b~0 near the separatrix and is not integrable.
-        call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
-          respoint(i)%taub, 200.d0*dtau, taubox)
         write(1901,*) respoint(i)%toten_res, &
           respoint(i)%perpinv_res, &
           ! tormom_of_RZ(respoint(i)%toten_res, respoint(i)%perpinv_res, TODO ), &
           torque_int_loc    !,taubox/respoint(i)%taub
 !
-        torquebox=torquebox+respoint(i)%w_res*taubox/respoint(i)%taub   !<=sum up resonances in boxes
+        torquebox=torquebox+respoint(i)%w_res*taubox_all(:,i)/respoint(i)%taub
 !
       enddo
+      deallocate(taubox,taubox_all)
       write(1901,*) ' '
 !
       deallocate(respoint)
@@ -770,6 +781,7 @@
     call tee_message(trim(msg))
 !
   enddo
+  !$omp end parallel do
 !
   if(adaptive_jperp) close(1901)
   close(1902)

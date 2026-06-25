@@ -20,6 +20,7 @@
     double precision :: dtau,toten,perpinv,sigma
 ! reference energy $\cE_{ref}$, effective potential $\Phi_{eff}$:
     double precision :: cE_ref,Phi_eff
+    !$omp threadprivate(dtau,toten,perpinv,sigma)
   end module global_invariants
 !
   module poicut_mod
@@ -62,6 +63,7 @@
     integer :: nbounds,nregions
     double precision,     dimension(:),   allocatable :: R_bo,Z_bo,psiast_bo
     type(allowed_region), dimension(:,:), allocatable :: all_regions
+    !$omp threadprivate(nbounds,nregions,R_bo,Z_bo,psiast_bo,all_regions)
   end module bounds_fixpoints_mod
 !
   module form_classes_doublecount_mod
@@ -89,9 +91,8 @@
 ! find_bounce calls) and velo_res reads it for array dims, so each thread needs
 ! its own next.  The grid-build regions in sample_matrix never write next; they
 ! copyin the master value (next=0, set in sample_class_doublecount) to keep the
-! prior shared semantics.  numbasef,fb_relerr,... are set before any parallel
-! region and read only, so they stay shared.
-    !$omp threadprivate(Rorb_max,next)
+! prior shared semantics.  numbasef is set before any parallel region and read
+! only, so it stays shared.
 ! Orbit-integrator tolerances used by find_bounce.  6 significant digits is far
 ! tighter than the ~10% code-to-code benchmark and the eps~1d-3 class grid need,
 ! while keeping orbit integration (the dominant cost) affordable.  The class
@@ -99,6 +100,7 @@
     double precision    :: fb_relerr=1d-6, fb_abserr=1d-8
     double precision    :: fb_max_abs_delphi=huge(1d0)
     double precision    :: fb_max_tau=huge(1d0)
+    !$omp threadprivate(Rorb_max,next,fb_relerr,fb_abserr,fb_max_abs_delphi,fb_max_tau)
 ! Keep the outer X-point -> rho_pol-boundary classes (clip their search interval
 ! to the |Delta_phi_b| resonance cap instead of dropping them) so resonances are
 ! found out to the edge, matching NEO-RT.  Default off: keeping them integrates
@@ -111,6 +113,7 @@
   module get_matrix_mod
     double precision :: relerror=1.d-4, relmargin=1.d-4
     integer          :: iclass
+    !$omp threadprivate(relerror,relmargin,iclass)
   end module get_matrix_mod
 !
   module interp_cache_mod

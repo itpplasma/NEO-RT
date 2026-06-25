@@ -8,6 +8,7 @@ CONDOR/
 MC/RUN
 MC/CODE/ATOMIC
 build/
+POTATO/build/
 _*.c
 _*.o
 *.pyc
