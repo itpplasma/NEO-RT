@@ -170,6 +170,7 @@ subroutine integrate_class_resonances
     use logging_mod,        only : tee_message
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
+    use field_eq_mod,       only : psi_sep
     !
     implicit none
     !
@@ -284,7 +285,15 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            call pertham(z,absHn2)
+            if(psiast_res.lt.psi_sep) then
+                ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
+                ! so pertham/find_bounce cannot close it and would only grind to
+                ! the integrator cap before returning zero.  It is also outside
+                ! the comparison domain, so weight it zero without the integration.
+                absHn2=0.d0
+            else
+                call pertham(z,absHn2)
+            endif
             call equilmaxw(psiast_res,fmaxw)
             call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
             call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
@@ -693,8 +702,14 @@ subroutine resonant_torque
             allocate(taubox_all(nbox,nrespoints))
             !$omp parallel do default(shared) private(i) schedule(dynamic)
             do i=1,nrespoints
-                call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
-                    respoint(i)%taub, taubox_all(:,i))
+                if(respoint(i)%w_res.eq.0.d0) then
+                    ! Zero-weight (SOL / unintegrable) point: no torque to deposit,
+                    ! and its orbit is the expensive one to trace.  Skip it.
+                    taubox_all(:,i)=0.d0
+                else
+                    call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
+                        respoint(i)%taub, taubox_all(:,i))
+                endif
             enddo
             !$omp end parallel do
             !
