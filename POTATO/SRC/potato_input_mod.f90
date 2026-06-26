@@ -64,6 +64,13 @@ module potato_input_mod
     double precision :: freq_Rmax = 221d0      ! outer start radius [cm], into SOL
     integer          :: freq_n = 40            ! number of surfaces
 
+    ! Resonance probe diagnostic
+    double precision :: probe_rho_pol = 0.9d0
+    double precision :: probe_ux = 1.5d0
+    double precision :: probe_eta = 4.1d-5
+    integer :: probe_m = 0
+    integer :: probe_n = 2
+
     ! Canonical frequency plot
     double precision :: enkin_over_temp = 1d0
 
@@ -91,7 +98,8 @@ module potato_input_mod
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
-        freq_Rmin, freq_Rmax, freq_n
+        freq_Rmin, freq_Rmax, freq_n, &
+        probe_rho_pol, probe_ux, probe_eta, probe_m, probe_n
 
 contains
 
@@ -163,6 +171,11 @@ contains
         write(iunit, '(A,ES12.5)') '  freq_Rmin        = ', freq_Rmin
         write(iunit, '(A,ES12.5)') '  freq_Rmax        = ', freq_Rmax
         write(iunit, '(A,I0)') '  freq_n           = ', freq_n
+        write(iunit, '(A,ES12.5)') '  probe_rho_pol    = ', probe_rho_pol
+        write(iunit, '(A,ES12.5)') '  probe_ux         = ', probe_ux
+        write(iunit, '(A,ES12.5)') '  probe_eta        = ', probe_eta
+        write(iunit, '(A,I0)') '  probe_m          = ', probe_m
+        write(iunit, '(A,I0)') '  probe_n          = ', probe_n
         write(iunit, '(A)') '================================'
     end subroutine print_potato_input
 
