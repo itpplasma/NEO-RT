@@ -22,7 +22,7 @@ subroutine timestep_vode(n, tau, z, vz)
   call velo(tau, z, vz)
 end subroutine timestep_vode
 
-subroutine time_in_box(z, cnt, sbox, taub, taub_max, tau)
+subroutine time_in_box(z, cnt, sbox, taub, tau)
   ! Returns time spent in boxes
   use dvode_f90_m, only: vode_opts, set_opts, dvode_f90, get_stats
   use field_sub, only: psif
@@ -35,7 +35,6 @@ subroutine time_in_box(z, cnt, sbox, taub, taub_max, tau)
   integer, intent(in)    :: cnt        ! Box boundary count
   real(8), intent(in)    :: sbox(cnt)  ! Box boundaries
   real(8), intent(in)    :: taub       ! Bounce time
-  real(8), intent(in)    :: taub_max   ! Largest integrable bounce time (find_bounce cap)
   real(8), intent(out)   :: tau(cnt)   ! Time in each box
 
   real(8) :: smid
@@ -55,14 +54,12 @@ subroutine time_in_box(z, cnt, sbox, taub, taub_max, tau)
 
   tau = 0d0
 
-  ! A near-separatrix resonance root carries an interpolated Omega_b ~ 0, so its
-  ! recovered bounce time |taub| runs orders of magnitude past taub_max (the
-  ! find_bounce acceptance cap, 200*dtau). VODE cannot integrate such an orbit --
-  ! it grinds to mxstep on every subinterval and returns a zero residence
-  ! distribution anyway -- so skip it up front, the same way find_bounce skips
-  ! the matching Omega_b=0 grazer. taub<=0 (interpolant overshoot through zero)
-  ! is likewise unintegrable. Same zero contribution, no grind, no log flood.
-  if (taub <= 0d0 .or. taub > taub_max) return
+  ! taub<=0 is an interpolant overshoot through zero (unintegrable); skip it.
+  ! Genuinely unintegrable long orbits are caught below by the mxstep/istate
+  ! guard, which returns a zero distribution.  The class root search is bounded
+  ! to |delphi_b| <= 2*pi*m_max/n, so the Omega_b~0 near-separatrix grazers that
+  ! used to flood this routine no longer reach it.
+  if (taub <= 0d0) return
 
   y = z
 
