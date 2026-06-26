@@ -1073,6 +1073,7 @@
   use field_sub, only : psif
   use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
+  use orbit_dim_mod, only : clip_resonance_classes
 !
   implicit none
 !
@@ -1307,6 +1308,7 @@
 ! Find minimum and maximum values of p_phi in the domain limited
 ! by the boundary flux surface with given rho_pol:
 !
+  if(clip_resonance_classes) then
   start_minmax=.true.
 !
   do isig=1,2
@@ -1524,6 +1526,14 @@
 !
 ! End cut out from the allowed regions the segments occupied by the orbits
 ! never visiting rho_pol domain.
+!
+  else
+    do isig=1,2
+      do ireg=1,nregions
+        all_regions(isig,ireg)%within_rhopol=.true.
+      enddo
+    enddo
+  endif
 !
 !...........................
 !
