@@ -86,6 +86,7 @@
   module orbit_dim_mod
     integer, parameter  :: neqm=5
     logical             :: write_orb=.false.
+    logical             :: clip_resonance_classes=.true.
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
 ! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as

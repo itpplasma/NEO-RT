@@ -69,6 +69,13 @@ target_link_libraries(import_neo2_profiles.x
    potato
 )
 
+add_executable(potato_resonance_contour.x
+   SRC/potato_resonance_contour.f90
+)
+target_link_libraries(potato_resonance_contour.x
+   potato
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_golden_displacement
