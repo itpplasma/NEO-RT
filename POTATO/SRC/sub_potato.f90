@@ -86,6 +86,7 @@
   module orbit_dim_mod
     integer, parameter  :: neqm=5
     logical             :: write_orb=.false.
+    logical             :: clip_resonance_classes=.true.
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
 ! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
@@ -1067,6 +1068,7 @@
   use field_sub, only : psif
   use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
+  use orbit_dim_mod, only : clip_resonance_classes
 !
   implicit none
 !
@@ -1301,6 +1303,7 @@
 ! Find minimum and maximum values of p_phi in the domain limited
 ! by the boundary flux surface with given rho_pol:
 !
+  if(clip_resonance_classes) then
   start_minmax=.true.
 !
   do isig=1,2
@@ -1515,6 +1518,14 @@
       all_regions(isig,ireg)%within_rhopol=within_rhopol
     enddo
   enddo
+!
+  else
+    do isig=1,2
+      do ireg=1,nregions
+        all_regions(isig,ireg)%within_rhopol=.true.
+      enddo
+    enddo
+  endif
 !
 ! End cut out from the allowed regions the segments occupied by the orbits
 ! never visiting rho_pol domain.
