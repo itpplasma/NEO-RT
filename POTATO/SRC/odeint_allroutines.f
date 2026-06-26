@@ -71,7 +71,7 @@
       INTEGER nbad,nok,nvar,KMAXX,MAXSTP
       double precision eps,h1,hmin,x1,x2,ystart(nvar),TINY
       EXTERNAL derivs,rkqs
-      PARAMETER (MAXSTP=1000000,TINY=1.e-30)
+      PARAMETER (MAXSTP=20000,TINY=1.e-30)
       INTEGER i,nstp
       double precision h,hdid,hnext,x,xsav
 !
