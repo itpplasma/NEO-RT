@@ -62,6 +62,16 @@ target_link_libraries(test_profile_fixed.x
 potato_fixed
 )
 
+add_executable(test_find_all_roots_bracketed.x
+   SRC/test_find_all_roots_bracketed.f90
+)
+target_link_libraries(test_find_all_roots_bracketed.x
+   potato_base
+)
+add_test(NAME test_find_all_roots_bracketed
+   COMMAND test_find_all_roots_bracketed.x
+)
+
 add_executable(import_neo2_profiles.x
    SRC/import_neo2_profiles.f90
 )
