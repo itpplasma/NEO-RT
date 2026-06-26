@@ -465,10 +465,10 @@ subroutine resonant_torque
     use poicut_mod,        only : rmagaxis,zmagaxis,psimagaxis,psi_bou,rhopol_bou
     use global_invariants, only : dtau,toten,perpinv
     use poicut_mod,        only : Rbou_lfs,Zbou_lfs
-    use get_matrix_mod,    only : iclass
+    use get_matrix_mod,    only : iclass,delphi_max
     use form_classes_doublecount_mod, only : nclasses
     use orbit_dim_mod,     only : numbasef
-    use resint_mod,        only : nmodes,delint_mode,respoints_jp,respoints_all,nperp_max, &
+    use resint_mod,        only : nmodes,marr,narr,delint_mode,respoints_jp,respoints_all,nperp_max, &
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
         resline_unit_is_private,resline_diag_unit_is_private
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
@@ -514,6 +514,14 @@ subroutine resonant_torque
     !
     numbasef=0 !no extra integrals sampled, pure orbit integration
     call linspace(1d0/nbox, 1d0, nbox, sbox)
+    !
+    ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
+    ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin
+    ! keeps the extreme-m root safely inside the trimmed domain.
+    delphi_max=2.d0*pi*(maxval(abs(dble(marr))/dble(narr))+1.d0/dble(minval(narr)))
+    write(msg, '(A,ES14.6)') &
+        'class root search bounded to |delphi_b| <= ', delphi_max
+    call tee_message(trim(msg))
     !
     ! Find minimum and maximum values of electrostatic potential in the computation domain:
     !
