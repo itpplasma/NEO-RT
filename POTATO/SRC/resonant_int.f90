@@ -171,6 +171,7 @@ subroutine integrate_class_resonances
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_sep
+    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
     implicit none
     !
@@ -319,6 +320,12 @@ subroutine integrate_class_resonances
             ! multiply expression under summation over modes with toroidal mode number, with factor $-\pi^{3/2}/4$
             ! and with reference energy:
             one_res=one_res*rm3*pi32_over4m*cE_ref
+            !
+            ! A near-tangent root (dresconddx -> 0) gives an infinite
+            ! dpsiastdx/dresconddx; for a wall-crossing resonance absHn2=0, so the
+            ! product is Inf*0 = NaN.  Such a degenerate resonance carries no
+            ! physical weight -- zero it so one bad root cannot poison the torque.
+            if (.not. ieee_is_finite(one_res)) one_res=0.d0
             !
             respoints_jp(mode,iclass)%w_res(iroot)=one_res
             respoints_jp(mode,iclass)%taub(iroot)=taub_res
@@ -721,8 +728,10 @@ subroutine resonant_torque
                 write(unit1901,*) respoint(i)%toten_res, &
                     respoint(i)%perpinv_res, &
                     torque_int_loc
-                torquebox_loc=torquebox_loc &
-                    +respoint(i)%w_res*taubox_all(:,i)/respoint(i)%taub
+                if(respoint(i)%w_res.ne.0.d0 .and. respoint(i)%taub.gt.0.d0) then
+                    torquebox_loc=torquebox_loc &
+                        +respoint(i)%w_res*taubox_all(:,i)/respoint(i)%taub
+                endif
             enddo
             deallocate(taubox_all)
             write(unit1901,*) ' '
