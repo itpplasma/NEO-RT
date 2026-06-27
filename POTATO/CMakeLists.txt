@@ -7,7 +7,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 add_compile_options(-g -fbacktrace)
-add_compile_options(-O3 -march=native -mtune=native)
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    add_compile_options(-O3 -mcpu=native)
+else ()
+    add_compile_options(-O3 -march=native -mtune=native)
+endif ()
 
 include(Util)
 find_package(BLAS REQUIRED)
@@ -60,6 +64,16 @@ add_executable (test_profile_fixed.x
 )
 target_link_libraries(test_profile_fixed.x
 potato_fixed
+)
+
+add_executable(test_find_all_roots_bracketed.x
+   SRC/test_find_all_roots_bracketed.f90
+)
+target_link_libraries(test_find_all_roots_bracketed.x
+   potato_base
+)
+add_test(NAME test_find_all_roots_bracketed
+   COMMAND test_find_all_roots_bracketed.x
 )
 
 add_executable(import_neo2_profiles.x

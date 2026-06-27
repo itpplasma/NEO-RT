@@ -104,6 +104,11 @@
 !
   module get_matrix_mod
     double precision :: relerror=1.d-4, relmargin=1.d-4
+! Class domain is trimmed to where |delphi_b| <= delphi_max: no resonance lives
+! past 2*pi*m_max/n, and the divergent X-point endpoint beyond it defeats the
+! adaptive sampler (sample_matrix ierr=2 -> class dropped).  delphi_max <= 0
+! disables the trim (default, preserves non-torque paths).
+    double precision :: delphi_max=0.d0
     integer          :: iclass
     !$omp threadprivate(iclass)
   end module get_matrix_mod
@@ -2536,7 +2541,7 @@
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
                                 npoi,xarr,amat_arr
   use orbit_dim_mod,     only : next,numbasef
-  use get_matrix_mod,    only : relerror,relmargin,iclass
+  use get_matrix_mod,    only : relerror,relmargin,iclass,delphi_max
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
   use cc_mod, only : dowrite
@@ -2570,6 +2575,8 @@
 !
   call classbounds(ifuntype(iclass),relmargin,widthclass,xbeg,xend)
 !
+  if(delphi_max.gt.0.d0) call bound_class_delphi(ifuntype(iclass),xbeg,xend)
+!
   eps=relerror
 !
   call sample_matrix(get_matrix_doublecount,ierr)
@@ -2586,6 +2593,83 @@
   endif
 !
   end subroutine sample_class_doublecount
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine bound_class_delphi(iftype,xb,xe)
+!
+! Trim the X-point side(s) of a class so the sampled domain stays where
+! |delphi_b| <= delphi_max.  delphi_b diverges logarithmically toward the
+! X-point; past 2*pi*m_max/n no resonance exists, yet that endpoint is what
+! makes sample_matrix exceed itermax (ierr=2 -> the class is dropped) and floods
+! the root search with non-physical dense roots.  The endpoint is located by
+! bisection on |delphi_b(x)| using get_matrix_doublecount as the orbit evaluator.
+!
+  use sample_matrix_mod, only : n1,n2,x,amat
+  use get_matrix_mod,    only : delphi_max
+!
+  implicit none
+!
+  integer :: iftype,ib_beg,ib_end
+  double precision :: xb,xe,xmid
+  logical :: amat_was_alloc
+!
+  external :: get_matrix_doublecount
+!
+  amat_was_alloc=allocated(amat)
+  if(.not.amat_was_alloc) allocate(amat(n1,n2))
+!
+! Boundary types 3 (regular separatrix crossing) and 4 (X-point) are the
+! divergent ends; ifuntype packs them as ib_beg*10+ib_end.
+  ib_beg=iftype/10
+  ib_end=mod(iftype,10)
+!
+  if(ib_beg.ge.3 .and. ib_end.ge.3) then
+    xmid=0.5d0*(xb+xe)
+    call trim_endpoint(xmid,xe)
+    call trim_endpoint(xmid,xb)
+  elseif(ib_end.ge.3) then
+    call trim_endpoint(xb,xe)
+  elseif(ib_beg.ge.3) then
+    call trim_endpoint(xe,xb)
+  endif
+!
+  if(.not.amat_was_alloc) deallocate(amat)
+!
+  contains
+!
+  subroutine trim_endpoint(xsafe,xdiv)
+  double precision :: xsafe,xdiv,xlo,xhi,xm
+  integer :: it
+!
+  if(abs(eval_delphi(xdiv)).le.delphi_max) return
+  if(abs(eval_delphi(xsafe)).ge.delphi_max) return
+!
+  xlo=xsafe
+  xhi=xdiv
+  do it=1,40
+    xm=0.5d0*(xlo+xhi)
+    if(abs(eval_delphi(xm)).lt.delphi_max) then
+      xlo=xm
+    else
+      xhi=xm
+    endif
+    if(abs(xhi-xlo).lt.1.d-3*max(1.d0,abs(xdiv))) exit
+  enddo
+  xdiv=xlo
+  end subroutine trim_endpoint
+!
+  double precision function eval_delphi(xval)
+  double precision :: xval
+! huge sentinel: get_matrix_doublecount leaves amat untouched on orbit failure,
+! so a failed evaluation reads as "beyond delphi_max" and pulls the search in.
+  amat(3,1)=huge(1.d0)
+  x=xval
+  call get_matrix_doublecount
+  eval_delphi=amat(3,1)
+  end function eval_delphi
+!
+  end subroutine bound_class_delphi
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !

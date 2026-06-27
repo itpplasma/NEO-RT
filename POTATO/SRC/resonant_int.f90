@@ -49,14 +49,14 @@ type(respoints_fix_jperp_mode_class), dimension(:,:), allocatable :: respoints_j
 type(respoints_fix_jperp),            dimension(:),   allocatable :: respoints_all, &
     respoints_all_tmp
 type(respoint_single),                dimension(:),   allocatable :: respoint
-integer :: resline_unit=31415
-logical :: resline_unit_is_private=.false.
+integer :: resline_unit=31415,resline_diag_unit=31416
+logical :: resline_unit_is_private=.false.,resline_diag_unit_is_private=.false.
 ! Per-energy-slice resonance bookkeeping.  The energy loop may run slices in
 ! parallel; each slice owns its J_perp grid, extracted resonant points, and
 ! temporary resonance-line unit.  nmodes,marr,narr are read-only after setup.
 !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all, &
-!$omp               respoints_all_tmp,respoint,resline_unit, &
-!$omp               resline_unit_is_private)
+!$omp               respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
+!$omp               resline_unit_is_private,resline_diag_unit_is_private)
 end module resint_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -163,12 +163,14 @@ subroutine integrate_class_resonances
     use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
     use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
         psiast_res,taub_res,delphi_res,resline_unit, &
-        resline_unit_is_private
+        resline_unit_is_private,resline_diag_unit
     use orbit_dim_mod,      only : neqm
     use global_invariants,  only : dtau,toten,perpinv,cE_ref,Phi_eff
     use sample_matrix_mod,  only : npoi,xarr
     use logging_mod,        only : tee_message
     use interp_cache_mod,   only : interp_cache_reset
+    use field_sub,          only : psif
+    use field_eq_mod,       only : psi_sep
     !
     implicit none
     !
@@ -179,6 +181,7 @@ subroutine integrate_class_resonances
     double precision :: relmargin_loc,widthclass,xbeg,xend
     double precision :: rescond,dresconddx,dpsiastdx
     double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
+    double precision :: bmod_st,phi_elec_st
     double precision :: fmaxw,A1ast,A2ast
     double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
     double precision, dimension(neqm) :: z
@@ -221,7 +224,7 @@ subroutine integrate_class_resonances
         rm3=dble(narr(mode))
         delint_mode(mode)=0.d0
         !
-        call find_all_roots(get_rescond,xbeg,xend,ierr)
+        call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
             !$omp critical (reslines_log)
@@ -262,10 +265,18 @@ subroutine integrate_class_resonances
             !
             if(.true.) then
                 if(resline_unit_is_private) then
-                    write(resline_unit,*) toten,perpinv,psiast_res,marr(mode),narr(mode) !<=resonant line for plotting
+                    write(resline_unit,*) toten,perpinv,psiast_res,marr(mode),narr(mode)
+                    call get_bmod_and_Phi(z(1:3),bmod_st,phi_elec_st)
+                    write(resline_diag_unit,*) toten,perpinv,psiast_res,marr(mode),narr(mode), &
+                        Rst,z(3),psif,psiast_res-psif,roots(iroot),iclass,taub_res,delphi_res, &
+                        z(4),z(5),bmod_st,phi_elec_st
                 else
                     !$omp critical (reslines_log)
-                    write(resline_unit,*) toten,perpinv,psiast_res,marr(mode),narr(mode) !<=resonant line for plotting
+                    write(resline_unit,*) toten,perpinv,psiast_res,marr(mode),narr(mode)
+                    call get_bmod_and_Phi(z(1:3),bmod_st,phi_elec_st)
+                    write(resline_diag_unit,*) toten,perpinv,psiast_res,marr(mode),narr(mode), &
+                        Rst,z(3),psif,psiast_res-psif,roots(iroot),iclass,taub_res,delphi_res, &
+                        z(4),z(5),bmod_st,phi_elec_st
                     !$omp end critical (reslines_log)
                 endif
             endif
@@ -274,7 +285,15 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            call pertham(z,absHn2)
+            if(psiast_res.lt.psi_sep) then
+                ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
+                ! so pertham/find_bounce cannot close it and would only grind to
+                ! the integrator cap before returning zero.  It is also outside
+                ! the comparison domain, so weight it zero without the integration.
+                absHn2=0.d0
+            else
+                call pertham(z,absHn2)
+            endif
             call equilmaxw(psiast_res,fmaxw)
             call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
             call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
@@ -455,12 +474,12 @@ subroutine resonant_torque
     use poicut_mod,        only : rmagaxis,zmagaxis,psimagaxis,psi_bou,rhopol_bou
     use global_invariants, only : dtau,toten,perpinv
     use poicut_mod,        only : Rbou_lfs,Zbou_lfs
-    use get_matrix_mod,    only : iclass
+    use get_matrix_mod,    only : iclass,delphi_max
     use form_classes_doublecount_mod, only : nclasses
     use orbit_dim_mod,     only : numbasef
-    use resint_mod,        only : nmodes,delint_mode,respoints_jp,respoints_all,nperp_max, &
-        respoints_all_tmp,respoint,resline_unit, &
-        resline_unit_is_private
+    use resint_mod,        only : nmodes,marr,narr,delint_mode,respoints_jp,respoints_all,nperp_max, &
+        respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
+        resline_unit_is_private,resline_diag_unit_is_private
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
         ind_hist,xarr,amat_arr
     use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
@@ -504,6 +523,14 @@ subroutine resonant_torque
     !
     numbasef=0 !no extra integrals sampled, pure orbit integration
     call linspace(1d0/nbox, 1d0, nbox, sbox)
+    !
+    ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
+    ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin
+    ! keeps the extreme-m root safely inside the trimmed domain.
+    delphi_max=2.d0*pi*(maxval(abs(dble(marr))/dble(narr))+1.d0/dble(minval(narr)))
+    write(msg, '(A,ES14.6)') &
+        'class root search bounded to |delphi_b| <= ', delphi_max
+    call tee_message(trim(msg))
     !
     ! Find minimum and maximum values of electrostatic potential in the computation domain:
     !
@@ -578,6 +605,7 @@ subroutine resonant_torque
         torque_int_modes_loc=0.d0
         torquebox_loc=0.d0
         resline_unit_is_private=.true.
+        resline_diag_unit_is_private=.true.
         call open_energy_outputs(ienerg,adaptive_jperp,unit1901,unit1902)
         !toten =   -3.1211921097605737d0
         write(msg, '(A,ES22.14)') 'toten = ', toten
@@ -674,8 +702,14 @@ subroutine resonant_torque
             allocate(taubox_all(nbox,nrespoints))
             !$omp parallel do default(shared) private(i) schedule(dynamic)
             do i=1,nrespoints
-                call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
-                    respoint(i)%taub, taubox_all(:,i))
+                if(respoint(i)%w_res.eq.0.d0) then
+                    ! Zero-weight (SOL / unintegrable) point: no torque to deposit,
+                    ! and its orbit is the expensive one to trace.  Skip it.
+                    taubox_all(:,i)=0.d0
+                else
+                    call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
+                        respoint(i)%taub, taubox_all(:,i))
+                endif
             enddo
             !$omp end parallel do
             !
@@ -769,6 +803,7 @@ subroutine resonant_torque
         call tee_message(trim(msg))
         !
         close(resline_unit)
+        close(resline_diag_unit)
         if(adaptive_jperp) close(unit1901)
         close(unit1902)
         deallocate(torque_int_modes_loc,torquebox_loc)
@@ -786,6 +821,8 @@ subroutine resonant_torque
     enddo
     !
     call merge_energy_files('fort.31415.energy.', 'fort.31415', nenerg)
+    call merge_energy_files('fort.31415.diagnostics.energy.', &
+        'fort.31415.diagnostics', nenerg)
     if(adaptive_jperp) then
         call merge_energy_files('subint_ofH0int_104_vsJperp_fromresp.dat.energy.', &
             'subint_ofH0int_104_vsJperp_fromresp.dat', nenerg)
@@ -839,6 +876,10 @@ contains
         !
         call energy_path('fort.31415.energy.', idx, path)
         open(newunit=resline_unit,file=trim(path),status='replace',action='write')
+        call energy_path('fort.31415.diagnostics.energy.', idx, path)
+        open(newunit=resline_diag_unit,file=trim(path),status='replace',action='write')
+        write(resline_diag_unit,'(A)') &
+            '# toten perpinv psiast m n Rst Zst psif psiast_minus_psif x iclass taub delphi p lambda bmod phi_elec'
         !
         unit_fromresp=-1
         if(adaptive) then
