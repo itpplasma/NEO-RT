@@ -2560,6 +2560,8 @@
 !
   if(delphi_max.gt.0.d0) call bound_class_delphi(ifuntype(iclass),xbeg,xend)
 !
+  call bound_class_wall(xbeg,xend)
+!
   eps=relerror
 !
   call sample_matrix(get_matrix_doublecount,ierr)
@@ -2653,6 +2655,74 @@
   end function eval_delphi
 !
   end subroutine bound_class_delphi
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine bound_class_wall(xb,xe)
+!
+! Trim the class interval to where the orbit closes inside the limiter wall.
+! A wall-crossing orbit fails in get_matrix_doublecount (amat(3,1) left at the
+! huge sentinel); without this trim a single lost sample makes sample_matrix
+! exceed itermax and the whole class is dropped (ierr=2) instead of only the
+! lost orbits.  Trims both endpoints by bisection on orbit validity, so the
+! inside-wall part of the class is still sampled and its resonances kept.
+!
+  use sample_matrix_mod, only : n1,n2,x,amat
+  use wall_loss_mod,     only : wall_loaded
+!
+  implicit none
+!
+  double precision :: xb,xe,xmid
+  logical :: amat_was_alloc
+!
+  external :: get_matrix_doublecount
+!
+  if(.not.wall_loaded) return
+!
+  amat_was_alloc=allocated(amat)
+  if(.not.amat_was_alloc) allocate(amat(n1,n2))
+!
+  xmid=0.5d0*(xb+xe)
+  if(.not.orbit_lost(xmid)) then
+    call trim_lost(xmid,xe)
+    call trim_lost(xmid,xb)
+  endif
+!
+  if(.not.amat_was_alloc) deallocate(amat)
+!
+  contains
+!
+  subroutine trim_lost(xsafe,xdiv)
+  double precision :: xsafe,xdiv,xlo,xhi,xm
+  integer :: it
+!
+  if(.not.orbit_lost(xdiv)) return
+!
+  xlo=xsafe
+  xhi=xdiv
+  do it=1,40
+    xm=0.5d0*(xlo+xhi)
+    if(orbit_lost(xm)) then
+      xhi=xm
+    else
+      xlo=xm
+    endif
+    if(abs(xhi-xlo).lt.1.d-3*max(1.d0,abs(xdiv))) exit
+  enddo
+  xdiv=xlo
+  end subroutine trim_lost
+!
+  logical function orbit_lost(xval)
+  double precision :: xval
+! huge sentinel: get_matrix_doublecount leaves amat untouched when the orbit
+! fails (e.g. crosses the wall), so an untouched entry reads as a lost orbit.
+  amat(3,1)=huge(1.d0)
+  x=xval
+  call get_matrix_doublecount
+  orbit_lost = (amat(3,1).eq.huge(1.d0))
+  end function orbit_lost
+!
+  end subroutine bound_class_wall
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
