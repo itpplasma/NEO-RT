@@ -89,14 +89,11 @@
       if (kmax.gt.0) xsav=x-2.*dxsav
       do 16 nstp=1,MAXSTP
         call derivs(x,y,dydx)
-! 18.07.2016
-!      if(ierrfield.ne.0) then
-!      print*,ierrfield,'=ierrfield, derivs, odeint'
-!          ialloc=0
-!          call alloc_odeint(nvar)
-!      return
-!      end if
-! 18.07.2016 end
+        if(ierrfield.ne.0) then
+          ialloc=0
+          call alloc_odeint(nvar)
+          return
+        endif
         do 12 i=1,nvar
           yscal(i)=abs(y(i))+abs(h*dydx(i))+TINY
 12      continue
