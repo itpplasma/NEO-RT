@@ -158,7 +158,6 @@
 !
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
   use field_eq_mod, only : ierrfield
-  use logging_mod, only : log_message
 !
   implicit none
 !
@@ -188,7 +187,6 @@
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
   double precision :: dZ_dR,sign_delZ,Z_tmp
   double precision, dimension(neqm+next) :: z,z_start,vz
-  character(len=256) :: msg
 !
   external velo_ext
 !
@@ -224,11 +222,6 @@
 !
   call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
   if(ierrfield.ne.0) then
-    write(msg,'(A,2ES14.6,A,2ES14.6)') &
-      'find_bounce: orbit left domain at R,Z=', &
-      z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-    write(*,'(A)') trim(msg)
-    call log_message(trim(msg))
     ierr = 1
     return
   endif
@@ -260,11 +253,6 @@
 !
     call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
     if(ierrfield.ne.0) then
-      write(msg,'(A,2ES14.6,A,2ES14.6)') &
-        'find_bounce: orbit left domain at R,Z=', &
-        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-      write(*,'(A)') trim(msg)
-      call log_message(trim(msg))
       ierr = 1
       return
     endif
@@ -317,11 +305,6 @@
 !
     call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
     if(ierrfield.ne.0) then
-      write(msg,'(A,2ES14.6,A,2ES14.6)') &
-        'find_bounce: orbit left domain at R,Z=', &
-        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-      write(*,'(A)') trim(msg)
-      call log_message(trim(msg))
       ierr = 1
       return
     endif
