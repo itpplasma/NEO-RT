@@ -11,7 +11,8 @@
   logical :: prop=.true.
   integer :: i
   double precision spol
-  double precision :: psi,phi_elec,dPhi_dpsi
+  double precision, intent(in) :: psi
+  double precision, intent(out) :: phi_elec,dPhi_dpsi
 
   spol = (psi-psi_axis)/(psi_sep-psi_axis)
 
@@ -44,7 +45,8 @@
 !
   integer :: i
   double precision :: spol
-  double precision, intent(out) :: psi,dens,temp,ddens,dtemp
+  double precision, intent(in) :: psi
+  double precision, intent(out) :: dens,temp,ddens,dtemp
 !
   spol = (psi-psi_axis)/(psi_sep-psi_axis)
 

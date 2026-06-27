@@ -90,6 +90,13 @@ target_link_libraries(potato_resonance_contour.x
    potato
 )
 
+add_executable(potato_resonance_probe.x
+   SRC/potato_resonance_probe.f90
+)
+target_link_libraries(potato_resonance_probe.x
+   potato
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_golden_displacement
@@ -99,6 +106,15 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/golden_zero_mid.json
     )
     set_tests_properties(potato_golden_displacement PROPERTIES
+        SKIP_RETURN_CODE 77
+        TIMEOUT 240
+    )
+    add_test(NAME potato_resonance_probe_clip
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/resonance_probe_clip/test_probe_clip.py
+            $<TARGET_FILE:potato_resonance_probe.x>
+    )
+    set_tests_properties(potato_resonance_probe_clip PROPERTIES
         SKIP_RETURN_CODE 77
         TIMEOUT 240
     )
