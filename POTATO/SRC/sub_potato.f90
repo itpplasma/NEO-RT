@@ -158,7 +158,6 @@
 !
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
   use field_eq_mod, only : ierrfield
-  use logging_mod, only : log_message
 !
   implicit none
 !
@@ -188,7 +187,6 @@
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
   double precision :: dZ_dR,sign_delZ,Z_tmp
   double precision, dimension(neqm+next) :: z,z_start,vz
-  character(len=256) :: msg
 !
   external velo_ext
 !
@@ -224,11 +222,6 @@
 !
   call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
   if(ierrfield.ne.0) then
-    write(msg,'(A,2ES14.6,A,2ES14.6)') &
-      'find_bounce: orbit left domain at R,Z=', &
-      z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-    write(*,'(A)') trim(msg)
-    call log_message(trim(msg))
     ierr = 1
     return
   endif
@@ -260,11 +253,6 @@
 !
     call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
     if(ierrfield.ne.0) then
-      write(msg,'(A,2ES14.6,A,2ES14.6)') &
-        'find_bounce: orbit left domain at R,Z=', &
-        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-      write(*,'(A)') trim(msg)
-      call log_message(trim(msg))
       ierr = 1
       return
     endif
@@ -317,11 +305,6 @@
 !
     call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
     if(ierrfield.ne.0) then
-      write(msg,'(A,2ES14.6,A,2ES14.6)') &
-        'find_bounce: orbit left domain at R,Z=', &
-        z(1),z(3),' started from R,Z=',z_start(1),z_start(3)
-      write(*,'(A)') trim(msg)
-      call log_message(trim(msg))
       ierr = 1
       return
     endif
@@ -2577,6 +2560,8 @@
 !
   if(delphi_max.gt.0.d0) call bound_class_delphi(ifuntype(iclass),xbeg,xend)
 !
+  call bound_class_wall(xbeg,xend)
+!
   eps=relerror
 !
   call sample_matrix(get_matrix_doublecount,ierr)
@@ -2670,6 +2655,74 @@
   end function eval_delphi
 !
   end subroutine bound_class_delphi
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine bound_class_wall(xb,xe)
+!
+! Trim the class interval to where the orbit closes inside the limiter wall.
+! A wall-crossing orbit fails in get_matrix_doublecount (amat(3,1) left at the
+! huge sentinel); without this trim a single lost sample makes sample_matrix
+! exceed itermax and the whole class is dropped (ierr=2) instead of only the
+! lost orbits.  Trims both endpoints by bisection on orbit validity, so the
+! inside-wall part of the class is still sampled and its resonances kept.
+!
+  use sample_matrix_mod, only : n1,n2,x,amat
+  use wall_loss_mod,     only : wall_loaded
+!
+  implicit none
+!
+  double precision :: xb,xe,xmid
+  logical :: amat_was_alloc
+!
+  external :: get_matrix_doublecount
+!
+  if(.not.wall_loaded) return
+!
+  amat_was_alloc=allocated(amat)
+  if(.not.amat_was_alloc) allocate(amat(n1,n2))
+!
+  xmid=0.5d0*(xb+xe)
+  if(.not.orbit_lost(xmid)) then
+    call trim_lost(xmid,xe)
+    call trim_lost(xmid,xb)
+  endif
+!
+  if(.not.amat_was_alloc) deallocate(amat)
+!
+  contains
+!
+  subroutine trim_lost(xsafe,xdiv)
+  double precision :: xsafe,xdiv,xlo,xhi,xm
+  integer :: it
+!
+  if(.not.orbit_lost(xdiv)) return
+!
+  xlo=xsafe
+  xhi=xdiv
+  do it=1,40
+    xm=0.5d0*(xlo+xhi)
+    if(orbit_lost(xm)) then
+      xhi=xm
+    else
+      xlo=xm
+    endif
+    if(abs(xhi-xlo).lt.1.d-3*max(1.d0,abs(xdiv))) exit
+  enddo
+  xdiv=xlo
+  end subroutine trim_lost
+!
+  logical function orbit_lost(xval)
+  double precision :: xval
+! huge sentinel: get_matrix_doublecount leaves amat untouched when the orbit
+! fails (e.g. crosses the wall), so an untouched entry reads as a lost orbit.
+  amat(3,1)=huge(1.d0)
+  x=xval
+  call get_matrix_doublecount
+  orbit_lost = (amat(3,1).eq.huge(1.d0))
+  end function orbit_lost
+!
+  end subroutine bound_class_wall
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !

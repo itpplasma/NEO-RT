@@ -18,6 +18,7 @@ program test_wall_loss
     ok = .true.
     if (.not. wall_loaded) ok = .false.
     if (outside_wall(5.0d0, 5.0d0)) ok = .false.
+    if (outside_wall(9.0d0, 9.0d0)) ok = .false.
     if (.not. outside_wall(15.0d0, 5.0d0)) ok = .false.
     if (.not. outside_wall(5.0d0, -1.0d0)) ok = .false.
     if (.not. outside_wall(-1.0d0, 5.0d0)) ok = .false.
