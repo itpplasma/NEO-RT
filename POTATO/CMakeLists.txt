@@ -86,6 +86,13 @@ add_test(NAME test_wall_loss
    COMMAND test_wall_loss.x
 )
 
+add_executable(test_wall_profile.x
+   SRC/test_wall_profile.f90
+)
+target_link_libraries(test_wall_profile.x
+   potato_base
+)
+
 add_executable(import_neo2_profiles.x
    SRC/import_neo2_profiles.f90
 )
