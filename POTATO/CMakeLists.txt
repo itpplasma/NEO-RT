@@ -7,7 +7,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 add_compile_options(-g -fbacktrace)
-add_compile_options(-O3 -march=native -mtune=native)
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    add_compile_options(-O3 -mcpu=native)
+else ()
+    add_compile_options(-O3 -march=native -mtune=native)
+endif ()
 
 include(Util)
 find_package(BLAS REQUIRED)
