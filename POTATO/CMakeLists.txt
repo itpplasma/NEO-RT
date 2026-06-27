@@ -76,6 +76,16 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_wall_loss.x
+   SRC/test_wall_loss.f90
+)
+target_link_libraries(test_wall_loss.x
+   potato_base
+)
+add_test(NAME test_wall_loss
+   COMMAND test_wall_loss.x
+)
+
 add_executable(import_neo2_profiles.x
    SRC/import_neo2_profiles.f90
 )

@@ -1,5 +1,6 @@
 module potato_input_mod
     use iso_fortran_env, only: output_unit
+    use wall_loss_mod, only: load_wall
     implicit none
 
     ! Calculation type: 1=orbits, 2=equilibrium profiles, 3=resonant torque
@@ -130,6 +131,8 @@ contains
         endif
 
         close(iunit)
+
+        call load_wall('convexwall.dat')
     end subroutine read_potato_input
 
     subroutine print_potato_input(iunit)

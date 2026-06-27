@@ -54,6 +54,7 @@
       use parmot_mod, only : rmu,ro0,gradpsiast, & !<=NEW in version 4
                              dpsiast_dR,dpsiast_dZ !<=NEW in version 4
       use field_eq_mod, only : ierrfield
+      use wall_loss_mod, only : outside_wall
 !
       implicit none
 !
@@ -75,6 +76,12 @@
       dimension a_phi(3),a_b(3),a_c(3),hstar(3)
 !
       x(1:3) = z(1:3)
+!
+      if(outside_wall(x(1),x(3))) then
+        ierrfield=1
+        vz=0.d0
+        return
+      endif
 !
 ! in magfie: x(i)   - set of 3 curvilinear space coordinates (input)
 !            bmod   - dimensionless magnetic field module: bmod=B/B_ref
