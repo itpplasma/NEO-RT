@@ -171,11 +171,11 @@ target_link_libraries(neo_rt PUBLIC
 )
 
 if(USE_STANDALONE)
-    target_link_libraries(neo_rt PUBLIC neo)
-    get_target_property(_neo_incdirs neo INTERFACE_INCLUDE_DIRECTORIES)
-    if(_neo_incdirs)
-        target_include_directories(neo_rt PUBLIC ${_neo_incdirs})
-    endif()
+    target_link_libraries(neo_rt PUBLIC
+        LIBNEO::magfie
+        LIBNEO::boozer
+        LIBNEO::field
+    )
     target_include_directories(neo_rt PUBLIC
         "${CMAKE_BINARY_DIR}/libneo"
     )
