@@ -15,6 +15,25 @@ After `make` the build directory contains two executables:
 
 Ensure that the build directory is on your `PATH` or provide the full path to these executables when running from another folder.
 
+## Python helper environment
+
+If you plan to use `python/run_driftorbit.py`, plotting scripts from
+`examples/`, or `make test`, create the repository-local virtual environment
+first:
+
+```bash
+./setup-venv.sh
+source .venv/bin/activate
+```
+
+This keeps the Python dependencies out of the system interpreter and avoids PEP
+668 issues on managed machines. Later, re-enter the same environment with the
+same `source .venv/bin/activate` command.
+
+For the sibling benchmark layout (`../benchmark-simple-potato`, `../SIMPLE`,
+`../NEO-RT`), use `source ../benchmark-simple-potato/.venv/bin/activate` so the
+benchmark, SIMPLE, and NEO-RT share one environment.
+
 ## Preparing input data
 
 A simulation expects the following files in the working directory:

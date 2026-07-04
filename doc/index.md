@@ -9,16 +9,22 @@ Welcome to the NEO-RT documentation hub. This site accompanies the FORD-generate
 ## Quick start
 
 1. Install the build dependencies (`gfortran`, CMake, Ninja, BLAS/LAPACK, SuiteSparse, NetCDF) and optional documentation tools (`ford`, Graphviz).
-2. Configure and build the project:
+2. If you want to use the helper scripts, examples, or Python-based tests on a PEP 668 system, create the local virtual environment:
+   ```bash
+   ./setup-venv.sh
+   source .venv/bin/activate
+   ```
+   If you are working from the sibling benchmark layout (`../benchmark-simple-potato`, `../SIMPLE`, `../NEO-RT`), activate `../benchmark-simple-potato/.venv` instead.
+3. Configure and build the project:
    ```bash
    make
    ```
-3. Prepare a namelist `<runname>.in`, Boozer files `in_file` and `in_file_pert` (optional), and any required profile inputs.
-4. Run a single flux-surface calculation:
+4. Prepare a namelist `<runname>.in`, Boozer files `in_file` and `in_file_pert` (optional), and any required profile inputs.
+5. Run a single flux-surface calculation:
    ```bash
    ./build/neo_rt.x <runname>
    ```
-5. Inspect the generated outputs (`<runname>.out`, `<runname>_integral.out`, etc.) or invoke the diagnostics executable `neo_rt_diag.x` for additional analyses.
+6. Inspect the generated outputs (`<runname>.out`, `<runname>_integral.out`, etc.) or invoke the diagnostics executable `neo_rt_diag.x` for additional analyses.
 
 ## Input reference
 

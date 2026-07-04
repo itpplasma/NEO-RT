@@ -51,6 +51,31 @@ cmake -S . -B build -DLIBNEO_REF=my-branch
 
 Unset (the default) falls back to the automatic ref resolution in `cmake/Util.cmake`.
 
+### Python virtual environment for helpers and tests
+
+The solver itself is Fortran, but the helper scripts, examples, and regression
+tests use Python packages such as NumPy, SciPy, Matplotlib, `f90nml`, and
+`h5py`. On systems with an externally managed Python, create a repository-local
+virtual environment:
+
+```bash
+./setup-venv.sh
+```
+
+Later, reactivate it with:
+
+```bash
+source .venv/bin/activate
+```
+
+With `.venv` active, `make test` uses the expected Python interpreter for the
+pytest-based checks.
+
+If you are running the benchmark checkout alongside the sibling repositories
+`../benchmark-simple-potato`, `../SIMPLE`, and `../NEO-RT`, prefer the shared
+environment in `../benchmark-simple-potato/.venv` so both codes use the same
+Python installation.
+
 ## Running simulations
 
 The solver operates on a single flux surface at a time. After building, execute the main program as
@@ -66,7 +91,7 @@ The solver expects a namelist file `<runname>.in` that specifies the simulation 
 For scans over several flux surfaces, use the helper script:
 
 ```bash
-python3 python/run_driftorbit.py --exe ./build/neo_rt.x 0 5
+python python/run_driftorbit.py --exe ./build/neo_rt.x 0 5
 ```
 
 The script fills in template values from `driftorbit.in.template` using `profile.in` data and runs the solver for each requested flux surface. The executable path can also be supplied via the environment variable `NEORT_EXECUTABLE`.

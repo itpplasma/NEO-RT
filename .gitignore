@@ -57,5 +57,6 @@ gprofout.txt
 .claude/
 __pycache__/
 .pytest_cache/
+.venv/
 test/golden_record/main_ref/
 .sloptools/artifacts/
