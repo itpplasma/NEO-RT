@@ -39,6 +39,10 @@ make
 
 This creates `build/neo_rt.x` and `build/neo_rt_diag.x` together with intermediate static libraries. You can control the build configuration through `CONFIG=Release|Debug|Fast` when invoking `make`. To rebuild after changing configuration flags run `make clean` followed by `make CONFIG=Debug`.
 
+On GNU/Linux with GNU Fortran, the build now prefers OpenBLAS when it is
+available so standalone NEO-RT builds match the shared benchmark venv instead
+of picking up a stale system MKL installation.
+
 CMake also exposes an option `USE_STANDALONE` (enabled by default) that uses the standalone magnetic-field reader. Set `-DUSE_STANDALONE=OFF` when configuring to link against an external NEO-2 checkout if required.
 
 To build against a specific libneo branch, tag, or commit, pass `-DLIBNEO_REF=<ref>` at configure time or `LIBNEO_REF=<ref>` on the make command line:

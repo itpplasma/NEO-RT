@@ -42,6 +42,17 @@ endif()
 
 include(Util)
 
+if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(OPENBLAS QUIET openblas)
+        if(OPENBLAS_FOUND)
+            set(BLA_VENDOR OpenBLAS)
+            message(STATUS "Preferring OpenBLAS for BLAS/LAPACK on GNU/Linux")
+        endif()
+    endif()
+endif()
+
 # Testing configuration
 set(NEORT_IS_STANDALONE OFF)
 
