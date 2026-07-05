@@ -176,9 +176,6 @@ if(USE_STANDALONE)
         LIBNEO::boozer
         LIBNEO::field
     )
-    target_include_directories(neo_rt PUBLIC
-        "${CMAKE_BINARY_DIR}/libneo"
-    )
 endif()
 
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
