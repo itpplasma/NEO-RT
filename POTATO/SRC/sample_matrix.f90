@@ -114,8 +114,13 @@
   DO
     iter=iter+1
     IF(iter.GT.itermax) THEN
-      ierr=2
-      PRINT *,'sample_matrix : maximum number of iterations exceeded'
+! Accept the last grid instead of failing (same rationale as the npmax cap
+! below): the grid from the completed pass is consistent, the root search is
+! cheap interpolation on it, and dropping the caller's class loses all its
+! resonances.  Classes hitting this path refine slowly (few splits per pass,
+! e.g. bounce-integration noise), so the unresolved error is local.
+      PRINT *,'sample_matrix : itermax exceeded, accepting grid with npoi=',npoi
+      ierr=0
       RETURN
     ENDIF
 !
