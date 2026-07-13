@@ -1,72 +1,112 @@
 program test_frequencies
+    ! Canonical frequencies vs pitch at one flux surface and one kinetic energy.
+    !
+    ! Usage: test_frequencies.x <runname> [ux]
+    !   runname : reads <runname>.in, in_file (, in_file_pert), plasma.in,
+    !             profile.in from the current directory, like neo_rt.x
+    !   ux      : v = ux*vth, i.e. E_kin = ux^2 * T_local (default 1.0)
+    !
+    ! Writes <runname>_ux<tag>_freq_vs_eta_{t,pco,pct}.dat (uniform eta grids)
+    ! and    <runname>_ux<tag>_freq_vs_eta_tzoom.dat (trapped side, log-spaced
+    ! distance to the trapped-passing boundary down to (eta-etatp)/etatp=1e-6,
+    ! header carries etatp, etadt, ux, s). Columns: eta [1/G], omega_b [rad/s],
+    ! Omega_tor [rad/s].
     use iso_fortran_env, only: dp => real64
-    use util
-    use do_magfie_mod, only: s, R0, inp_swi, do_magfie_init
-    use neort, only: init
-    use neort_freq, only: Om_th, Om_ph
-    use driftorbit, only: mph, mth, vth, &
-        etadt, etatp, Om_tE, sign_vpar, magdrift
+    use do_magfie_mod, only: s
+    use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
+    use neort_freq, only: Om_th, Om_ph, Om_tB
+    use neort_profiles, only: Om_tE
+    use driftorbit, only: vth, etadt, etatp, sign_vpar
+    use util, only: files_exist
 
     implicit none
 
-    integer, parameter :: neta = 1000 ! Steps in eta
-    real(dp), parameter :: M_t = 8.2512439552e-02_dp ! Unscaled Mach number
+    integer, parameter :: neta = 1000    ! steps of the uniform grids
+    integer, parameter :: nzoom = 400    ! steps of the log-spaced zoom grid
+    real(dp), parameter :: distmin = 1.0e-6_dp  ! innermost (eta-etatp)/etatp
 
+    character(1024) :: runname, arg2, tag
     integer :: i, fid
     real(dp) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
-    real(dp), parameter :: scalfac_energy = 1.0_dp
-    real(dp), parameter :: scalfac_efield = 1.0_dp
+    real(dp) :: OmtB, dOmtBdv, dOmtBdeta
+    real(dp) :: v, eta, ux, xlo, xhi, x
 
-    real(dp) :: v, eta
+    call get_command_argument(1, runname)
+    if (len_trim(runname) == 0) then
+        print *, 'usage: test_frequencies.x <runname> [ux]'
+        stop 1
+    end if
+    ux = 1.0_dp
+    call get_command_argument(2, arg2)
+    if (len_trim(arg2) > 0) read (arg2, *) ux
 
-    inp_swi = 9 ! ASDEX Upgrade format
-    s = 0.17 ! Normalized toroidal flux
+    call neort_init(trim(runname)//".in", "in_file", "in_file_pert")
+    if (files_exist("plasma.in", "profile.in")) then
+        call neort_prepare_splines("plasma.in", "profile.in")
+    end if
+    call neort_setup_at_s(s)
 
-    magdrift = .false.
-    !print *, s
-    call do_magfie_init("in_file")
+    v = ux*vth
 
-    mth = 1 ! Canonical poloidal harmonic
-    mph = 2 ! Canonical toroidal harmonic
-    vth = 4.5972926215e7_dp ! Unscaled thermal velocity
-    Om_tE = vth*M_t/(R0*scalfac_efield) ! ExB precession frequency
-    vth = vth/sqrt(scalfac_energy)
+    write (tag, '(F0.2)') ux
+    do i = 1, len_trim(tag)
+        if (tag(i:i) == '.') tag(i:i) = 'p'
+    end do
 
-    call init
+    print *, 'test_frequencies: s =', s, ' ux =', ux, ' v =', v
+    print *, '  etatp =', etatp, ' etadt =', etadt
 
-    v = vth
-
-    open(newunit=fid, file='canonical_freqs_vs_eta_t.dat')
-    write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] trapped'
-    sign_vpar = 1.0_dp
-    do i = 1,neta
-        eta = etatp + i*(etadt-etatp)/neta
+    open (newunit=fid, file=trim(runname)//'_ux'//trim(tag)//'_freq_vs_eta_t.dat')
+    write (fid, *) '%# eta [1/G], omega_b, Omega_tor, Om_tB, Om_tE [rad/s] trapped'
+    sign_vpar = 1
+    do i = 1, neta
+        eta = etatp + i*(etadt - etatp)/neta
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-        write(fid,*) eta, Omth, Omph
+        call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+        write (fid, *) eta, Omth, Omph, OmtB, Om_tE
     end do
-    close(fid)
+    close (fid)
 
-    open(newunit=fid, file='canonical_freqs_vs_eta_pco.dat')
-    write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
-    sign_vpar = 1.0_dp
-    do i = 0,neta-1
+    open (newunit=fid, file=trim(runname)//'_ux'//trim(tag)//'_freq_vs_eta_tzoom.dat')
+    write (fid, '(A,ES23.15,A,ES23.15,A,F8.4,A,ES23.15)') &
+        '%# etatp =', etatp, ' etadt =', etadt, ' ux =', ux, ' s =', s
+    write (fid, *) '%# eta [1/G], omega_b, Omega_tor, Om_tB, Om_tE [rad/s] trapped zoom'
+    sign_vpar = 1
+    xlo = log10(distmin)
+    xhi = log10(0.999_dp*(etadt - etatp)/etatp)
+    do i = 0, nzoom
+        x = xlo + (xhi - xlo)*i/nzoom
+        eta = etatp*(1.0_dp + 10.0_dp**x)
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+        call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+        call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+        write (fid, *) eta, Omth, Omph, OmtB, Om_tE
+    end do
+    close (fid)
+
+    open (newunit=fid, file=trim(runname)//'_ux'//trim(tag)//'_freq_vs_eta_pco.dat')
+    write (fid, *) '%# eta [1/G], omega_b, Omega_tor, Om_tB, Om_tE [rad/s] co-passing'
+    sign_vpar = 1
+    do i = 0, neta - 1
         eta = i*etatp/neta
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-        write(fid,*) eta, Omth, Omph
+        call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+        write (fid, *) eta, Omth, Omph, OmtB, Om_tE
     end do
-    close(fid)
+    close (fid)
 
-    open(newunit=fid, file='canonical_freqs_vs_eta_pct.dat')
-    write(fid,*)  '%# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] co-passing'
-    sign_vpar = -1.0_dp
-    do i = 0,neta-1
+    open (newunit=fid, file=trim(runname)//'_ux'//trim(tag)//'_freq_vs_eta_pct.dat')
+    write (fid, *) '%# eta [1/G], omega_b, Omega_tor, Om_tB, Om_tE [rad/s] counter-passing'
+    sign_vpar = -1
+    do i = 0, neta - 1
         eta = i*etatp/neta
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-        write(fid,*) eta, -Omth, Omph
+        call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+        write (fid, *) eta, -Omth, Omph, OmtB, Om_tE
     end do
-    close(fid)
+    close (fid)
 
 end program test_frequencies
