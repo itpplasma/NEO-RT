@@ -27,7 +27,7 @@ contains
             read (iunitarg, *, end=1) arglog
             npoiarg = npoiarg + 1
         end do
-1       close (iunitarg)
+        1       close (iunitarg)
 
         if (allocated(argvals)) deallocate(argvals)
         if (allocated(thetavals)) deallocate(thetavals)
@@ -61,6 +61,21 @@ subroutine attenuation_factor(D, Theta)
     real(dp) :: arglog, fun, der
     integer, dimension(mp) :: indu
     real(dp), dimension(mp) :: xp, fp
+
+    if (D <= 0.0_dp) then
+        Theta = 0.0_dp
+        return
+    end if
+
+    ! The table resolves the transition, not the asymptotic tails. Avoid
+    ! unconstrained cubic extrapolation in log space outside its domain.
+    if (D <= exp(argvals(1))) then
+        Theta = 1.7555267_dp * D
+        return
+    else if (D >= exp(argvals(npoiarg))) then
+        Theta = 1.0_dp
+        return
+    end if
 
     arglog = log(D)
 

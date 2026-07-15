@@ -12,15 +12,17 @@ module neort_nonlin
 
 contains
 
-    function nonlinear_attenuation(ux, eta, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
+    function nonlinear_attenuation(ux, eta, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2, dnorm_out)
         real(dp), intent(in) :: ux, eta, bounceavg(nvar), Omth, dOmthdv, dOmthdeta, Hmn2
+        real(dp), intent(out), optional :: dnorm_out
         real(dp) :: nonlinear_attenuation
 
         real(dp) :: dpp, dhh, fpeff, dres, dnorm, Omph, dOmphdv, dOmphdeta, dOmdv, &
-                   dOmdeta, Ompr, dOmphds, dOmthds, dOmdpph, v
+            dOmdeta, Ompr, dOmphds, dOmthds, dOmdpph, v
 
         call trace('nonlinear_attenuation')
 
+        if (present(dnorm_out)) dnorm_out = -1.0_dp
         if (.not. nonlin) then
             nonlinear_attenuation = 1.0_dp
             return
@@ -40,6 +42,7 @@ contains
             dpp = vth**3 * dpp
             dres = dpp * (dOmdv / Ompr)**2 + dhh * eta * (bounceavg(5) - eta) * (dOmdeta / Ompr)**2
             dnorm = dres * sqrt(abs(Ompr)) / sqrt(abs(Hmn2))**(3.0_dp / 2.0_dp)
+            if (present(dnorm_out)) dnorm_out = dnorm
             call attenuation_factor(dnorm, nonlinear_attenuation)
         end if
 

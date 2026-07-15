@@ -1,133 +1,135 @@
 module diag_bounce_nonlin
-  use iso_fortran_env, only: dp => real64
-  use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig, xlim, ylim
-  use neort, only: init, check_magfie, write_magfie_data_to_files
-  use neort_config, only: read_and_set_config
-  use neort_main, only: runname
-  use neort_datatypes, only: magfie_data_t
-  use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, &
-                            vth
-  use neort_nonlin, only: nonlinear_attenuation
-  use neort_freq, only: Om_th
-  use neort_transport, only: timestep_transport
-  use neort_orbit, only: bounce_fast, nvar
-  use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile
-  use do_magfie_mod, only: R0, s
-  use do_magfie_mod, only: do_magfie_init
-  use do_magfie_pert_mod, only: do_magfie_pert_init
-  implicit none
+    use iso_fortran_env, only: dp => real64
+    use fortplot, only: figure, plot, title, xlabel, ylabel, legend, savefig, xlim, ylim
+    use neort, only: init, check_magfie, write_magfie_data_to_files
+    use neort_config, only: read_and_set_config
+    use neort_main, only: runname
+    use neort_datatypes, only: magfie_data_t
+    use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, &
+        vth
+    use neort_nonlin, only: nonlinear_attenuation
+    use neort_freq, only: Om_th
+    use neort_transport, only: timestep_transport
+    use neort_orbit, only: bounce_fast, nvar
+    use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile
+    use thetadata_mod, only: init_attenuation_data
+    use do_magfie_mod, only: R0, s
+    use do_magfie_mod, only: do_magfie_init
+    use do_magfie_pert_mod, only: do_magfie_pert_init
+    implicit none
 
 contains
 
-  subroutine run_bounce_nonlin_diag(arg_runname)
-    character(*), intent(in) :: arg_runname
-    logical :: file_exists
-    real(dp) :: v, eta_min, eta_max
-    integer :: i, j, npts
-    real(dp), allocatable :: eta(:)
-    real(dp), parameter :: ux_list(3) = [1.0_dp, 2.0_dp, 3.0_dp]
-    real(dp), allocatable :: att_nonlin(:, :)
-    real(dp) :: taub, bounceavg(nvar), Omth, dOmthdv, dOmthdeta
-    real(dp) :: ux, Hmn2
-    type(magfie_data_t) :: magfie_data
+    subroutine run_bounce_nonlin_diag(arg_runname)
+        character(*), intent(in) :: arg_runname
+        logical :: file_exists
+        real(dp) :: v, eta_min, eta_max
+        integer :: i, j, npts
+        real(dp), allocatable :: eta(:)
+        real(dp), parameter :: ux_list(3) = [1.0_dp, 2.0_dp, 3.0_dp]
+        real(dp), allocatable :: att_nonlin(:, :)
+        real(dp) :: taub, bounceavg(nvar), Omth, dOmthdv, dOmthdeta
+        real(dp) :: ux, Hmn2
+        type(magfie_data_t) :: magfie_data
 
-    ! Initialize NEO-RT environment similar to neort:main
-    runname = trim(arg_runname)
-    call read_and_set_config(runname//".in")
-    call do_magfie_init("in_file")
-    if (pertfile) call do_magfie_pert_init("in_file_pert")
-    call init_profiles(R0)
+        ! Initialize NEO-RT environment similar to neort:main
+        runname = trim(arg_runname)
+        call read_and_set_config(trim(runname)//".in")
+        call do_magfie_init("in_file")
+        if (pertfile) call do_magfie_pert_init("in_file_pert")
+        call init_profiles(R0)
 
-    inquire(file="plasma.in", exist=file_exists)
-    if (file_exists) call read_and_init_plasma_input("plasma.in", s)
+        inquire(file="plasma.in", exist=file_exists)
+        if (file_exists) call read_and_init_plasma_input("plasma.in", s)
 
-    inquire(file="profile.in", exist=file_exists)
-    if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_dp, 1.0_dp)
+        inquire(file="profile.in", exist=file_exists)
+        if (file_exists) call read_and_init_profile_input("profile.in", s, R0, 1.0_dp, 1.0_dp)
+        call init_attenuation_data()
 
-    call init
-    call check_magfie(magfie_data)
-    call write_magfie_data_to_files(magfie_data, runname)
+        call init
+        call check_magfie(magfie_data)
+        call write_magfie_data_to_files(magfie_data, runname)
 
-    ! Sample attenuation over trapped pitch range for several ux values
-    eta_min = etatp*(1.0_dp + 1.0e-4_dp)
-    eta_max = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
-    npts = 100
-    allocate(eta(npts))
-    allocate(att_nonlin(npts, size(ux_list)))
-    do i = 1, npts
-      eta(i) = eta_min + (eta_max-eta_min)*(real(i-1,dp)/real(npts-1,dp))
-    end do
+        ! Sample attenuation over trapped pitch range for several ux values
+        eta_min = etatp*(1.0_dp + 1.0e-4_dp)
+        eta_max = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
+        npts = 100
+        allocate(eta(npts))
+        allocate(att_nonlin(npts, size(ux_list)))
+        do i = 1, npts
+            eta(i) = eta_min + (eta_max-eta_min)*(real(i-1,dp)/real(npts-1,dp))
+        end do
 
-    do j = 1, size(ux_list)
-      ux = ux_list(j)
-      v = ux*vth
-      do i = 1, npts
-        call Om_th(v, eta(i), Omth, dOmthdv, dOmthdeta)
-        taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
-        call bounce_fast(v, eta(i), taub, bounceavg, timestep_transport)
-        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_dp))**2
+        do j = 1, size(ux_list)
+            ux = ux_list(j)
+            v = ux*vth
+            do i = 1, npts
+                call Om_th(v, eta(i), Omth, dOmthdv, dOmthdeta)
+                taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
+                call bounce_fast(v, eta(i), taub, bounceavg, timestep_transport)
+                Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_dp))**2
 
-        nonlin = .true.
-        att_nonlin(i, j) = nonlinear_attenuation(ux, eta(i), bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
-      end do
-    end do
+                nonlin = .true.
+                att_nonlin(i, j) = nonlinear_attenuation(ux, eta(i), bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
+            end do
+        end do
 
-    call figure()
-    do j = 1, size(ux_list)
-      select case (j)
-      case (1)
-        call plot(eta, att_nonlin(:, j), label="ux="//trim(adjustl(to_str(ux_list(j)))), linestyle='-')
-      case (2)
-        call plot(eta, att_nonlin(:, j), label="ux="//trim(adjustl(to_str(ux_list(j)))), linestyle='--')
-      case (3)
-        call plot(eta, att_nonlin(:, j), label="ux="//trim(adjustl(to_str(ux_list(j)))), linestyle='-.')
-      end select
-    end do
-    call title("Nonlinear attenuation vs eta")
-    call xlabel("eta")
-    call ylabel("attenuation factor")
-    call xlim(minval(eta), maxval(eta))
-    call ylim(0.0_dp, 1.2_dp)
-    call legend()
-    call savefig(trim(arg_runname)//"_bounce_nonlin.png")
+        call figure()
+        do j = 1, size(ux_list)
+            select case (j)
+            case (1)
+                call plot(eta, att_nonlin(:, j), label="ux="//trim(adjustl(to_str(ux_list(j)))), linestyle='-')
+            case (2)
+                call plot(eta, att_nonlin(:, j), label="ux="//trim(adjustl(to_str(ux_list(j)))), linestyle='--')
+            case (3)
+                call plot(eta, att_nonlin(:, j), label="ux="//trim(adjustl(to_str(ux_list(j)))), linestyle='-.')
+            end select
+        end do
+        call title("Nonlinear attenuation vs eta")
+        call xlabel("eta")
+        call ylabel("attenuation factor")
+        call xlim(minval(eta), maxval(eta))
+        call ylim(0.0_dp, 1.2_dp)
+        call legend()
+        call savefig(trim(arg_runname)//"_bounce_nonlin.png")
 
-    ! Also write data to a text file with header
-    call write_data_file(trim(arg_runname)//"_bounce_nonlin.txt", eta, att_nonlin, ux_list)
+        ! Also write data to a text file with header
+        call write_data_file(trim(arg_runname)//"_bounce_nonlin.txt", eta, att_nonlin, ux_list)
 
-    ! Print simple stats
-    do j = 1, size(ux_list)
-      write(*,'(A,F5.2,A,1x,ES12.4,1x,ES12.4)') 'ux=', ux_list(j), ' min/max:', minval(att_nonlin(:,j)), maxval(att_nonlin(:,j))
-    end do
+        ! Print simple stats
+        do j = 1, size(ux_list)
+            write(*,'(A,F5.2,A,1x,ES12.4,1x,ES12.4)') 'ux=', ux_list(j), ' min/max:', minval(att_nonlin(:,j)), maxval(att_nonlin(:,j))
+        end do
 
-  end subroutine run_bounce_nonlin_diag
+    end subroutine run_bounce_nonlin_diag
 
-  pure function to_str(x) result(s)
-    real(dp), intent(in) :: x
-    character(len=16) :: s
-    write(s,'(F4.1)') x
-    s = adjustl(s)
-  end function to_str
+    pure function to_str(x) result(s)
+        real(dp), intent(in) :: x
+        character(len=16) :: s
+        write(s,'(F4.1)') x
+        s = adjustl(s)
+    end function to_str
 
-  subroutine write_data_file(fname, eta, att, uxvals)
-    character(*), intent(in) :: fname
-    real(dp), intent(in) :: eta(:)
-    real(dp), intent(in) :: att(:, :)
-    real(dp), intent(in) :: uxvals(:)
-    integer :: i, u
+    subroutine write_data_file(fname, eta, att, uxvals)
+        character(*), intent(in) :: fname
+        real(dp), intent(in) :: eta(:)
+        real(dp), intent(in) :: att(:, :)
+        real(dp), intent(in) :: uxvals(:)
+        integer :: i, u
 
-    open(newunit=u, file=fname, status='replace', action='write')
-    write(u,'(A)') '# NEO-RT diagnostic: nonlinear attenuation vs eta'
-    write(u,'(A,F10.6)') '# s = ', s
-    write(u,'(A,I0)')    '# mth = ', mth
-    write(u,'(A,I0)') '# mph = ', mph
-    write(u,'(A,*(F5.2,1X))') '# ux values = ', uxvals
-    write(u,'(A)') '# columns: eta  att(ux='//trim(adjustl(to_str(uxvals(1))))//')  '&
-                   //'att(ux='//trim(adjustl(to_str(uxvals(2))))//')  '&
-                   //'att(ux='//trim(adjustl(to_str(uxvals(3))))//')'
-    do i = 1, size(eta)
-      write(u,'(ES14.6,3(1X,ES14.6))') eta(i), att(i,1), att(i,2), att(i,3)
-    end do
-    close(u)
-  end subroutine write_data_file
+        open(newunit=u, file=fname, status='replace', action='write')
+        write(u,'(A)') '# NEO-RT diagnostic: nonlinear attenuation vs eta'
+        write(u,'(A,F10.6)') '# s = ', s
+        write(u,'(A,I0)')    '# mth = ', mth
+        write(u,'(A,I0)') '# mph = ', mph
+        write(u,'(A,*(F5.2,1X))') '# ux values = ', uxvals
+        write(u,'(A)') '# columns: eta  att(ux='//trim(adjustl(to_str(uxvals(1))))//')  '&
+            //'att(ux='//trim(adjustl(to_str(uxvals(2))))//')  '&
+            //'att(ux='//trim(adjustl(to_str(uxvals(3))))//')'
+        do i = 1, size(eta)
+            write(u,'(ES14.6,3(1X,ES14.6))') eta(i), att(i,1), att(i,2), att(i,3)
+        end do
+        close(u)
+    end subroutine write_data_file
 
 end module diag_bounce_nonlin

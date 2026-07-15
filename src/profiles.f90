@@ -15,7 +15,7 @@ module neort_profiles
 
     ! density and temperature profiles and their derivatives over s_tor
     real(dp) :: ni1 = 0.0_dp, ni2 = 0.0_dp, Ti1 = 0.0_dp, Ti2 = 0.0_dp, Te = 0.0_dp, dni1ds = 0.0_dp, &
-                dni2ds = 0.0_dp, dTi1ds = 0.0_dp, dTi2ds = 0.0_dp, dTeds = 0.0_dp
+        dni2ds = 0.0_dp, dTi1ds = 0.0_dp, dTi2ds = 0.0_dp, dTeds = 0.0_dp
 
     ! Thermodynamic forces in radial variable s_tor
     real(dp) :: A1 = 0.0_dp, A2 = 0.0_dp
@@ -37,7 +37,7 @@ contains
     subroutine init_profiles(R0)
         real(dp), intent(in) :: R0
 
-        Om_tE = vth * M_t / R0  ! toroidal ExB drift frequency
+        Om_tE = vth * M_t / R0 ! toroidal ExB drift frequency
         dOm_tEds = 0.0_dp
     end subroutine init_profiles
 
@@ -103,12 +103,15 @@ contains
 
         ! Call collision routine
         v0 = vth
-        amb = 2.0_dp
-        Zb = 1.0_dp
+        ! The Hamiltonian and torque paths use the first configured ion species.
+        ! Use the same species for the collision tensor entering nonlinear
+        ! decorrelation, rather than silently assuming a deuteron.
+        amb = am1_global
+        Zb = Z1_global
         ebeam = amb * pmass * v0**2 / (2.0_dp * ev)
         call loacol_nbi(amb, am1_global, am2_global, Zb, Z1_global, Z2_global, &
-                        ni1, ni2, Ti1, Ti2, Te, ebeam, v0, &
-                        dchichi, slowrate, dchichi_norm, slowrate_norm)
+            ni1, ni2, Ti1, Ti2, Te, ebeam, v0, &
+            dchichi, slowrate, dchichi_norm, slowrate_norm)
     end subroutine init_plasma_at_s
 
     subroutine read_plasma_input(path, nplasma, am1, am2, Z1, Z2, plasma)
@@ -195,7 +198,7 @@ contains
 
         real(dp), allocatable :: data(:, :)
 
-        call readdata(path, 2, data)  ! allocates data
+        call readdata(path, 2, data) ! allocates data
 
         ! Prepare shared spline coefficients (main thread)
         call prepare_profile_splines(data)
@@ -207,11 +210,11 @@ contains
     end subroutine read_and_init_profile_input
 
     subroutine init_thermodynamic_forces(psi_pr, q)
-        real(dp), intent(in) :: psi_pr  ! toroidal flux at plasma boundary == dpsi_tor/ds
-        real(dp), intent(in) :: q  ! safety factor
+        real(dp), intent(in) :: psi_pr ! toroidal flux at plasma boundary == dpsi_tor/ds
+        real(dp), intent(in) :: q ! safety factor
 
         A1 = dni1ds / ni1 - qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c) * Om_tE - 3.0_dp / &
-             2.0_dp * dTi1ds / Ti1
+            2.0_dp * dTi1ds / Ti1
         A2 = dTi1ds / Ti1
     end subroutine init_thermodynamic_forces
 

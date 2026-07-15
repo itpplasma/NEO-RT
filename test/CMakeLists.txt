@@ -35,6 +35,21 @@ add_test(NAME test_chartmap_input
     COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_input.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+
+add_test(NAME test_profile_collision_species
+    COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_nonlinear_contract
+    COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_attenuation_asymptotes
+    COMMAND ${CMAKE_BINARY_DIR}/test_attenuation_asymptotes.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/nonlin
+)
 set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
         "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
