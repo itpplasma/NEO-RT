@@ -11,6 +11,7 @@ module neort_lib
     public :: transport_data_t
     public :: neort_init
     public :: neort_prepare_splines
+    public :: neort_setup_at_s
     public :: neort_compute_at_s
     public :: neort_compute_no_splines
 
@@ -91,7 +92,7 @@ contains
         real(dp), allocatable :: profile_data(:, :)
 
         call check_file(plasma_file, nonlin .or. comptorque, &
-                        " required in spline mode (nonlin = .true. or comptorque = .true.)")
+            " required in spline mode (nonlin = .true. or comptorque = .true.)")
         call check_file(profile_file, nonlin, " required in spline mode (nonlin = .true.)")
 
         call read_plasma_input(plasma_file, nplasma, am1, am2, Z1, Z2, plasma_data)
@@ -115,36 +116,43 @@ contains
         call prepare_profile_splines(profile_data)
     end subroutine prepare_splines_from_memory
 
-    subroutine neort_compute_at_s(s_val, transport_data_out)
+    subroutine neort_setup_at_s(s_val)
         use do_magfie_mod, only: set_s, init_magfie_at_s, R0, psi_pr, q
         use do_magfie_pert_mod, only: init_magfie_pert_at_s, init_mph_from_shared
         use driftorbit, only: pertfile, nopassing, sign_vpar, etamin, etamax, efac, bfac, comptorque
-        use neort, only: compute_transport, set_to_trapped_region
+        use neort, only: set_to_trapped_region
         use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
         use neort_magfie, only: init_flux_surface_average
         use neort_profiles, only: init_plasma_at_s, init_profile_at_s, init_thermodynamic_forces
 
         real(dp), intent(in) :: s_val
-        type(transport_data_t), intent(out) :: transport_data_out
 
         call set_s(s_val)
 
         call init_magfie_at_s()
-        if (pertfile) call init_magfie_pert_at_s()  ! else epsmn*exp(imun*(m0*th + mph*ph))
+        if (pertfile) call init_magfie_pert_at_s() ! else epsmn*exp(imun*(m0*th + mph*ph))
         call init_mph_from_shared()
 
-        call init_plasma_at_s()  ! overwrites qi, mi and vth from config
-        call init_profile_at_s(R0, efac, bfac)  ! overwrites M_t
+        call init_plasma_at_s() ! overwrites qi, mi and vth from config
+        call init_profile_at_s(R0, efac, bfac) ! overwrites M_t
 
         call init_flux_surface_average(s_val)
-        call init_canon_freq_trapped_spline()  ! sets etamin and etamax
+        call init_canon_freq_trapped_spline() ! sets etamin and etamax
         if (.not. nopassing) call init_canon_freq_passing_spline()
         sign_vpar = 1
-        call set_to_trapped_region(etamin, etamax)  ! overwrites etamin and etamax
+        call set_to_trapped_region(etamin, etamax) ! overwrites etamin and etamax
         ! psi_pr is the torodial flux at plasma boundary, fixed for all s
         ! psi_pr=const., q is set in do_magfie
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
+    end subroutine neort_setup_at_s
 
+    subroutine neort_compute_at_s(s_val, transport_data_out)
+        use neort, only: compute_transport
+
+        real(dp), intent(in) :: s_val
+        type(transport_data_t), intent(out) :: transport_data_out
+
+        call neort_setup_at_s(s_val)
         call compute_transport(transport_data_out)
     end subroutine neort_compute_at_s
 
