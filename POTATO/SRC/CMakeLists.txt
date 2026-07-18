@@ -3,7 +3,8 @@ add_library(potato_base
   logging_mod.f90
   wall_loss_mod.f90
   potato_input_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/math_constants.f90
+  potato_invariants_mod.f90
+  ${LIBNEO_SOURCE_DIR}/src/util/math_constants.f90
   alpha_lifetime_mod.f90
   ${LIBNEO_SOURCE_DIR}/src/MC/chamb_divB0.f90
   ${LIBNEO_SOURCE_DIR}/src/magfie/magfie_cyl.f90

@@ -43,3 +43,33 @@ on an idle machine and 400-600 s under any concurrent load, because they
 oversubscribe the 16 cores.
 
 The reslines output is identical for every thread count.
+
+## SIMPLE-compatible invariant handoff
+
+Single-orbit (`itest_type=4`) and radial-frequency-scan (`itest_type=5`) runs
+write `potato_invariants.dat` without changing the existing `fort.100` or
+`freq_scan.dat` schemas.  The versioned file contains the local state and the
+three axisymmetric invariants needed by SIMPLE:
+
+```text
+H0       = p^2 + phi_elec
+J_perp   = p^2 (1 - xi^2)/B
+psi_star = psi + rho0 p xi h_phi = (c/q) P_phi
+```
+
+Here `p=v/v0`, `xi=v_parallel/v`, `v0=sqrt(2 E_ref/m)` in cm/s, `B` is in
+POTATO's native gauss convention, `phi_elec=q Phi/E_ref`, and `psi_star`,
+`psi_axis`, and `psi_edge` use the same native g-eqdsk flux gauge and units
+(G cm^2).  Time remains POTATO's `tau=v0*t`; SIMPLE's private symplectic
+sqrt(2) scaling is not part of this file.
+
+SIMPLE currently supports only the magnetic Hamiltonian.  Therefore status is
+zero only when `phi_elec` is zero to numerical tolerance; a nonzero-potential
+row still records POTATO's correct total `H0`, but has status 2 and must not be
+converted.  Status 1 means invalid normalization input and status 3 means the
+field evaluation failed.
+
+For a scan, rows retain the requested increasing-`R` order (HFS to LFS when
+the input bounds are ordered that way), matching POTATO's `R_c` convention.
+No `rho_pol`/`rho_tor` identification or outer/inner orbit selection is
+implied by the handoff.
