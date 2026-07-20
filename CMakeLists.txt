@@ -123,6 +123,7 @@ add_executable(${PROJECT_EXE_NAME} src/program.f90)
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/collis_nbi.f90
+    src/collisional_layer.f90
     src/config.f90
     src/datatypes.f90
     src/driftorbit.f90
