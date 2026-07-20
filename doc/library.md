@@ -137,6 +137,7 @@ type :: config_t
     real(8) :: epsmn, mph
     real(8) :: bfac, efac
     real(8) :: M_t, vth
+    real(8) :: vmax_over_vth
     integer :: m0, inp_swi, vsteps, mth_max_abs, log_level
     logical :: comptorque, magdrift, nopassing, noshear, pertfile, nonlin
 end type
@@ -144,6 +145,10 @@ end type
 
 `mth_max_abs=-1` preserves the historical q-dependent harmonic range. A
 nonnegative value selects the exact symmetric range `-mth_max_abs:mth_max_abs`.
+
+`vmax_over_vth=3.0` sets the upper velocity-space cutoff in units of the
+thermal velocity. The default preserves the historical hard-coded bound; a
+larger value captures more of a far-tail resonance. It must be positive.
 
 ### transport_data_t
 

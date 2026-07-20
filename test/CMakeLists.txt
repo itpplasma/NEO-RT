@@ -55,6 +55,11 @@ add_test(NAME test_harmonic_bounds
     COMMAND test_harmonic_bounds.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_test(NAME test_vmax_over_vth
+    COMMAND test_vmax_over_vth.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
         "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"

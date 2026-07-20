@@ -23,6 +23,7 @@ module neort_config
         integer :: inp_swi = 0  ! input switch for Boozer file
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
+        real(dp) :: vmax_over_vth = 3.0_dp  ! upper velocity cutoff / vth
         integer :: log_level = 0  ! how much to log
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
@@ -35,7 +36,7 @@ contains
         use do_magfie_pert_mod, only: mph, set_mph
         use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, nonlin, efac
         use logger, only: set_log_level
-        use neort, only: vsteps, mth_max_abs
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
         use util, only: qe, mu, qi, mi
@@ -60,6 +61,8 @@ contains
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         mth_max_abs = config%mth_max_abs
+        if (config%vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
+        vmax_over_vth = config%vmax_over_vth
 
         qi = config%qs * qe
         mi = config%ms * mu
@@ -73,7 +76,7 @@ contains
         use do_magfie_pert_mod, only: mph, set_mph
         use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, nonlin, efac
         use logger, only: set_log_level
-        use neort, only: vsteps, mth_max_abs
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
         use util, only: qe, mu, qi, mi
@@ -84,14 +87,16 @@ contains
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
             nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, mth_max_abs, &
-            log_level
+            vmax_over_vth, log_level
 
         mth_max_abs = -1
+        vmax_over_vth = 3.0_dp
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
 
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
+        if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
 
         M_t = M_t * efac / bfac
         qi = qs * qe

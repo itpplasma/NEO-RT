@@ -18,6 +18,10 @@ module neort
     ! preserves the historical q-dependent automatic range.
     integer :: mth_max_abs = -1
 
+    ! Upper velocity-space cutoff in units of the thermal velocity. Default 3.0
+    ! preserves the historical hard-coded bound and bit-reproducibility.
+    real(dp) :: vmax_over_vth = 3.0_dp
+
 contains
 
     pure subroutine harmonic_bounds(mph_value, q_value, max_abs, mth_min, mth_max)
@@ -245,7 +249,7 @@ contains
         Trest = 0.0_dp
 
         vminp = 1.0e-6_dp * vth
-        vmaxp = 3.0_dp * vth
+        vmaxp = vmax_over_vth * vth
         vmint = vminp
         vmaxt = vmaxp
 
