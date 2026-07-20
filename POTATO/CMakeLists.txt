@@ -96,6 +96,16 @@ add_test(NAME test_wall_loss
    COMMAND test_wall_loss.x
 )
 
+add_executable(test_potato_invariants.x
+   SRC/test_potato_invariants.f90
+)
+target_link_libraries(test_potato_invariants.x
+   potato_base
+)
+add_test(NAME test_potato_invariants
+   COMMAND test_potato_invariants.x
+)
+
 add_executable(test_wall_profile.x
    SRC/test_wall_profile.f90
 )
@@ -126,6 +136,13 @@ target_link_libraries(potato_resonance_probe.x
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_invariant_handoff
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py
+            $<TARGET_FILE:potato.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+    )
+    set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
     add_test(NAME potato_golden_displacement
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py

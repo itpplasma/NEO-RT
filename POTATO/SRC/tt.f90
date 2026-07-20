@@ -24,7 +24,9 @@
                                           input_clip_resonance_classes => clip_resonance_classes, &
                                           orbit_Rstart, orbit_Zstart, orbit_lambda, &
                                           freq_Rmin, freq_Rmax, freq_n
-  use field_eq_mod,                 only : allow_sol, psi_axis, psi_sep
+  use potato_invariants_mod,        only : open_potato_invariant_handoff, &
+                                          write_potato_invariant_from_local_state
+  use field_eq_mod,                 only : allow_sol, ierrfield, psi_axis, psi_sep
   use field_sub,                    only : psif
 !
   implicit none
@@ -39,17 +41,18 @@
   logical :: classes_talk,plot_orbits,compute_equibrium_profiles,compute_resonant_torque,plot_poicut
   logical :: trace_single_orbit,freq_scan
 !
-  integer          :: ifdir_type,ierr,m,iunit,i,log_u
+  integer          :: ifdir_type,ierr,m,iunit,i,log_u,invariant_unit
   double precision :: v0,bmod_ref
   double precision, dimension(:,:), allocatable :: resint
   double precision, dimension(neqm) :: z_single
   double precision :: taub_single,delphi_single,extraset_single(1)
   type(region_set_t) :: regions
-  external :: find_bounce, velo, magfie
+  external :: elefie, find_bounce, velo, magfie
 ! frequency radial scan (itest_type=5):
   integer          :: ifreq
   double precision :: Rstep,omega_b,omega_phi,s_norm,rhopol
   double precision :: bmod_d,sqrtg_d,bder_d(3),hcovar_d(3),hctrvr_d(3),hcurl_d(3),x_d(3)
+  double precision :: phi_elec_d,derphi_d(3)
 
 !
 !
@@ -196,6 +199,14 @@
     z_single(3)=orbit_Zstart   ! Z [cm]
     z_single(4)=1.d0           ! p, monoenergetic at E_alpha
     z_single(5)=orbit_lambda   ! pitch cosine v_par/v
+    x_d=z_single(1:3)
+    call magfie(x_d,bmod_d,sqrtg_d,bder_d,hcovar_d,hctrvr_d,hcurl_d)
+    call elefie(x_d,phi_elec_d,derphi_d)
+    call open_potato_invariant_handoff(invariant_unit)
+    call write_potato_invariant_from_local_state(invariant_unit,1, &
+         z_single(1),z_single(3),z_single(4),z_single(5),bmod_d, &
+         hcovar_d(2),psif,phi_elec_d,ro0,psi_axis,psi_sep,v0,ierrfield)
+    close(invariant_unit)
     write_orb=.true.
     iunit1=100
     extraset_single=0.d0
@@ -217,6 +228,7 @@
     call tee_message('Frequency radial scan')
     write_orb=.false.
     open(iunit,file='freq_scan.dat',status='replace',action='write')
+    call open_potato_invariant_handoff(invariant_unit)
     write(iunit,'(A)') '# R_start[cm] rho_pol omega_b[1/s] omega_phi[1/s] '// &
                        'taub delphi ierr'
     Rstep=(freq_Rmax-freq_Rmin)/dble(max(freq_n-1,1))
@@ -229,6 +241,10 @@
 ! flux label of the start point: evaluate the field there, then normalize psi.
       x_d=z_single(1:3)
       call magfie(x_d,bmod_d,sqrtg_d,bder_d,hcovar_d,hctrvr_d,hcurl_d)
+      call elefie(x_d,phi_elec_d,derphi_d)
+      call write_potato_invariant_from_local_state(invariant_unit,ifreq, &
+           z_single(1),z_single(3),z_single(4),z_single(5),bmod_d, &
+           hcovar_d(2),psif,phi_elec_d,ro0,psi_axis,psi_sep,v0,ierrfield)
       s_norm=(psif-psi_axis)/(psi_sep-psi_axis)
       rhopol=sqrt(max(s_norm,0.d0))
       extraset_single=0.d0
@@ -245,6 +261,7 @@
       endif
     enddo
     close(iunit)
+    close(invariant_unit)
     call tee_message('Frequency radial scan done -> freq_scan.dat')
   endif
 !
