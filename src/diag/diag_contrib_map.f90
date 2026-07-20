@@ -156,6 +156,7 @@ contains
       if (nroots == 0) return
       do kr = 1, nroots
         eta_res = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
+        if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
         eta = eta_res(1)
 
         v_eff = max(v, 1.0e-8_dp*vth)

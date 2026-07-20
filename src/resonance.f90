@@ -56,7 +56,7 @@ contains
 
         real(dp) :: driftorbit_root(2)
         real(dp), intent(in) :: v, tol, eta_min, eta_max
-        real(dp) :: res, res_old, eta0, eta_old
+        real(dp) :: res, res_old, eta_old
         real(dp) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
         integer :: maxit, k, state
@@ -71,7 +71,6 @@ contains
 
         maxit = 100
         state = -2
-        eta0 = eta
         eta_old = 0.0_dp
         res = 0.0_dp
 
@@ -99,6 +98,12 @@ contains
                   "driftorbit_root couldn't bracket 0 for v/vth = ", v / vth, LF // &
                   TAB // "etamin = ", etamin2, ", etamax = ", etamax2
             call warning(msg)
+            ! Defined sentinel: eta is a non-negative pitch parameter, so a
+            ! negative root position flags "no resonance in this bracket".
+            ! eta_res(2) is set to a defined non-NaN value; callers must
+            ! detect the sentinel (eta_res(1) < 0) and skip this bracket.
+            driftorbit_root(1) = -1.0_dp
+            driftorbit_root(2) = 0.0_dp
             return
         end if
 
@@ -136,6 +141,5 @@ contains
                   TAB // "tol = ", tol
             call warning(msg)
         end if
-        eta = eta0
     end function driftorbit_root
 end module neort_resonance
