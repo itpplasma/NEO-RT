@@ -25,6 +25,7 @@ module driftorbit
     logical :: nopassing = .false.    ! neglect passing particles
     logical :: pertfile = .false.     ! read perturbation from file with neo_magfie_pert
     logical :: comptorque = .true.    ! compute torque
+    logical :: supban = .false.       ! Shaing superbanana-plateau (trapped ell=0) only
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(dp) :: dVds = 0.0_dp, etadt = 0.0_dp, etatp = 0.0_dp
@@ -52,6 +53,6 @@ module driftorbit
     !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta)
 
     ! Shared read-only configuration (NOT threadprivate): efac, epsmn, m0,
-    ! magdrift, nopassing, pertfile, comptorque, nonlin
+    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban
 
 end module driftorbit
