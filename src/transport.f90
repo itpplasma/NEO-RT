@@ -93,9 +93,12 @@ contains
         do ku = 1, vsteps
             v = ux * vth
             call driftorbit_coarse(v, etamin, etamax, roots, nroots)
-            if (nroots == 0) continue
+            ! No explicit nroots==0 guard: the do-loop below is empty when
+            ! nroots==0, and a bare `cycle` here would skip the trailing
+            ! `ux = ux + du` velocity-grid increment and stall the sweep.
             do kr = 1, nroots
                 eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
+                if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
                 eta = eta_res(1)
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
