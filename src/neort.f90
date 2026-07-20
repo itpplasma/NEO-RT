@@ -14,7 +14,25 @@ module neort
     ! Number of integration steps in v, set 0 for adaptive integration by quadpack
     integer :: vsteps = 256
 
+    ! Maximum absolute poloidal/orbit resonance harmonic. A negative value
+    ! preserves the historical q-dependent automatic range.
+    integer :: mth_max_abs = -1
+
 contains
+
+    pure subroutine harmonic_bounds(mph_value, q_value, max_abs, mth_min, mth_max)
+        integer, intent(in) :: mph_value, max_abs
+        real(dp), intent(in) :: q_value
+        integer, intent(out) :: mth_min, mth_max
+
+        if (max_abs >= 0) then
+            mth_min = -max_abs
+            mth_max = max_abs
+        else
+            mth_min = -ceiling(2*abs(mph_value*q_value))
+            mth_max = ceiling(2*abs(mph_value*q_value))
+        end if
+    end subroutine harmonic_bounds
 
     subroutine init
         use do_magfie_mod, only: psi_pr, q
@@ -163,8 +181,7 @@ contains
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
-        mthmin = -ceiling(2*abs(mph*q))
-        mthmax = ceiling(2*abs(mph*q))
+        call harmonic_bounds(mph, q, mth_max_abs, mthmin, mthmax)
 
         if (mthmax < mthmin) then
             ! Edge case: no valid harmonics (upper bound below lower bound).

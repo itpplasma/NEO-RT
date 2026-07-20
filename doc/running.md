@@ -62,6 +62,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `efac` | Electric-field scaling factor. | Multiplies `E`. |
 | `inp_swi` | Boozer input switch. | Passed to `do_magfie`. |
 | `vsteps` | Number of velocity grid points. | Set to `0` for adaptive quadrature. |
+| `mth_max_abs` | Maximum absolute orbit-resonance harmonic. | Default `-1` keeps the historical `±ceil(2\|mph q\|)` range; `0` selects only `mth=0`. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
 
 ### Magnetic field data

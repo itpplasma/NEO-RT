@@ -137,10 +137,13 @@ type :: config_t
     real(8) :: epsmn, mph
     real(8) :: bfac, efac
     real(8) :: M_t, vth
-    integer :: m0, inp_swi, vsteps, log_level
+    integer :: m0, inp_swi, vsteps, mth_max_abs, log_level
     logical :: comptorque, magdrift, nopassing, noshear, pertfile, nonlin
 end type
 ```
+
+`mth_max_abs=-1` preserves the historical q-dependent harmonic range. A
+nonnegative value selects the exact symmetric range `-mth_max_abs:mth_max_abs`.
 
 ### transport_data_t
 
