@@ -8,6 +8,7 @@ module neort_transport
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
+    use neort_collisional_layer, only: collisional_layer, collisional_layer_factor
     use neort_freq, only: Om_th, Om_ph
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
@@ -79,7 +80,7 @@ contains
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
-        real(dp) :: Hmn2, attenuation_factor
+        real(dp) :: Hmn2, attenuation_factor, layer_factor
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku
 
@@ -120,11 +121,22 @@ contains
 
                 dD11 = du * D11int(ux, taub, Hmn2) / abs(eta_res(2))
                 dD12 = du * D12int(ux, taub, Hmn2) / abs(eta_res(2))
+
+                ! Optional collisional boundary-layer factor. When off, the
+                ! accumulation below is byte-identical to the collisionless
+                ! quadrature (no multiplication is inserted).
+                if (collisional_layer) then
+                    layer_factor = collisional_layer_factor(v, eta, abs(eta_res(2)))
+                    dD11 = dD11 * layer_factor
+                    dD12 = dD12 * layer_factor
+                end if
+
                 D(1) = D(1) + dD11 * attenuation_factor
                 D(2) = D(2) + dD12 * attenuation_factor
 
                 if (comptorque) then
                     dT = du * Tphi_int(ux, taub, Hmn2) / abs(eta_res(2))
+                    if (collisional_layer) dT = dT * layer_factor
                     T = T + dT * attenuation_factor
                 end if
             end do
