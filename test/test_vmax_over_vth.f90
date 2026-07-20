@@ -8,8 +8,8 @@ program test_vmax_over_vth
     type(config_t) :: config
     integer :: unit
 
-    ! config_t default preserves the historical hard-coded cutoff
-    if (config%vmax_over_vth /= 3.0_dp) error stop "config_t default changed"
+    ! config_t default is the converged 4*vth cutoff
+    if (config%vmax_over_vth /= 4.0_dp) error stop "config_t default changed"
 
     ! set_config transfers an explicit value to the module variable
     config%vmax_over_vth = 4.5_dp
@@ -18,7 +18,7 @@ program test_vmax_over_vth
 
     config = config_t()
     call set_config(config)
-    if (configured /= 3.0_dp) error stop "config_t default not restored"
+    if (configured /= 4.0_dp) error stop "config_t default not restored"
 
     ! namelist parsing picks up an explicit value
     call write_namelist("vmax.in", "    vmax_over_vth = 5.0")
@@ -28,7 +28,7 @@ program test_vmax_over_vth
     ! namelist parsing falls back to the default when the field is absent
     call write_namelist("vmax.in", "")
     call read_and_set_config("vmax.in")
-    if (configured /= 3.0_dp) error stop "namelist default changed"
+    if (configured /= 4.0_dp) error stop "namelist default changed"
 
     open (newunit=unit, file="vmax.in", status="old")
     close (unit, status="delete")

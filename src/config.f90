@@ -24,7 +24,7 @@ module neort_config
         integer :: inp_swi = 0  ! input switch for Boozer file
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
-        real(dp) :: vmax_over_vth = 3.0_dp  ! upper velocity cutoff / vth
+        real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
         integer :: log_level = 0  ! how much to log
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
@@ -94,7 +94,7 @@ contains
             vsteps, mth_max_abs, vmax_over_vth, log_level
 
         mth_max_abs = -1
-        vmax_over_vth = 3.0_dp
+        vmax_over_vth = 4.0_dp
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
