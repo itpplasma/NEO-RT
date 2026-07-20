@@ -98,7 +98,8 @@ contains
 
         ! Print simple stats
         do j = 1, size(ux_list)
-            write(*,'(A,F5.2,A,1x,ES12.4,1x,ES12.4)') 'ux=', ux_list(j), ' min/max:', minval(att_nonlin(:,j)), maxval(att_nonlin(:,j))
+            write(*,'(A,F5.2,A,1x,ES12.4,1x,ES12.4)') 'ux=', ux_list(j), &
+                ' min/max:', minval(att_nonlin(:,j)), maxval(att_nonlin(:,j))
         end do
 
     end subroutine run_bounce_nonlin_diag
