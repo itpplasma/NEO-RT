@@ -15,5 +15,6 @@
     efac = 1.0
     inp_swi = 9
     vsteps = 512
+    vmax_over_vth = 3.0
     log_level = -1
 /
