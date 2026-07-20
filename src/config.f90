@@ -13,6 +13,7 @@ module neort_config
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
+        logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: magdrift = .false.  ! consider magnetic drift
         logical :: nopassing = .false.  ! neglect passing particles
         logical :: noshear = .false.  ! neglect magnetic shear term with dqds
@@ -34,7 +35,8 @@ contains
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, nonlin, efac
+        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
+            nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -50,6 +52,7 @@ contains
         m0 = config%m0
         mph = config%mph
         comptorque = config%comptorque
+        supban = config%supban
         magdrift = config%magdrift
         nopassing = config%nopassing
         noshear = config%noshear
@@ -74,7 +77,8 @@ contains
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, nonlin, efac
+        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
+            nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -85,9 +89,9 @@ contains
         real(dp) :: qs, ms
         integer :: log_level = 0
 
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, magdrift, &
-            nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, vsteps, mth_max_abs, &
-            vmax_over_vth, log_level
+        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
+            magdrift, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
+            vsteps, mth_max_abs, vmax_over_vth, log_level
 
         mth_max_abs = -1
         vmax_over_vth = 3.0_dp

@@ -6,7 +6,8 @@ module neort_freq
     use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
-        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin
+        epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin, supban
+    use shaing, only: omph_shaing
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
     implicit none
 
@@ -288,6 +289,22 @@ contains
         real(dp), intent(out) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
         real(dp) :: OmtB, dOmtBdv, dOmtBdeta
+        real(dp) :: deta, dv
+
+        if (supban .and. (eta > etatp)) then
+            ! Shaing superbanana-plateau: the analytic bounce-averaged toroidal
+            ! drift frequency replaces the numeric magnetic-drift precession.
+            ! Derivatives are taken by centred finite differences because the
+            ! resonance root finder needs d(res)/d(eta) for its Jacobian.
+            Omph = omph_shaing(v, eta)
+            deta = 1.0e-6_dp*eta
+            dv = 1.0e-6_dp*v
+            dOmphdeta = (omph_shaing(v, eta + deta) - omph_shaing(v, eta - deta)) &
+                        /(2.0_dp*deta)
+            dOmphdv = (omph_shaing(v + dv, eta) - omph_shaing(v - dv, eta)) &
+                      /(2.0_dp*dv)
+            return
+        end if
 
         if (eta > etatp) then
             Omph = Om_tE

@@ -156,7 +156,7 @@ contains
 
     subroutine compute_transport(result_)
         use driftorbit, only: mth, M_t, R0, etamin, etamax, sign_vpar, nopassing, comptorque, &
-            dVds, mph, dOm_tEds, dM_tds
+            dVds, mph, dOm_tEds, dM_tds, supban
         use neort_profiles, only: Om_tE
         use do_magfie_mod, only: q
 
@@ -186,6 +186,12 @@ contains
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
         call harmonic_bounds(mph, q, mth_max_abs, mthmin, mthmax)
+
+        if (supban) then
+            ! Superbanana plateau is the trapped ell=0 resonance only.
+            mthmin = 0
+            mthmax = 0
+        end if
 
         if (mthmax < mthmin) then
             ! Edge case: no valid harmonics (upper bound below lower bound).
@@ -226,7 +232,7 @@ contains
     end subroutine compute_transport
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
-        use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing
+        use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing, supban
 
         integer, intent(in) :: j
         real(dp), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
@@ -252,6 +258,34 @@ contains
         vmaxp = vmax_over_vth * vth
         vmint = vminp
         vmaxt = vmaxp
+
+        if (supban) then
+            ! Shaing superbanana plateau: trapped ell=0 resonance only, with a
+            ! wide velocity bracket so the analytic Omph = 0 resonance is
+            ! captured across the thermal range.
+            vmint = 0.01_dp * vth
+            vmaxt = 5.0_dp * vth
+            sign_vpar = 1
+            call set_to_trapped_region(etamin, etamax)
+            call compute_transport_integral(vmint, vmaxt, vsteps, Drest, Trest)
+            Dt = Dt + Drest
+            Tt = Tt + Trest
+
+            harmonic%mth = mth
+            harmonic%Dresco = Dresco
+            harmonic%Dresctr = Dresctr
+            harmonic%Drest = Drest
+            harmonic%Tresco = Tresco
+            harmonic%Tresctr = Tresctr
+            harmonic%Trest = Trest
+            harmonic%vminp_over_vth = vminp/vth
+            harmonic%vmaxp_over_vth = vmaxp/vth
+            harmonic%vmint_over_vth = vmint/vth
+            harmonic%vmaxt_over_vth = vmaxt/vth
+
+            call debug('compute_transport_harmonic complete (supban)')
+            return
+        end if
 
         ! Passing resonance (co-passing)
         if (.not. nopassing) then

@@ -137,6 +137,7 @@ set(NEO_RT_SOURCES
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
+    src/shaing.f90
     src/transport.f90
     src/util.f90
 )
