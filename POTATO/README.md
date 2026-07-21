@@ -28,6 +28,38 @@ needed. Setting `edge_extension = .true.` permits orbit integration across the
 LCFS into the scrape-off layer; it does not turn the convex wall into the LCFS
 or remove the outer-domain requirement.
 
+For a MARS field already converted to Boozer harmonics, generate POTATO's
+single-`n` cylindrical perturbation without the legacy converter's radial
+Gaussian filter:
+
+```bash
+python tools/boozer_npz_to_bmod_n.py chartmap.nc components.npz bmod_n.dat \
+    --component total --n-tor=-3 --s-max=0.704
+```
+
+Here `chartmap.nc` supplies the accepted Boozer-surface geometry and
+`components.npz` is the provenance product from `rmp_torque mars_to_boozer`.
+The signed `n` must also be used as `n_tor` in `potato.in`. The converter writes
+a JSON sidecar, performs no smoothing or fit, uses `s_tor` explicitly, writes
+zero outside the outer mapped surface, and adds a zero-valued rectangular
+margin so the POTATO spline is not normally evaluated at a clamped nonzero
+boundary. Production target orbits must remain inside that mapped surface.
+
+The matching profile converter also keeps the coordinate and electric-field
+conventions explicit:
+
+```bash
+python tools/neo_rt_profiles_to_potato.py profile.in plasma.in components.npz \
+    profile_poly.in --r0-cm=640.647126 --psi-span-tm2=11.88279543 \
+    --relation-sign=1
+```
+
+It selects the physical ion using charge and nonzero density, maps
+`s_tor -> s_pol=rho_pol^2`, and records the polynomial residuals. The JSON
+sidecar also records the signed relation
+`dPhi/dpsi_pol = relation_sign*Omega_E/c`; opposite signs are separate
+convention diagnostics, never an unrecorded curve flip.
+
 ## Running with OpenMP
 
 The grid build and the per-mode root search run in parallel with OpenMP. Use one
