@@ -37,9 +37,13 @@ module driftorbit
     real(dp) :: B0 = 0.0_dp
     real(dp) :: Bmin = 0.0_dp, Bmax = 0.0_dp
 
-    real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp   ! dist to tpb for spline
+    real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp ! dist to tpb for spline
     real(dp), parameter :: epsst_spl = 1.0e-3_dp, epssp_spl = 1.0e-3_dp ! dist to deep for spline
-    real(dp), parameter :: epst = 1.0e-8_dp, epsp = 1.0e-8_dp ! smallest eta distance to tp bound
+    ! Keep resonance searches inside the pitch interval supported by the
+    ! bounce/precession splines.  Entering a thinner separatrix layer can
+    ! produce a formal logarithmic root that the explicit orbit integrator
+    ! cannot resolve.
+    real(dp), parameter :: epst = epst_spl, epsp = epsp_spl
 
 
 
