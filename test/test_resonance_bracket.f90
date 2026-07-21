@@ -11,18 +11,22 @@ program test_resonance_bracket
     use iso_fortran_env, only: dp => real64
     use logger, only: set_log_level
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
-    use driftorbit, only: mth, vth, etatp, etadt
+    use driftorbit, only: mth, vth, etatp, etadt, epst, epsp, epst_spl, epsp_spl
     use neort_resonance, only: driftorbit_root
 
     implicit none
 
     real(dp) :: eta_res(2), eta_mid, v
 
-    call set_log_level(-1)  ! silence the expected bracket-failure warning
+    call set_log_level(-1) ! silence the expected bracket-failure warning
 
     call neort_init("driftorbit.in", "in_file")
     call neort_prepare_splines("plasma.in", "profile.in")
     call neort_setup_at_s(0.5_dp)
+
+    if (epst /= epst_spl .or. epsp /= epsp_spl) then
+        error stop "resonance search must not enter the unsupported separatrix layer"
+    end if
 
     mth = 1
     v = vth

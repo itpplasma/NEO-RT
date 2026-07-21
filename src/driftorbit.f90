@@ -18,14 +18,14 @@ module driftorbit
 
     ! Harmonics TODO: make dynamic, multiple harmonics
     ! Default values are overridden by config file in driftorbit_test:read_control
-    real(dp) :: epsmn = 1.0_dp            ! perturbation amplitude B1/B0
-    integer :: m0 = 1                 ! Boozer poloidal perturbation mode
-    integer :: mth = 1                ! canonical poloidal mode
-    logical :: magdrift = .true.      ! consider magnetic drift
-    logical :: nopassing = .false.    ! neglect passing particles
-    logical :: pertfile = .false.     ! read perturbation from file with neo_magfie_pert
-    logical :: comptorque = .true.    ! compute torque
-    logical :: supban = .false.       ! Shaing superbanana-plateau (trapped ell=0) only
+    real(dp) :: epsmn = 1.0_dp ! perturbation amplitude B1/B0
+    integer :: m0 = 1 ! Boozer poloidal perturbation mode
+    integer :: mth = 1 ! canonical poloidal mode
+    logical :: magdrift = .true. ! consider magnetic drift
+    logical :: nopassing = .false. ! neglect passing particles
+    logical :: pertfile = .false. ! read perturbation from file with neo_magfie_pert
+    logical :: comptorque = .true. ! compute torque
+    logical :: supban = .false. ! Shaing superbanana-plateau (trapped ell=0) only
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(dp) :: dVds = 0.0_dp, etadt = 0.0_dp, etatp = 0.0_dp
@@ -35,9 +35,13 @@ module driftorbit
     real(dp) :: B0 = 0.0_dp
     real(dp) :: Bmin = 0.0_dp, Bmax = 0.0_dp
 
-    real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp   ! dist to tpb for spline
+    real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp ! dist to tpb for spline
     real(dp), parameter :: epsst_spl = 1.0e-3_dp, epssp_spl = 1.0e-3_dp ! dist to deep for spline
-    real(dp), parameter :: epst = 1.0e-8_dp, epsp = 1.0e-8_dp ! smallest eta distance to tp bound
+    ! Keep resonance searches inside the pitch interval supported by the
+    ! bounce/precession splines.  Entering a thinner separatrix layer can
+    ! produce a formal logarithmic root that the explicit orbit integrator
+    ! cannot resolve.
+    real(dp), parameter :: epst = epst_spl, epsp = epsp_spl
 
 
 
