@@ -24,8 +24,8 @@ program test_resonance_bracket
     call neort_prepare_splines("plasma.in", "profile.in")
     call neort_setup_at_s(0.5_dp)
 
-    if (epst /= epst_spl .or. epsp /= epsp_spl) then
-        error stop "resonance search must not enter the unsupported separatrix layer"
+    if (epst <= epst_spl .or. epsp <= epsp_spl) then
+        error stop "transport roots need an explicit-orbit margin beyond the spline edge"
     end if
 
     mth = 1
