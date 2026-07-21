@@ -57,6 +57,7 @@ logical :: resline_unit_is_private=.false.,resline_diag_unit_is_private=.false.
 !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all, &
 !$omp               respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
 !$omp               resline_unit_is_private,resline_diag_unit_is_private)
+
 end module resint_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -170,7 +171,8 @@ subroutine integrate_class_resonances
     use logging_mod,        only : tee_message
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
-    use field_eq_mod,       only : psi_sep
+    use field_eq_mod,       only : psi_axis,psi_sep
+    use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
     implicit none
@@ -286,7 +288,7 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            if(psiast_res.lt.psi_sep) then
+            if(canonical_flux_outside_lcfs(psiast_res,psi_axis,psi_sep)) then
                 ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
                 ! so pertham/find_bounce cannot close it and would only grind to
                 ! the integrator cap before returning zero.  It is also outside
@@ -484,6 +486,7 @@ subroutine resonant_torque
     use get_matrix_mod,    only : iclass,delphi_max
     use form_classes_doublecount_mod, only : nclasses
     use orbit_dim_mod,     only : numbasef
+    use resonance_mode_bounds_mod, only : resonant_delphi_bound
     use resint_mod,        only : nmodes,marr,narr,delint_mode,respoints_jp,respoints_all,nperp_max, &
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
         resline_unit_is_private,resline_diag_unit_is_private
@@ -534,7 +537,7 @@ subroutine resonant_torque
     ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
     ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin
     ! keeps the extreme-m root safely inside the trimmed domain.
-    delphi_max=2.d0*pi*(maxval(abs(dble(marr))/dble(narr))+1.d0/dble(minval(narr)))
+    delphi_max=resonant_delphi_bound(marr,narr)
     write(msg, '(A,ES14.6)') &
         'class root search bounded to |delphi_b| <= ', delphi_max
     call tee_message(trim(msg))
