@@ -22,7 +22,9 @@ cmake --build build -j
 The g-eqdsk and convex-wall file are a matched equilibrium pair. The convex
 wall is the outer boundary of the complete computational domain, not the
 separatrix, and must enclose the LCFS with enough margin for every orbit being
-traced. Setting `edge_extension = .true.` permits orbit integration across the
+traced. POTATO uses this one configured wall for both the field-coordinate
+mapping and orbit-loss detection; no second hard-coded `convexwall.dat` is
+needed. Setting `edge_extension = .true.` permits orbit integration across the
 LCFS into the scrape-off layer; it does not turn the convex wall into the LCFS
 or remove the outer-domain requirement.
 

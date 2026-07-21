@@ -1,4 +1,6 @@
 module potato_input_mod
+    use field_sub, only: read_field_input
+    use input_files, only: convexfile
     use iso_fortran_env, only: output_unit
     use wall_loss_mod, only: load_wall
     implicit none
@@ -107,7 +109,7 @@ contains
     subroutine read_potato_input(filename)
         character(len=*), intent(in) :: filename
         integer :: iunit, ierr
-        logical :: file_exists
+        logical :: field_input_exists, file_exists
 
         inquire(file=filename, exist=file_exists)
         if (.not. file_exists) then
@@ -132,7 +134,13 @@ contains
 
         close(iunit)
 
-        call load_wall('convexwall.dat')
+        inquire(file='field_divB0.inp', exist=field_input_exists)
+        if (field_input_exists) then
+            call read_field_input('field_divB0.inp')
+            call load_wall(trim(convexfile))
+        else
+            call load_wall('convexwall.dat')
+        endif
     end subroutine read_potato_input
 
     subroutine print_potato_input(iunit)
