@@ -11,12 +11,12 @@ module do_magfie_mod
     real(dp), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
     real(dp), private, allocatable :: costerm(:), sinterm(:)
 
-    real(dp), parameter :: sign_theta = -1.0_dp  ! negative for left-handed
+    real(dp), parameter :: sign_theta = -1.0_dp ! negative for left-handed
 
     real(dp) :: s = 0.0_dp, psi_pr = 0.0_dp, Bthcov = 0.0_dp, Bphcov = 0.0_dp, &
-                dBthcovds = 0.0_dp, dBphcovds = 0.0_dp, &
-                q = 0.0_dp, dqds = 0.0_dp, iota = 0.0_dp, R0 = 0.0_dp, a = 0.0_dp, &
-                eps = 0.0_dp, B0h = 0.0_dp, B00 = 0.0_dp
+        dBthcovds = 0.0_dp, dBphcovds = 0.0_dp, &
+        q = 0.0_dp, dqds = 0.0_dp, iota = 0.0_dp, R0 = 0.0_dp, a = 0.0_dp, &
+        eps = 0.0_dp, B0h = 0.0_dp, B00 = 0.0_dp
     real(dp) :: bfac = 1.0_dp
     ! B0h is the 0th theta harmonic of bmod on current flux surface
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
@@ -28,7 +28,7 @@ module do_magfie_mod
     ! Work arrays for booz_to_cyl (size=nmode)
     real(dp), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
 
-    real(dp), parameter :: ItoB = 2.0e-1_dp * sign_theta  ! Covarient B (cgs) from I (SI)
+    real(dp), parameter :: ItoB = 2.0e-1_dp * sign_theta ! Covarient B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
 
     integer :: ncol1 = 0, ncol2 = 0 ! number of columns in input file
@@ -62,10 +62,10 @@ module do_magfie_mod
     real(dp) :: cm_torflux = 0.0_dp, cm_h_theta = 0.0_dp
     real(dp) :: cm_rho_min = 0.0_dp, cm_rho_max = 0.0_dp
     real(dp), allocatable, protected :: cm_rho(:)
-    real(dp), allocatable, protected :: cm_s_aphi(:)        ! s abscissa for A_phi
-    real(dp), allocatable, protected :: cm_spl_aphi(:, :)   ! spline of A_phi(s)
-    real(dp), allocatable, protected :: cm_spl_Bth(:, :)    ! spline of B_theta(rho)
-    real(dp), allocatable, protected :: cm_spl_Bph(:, :)    ! spline of B_phi(rho)
+    real(dp), allocatable, protected :: cm_s_aphi(:) ! s abscissa for A_phi
+    real(dp), allocatable, protected :: cm_spl_aphi(:, :) ! spline of A_phi(s)
+    real(dp), allocatable, protected :: cm_spl_Bth(:, :) ! spline of B_theta(rho)
+    real(dp), allocatable, protected :: cm_spl_Bph(:, :) ! spline of B_phi(rho)
     ! (n_rho-1, 5, n_theta): for each theta grid index, spline of Bmod vs rho
     real(dp), allocatable, protected :: cm_spl_bmod(:, :, :)
 
@@ -201,7 +201,7 @@ contains
         real(dp), dimension(size(x)), intent(out) :: hcurl
 
         real(dp) :: spl_val(3)
-        real(dp) :: sqgbmod, sqgbmod2  ! sqg*B, sqg*B^2
+        real(dp) :: sqgbmod, sqgbmod2 ! sqg*B, sqg*B^2
         real(dp) :: x1
 
         if (inp_swi == 10) then
@@ -251,14 +251,14 @@ contains
             bder(1) = sum(dB0dsmnc * costerm + dB0dsmns * sinterm) / bmod
             bder(2) = 0.0_dp
             bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm &
-                          + modes0(1, :, 1) * B0mns * costerm) / bmod
+                + modes0(1, :, 1) * B0mns * costerm) / bmod
         end if
 
         sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
         sqgbmod = sqgbmod2 / bmod
         sqrtg = sqgbmod / bmod
 
-        hcovar(1) = 0.0_dp  ! TODO
+        hcovar(1) = 0.0_dp ! TODO
         hcovar(2) = Bphcov / bmod
         hcovar(3) = Bthcov / bmod
 
@@ -266,9 +266,9 @@ contains
         hctrvr(2) = sign_theta * psi_pr / sqgbmod
         hctrvr(3) = sign_theta * iota * psi_pr / sqgbmod
 
-        hcurl(1) = 0.0_dp  ! TODO
-        hcurl(3) = 0.0_dp  ! TODO
-        hcurl(2) = 0.0_dp  ! TODO
+        hcurl(1) = 0.0_dp ! TODO
+        hcurl(3) = 0.0_dp ! TODO
+        hcurl(2) = 0.0_dp ! TODO
 
         s_prev = x1
 
@@ -391,7 +391,11 @@ contains
         cm_rho_min = d%rho(1)
         cm_rho_max = d%rho(d%n_rho)
         n_s_aphi = d%n_s
-        R0 = d%rmajor * 100.0_dp  ! m -> cm
+        R0 = d%rmajor * 100.0_dp ! m -> cm
+        a = d%aminor * 100.0_dp ! m -> cm
+        if (a <= 0.0_dp) then
+            error stop "Boozer chartmap has no usable minor radius"
+        end if
         ! psi_pr stored globally; negate torflux to match the .bc sign convention
         ! (chartmap torflux > 0, .bc psi_pr = flux*1e8/(2*pi) < 0 for typical orientation).
         psi_pr = -d%torflux * bfac
@@ -440,10 +444,10 @@ contains
         open (unit=18, file=filename, action='read', status='old')
         read (18, '(////)')
         read (18, *) m0b, n0b, nflux, nfp, flux, a, R0
-        a = 100 * a  ! m -> cm
-        R0 = 100 * R0  ! m -> cm
+        a = 100 * a ! m -> cm
+        R0 = 100 * R0 ! m -> cm
 
-        psi_pr = 1.0e8_dp * flux / (2 * pi) * bfac  ! T -> Gauss, m -> cm
+        psi_pr = 1.0e8_dp * flux / (2 * pi) * bfac ! T -> Gauss, m -> cm
 
         nmode = (m0b + 1) * (n0b + 1)
 
@@ -470,14 +474,14 @@ contains
 
     subroutine booz_to_cyl(x, r)
 
-        real(dp), intent(in) :: x(3)  ! Boozer coordinates (s, ph, th)
-        real(dp), intent(out) :: r(3)  ! Cylindrical coordinates (R, phi, Z)
+        real(dp), intent(in) :: x(3) ! Boozer coordinates (s, ph, th)
+        real(dp), intent(out) :: r(3) ! Cylindrical coordinates (R, phi, Z)
 
         real(dp) :: spl_val(3), x1
 
         integer :: j
 
-        if (inp_swi /= 9) error stop  ! Only implemented for ASDEX-U type of data
+        if (inp_swi /= 9) error stop ! Only implemented for ASDEX-U type of data
 
         x1 = max(params0(1, 1), x(1))
         x1 = min(params0(nflux, 1), x1)
@@ -494,7 +498,7 @@ contains
         end do
 
         r(1) = sum(rmnc * cos(modes0(1, :, 1) * x(3)) + rmns * sin(modes0(1, :, 1) * x(3)))
-        r(2) = 0.0_dp  ! TODO: phi
+        r(2) = 0.0_dp ! TODO: phi
         r(3) = sum(zmnc * cos(modes0(1, :, 1) * x(3)) + zmns * sin(modes0(1, :, 1) * x(3)))
 
     end subroutine booz_to_cyl
@@ -527,7 +531,7 @@ module do_magfie_pert_mod
     use iso_fortran_env, only: dp => real64
     use util
     use spline
-    use do_magfie_mod, only: s, bfac, inp_swi
+    use do_magfie_mod, only: s, bfac
 
     implicit none
 
@@ -542,9 +546,10 @@ module do_magfie_pert_mod
     ! Work arrays (size=nmode)
     real(dp), private, allocatable :: Bmnc(:), Bmns(:)
 
-    integer :: ncol1, ncol2  ! number of columns in input file
-    integer :: mph  ! toroidal perturbation mode (threadprivate)
-    integer :: mph_shared = 0  ! shared copy for namelist input (when pertfile=.false.)
+    integer :: ncol1, ncol2 ! number of columns in input file
+    integer :: inp_swi_pert = -1 ! perturbation .bc format, independent of axisymmetric input
+    integer :: mph ! toroidal perturbation mode (threadprivate)
+    integer :: mph_shared = 0 ! shared copy for namelist input (when pertfile=.false.)
 
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_pert_arrays_initialized = .false.
@@ -579,8 +584,8 @@ contains
         integer :: j, k
 
         ncol1 = 5
-        if (inp_swi == 8) ncol2 = 4 ! tok_circ
-        if (inp_swi == 9) ncol2 = 8 ! ASDEX
+        if (inp_swi_pert == 8) ncol2 = 4 ! tok_circ
+        if (inp_swi_pert == 9) ncol2 = 8 ! ASDEX
 
         ! allocates params, modes - SHARED arrays
         call boozer_read_pert(path)
@@ -678,11 +683,11 @@ contains
         x1 = min(params(nflux, 1), x1)
 
         ! calculate B-field from modes
-        if (inp_swi == 8) then
+        if (inp_swi_pert == 8) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
             Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
             bamp = sum(Bmnc * cos(modes(1, :, 1) * x(3)))
-        else if (inp_swi == 9) then
+        else if (inp_swi_pert == 9) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
             Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
