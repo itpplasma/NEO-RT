@@ -153,8 +153,16 @@ if(Python3_Interpreter_FOUND)
         COMMAND test_neo2_reader.x "${_neo2_reader_fixture}")
     set_tests_properties(test_neo2_reader PROPERTIES
         DEPENDS generate_neo2_reader_oracle)
-endif()
-if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_bmod_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_bmod_converter.py
+    )
+    set_tests_properties(potato_bmod_converter PROPERTIES TIMEOUT 60)
+    add_test(NAME potato_profile_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_profile_converter.py
+    )
+    set_tests_properties(potato_profile_converter PROPERTIES TIMEOUT 60)
     add_test(NAME potato_invariant_handoff
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py
