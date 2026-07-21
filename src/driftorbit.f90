@@ -37,11 +37,12 @@ module driftorbit
 
     real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp ! dist to tpb for spline
     real(dp), parameter :: epsst_spl = 1.0e-3_dp, epssp_spl = 1.0e-3_dp ! dist to deep for spline
-    ! Keep resonance searches inside the pitch interval supported by the
-    ! bounce/precession splines.  Entering a thinner separatrix layer can
-    ! produce a formal logarithmic root that the explicit orbit integrator
-    ! cannot resolve.
-    real(dp), parameter :: epst = epst_spl, epsp = epsp_spl
+    ! Keep transport roots outside the compiler-sensitive separatrix layer.
+    ! The frequency splines extend to 1e-6, but explicit bounce integration
+    ! of a root on that last interval can still exhaust VODE's step budget.
+    ! A 1e-4 transport margin remains asymptotically close while giving the
+    ! explicit orbit a reproducible domain on supported GNU compilers.
+    real(dp), parameter :: epst = 1.0e-4_dp, epsp = 1.0e-4_dp
 
 
 
