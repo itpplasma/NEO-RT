@@ -34,14 +34,19 @@ def main() -> int:
         radius = 20.0*np.sqrt(s)
         r = 160.0 + radius[:, None]*np.cos(theta)
         z_plane = radius[:, None]*np.sin(theta)
+        toroidal_shift = 0.08*np.sin(theta)
         x = np.empty((2, theta.size, s.size))
         y = np.empty_like(x)
         z = np.empty_like(x)
         for index, angle in enumerate(zeta):
-            x[index] = (r*np.cos(angle)).T
-            y[index] = (r*np.sin(angle)).T
+            # The chart is at constant Boozer zeta, but geometric phi differs
+            # by a manufactured, poloidally varying toroidal shift.
+            phi_geom = angle-toroidal_shift
+            x[index] = (r*np.cos(phi_geom)).T
+            y[index] = (r*np.sin(phi_geom)).T
             z[index] = z_plane.T
         with h5py.File(chartmap, "w") as handle:
+            handle.attrs["zeta_convention"] = "boozer"
             handle["s"] = s
             handle["rho"] = np.sqrt(s)
             handle["theta"] = theta
@@ -83,6 +88,7 @@ def main() -> int:
                 coefficients[surface, :, None]
                 * np.exp(1j*np.outer(modes, theta_test)), axis=0,
             )
+            expected *= np.exp(1j*(-3)*0.08*np.sin(theta_test))
             actual = sample(points)
             errors.append(actual-expected)
             references.append(expected)
@@ -91,6 +97,11 @@ def main() -> int:
         )
         if relative_l2 > 2.0e-2:
             raise AssertionError(f"R-Z reconstruction error is {relative_l2:.3e}")
+        if metadata["toroidal_angle_transform"] != (
+                "A_RZ=A_B*exp(i*n*(phi_B-phi_geom))"):
+            raise AssertionError("missing Boozer-to-geometric toroidal-angle provenance")
+        if not np.isclose(metadata["toroidal_shift_radians_max_abs"], 0.08):
+            raise AssertionError("manufactured toroidal shift was not recorded")
         if values[0, 0] != 0.0j or values[-1, -1] != 0.0j:
             raise AssertionError("outside-map grid margin must be zero")
     return 0
