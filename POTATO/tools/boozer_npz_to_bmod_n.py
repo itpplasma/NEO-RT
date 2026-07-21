@@ -35,6 +35,17 @@ def _record(payload: bytes) -> bytes:
     return struct.pack("=i", size) + payload + struct.pack("=i", size)
 
 
+def _text_attribute(value: object) -> str:
+    """Return a scalar HDF5 text attribute as a normal Python string."""
+    array = np.asarray(value)
+    if array.ndim != 0:
+        raise ValueError("chartmap text attributes must be scalar")
+    scalar = array.item()
+    if isinstance(scalar, bytes):
+        return scalar.decode("utf-8")
+    return str(scalar)
+
+
 def write_bmod_n(path: Path, rad_cm: np.ndarray, zet_cm: np.ndarray,
                  amplitude_tesla: np.ndarray) -> None:
     """Write POTATO's three-record, Fortran-sequential ``bmod_n.dat``."""
@@ -100,14 +111,26 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
     with h5py.File(chartmap, "r") as handle:
         s_geometry = np.asarray(handle["s"], dtype=float)
         theta = np.asarray(handle["theta"], dtype=float)
+        zeta = np.asarray(handle["zeta"], dtype=float)
         x = np.asarray(handle["x"], dtype=float)
         y = np.asarray(handle["y"], dtype=float)
         z = np.asarray(handle["z"], dtype=float)
-    expected = (2, theta.size, s_geometry.size)
+        if "zeta_convention" not in handle.attrs:
+            raise ValueError("chartmap lacks the required zeta_convention attribute")
+        zeta_convention = _text_attribute(handle.attrs["zeta_convention"])
+    if zeta_convention != "boozer":
+        raise ValueError(
+            f"chartmap zeta_convention must be 'boozer', got {zeta_convention!r}"
+        )
+    expected = (zeta.size, theta.size, s_geometry.size)
     if x.shape != expected or y.shape != expected or z.shape != expected:
         raise ValueError(f"chartmap x/y/z must have shape {expected}")
-    if np.any(np.diff(s_geometry) <= 0.0) or np.any(np.diff(theta) <= 0.0):
-        raise ValueError("chartmap s and theta axes must increase strictly")
+    if zeta.size < 1:
+        raise ValueError("chartmap zeta axis must not be empty")
+    if (np.any(np.diff(s_geometry) <= 0.0)
+            or np.any(np.diff(theta) <= 0.0)
+            or np.any(np.diff(zeta) <= 0.0)):
+        raise ValueError("chartmap s, theta, and zeta axes must increase strictly")
 
     with np.load(components) as data:
         s_spectrum = np.asarray(data["boozer_s"], dtype=float)
@@ -138,6 +161,29 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
         bc_type="periodic",
     )(theta_map)
 
+    # The spectrum amplitude multiplies exp(i*n*phi_B), whereas POTATO's R-Z
+    # amplitude multiplies exp(i*n*phi_geom).  The chartmap is sampled on the
+    # first constant-Boozer-zeta plane, whose cylindrical points generally do
+    # not all have phi_geom=zeta[0].  Transform the coefficient independently
+    # of the signed mode/helicity choice:
+    #
+    #   A_RZ = A_B * exp(i*n*(phi_B - phi_geom)).
+    #
+    # Interpolate the unit phasor rather than a wrapped angle, then explicitly
+    # restore unit modulus so the coordinate map cannot alter the amplitude.
+    phi_geom = np.arctan2(y[0][:, selected], x[0][:, selected]).T
+    toroidal_shift_phasor = np.exp(1j*n_tor*(zeta[0] - phi_geom))
+    toroidal_shift_map = CubicSpline(
+        theta_closed,
+        np.column_stack((toroidal_shift_phasor, toroidal_shift_phasor[:, 0])),
+        axis=1,
+        bc_type="periodic",
+    )(theta_map)
+    shift_modulus = np.abs(toroidal_shift_map)
+    if np.any(shift_modulus <= np.finfo(float).tiny):
+        raise ValueError("toroidal-angle phase interpolation produced zero modulus")
+    toroidal_shift_map /= shift_modulus
+
     # Piecewise-linear radial interpolation is exact at the input surfaces and
     # introduces no radial smoothing.  The unresolved axis interval is set to
     # zero, consistent with regular nonaxisymmetric harmonics there.
@@ -148,7 +194,9 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
             np.interp(s_map[in_spectrum], s_spectrum, coefficients[:, index].real)
             + 1j*np.interp(s_map[in_spectrum], s_spectrum, coefficients[:, index].imag)
         )
-    amplitude_map = coeff_map @ np.exp(1j*np.outer(modes, theta_map))
+    amplitude_map = (
+        coeff_map @ np.exp(1j*np.outer(modes, theta_map))
+    ) * toroidal_shift_map
 
     points = np.column_stack((r_map.ravel(), z_map.ravel()))
     values = amplitude_map.ravel()
@@ -194,7 +242,17 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
         "output": {"path": str(output), "sha256": _sha256(output)},
         "component": component,
         "signed_toroidal_mode": n_tor,
-        "fourier_convention": "Delta|B|=Re[A_n(R,Z)*exp(i*n*phi_B)]",
+        "source_fourier_convention": "Delta|B|=Re[A_B*exp(i*n*phi_B)]",
+        "output_fourier_convention": "Delta|B|=Re[A_RZ(R,Z)*exp(i*n*phi_geom)]",
+        "toroidal_angle_transform": "A_RZ=A_B*exp(i*n*(phi_B-phi_geom))",
+        "chartmap_zeta_convention": zeta_convention,
+        "chartmap_zeta_slice": float(zeta[0]),
+        "toroidal_shift_radians_max_abs": float(np.max(np.abs(np.angle(
+            np.exp(1j*(zeta[0] - phi_geom))
+        )))),
+        "toroidal_phase_correction_radians_max_abs": float(np.max(np.abs(
+            np.angle(toroidal_shift_map)
+        ))),
         "radial_coordinate": "s_tor",
         "s_map_min": float(s_map[0]),
         "s_map_max": float(s_map[-1]),
