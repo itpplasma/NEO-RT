@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""Regression for explicit NEO-RT-to-POTATO profile and frequency signs."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+import tempfile
+from pathlib import Path
+
+import numpy as np
+
+
+TOOL = Path(__file__).parents[2] / "tools" / "neo_rt_profiles_to_potato.py"
+SPEC = importlib.util.spec_from_file_location("neo_rt_profiles_to_potato", TOOL)
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(MODULE)
+
+
+def main() -> int:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        profile = root / "profile.in"
+        plasma = root / "plasma.in"
+        geometry = root / "components.npz"
+        profile.write_text(
+            "0.0 0.02 1.0e8\n"
+            "0.5 0.03 1.0e8\n"
+            "1.0 0.04 1.0e8\n"
+        )
+        plasma.write_text(
+            "% N am1 am2 Z1 Z2\n"
+            "50 2.0 3.0 1.0 1.0\n"
+            "% s n1 n2 T1 T2 Te\n"
+            "0.0 1.0e14 0.0 1.0e4 1.0 1.2e4\n"
+            "0.5 0.8e14 0.0 0.8e4 1.0 1.0e4\n"
+            "1.0 0.6e14 0.0 0.6e4 1.0 0.8e4\n"
+        )
+        s = np.linspace(0.0, 1.0, 11)
+        np.savez(geometry, s_sqrt_poloidal=np.sqrt(s), s_toroidal=s)
+
+        metadata = {}
+        for sign in (-1, 0, 1):
+            output = root / f"profile_{sign:+d}.in"
+            metadata[sign] = MODULE.convert(
+                profile, plasma, geometry, output, r0_cm=100.0,
+                psi_span_tm2=2.0, relation_sign=sign, degree=3,
+            )
+            if metadata[sign]["selected_ion_index_one_based"] != 1:
+                raise AssertionError("physical ion was not selected by charge and density")
+
+        plus = metadata[1]["potential_statv_edge"]
+        minus = metadata[-1]["potential_statv_edge"]
+        zero = metadata[0]["potential_statv_edge"]
+        if not plus > 0.0 or not np.isclose(minus, -plus) or zero != 0.0:
+            raise AssertionError("potential-gradient relation signs were not preserved")
+        zero_coefficients = np.asarray(
+            MODULE.numeric_rows(root / "profile_+0.in")[3]
+        )
+        if not np.array_equal(zero_coefficients, np.zeros(4)):
+            raise AssertionError("zero-frequency control produced a nonzero potential")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
