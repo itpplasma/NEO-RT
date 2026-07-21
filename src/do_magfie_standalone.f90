@@ -25,6 +25,7 @@ module do_magfie_mod
     integer, protected :: m0b, n0b, nflux, nfp, nmode
 
     real(dp), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
+
     ! Work arrays for booz_to_cyl (size=nmode)
     real(dp), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
 
@@ -57,6 +58,7 @@ module do_magfie_mod
     ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00, psi_pr, R0
 
     ! inp_swi == 10: Boozer chartmap (NetCDF) input via libneo reader.
+    ! inp_swi == 11: direct axisymmetric GEQDSK field in geoflux coordinates.
     ! Shared read-only arrays; populated once by read_boozer_chartmap_file.
     integer :: cm_n_rho = 0, cm_n_theta = 0
     real(dp) :: cm_torflux = 0.0_dp, cm_h_theta = 0.0_dp
@@ -92,6 +94,10 @@ contains
 
         if (inp_swi == 10) then
             call read_boozer_chartmap_file(path)
+            return
+        end if
+        if (inp_swi == 11) then
+            call read_eqdsk_file(path)
             return
         end if
 
@@ -141,7 +147,7 @@ contains
 
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
         if (.not. magfie_arrays_initialized) then
-            if (inp_swi /= 10) then
+            if (inp_swi /= 10 .and. inp_swi /= 11) then
                 if (allocated(B0mnc)) deallocate(B0mnc)
                 if (allocated(dB0dsmnc)) deallocate(dB0dsmnc)
                 allocate(B0mnc(nmode), dB0dsmnc(nmode))
@@ -206,6 +212,10 @@ contains
 
         if (inp_swi == 10) then
             call do_magfie_chartmap(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+            return
+        end if
+        if (inp_swi == 11) then
+            call do_magfie_eqdsk(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
             return
         end if
 
@@ -370,6 +380,107 @@ contains
         hcurl(2) = 0.0_dp
 
     end subroutine do_magfie_chartmap
+
+    subroutine read_eqdsk_file(path)
+        use field_eq_mod, only: reset_field_eq_state, use_fpol, nwindow_r, nwindow_z
+        use geoflux_coordinates, only: init_geoflux_coordinates, geoflux_get_axis, &
+            geoflux_get_flux_profiles, geoflux_to_cyl
+        use input_files, only: gfile, ieqfile
+
+        character(len=*), intent(in) :: path
+        real(dp) :: Z_axis, q0, dq0, psi_pol0, dpsi0, xgeo(3), xcyl(3)
+
+        call reset_field_eq_state()
+        gfile = trim(path)
+        ieqfile = 1
+        use_fpol = .true.
+        nwindow_r = 0
+        nwindow_z = 0
+        call init_geoflux_coordinates(path)
+        call geoflux_get_axis(R0, Z_axis)
+        call geoflux_get_flux_profiles(0.0_dp, q0, dq0, psi_pol0, dpsi0, psi_pr)
+
+        xgeo = [1.0_dp, 0.0_dp, 0.0_dp]
+        call geoflux_to_cyl(xgeo, xcyl)
+        a = abs(xcyl(1) - R0)
+        if (a <= 0.0_dp) error stop 'GEQDSK has no usable minor radius'
+        nfp = 1
+    end subroutine read_eqdsk_file
+
+    subroutine do_magfie_eqdsk(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        use geoflux_coordinates, only: geoflux_to_cyl, geoflux_get_flux_profiles
+        use field_sub, only: field_eq
+
+        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(out) :: bmod, sqrtg
+        real(dp), dimension(size(x)), intent(out) :: bder, hcovar, hctrvr, hcurl
+
+        real(dp) :: xgeo(3), xcyl(3), jac(3, 3), inv_det
+        real(dp) :: bder_cyl(3), hcov_cyl(3), hcon_cyl(3), hcurl_cyl(3)
+        real(dp) :: sqrtg_cyl, psi_pol, dpsi_pol_ds, psi_tor_edge
+        real(dp) :: br, bf, bz, brr, brf, brz, bfr, bff, bfz, bzr, bzf, bzz
+        real(dp) :: hr, hf, hz
+
+        ! libneo geoflux order is (s_tor, theta_geo, phi); NEO-RT uses
+        ! (s_tor, phi, theta).  Both the chart and cylindrical field retain the
+        ! native GEQDSK signs.
+        xgeo = [x(1), x(3), x(2)]
+        call geoflux_to_cyl(xgeo, xcyl, jac)
+        call field_eq(xcyl(1), xcyl(2), xcyl(3), br, bf, bz, &
+            brr, brf, brz, bfr, bff, bfz, bzr, bzf, bzz)
+        bmod = sqrt(br**2 + bf**2 + bz**2)
+        sqrtg_cyl = xcyl(1)
+        hr = br/bmod
+        hf = bf/bmod
+        hz = bz/bmod
+        bder_cyl(1) = (brr*hr + bfr*hf + bzr*hz)/bmod
+        bder_cyl(2) = (brf*hr + bff*hf + bzf*hz)/bmod
+        bder_cyl(3) = (brz*hr + bfz*hf + bzz*hz)/bmod
+        hcov_cyl = [hr, hf*xcyl(1), hz]
+        hcon_cyl = [hr, hf/xcyl(1), hz]
+        hcurl_cyl(1) = ((bzf - xcyl(1)*bfz)/bmod &
+            + hcov_cyl(2)*bder_cyl(3) - hcov_cyl(3)*bder_cyl(2))/sqrtg_cyl
+        hcurl_cyl(2) = ((brz - bzr)/bmod &
+            + hcov_cyl(3)*bder_cyl(1) - hcov_cyl(1)*bder_cyl(3))/sqrtg_cyl
+        hcurl_cyl(3) = ((bf + xcyl(1)*bfr - brf)/bmod &
+            + hcov_cyl(1)*bder_cyl(2) - hcov_cyl(2)*bder_cyl(1))/sqrtg_cyl
+
+        inv_det = 1.0_dp/(jac(1, 1)*jac(3, 2) - jac(1, 2)*jac(3, 1))
+
+        ! Covariant components/derivatives, reordered to (s, phi, theta).
+        bder(1) = jac(1, 1)*bder_cyl(1) + jac(3, 1)*bder_cyl(3)
+        bder(2) = bder_cyl(2)
+        bder(3) = jac(1, 2)*bder_cyl(1) + jac(3, 2)*bder_cyl(3)
+        hcovar(1) = jac(1, 1)*hcov_cyl(1) + jac(3, 1)*hcov_cyl(3)
+        hcovar(2) = hcov_cyl(2)
+        hcovar(3) = jac(1, 2)*hcov_cyl(1) + jac(3, 2)*hcov_cyl(3)
+
+        ! Contravariant vectors use the inverse R-Z Jacobian.
+        hctrvr(1) = (jac(3, 2)*hcon_cyl(1) - jac(1, 2)*hcon_cyl(3))*inv_det
+        hctrvr(2) = hcon_cyl(2)
+        hctrvr(3) = (-jac(3, 1)*hcon_cyl(1) + jac(1, 1)*hcon_cyl(3))*inv_det
+        hcurl(1) = (jac(3, 2)*hcurl_cyl(1) - jac(1, 2)*hcurl_cyl(3))*inv_det
+        hcurl(2) = hcurl_cyl(2)
+        hcurl(3) = (-jac(3, 1)*hcurl_cyl(1) + jac(1, 1)*hcurl_cyl(3))*inv_det
+
+        ! Jacobian for NEO-RT array order (s,phi,theta).  At the outboard
+        ! midplane increasing theta_geo points upward, so this ordering has the
+        ! same orientation as cylindrical (R,phi,Z) and the Jacobian is positive.
+        sqrtg = xcyl(1)/inv_det
+
+        call geoflux_get_flux_profiles(x(1), q, dqds, psi_pol, dpsi_pol_ds, psi_tor_edge)
+        iota = 1.0_dp/q
+        psi_pr = psi_tor_edge*bfac
+        Bthcov = hcovar(3)*bmod*bfac
+        Bphcov = hcovar(2)*bmod*bfac
+        B0h = bmod*bfac
+
+        ! The direct drift path does not consume covariant-field derivatives.
+        dBthcovds = 0.0_dp
+        dBphcovds = 0.0_dp
+
+        bmod = bmod*bfac
+    end subroutine do_magfie_eqdsk
 
     subroutine read_boozer_chartmap_file(path)
         ! Read a Boozer chartmap NetCDF file via libneo's boozer_chartmap_io reader
@@ -543,6 +654,10 @@ module do_magfie_pert_mod
 
     real(dp), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
 
+    integer :: rz_nrad = 0, rz_nzet = 0
+    real(dp), allocatable, protected :: rz_rad(:), rz_zet(:)
+    complex(dp), allocatable, protected :: rz_bamp(:, :)
+
     ! Work arrays (size=nmode)
     real(dp), private, allocatable :: Bmnc(:), Bmns(:)
 
@@ -582,6 +697,11 @@ contains
         ! This should be called ONCE before parallel region
         character(len=*), intent(in) :: path
         integer :: j, k
+
+        if (inp_swi_pert == 11) then
+            call read_rz_pert_file(path)
+            return
+        end if
 
         ncol1 = 5
         if (inp_swi_pert == 8) ncol2 = 4 ! tok_circ
@@ -627,7 +747,7 @@ contains
         end if
 
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
-        if (.not. magfie_pert_arrays_initialized) then
+        if (.not. magfie_pert_arrays_initialized .and. inp_swi_pert /= 11) then
             if (allocated(Bmnc)) deallocate(Bmnc)
             allocate(Bmnc(nmode))
             if (ncol2 >= 8) then
@@ -646,7 +766,11 @@ contains
         s_prev = -1.0_dp
 
         ! Compute mph at current s
-        mph = nint(nfp * modes(1, 1, 2))
+        if (inp_swi_pert == 11) then
+            mph = mph_shared
+        else
+            mph = nint(nfp * modes(1, 1, 2))
+        end if
 
         x(1) = s
         x(2) = 0.0
@@ -678,6 +802,11 @@ contains
 
         real(dp) :: x1
 
+        if (inp_swi_pert == 11) then
+            call rz_pert_amp(x, bamp)
+            return
+        end if
+
         ! safety measure in order not to extrapolate
         x1 = max(params(1, 1), x(1))
         x1 = min(params(nflux, 1), x1)
@@ -697,6 +826,73 @@ contains
 
         s_prev = x1
     end subroutine do_magfie_pert_amp
+
+    subroutine read_rz_pert_file(path)
+        character(len=*), intent(in) :: path
+        real(dp), allocatable :: bamp_re(:, :), bamp_im(:, :)
+        integer :: unit
+
+        open(newunit=unit, file=path, status='old', action='read', form='unformatted')
+        read(unit) rz_nrad, rz_nzet
+        if (rz_nrad < 2 .or. rz_nzet < 2) then
+            error stop 'POTATO R-Z perturbation grid must be at least 2 by 2'
+        end if
+        if (allocated(rz_rad)) deallocate(rz_rad, rz_zet, rz_bamp)
+        allocate(rz_rad(rz_nrad), rz_zet(rz_nzet), rz_bamp(rz_nrad, rz_nzet))
+        allocate(bamp_re(rz_nrad, rz_nzet), bamp_im(rz_nrad, rz_nzet))
+        read(unit) rz_rad, rz_zet
+        read(unit) bamp_re, bamp_im
+        close(unit)
+        if (any(rz_rad(2:) <= rz_rad(:rz_nrad - 1)) .or. &
+            any(rz_zet(2:) <= rz_zet(:rz_nzet - 1))) then
+            error stop 'POTATO R-Z perturbation axes must increase strictly'
+        end if
+        rz_bamp = cmplx(bamp_re, bamp_im, kind=dp)
+        deallocate(bamp_re, bamp_im)
+    end subroutine read_rz_pert_file
+
+    subroutine rz_pert_amp(x, bamp)
+        use geoflux_coordinates, only: geoflux_to_cyl
+
+        real(dp), dimension(:), intent(in) :: x
+        complex(dp), intent(out) :: bamp
+        real(dp) :: xgeo(3), xcyl(3), wr, wz
+        integer :: ir, iz
+
+        xgeo = [x(1), x(3), x(2)]
+        call geoflux_to_cyl(xgeo, xcyl)
+        if (xcyl(1) < rz_rad(1) .or. xcyl(1) > rz_rad(rz_nrad) .or. &
+            xcyl(3) < rz_zet(1) .or. xcyl(3) > rz_zet(rz_nzet)) then
+            bamp = (0.0_dp, 0.0_dp)
+            return
+        end if
+
+        ir = bracket_index(rz_rad, xcyl(1))
+        iz = bracket_index(rz_zet, xcyl(3))
+        wr = (xcyl(1) - rz_rad(ir))/(rz_rad(ir + 1) - rz_rad(ir))
+        wz = (xcyl(3) - rz_zet(iz))/(rz_zet(iz + 1) - rz_zet(iz))
+        bamp = bfac*((1.0_dp - wr)*(1.0_dp - wz)*rz_bamp(ir, iz) &
+            + wr*(1.0_dp - wz)*rz_bamp(ir + 1, iz) &
+            + (1.0_dp - wr)*wz*rz_bamp(ir, iz + 1) &
+            + wr*wz*rz_bamp(ir + 1, iz + 1))
+    end subroutine rz_pert_amp
+
+    pure integer function bracket_index(axis, value) result(index)
+        real(dp), intent(in) :: axis(:), value
+        integer :: low, high, mid
+
+        low = 1
+        high = size(axis)
+        do while (high - low > 1)
+            mid = (low + high)/2
+            if (axis(mid) <= value) then
+                low = mid
+            else
+                high = mid
+            end if
+        end do
+        index = min(size(axis) - 1, max(1, low))
+    end function bracket_index
 
     subroutine do_magfie_pert(x, bmod)
         real(dp), dimension(:), intent(in) :: x

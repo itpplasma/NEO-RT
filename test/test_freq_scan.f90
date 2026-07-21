@@ -19,9 +19,12 @@ program test_freq_scan
   real(dp), parameter :: lambda0 = 0.4_dp       ! v_par/v at the midplane
 
   integer :: i, fid
+  character(len=32) :: input_switch_arg
   real(dp) :: v, eta, Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
 
-  inp_swi = 9          ! ASDEX Upgrade Boozer format
+  inp_swi = 9          ! default: ASDEX Upgrade Boozer format
+  call get_command_argument(1, input_switch_arg)
+  if (len_trim(input_switch_arg) > 0) read(input_switch_arg, *) inp_swi
   magdrift = .true.
   s = smin
   call do_magfie_init("in_file")

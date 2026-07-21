@@ -185,6 +185,7 @@ target_link_libraries(neo_rt PUBLIC
 if(USE_STANDALONE)
     target_link_libraries(neo_rt PUBLIC
         LIBNEO::boozer
+        LIBNEO::magfie
     )
 endif()
 

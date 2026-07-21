@@ -69,8 +69,8 @@ contains
             perturbation_switch = config%inp_swi_pert
         end if
         if (pertfile .and. perturbation_switch /= 8 .and. &
-            perturbation_switch /= 9) then
-            error stop "inp_swi_pert must be 8 or 9 for a perturbation .bc file"
+            perturbation_switch /= 9 .and. perturbation_switch /= 11) then
+            error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
         end if
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
@@ -114,8 +114,9 @@ contains
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         if (inp_swi_pert < 0) inp_swi_pert = inp_swi
-        if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9) then
-            error stop "inp_swi_pert must be 8 or 9 for a perturbation .bc file"
+        if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9 .and. &
+            inp_swi_pert /= 11) then
+            error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
         end if
 
         M_t = M_t * efac / bfac

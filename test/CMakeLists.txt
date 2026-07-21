@@ -36,6 +36,11 @@ add_test(NAME test_chartmap_input
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+add_test(NAME test_eqdsk_axis
+    COMMAND ${CMAKE_BINARY_DIR}/test_eqdsk_axis.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -68,4 +73,8 @@ add_test(NAME test_resonance_bracket
 set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
         "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
+)
+set_tests_properties(test_eqdsk_axis PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk;RZ_PERT_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/bmod_n.dat"
 )
