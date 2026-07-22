@@ -158,6 +158,13 @@ target_link_libraries(potato_coordinate_probe.x
    potato_base
 )
 
+add_executable(potato_drift_probe.x
+   SRC/potato_drift_probe.f90
+)
+target_link_libraries(potato_drift_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_bmod_converter
