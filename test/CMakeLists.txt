@@ -6,6 +6,10 @@ foreach(test_src ${TEST_SOURCES})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
 
+add_executable(probe_neort_perturbation_fourier_kernel.x
+    probe_neort_perturbation_fourier_kernel.f90)
+target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)
+
 add_test(NAME test_timestep
     COMMAND test_timestep.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
