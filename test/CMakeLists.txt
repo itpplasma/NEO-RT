@@ -6,6 +6,12 @@ foreach(test_src ${TEST_SOURCES})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
 
+# Trace-only executable used by the cross-code coordinate-contract audit.  It
+# does not alter NEO-RT physics or I/O behavior and is intentionally not a CTest
+# pass/fail gate: the project-side verifier interprets its native trace.
+add_executable(probe_neort_eqdsk_coordinate.x probe_neort_eqdsk_coordinate.f90)
+target_link_libraries(probe_neort_eqdsk_coordinate.x neo_rt)
+
 add_test(NAME test_timestep
     COMMAND test_timestep.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
