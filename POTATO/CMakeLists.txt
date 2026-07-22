@@ -148,6 +148,16 @@ target_link_libraries(potato_resonance_probe.x
    potato
 )
 
+# Trace-only executable for the cross-code Cartesian coordinate audit.  The
+# project-side verifier supplies points and interprets native output; no
+# production physics, defaults, or file formats are changed here.
+add_executable(potato_coordinate_probe.x
+   SRC/potato_coordinate_probe.f90
+)
+target_link_libraries(potato_coordinate_probe.x
+   potato_base
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_bmod_converter
