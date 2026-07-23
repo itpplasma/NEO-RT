@@ -6,7 +6,8 @@ program potato_resonance_probe
     use bounds_fixpoints_mod, only : region_set_t
     use form_classes_doublecount_mod, only : nclasses, ifuntype, sigma_class, &
         R_class_beg, R_class_end
-    use get_matrix_mod, only : iclass
+    use get_matrix_mod, only : iclass, delphi_max
+    use resonance_mode_bounds_mod, only : resonant_delphi_bound
     use sample_matrix_mod, only : n1, npoi, xarr
     use phielec_of_psi_mod, only : polyphi, polydens, polytemp
     use potato_input_mod, only : read_potato_input, E_alpha, A_alpha, Z_alpha, &
@@ -25,6 +26,7 @@ program potato_resonance_probe
 
     type(region_set_t) :: regions
     integer :: ierr, unit_out
+    integer, dimension(1) :: probe_modes_m, probe_modes_n
     double precision :: psi, dens, temp, ddens, dtemp, phi_elec, dPhi_dpsi
     double precision :: enkin, v0, bmod_ref
 
@@ -44,6 +46,9 @@ program potato_resonance_probe
     call load_profiles
     call find_poicut(rho_pol_max, npoicut)
     call rhopol_boundary(rho_pol)
+    probe_modes_m = probe_m
+    probe_modes_n = probe_n
+    delphi_max = resonant_delphi_bound(probe_modes_m, probe_modes_n)
 
     psi = psi_axis + probe_rho_pol**2*(psi_sep - psi_axis)
     call denstemp_of_psi(psi, dens, temp, ddens, dtemp)
