@@ -79,6 +79,8 @@ def main() -> int:
         if (
             len(surface_errors["relative_l2"]) != s.size
             or not np.all(np.isfinite(surface_errors["relative_l2"]))
+            or len(surface_errors["absolute_l2_tesla"]) != s.size
+            or len(surface_errors["reference_l2_tesla"]) != s.size
         ):
             raise AssertionError("invalid per-surface gridding-error provenance")
 
