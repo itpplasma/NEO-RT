@@ -73,6 +73,14 @@ def main() -> int:
             raise AssertionError("metadata sidecar differs from returned provenance")
         if values.shape != (257, 257) or not np.all(np.isfinite(values)):
             raise AssertionError("invalid POTATO output grid")
+        surface_errors = metadata["gridding_relative_l2_by_surface"]
+        if not np.array_equal(surface_errors["s_tor"], s):
+            raise AssertionError("surface-error provenance lost the mapped radial grid")
+        if (
+            len(surface_errors["relative_l2"]) != s.size
+            or not np.all(np.isfinite(surface_errors["relative_l2"]))
+        ):
+            raise AssertionError("invalid per-surface gridding-error provenance")
 
         # Check the resolved interior surfaces after the R-Z gridding step.
         sample = RegularGridInterpolator((rad, zet), values)
