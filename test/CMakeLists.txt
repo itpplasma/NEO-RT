@@ -19,6 +19,10 @@ add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
 target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)
 
+add_executable(probe_neort_perturbation_nfp.x
+    probe_neort_perturbation_nfp.f90)
+target_link_libraries(probe_neort_perturbation_nfp.x neo_rt)
+
 add_test(NAME test_timestep
     COMMAND test_timestep.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -85,6 +89,10 @@ add_test(NAME test_resonance_bracket
 )
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME test_perturbation_nfp
+    COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_nfp.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 set_tests_properties(test_chartmap_input PROPERTIES
