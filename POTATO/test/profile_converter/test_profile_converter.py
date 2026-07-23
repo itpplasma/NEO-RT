@@ -29,13 +29,17 @@ def main() -> int:
             "0.5 0.03 1.0e8\n"
             "1.0 0.04 1.0e8\n"
         )
+        plasma_grid = np.linspace(0.0, 1.0, 239)
         plasma.write_text(
             "% N am1 am2 Z1 Z2\n"
-            "50 2.0 3.0 1.0 1.0\n"
+            f"{plasma_grid.size} 2.0 3.0 1.0 1.0\n"
             "% s n1 n2 T1 T2 Te\n"
-            "0.0 1.0e14 0.0 1.0e4 1.0 1.2e4\n"
-            "0.5 0.8e14 0.0 0.8e4 1.0 1.0e4\n"
-            "1.0 0.6e14 0.0 0.6e4 1.0 0.8e4\n"
+            + "".join(
+                f"{s:.16e} {(1.0-0.4*s)*1.0e14:.16e} 0.0 "
+                f"{(1.0-0.4*s)*1.0e4:.16e} 1.0 "
+                f"{(1.2-0.4*s)*1.0e4:.16e}\n"
+                for s in plasma_grid
+            )
         )
         s = np.linspace(0.0, 1.0, 11)
         np.savez(geometry, s_sqrt_poloidal=np.sqrt(s), s_toroidal=s)
@@ -49,6 +53,8 @@ def main() -> int:
             )
             if metadata[sign]["selected_ion_index_one_based"] != 1:
                 raise AssertionError("physical ion was not selected by charge and density")
+            if metadata[sign]["plasma_grid_count"] != 239:
+                raise AssertionError("non-default NEO-RT grid count was not preserved")
 
         plus = metadata[1]["potential_statv_edge"]
         minus = metadata[-1]["potential_statv_edge"]
@@ -60,6 +66,19 @@ def main() -> int:
         )
         if not np.array_equal(zero_coefficients, np.zeros(4)):
             raise AssertionError("zero-frequency control produced a nonzero potential")
+
+        truncated = root / "plasma_truncated.in"
+        truncated.write_text("\n".join(plasma.read_text().splitlines()[:-1]) + "\n")
+        try:
+            MODULE.convert(
+                profile, truncated, geometry, root / "invalid.in",
+                r0_cm=100.0, psi_span_tm2=2.0, relation_sign=1, degree=3,
+            )
+        except ValueError as error:
+            if "declares 239 rows, found 238" not in str(error):
+                raise
+        else:
+            raise AssertionError("truncated NEO-RT plasma grid was accepted")
     return 0
 
 

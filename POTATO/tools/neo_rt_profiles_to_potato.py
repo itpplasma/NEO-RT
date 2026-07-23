@@ -57,10 +57,19 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
     if rotation.shape[1] < 3 or len(plasma_rows) < 2:
         raise ValueError("truncated NEO-RT profile input")
     species = np.asarray(plasma_rows[0], dtype=float)
-    if int(round(species[0])) != 50 or species.size < 5:
+    if species.size < 5:
         raise ValueError("expected the NEO-RT two-ion header with leading grid count")
+    grid_count = int(round(species[0]))
+    if grid_count <= 1 or not np.isclose(species[0], grid_count):
+        raise ValueError(f"invalid NEO-RT plasma grid count {species[0]}")
     charges = species[3:5]
     data = np.asarray(plasma_rows[1:], dtype=float)
+    if data.shape[0] != grid_count:
+        raise ValueError(
+            f"NEO-RT plasma header declares {grid_count} rows, found {data.shape[0]}"
+        )
+    if data.shape[1] < 6:
+        raise ValueError("expected s, two densities, two ion temperatures, and Te")
     candidates = [index for index, charge in enumerate(charges)
                   if charge > 0.0 and np.any(data[:, 1+index] > 0.0)]
     if len(candidates) != 1:
@@ -109,6 +118,7 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
         "output": {"path": str(output), "sha256": sha256(output)},
         "input_abscissa": "s_tor",
         "output_abscissa": "s_pol=rho_pol^2",
+        "plasma_grid_count": grid_count,
         "selected_ion_index_one_based": ion + 1,
         "selected_ion_charge": float(charges[ion]),
         "r0_cm": r0_cm,
