@@ -122,6 +122,16 @@ add_test(NAME test_potato_invariants
    COMMAND test_potato_invariants.x
 )
 
+add_executable(test_matrix_callback_status.x
+   SRC/test_matrix_callback_status.f90
+)
+target_link_libraries(test_matrix_callback_status.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_matrix_callback_status
+   COMMAND test_matrix_callback_status.x
+)
+
 add_executable(test_wall_profile.x
    SRC/test_wall_profile.f90
 )

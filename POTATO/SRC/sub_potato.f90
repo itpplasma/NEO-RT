@@ -2638,6 +2638,9 @@
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
+  use matrix_callback_status_mod, only : matrix_callback_starter_failed, &
+      matrix_callback_bounce_failed, set_matrix_callback_error, &
+      orbit_attempted, orbit_failed
 !
   implicit none
 !
@@ -2650,6 +2653,8 @@
 !
   external :: velo,velo_pphint
 !
+  orbit_attempted=orbit_attempted+1
+  amat=(0.d0,0.d0)
   sigma=sigma_class(iclass)
   delta_R=R_class_end(iclass)-R_class_beg(iclass)
 !
@@ -2662,6 +2667,8 @@
 !
   if(ierr.ne.0) then
     print *,'get_matrix: error in starter'
+    orbit_failed=orbit_failed+1
+    call set_matrix_callback_error(matrix_callback_starter_failed)
     return
   endif
 !
@@ -2672,12 +2679,26 @@
     if(fullbounce) then
 !
       call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-      if(ierr.ne.0) return
+      if(ierr.ne.0) then
+        orbit_failed=orbit_failed+1
+        call set_matrix_callback_error(matrix_callback_bounce_failed)
+        return
+      endif
 !
     else
 !
       call first_return_map(sigma,Rst,sigma,Rst,taub,delphi,ierr)
+      if(ierr.ne.0) then
+        orbit_failed=orbit_failed+1
+        call set_matrix_callback_error(matrix_callback_bounce_failed)
+        return
+      endif
       call first_return_map(sigma,Rst,sigma,Rst,tau_fr,dphi_fr,ierr)
+      if(ierr.ne.0) then
+        orbit_failed=orbit_failed+1
+        call set_matrix_callback_error(matrix_callback_bounce_failed)
+        return
+      endif
 !
       taub=taub+tau_fr
       delphi=delphi+dphi_fr
@@ -2686,7 +2707,11 @@
     extraset=0.d0
 !
     call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) return
+    if(ierr.ne.0) then
+      orbit_failed=orbit_failed+1
+      call set_matrix_callback_error(matrix_callback_bounce_failed)
+      return
+    endif
 !
   endif
 !
@@ -2716,6 +2741,8 @@
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
+  use matrix_callback_status_mod, only : matrix_callback_error, &
+      matrix_callback_ok
 !
   implicit none
 !
@@ -2748,6 +2775,10 @@
   if(delphi_max.gt.0.d0) call bound_class_delphi(ifuntype(iclass),xbeg,xend)
 !
   call bound_class_wall(xbeg,xend)
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
 !
   eps=relerror
 !

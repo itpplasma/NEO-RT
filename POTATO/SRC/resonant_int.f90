@@ -95,7 +95,7 @@ end subroutine velo_res
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine pertham(z,absHn2)
+subroutine pertham(z,absHn2,ierr_out)
     !
     ! Computes modulus squared of the Fourier amplitude of the normalized perturbed
     ! Hamiltoninan, $|\hat H_\bm|^2$, with $\hat H_\bm$ defined by Eq.(102) (former Eq.(93)).
@@ -103,19 +103,22 @@ subroutine pertham(z,absHn2)
     use orbit_dim_mod,     only : neqm,next     ,write_orb,iunit1
     use global_invariants, only : dtau
     use resint_mod,        only : taub_new,delphi_new,toten_orb,perpinv_orb
+    use matrix_callback_status_mod, only : matrix_callback_bounce_failed, &
+        set_matrix_callback_error, orbit_attempted, orbit_failed
     !
     !
     implicit none
     !
     complex(8), parameter :: imun=(0.d0,1.d0)
     !
-    integer :: ierr
+    integer :: ierr,ierr_out
     double precision :: absHn2,bmod,phi_elec,taub,delphi
     double precision, dimension(neqm) :: z
     double precision, dimension(:), allocatable :: extraset
     !
     external :: velo,velo_res
     !
+    ierr_out=0
     call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
     !
     toten_orb=z(4)**2+phi_elec
@@ -124,9 +127,13 @@ subroutine pertham(z,absHn2)
     next=0
     allocate(extraset(next))
     !
+    orbit_attempted=orbit_attempted+1
     call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
     if(ierr.ne.0) then
         absHn2 = 0.d0
+        ierr_out=ierr
+        orbit_failed=orbit_failed+1
+        call set_matrix_callback_error(matrix_callback_bounce_failed)
         deallocate(extraset)
         return
     endif
@@ -139,9 +146,13 @@ subroutine pertham(z,absHn2)
     allocate(extraset(next))
     extraset=0.d0
     !
+    orbit_attempted=orbit_attempted+1
     call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset,ierr)
     if(ierr.ne.0) then
         absHn2 = 0.d0
+        ierr_out=ierr
+        orbit_failed=orbit_failed+1
+        call set_matrix_callback_error(matrix_callback_bounce_failed)
         deallocate(extraset)
         return
     endif
@@ -173,6 +184,13 @@ subroutine integrate_class_resonances
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_axis,psi_sep
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
+    use matrix_callback_status_mod, only : &
+        matrix_callback_resonance_search_failed, &
+        matrix_callback_resonance_orbit_failed, &
+        matrix_callback_nonfinite_weight, set_matrix_callback_error, &
+        resonance_search_attempted, resonance_search_failed, &
+        resonance_root_attempted, resonance_root_succeeded, &
+        resonance_root_failed, resonance_root_zeroed
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
     implicit none
@@ -186,6 +204,7 @@ subroutine integrate_class_resonances
     double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
     double precision :: bmod_st,phi_elec_st
     double precision :: fmaxw,A1ast,A2ast
+    logical :: outside_lcfs
     double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
     double precision, dimension(neqm) :: z
     !
@@ -227,9 +246,13 @@ subroutine integrate_class_resonances
         rm3=dble(narr(mode))
         delint_mode(mode)=0.d0
         !
+        resonance_search_attempted=resonance_search_attempted+1
         call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
+            resonance_search_failed=resonance_search_failed+1
+            call set_matrix_callback_error( &
+                matrix_callback_resonance_search_failed)
             !$omp critical (reslines_log)
             call tee_message( &
                 'integrate_class_resonances: error in find_all_roots')
@@ -250,6 +273,7 @@ subroutine integrate_class_resonances
         !
         do iroot=1,nroots
             !
+            resonance_root_attempted=resonance_root_attempted+1
             call get_rescond(roots(iroot),rescond,dresconddx)
             call xi_func(ifuntype(iclass),roots(iroot),xi,dxi_dx)
             !
@@ -259,6 +283,9 @@ subroutine integrate_class_resonances
                 psiast_res,dpsiast_dRst,z,ierr)
             !
             if(ierr.ne.0) then
+                resonance_root_failed=resonance_root_failed+1
+                call set_matrix_callback_error( &
+                    matrix_callback_resonance_orbit_failed)
                 !$omp critical (reslines_log)
                 call tee_message( &
                     'integrate_class_resonances: error in starter_doublecount')
@@ -288,14 +315,21 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            if(canonical_flux_outside_lcfs(psiast_res,psi_axis,psi_sep)) then
+            outside_lcfs=canonical_flux_outside_lcfs( &
+                psiast_res,psi_axis,psi_sep)
+            if(outside_lcfs) then
                 ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
                 ! so pertham/find_bounce cannot close it and would only grind to
                 ! the integrator cap before returning zero.  It is also outside
                 ! the comparison domain, so weight it zero without the integration.
                 absHn2=0.d0
+                resonance_root_zeroed=resonance_root_zeroed+1
             else
-                call pertham(z,absHn2)
+                call pertham(z,absHn2,ierr)
+                if(ierr.ne.0) then
+                    resonance_root_failed=resonance_root_failed+1
+                    cycle
+                endif
             endif
             call equilmaxw(psiast_res,fmaxw)
             call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
@@ -327,11 +361,21 @@ subroutine integrate_class_resonances
             ! dpsiastdx/dresconddx; for a wall-crossing resonance absHn2=0, so the
             ! product is Inf*0 = NaN.  Such a degenerate resonance carries no
             ! physical weight -- zero it so one bad root cannot poison the torque.
-            if (.not. ieee_is_finite(one_res)) one_res=0.d0
+            if (.not. ieee_is_finite(one_res)) then
+                if(outside_lcfs .and. absHn2.eq.0.d0) then
+                    one_res=0.d0
+                else
+                    resonance_root_failed=resonance_root_failed+1
+                    call set_matrix_callback_error( &
+                        matrix_callback_nonfinite_weight)
+                    cycle
+                endif
+            endif
             !
             respoints_jp(mode,iclass)%w_res(iroot)=one_res
             respoints_jp(mode,iclass)%taub(iroot)=taub_res
             delint_mode(mode)=delint_mode(mode)+one_res
+            resonance_root_succeeded=resonance_root_succeeded+1
         enddo
     enddo
     !$omp end do
@@ -378,7 +422,8 @@ subroutine get_matrix_res
     !
     use sample_matrix_out_mod,        only : n1,n2,x,amat,icount
     use global_invariants,            only : toten,perpinv
-    use form_classes_doublecount_mod, only : nclasses
+    use form_classes_doublecount_mod, only : nclasses,ifuntype, &
+        R_class_beg,R_class_end
     use get_matrix_mod,               only : iclass
     use resint_mod,                   only : nmodes,nperp_max,respoints_jp, &
         respoints_all,respoints_all_tmp
@@ -386,6 +431,11 @@ subroutine get_matrix_res
     use orbit_dim_mod,                only : write_orb
     use logging_mod,                  only : tee_message, close_logging
     use bounds_fixpoints_mod,         only : region_set_t
+    use matrix_callback_status_mod,   only : matrix_callback_error, &
+        matrix_callback_ok, matrix_callback_bounds_failed, &
+        matrix_callback_classes_failed, matrix_callback_class_sampling_failed, &
+        set_matrix_callback_error, jperp_attempted, jperp_succeeded, &
+        jperp_failed, class_attempted, class_succeeded, class_failed
     !
     logical :: classes_talk
     !
@@ -398,7 +448,9 @@ subroutine get_matrix_res
     write_orb=.false.
     classes_talk=.false.
     !
+    jperp_attempted=jperp_attempted+1
     perpinv=x
+    amat=0.d0
     !
     call find_bounds_fixpoints(regions,ierr)
     !
@@ -406,8 +458,9 @@ subroutine get_matrix_res
         write(msg, '(A,I0)') &
             'get_matrix_res: find_bounds_fixpoints ierr = ', ierr
         call tee_message(trim(msg))
-        call close_logging()
-        stop
+        call set_matrix_callback_error(matrix_callback_bounds_failed)
+        jperp_failed=jperp_failed+1
+        return
     endif
     !
     call form_classes_doublecount(regions,classes_talk,ierr)
@@ -416,8 +469,9 @@ subroutine get_matrix_res
         write(msg, '(A,I0)') &
             'get_matrix_res: form_classes ierr = ', ierr
         call tee_message(trim(msg))
-        call close_logging()
-        stop
+        call set_matrix_callback_error(matrix_callback_classes_failed)
+        jperp_failed=jperp_failed+1
+        return
     endif
     !
     allocate(respoints_jp(nmodes,nclasses))
@@ -425,11 +479,18 @@ subroutine get_matrix_res
     !
     do iclass=1,nclasses
         !
+        class_attempted=class_attempted+1
         call sample_class_doublecount(1,ierr)
         !
         if(ierr.eq.0) then
             !
             call integrate_class_resonances
+            if(matrix_callback_error.ne.matrix_callback_ok) then
+                class_failed=class_failed+1
+                jperp_failed=jperp_failed+1
+                if(allocated(respoints_jp)) deallocate(respoints_jp)
+                return
+            endif
             !
             do mode=1,nmodes
                 ! amat(:,1) - sum over classes and resonances within each class:
@@ -437,15 +498,26 @@ subroutine get_matrix_res
                     amat(mode,1)=amat(mode,1)+sum(respoints_jp(mode,iclass)%w_res)
                 endif
             enddo
+            class_succeeded=class_succeeded+1
         else
-            write(msg, '(A,I0)') &
-                'get_matrix_res: sample_class_doublecount error ', ierr
+            write(msg, '(A,I0,A,I0,A,I0,A,ES14.6,A,ES14.6,A,ES14.6)') &
+                'get_matrix_res: sample_class error=', ierr, &
+                ' class=',iclass,' type=',ifuntype(iclass), &
+                ' toten=',toten,' perpinv=',perpinv, &
+                ' R_beg=',R_class_beg(iclass)
             call tee_message(trim(msg))
-            do mode=1,nmodes
-                respoints_jp(mode,iclass)%nrespoi=0
-                respoints_jp(mode,iclass)%toten_res=toten
-                respoints_jp(mode,iclass)%perpinv_res=perpinv
-            enddo
+            write(msg, '(A,ES14.6,A,I0)') &
+                'get_matrix_res: failed class R_end=',R_class_end(iclass), &
+                ' nclasses=',nclasses
+            call tee_message(trim(msg))
+            class_failed=class_failed+1
+            jperp_failed=jperp_failed+1
+            if(matrix_callback_error.eq.matrix_callback_ok) then
+                call set_matrix_callback_error( &
+                    matrix_callback_class_sampling_failed)
+            endif
+            if(allocated(respoints_jp)) deallocate(respoints_jp)
+            return
         endif
     enddo
     !
@@ -469,6 +541,7 @@ subroutine get_matrix_res
     allocate(respoints_all(icount)%respoints_jp(nmodes,nclasses))
     respoints_all(icount)%respoints_jp=respoints_jp
     deallocate(respoints_jp)
+    jperp_succeeded=jperp_succeeded+1
     !print *,icount  !uncomment to see some life
     !
 end subroutine get_matrix_res
@@ -498,11 +571,19 @@ subroutine resonant_torque
         adaptive_jperp, npoi_init, nlagr_sampling, &
         eps_sampling, itermax_sampling
     use logging_mod,       only : tee_message
+    use matrix_callback_status_mod, only : matrix_callback_error, &
+        matrix_callback_ok, reset_torque_completeness, &
+        jperp_attempted,jperp_succeeded,jperp_failed, &
+        class_attempted,class_succeeded,class_failed, &
+        orbit_attempted,orbit_failed,resonance_search_attempted, &
+        resonance_search_failed,resonance_root_attempted, &
+        resonance_root_succeeded,resonance_root_failed,resonance_root_zeroed
     !$ use omp_lib, only : omp_set_max_active_levels, omp_set_num_threads
 
     implicit none
     !
     double precision, parameter :: pi=3.14159265358979d0
+    integer, parameter :: ncompleteness=14
     integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
     integer :: omp_threads_env_len
     integer :: nrespoints,unit1901,unit1902,ienerg_begin
@@ -524,6 +605,8 @@ subroutine resonant_torque
     double precision, dimension(:), allocatable :: torque_int_energy
     double precision, dimension(:,:), allocatable :: torque_int_modes_energy
     double precision, dimension(:,:), allocatable :: torquebox_energy
+    integer, dimension(:), allocatable :: energy_status
+    integer, dimension(:,:), allocatable :: completeness_counts
     ! Per-resonance-point box times, filled by the parallel time_in_box pass and
     ! consumed by the serial accumulate/write pass below.
     double precision, dimension(:,:), allocatable :: taubox_all
@@ -589,10 +672,13 @@ subroutine resonant_torque
     allocate(torque_int_modes(nmodes))
     torque_int_modes=0.d0
     allocate(torque_int_energy(nenerg),torque_int_modes_energy(nmodes,nenerg), &
-        torquebox_energy(nbox,nenerg))
+        torquebox_energy(nbox,nenerg),energy_status(nenerg), &
+        completeness_counts(ncompleteness,nenerg))
     torque_int_energy=0.d0
     torque_int_modes_energy=0.d0
     torquebox_energy=0.d0
+    energy_status=-1
+    completeness_counts=0
     !
     torquebox=0.d0
     !
@@ -609,6 +695,8 @@ subroutine resonant_torque
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   copyin(dtau)
     do ienerg=ienerg_begin,nenerg
+        call reset_torque_completeness
+        ierr=0
         xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
         toten=toten_min+toten_range*xenerg
         ! size of result matrix in get_matrix_res:
@@ -649,6 +737,22 @@ subroutine resonant_torque
             ! Generate J_perp grid with function values:
             !
             call sample_matrix_out(get_matrix_res,ierr)
+            if(ierr.ne.0) then
+                write(msg, '(A,I0,A,I0)') &
+                    'FATAL: incomplete energy slice ', ienerg, &
+                    ', callback/status = ', ierr
+                call tee_message(trim(msg))
+                call snapshot_completeness(ienerg,ierr)
+                if(allocated(respoints_jp)) deallocate(respoints_jp)
+                if(allocated(respoints_all)) deallocate(respoints_all)
+                if(allocated(respoints_all_tmp)) deallocate(respoints_all_tmp)
+                close(resline_unit)
+                close(resline_diag_unit)
+                close(unit1901)
+                close(unit1902)
+                deallocate(torque_int_modes_loc,torquebox_loc)
+                cycle
+            endif
             !
             allocate(respoints_all_tmp(npoi))
             !
@@ -801,6 +905,10 @@ subroutine resonant_torque
                 x=perpinv_max*(1.d0-xjperp**2)
                 !
                 call get_matrix_res
+                if(matrix_callback_error.ne.matrix_callback_ok) then
+                    ierr=matrix_callback_error
+                    exit
+                endif
                 !
                 torque_int_loc=torque_int_loc &
                     +perpinv_max*trapez_fac*sum(amat(:,1))*step_energ
@@ -816,12 +924,28 @@ subroutine resonant_torque
             torque_int_energy(ienerg)=torque_int_loc
             torque_int_modes_energy(:,ienerg)=torque_int_modes_loc
         endif
+        if(ierr.ne.0) then
+            write(msg, '(A,I0,A,I0)') &
+                'FATAL: incomplete energy slice ', ienerg, &
+                ', callback/status = ', ierr
+            call tee_message(trim(msg))
+            call snapshot_completeness(ienerg,ierr)
+            if(allocated(respoints_jp)) deallocate(respoints_jp)
+            if(allocated(respoints_all)) deallocate(respoints_all)
+            if(allocated(respoints_all_tmp)) deallocate(respoints_all_tmp)
+            close(resline_unit)
+            close(resline_diag_unit)
+            close(unit1902)
+            deallocate(torque_int_modes_loc,torquebox_loc)
+            cycle
+        endif
         !
         call cpu_time(time_end)
         write(msg, '(A,I0,A,I0,A,F10.2,A)') &
             ' toten:', ienerg, '/', nenerg, &
             ' cpu time = ', time_end-time_beg, ' sec'
         call tee_message(trim(msg))
+        call snapshot_completeness(ienerg,0)
         !
         close(resline_unit)
         close(resline_diag_unit)
@@ -831,6 +955,10 @@ subroutine resonant_torque
         !
     enddo
     !$omp end parallel do
+    call write_completeness
+    if(any(energy_status(ienerg_begin:nenerg).ne.0)) then
+        error stop 'resonant_torque: incomplete energy slice; torque rejected'
+    endif
     !
     torque_int=0.d0
     torque_int_modes=0.d0
@@ -873,6 +1001,41 @@ subroutine resonant_torque
     endif
     !
 contains
+    !
+    subroutine snapshot_completeness(idx,status)
+        !
+        implicit none
+        integer, intent(in) :: idx,status
+        !
+        energy_status(idx)=status
+        completeness_counts(:,idx)=[jperp_attempted,jperp_succeeded,jperp_failed, &
+            class_attempted,class_succeeded,class_failed,orbit_attempted, &
+            orbit_failed,resonance_search_attempted,resonance_search_failed, &
+            resonance_root_attempted,resonance_root_succeeded, &
+            resonance_root_failed,resonance_root_zeroed]
+        !
+    end subroutine snapshot_completeness
+    !
+    subroutine write_completeness
+        !
+        implicit none
+        integer :: idx,unit_complete
+        !
+        open(newunit=unit_complete,file='potato_completeness.dat', &
+            status='replace',action='write')
+        write(unit_complete,'(A)') &
+            '# energy_index status jperp_attempted jperp_succeeded jperp_failed ' // &
+            'class_attempted class_succeeded class_failed orbit_attempted ' // &
+            'orbit_failed resonance_search_attempted resonance_search_failed ' // &
+            'resonance_root_attempted resonance_root_succeeded ' // &
+            'resonance_root_failed resonance_root_explicit_SOL_zero'
+        do idx=ienerg_begin,nenerg
+            write(unit_complete,'(*(I0,1X))') idx,energy_status(idx), &
+                completeness_counts(:,idx)
+        enddo
+        close(unit_complete)
+        !
+    end subroutine write_completeness
     !
     subroutine energy_path(prefix, idx, path)
         !

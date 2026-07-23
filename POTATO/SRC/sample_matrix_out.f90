@@ -39,6 +39,8 @@
 ! amat_arr(n1,n2,npoi) (out)   - matrix function on the refined grid
 !
   USE sample_matrix_out_mod
+  USE matrix_callback_status_mod, ONLY : matrix_callback_error, &
+      matrix_callback_ok, reset_matrix_callback_error
 !
   IMPLICIT NONE
 !
@@ -56,6 +58,7 @@
   external :: get_matrix
 !
   ierr=0
+  call reset_matrix_callback_error
 !
   npoilag=nlagr+1
   nshift=nlagr/2
@@ -75,12 +78,20 @@
 !
   x=xbeg
   CALL get_matrix
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
   xarr(1)=x
   amat_arr(:,:,1)=amat
   ind_hist(1)=icount
 !
   x=xend
   CALL get_matrix
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
   xarr(npoi)=x
   amat_arr(:,:,npoi)=amat
   ind_hist(npoi)=icount
@@ -92,6 +103,10 @@
   DO i=2,npoi-1
     x=xarr(i)
     CALL get_matrix
+    if(matrix_callback_error.ne.matrix_callback_ok) then
+      ierr=matrix_callback_error
+      return
+    endif
     amat_arr(:,:,i)=amat
     ind_hist(i)=icount
   ENDDO
@@ -166,6 +181,10 @@
         inew=inew+1
         x=0.5d0*(xold(iold)+xold(iold+1))
         CALL get_matrix
+        if(matrix_callback_error.ne.matrix_callback_ok) then
+          ierr=matrix_callback_error
+          return
+        endif
         xarr(inew)=x
         amat_arr(:,:,inew)=amat
         ind_hist(inew)=icount
