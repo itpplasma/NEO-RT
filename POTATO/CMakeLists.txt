@@ -165,6 +165,13 @@ target_link_libraries(potato_drift_probe.x
    "$<LINK_GROUP:RESCAN,potato,potato_base>"
 )
 
+add_executable(potato_profile_serializer_probe.x
+   SRC/potato_profile_serializer_probe.f90
+)
+target_link_libraries(potato_profile_serializer_probe.x
+   potato
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_bmod_converter
