@@ -12,6 +12,8 @@ import numpy as np
 from numpy.polynomial import Polynomial
 
 C_CGS = 2.99792458e10
+EV_CGS = 1.602176e-12
+AMU_CGS = 1.660538e-24
 
 
 def sha256(path: Path) -> str:
@@ -54,7 +56,7 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
 
     rotation = np.asarray(numeric_rows(profile), dtype=float)
     plasma_rows = numeric_rows(plasma)
-    if rotation.shape[1] < 3 or len(plasma_rows) < 2:
+    if rotation.shape[1] < 2 or len(plasma_rows) < 2:
         raise ValueError("truncated NEO-RT profile input")
     species = np.asarray(plasma_rows[0], dtype=float)
     if species.size < 5:
@@ -62,6 +64,7 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
     grid_count = int(round(species[0]))
     if grid_count <= 1 or not np.isclose(species[0], grid_count):
         raise ValueError(f"invalid NEO-RT plasma grid count {species[0]}")
+    masses = species[1:3]
     charges = species[3:5]
     data = np.asarray(plasma_rows[1:], dtype=float)
     if data.shape[0] != grid_count:
@@ -87,7 +90,20 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
     density = np.interp(s_tor, data[:, 0], data[:, 1+ion])
     temperature_ev = np.interp(s_tor, data[:, 0], data[:, 3+ion])
     mach = np.interp(s_tor, rotation[:, 0], rotation[:, 1])
-    vth_cm_s = np.interp(s_tor, rotation[:, 0], rotation[:, 2])
+    vth_cm_s = np.sqrt(
+        2.0*temperature_ev*EV_CGS/(masses[ion]*AMU_CGS)
+    )
+    supplied_vth_relative_error = None
+    if rotation.shape[1] >= 3:
+        supplied_vth = np.interp(s_tor, rotation[:, 0], rotation[:, 2])
+        supplied_vth_relative_error = float(
+            np.max(np.abs(supplied_vth/vth_cm_s-1.0))
+        )
+        if supplied_vth_relative_error > 1.0e-5:
+            raise ValueError(
+                "profile vth column disagrees with charge-selected plasma "
+                f"temperature and mass by {supplied_vth_relative_error:.3e}"
+            )
     omega_e_s = mach*vth_cm_s/r0_cm
 
     # Phi is statvolt and psi_pol is gauss cm^2. The sign is explicit because
@@ -120,7 +136,12 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
         "output_abscissa": "s_pol=rho_pol^2",
         "plasma_grid_count": grid_count,
         "selected_ion_index_one_based": ion + 1,
+        "selected_ion_mass_amu": float(masses[ion]),
         "selected_ion_charge": float(charges[ion]),
+        "thermal_speed_source": (
+            "sqrt(2*Ti_eV*eV_cgs/(mass_amu*amu_cgs)) from plasma.in"
+        ),
+        "optional_profile_vth_max_relative_error": supplied_vth_relative_error,
         "r0_cm": r0_cm,
         "psi_pol_span_tm2": psi_span_tm2,
         "potential_relation": "dPhi/dpsi_pol = relation_sign*Omega_E/c",
