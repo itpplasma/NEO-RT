@@ -738,6 +738,11 @@ subroutine resonant_torque
             !
             call sample_matrix_out(get_matrix_res,ierr)
             if(ierr.ne.0) then
+                write(unit1902, '(A)') &
+                    '# rejected partial J_perp grid: perpinv mode_integrands'
+                do i=1,npoi
+                    write(unit1902,*) xarr(i),amat_arr(:,1,i)
+                enddo
                 write(msg, '(A,I0,A,I0)') &
                     'FATAL: incomplete energy slice ', ienerg, &
                     ', callback/status = ', ierr
