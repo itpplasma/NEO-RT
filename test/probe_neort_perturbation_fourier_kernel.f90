@@ -30,6 +30,9 @@ program probe_neort_perturbation_fourier_kernel
         'theta', theta, 'phi_ccw', phi, 'amplitude_real_g', real(amplitude_g), &
         'amplitude_imag_g', aimag(amplitude_g), 'full_field_g', full_field_g, &
         'expected_plus_n_g', expected_g, 'wrong_minus_n_g', wrong_sign_g
+    if (abs(full_field_g - expected_g) > 1.0e-12_dp) then
+        error stop 'full perturbation field double-counts Fourier rows'
+    end if
 
 contains
 
