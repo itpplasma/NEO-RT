@@ -188,6 +188,13 @@ target_link_libraries(potato_hamiltonian_probe.x
    "$<LINK_GROUP:RESCAN,potato,potato_base>"
 )
 
+add_executable(potato_poicut_probe.x
+   SRC/potato_poicut_probe.f90
+)
+target_link_libraries(potato_poicut_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_bmod_converter
@@ -226,4 +233,11 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 240
     )
+    add_test(NAME potato_poicut_translation
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/poicut_translation/test_poicut_translation.py
+            $<TARGET_FILE:potato_poicut_probe.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+    )
+    set_tests_properties(potato_poicut_translation PROPERTIES TIMEOUT 150)
 endif()

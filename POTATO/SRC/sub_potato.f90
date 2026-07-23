@@ -721,85 +721,171 @@
 ! used as a Poincare cut.
 !
   use field_sub, only : psif,dpsidr,dpsidz
-  use field_eq_mod, only : psi_axis,psi_sep,rtf
+  use field_eq_mod, only : psi_axis,psi_sep,rtf,psi,rad,zet
   use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 !
   implicit none
 !
   integer, parameter :: nsplit=100,niter=100
   double precision, parameter :: relerr=1d-12
   integer :: i,j,npline
-  double precision :: rho_pol,psils,sigpsi
+  integer, dimension(2) :: axis_seed_index
+  logical :: bracketed,converged
+  double precision :: rho_pol,psils
   double precision :: h_R,det,delR,delZ,stepfac,err_dist,stepmod
   double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz
-  double precision :: Rb,Zb,Re,Ze
+  double precision :: Raxis_seed,Zaxis_seed,Rb,Zb,Re,Ze
 !
+  if(rho_pol.le.0.d0 .or. rho_pol.ge.1.d0) then
+    error stop 'find_poicut: rho_pol must lie strictly between zero and one'
+  endif
+  if(npline.lt.4) then
+    error stop 'find_poicut: at least four interpolation points are required'
+  endif
+  if(allocated(rpc_arr)) deallocate(rpc_arr)
+  if(allocated(zpc_arr)) deallocate(zpc_arr)
   npc=npline
   allocate(rpc_arr(0:npc),zpc_arr(0:npc))
 !
-!
+! Trigger the lazy equilibrium reader. The evaluation is discarded; field_eq
+! clamps it to the loaded rectangular grid. Only after this call are psi, rad,
+! and zet available, so no physical seed may be chosen before it.
   R=1.d0
   Z=0.d0
 !
   call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
+  if(.not.allocated(psi) .or. .not.allocated(rad) .or. .not.allocated(zet)) then
+    error stop 'find_poicut: equilibrium grid initialization failed'
+  endif
+  if(size(rad).lt.2 .or. size(zet).lt.2) then
+    error stop 'find_poicut: equilibrium grid is too small'
+  endif
   err_dist=rtf*relerr
-  h_R=rtf/dble(nsplit)
-  sigpsi=sign(1.d0,psi_sep-psi_axis)
   psils=psi_axis+rho_pol**2*(psi_sep-psi_axis)
-  R=rtf
+  axis_seed_index=minloc(abs(psi-psi_axis))
+  Raxis_seed=rad(axis_seed_index(1))
+  Zaxis_seed=zet(axis_seed_index(2))
+  if(.not.ieee_is_finite(Raxis_seed) .or. &
+     .not.ieee_is_finite(Zaxis_seed)) then
+    error stop 'find_poicut: magnetic-axis grid seed is not finite'
+  endif
+  R=Raxis_seed
+  Z=Zaxis_seed
+  h_R=(Raxis_seed-rad(1))/dble(nsplit)
+  if(h_R.le.0.d0) then
+    error stop 'find_poicut: magnetic-axis seed is not inside radial grid'
+  endif
 !
-  do i=2,nsplit
+  bracketed=.false.
+  do i=1,nsplit
     R=R-h_R
 !
     call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
-    if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) exit
+    if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) then
+      bracketed=.true.
+      exit
+    endif
   enddo
+  if(.not.bracketed) then
+    error stop 'find_poicut: HFS target surface was not bracketed'
+  endif
 !
+  converged=.false.
   do i=1,niter
 !
     call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
     det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
+    if(.not.ieee_is_finite(det) .or. abs(det).le.tiny(1.d0)) then
+      error stop 'find_poicut: singular HFS endpoint Newton system'
+    endif
     delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
     delZ=(dpsidr*gpgb-(psif-psils)*dgpgb_dr)/det
     stepmod=sqrt(delR**2+delZ**2)
+    if(.not.ieee_is_finite(stepmod)) then
+      error stop 'find_poicut: non-finite HFS endpoint Newton step'
+    endif
     stepfac=h_R/max(h_R,stepmod)
     R=R-delR*stepfac
     Z=Z-delZ*stepfac
-    if(stepmod.lt.err_dist) exit
+    if(R.lt.rad(1) .or. R.gt.rad(size(rad)) .or. &
+       Z.lt.zet(1) .or. Z.gt.zet(size(zet))) then
+      error stop 'find_poicut: HFS endpoint Newton step left field grid'
+    endif
+    if(stepmod.lt.err_dist) then
+      converged=.true.
+      exit
+    endif
   enddo
+  if(.not.converged) then
+    error stop 'find_poicut: HFS endpoint Newton solve did not converge'
+  endif
 !
   Rb=R
   Zb=Z
 !
-  R=rtf
+  R=Raxis_seed
+  Z=Zaxis_seed
+  h_R=(rad(size(rad))-Raxis_seed)/dble(nsplit)
+  if(h_R.le.0.d0) then
+    error stop 'find_poicut: magnetic-axis seed is not inside radial grid'
+  endif
 !
-  do i=2,nsplit
+  bracketed=.false.
+  do i=1,nsplit
     R=R+h_R
 !
     call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
-    if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) exit
+    if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) then
+      bracketed=.true.
+      exit
+    endif
   enddo
+  if(.not.bracketed) then
+    error stop 'find_poicut: LFS target surface was not bracketed'
+  endif
 !
+  converged=.false.
   do i=1,niter
 !
     call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
     det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
+    if(.not.ieee_is_finite(det) .or. abs(det).le.tiny(1.d0)) then
+      error stop 'find_poicut: singular LFS endpoint Newton system'
+    endif
     delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
     delZ=(dpsidr*gpgb-(psif-psils)*dgpgb_dr)/det
     stepmod=sqrt(delR**2+delZ**2)
+    if(.not.ieee_is_finite(stepmod)) then
+      error stop 'find_poicut: non-finite LFS endpoint Newton step'
+    endif
     stepfac=h_R/max(h_R,stepmod)
     R=R-delR*stepfac
     Z=Z-delZ*stepfac
-    if(stepmod.lt.err_dist) exit
+    if(R.lt.rad(1) .or. R.gt.rad(size(rad)) .or. &
+       Z.lt.zet(1) .or. Z.gt.zet(size(zet))) then
+      error stop 'find_poicut: LFS endpoint Newton step left field grid'
+    endif
+    if(stepmod.lt.err_dist) then
+      converged=.true.
+      exit
+    endif
   enddo
+  if(.not.converged) then
+    error stop 'find_poicut: LFS endpoint Newton solve did not converge'
+  endif
 !
   Re=R
   Ze=Z
+  if(.not.ieee_is_finite(Rb) .or. .not.ieee_is_finite(Zb) .or. &
+     .not.ieee_is_finite(Re) .or. .not.ieee_is_finite(Ze) .or. Re.le.Rb) then
+    error stop 'find_poicut: invalid endpoint geometry'
+  endif
 !
   rpc_beg=Rb
   h_rpc=(Re-Rb)/dble(npc)
@@ -814,18 +900,40 @@
   do j=1,npline-1
     R=R+h_rpc
 !
+    converged=.false.
     do i=1,niter
 !
       call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
+      if(.not.ieee_is_finite(dgpgb_dz) .or. &
+         abs(dgpgb_dz).le.tiny(1.d0)) then
+        error stop 'find_poicut: singular interior cut Newton derivative'
+      endif
       delZ=gpgb/dgpgb_dz
+      if(.not.ieee_is_finite(delZ)) then
+        error stop 'find_poicut: non-finite interior cut Newton step'
+      endif
       Z=Z-delZ
-      if(abs(delZ).lt.err_dist) exit
+      if(Z.lt.zet(1) .or. Z.gt.zet(size(zet))) then
+        error stop 'find_poicut: interior cut Newton step left field grid'
+      endif
+      if(abs(delZ).lt.err_dist) then
+        converged=.true.
+        exit
+      endif
     enddo
+    if(.not.converged) then
+      error stop 'find_poicut: interior cut Newton solve did not converge'
+    endif
 !
     rpc_arr(j)=R
     zpc_arr(j)=Z
   enddo
+  if(any(.not.ieee_is_finite(rpc_arr)) .or. &
+     any(.not.ieee_is_finite(zpc_arr)) .or. &
+     any(rpc_arr(1:npc).le.rpc_arr(0:npc-1))) then
+    error stop 'find_poicut: non-finite or non-monotone cut'
+  endif
 !
   call find_magaxis
 !
@@ -873,59 +981,66 @@
 ! Find cylindrical coordinates of the magnetic axis
 !
   use field_sub, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
-  use poicut_mod, only   : npc,rpc_arr,rmagaxis,zmagaxis,psimagaxis
+  use field_eq_mod, only : psi_axis,psi,rad,zet
+  use poicut_mod, only   : rmagaxis,zmagaxis,psimagaxis
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 !
   implicit none
 !
-  integer, parameter :: nsplit=100,niter=100
+  integer, parameter :: niter=100
   double precision, parameter :: relerr=1d-12
-  integer :: i,iter
-  double precision :: R,Z,dZ_dR,bmod,phi_elec
-  double precision :: errdist2,h_R,dpsi_dl,dpsi_dl_prev,del_R,del_Z,det
+  integer :: iter
+  integer, dimension(2) :: axis_seed_index
+  logical :: converged
+  double precision :: R,Z,bmod,phi_elec
+  double precision :: errdist,del_R,del_Z,det,stepmod,stepfac,step_limit
   double precision,dimension(3) :: x
 !
-  errdist2=(relerr*rpc_arr(npc))**2
-  h_R=(rpc_arr(npc)-rpc_arr(0))/dble(nsplit)
-  R=rpc_arr(0)
-!
-  call get_poicut(R,Z,dZ_dR)
-!
+  axis_seed_index=minloc(abs(psi-psi_axis))
+  R=rad(axis_seed_index(1))
+  Z=zet(axis_seed_index(2))
+  errdist=relerr*maxval(abs(rad))
+  step_limit=0.1d0*min(rad(size(rad))-rad(1),zet(size(zet))-zet(1))
   x(1)=R
   x(2)=0.d0
   x(3)=Z
 !
   call get_bmod_and_Phi(x,bmod,phi_elec)
 !
-  dpsi_dl=dpsidr+dpsidz*dZ_dR
-!
-  do i=1,nsplit
-    dpsi_dl_prev=dpsi_dl
-    R=rpc_arr(0)+h_R*dble(i)
-!
-    call get_poicut(R,Z,dZ_dR)
-!
-    x(1)=R
-    x(3)=Z
-!
-    call get_bmod_and_Phi(x,bmod,phi_elec)
-!
-    dpsi_dl=dpsidr+dpsidz*dZ_dR
-    if(dpsi_dl_prev*dpsi_dl.lt.0.d0) exit
-  enddo
-!
+  converged=.false.
   do iter=1,niter
-    x(1)=R
-    x(3)=Z
-!
-    call get_bmod_and_Phi(x,bmod,phi_elec)
-!
     det=d2psidr2*d2psidz2-d2psidrdz**2
+    if(.not.ieee_is_finite(det) .or. abs(det).le.tiny(1.d0)) then
+      error stop 'find_magaxis: singular Newton system'
+    endif
     del_R=(d2psidrdz*dpsidz-d2psidz2*dpsidr)/det
     del_Z=(d2psidrdz*dpsidr-d2psidr2*dpsidz)/det
-    R=R+del_R
-    Z=Z+del_Z
-    if(del_R**2+del_Z**2.lt.errdist2) exit
+    stepmod=sqrt(del_R**2+del_Z**2)
+    if(.not.ieee_is_finite(stepmod)) then
+      error stop 'find_magaxis: non-finite Newton step'
+    endif
+    stepfac=step_limit/max(step_limit,stepmod)
+    R=R+stepfac*del_R
+    Z=Z+stepfac*del_Z
+    if(R.lt.rad(1) .or. R.gt.rad(size(rad)) .or. &
+       Z.lt.zet(1) .or. Z.gt.zet(size(zet))) then
+      error stop 'find_magaxis: Newton step left field grid'
+    endif
+    x(1)=R
+    x(3)=Z
+    call get_bmod_and_Phi(x,bmod,phi_elec)
+    if(stepmod.lt.errdist) then
+      converged=.true.
+      exit
+    endif
   enddo
+  if(.not.converged) then
+    error stop 'find_magaxis: Newton solve did not converge'
+  endif
+  if(.not.ieee_is_finite(R) .or. .not.ieee_is_finite(Z) .or. &
+     .not.ieee_is_finite(psif)) then
+    error stop 'find_magaxis: non-finite magnetic axis'
+  endif
 !
   rmagaxis=R
   zmagaxis=Z
@@ -950,25 +1065,34 @@
   use field_eq_mod, only : psi_axis,psi_sep
   use poicut_mod, only   : npc,rpc_arr,rmagaxis,zmagaxis,psimagaxis, &
                            rhopol_bou,psi_bou,Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 !
   implicit none
 !
   integer, parameter :: niter=100
   double precision, parameter :: relerr=1d-12
-  integer :: i,iter
-  double precision :: rho_pol,psipol,R_rhopol,Z_rhopol
+  integer :: iter
+  logical :: converged
+  double precision :: rho_pol
   double precision :: R,Z,dZ_dR,bmod,phi_elec
-  double precision :: errdist,dpsi_dl,del_R
+  double precision :: errdist,dpsi_dl,del_R,R_inner,R_outer,R_trial
+  double precision :: flux_side
   double precision,dimension(3) :: x
 !
+  if(rho_pol.le.0.d0 .or. rho_pol.ge.1.d0) then
+    error stop 'rhopol_boundary: rho_pol must lie strictly between zero and one'
+  endif
   rhopol_bou=rho_pol
   psi_bou=psimagaxis+(psi_sep-psimagaxis)*rho_pol**2
 !
   errdist=relerr*rpc_arr(npc)
 !
+  R_inner=rmagaxis
+  R_outer=rpc_arr(npc)
   Rbou_lfs=rmagaxis+(rpc_arr(npc)-rmagaxis)*rho_pol
   x(2)=0.d0
 !
+  converged=.false.
   do iter=1,niter
 !
     call get_poicut(Rbou_lfs,Zbou_lfs,dZ_dR)
@@ -978,16 +1102,46 @@
 !
     call get_bmod_and_Phi(x,bmod,phi_elec)
 !
+    flux_side=(psif-psi_bou)*(psi_sep-psimagaxis)
+    if(flux_side.gt.0.d0) then
+      R_outer=Rbou_lfs
+    else
+      R_inner=Rbou_lfs
+    endif
     dpsi_dl=dpsidr+dpsidz*dZ_dR
+    if(.not.ieee_is_finite(dpsi_dl) .or. &
+       abs(dpsi_dl).le.tiny(1.d0)) then
+      error stop 'rhopol_boundary: singular LFS Newton derivative'
+    endif
     del_R=(psi_bou-psif)/dpsi_dl
-    Rbou_lfs=Rbou_lfs+del_R
-    if(abs(del_R).lt.errdist) exit
+    if(ieee_is_finite(del_R) .and. abs(del_R).lt.errdist) then
+      converged=.true.
+      exit
+    endif
+    R_trial=Rbou_lfs+del_R
+    if(.not.ieee_is_finite(R_trial) .or. &
+       R_trial.le.R_inner .or. R_trial.ge.R_outer) then
+      R_trial=0.5d0*(R_inner+R_outer)
+    endif
+    if(abs(R_trial-Rbou_lfs).lt.errdist .or. &
+       abs(R_outer-R_inner).lt.errdist) then
+      converged=.true.
+      Rbou_lfs=R_trial
+      exit
+    endif
+    Rbou_lfs=R_trial
   enddo
+  if(.not.converged) then
+    error stop 'rhopol_boundary: LFS Newton solve did not converge'
+  endif
 !
   call get_poicut(Rbou_lfs,Zbou_lfs,dZ_dR)
 !
+  R_outer=rpc_arr(0)
+  R_inner=rmagaxis
   Rbou_hfs=rmagaxis+(rpc_arr(0)-rmagaxis)*rho_pol
 !
+  converged=.false.
   do iter=1,niter
 !
     call get_poicut(Rbou_hfs,Zbou_hfs,dZ_dR)
@@ -997,13 +1151,46 @@
 !
     call get_bmod_and_Phi(x,bmod,phi_elec)
 !
+    flux_side=(psif-psi_bou)*(psi_sep-psimagaxis)
+    if(flux_side.gt.0.d0) then
+      R_outer=Rbou_hfs
+    else
+      R_inner=Rbou_hfs
+    endif
     dpsi_dl=dpsidr+dpsidz*dZ_dR
+    if(.not.ieee_is_finite(dpsi_dl) .or. &
+       abs(dpsi_dl).le.tiny(1.d0)) then
+      error stop 'rhopol_boundary: singular HFS Newton derivative'
+    endif
     del_R=(psi_bou-psif)/dpsi_dl
-    Rbou_hfs=Rbou_hfs+del_R
-    if(abs(del_R).lt.errdist) exit
+    if(ieee_is_finite(del_R) .and. abs(del_R).lt.errdist) then
+      converged=.true.
+      exit
+    endif
+    R_trial=Rbou_hfs+del_R
+    if(.not.ieee_is_finite(R_trial) .or. &
+       R_trial.le.R_outer .or. R_trial.ge.R_inner) then
+      R_trial=0.5d0*(R_outer+R_inner)
+    endif
+    if(abs(R_trial-Rbou_hfs).lt.errdist .or. &
+       abs(R_inner-R_outer).lt.errdist) then
+      converged=.true.
+      Rbou_hfs=R_trial
+      exit
+    endif
+    Rbou_hfs=R_trial
   enddo
+  if(.not.converged) then
+    error stop 'rhopol_boundary: HFS Newton solve did not converge'
+  endif
 !
   call get_poicut(Rbou_hfs,Zbou_hfs,dZ_dR)
+  if(.not.ieee_is_finite(Rbou_lfs) .or. &
+     .not.ieee_is_finite(Zbou_lfs) .or. &
+     .not.ieee_is_finite(Rbou_hfs) .or. &
+     .not.ieee_is_finite(Zbou_hfs) .or. Rbou_hfs.ge.Rbou_lfs) then
+    error stop 'rhopol_boundary: invalid boundary geometry'
+  endif
 !
   if(.true.) then
     print *,'outer boundary LFS:'
