@@ -900,7 +900,7 @@ contains
         complex(dp) :: bamp
 
         call do_magfie_pert_amp(x, bamp)
-        bmod = real(sum(bamp*exp(imun*nfp*modes(1, :, 2)*x(2))))
+        bmod = real(bamp*exp(imun*mph*x(2)))
 
     end subroutine do_magfie_pert
 
