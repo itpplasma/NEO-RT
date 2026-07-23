@@ -25,9 +25,9 @@ def main() -> int:
         plasma = root / "plasma.in"
         geometry = root / "components.npz"
         profile.write_text(
-            "0.0 0.02 1.0e8\n"
-            "0.5 0.03 1.0e8\n"
-            "1.0 0.04 1.0e8\n"
+            "0.0 0.02\n"
+            "0.5 0.03\n"
+            "1.0 0.04\n"
         )
         plasma_grid = np.linspace(0.0, 1.0, 239)
         plasma.write_text(
@@ -66,6 +66,31 @@ def main() -> int:
         )
         if not np.array_equal(zero_coefficients, np.zeros(4)):
             raise AssertionError("zero-frequency control produced a nonzero potential")
+
+        profile_with_vth = root / "profile_with_vth.in"
+        temperatures = (1.0-0.4*plasma_grid)*1.0e4
+        vth = np.sqrt(
+            2.0*temperatures*MODULE.EV_CGS/(2.0*MODULE.AMU_CGS)
+        )
+        mach = np.interp(plasma_grid, [0.0, 0.5, 1.0], [0.02, 0.03, 0.04])
+        profile_with_vth.write_text(
+            "".join(
+                f"{s:.16e} {m:.16e} {speed:.16e}\n"
+                for s, m, speed in zip(plasma_grid, mach, vth, strict=True)
+            )
+        )
+        with_vth = MODULE.convert(
+            profile_with_vth, plasma, geometry, root / "profile_with_vth.out",
+            r0_cm=100.0, psi_span_tm2=2.0, relation_sign=1, degree=3,
+        )
+        if with_vth["optional_profile_vth_max_relative_error"] > 1.0e-5:
+            raise AssertionError("equivalent optional vth column did not close")
+        if not np.isclose(
+            with_vth["potential_statv_edge"],
+            metadata[1]["potential_statv_edge"],
+            rtol=1.0e-12,
+        ):
+            raise AssertionError("two- and three-column profile schemas differ")
 
         truncated = root / "plasma_truncated.in"
         truncated.write_text("\n".join(plasma.read_text().splitlines()[:-1]) + "\n")

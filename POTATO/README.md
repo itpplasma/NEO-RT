@@ -67,7 +67,11 @@ right-handed direct-EQDSK chart, the native field equations give
 `Omega_E` profile. The current TC24 NEO profile has first been serialized as
 `Omega_E,CCW=-Omega_E,MARS`; the converter does not apply that MARS-to-CCW
 change a second time. The first value in the NEO `plasma.in` header is a
-validated radial-row count, not a required value of 50.
+validated radial-row count, not a required value of 50. The compiled NEO-RT
+profile schema needs only `s_tor,M_t`; the converter derives
+`v_th=sqrt(2*T_i/m_i)` from the charge-selected `plasma.in` species. If a
+legacy third `v_th` column is present, it is checked against that source rather
+than used as an independent temperature profile.
 
 ## Running with OpenMP
 
