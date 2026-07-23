@@ -174,6 +174,13 @@ target_link_libraries(potato_profile_serializer_probe.x
    potato
 )
 
+add_executable(potato_bmod_serializer_probe.x
+   SRC/potato_bmod_serializer_probe.f90
+)
+target_link_libraries(potato_bmod_serializer_probe.x
+   potato_base
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_bmod_converter
