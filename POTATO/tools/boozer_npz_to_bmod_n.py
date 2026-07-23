@@ -233,12 +233,19 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
     mapped_back = grid_interp(points).reshape(amplitude_map.shape)
     denominator = max(float(np.linalg.norm(amplitude_map)), np.finfo(float).tiny)
     gridding_relative_l2 = float(np.linalg.norm(mapped_back-amplitude_map)/denominator)
-    surface_denominator = np.maximum(
-        np.linalg.norm(amplitude_map, axis=1), np.finfo(float).tiny
+    gridding_absolute_l2_by_surface = np.linalg.norm(
+        mapped_back-amplitude_map, axis=1
     )
-    gridding_relative_l2_by_surface = (
-        np.linalg.norm(mapped_back-amplitude_map, axis=1)/surface_denominator
+    surface_reference_l2 = np.linalg.norm(amplitude_map, axis=1)
+    reference_floor = np.finfo(float).eps*max(
+        float(np.max(surface_reference_l2)), 1.0
     )
+    gridding_relative_l2_by_surface = [
+        None if reference <= reference_floor else float(error/reference)
+        for error, reference in zip(
+            gridding_absolute_l2_by_surface, surface_reference_l2, strict=True
+        )
+    ]
     metadata = {
         "format": "POTATO bmod_n.dat, Fortran sequential, complex amplitude in gauss",
         "inputs": {
@@ -275,7 +282,12 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
         "gridding_relative_l2": gridding_relative_l2,
         "gridding_relative_l2_by_surface": {
             "s_tor": s_map.tolist(),
-            "relative_l2": gridding_relative_l2_by_surface.tolist(),
+            "absolute_l2_tesla": gridding_absolute_l2_by_surface.tolist(),
+            "reference_l2_tesla": surface_reference_l2.tolist(),
+            "relative_l2": gridding_relative_l2_by_surface,
+            "relative_l2_null_policy": (
+                "null when reference_l2_tesla <= eps*max(max_reference,1 T)"
+            ),
         },
         "grid_zero_fraction": float(np.count_nonzero(amplitude_grid == 0.0j)/amplitude_grid.size),
         "amplitude_tesla_max": float(np.max(np.abs(amplitude_grid))),
