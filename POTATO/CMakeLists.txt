@@ -44,6 +44,8 @@ FetchContent_MakeAvailable(fortplot)
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
 # fixes (e.g. the stretch_coords convex-wall load) propagate instead of drifting.
+set(LIBNEO_RELEASE fix/field-eq-flux-units-401 CACHE STRING
+    "libneo branch carrying the field_eq flux-unit regression")
 find_or_fetch(libneo)
 
 # Hold POTATO's own sources to f2018, stop at the first diagnostic, and run the C
