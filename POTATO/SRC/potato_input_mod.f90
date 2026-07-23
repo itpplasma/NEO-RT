@@ -71,6 +71,8 @@ module potato_input_mod
     double precision :: probe_rho_pol = 0.9d0
     double precision :: probe_ux = 1.5d0
     double precision :: probe_eta = 4.1d-5
+    double precision :: probe_toten = -1.0d0
+    double precision :: probe_perpinv = -1.0d0
     integer :: probe_m = 0
     integer :: probe_n = 2
 
@@ -102,7 +104,8 @@ module potato_input_mod
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
-        probe_rho_pol, probe_ux, probe_eta, probe_m, probe_n
+        probe_rho_pol, probe_ux, probe_eta, probe_toten, probe_perpinv, &
+        probe_m, probe_n
 
 contains
 
@@ -134,6 +137,11 @@ contains
 
         close(iunit)
 
+        if (.not. potato_input_is_valid()) then
+            error stop 'invalid POTATO input: resonant-torque rho_pol_max must ' &
+                // 'extend strictly beyond rho_pol and remain below one'
+        endif
+
         inquire(file='field_divB0.inp', exist=field_input_exists)
         if (field_input_exists) then
             call read_field_input('field_divB0.inp')
@@ -142,6 +150,15 @@ contains
             call load_wall('convexwall.dat')
         endif
     end subroutine read_potato_input
+
+    logical function potato_input_is_valid()
+        potato_input_is_valid = 0.d0 < rho_pol .and. rho_pol <= rho_pol_max &
+            .and. rho_pol_max < 1.d0
+        if (itest_type == 3) then
+            potato_input_is_valid = potato_input_is_valid &
+                .and. rho_pol < rho_pol_max
+        endif
+    end function potato_input_is_valid
 
     subroutine print_potato_input(iunit)
         integer, intent(in) :: iunit
@@ -185,6 +202,8 @@ contains
         write(iunit, '(A,ES12.5)') '  probe_rho_pol    = ', probe_rho_pol
         write(iunit, '(A,ES12.5)') '  probe_ux         = ', probe_ux
         write(iunit, '(A,ES12.5)') '  probe_eta        = ', probe_eta
+        write(iunit, '(A,ES12.5)') '  probe_toten      = ', probe_toten
+        write(iunit, '(A,ES12.5)') '  probe_perpinv    = ', probe_perpinv
         write(iunit, '(A,I0)') '  probe_m          = ', probe_m
         write(iunit, '(A,I0)') '  probe_n          = ', probe_n
         write(iunit, '(A)') '================================'

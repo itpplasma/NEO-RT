@@ -132,6 +132,16 @@ add_test(NAME test_matrix_callback_status
    COMMAND test_matrix_callback_status.x
 )
 
+add_executable(test_potato_input_validation.x
+   SRC/test_potato_input_validation.f90
+)
+target_link_libraries(test_potato_input_validation.x
+   potato_base
+)
+add_test(NAME test_potato_input_validation
+   COMMAND test_potato_input_validation.x
+)
+
 add_executable(test_wall_profile.x
    SRC/test_wall_profile.f90
 )
