@@ -233,6 +233,12 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
     mapped_back = grid_interp(points).reshape(amplitude_map.shape)
     denominator = max(float(np.linalg.norm(amplitude_map)), np.finfo(float).tiny)
     gridding_relative_l2 = float(np.linalg.norm(mapped_back-amplitude_map)/denominator)
+    surface_denominator = np.maximum(
+        np.linalg.norm(amplitude_map, axis=1), np.finfo(float).tiny
+    )
+    gridding_relative_l2_by_surface = (
+        np.linalg.norm(mapped_back-amplitude_map, axis=1)/surface_denominator
+    )
     metadata = {
         "format": "POTATO bmod_n.dat, Fortran sequential, complex amplitude in gauss",
         "inputs": {
@@ -267,6 +273,10 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
         "radial_interpolation": "piecewise linear; no smoothing or fit",
         "rz_interpolation": "piecewise linear Delaunay; no smoothing or fit",
         "gridding_relative_l2": gridding_relative_l2,
+        "gridding_relative_l2_by_surface": {
+            "s_tor": s_map.tolist(),
+            "relative_l2": gridding_relative_l2_by_surface.tolist(),
+        },
         "grid_zero_fraction": float(np.count_nonzero(amplitude_grid == 0.0j)/amplitude_grid.size),
         "amplitude_tesla_max": float(np.max(np.abs(amplitude_grid))),
     }
