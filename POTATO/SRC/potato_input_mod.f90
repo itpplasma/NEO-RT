@@ -85,8 +85,9 @@ module potato_input_mod
     ! Edge extension: when .true. the orbit integrator accepts guiding-center
     ! points outside the separatrix (scrape-off layer), so bananas whose tips
     ! cross the last closed flux surface can be traced in the extended
-    ! equilibrium field. Sets field_eq_mod::allow_sol. Default .false.
-    logical :: edge_extension = .false.
+    ! equilibrium field. Sets field_eq_mod::allow_sol. Default .true.; set
+    ! .false. explicitly for closed-flux-only runs.
+    logical :: edge_extension = .true.
 
     ! Accepted for old case files.
     logical :: plot_poicut = .false.

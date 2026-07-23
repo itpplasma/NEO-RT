@@ -24,9 +24,10 @@ wall is the outer boundary of the complete computational domain, not the
 separatrix, and must enclose the LCFS with enough margin for every orbit being
 traced. POTATO uses this one configured wall for both the field-coordinate
 mapping and orbit-loss detection; no second hard-coded `convexwall.dat` is
-needed. Setting `edge_extension = .true.` permits orbit integration across the
-LCFS into the scrape-off layer; it does not turn the convex wall into the LCFS
-or remove the outer-domain requirement.
+needed. By default, `edge_extension = .true.` permits orbit integration across
+the LCFS into the scrape-off layer. Set it explicitly to `.false.` for a
+closed-flux-only run. Edge extension does not turn the convex wall into the
+LCFS or remove the outer-domain requirement.
 
 For a MARS field already converted to Boozer harmonics, generate POTATO's
 single-`n` cylindrical perturbation without the legacy converter's radial

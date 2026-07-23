@@ -1,5 +1,5 @@
 program test_wall_loss
-    use potato_input_mod, only: read_potato_input
+    use potato_input_mod, only: edge_extension, read_potato_input
     use wall_loss_mod, only: outside_wall, wall_loaded
     implicit none
 
@@ -48,6 +48,7 @@ program test_wall_loss
     call read_potato_input('test_potato_wall.in')
 
     ok = .true.
+    if (.not. edge_extension) ok = .false.
     if (.not. wall_loaded) ok = .false.
     if (outside_wall(5.0d0, 5.0d0)) ok = .false.
     if (outside_wall(9.0d0, 9.0d0)) ok = .false.
