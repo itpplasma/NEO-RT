@@ -2743,6 +2743,7 @@
   use interp_cache_mod,  only : interp_cache_reset
   use matrix_callback_status_mod, only : matrix_callback_error, &
       matrix_callback_ok
+  use potato_input_mod, only : class_eps_sampling, class_itermax_sampling
 !
   implicit none
 !
@@ -2752,9 +2753,9 @@
   external :: get_matrix_doublecount
 !
   nlagr=7         !<= temporary place, should be moved out for centralized input
-  relerror=1.d-3  !<= temporary place, should be moved out for centralized input
+  relerror=class_eps_sampling
   relmargin=1.d-7 !<= temporary place, should be moved out for centralized input
-  itermax=20      !<= temporary place, should be moved out for centralized input
+  itermax=class_itermax_sampling
 !
   next=2*numbasef
   n1=3+next
