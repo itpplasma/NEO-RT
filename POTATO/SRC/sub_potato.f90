@@ -2627,7 +2627,11 @@
   double precision :: xsafe,xdiv,xlo,xhi,xm
   integer :: it
 !
-  if(abs(eval_delphi(xdiv)).le.delphi_max) return
+! xdiv is the boundary-type-declared divergent endpoint.  Do not evaluate it:
+! that defeats this guard by sending find_bounce into an unbounded separatrix
+! trace before the bisection has a chance to move inward.  If the endpoint is
+! actually regular, every interior midpoint stays below the bound and xlo
+! approaches xdiv to the existing interval tolerance.
   if(abs(eval_delphi(xsafe)).ge.delphi_max) return
 !
   xlo=xsafe
