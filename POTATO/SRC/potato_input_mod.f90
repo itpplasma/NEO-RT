@@ -48,6 +48,8 @@ module potato_input_mod
     integer :: nlagr_sampling = 3
     double precision :: eps_sampling = 1d-2
     integer :: itermax_sampling = 5
+    double precision :: class_eps_sampling = 1d-3
+    integer :: class_itermax_sampling = 20
     logical :: clip_resonance_classes = .true.
 
     ! Orbit plotting
@@ -100,7 +102,8 @@ module potato_input_mod
         m_min, m_max, n_tor, &
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
-        itermax_sampling, clip_resonance_classes, &
+        itermax_sampling, class_eps_sampling, class_itermax_sampling, &
+        clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
@@ -139,8 +142,8 @@ contains
         close(iunit)
 
         if (.not. potato_input_is_valid()) then
-            error stop 'invalid POTATO input: resonant-torque rho_pol_max must ' &
-                // 'extend strictly beyond rho_pol and remain below one'
+            error stop 'invalid POTATO input: check radial domain and positive ' &
+                // 'sampler tolerances/iteration limits'
         endif
 
         inquire(file='field_divB0.inp', exist=field_input_exists)
@@ -155,6 +158,9 @@ contains
     logical function potato_input_is_valid()
         potato_input_is_valid = 0.d0 < rho_pol .and. rho_pol <= rho_pol_max &
             .and. rho_pol_max < 1.d0
+        potato_input_is_valid = potato_input_is_valid &
+            .and. eps_sampling > 0.d0 .and. itermax_sampling > 0 &
+            .and. class_eps_sampling > 0.d0 .and. class_itermax_sampling > 0
         if (itest_type == 3) then
             potato_input_is_valid = potato_input_is_valid &
                 .and. rho_pol < rho_pol_max
@@ -188,6 +194,9 @@ contains
         write(iunit, '(A,I0)') '  nlagr_sampling   = ', nlagr_sampling
         write(iunit, '(A,ES12.5)') '  eps_sampling     = ', eps_sampling
         write(iunit, '(A,I0)') '  itermax_sampling = ', itermax_sampling
+        write(iunit, '(A,ES12.5)') '  class_eps_sampling = ', class_eps_sampling
+        write(iunit, '(A,I0)') &
+            '  class_itermax_sampling = ', class_itermax_sampling
         write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
         write(iunit, '(A,ES12.5)') '  toten_plot       = ', toten_plot
         write(iunit, '(A,ES12.5)') '  perpinv_plot     = ', perpinv_plot
