@@ -15,42 +15,42 @@ module neort_transport
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
         sign_vpar_htheta, sign_vpar
 
-  implicit none
+    implicit none
 
-  real(dp) :: Omth, dOmthdv, dOmthdeta
+    real(dp) :: Omth, dOmthdv, dOmthdeta
 
 contains
 
-  pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
-    ! Helper to compose a short debug line
-    character(*), intent(in) :: msg1, msg2
-    character(*), intent(in), optional :: msg3, msg4
-    real(dp), intent(in) :: v1, v2
-    real(dp), intent(in), optional :: v3, v4
-    character(len=256) :: s
-    character(len=64) :: a1, a2, a3, a4
-    a3 = ''; a4 = ''
-    write(a1,'(ES12.5)') v1
-    write(a2,'(ES12.5)') v2
-    if (present(v3)) write(a3,'(ES12.5)') v3
-    if (present(v4)) write(a4,'(ES12.5)') v4
-    if (present(msg4)) then
-      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)//' '//trim(msg4)//trim(a4)
-    else if (present(msg3)) then
-      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)
-    else
-      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)
-    end if
-  end function fmt_dbg
+    pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
+        ! Helper to compose a short debug line
+        character(*), intent(in) :: msg1, msg2
+        character(*), intent(in), optional :: msg3, msg4
+        real(dp), intent(in) :: v1, v2
+        real(dp), intent(in), optional :: v3, v4
+        character(len=256) :: s
+        character(len=64) :: a1, a2, a3, a4
+        a3 = ''; a4 = ''
+        write(a1,'(ES12.5)') v1
+        write(a2,'(ES12.5)') v2
+        if (present(v3)) write(a3,'(ES12.5)') v3
+        if (present(v4)) write(a4,'(ES12.5)') v4
+        if (present(msg4)) then
+            s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)//' '//trim(msg4)//trim(a4)
+        else if (present(msg3)) then
+            s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)
+        else
+            s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)
+        end if
+    end function fmt_dbg
 
-! original contains follows
+    ! original contains follows
 
     pure function D11int(ux, taub, Hmn2)
         real(dp) :: D11int
         real(dp), intent(in) :: ux, taub, Hmn2
 
         D11int = pi**(3.0_dp / 2.0_dp) * mph**2 * c**2 * q * vth &
-                 / (qi**2 * dVds * abs(psi_pr)) * ux**3 * exp(-ux**2) * taub * Hmn2
+            / (qi**2 * dVds * abs(psi_pr)) * ux**3 * exp(-ux**2) * taub * Hmn2
     end function D11int
 
     pure function D12int(ux, taub, Hmn2)
@@ -65,16 +65,16 @@ contains
         real(dp), intent(in) :: ux, taub, Hmn2
 
         Tphi_int = sign(1.0_dp, psi_pr * q * sign_theta) * pi**(3.0_dp / 2.0_dp) * mph**2 * ni1 * &
-                   c * vth / qi &
-                   * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
+            c * vth / qi &
+            * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
     end function Tphi_int
 
     subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
-        real(dp), intent(out) :: D(2), T  ! Transport coefficients D and torque density T
-        real(dp) :: D_plateau, dsdreff  ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
+        real(dp), intent(out) :: D(2), T ! Transport coefficients D and torque density T
+        real(dp) :: D_plateau, dsdreff ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
         real(dp) :: ux, du, dD11, dD12, dT, v, eta
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
@@ -82,11 +82,40 @@ contains
         real(dp) :: Hmn2, attenuation_factor
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku
+        character(len=4096) :: ledger_path
+        character(len=4) :: orbit_branch
+        integer :: env_length, env_status, ledger_unit
+        logical :: ledger_enabled, ledger_exists
+        real(dp) :: Omph, dOmphdv, dOmphdeta, resonance_residual
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         D = 0.0_dp
         T = 0.0_dp
+        ledger_path = ''
+        call get_environment_variable('NEORT_RESONANCE_LEDGER', ledger_path, &
+            length=env_length, status=env_status)
+        if (env_status == -1) error stop 'NEORT_RESONANCE_LEDGER path is too long'
+        ledger_enabled = env_status == 0 .and. env_length > 0
+        if (ledger_enabled) then
+            if (.not. comptorque) error stop 'NEORT_RESONANCE_LEDGER requires comptorque=.true.'
+            inquire(file=trim(ledger_path), exist=ledger_exists)
+            open(newunit=ledger_unit, file=trim(ledger_path), status='unknown', &
+                position='append', action='write')
+            if (.not. ledger_exists) then
+                write(ledger_unit, '(A)') &
+                    '# s mth mph branch ux eta Omth Omph residual dF_deta taub Hmn2 attenuation dTds_du istate'
+            end if
+            if (etamax < etatp) then
+                if (sign_vpar > 0.0_dp) then
+                    orbit_branch = 'cop'
+                else
+                    orbit_branch = 'ctr'
+                end if
+            else
+                orbit_branch = 'trap'
+            end if
+        end if
         du = (vmax - vmin) / (vsteps * vth)
         ux = vmin / vth + du / 2.0_dp
 
@@ -98,7 +127,7 @@ contains
             ! `ux = ux + du` velocity-grid increment and stall the sweep.
             do kr = 1, nroots
                 eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
+                if (eta_res(1) < 0.0_dp) cycle ! bracket-failure sentinel
                 eta = eta_res(1)
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
@@ -116,7 +145,7 @@ contains
                 end if
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * (mi * (ux * vth)**2 / 2.0_dp)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
-                                                           dOmthdv, dOmthdeta, Hmn2)
+                    dOmthdv, dOmthdeta, Hmn2)
 
                 dD11 = du * D11int(ux, taub, Hmn2) / abs(eta_res(2))
                 dD12 = du * D12int(ux, taub, Hmn2) / abs(eta_res(2))
@@ -127,12 +156,20 @@ contains
                     dT = du * Tphi_int(ux, taub, Hmn2) / abs(eta_res(2))
                     T = T + dT * attenuation_factor
                 end if
+                if (ledger_enabled) then
+                    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+                    resonance_residual = real(mth, dp) * Omth + real(mph, dp) * Omph
+                    write(ledger_unit, *) s, mth, mph, trim(orbit_branch), ux, eta, &
+                        Omth, Omph, resonance_residual, eta_res(2), taub, Hmn2, &
+                        attenuation_factor, dT / du, istate_dv
+                end if
             end do
             ux = ux + du
         end do
+        if (ledger_enabled) close(ledger_unit)
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
-        dsdreff = 2.0_dp / a * sqrt(s)  ! TODO: Use exact value instead of this approximation
+        dsdreff = 2.0_dp / a * sqrt(s) ! TODO: Use exact value instead of this approximation
         D = dsdreff**(-2) * D / D_plateau
 
         call debug("compute_transport_integral complete")
@@ -156,7 +193,7 @@ contains
         ! for y(1:3)
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
         real(dp) :: t0, parallel_phase
-        complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
+        complex(dp) :: epsn, Hn ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
 
         x(1) = s
@@ -184,10 +221,10 @@ contains
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
             Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (parallel_phase - mth * (t - &
-                                                                                      t0) * Omth))
+                t0) * Omth))
         else
             Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (parallel_phase - (mth + q * mph) &
-                                                            * t * Omth))
+                * t * Omth))
         end if
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
