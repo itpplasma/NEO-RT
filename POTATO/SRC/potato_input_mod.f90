@@ -9,12 +9,12 @@ module potato_input_mod
     integer :: itest_type = 3
 
     ! Species parameters
-    double precision :: E_alpha = 5d3       ! Reference energy [eV]
-    double precision :: A_alpha = 2d0       ! Mass number
-    double precision :: Z_alpha = 1d0       ! Charge number
+    double precision :: E_alpha = 5d3 ! Reference energy [eV]
+    double precision :: A_alpha = 2d0 ! Mass number
+    double precision :: Z_alpha = 1d0 ! Charge number
 
     ! Flux surface
-    double precision :: rho_pol = 0.6d0     ! Poloidal radius
+    double precision :: rho_pol = 0.6d0 ! Poloidal radius
     double precision :: rho_pol_max = 0.9d0 ! Max rho_pol for Poincare cut
 
     ! Scaling factors
@@ -22,8 +22,8 @@ module potato_input_mod
     double precision :: scalfac_efield = 1d0
 
     ! Orbit integration
-    double precision :: Rmax_orbit = 200d0  ! Max R for orbit integration
-    integer :: ntimstep = 30                ! Number of time steps
+    double precision :: Rmax_orbit = 200d0 ! Max R for orbit integration
+    integer :: ntimstep = 30 ! Number of time steps
 
     ! Poincare cut
     integer :: npoicut = 10000
@@ -35,7 +35,7 @@ module potato_input_mod
 
     ! Energy grid
     integer :: nenerg = 60
-    double precision :: thermen_max = 6d0   ! Max kinetic energy [T units]
+    double precision :: thermen_max = 6d0 ! Max kinetic energy [T units]
     ! Lowest slice starts at this kinetic energy [T units] when set.
     double precision :: enkin_min_over_temp = 0d0
 
@@ -58,16 +58,16 @@ module potato_input_mod
 
     ! Single-orbit trace (itest_type=4): start point on the poloidal plane and
     ! pitch cosine of one guiding-center orbit, traced over one bounce period.
-    double precision :: orbit_Rstart = 210d0   ! start major radius [cm]
-    double precision :: orbit_Zstart = 0d0     ! start height [cm]
-    double precision :: orbit_lambda = 0.4d0   ! pitch cosine v_par/v at start
+    double precision :: orbit_Rstart = 210d0 ! start major radius [cm]
+    double precision :: orbit_Zstart = 0d0 ! start height [cm]
+    double precision :: orbit_lambda = 0.4d0 ! pitch cosine v_par/v at start
 
     ! Frequency radial scan (itest_type=5): trace one bounce at each of freq_n
     ! midplane start radii from freq_Rmin to freq_Rmax (pitch orbit_lambda),
     ! and write rho_pol, omega_b, omega_phi to freq_scan.dat.
-    double precision :: freq_Rmin = 178d0      ! inner start radius [cm]
-    double precision :: freq_Rmax = 221d0      ! outer start radius [cm], into SOL
-    integer          :: freq_n = 40            ! number of surfaces
+    double precision :: freq_Rmin = 178d0 ! inner start radius [cm]
+    double precision :: freq_Rmax = 221d0 ! outer start radius [cm], into SOL
+    integer          :: freq_n = 40 ! number of surfaces
 
     ! Resonance probe diagnostic
     double precision :: probe_rho_pol = 0.9d0
@@ -142,8 +142,8 @@ contains
         close(iunit)
 
         if (.not. potato_input_is_valid()) then
-            error stop 'invalid POTATO input: check radial domain and positive ' &
-                // 'sampler tolerances/iteration limits'
+            error stop 'invalid POTATO input: check radial/mode/quadrature ' &
+                // 'domains and positive sampler controls'
         endif
 
         inquire(file='field_divB0.inp', exist=field_input_exists)
@@ -163,7 +163,14 @@ contains
             .and. class_eps_sampling > 0.d0 .and. class_itermax_sampling > 0
         if (itest_type == 3) then
             potato_input_is_valid = potato_input_is_valid &
-                .and. rho_pol < rho_pol_max
+                .and. rho_pol < rho_pol_max &
+                .and. m_min <= m_max .and. n_tor /= 0 &
+                .and. nbox >= 2 .and. npoi_init >= 2 &
+                .and. nenerg >= 1
+            if (enkin_min_over_temp <= 0.d0) then
+                potato_input_is_valid = potato_input_is_valid &
+                    .and. nenerg >= 2
+            endif
         endif
     end function potato_input_is_valid
 
