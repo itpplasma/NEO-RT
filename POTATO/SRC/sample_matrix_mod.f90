@@ -1,15 +1,15 @@
-  module sample_matrix_mod
+module sample_matrix_mod
     integer :: nlagr,n1,n2,npoi,itermax,nstiff,i_int
     double precision :: x,xbeg,xend,eps
     double precision, dimension(:),     allocatable :: xarr
     double precision, dimension(:,:),   allocatable :: amat
     double precision, dimension(:,:,:), allocatable :: amat_arr
-! The class-grid state is per energy slice. Inner node-fill loops copy the
-! current grid config into their workers before filling disjoint slots.
+    ! The class-grid state is per energy slice. Inner node-fill loops copy the
+    ! current grid config into their workers before filling disjoint slots.
     !$omp threadprivate(nlagr,n1,n2,npoi,itermax,x,xbeg,xend,eps,xarr,amat,amat_arr)
-  end module sample_matrix_mod
+end module sample_matrix_mod
 
-  module matrix_callback_status_mod
+module matrix_callback_status_mod
     implicit none
 
     integer, parameter :: matrix_callback_ok = 0
@@ -21,6 +21,7 @@
     integer, parameter :: matrix_callback_resonance_search_failed = 106
     integer, parameter :: matrix_callback_resonance_orbit_failed = 107
     integer, parameter :: matrix_callback_nonfinite_weight = 108
+    integer, parameter :: matrix_callback_box_count_failed = 109
 
     integer :: matrix_callback_error = matrix_callback_ok
     integer :: jperp_attempted = 0
@@ -37,41 +38,51 @@
     integer :: resonance_root_succeeded = 0
     integer :: resonance_root_failed = 0
     integer :: resonance_root_zeroed = 0
+    integer :: box_count_attempted = 0
+    integer :: box_count_succeeded = 0
+    integer :: box_count_failed = 0
+    integer :: box_count_skipped_zero_weight = 0
     !$omp threadprivate(matrix_callback_error,jperp_attempted,jperp_succeeded, &
     !$omp               jperp_failed,class_attempted,class_succeeded, &
     !$omp               class_failed,orbit_attempted,orbit_failed, &
     !$omp               resonance_search_attempted,resonance_search_failed, &
     !$omp               resonance_root_attempted,resonance_root_succeeded, &
-    !$omp               resonance_root_failed,resonance_root_zeroed)
+    !$omp               resonance_root_failed,resonance_root_zeroed, &
+    !$omp               box_count_attempted,box_count_succeeded, &
+    !$omp               box_count_failed,box_count_skipped_zero_weight)
 
-  contains
+contains
 
     subroutine reset_matrix_callback_error
-      matrix_callback_error = matrix_callback_ok
+        matrix_callback_error = matrix_callback_ok
     end subroutine reset_matrix_callback_error
 
     subroutine set_matrix_callback_error(code)
-      integer, intent(in) :: code
+        integer, intent(in) :: code
 
-      if (matrix_callback_error == matrix_callback_ok) matrix_callback_error = code
+        if (matrix_callback_error == matrix_callback_ok) matrix_callback_error = code
     end subroutine set_matrix_callback_error
 
     subroutine reset_torque_completeness
-      matrix_callback_error = matrix_callback_ok
-      jperp_attempted = 0
-      jperp_succeeded = 0
-      jperp_failed = 0
-      class_attempted = 0
-      class_succeeded = 0
-      class_failed = 0
-      orbit_attempted = 0
-      orbit_failed = 0
-      resonance_search_attempted = 0
-      resonance_search_failed = 0
-      resonance_root_attempted = 0
-      resonance_root_succeeded = 0
-      resonance_root_failed = 0
-      resonance_root_zeroed = 0
+        matrix_callback_error = matrix_callback_ok
+        jperp_attempted = 0
+        jperp_succeeded = 0
+        jperp_failed = 0
+        class_attempted = 0
+        class_succeeded = 0
+        class_failed = 0
+        orbit_attempted = 0
+        orbit_failed = 0
+        resonance_search_attempted = 0
+        resonance_search_failed = 0
+        resonance_root_attempted = 0
+        resonance_root_succeeded = 0
+        resonance_root_failed = 0
+        resonance_root_zeroed = 0
+        box_count_attempted = 0
+        box_count_succeeded = 0
+        box_count_failed = 0
+        box_count_skipped_zero_weight = 0
     end subroutine reset_torque_completeness
 
-  end module matrix_callback_status_mod
+end module matrix_callback_status_mod

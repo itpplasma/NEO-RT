@@ -98,6 +98,16 @@ add_test(NAME test_signed_toroidal_bound
    COMMAND test_signed_toroidal_bound.x
 )
 
+add_executable(test_box_counting_status.x
+   SRC/test_box_counting_status.f90
+)
+target_link_libraries(test_box_counting_status.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_box_counting_status
+   COMMAND test_box_counting_status.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )
@@ -234,6 +244,11 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
+    add_test(NAME potato_resonance_golden
+        COMMAND ${Python3_EXECUTABLE} -m pytest -q
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance/test_resonance_golden.py
+    )
+    set_tests_properties(potato_resonance_golden PROPERTIES TIMEOUT 150)
     add_test(NAME potato_golden_displacement
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py

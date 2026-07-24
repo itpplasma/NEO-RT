@@ -49,6 +49,11 @@ The displayed `n=+3` is the current TC24 MARS-to-CCW result:
 `phi_CCW=-phi_MARS` and `n_CCW=-RNTOR=+3`. It is not a universal MARS
 default; another field must supply its own signed laboratory-coordinate map.
 
+POTATO keeps the signed `n_tor` in the resonance condition and perturbation
+phase. The final toroidal torque factor is `abs(n_tor)`, as in
+`equilmaxw.tex`; changing the signed representation of the same real field
+must not reverse the torque.
+
 The matching profile converter also keeps the coordinate and electric-field
 conventions explicit:
 
@@ -98,6 +103,42 @@ on an idle machine and 400-600 s under any concurrent load, because they
 oversubscribe the 16 cores.
 
 The reslines output is identical for every thread count.
+
+## Resonant-torque outputs
+
+`integral_torque.dat` is the volume-integrated native toroidal torque in erg
+(`1 erg = 1e-7 N m`). `boxcounted_torque.dat` contains one incremental torque
+per `s_pol` interval, followed by the lower and upper interval edges; its first
+column is not a density. A density with respect to another abscissa requires
+division by that abscissa's mapped bin width. In particular, a published
+`rho_tor` plot must map every `s_pol` edge through `eqmagprofs.dat` and divide
+the bin torque by `Delta rho_tor`.
+
+Orbit residence at `s_pol>1` is not part of the last closed-flux bin.
+`boxcounted_torque_outside.dat` serializes that signed contribution separately
+as `torque_erg, s_pol_lower_bound`. The sum of the closed-flux bins and this
+outside contribution reconstructs `integral_torque.dat`.
+
+`potato_completeness.dat` is mandatory acceptance evidence. Every computed
+energy must have status zero and zero failed J-perp, class, orbit, resonance,
+root, and box-disposition counts. A zero process exit or a printed scalar
+alone is not evidence of a complete torque.
+
+`potato_resonance_weights.dat` is the accepted root-level quadrature ledger:
+
+```text
+energy_index jperp_index class_index root_index m2 n3
+root_disposition box_disposition H0_over_Eref Jperp psiast taub
+final_weight_erg outside_s_pol_fraction
+```
+
+`m2` is a canonical bounce harmonic, not a spatial Boozer poloidal harmonic.
+`n3` is the signed laboratory toroidal mode. Root disposition `0` means a
+computed root and `1` an explicit outside-LCFS zero; box disposition `0` means
+a complete residence trace and `-1` a zero-weight trace skipped by definition.
+The outside fraction uses `-1` only for that skipped case. The sum of
+`final_weight_erg` reconstructs `integral_torque.dat`; grouping the same
+column by `m2,n3` reconstructs the canonical-mode torque ledger.
 
 ## SIMPLE-compatible invariant handoff
 

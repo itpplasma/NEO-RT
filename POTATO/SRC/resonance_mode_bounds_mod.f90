@@ -3,6 +3,15 @@ module resonance_mode_bounds_mod
 
 contains
 
+    pure double precision function toroidal_torque_mode_factor(n_mode)
+        integer, intent(in) :: n_mode
+
+        ! The signed n_mode remains in the resonance and Fourier phase. The
+        ! torque prefactor is |m_3| in the quasilinear action-space formula,
+        ! so conjugate representations of one real field have the same factor.
+        toroidal_torque_mode_factor = abs(dble(n_mode))
+    end function toroidal_torque_mode_factor
+
     pure function resonant_delphi_bound(m_modes, n_modes) result(bound)
         integer, intent(in) :: m_modes(:), n_modes(:)
         double precision :: bound
