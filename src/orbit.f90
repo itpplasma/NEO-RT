@@ -416,6 +416,7 @@ contains
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(dp) :: Om_tB_v, cross_gradB_phi, cross_gradB_theta
         real(dp) :: curl_parallel, curvature_phi, curvature_theta
+        real(dp) :: q_local
         real(dp) :: drift_phi_v, drift_theta_v
         real(dp) :: shearterm
 
@@ -438,9 +439,15 @@ contains
                 + 0.5_dp*eta*bmod*cross_gradB_phi)
             drift_theta_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_theta &
                 + 0.5_dp*eta*bmod*cross_gradB_theta)
-            ! Canonical toroidal precession follows the field-line label
-            ! alpha=phi-q*theta, not the small cylindrical phi component alone.
-            Om_tB_v = drift_phi_v - q*drift_theta_v
+            ! Canonical toroidal precession follows the field-line label.
+            ! In geoflux coordinates theta is the *geometric* angle, so
+            ! alpha = phi - q*theta with the global q is not constant along a
+            ! field line and the resulting precession is wrong (NEO-RT #85).
+            ! Along a field line dphi/dtheta = B^phi/B^theta, so the label
+            ! gradient carries the *local* pitch, which reduces to q only when
+            ! theta is already a straight-field-line angle.
+            q_local = hctrvr(2)/hctrvr(3)
+            Om_tB_v = drift_phi_v - q_local*drift_theta_v
         else
             shearterm = Bphcov * dqds
             if (noshear) then
