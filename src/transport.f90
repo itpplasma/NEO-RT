@@ -2,7 +2,7 @@ module neort_transport
     use iso_fortran_env, only: dp => real64
     use util, only: imun, pi, c, qi
     use logger, only: trace, debug, warning, error
-    use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
+    use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, inp_swi, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_magfie, only: dVds, B0
@@ -155,7 +155,7 @@ contains
         ! BEGIN TODO: remove all of this after refactoring and re-use routine in orbit
         ! for y(1:3)
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
-        real(dp) :: t0
+        real(dp) :: t0, parallel_phase
         complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
 
@@ -164,6 +164,13 @@ contains
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot)
+        if (inp_swi == 11) then
+            ydot(7) = y(2)*hctrvr(2)
+            parallel_phase = mph*y(7)
+        else
+            ydot(7) = 0.0_dp
+            parallel_phase = q*mph*y(1)
+        end if
 
         ! evaluate orbit averages of Hamiltonian perturbation
         if (pertfile) then
@@ -176,10 +183,10 @@ contains
         if (eta > etatp) then
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
-            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
+            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (parallel_phase - mth * (t - &
                                                                                       t0) * Omth))
         else
-            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
+            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (parallel_phase - (mth + q * mph) &
                                                             * t * Omth))
         end if
         ydot(3) = real(Hn)
@@ -197,7 +204,7 @@ contains
         ! abs(B) slot, y(7)). The DOP853 solver carries every component through
         ! its stage combinations, so an uninitialised derivative leaves a
         ! denormal in the state that trips the underflow FPE trap.
-        ydot(7:) = 0.0_dp
+        if (inp_swi /= 11) ydot(7:) = 0.0_dp
     end subroutine timestep_transport
 
 end module neort_transport

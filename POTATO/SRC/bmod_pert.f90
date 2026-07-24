@@ -83,7 +83,7 @@ end module bmod_pert_mod
   call spline(nrad,nzet,rad,zet,hrad,hzet,icp,splbmod_im,ipoint,rrr,zzz, &
               bmod_im,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierr)
 !
-  bmod_n=cmplx(bmod_re,bmod_im)
+  bmod_n=cmplx(bmod_re,bmod_im,kind=8)
 !bmod_n=cmplx(bmod_re,-bmod_im)
 !
   end subroutine bmod_pert

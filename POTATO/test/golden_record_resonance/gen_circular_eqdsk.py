@@ -241,6 +241,17 @@ def main():
     eqdata, R, Z = build_eqdsk()
     eqdsk_path = os.path.join(THIS, "circ.eqdsk")
     write_eqdsk(eqdsk_path, eqdata)
+    # libneo's Fortran GEQDSK reader follows the conventional fixed-width
+    # ``2i5`` boundary-count record.  The Python writer emits those two integers
+    # list-directed, so normalize that one record for cross-reader portability.
+    with open(eqdsk_path) as stream:
+        lines = stream.readlines()
+    count_record = f"{eqdata['npbound']} {eqdata['nplimiter']}"
+    matches = [i for i, line in enumerate(lines) if line.strip() == count_record]
+    assert len(matches) == 1
+    lines[matches[0]] = f"{eqdata['npbound']:5d}{eqdata['nplimiter']:5d}\n"
+    with open(eqdsk_path, "w") as stream:
+        stream.writelines(lines)
 
     psi_edge = eqdata["PsiedgeVs"]
 

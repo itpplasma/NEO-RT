@@ -44,6 +44,8 @@ FetchContent_MakeAvailable(fortplot)
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
 # fixes (e.g. the stretch_coords convex-wall load) propagate instead of drifting.
+set(LIBNEO_RELEASE fix/field-eq-flux-units-401 CACHE STRING
+    "libneo branch carrying the field_eq flux-unit regression")
 find_or_fetch(libneo)
 
 # Hold POTATO's own sources to f2018, stop at the first diagnostic, and run the C
@@ -86,6 +88,26 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_signed_toroidal_bound.x
+   SRC/test_signed_toroidal_bound.f90
+)
+target_link_libraries(test_signed_toroidal_bound.x
+   potato_base
+)
+add_test(NAME test_signed_toroidal_bound
+   COMMAND test_signed_toroidal_bound.x
+)
+
+add_executable(test_box_counting_status.x
+   SRC/test_box_counting_status.f90
+)
+target_link_libraries(test_box_counting_status.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_box_counting_status
+   COMMAND test_box_counting_status.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )
@@ -108,6 +130,26 @@ target_link_libraries(test_potato_invariants.x
 )
 add_test(NAME test_potato_invariants
    COMMAND test_potato_invariants.x
+)
+
+add_executable(test_matrix_callback_status.x
+   SRC/test_matrix_callback_status.f90
+)
+target_link_libraries(test_matrix_callback_status.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_matrix_callback_status
+   COMMAND test_matrix_callback_status.x
+)
+
+add_executable(test_potato_input_validation.x
+   SRC/test_potato_input_validation.f90
+)
+target_link_libraries(test_potato_input_validation.x
+   potato_base
+)
+add_test(NAME test_potato_input_validation
+   COMMAND test_potato_input_validation.x
 )
 
 add_executable(test_wall_profile.x
@@ -138,8 +180,63 @@ target_link_libraries(potato_resonance_probe.x
    potato
 )
 
+# Trace-only executable for the cross-code Cartesian coordinate audit.  The
+# project-side verifier supplies points and interprets native output; no
+# production physics, defaults, or file formats are changed here.
+add_executable(potato_coordinate_probe.x
+   SRC/potato_coordinate_probe.f90
+)
+target_link_libraries(potato_coordinate_probe.x
+   potato_base
+)
+
+add_executable(potato_drift_probe.x
+   SRC/potato_drift_probe.f90
+)
+target_link_libraries(potato_drift_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+
+add_executable(potato_profile_serializer_probe.x
+   SRC/potato_profile_serializer_probe.f90
+)
+target_link_libraries(potato_profile_serializer_probe.x
+   potato
+)
+
+add_executable(potato_bmod_serializer_probe.x
+   SRC/potato_bmod_serializer_probe.f90
+)
+target_link_libraries(potato_bmod_serializer_probe.x
+   potato_base
+)
+
+add_executable(potato_hamiltonian_probe.x
+   SRC/potato_hamiltonian_probe.f90
+)
+target_link_libraries(potato_hamiltonian_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+
+add_executable(potato_poicut_probe.x
+   SRC/potato_poicut_probe.f90
+)
+target_link_libraries(potato_poicut_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_bmod_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_bmod_converter.py
+    )
+    set_tests_properties(potato_bmod_converter PROPERTIES TIMEOUT 60)
+    add_test(NAME potato_profile_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_profile_converter.py
+    )
+    set_tests_properties(potato_profile_converter PROPERTIES TIMEOUT 60)
     add_test(NAME potato_invariant_handoff
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py
@@ -147,6 +244,11 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
+    add_test(NAME potato_resonance_golden
+        COMMAND ${Python3_EXECUTABLE} -m pytest -q
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance/test_resonance_golden.py
+    )
+    set_tests_properties(potato_resonance_golden PROPERTIES TIMEOUT 150)
     add_test(NAME potato_golden_displacement
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py
@@ -166,4 +268,11 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 240
     )
+    add_test(NAME potato_poicut_translation
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/poicut_translation/test_poicut_translation.py
+            $<TARGET_FILE:potato_poicut_probe.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+    )
+    set_tests_properties(potato_poicut_translation PROPERTIES TIMEOUT 150)
 endif()

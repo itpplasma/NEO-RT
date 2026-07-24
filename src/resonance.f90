@@ -51,18 +51,20 @@ contains
         call driftorbit_coarse(v, eta_min, eta_max, roots, driftorbit_nroot)
     end function driftorbit_nroot
 
-    function driftorbit_root(v, tol, eta_min, eta_max)
+    function driftorbit_root(v, tol, eta_min, eta_max, converged)
         use logger, only: warning
 
+        real(dp), parameter :: relative_tolerance_floor = 1.0e-12_dp
         real(dp) :: driftorbit_root(2)
         real(dp), intent(in) :: v, tol, eta_min, eta_max
+        logical, intent(out), optional :: converged
         real(dp) :: res, res_old, eta_old
         real(dp) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
         integer :: maxit, k, state
         real(dp) :: etamin2, etamax2
         logical :: slope_pos
-        real(dp) :: resmin, resmax
+        real(dp) :: resmin, resmax, tol_eff
         real(dp) :: eta
 
         character(len=1024) :: msg
@@ -73,6 +75,7 @@ contains
         state = -2
         eta_old = 0.0_dp
         res = 0.0_dp
+        if (present(converged)) converged = .false.
 
         etamin2 = eta_min
         etamax2 = eta_max
@@ -87,6 +90,8 @@ contains
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         resmax = mph*Omph + mth*Omth
+        tol_eff = max(abs(tol), relative_tolerance_floor * &
+            max(1.0_dp, abs(resmin), abs(resmax)))
         if (resmax - resmin > 0) then
             slope_pos = .true.
         else
@@ -95,8 +100,8 @@ contains
 
         if (driftorbit_nroot(v, etamin2, etamax2) == 0) then
             write (msg, "(a,g0,a,g0,a,g0)") &
-                  "driftorbit_root couldn't bracket 0 for v/vth = ", v / vth, LF // &
-                  TAB // "etamin = ", etamin2, ", etamax = ", etamax2
+                "driftorbit_root couldn't bracket 0 for v/vth = ", v / vth, LF // &
+                TAB // "etamin = ", etamin2, ", etamax = ", etamax2
             call warning(msg)
             ! Defined sentinel: eta is a non-negative pitch parameter, so a
             ! negative root position flags "no resonance in this bracket".
@@ -115,9 +120,10 @@ contains
 
             driftorbit_root(1) = eta
 
-            if (abs(res) < tol) then
+            if (abs(res) <= tol_eff) then
                 state = 1
                 driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
+                if (present(converged)) converged = .true.
                 exit
             elseif ((slope_pos .and. res > 0) .or. &
                     ((.not. slope_pos) .and. res < 0)) then
@@ -131,14 +137,15 @@ contains
             end if
         end do
         if (state < 0) then
-            driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
-            write (msg, "(a,i0,a,g0,a,i0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0)") &
-                  "driftorbit_root: did not converge within ", maxit, " iterations" // LF // &
-                  TAB // "v/vth = ", v / vth, ", mth = ", mth, ", sign_vpar = ", sign_vpar, LF // &
-                  TAB // "etamin = ", eta_min, ", etamax = ", eta_max, ", eta = ", eta, LF // &
-                  TAB // "resmin = ", resmin, ", resmax = ", resmax, ", res = ", res, LF // &
-                  TAB // "resold = ", res_old, ", res = ", res, LF // &
-                  TAB // "tol = ", tol
+            driftorbit_root(1) = -2.0_dp
+            driftorbit_root(2) = 0.0_dp
+            write (msg, "(*(g0))") &
+                "driftorbit_root: did not converge within ", maxit, " iterations" // LF // &
+                TAB // "v/vth = ", v / vth, ", mth = ", mth, ", sign_vpar = ", sign_vpar, LF // &
+                TAB // "etamin = ", eta_min, ", etamax = ", eta_max, ", eta = ", eta, LF // &
+                TAB // "resmin = ", resmin, ", resmax = ", resmax, ", res = ", res, LF // &
+                TAB // "resold = ", res_old, ", res = ", res, LF // &
+                TAB // "requested tol = ", tol, ", effective tol = ", tol_eff
             call warning(msg)
         end if
     end function driftorbit_root

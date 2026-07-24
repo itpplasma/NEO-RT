@@ -3,6 +3,8 @@
   SUBROUTINE sample_matrix(get_matrix,ierr)
 !
   USE sample_matrix_mod
+  USE matrix_callback_status_mod, ONLY : matrix_callback_error, &
+      matrix_callback_ok, reset_matrix_callback_error
   USE form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
 ! next is threadprivate (the resonance mode loop writes it); copyin it into the
 ! grid-build regions, which never write it, so each worker starts from the master
@@ -26,6 +28,7 @@
   external :: get_matrix
 !
   ierr=0
+  call reset_matrix_callback_error
 !
   npoilag=nlagr+1
   nshift=nlagr/2
@@ -44,12 +47,20 @@
 !
   x=xbeg
   CALL get_matrix
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
 !
   xarr(1)=x
   amat_arr(:,:,1)=amat
 !
   x=xend
   CALL get_matrix
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
   xarr(npoi)=x
   amat_arr(:,:,npoi)=amat
 !
@@ -66,9 +77,17 @@
     if(.not.allocated(amat)) allocate(amat(n1,n2))
     x=xarr(i)
     CALL get_matrix
+    if(matrix_callback_error.ne.matrix_callback_ok) then
+      ierr=matrix_callback_error
+      cycle
+    endif
     amat_arr(:,:,i)=amat
   ENDDO
   !$omp end parallel do
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
 !
   ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2))
 !
@@ -116,6 +135,13 @@
     IF(iter.GT.itermax) THEN
       ierr=2
       PRINT *,'sample_matrix : maximum number of iterations exceeded'
+      PRINT *,'sample_matrix : npoi, unresolved intervals, eps = ', &
+          npoi,COUNT(isplit.eq.1),eps
+      if(COUNT(isplit.eq.1).gt.0) then
+        PRINT *,'sample_matrix : unresolved x range = ', &
+            MINVAL(xarr(1:npoi-1),MASK=isplit(1:npoi-1).eq.1), &
+            MAXVAL(xarr(2:npoi),MASK=isplit(1:npoi-1).eq.1)
+      endif
       RETURN
     ENDIF
 !
@@ -161,9 +187,17 @@
       if(.not.allocated(amat)) allocate(amat(n1,n2))
       x=xarr(newslots(k))
       CALL get_matrix
+      if(matrix_callback_error.ne.matrix_callback_ok) then
+        ierr=matrix_callback_error
+        cycle
+      endif
       amat_arr(:,:,newslots(k))=amat
     ENDDO
     !$omp end parallel do
+    if(matrix_callback_error.ne.matrix_callback_ok) then
+      ierr=matrix_callback_error
+      return
+    endif
     DEALLOCATE(newslots)
 !
 ! check which intervals should be splitted
