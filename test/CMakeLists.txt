@@ -63,6 +63,14 @@ add_test(NAME test_boozer_handedness
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+# Independent oracle for the direct-EQDSK field-line label: the theta-average of
+# B^phi/B^theta must reproduce the rotational transform obtained by integrating
+# the actual field line in cylindrical coordinates.
+add_test(NAME test_eqdsk_local_pitch
+    COMMAND ${CMAKE_BINARY_DIR}/test_eqdsk_local_pitch.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -117,4 +125,8 @@ set_tests_properties(test_chartmap_input PROPERTIES
 set_tests_properties(test_eqdsk_axis PROPERTIES
     ENVIRONMENT
         "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk;RZ_PERT_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/bmod_n.dat"
+)
+set_tests_properties(test_eqdsk_local_pitch PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
 )
