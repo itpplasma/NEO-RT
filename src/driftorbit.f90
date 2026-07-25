@@ -22,6 +22,12 @@ module driftorbit
     integer :: m0 = 1 ! Boozer poloidal perturbation mode
     integer :: mth = 1 ! canonical poloidal mode
     logical :: magdrift = .true. ! consider magnetic drift
+    !> Consider the magnetic drift for PASSING orbits.  Defaults to
+    !> magdrift, so the shipped behaviour is unchanged.  Setting it false
+    !> while magdrift stays true reproduces MARS-K's orbit-class scope,
+    !> which has no passing magnetic-drift code path at all, in a single
+    !> run rather than by summing two.
+    logical :: magdrift_passing = .true.
     logical :: nopassing = .false. ! neglect passing particles
     logical :: pertfile = .false. ! read perturbation from file with neo_magfie_pert
     logical :: comptorque = .true. ! compute torque

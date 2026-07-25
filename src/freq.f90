@@ -6,6 +6,7 @@ module neort_freq
     use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
+        magdrift_passing, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin, supban
     use shaing, only: omph_shaing
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q
@@ -223,17 +224,17 @@ contains
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_passing_spline k=', k, ' eta=', eta, ' taub=', taub
             end if
-            if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
+            if (magdrift_passing) Om_tB_v(k + 1) = bounceavg(3)
             Omth_v(k + 1) = 2*pi/(v*taub)
             if (k == netaspl_pass - 2) then
                 leta0 = log(etatp - eta)
                 taub0 = v*taub
-                if (magdrift) OmtB0 = Om_tB_v(k + 1)/Omth_v(k + 1)
+                if (magdrift_passing) OmtB0 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
             if (k == netaspl_pass - 1) then
                 leta1 = log(etatp - eta)
                 taub1 = v*taub
-                if (magdrift) OmtB1 = Om_tB_v(k + 1)/Omth_v(k + 1)
+                if (magdrift_passing) OmtB1 = Om_tB_v(k + 1)/Omth_v(k + 1)
             end if
         end do
 
@@ -241,7 +242,7 @@ contains
         d_taub_p = taub0 - k_taub_p*leta0
         Omth_pass_spl_coeff = spline_coeff(etarange, Omth_v)
 
-        if (magdrift) then
+        if (magdrift_passing) then
             k_OmtB_p = (OmtB1 - OmtB0)/(leta1 - leta0)
             d_OmtB_p = OmtB0 - k_OmtB_p*leta0
             OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
@@ -266,6 +267,10 @@ contains
                                             dOmthdeta / v * (k_OmtB_t * log(eta - etatp) &
                                                 + d_OmtB_t))
             end if
+        else if (.not. magdrift_passing) then
+            ! MARS-K has no passing magnetic-drift path; this reproduces that
+            ! scope exactly rather than approximately.
+            splineval = 0.0_dp
         else
             if (eta < etatp * (1 - epsp_spl)) then
                 splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
