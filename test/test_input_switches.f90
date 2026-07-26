@@ -7,7 +7,17 @@ program test_input_switches
     implicit none
 
     type(config_t) :: config
+    character(len=32) :: mode
     integer :: unit
+
+    call get_command_argument(1, mode)
+    if (trim(mode) == "reject_boozer_rz") then
+        config%inp_swi = 9
+        config%inp_swi_pert = 11
+        config%pertfile = .true.
+        call set_config(config)
+        stop
+    end if
 
     if (config%inp_swi_pert /= -1) error stop "perturbation switch default changed"
     if (perturbation_chart_is_compatible(11, 9)) then

@@ -37,10 +37,8 @@ contains
     pure logical function perturbation_chart_is_compatible(axis_switch, perturbation_switch)
         integer, intent(in) :: axis_switch, perturbation_switch
 
-        perturbation_chart_is_compatible = .true.
-        if (axis_switch == 11) then
-            perturbation_chart_is_compatible = perturbation_switch == 11
-        end if
+        perturbation_chart_is_compatible = &
+            (axis_switch == 11) .eqv. (perturbation_switch == 11)
     end function perturbation_chart_is_compatible
 
     subroutine set_config(config)
@@ -88,7 +86,7 @@ contains
         end if
         if (pertfile) then
             if (.not. perturbation_chart_is_compatible(inp_swi, perturbation_switch)) then
-                error stop "direct GEQDSK requires an R-Z perturbation (inp_swi_pert=11)"
+                error stop "direct GEQDSK and R-Z perturbation switches must be paired"
             end if
         end if
         vsteps = config%vsteps
@@ -141,7 +139,7 @@ contains
         end if
         if (pertfile) then
             if (.not. perturbation_chart_is_compatible(inp_swi, inp_swi_pert)) then
-                error stop "direct GEQDSK requires an R-Z perturbation (inp_swi_pert=11)"
+                error stop "direct GEQDSK and R-Z perturbation switches must be paired"
             end if
         end if
 

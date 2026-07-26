@@ -59,6 +59,11 @@ add_test(NAME test_input_switches
     COMMAND ${CMAKE_BINARY_DIR}/test_input_switches.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_input_switches_reject_boozer_rz
+    COMMAND ${CMAKE_BINARY_DIR}/test_input_switches.x reject_boozer_rz
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_input_switches_reject_boozer_rz PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME test_nonlinear_contract
     COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
