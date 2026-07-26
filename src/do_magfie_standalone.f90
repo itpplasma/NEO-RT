@@ -11,13 +11,14 @@ module do_magfie_mod
     real(dp), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
     real(dp), private, allocatable :: costerm(:), sinterm(:)
 
-    real(dp), parameter :: sign_theta = -1.0_dp ! negative for left-handed
+    real(dp) :: sign_theta = -1.0_dp ! coordinate handedness
 
     real(dp) :: s = 0.0_dp, psi_pr = 0.0_dp, Bthcov = 0.0_dp, Bphcov = 0.0_dp, &
         dBthcovds = 0.0_dp, dBphcovds = 0.0_dp, &
         q = 0.0_dp, dqds = 0.0_dp, iota = 0.0_dp, R0 = 0.0_dp, a = 0.0_dp, &
         eps = 0.0_dp, B0h = 0.0_dp, B00 = 0.0_dp
     real(dp) :: bfac = 1.0_dp
+    real(dp), private :: eqdsk_pitch_sign = 1.0_dp
     ! B0h is the 0th theta harmonic of bmod on current flux surface
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
@@ -30,7 +31,7 @@ module do_magfie_mod
     real(dp), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
 
     real(dp), parameter :: current_to_covar = 2.0e-1_dp
-    real(dp) :: ItoB = current_to_covar * sign_theta ! Covariant B (cgs) from I (SI)
+    real(dp) :: ItoB = -current_to_covar ! Covariant B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
 
     integer :: ncol1 = 0, ncol2 = 0 ! number of columns in input file
@@ -94,11 +95,13 @@ contains
         character(len=*), intent(in) :: path
         integer :: j, k
 
+        sign_theta = -1.0_dp
         if (inp_swi == 10) then
             call read_boozer_chartmap_file(path)
             return
         end if
         if (inp_swi == 11) then
+            sign_theta = 1.0_dp
             call read_eqdsk_file(path)
             return
         end if
@@ -391,6 +394,7 @@ contains
 
         character(len=*), intent(in) :: path
         real(dp) :: Z_axis, q0, dq0, psi_pol0, dpsi0, xgeo(3), xcyl(3)
+        real(dp) :: bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
         call reset_field_eq_state()
         gfile = trim(path)
@@ -400,7 +404,15 @@ contains
         nwindow_z = 0
         call init_geoflux_coordinates(path)
         call geoflux_get_axis(R0, Z_axis)
+        eqdsk_pitch_sign = 1.0_dp
+        call do_magfie_eqdsk([0.5_dp, 0.0_dp, 0.0_dp], bmod, sqrtg, bder, &
+            hcovar, hctrvr, hcurl)
+        if (abs(hctrvr(3)) <= tiny(hctrvr(3))) then
+            error stop 'GEQDSK field has no signed poloidal pitch'
+        end if
+        eqdsk_pitch_sign = sign(1.0_dp, hctrvr(2)/hctrvr(3))
         call geoflux_get_flux_profiles(0.0_dp, q0, dq0, psi_pol0, dpsi0, psi_pr)
+        psi_pr = eqdsk_pitch_sign*psi_pr
 
         xgeo = [1.0_dp, 0.0_dp, 0.0_dp]
         call geoflux_to_cyl(xgeo, xcyl)
@@ -471,8 +483,10 @@ contains
         sqrtg = xcyl(1)/inv_det
 
         call geoflux_get_flux_profiles(x(1), q, dqds, psi_pol, dpsi_pol_ds, psi_tor_edge)
+        q = eqdsk_pitch_sign*q
+        dqds = eqdsk_pitch_sign*dqds
         iota = 1.0_dp/q
-        psi_pr = psi_tor_edge*bfac
+        psi_pr = eqdsk_pitch_sign*psi_tor_edge*bfac
         Bthcov = hcovar(3)*bmod*bfac
         Bphcov = hcovar(2)*bmod*bfac
         B0h = bmod*bfac
