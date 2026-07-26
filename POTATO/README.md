@@ -16,8 +16,18 @@ cmake --build build -j
 ```
 
 `build/potato.x` reads its inputs from the working directory: `potato.in` (the
-`&potato_nml` namelist), the g-eqdsk named in `field_divB0.inp`, `convexwall.dat`,
-and the profile files.
+`&potato_nml` namelist), the g-eqdsk and convex-wall file named in
+`field_divB0.inp`, and the profile files.
+
+The g-eqdsk and convex-wall file are a matched equilibrium pair. The convex
+wall is the outer boundary of the complete computational domain, not the
+separatrix, and must enclose the LCFS with enough margin for every orbit being
+traced. POTATO uses this one configured wall for both the field-coordinate
+mapping and orbit-loss detection; no second hard-coded `convexwall.dat` is
+needed. By default, `edge_extension = .true.` permits orbit integration across
+the LCFS into the scrape-off layer. Set it explicitly to `.false.` for a
+closed-flux-only run. Edge extension does not turn the convex wall into the
+LCFS or remove the outer-domain requirement.
 
 ## Running with OpenMP
 

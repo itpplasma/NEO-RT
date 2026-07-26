@@ -43,7 +43,8 @@ program potato_resonance_contour
     call find_poicut(rho_pol_max, npoicut)
 
     open(newunit=u, file="potato_resonance_contour.dat", status="replace", action="write")
-    write(u, '(A)') "# rho_pol eta ux delphi taub ierr psiast Rst toten perpinv"
+    write(u, '(A)') &
+        "# rho_pol eta ux delphi taub ierr psiast Rst toten perpinv R_gc Z_gc"
     do i = 1, nrho
         rho = 0.05d0 + 0.93d0*dble(i - 1)/dble(nrho - 1)
         psi = psi_axis + rho*rho*(psi_sep - psi_axis)
@@ -62,7 +63,8 @@ program potato_resonance_contour
                 extraset = 0.d0
                 call find_bounce(next, velo, dtau, z, taub, delphi, extraset, ierr)
             end if
-            write(u, '(10ES18.9)') rho, eta, ux, delphi, taub, dble(ierr), psiast, Rst, toten, perpinv
+            write(u, '(12ES18.9)') rho, eta, ux, delphi, taub, dble(ierr), &
+                psiast, Rst, toten, perpinv, z(1), z(3)
         end do
         write(u, *)
     end do

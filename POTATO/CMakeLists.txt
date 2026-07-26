@@ -95,6 +95,10 @@ target_link_libraries(test_wall_loss.x
 add_test(NAME test_wall_loss
    COMMAND test_wall_loss.x
 )
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_wall_loss_run)
+set_tests_properties(test_wall_loss PROPERTIES
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_wall_loss_run
+)
 
 add_executable(test_potato_invariants.x
    SRC/test_potato_invariants.f90
