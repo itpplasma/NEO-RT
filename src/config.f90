@@ -15,6 +15,8 @@ module neort_config
         logical :: comptorque = .false. ! compute torque
         logical :: supban = .false. ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: magdrift = .false. ! consider magnetic drift
+        ! Negative means "follow magdrift", preserving every existing deck.
+        integer :: magdrift_passing = -1
         logical :: nopassing = .false. ! neglect passing particles
         logical :: noshear = .false. ! neglect magnetic shear term with dqds
         logical :: pertfile = .false. ! read perturbation from file
@@ -37,7 +39,7 @@ contains
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, &
             perturbation_switch => inp_swi_pert
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
+        use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
@@ -56,6 +58,8 @@ contains
         comptorque = config%comptorque
         supban = config%supban
         magdrift = config%magdrift
+        magdrift_passing = config%magdrift_passing
+        if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         nopassing = config%nopassing
         noshear = config%noshear
         pertfile = config%pertfile
@@ -88,7 +92,7 @@ contains
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
+        use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
@@ -101,7 +105,7 @@ contains
         integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
-            magdrift, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
+            magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level
 
         mth_max_abs = -1
@@ -111,6 +115,7 @@ contains
         read (9, nml=params)
         close (unit=9)
 
+        if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         if (inp_swi_pert < 0) inp_swi_pert = inp_swi
