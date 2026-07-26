@@ -5,6 +5,7 @@ program test_eqdsk_axis
         init_magfie_at_s, do_magfie, psi_pr, q, sign_theta
     use do_magfie_pert_mod, only: inp_swi_pert, read_boozer_pert_file, &
         init_magfie_pert_at_s, do_magfie_pert_amp, set_mph
+    use neort_orbit, only: fieldline_label_component
     use util, only: pi
     use util_for_test, only: pass_test
 
@@ -56,6 +57,14 @@ program test_eqdsk_axis
     if (psi_pr <= 0.0_dp) then
         write(*,*) 'GEQDSK toroidal flux disagrees with the analytic B_phi:', psi_pr
         error stop "GEQDSK toroidal-flux oracle failed"
+    end if
+    if (abs(fieldline_label_component(5.0_dp, 1.0_dp, 6.0_dp, 2.0_dp) - &
+        2.0_dp) > 10.0_dp*epsilon(1.0_dp)) then
+        error stop "field-line-label component failed its closed-form oracle"
+    end if
+    if (abs(fieldline_label_component(hcon(2), hcon(3), hcon(2), hcon(3))) > &
+        10.0_dp*epsilon(1.0_dp)*abs(hcon(2))) then
+        error stop "parallel motion changed the direct field-line label"
     end if
 
     inp_swi_pert = 11

@@ -33,6 +33,15 @@ module neort_orbit
 
 contains
 
+    pure function fieldline_label_component(vector_phi, vector_theta, &
+            field_phi, field_theta) result(component)
+        real(dp), intent(in) :: vector_phi, vector_theta
+        real(dp), intent(in) :: field_phi, field_theta
+        real(dp) :: component
+
+        component = vector_phi - field_phi/field_theta*vector_theta
+    end function fieldline_label_component
+
     subroutine dvode_error_context(where, v_in, eta_in, tcur, tout, ist)
         use do_magfie_mod, only: s, iota, R0, q, psi_pr, eps
         use driftorbit, only: etatp, etadt, etamin, etamax, mth, mph, sign_vpar
@@ -438,9 +447,11 @@ contains
                 + 0.5_dp*eta*bmod*cross_gradB_phi)
             drift_theta_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_theta &
                 + 0.5_dp*eta*bmod*cross_gradB_theta)
-            ! Canonical toroidal precession follows the field-line label
-            ! alpha=phi-q*theta, not the small cylindrical phi component alone.
-            Om_tB_v = drift_phi_v - q*drift_theta_v
+            ! Geometric theta is not a straight-field-line angle.  Project the
+            ! drift across the local field-line label so parallel motion has
+            ! identically zero canonical toroidal component.
+            Om_tB_v = fieldline_label_component( &
+                drift_phi_v, drift_theta_v, hctrvr(2), hctrvr(3))
         else
             shearterm = Bphcov * dqds
             if (noshear) then
