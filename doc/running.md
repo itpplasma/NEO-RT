@@ -63,7 +63,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `inp_swi` | Boozer input switch. | Passed to `do_magfie`. |
 | `vsteps` | Number of velocity grid points. | Set to `0` for adaptive quadrature. |
 | `mth_max_abs` | Maximum absolute orbit-resonance harmonic. | Default `-1` keeps the historical `±ceil(2\|mph q\|)` range; `0` selects only `mth=0`. |
-| `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `3.0` keeps the historical hard-coded bound; must be positive. |
+| `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
 
 ### Magnetic field data

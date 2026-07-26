@@ -16,6 +16,8 @@ module neort_config
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: collisional_layer = .false.  ! collisional boundary-layer factor
         logical :: magdrift = .false.  ! consider magnetic drift
+        ! Negative means "follow magdrift", preserving every existing deck.
+        integer :: magdrift_passing = -1
         logical :: nopassing = .false.  ! neglect passing particles
         logical :: noshear = .false.  ! neglect magnetic shear term with dqds
         logical :: pertfile = .false.  ! read perturbation from file
@@ -25,7 +27,7 @@ module neort_config
         integer :: inp_swi = 0  ! input switch for Boozer file
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
-        real(dp) :: vmax_over_vth = 3.0_dp  ! upper velocity cutoff / vth
+        real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
         integer :: log_level = 0  ! how much to log
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
@@ -36,7 +38,7 @@ contains
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
+        use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
@@ -57,6 +59,8 @@ contains
         supban = config%supban
         collisional_layer = config%collisional_layer
         magdrift = config%magdrift
+        magdrift_passing = config%magdrift_passing
+        if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         nopassing = config%nopassing
         noshear = config%noshear
         pertfile = config%pertfile
@@ -80,7 +84,7 @@ contains
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, nopassing, pertfile, &
+        use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
@@ -94,15 +98,16 @@ contains
         integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
-            collisional_layer, magdrift, nopassing, noshear, pertfile, nonlin, bfac, &
-            efac, inp_swi, vsteps, mth_max_abs, vmax_over_vth, log_level
+            collisional_layer, magdrift, magdrift_passing, nopassing, noshear, pertfile, &
+            nonlin, bfac, efac, inp_swi, vsteps, mth_max_abs, vmax_over_vth, log_level
 
         mth_max_abs = -1
-        vmax_over_vth = 3.0_dp
+        vmax_over_vth = 4.0_dp
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
 
+        if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
 

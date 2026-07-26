@@ -146,9 +146,11 @@ end type
 `mth_max_abs=-1` preserves the historical q-dependent harmonic range. A
 nonnegative value selects the exact symmetric range `-mth_max_abs:mth_max_abs`.
 
-`vmax_over_vth=3.0` sets the upper velocity-space cutoff in units of the
-thermal velocity. The default preserves the historical hard-coded bound; a
-larger value captures more of a far-tail resonance. It must be positive.
+`vmax_over_vth=4.0` sets the upper velocity-space cutoff in units of the
+thermal velocity. The default of `4.0` captures the far-tail resonance that the
+old hard-coded `3.0` bound truncated; `v_max = 5` is converged against `4`. Set
+`vmax_over_vth=3.0` to reproduce pre-2026-07-20 archived results. It must be
+positive.
 
 ### transport_data_t
 

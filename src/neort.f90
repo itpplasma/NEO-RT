@@ -18,9 +18,10 @@ module neort
     ! preserves the historical q-dependent automatic range.
     integer :: mth_max_abs = -1
 
-    ! Upper velocity-space cutoff in units of the thermal velocity. Default 3.0
-    ! preserves the historical hard-coded bound and bit-reproducibility.
-    real(dp) :: vmax_over_vth = 3.0_dp
+    ! Upper velocity-space cutoff in units of the thermal velocity. Default 4.0
+    ! captures the far-tail resonance; the historical hard-coded 3.0 bound
+    ! truncated it. Set vmax_over_vth = 3.0 to reproduce pre-2026-07-20 results.
+    real(dp) :: vmax_over_vth = 4.0_dp
 
 contains
 

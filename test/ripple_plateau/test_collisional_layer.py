@@ -100,9 +100,13 @@ def test_off_is_bit_identical(executable: Path, tmp_path: Path) -> None:
     """collisional_layer=.false. reproduces the flag-absent output byte-for-byte."""
     baseline = tmp_path / "baseline"
     explicit_off = tmp_path / "explicit_off"
-    for work_dir, flag in ((baseline, ""), (explicit_off, ".false.")):
+    cases = (
+        (baseline, ""),
+        (explicit_off, "collisional_layer = .false.\n    "),
+    )
+    for work_dir, extra_lines in cases:
         work_dir.mkdir()
-        _write_input(work_dir, f"collisional_layer = {flag}\n    " if flag else "", False)
+        _write_input(work_dir, extra_lines, False)
         _scale_density(work_dir / "plasma.in", 1.0)
         (work_dir / "profile.in").symlink_to((BASE_DIR / "profile.in").resolve())
         _run(executable, work_dir)
