@@ -36,6 +36,11 @@ add_test(NAME test_chartmap_input
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+add_test(NAME test_boozer_handedness
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_handedness.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

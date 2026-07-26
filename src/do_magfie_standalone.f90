@@ -28,7 +28,8 @@ module do_magfie_mod
     ! Work arrays for booz_to_cyl (size=nmode)
     real(dp), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
 
-    real(dp), parameter :: ItoB = 2.0e-1_dp * sign_theta  ! Covarient B (cgs) from I (SI)
+    real(dp), parameter :: current_to_covar = 2.0e-1_dp
+    real(dp) :: ItoB = current_to_covar * sign_theta ! Covariant B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
 
     integer :: ncol1 = 0, ncol2 = 0 ! number of columns in input file
@@ -54,7 +55,8 @@ module do_magfie_mod
     !$omp threadprivate (q, dqds, iota, eps, B0h)
 
     ! Shared data (NOT threadprivate): bfac, params0, modes0, m0b, n0b, nflux,
-    ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00, psi_pr, R0
+    ! nfp, nmode, spl_coeff1, spl_coeff2, ncol1, ncol2, inp_swi, a, B00, psi_pr,
+    ! R0, ItoB
 
     ! inp_swi == 10: Boozer chartmap (NetCDF) input via libneo reader.
     ! Shared read-only arrays; populated once by read_boozer_chartmap_file.
@@ -464,9 +466,94 @@ contains
             end do
         end do
         close (unit=18)
+        call set_bc_current_factor(filename)
         ! Set R0 to first harmonic
         R0 = modes0(1, 1, 3)*100
     end subroutine boozer_read
+
+    subroutine set_bc_current_factor(filename)
+        character(len=*), intent(in) :: filename
+
+        integer :: handedness, iota_sign, ksurf, orientation
+        integer :: reference_orientation
+        real(dp) :: area
+
+        reference_orientation = 0
+        do ksurf = 1, nflux
+            area = signed_poloidal_area(ksurf)
+            if (area == 0.0_dp .or. params0(ksurf, 2) == 0.0_dp) then
+                call fail_undetermined_handedness(filename, ksurf, area)
+            end if
+            orientation = int(sign(1.0_dp, area))
+            iota_sign = int(sign(1.0_dp, params0(ksurf, 2)))
+            ! area*iota is field-line winding; remove the field direction again
+            ! to obtain the orientation of the (s, theta, phi) coordinate triple.
+            handedness = -(orientation*iota_sign)*iota_sign
+            if (reference_orientation == 0) reference_orientation = orientation
+            if (orientation /= reference_orientation) then
+                call fail_inconsistent_handedness(filename, ksurf, orientation)
+            end if
+        end do
+        ItoB = current_to_covar*real(handedness, dp)
+    end subroutine set_bc_current_factor
+
+    function signed_poloidal_area(ksurf) result(area)
+        integer, intent(in) :: ksurf
+        real(dp) :: area
+
+        integer :: j, m, mode_sign
+        real(dp) :: Rcos(0:m0b), Rsin(0:m0b), Zcos(0:m0b), Zsin(0:m0b)
+
+        Rcos = 0.0_dp
+        Rsin = 0.0_dp
+        Zcos = 0.0_dp
+        Zsin = 0.0_dp
+        do j = 1, nmode
+            m = abs(nint(modes0(ksurf, j, 1)))
+            mode_sign = int(sign(1.0_dp, modes0(ksurf, j, 1)))
+            Rcos(m) = Rcos(m) + modes0(ksurf, j, 3)
+            if (inp_swi == 8) then
+                Zsin(m) = Zsin(m) + mode_sign*modes0(ksurf, j, 4)
+            else
+                Rsin(m) = Rsin(m) + mode_sign*modes0(ksurf, j, 4)
+                Zcos(m) = Zcos(m) + modes0(ksurf, j, 5)
+                Zsin(m) = Zsin(m) + mode_sign*modes0(ksurf, j, 6)
+            end if
+        end do
+        ! 1/2 integral(R*dZ - Z*dR) = pi*sum_m m*(Rc*Zs - Rs*Zc).
+        area = 0.0_dp
+        do m = 1, m0b
+            area = area + real(m, dp)*(Rcos(m)*Zsin(m) - Rsin(m)*Zcos(m))
+        end do
+        area = pi*area
+    end function signed_poloidal_area
+
+    subroutine fail_undetermined_handedness(filename, ksurf, area)
+        character(len=*), intent(in) :: filename
+        integer, intent(in) :: ksurf
+        real(dp), intent(in) :: area
+
+        character(len=1024) :: message
+
+        write (message, "(a,a,a,i0,a,es12.4,a,es12.4)") &
+            "Cannot determine Boozer handedness in '", trim(filename), &
+            "' at surface ", ksurf, ": signed area=", area, &
+            ", iota=", params0(ksurf, 2)
+        error stop trim(message)
+    end subroutine fail_undetermined_handedness
+
+    subroutine fail_inconsistent_handedness(filename, ksurf, orientation)
+        character(len=*), intent(in) :: filename
+        integer, intent(in) :: ksurf, orientation
+
+        character(len=1024) :: message
+
+        write (message, "(a,a,a,i0,a,i0,a,i0)") &
+            "Inconsistent Boozer handedness in '", trim(filename), &
+            "' at surface ", ksurf, ": poloidal orientation=", orientation, &
+            ", iota sign=", int(sign(1.0_dp, params0(ksurf, 2)))
+        error stop trim(message)
+    end subroutine fail_inconsistent_handedness
 
     subroutine booz_to_cyl(x, r)
 
