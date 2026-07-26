@@ -55,6 +55,11 @@ add_test(NAME test_profile_collision_species
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_input_switches
+    COMMAND ${CMAKE_BINARY_DIR}/test_input_switches.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_nonlinear_contract
     COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

@@ -1,5 +1,6 @@
 program test_input_switches
-    use neort_config, only: config_t, set_config, read_and_set_config
+    use neort_config, only: config_t, set_config, read_and_set_config, &
+        perturbation_chart_is_compatible
     use do_magfie_mod, only: axisymmetric_switch => inp_swi
     use do_magfie_pert_mod, only: perturbation_switch => inp_swi_pert
 
@@ -9,6 +10,15 @@ program test_input_switches
     integer :: unit
 
     if (config%inp_swi_pert /= -1) error stop "perturbation switch default changed"
+    if (perturbation_chart_is_compatible(11, 9)) then
+        error stop "direct GEQDSK accepted a Boozer-angle perturbation"
+    end if
+    if (.not. perturbation_chart_is_compatible(11, 11)) then
+        error stop "direct GEQDSK rejected an R-Z perturbation"
+    end if
+    if (.not. perturbation_chart_is_compatible(10, 9)) then
+        error stop "Boozer chartmap rejected a Boozer perturbation"
+    end if
 
     config%inp_swi = 10
     config%inp_swi_pert = 9

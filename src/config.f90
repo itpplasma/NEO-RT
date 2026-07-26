@@ -34,6 +34,15 @@ module neort_config
 
 contains
 
+    pure logical function perturbation_chart_is_compatible(axis_switch, perturbation_switch)
+        integer, intent(in) :: axis_switch, perturbation_switch
+
+        perturbation_chart_is_compatible = .true.
+        if (axis_switch == 11) then
+            perturbation_chart_is_compatible = perturbation_switch == 11
+        end if
+    end function perturbation_chart_is_compatible
+
     subroutine set_config(config)
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
@@ -76,6 +85,11 @@ contains
         if (pertfile .and. perturbation_switch /= 8 .and. &
             perturbation_switch /= 9 .and. perturbation_switch /= 11) then
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
+        end if
+        if (pertfile) then
+            if (.not. perturbation_chart_is_compatible(inp_swi, perturbation_switch)) then
+                error stop "direct GEQDSK requires an R-Z perturbation (inp_swi_pert=11)"
+            end if
         end if
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
@@ -124,6 +138,11 @@ contains
         if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9 .and. &
             inp_swi_pert /= 11) then
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
+        end if
+        if (pertfile) then
+            if (.not. perturbation_chart_is_compatible(inp_swi, inp_swi_pert)) then
+                error stop "direct GEQDSK requires an R-Z perturbation (inp_swi_pert=11)"
+            end if
         end if
 
         M_t = M_t * efac / bfac
