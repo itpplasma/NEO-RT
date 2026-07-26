@@ -198,5 +198,45 @@ def test_golden(case: str, executable: Path, tmp_path: Path) -> None:
     assert golden_close(actual_magfie, golden_magfie), f"Magfie mismatch for {case}"
 
 
+@pytest.mark.fast_only
+def test_passing_magdrift_control_reproduces_the_two_run_class_sum(
+    executable: Path, tmp_path: Path
+) -> None:
+    """One mixed-scope run must equal the independent two-run composition."""
+
+    case = get_test_cases()[len(get_test_cases()) // 2]
+    outputs = {}
+    for label, magdrift, passing_control in (
+        ("full_drift", True, None),
+        ("no_drift", False, None),
+        ("mixed_scope", True, 0),
+    ):
+        work_dir = tmp_path / label
+        work_dir.mkdir()
+        setup_work_dir(work_dir)
+        namelist = f90nml.read(INPUT_DIR / "template.in")
+        namelist["params"]["s"] = s_from_case_name(case)
+        namelist["params"]["magdrift"] = magdrift
+        if passing_control is not None:
+            namelist["params"]["magdrift_passing"] = passing_control
+        namelist.write(work_dir / f"{label}.in", force=True)
+        run_neort(executable, work_dir, label)
+        outputs[label] = np.atleast_2d(load_torque(work_dir, label))[0]
+
+    # torque.out columns are s, dV/ds, M_t, T_co, T_counter, T_trapped.
+    np.testing.assert_allclose(
+        outputs["mixed_scope"][3:5],
+        outputs["no_drift"][3:5],
+        rtol=2.0e-14,
+        atol=0.0,
+    )
+    np.testing.assert_allclose(
+        outputs["mixed_scope"][5],
+        outputs["full_drift"][5],
+        rtol=2.0e-14,
+        atol=0.0,
+    )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

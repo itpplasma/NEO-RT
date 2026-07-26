@@ -22,6 +22,8 @@ module driftorbit
     integer :: m0 = 1 ! Boozer poloidal perturbation mode
     integer :: mth = 1 ! canonical poloidal mode
     logical :: magdrift = .true. ! consider magnetic drift
+    !> Passing magnetic drift; defaults to magdrift through the config layer.
+    integer :: magdrift_passing = -1
     logical :: nopassing = .false. ! neglect passing particles
     logical :: pertfile = .false. ! read perturbation from file with neo_magfie_pert
     logical :: comptorque = .true. ! compute torque
