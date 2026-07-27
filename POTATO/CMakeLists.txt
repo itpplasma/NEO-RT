@@ -44,6 +44,8 @@ FetchContent_MakeAvailable(fortplot)
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
 # fixes (e.g. the stretch_coords convex-wall load) propagate instead of drifting.
+set(LIBNEO_RELEASE fix/field-eq-flux-units-401 CACHE STRING
+    "libneo branch carrying the field_eq flux-unit regression")
 find_or_fetch(libneo)
 
 # Hold POTATO's own sources to f2018, stop at the first diagnostic, and run the C
@@ -146,6 +148,44 @@ add_executable(potato_resonance_probe.x
 )
 target_link_libraries(potato_resonance_probe.x
    potato
+)
+
+# Trace-only executable for the cross-code Cartesian coordinate audit.  The
+# project-side verifier supplies points and interprets native output; no
+# production physics, defaults, or file formats are changed here.
+add_executable(potato_coordinate_probe.x
+   SRC/potato_coordinate_probe.f90
+)
+target_link_libraries(potato_coordinate_probe.x
+   potato_base
+)
+
+add_executable(potato_drift_probe.x
+   SRC/potato_drift_probe.f90
+)
+target_link_libraries(potato_drift_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+
+add_executable(potato_profile_serializer_probe.x
+   SRC/potato_profile_serializer_probe.f90
+)
+target_link_libraries(potato_profile_serializer_probe.x
+   potato
+)
+
+add_executable(potato_bmod_serializer_probe.x
+   SRC/potato_bmod_serializer_probe.f90
+)
+target_link_libraries(potato_bmod_serializer_probe.x
+   potato_base
+)
+
+add_executable(potato_hamiltonian_probe.x
+   SRC/potato_hamiltonian_probe.f90
+)
+target_link_libraries(potato_hamiltonian_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
 )
 
 find_package(Python3 COMPONENTS Interpreter)

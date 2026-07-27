@@ -10,6 +10,19 @@ add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
 target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)
 
+# Trace-only executable used by the cross-code coordinate-contract audit.  It
+# does not alter NEO-RT physics or I/O behavior and is intentionally not a CTest
+# pass/fail gate: the project-side verifier interprets its native trace.
+add_executable(probe_neort_eqdsk_coordinate.x probe_neort_eqdsk_coordinate.f90)
+target_link_libraries(probe_neort_eqdsk_coordinate.x neo_rt)
+
+add_executable(probe_neort_eqdsk_drift.x probe_neort_eqdsk_drift.f90)
+target_link_libraries(probe_neort_eqdsk_drift.x neo_rt)
+
+add_executable(probe_neort_perturbation_nfp.x
+    probe_neort_perturbation_nfp.f90)
+target_link_libraries(probe_neort_perturbation_nfp.x neo_rt)
+
 add_test(NAME test_timestep
     COMMAND test_timestep.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -91,6 +104,10 @@ add_test(NAME test_resonance_bracket
 )
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME test_perturbation_nfp
+    COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_nfp.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 set_tests_properties(test_chartmap_input PROPERTIES
