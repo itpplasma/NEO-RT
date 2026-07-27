@@ -147,6 +147,14 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
+    add_test(NAME potato_fixed_energy_contour
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/fixed_energy_contour/test_fixed_energy_contour.py
+            $<TARGET_FILE:potato_resonance_contour.x>
+            $<TARGET_FILE:potato.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+    )
+    set_tests_properties(potato_fixed_energy_contour PROPERTIES TIMEOUT 150)
     add_test(NAME potato_golden_displacement
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py
