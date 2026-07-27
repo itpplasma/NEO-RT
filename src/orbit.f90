@@ -450,6 +450,9 @@ contains
             ! Geometric theta is not a straight-field-line angle.  Project the
             ! drift across the local field-line label so parallel motion has
             ! identically zero canonical toroidal component.
+            if (abs(hctrvr(3)) <= tiny(hctrvr(3))) then
+                error stop "direct-EQDSK B^theta vanishes; local field-line pitch is undefined"
+            end if
             Om_tB_v = fieldline_label_component( &
                 drift_phi_v, drift_theta_v, hctrvr(2), hctrvr(3))
         else
