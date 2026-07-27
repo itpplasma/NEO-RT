@@ -140,6 +140,16 @@ target_link_libraries(potato_resonance_probe.x
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_bmod_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_bmod_converter.py
+    )
+    set_tests_properties(potato_bmod_converter PROPERTIES TIMEOUT 60)
+    add_test(NAME potato_profile_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_profile_converter.py
+    )
+    set_tests_properties(potato_profile_converter PROPERTIES TIMEOUT 60)
     add_test(NAME potato_invariant_handoff
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py
