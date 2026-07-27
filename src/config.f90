@@ -24,6 +24,7 @@ module neort_config
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
+        integer :: inp_swi_pert = -1 ! negative inherits inp_swi
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
@@ -33,10 +34,18 @@ module neort_config
 
 contains
 
+    pure logical function perturbation_chart_is_compatible(axis_switch, perturbation_switch)
+        integer, intent(in) :: axis_switch, perturbation_switch
+
+        perturbation_chart_is_compatible = &
+            (axis_switch == 11) .eqv. (perturbation_switch == 11)
+    end function perturbation_chart_is_compatible
+
     subroutine set_config(config)
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph
+        use do_magfie_pert_mod, only: mph, set_mph, &
+            perturbation_switch => inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
@@ -65,6 +74,20 @@ contains
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
+        if (config%inp_swi_pert < 0) then
+            perturbation_switch = config%inp_swi
+        else
+            perturbation_switch = config%inp_swi_pert
+        end if
+        if (pertfile .and. perturbation_switch /= 8 .and. &
+            perturbation_switch /= 9 .and. perturbation_switch /= 11) then
+            error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
+        end if
+        if (pertfile) then
+            if (.not. perturbation_chart_is_compatible(inp_swi, perturbation_switch)) then
+                error stop "direct GEQDSK and R-Z perturbation switches must be paired"
+            end if
+        end if
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         mth_max_abs = config%mth_max_abs
@@ -80,7 +103,7 @@ contains
     subroutine read_and_set_config(config_file)
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph
+        use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
@@ -95,10 +118,11 @@ contains
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            vsteps, mth_max_abs, vmax_over_vth, log_level
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
+        inp_swi_pert = -1
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
@@ -106,6 +130,16 @@ contains
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
+        if (inp_swi_pert < 0) inp_swi_pert = inp_swi
+        if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9 .and. &
+            inp_swi_pert /= 11) then
+            error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
+        end if
+        if (pertfile) then
+            if (.not. perturbation_chart_is_compatible(inp_swi, inp_swi_pert)) then
+                error stop "direct GEQDSK and R-Z perturbation switches must be paired"
+            end if
+        end if
 
         M_t = M_t * efac / bfac
         qi = qs * qe
