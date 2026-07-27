@@ -83,3 +83,32 @@ For a scan, rows retain the requested increasing-`R` order (HFS to LFS when
 the input bounds are ordered that way), matching POTATO's `R_c` convention.
 No `rho_pol`/`rho_tor` identification or outer/inner orbit selection is
 implied by the handoff.
+
+## Fixed-energy invariant contour scan
+
+`potato_resonance_contour.x` scans a rectangular `(rho_pol, J_perp)` grid at
+fixed kinetic energy. For a 5 keV deuteron scan, set `E_alpha = 5d3` and
+`contour_enkin = 1d0`; `contour_enkin` is normalized to `E_alpha`.
+
+```text
+contour_rho_min = 0.05d0
+contour_rho_max = 0.95d0
+contour_nrho = 21
+contour_jperp_min = 1d-6
+contour_jperp_max = 8d-5
+contour_njperp = 21
+contour_enkin = 1d0
+contour_sigma = 1
+```
+
+Run it from a directory containing the normal POTATO equilibrium, wall, profile,
+and `potato.in` inputs:
+
+```bash
+fo exec --cwd /path/to/run potato_resonance_contour.x
+```
+
+The resulting `potato_resonance_contour.dat` retains every requested grid point
+and contains `H0`, `J_perp`, `psi_star`, the guiding-centre start, `taub`,
+`delphi`, physical angular frequencies, and `ierr`. Keep failed rows for the
+rectangular grid and mask them using `ierr`; do not interpolate across them.

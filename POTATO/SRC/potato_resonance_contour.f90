@@ -7,7 +7,9 @@ program potato_resonance_contour
     use potato_input_mod, only : read_potato_input, E_alpha, A_alpha, Z_alpha, &
         rho_pol_max, scalfac_energy, scalfac_efield, &
         Rmax_orbit, ntimstep, npoicut, profile_file, &
-        edge_extension
+        edge_extension, contour_rho_min, contour_rho_max, contour_nrho, &
+        contour_jperp_min, contour_jperp_max, contour_njperp, &
+        contour_enkin, contour_sigma
     use field_eq_mod, only : allow_sol, psi_axis, psi_sep
     use field_sub, only : psif
     implicit none
@@ -16,61 +18,123 @@ program potato_resonance_contour
     double precision, parameter :: e_charge = 4.8032d-10
     double precision, parameter :: p_mass = 1.6726d-24
     double precision, parameter :: ev = 1.6022d-12
-    integer, parameter :: nrho = 70, neta = 90
-    double precision, parameter :: ux = 1.5d0
-
-    integer :: i, j, u, ierr
-    double precision :: rho, eta, psi, dens, temp, ddens, dtemp, phi_elec, dPhi_dpsi
-    double precision :: enkin, toten, perpinv, Rst, psiast, dpsiast_dRst
-    double precision :: taub, delphi, extraset(1), z(neqm), v0, bmod_ref
+    double precision :: v0
 
     external :: find_bounce, velo
 
     call read_potato_input("potato.in")
-    allow_sol = edge_extension
-    E_alpha = E_alpha/scalfac_energy
-    rmu = 1.d30
-    v0 = sqrt(2.d0*E_alpha*ev/(p_mass*A_alpha))
-    bmod_ref = 1.d0
-    ro0 = v0*p_mass*A_alpha*c/(e_charge*Z_alpha*bmod_ref)
-    cE_ref = E_alpha*ev
-    Phi_eff = c*E_alpha*ev/(e_charge*Z_alpha*v0)
-    dtau = Rmax_orbit/dble(ntimstep)
-    numbasef = 0
-    next = 0
-
-    call load_profiles
-    call find_poicut(rho_pol_max, npoicut)
-
-    open(newunit=u, file="potato_resonance_contour.dat", status="replace", action="write")
-    write(u, '(A)') &
-        "# rho_pol eta ux delphi taub ierr psiast Rst toten perpinv R_gc Z_gc"
-    do i = 1, nrho
-        rho = 0.05d0 + 0.93d0*dble(i - 1)/dble(nrho - 1)
-        psi = psi_axis + rho*rho*(psi_sep - psi_axis)
-        call denstemp_of_psi(psi, dens, temp, ddens, dtemp)
-        call phielec_of_psi(psi, phi_elec, dPhi_dpsi)
-        enkin = ux*ux*temp
-        toten = enkin + phi_elec
-        Rst = R_from_psi_lfs(psi)
-        do j = 1, neta
-            eta = 1.d-6 + (8.d-5 - 1.d-6)*dble(j - 1)/dble(neta - 1)
-            perpinv = eta*enkin
-            call starter_doublecount(toten, perpinv, 1.d0, Rst, psiast, dpsiast_dRst, z, ierr)
-            taub = 0.d0
-            delphi = 0.d0
-            if (ierr == 0) then
-                extraset = 0.d0
-                call find_bounce(next, velo, dtau, z, taub, delphi, extraset, ierr)
-            end if
-            write(u, '(12ES18.9)') rho, eta, ux, delphi, taub, dble(ierr), &
-                psiast, Rst, toten, perpinv, z(1), z(3)
-        end do
-        write(u, *)
-    end do
-    close(u)
+    call initialize_contour(v0)
+    call write_contour(v0)
 
 contains
+
+    subroutine initialize_contour(v0)
+        double precision, intent(out) :: v0
+        double precision :: bmod_ref
+
+        allow_sol = edge_extension
+        E_alpha = E_alpha/scalfac_energy
+        rmu = 1.d30
+        v0 = sqrt(2.d0*E_alpha*ev/(p_mass*A_alpha))
+        bmod_ref = 1.d0
+        ro0 = v0*p_mass*A_alpha*c/(e_charge*Z_alpha*bmod_ref)
+        cE_ref = E_alpha*ev
+        Phi_eff = c*E_alpha*ev/(e_charge*Z_alpha*v0)
+        dtau = Rmax_orbit/dble(ntimstep)
+        numbasef = 0
+        next = 0
+
+        call load_profiles
+        call find_poicut(rho_pol_max, npoicut)
+    end subroutine initialize_contour
+
+    subroutine write_contour(v0)
+        double precision, intent(in) :: v0
+        integer :: i, j, u
+        double precision :: rho, jperp
+
+        call validate_contour_input
+        open(newunit=u, file="potato_resonance_contour.dat", &
+            status="replace", action="write")
+        write(u, '(A)') "# id rho_pol R_gc Z_gc p xi sigma H0 J_perp " &
+            // "psi_star psi_axis psi_edge phi_elec v0_cm_s taub delphi " &
+            // "omega_b omega_phi ierr"
+        do i = 1, contour_nrho
+            rho = grid_value(contour_rho_min, contour_rho_max, contour_nrho, i)
+            do j = 1, contour_njperp
+                jperp = grid_value(contour_jperp_min, contour_jperp_max, &
+                    contour_njperp, j)
+                call write_contour_point(u, (i - 1)*contour_njperp + j, &
+                    rho, jperp, v0)
+            end do
+            write(u, *)
+        end do
+        close(u)
+    end subroutine write_contour
+
+    subroutine write_contour_point(u, id, rho, jperp, v0)
+        integer, intent(in) :: u, id
+        double precision, intent(in) :: rho, jperp, v0
+        integer :: ierr
+        double precision :: psi, phi_elec, dphi_dpsi, h0, rst, psi_star
+        double precision :: dpsi_star_dr, taub, delphi, omega_b, omega_phi
+        double precision :: z(neqm)
+
+        psi = psi_axis + rho*rho*(psi_sep - psi_axis)
+        call phielec_of_psi(psi, phi_elec, dphi_dpsi)
+        h0 = contour_enkin + phi_elec
+        rst = R_from_psi_lfs(psi)
+        z = 0d0
+        psi_star = 0d0
+        dpsi_star_dr = 0d0
+        call starter_doublecount(h0, jperp, dble(contour_sigma), rst, &
+            psi_star, dpsi_star_dr, z, ierr)
+        call trace_contour_point(z, taub, delphi, omega_b, omega_phi, v0, ierr)
+        write(u, '(I8,17ES18.9,I8)') id, rho, z(1), z(3), z(4), z(5), &
+            dble(contour_sigma), h0, jperp, psi_star, psi_axis, psi_sep, &
+            phi_elec, v0, taub, delphi, omega_b, omega_phi, ierr
+    end subroutine write_contour_point
+
+    subroutine trace_contour_point(z, taub, delphi, omega_b, omega_phi, v0, ierr)
+        double precision, intent(inout) :: z(neqm)
+        double precision, intent(out) :: taub, delphi, omega_b, omega_phi
+        double precision, intent(in) :: v0
+        integer, intent(inout) :: ierr
+        double precision :: extraset(1)
+
+        taub = 0d0
+        delphi = 0d0
+        omega_b = 0d0
+        omega_phi = 0d0
+        if (ierr /= 0) return
+        extraset = 0d0
+        call find_bounce(next, velo, dtau, z, taub, delphi, extraset, ierr)
+        if (ierr /= 0) return
+        if (taub <= 0d0) then
+            ierr = 1
+            return
+        endif
+        omega_b = 2d0*acos(-1d0)*v0/taub
+        omega_phi = delphi*v0/taub
+    end subroutine trace_contour_point
+
+    subroutine validate_contour_input
+        if (contour_nrho < 1) error stop "contour_nrho must be positive"
+        if (contour_njperp < 1) error stop "contour_njperp must be positive"
+        if (contour_enkin <= 0d0) error stop "contour_enkin must be positive"
+        if (abs(contour_sigma) /= 1) error stop "contour_sigma must be -1 or 1"
+    end subroutine validate_contour_input
+
+    double precision function grid_value(lower, upper, count, index)
+        double precision, intent(in) :: lower, upper
+        integer, intent(in) :: count, index
+
+        if (count == 1) then
+            grid_value = lower
+        else
+            grid_value = lower + (upper - lower)*dble(index - 1)/dble(count - 1)
+        endif
+    end function grid_value
 
     subroutine load_profiles
         integer :: iunit
