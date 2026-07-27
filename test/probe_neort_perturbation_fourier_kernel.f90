@@ -1,8 +1,8 @@
 program probe_neort_perturbation_fourier_kernel
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use do_magfie_mod, only: bfac, inp_swi, set_s
+    use do_magfie_mod, only: bfac, set_s
     use do_magfie_pert_mod, only: do_magfie_pert, do_magfie_pert_amp, &
-        init_magfie_pert_at_s, read_boozer_pert_file
+        init_magfie_pert_at_s, inp_swi_pert, read_boozer_pert_file
 
     implicit none
 
@@ -14,7 +14,7 @@ program probe_neort_perturbation_fourier_kernel
     real(dp) :: full_field_g, expected_g, wrong_sign_g, x(3)
 
     call write_fixture(fixture)
-    inp_swi = 9
+    inp_swi_pert = 9
     bfac = 1.0_dp
     call set_s(0.5_dp)
     call read_boozer_pert_file(fixture)

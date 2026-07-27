@@ -3,7 +3,7 @@ module neort_orbit
     use logger, only: debug, trace, get_log_level, LOG_TRACE, error
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
-    use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
+    use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, inp_swi, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_profiles, only: vth, Om_tE, dOm_tEds
@@ -32,6 +32,15 @@ module neort_orbit
     end interface
 
 contains
+
+    pure function fieldline_label_component(vector_phi, vector_theta, &
+            field_phi, field_theta) result(component)
+        real(dp), intent(in) :: vector_phi, vector_theta
+        real(dp), intent(in) :: field_phi, field_theta
+        real(dp) :: component
+
+        component = vector_phi - field_phi/field_theta*vector_theta
+    end function fieldline_label_component
 
     subroutine dvode_error_context(where, v_in, eta_in, tcur, tout, ist)
         use do_magfie_mod, only: s, iota, R0, q, psi_pr, eps
@@ -414,7 +423,9 @@ contains
         real(dp), intent(out) :: ydot(neq)
 
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
-        real(dp) :: Om_tB_v
+        real(dp) :: Om_tB_v, cross_gradB_phi, cross_gradB_theta
+        real(dp) :: curl_parallel, curvature_phi, curvature_theta
+        real(dp) :: drift_phi_v, drift_theta_v
         real(dp) :: shearterm
 
         x(1) = s
@@ -422,20 +433,42 @@ contains
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        shearterm = Bphcov * dqds
-        if (noshear) then
-            shearterm = 0
-        end if
+        if (inp_swi == 11) then
+            ! Coordinate-independent first-order magnetic drift, evaluated from
+            ! the direct cylindrical EQDSK field and transformed to
+            ! (s_tor,phi,theta_geo).  hcurl is curl(h), and the parallel piece
+            ! is removed to obtain h cross (h dot grad h).
+            cross_gradB_phi = (hcovar(3)*hder(1) - hcovar(1)*hder(3))/sqrtg
+            cross_gradB_theta = (hcovar(1)*hder(2) - hcovar(2)*hder(1))/sqrtg
+            curl_parallel = sum(hcovar*hcurl)
+            curvature_phi = hcurl(2) - hctrvr(2)*curl_parallel
+            curvature_theta = hcurl(3) - hctrvr(3)*curl_parallel
+            drift_phi_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_phi &
+                + 0.5_dp*eta*bmod*cross_gradB_phi)
+            drift_theta_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_theta &
+                + 0.5_dp*eta*bmod*cross_gradB_theta)
+            ! Geometric theta is not a straight-field-line angle.  Project the
+            ! drift across the local field-line label so parallel motion has
+            ! identically zero canonical toroidal component.
+            Om_tB_v = fieldline_label_component( &
+                drift_phi_v, drift_theta_v, hctrvr(2), hctrvr(3))
+        else
+            shearterm = Bphcov * dqds
+            if (noshear) then
+                shearterm = 0
+            end if
 
-        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
-            -(2.0_dp - eta * bmod) * bmod * hder(1) &
-            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
-            (dBthcovds + q * dBphcovds + shearterm))
+            Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
+                -(2.0_dp - eta * bmod) * bmod * hder(1) &
+                + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
+                (dBthcovds + q * dBphcovds + shearterm))
+        end if
 
         ydot(1) = y(2) * hctrvr(3) ! theta
         ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod ! v_par
         ydot(3) = Om_tB_v ! for bounce average of Om_tB/v**2
         ydot(4:) = 0.0_dp ! remaining integrands not computed here
+        if (inp_swi == 11 .and. neq >= 7) ydot(7) = y(2)*hctrvr(2)
     end subroutine timestep
 
 end module neort_orbit

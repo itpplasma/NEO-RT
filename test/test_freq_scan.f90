@@ -1,8 +1,8 @@
 program test_freq_scan
   ! Thin-orbit canonical frequencies vs flux surface for the rung-2 benchmark
   ! against POTATO. At each s the bounce frequency Om_th and the toroidal
-  ! precession Om_ph are evaluated at a fixed pitch (eta = 0.84/Bmin, i.e.
-  ! v_par/v = 0.4 at the local low-field-side midplane, matching POTATO's
+  ! precession Om_ph are evaluated at a supplied pitch (eta = (1-lambda^2)/Bmin,
+  ! where lambda = v_par/v at the local low-field-side midplane) matching POTATO's
   ! orbit_lambda) and a fixed energy. No E x B (Om_tE = 0) to match POTATO's
   ! zero-potential profile, so Om_ph is the magnetic precession alone.
   use iso_fortran_env, only: dp => real64
@@ -16,12 +16,19 @@ program test_freq_scan
   integer, parameter :: ns = 60
   real(dp), parameter :: smin = 0.05_dp, smax = 0.95_dp
   real(dp), parameter :: v_10keV = 9.787e7_dp   ! 10 keV deuteron, cm/s
-  real(dp), parameter :: lambda0 = 0.4_dp       ! v_par/v at the midplane
+  real(dp) :: lambda0
 
   integer :: i, fid
+  character(len=32) :: input_switch_arg, lambda_arg
   real(dp) :: v, eta, Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
 
-  inp_swi = 9          ! ASDEX Upgrade Boozer format
+  inp_swi = 9          ! default: ASDEX Upgrade Boozer format
+  lambda0 = 0.4_dp
+  call get_command_argument(1, input_switch_arg)
+  if (len_trim(input_switch_arg) > 0) read(input_switch_arg, *) inp_swi
+  call get_command_argument(2, lambda_arg)
+  if (len_trim(lambda_arg) > 0) read(lambda_arg, *) lambda0
+  if (abs(lambda0) >= 1.0_dp) error stop "midplane pitch must satisfy |lambda|<1"
   magdrift = .true.
   s = smin
   call do_magfie_init("in_file")
