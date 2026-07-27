@@ -39,7 +39,13 @@ module driftorbit
 
     real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp   ! dist to tpb for spline
     real(dp), parameter :: epsst_spl = 1.0e-3_dp, epssp_spl = 1.0e-3_dp ! dist to deep for spline
-    real(dp), parameter :: epst = 1.0e-8_dp, epsp = 1.0e-8_dp ! smallest eta distance to tp bound
+    ! Keep resonance searches strictly on the spline side of the
+    ! trapped-passing boundary. Trapped roots need a larger validated margin
+    ! to bound explicit bounce integration at the separatrix; passing roots
+    ! only need a representable guard above the spline boundary.
+    real(dp), parameter :: passing_bracket_guard = 128.0_dp*epsilon(1.0_dp)
+    real(dp), parameter :: epst = 1.0e-5_dp
+    real(dp), parameter :: epsp = epsp_spl + passing_bracket_guard
 
 
 
