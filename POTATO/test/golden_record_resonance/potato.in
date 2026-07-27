@@ -21,6 +21,6 @@
   npoi_init = 9
   nlagr_sampling = 3
   eps_sampling = 1.5d-1
-  itermax_sampling = 1
+  itermax_sampling = 10
   profile_file = 'profile_poly.in'
 /

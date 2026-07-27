@@ -1,9 +1,8 @@
 {
-  "_comment": "Golden record for the public-safe circular-equilibrium resonance gate. Per-energy-slice resonance-line counts produced by potato.x on the committed circular case. Each slice is keyed by its total-energy value (toten, first column of fort.31415); the count is the number of resonance lines written for that slice. Regenerated for the configurable uniform-energy grid (enkin_min_over_temp default 0.1; toten starts at phi_max + 0.1*T) after making libneo's ierrfield threadprivate, which removed the OpenMP race that the new energy slices exposed. The OMP-determinism half of the gate checks the sorted reslines are identical at 1 and 4 threads; a privatization regression in the resonance weights drops the counts well below these numbers.",
-  "total_reslines": 660,
+  "_comment": "Golden record for the public-safe circular-equilibrium resonance gate. Per-energy-slice resonance-line counts produced by potato.x on the committed circular case. The zero kinetic-energy cutoff preserves the legacy grid and skips its first midpoint, leaving the two serialized slices below. The outer J_perp sampler uses enough refinement cycles to satisfy its integral-error gate rather than silently dropping an unconverged slice. The OMP-determinism half checks that sorted reslines are identical at one and four threads.",
+  "total_reslines": 429,
   "slices": [
-    {"toten": 18.220600840510961, "count": 200},
-    {"toten": 18.607267507177632, "count": 191},
-    {"toten": 18.993934173844298, "count": 269}
+    {"toten": 16.338859068780405, "count": 223},
+    {"toten": 18.23779802771189, "count": 206}
   ]
 }

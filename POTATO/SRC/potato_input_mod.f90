@@ -9,12 +9,12 @@ module potato_input_mod
     integer :: itest_type = 3
 
     ! Species parameters
-    double precision :: E_alpha = 5d3       ! Reference energy [eV]
-    double precision :: A_alpha = 2d0       ! Mass number
-    double precision :: Z_alpha = 1d0       ! Charge number
+    double precision :: E_alpha = 5d3 ! Reference energy [eV]
+    double precision :: A_alpha = 2d0 ! Mass number
+    double precision :: Z_alpha = 1d0 ! Charge number
 
     ! Flux surface
-    double precision :: rho_pol = 0.6d0     ! Poloidal radius
+    double precision :: rho_pol = 0.6d0 ! Poloidal radius
     double precision :: rho_pol_max = 0.9d0 ! Max rho_pol for Poincare cut
 
     ! Scaling factors
@@ -22,8 +22,8 @@ module potato_input_mod
     double precision :: scalfac_efield = 1d0
 
     ! Orbit integration
-    double precision :: Rmax_orbit = 200d0  ! Max R for orbit integration
-    integer :: ntimstep = 30                ! Number of time steps
+    double precision :: Rmax_orbit = 200d0 ! Max R for orbit integration
+    integer :: ntimstep = 30 ! Number of time steps
 
     ! Poincare cut
     integer :: npoicut = 10000
@@ -35,7 +35,7 @@ module potato_input_mod
 
     ! Energy grid
     integer :: nenerg = 60
-    double precision :: thermen_max = 6d0   ! Max kinetic energy [T units]
+    double precision :: thermen_max = 6d0 ! Max kinetic energy [T units]
     ! Lowest slice starts at this kinetic energy [T units] when set.
     double precision :: enkin_min_over_temp = 0d0
 
@@ -48,6 +48,8 @@ module potato_input_mod
     integer :: nlagr_sampling = 3
     double precision :: eps_sampling = 1d-2
     integer :: itermax_sampling = 5
+    double precision :: class_eps_sampling = 1d-3
+    integer :: class_itermax_sampling = 20
     logical :: clip_resonance_classes = .true.
 
     ! Orbit plotting
@@ -56,21 +58,23 @@ module potato_input_mod
 
     ! Single-orbit trace (itest_type=4): start point on the poloidal plane and
     ! pitch cosine of one guiding-center orbit, traced over one bounce period.
-    double precision :: orbit_Rstart = 210d0   ! start major radius [cm]
-    double precision :: orbit_Zstart = 0d0     ! start height [cm]
-    double precision :: orbit_lambda = 0.4d0   ! pitch cosine v_par/v at start
+    double precision :: orbit_Rstart = 210d0 ! start major radius [cm]
+    double precision :: orbit_Zstart = 0d0 ! start height [cm]
+    double precision :: orbit_lambda = 0.4d0 ! pitch cosine v_par/v at start
 
     ! Frequency radial scan (itest_type=5): trace one bounce at each of freq_n
     ! midplane start radii from freq_Rmin to freq_Rmax (pitch orbit_lambda),
     ! and write rho_pol, omega_b, omega_phi to freq_scan.dat.
-    double precision :: freq_Rmin = 178d0      ! inner start radius [cm]
-    double precision :: freq_Rmax = 221d0      ! outer start radius [cm], into SOL
-    integer          :: freq_n = 40            ! number of surfaces
+    double precision :: freq_Rmin = 178d0 ! inner start radius [cm]
+    double precision :: freq_Rmax = 221d0 ! outer start radius [cm], into SOL
+    integer          :: freq_n = 40 ! number of surfaces
 
     ! Resonance probe diagnostic
     double precision :: probe_rho_pol = 0.9d0
     double precision :: probe_ux = 1.5d0
     double precision :: probe_eta = 4.1d-5
+    double precision :: probe_toten = -1.0d0
+    double precision :: probe_perpinv = -1.0d0
     integer :: probe_m = 0
     integer :: probe_n = 2
 
@@ -98,12 +102,14 @@ module potato_input_mod
         m_min, m_max, n_tor, &
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
-        itermax_sampling, clip_resonance_classes, &
+        itermax_sampling, class_eps_sampling, class_itermax_sampling, &
+        clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
-        probe_rho_pol, probe_ux, probe_eta, probe_m, probe_n
+        probe_rho_pol, probe_ux, probe_eta, probe_toten, probe_perpinv, &
+        probe_m, probe_n
 
 contains
 
@@ -135,6 +141,11 @@ contains
 
         close(iunit)
 
+        if (.not. potato_input_is_valid()) then
+            error stop 'invalid POTATO input: check radial/mode/quadrature ' &
+                // 'domains and positive sampler controls'
+        endif
+
         inquire(file='field_divB0.inp', exist=field_input_exists)
         if (field_input_exists) then
             call read_field_input('field_divB0.inp')
@@ -143,6 +154,25 @@ contains
             call load_wall('convexwall.dat')
         endif
     end subroutine read_potato_input
+
+    logical function potato_input_is_valid()
+        potato_input_is_valid = 0.d0 < rho_pol .and. rho_pol <= rho_pol_max &
+            .and. rho_pol_max < 1.d0
+        potato_input_is_valid = potato_input_is_valid &
+            .and. eps_sampling > 0.d0 .and. itermax_sampling > 0 &
+            .and. class_eps_sampling > 0.d0 .and. class_itermax_sampling > 0
+        if (itest_type == 3) then
+            potato_input_is_valid = potato_input_is_valid &
+                .and. rho_pol < rho_pol_max &
+                .and. m_min <= m_max .and. n_tor /= 0 &
+                .and. nbox >= 2 .and. npoi_init >= 2 &
+                .and. nenerg >= 1
+            if (enkin_min_over_temp <= 0.d0) then
+                potato_input_is_valid = potato_input_is_valid &
+                    .and. nenerg >= 2
+            endif
+        endif
+    end function potato_input_is_valid
 
     subroutine print_potato_input(iunit)
         integer, intent(in) :: iunit
@@ -171,6 +201,9 @@ contains
         write(iunit, '(A,I0)') '  nlagr_sampling   = ', nlagr_sampling
         write(iunit, '(A,ES12.5)') '  eps_sampling     = ', eps_sampling
         write(iunit, '(A,I0)') '  itermax_sampling = ', itermax_sampling
+        write(iunit, '(A,ES12.5)') '  class_eps_sampling = ', class_eps_sampling
+        write(iunit, '(A,I0)') &
+            '  class_itermax_sampling = ', class_itermax_sampling
         write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
         write(iunit, '(A,ES12.5)') '  toten_plot       = ', toten_plot
         write(iunit, '(A,ES12.5)') '  perpinv_plot     = ', perpinv_plot
@@ -186,6 +219,8 @@ contains
         write(iunit, '(A,ES12.5)') '  probe_rho_pol    = ', probe_rho_pol
         write(iunit, '(A,ES12.5)') '  probe_ux         = ', probe_ux
         write(iunit, '(A,ES12.5)') '  probe_eta        = ', probe_eta
+        write(iunit, '(A,ES12.5)') '  probe_toten      = ', probe_toten
+        write(iunit, '(A,ES12.5)') '  probe_perpinv    = ', probe_perpinv
         write(iunit, '(A,I0)') '  probe_m          = ', probe_m
         write(iunit, '(A,I0)') '  probe_n          = ', probe_n
         write(iunit, '(A)') '================================'

@@ -18,8 +18,11 @@
 ! Generates adaptive grid with values of matrix function on this grid.
 ! Matrix function a_ij(x) is computed by external function "get_matrix".
 ! For grid refinement, Lagrange polynomial interpolations at two shifted stencils
-! are compared in the middle of the examined grid interval. If the difference is above
-! given tolerance such an interval is split in two.
+! are compared in the middle of the examined grid interval. Their difference is
+! integrated over the grid and compared with the absolute integral scale. This
+! integral-error criterion can converge physical resonance-onset cusps that are
+! not pointwise-polynomial; intervals carrying more than an equal share of the
+! requested error budget are split.
 !
 !  Formal input/output:
 ! get_matrix (in)  - external subroutine for computation of matrix function
@@ -39,6 +42,8 @@
 ! amat_arr(n1,n2,npoi) (out)   - matrix function on the refined grid
 !
   USE sample_matrix_out_mod
+  USE matrix_callback_status_mod, ONLY : matrix_callback_error, &
+      matrix_callback_ok, reset_matrix_callback_error
 !
   IMPLICIT NONE
 !
@@ -49,13 +54,15 @@
 !
   DOUBLE PRECISION :: h,hh
   DOUBLE PRECISION, DIMENSION(:),     ALLOCATABLE :: xold
-  DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod
+  DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,integral_scale
+  DOUBLE PRECISION, DIMENSION(:,:,:), ALLOCATABLE :: interval_error
   COMPLEX(8),   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
   COMPLEX(8),   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
 !
   external :: get_matrix
 !
   ierr=0
+  call reset_matrix_callback_error
 !
   npoilag=nlagr+1
   nshift=nlagr/2
@@ -75,12 +82,20 @@
 !
   x=xbeg
   CALL get_matrix
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
   xarr(1)=x
   amat_arr(:,:,1)=amat
   ind_hist(1)=icount
 !
   x=xend
   CALL get_matrix
+  if(matrix_callback_error.ne.matrix_callback_ok) then
+    ierr=matrix_callback_error
+    return
+  endif
   xarr(npoi)=x
   amat_arr(:,:,npoi)=amat
   ind_hist(npoi)=icount
@@ -92,25 +107,36 @@
   DO i=2,npoi-1
     x=xarr(i)
     CALL get_matrix
+    if(matrix_callback_error.ne.matrix_callback_ok) then
+      ierr=matrix_callback_error
+      return
+    endif
     amat_arr(:,:,i)=amat
     ind_hist(i)=icount
   ENDDO
 !
-  ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2))
+  ALLOCATE(amat1(n1,n2),amat2(n1,n2),integral_scale(n1,n2))
 !
 ! first check which intervals should be splitted
   ALLOCATE(isplit(npoi))
   isplit=0
+  ALLOCATE(interval_error(n1,n2,npoi-1))
+  interval_error=0.d0
+  integral_scale=0.d0
   DO inew=1,npoi-1
+    DO i=1,n1
+      DO j=1,n2
+        integral_scale(i,j)=integral_scale(i,j) &
+            +0.5d0*(ABS(amat_arr(i,j,inew))+ABS(amat_arr(i,j,inew+1))) &
+            *(xarr(inew+1)-xarr(inew))
+      ENDDO
+    ENDDO
     x=0.5d0*(xarr(inew)+xarr(inew+1))
     ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
     iend=ibeg+nlagr
     CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
     DO i=1,n1
       amat1(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
-      DO j=1,n2
-        amat_maxmod(i,j)=MAXVAL(ABS(amat_arr(i,j,ibeg:iend)))
-      ENDDO
     ENDDO
     ibeg=MAX(2,MIN(npoi-nlagr,inew-nshift+1))
     iend=ibeg+nlagr
@@ -118,15 +144,22 @@
     DO i=1,n1
       amat2(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
       DO j=1,n2
-        amat_maxmod(i,j)=MAX(amat_maxmod(i,j),ABS(amat_arr(i,j,iend)))
-      ENDDO
-    ENDDO
-    DO i=1,n1
-      DO j=1,n2
-        IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*amat_maxmod(i,j)) isplit(inew)=1
+        interval_error(i,j,inew)=ABS(amat1(i,j)-amat2(i,j)) &
+            *(xarr(inew+1)-xarr(inew))
       ENDDO
     ENDDO
   ENDDO
+  DO i=1,n1
+    DO j=1,n2
+      IF(SUM(interval_error(i,j,:)).GT.eps*integral_scale(i,j)) THEN
+        DO inew=1,npoi-1
+          IF(interval_error(i,j,inew).GE. &
+              eps*integral_scale(i,j)/dble(npoi-1)) isplit(inew)=1
+        ENDDO
+      ENDIF
+    ENDDO
+  ENDDO
+  DEALLOCATE(interval_error)
   IF(MAXVAL(isplit).GT.0) THEN
     npoi_old=npoi
     ALLOCATE(xold(npoi),amat_old(n1,n2,npoi),ind_hist_old(npoi))
@@ -143,6 +176,11 @@
     IF(iter.GT.itermax) THEN
       ierr=2
       PRINT *,'sample_matrix_out : maximum number of iterations exceeded'
+      PRINT *,'sample_matrix_out : npoi, unresolved intervals, eps = ', &
+          npoi,COUNT(isplit.eq.1),eps
+      PRINT *,'sample_matrix_out : unresolved x range = ', &
+          MINVAL(xarr(1:npoi-1),MASK=isplit(1:npoi-1).eq.1), &
+          MAXVAL(xarr(2:npoi),MASK=isplit(1:npoi-1).eq.1)
       RETURN
     ENDIF
 !
@@ -166,6 +204,10 @@
         inew=inew+1
         x=0.5d0*(xold(iold)+xold(iold+1))
         CALL get_matrix
+        if(matrix_callback_error.ne.matrix_callback_ok) then
+          ierr=matrix_callback_error
+          return
+        endif
         xarr(inew)=x
         amat_arr(:,:,inew)=amat
         ind_hist(inew)=icount
@@ -180,16 +222,23 @@
 ! check which intervals should be splitted
     ALLOCATE(isplit(npoi))
     isplit=0
+    ALLOCATE(interval_error(n1,n2,npoi-1))
+    interval_error=0.d0
+    integral_scale=0.d0
     DO inew=1,npoi-1
+      DO i=1,n1
+        DO j=1,n2
+          integral_scale(i,j)=integral_scale(i,j) &
+              +0.5d0*(ABS(amat_arr(i,j,inew))+ABS(amat_arr(i,j,inew+1))) &
+              *(xarr(inew+1)-xarr(inew))
+        ENDDO
+      ENDDO
       x=0.5d0*(xarr(inew)+xarr(inew+1))
       ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
       iend=ibeg+nlagr
       CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
       DO i=1,n1
         amat1(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
-        DO j=1,n2
-          amat_maxmod(i,j)=MAXVAL(ABS(amat_arr(i,j,ibeg:iend)))
-        ENDDO
       ENDDO
       ibeg=MAX(2,MIN(npoi-nlagr,inew-nshift+1))
       iend=ibeg+nlagr
@@ -197,15 +246,22 @@
       DO i=1,n1
         amat2(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
         DO j=1,n2
-          amat_maxmod(i,j)=MAX(amat_maxmod(i,j),ABS(amat_arr(i,j,iend)))
-        ENDDO
-      ENDDO
-      DO i=1,n1
-        DO j=1,n2
-          IF(ABS(amat1(i,j)-amat2(i,j)).GT.eps*amat_maxmod(i,j)) isplit(inew)=1
+          interval_error(i,j,inew)=ABS(amat1(i,j)-amat2(i,j)) &
+              *(xarr(inew+1)-xarr(inew))
         ENDDO
       ENDDO
     ENDDO
+    DO i=1,n1
+      DO j=1,n2
+        IF(SUM(interval_error(i,j,:)).GT.eps*integral_scale(i,j)) THEN
+          DO inew=1,npoi-1
+            IF(interval_error(i,j,inew).GE. &
+                eps*integral_scale(i,j)/dble(npoi-1)) isplit(inew)=1
+          ENDDO
+        ENDIF
+      ENDDO
+    ENDDO
+    DEALLOCATE(interval_error)
     IF(MAXVAL(isplit).GT.0) THEN
       npoi_old=npoi
       DEALLOCATE(xold,amat_old,ind_hist_old)

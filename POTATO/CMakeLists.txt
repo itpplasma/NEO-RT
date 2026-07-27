@@ -98,6 +98,16 @@ add_test(NAME test_signed_toroidal_bound
    COMMAND test_signed_toroidal_bound.x
 )
 
+add_executable(test_box_counting_status.x
+   SRC/test_box_counting_status.f90
+)
+target_link_libraries(test_box_counting_status.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_box_counting_status
+   COMMAND test_box_counting_status.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )
@@ -120,6 +130,26 @@ target_link_libraries(test_potato_invariants.x
 )
 add_test(NAME test_potato_invariants
    COMMAND test_potato_invariants.x
+)
+
+add_executable(test_matrix_callback_status.x
+   SRC/test_matrix_callback_status.f90
+)
+target_link_libraries(test_matrix_callback_status.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_matrix_callback_status
+   COMMAND test_matrix_callback_status.x
+)
+
+add_executable(test_potato_input_validation.x
+   SRC/test_potato_input_validation.f90
+)
+target_link_libraries(test_potato_input_validation.x
+   potato_base
+)
+add_test(NAME test_potato_input_validation
+   COMMAND test_potato_input_validation.x
 )
 
 add_executable(test_wall_profile.x
@@ -188,6 +218,13 @@ target_link_libraries(potato_hamiltonian_probe.x
    "$<LINK_GROUP:RESCAN,potato,potato_base>"
 )
 
+add_executable(potato_poicut_probe.x
+   SRC/potato_poicut_probe.f90
+)
+target_link_libraries(potato_poicut_probe.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME potato_bmod_converter
@@ -207,6 +244,11 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
+    add_test(NAME potato_resonance_golden
+        COMMAND ${Python3_EXECUTABLE} -m pytest -q
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance/test_resonance_golden.py
+    )
+    set_tests_properties(potato_resonance_golden PROPERTIES TIMEOUT 150)
     add_test(NAME potato_golden_displacement
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py
@@ -226,4 +268,11 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 240
     )
+    add_test(NAME potato_poicut_translation
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/poicut_translation/test_poicut_translation.py
+            $<TARGET_FILE:potato_poicut_probe.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+    )
+    set_tests_properties(potato_poicut_translation PROPERTIES TIMEOUT 150)
 endif()
