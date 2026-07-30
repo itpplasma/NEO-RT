@@ -124,6 +124,8 @@ add_executable(neo_rt_jxb_from_mars.x src/mars_jxb_program.f90)
 
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
+    src/generated/boozer_ampere_kernel.f90
+    src/boozer_ampere.f90
     src/collis_nbi.f90
     src/config.f90
     src/datatypes.f90

@@ -1,0 +1,22 @@
+name = "neo_rt_fortsym_derivations"
+version = "0.1.0"
+license = "GPL-3.0-or-later"
+
+[build]
+auto-executables = false
+auto-tests = false
+auto-examples = false
+link = ["symengine", "flint", "mpfr", "gmp", "stdc++", "dl"]
+
+[fortran]
+implicit-typing = false
+implicit-external = false
+source-form = "free"
+
+[dependencies]
+fortsym = { git = "https://github.com/lazy-fortran/fortsym.git", rev = "0cb719ca71c5cb840cd9a83abb8d05c23bc6bbd7" }
+
+[[executable]]
+name = "generate_boozer_ampere"
+source-dir = "."
+main = "generate_boozer_ampere.f90"

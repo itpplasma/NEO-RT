@@ -111,6 +111,34 @@ the complex current harmonics, so those totals cannot be independently
 reintegrated in NEO-RT. They remain reference results, not claimed benchmark
 agreement.
 
+## Boozer Ampère kernel
+
+`boozer_harmonic_current` moves the independent calculation one step upstream:
+given the three complex covariant components of a perturbation harmonic and
+the radial derivatives of its angular components, it evaluates
+`curl(B)/mu0` and returns all three contravariant current components.  The
+Fourier convention is
+
+```text
+B_hat(s) exp(i * (n*phi + m*theta))
+```
+
+for coordinates ordered `(s, phi, theta)`.  The signed coordinate Jacobian is
+an explicit input, so left- and right-handed charts are not silently folded
+together.  The source kernel is generated from the fortsym chart curl; see
+`derivations/fortsym/README.md`.  Its independent behavioral test uses the
+analytic curl of a general complex cylindrical vector field.
+
+The current chartmap NetCDF contract contains geometry, `A_phi`, `B_theta`,
+`B_phi`, and scalar `Bmod`.  The current perturbation `.bc` contract likewise
+contains harmonics of scalar `delta|B|`.  Neither contains the three vector
+components of `delta B`, and scalar field magnitude alone does not uniquely
+determine `curl(delta B)`.  Consequently this kernel is ready for a vector
+perturbation input, but it does not pretend to infer shielding current from
+the existing scalar file.  The shielding-response layer must either supply a
+documented vector reconstruction or extend the NetCDF contract with vector
+components or a vector potential.
+
 ## Code and literature survey
 
 - MARS-F/MARS-Q computes the flux-surface-averaged toroidal electromagnetic

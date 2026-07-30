@@ -70,6 +70,11 @@ add_test(NAME test_response_jxb
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_boozer_ampere
+    COMMAND test_boozer_ampere.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_mars_response
     COMMAND test_mars_response.x ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
