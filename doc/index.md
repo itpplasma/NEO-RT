@@ -56,5 +56,6 @@ Column definitions and units are tabulated in [Output file formats](file_formats
 - [Library Interface](library.md) – Using NEO-RT as a library for embedding transport calculations in other codes.
 - `src/diag/*.f90` – Diagnostics drivers linked by `neo_rt_diag.x` for harmonic inspection and attenuation studies.
 - `examples/` – Sample input decks and Python utilities for plotting transport coefficients and torque profiles.
+- [`resonant_jxb.md`](resonant_jxb.md) – Electromagnetic response-field torque kernels, limits, and MARS benchmark.
 
 The FORD-generated API pages include module, type, and procedure documentation extracted from the source code for deeper technical reference.

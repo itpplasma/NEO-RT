@@ -70,6 +70,17 @@ add_test(NAME test_response_jxb
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_jxb_profile_program
+    COMMAND ${CMAKE_BINARY_DIR}/neo_rt_jxb_profile.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/jxb_linear_edges.out
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/jxb_linear_profile.out
+        2.5
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_jxb_profile_program PROPERTIES
+    PASS_REGULAR_EXPRESSION "1.579136704174[0-9]+E\\+02"
+)
+
 add_test(NAME test_vmax_over_vth
     COMMAND test_vmax_over_vth.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
