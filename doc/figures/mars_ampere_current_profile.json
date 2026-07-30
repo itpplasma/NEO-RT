@@ -1,0 +1,48 @@
+{
+  "boundary_radial_derivatives": "not determined from half-mesh B2/B3",
+  "case_name": "MAST-U Pair A",
+  "components": {
+    "J1": {
+      "interior_relative_l2": 0.00026659456622658487,
+      "interior_rho_max": 0.999374585,
+      "interior_rho_min": 0.0735632275,
+      "resolved_relative_l2": 0.00034714906414712456,
+      "resolved_rho_max": 0.999967255,
+      "resolved_rho_min": 0.00350259185
+    },
+    "J2": {
+      "interior_relative_l2": 0.09150865226623738,
+      "interior_rho_max": 0.99934554,
+      "interior_rho_min": 0.077067316,
+      "resolved_relative_l2": 0.10524375684548275,
+      "resolved_rho_max": 0.99993451,
+      "resolved_rho_min": 0.0070051837
+    },
+    "J3": {
+      "interior_relative_l2": 0.07017030299674898,
+      "interior_rho_max": 0.99934554,
+      "interior_rho_min": 0.077067316,
+      "resolved_relative_l2": 0.10104338314930575,
+      "resolved_rho_max": 0.99993451,
+      "resolved_rho_min": 0.0070051837
+    }
+  },
+  "inputs": {
+    "bplasma": {
+      "path": "/mnt/storage/codex-mars/mastu-native-reload-validation-20260716/workspace/pair_a/native/BPLASMA.OUT",
+      "sha256": "9d3a42c2c95ace7ec2049f6575a1d53f9881fccadd1ecfc628e1a74dd1a94883"
+    },
+    "geometry": {
+      "path": "/mnt/storage/codex-mars/mastu-native-reload-validation-20260716/workspace/pair_a/native/RMZM_F.OUT",
+      "sha256": "b296fd23973e2a2b4d47c2a00d42bb3edae9d4c794d306346a2d42e601e31f68"
+    },
+    "jplasma_reference": {
+      "path": "/mnt/storage/codex-mars/mastu-native-reload-validation-20260716/workspace/pair_a/native/JPLASMA.OUT",
+      "sha256": "735bbbfd673bfab6851a889b1ca8c6cac5d94456e45ee39b641e0f84f83bfd77"
+    }
+  },
+  "nchi": 1024,
+  "poloidal_mode_max": 39,
+  "poloidal_mode_min": -9,
+  "toroidal_mode": -1
+}

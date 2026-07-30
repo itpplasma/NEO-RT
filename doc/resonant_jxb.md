@@ -202,6 +202,45 @@ physical shielding response in that magnetic field. This adapter moves the
 current calculation into NEO-RT; it does not yet replace the MHD response
 solve.
 
+### Independent MARS `B -> J` benchmark
+
+The native-coordinate benchmark uses `RMZM_F.OUT` and `BPLASMA.OUT` to lower
+MARS's exported Jacobian-weighted contravariant magnetic components,
+
+\[
+\begin{aligned}
+B_s&=(g_{ss}C^s+g_{s\chi}C^\chi)/\mathcal J,\\
+B_\chi&=(g_{s\chi}C^s+g_{\chi\chi}C^\chi)/\mathcal J,\\
+B_\phi&=R^2C^\phi/\mathcal J,
+\end{aligned}
+\]
+
+then evaluates the same fortsym-derived coordinate curl on the staggered MARS
+mesh. `JPLASMA.OUT` is read only after that calculation and serves as the
+independent reference:
+
+```sh
+python python/plot_mars_ampere_comparison.py \
+  RMZM_F.OUT BPLASMA.OUT JPLASMA.OUT mars_ampere_current_profile.png \
+  --case-name "MAST-U Pair A"
+```
+
+The figure and its machine-readable curves cover every surface on which the
+exported staggering determines a current: all 350 half-mesh `J1` points and
+349 interior full-mesh `J2/J3` points. No smoothing, fitted scale, phase
+rotation, radial remapping, or mode selection is applied. On archived MAST-U
+Pair A, the interior relative L2 differences are `2.67e-4`, `9.15e-2`, and
+`7.02e-2` for `J1`, `J2`, and `J3`. The angular-only `J1` reconstruction is
+nearly exact. `J2/J3` require radial derivatives of exported half-mesh fields;
+their remaining difference measures this cubic reconstruction against MARS's
+internal finite-element projection.
+
+The TC24 postprocessing archives contain `JPLASMA.OUT` files whose plasma
+rows are identically zero, so they cannot serve as a current oracle. The
+ITER vector conversion and NEO-RT current profiles remain valid, but current
+agreement is benchmarked against the nonzero MAST-U reference rather than
+reported as a meaningless division by zero.
+
 ## Code and literature survey
 
 - MARS-F/MARS-Q computes the flux-surface-averaged toroidal electromagnetic
