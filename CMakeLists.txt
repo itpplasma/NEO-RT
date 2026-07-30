@@ -120,6 +120,7 @@ add_link_options(${NETCDF_FLIBS})
 
 add_executable(${PROJECT_EXE_NAME} src/program.f90)
 add_executable(neo_rt_jxb_profile.x src/jxb_profile_program.f90)
+add_executable(neo_rt_jxb_from_mars.x src/mars_jxb_program.f90)
 
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
@@ -132,6 +133,7 @@ set(NEO_RT_SOURCES
     src/logging.f90
     src/magfie.f90
     src/main.f90
+    src/mars_response_io.f90
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
@@ -192,6 +194,7 @@ endif()
 
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 target_link_libraries(neo_rt_jxb_profile.x neo_rt)
+target_link_libraries(neo_rt_jxb_from_mars.x neo_rt)
 
 if(NEORT_BUILD_TESTING)
     set(BUILD_TESTING ON)

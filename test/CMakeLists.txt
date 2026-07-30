@@ -70,6 +70,24 @@ add_test(NAME test_response_jxb
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_mars_response
+    COMMAND test_mars_response.x ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_mars_response_program
+    COMMAND ${CMAKE_BINARY_DIR}/neo_rt_jxb_from_mars.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/jxb_linear_edges.out
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/mars_bplasma_small.out
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/mars_jplasma_small.out
+        ${CMAKE_CURRENT_BINARY_DIR}/mars_jxb_small.out
+        2 0 1.0
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_mars_response_program PROPERTIES
+    PASS_REGULAR_EXPRESSION "processed native total:"
+)
+
 add_test(NAME test_jxb_profile_program
     COMMAND ${CMAKE_BINARY_DIR}/neo_rt_jxb_profile.x
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/jxb_linear_edges.out

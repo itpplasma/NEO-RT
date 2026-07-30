@@ -89,6 +89,21 @@ python python/plot_jxb_mars_comparison.py \
 The figure uses MARS native `rho_pol=sqrt(psi_pol)` and torque normalization.
 It applies no smoothing, fit, sign change, normalization, or radial remapping.
 
+When raw MARS harmonics are available, NEO-RT independently reconstructs the
+profile from `BPLASMA.OUT` and `JPLASMA.OUT`:
+
+```sh
+fo exec neo_rt_jxb_from_mars.x \
+  PROFEQ.OUT BPLASMA.OUT JPLASMA.OUT reconstructed.out \
+  5 5 0.999
+```
+
+The last three values reproduce the executed MARS `NTORQ`, smoothing-pass
+count, and `CTEDGE`. The output columns are radial coordinate, raw harmonic
+contraction, and postprocessed torque. For the archived MAST-U Pair A run, the
+postprocessed reconstruction matches all 350 printed `TORQUEJXB.OUT` values
+with maximum absolute error `4.46e-11` and relative L2 error `1.69e-8`.
+
 The ITER TC24 MARS log reports two native evaluations,
 `-2.30520e-7` and `-6.28797e-7`, corresponding to `-124.072 N m` and
 `-338.436 N m`. The supplied TC24 archive does not include `TORQUEJXB.OUT` or
