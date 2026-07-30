@@ -167,6 +167,41 @@ and the real and imaginary parts of all three weighted current components.
 the analytic `curl(curl(A))` of two manufactured vector-potential harmonics on
 a nonuniform radial grid.
 
+### Full-vector MARS adapter
+
+`python/mars_vector_to_boozer_netcdf.py` reads the three covariant MARS
+`BPLASMA` components rather than projecting them immediately to
+`delta|B|`. It reconstructs the cylindrical vector, maps equal-arc MARS
+surfaces to the axisymmetric Boozer chart, transforms all three components to
+the covariant Boozer basis, and writes the vector NetCDF contract above. The
+component can be selected explicitly as MARS total, applied vacuum, or their
+difference (plasma response).
+
+For the ITER TC24 zero-phasing case:
+
+```sh
+python python/mars_vector_to_boozer_netcdf.py \
+  MARSF_results/conversion_phiI000.toml iter_phiI000_total_vector.nc \
+  --component total \
+  --scalar-reference MARSF_results/validation_phiI000/components.npz
+fo exec neo_rt_boozer_current.x \
+  iter_phiI000_total_vector.nc iter_phiI000_total_current.out
+```
+
+The conversion retains 641 poloidal modes on 237 complete surfaces. The
+largest discarded vector power fraction is `1.17e-10`, and the largest
+relative geometry mismatch is `9.37e-3`. Projecting the transformed vector
+back onto the equilibrium field reproduces the separately converted
+Eulerian `delta|B|` spectrum with relative L2 difference `1.53e-2`. That
+projection is a round-trip validation of the coordinate and vector-basis
+transformation; it is not used when NEO-RT calculates the curl.
+
+The resulting NEO-RT current uses no `JPLASMA` data. If the selected
+`BPLASMA` is the MARS plasma solution, however, MARS still supplied the
+physical shielding response in that magnetic field. This adapter moves the
+current calculation into NEO-RT; it does not yet replace the MHD response
+solve.
+
 ## Code and literature survey
 
 - MARS-F/MARS-Q computes the flux-surface-averaged toroidal electromagnetic
