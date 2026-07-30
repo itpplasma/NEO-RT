@@ -1,12 +1,14 @@
 program test_response_jxb
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use response_jxb, only: cylindrical_toroidal_torque, mars_surface_torque
+    use response_jxb, only: cylindrical_toroidal_torque, integrate_mars_profile, &
+        mars_surface_torque
 
     implicit none
 
     call test_cylindrical_cross_product
     call test_mars_harmonic_sum
     call test_common_phase_invariance
+    call test_linear_profile_integral
 
 contains
 
@@ -54,6 +56,21 @@ contains
 
         call assert_close(rotated, reference, "common Fourier phase invariance")
     end subroutine test_common_phase_invariance
+
+    subroutine test_linear_profile_integral
+        real(dp), parameter :: pi = acos(-1.0_dp)
+        real(dp), parameter :: scale = 2.5_dp
+        real(dp) :: edges(4), midpoint(3), density(3), actual, expected
+
+        edges = [0.1_dp, 0.2_dp, 0.6_dp, 0.9_dp]
+        midpoint = 0.5_dp*(edges(:3) + edges(2:))
+        density = 3.0_dp - 2.0_dp*midpoint
+        expected = 4.0_dp*pi**2*scale*( &
+            3.0_dp*(edges(4) - edges(1)) - edges(4)**2 + edges(1)**2)
+
+        actual = integrate_mars_profile(edges, density, scale)
+        call assert_close(actual, expected, "linear profile analytic integral")
+    end subroutine test_linear_profile_integral
 
     subroutine assert_close(actual, expected, label)
         real(dp), intent(in) :: actual, expected
