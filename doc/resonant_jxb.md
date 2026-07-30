@@ -198,9 +198,13 @@ transformation; it is not used when NEO-RT calculates the curl.
 
 The resulting NEO-RT current uses no `JPLASMA` data. If the selected
 `BPLASMA` is the MARS plasma solution, however, MARS still supplied the
-physical shielding response in that magnetic field. This adapter moves the
-current calculation into NEO-RT; it does not yet replace the MHD response
-solve.
+physical shielding response in that magnetic field. Moreover, this first
+vector contract is collocated: it is appropriate for smooth vector NetCDF
+inputs and for validating the MARS-to-Boozer field transformation, but not
+for differentiating exported MARS shielding layers. The native-staggered
+path below is the authoritative MARS current reconstruction. A future
+staggered vector contract can move that exact derivative through the
+Boozer adapter without damping it.
 
 ### Independent MARS `B -> J` benchmark
 
@@ -237,9 +241,42 @@ internal finite-element projection.
 
 The TC24 postprocessing archives contain `JPLASMA.OUT` files whose plasma
 rows are identically zero, so they cannot serve as a current oracle. The
-ITER vector conversion and NEO-RT current profiles remain valid, but current
-agreement is benchmarked against the nonzero MAST-U reference rather than
-reported as a meaningless division by zero.
+ITER vector conversion remains valid as a field-transformation benchmark,
+but current agreement is benchmarked against the nonzero MAST-U reference
+rather than reported as a meaningless division by zero.
+
+### ITER shielding-current profiles
+
+For MARS output, the curl must precede radial collocation. `B1` is exported
+on the full mesh while `B2/B3` are exported on the half mesh; centering all
+three fields first preserves a scalar field projection but suppresses the
+sharp radial derivatives that constitute shielding current. The ITER profile
+utility therefore combines coil rows and phases first, keeps the native
+staggering, lowers the vector with the MARS metric, and differentiates:
+
+```sh
+python python/plot_iter_mars_shielding_current.py \
+  MARSF_results/conversion_phiI000.toml \
+  iter_mars_shielding_current_profile.png \
+  iter_mars_resonant_current_modes.png
+```
+
+The first figure contains the complete resolved profiles of all three
+Jacobian-weighted current components for the applied vacuum field, pure
+plasma response (`PLS-VAC`), and total field. The three independently
+calculated pieces close linearly to `6.03e-16` relative L2. The applied
+vacuum curl is `1.45e-3` of the total current norm, providing a numerical
+zero-current check without `JPLASMA`.
+
+The second figure contains every rational harmonic in the delivered ITER
+range: `m=4,...,10` for `n=-3`, with the corresponding `q=m/3` surfaces
+marked at normalized toroidal flux
+`0.3368, 0.4885, 0.6107, 0.7125, 0.7959, 0.8626, 0.9697`.
+It plots the coordinate-weighted tangential amplitude
+`sqrt(|sqrt(g) J^chi_m|^2 + |sqrt(g) J^phi_m|^2)`. This is a transparent
+native-MARS diagnostic, not a coordinate-invariant physical current norm.
+Both figures cover the full resolved radial domain, apply no smoothing or
+mode filtering, and have companion CSV and provenance JSON files.
 
 ## Code and literature survey
 

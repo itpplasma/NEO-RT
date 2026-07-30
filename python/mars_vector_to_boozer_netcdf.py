@@ -377,8 +377,14 @@ def write_vector_netcdf(
 
 
 def load_manifest(
-    path: Path, component: str
+    path: Path, component: str, *, center_half_mesh: bool = True
 ) -> tuple[Any, Any, Any, np.ndarray, np.ndarray, dict]:
+    """Read and phase-combine a MARS conversion manifest.
+
+    Vector-to-Boozer conversion uses collocated fields. Native Ampère
+    reconstruction must pass ``center_half_mesh=False`` to preserve the
+    exported B2/B3 staggering until after radial differentiation.
+    """
     from rmp_torque.boozer import read_boozer_file
     from rmp_torque.mars import (
         MarsVectorHarmonics,
@@ -417,8 +423,12 @@ def load_manifest(
         plasma_path = (root / row["with_plasma"]).resolve()
         vacuum_path = (root / row["vacuum"]).resolve()
         displacement_path = (root / row["displacement"]).resolve()
-        plasma = read_bplasma(plasma_path, geometry.s, center_half_mesh=True)
-        vacuum = read_bplasma(vacuum_path, geometry.s, center_half_mesh=True)
+        plasma = read_bplasma(
+            plasma_path, geometry.s, center_half_mesh=center_half_mesh
+        )
+        vacuum = read_bplasma(
+            vacuum_path, geometry.s, center_half_mesh=center_half_mesh
+        )
         if component == "total":
             vector = plasma
         elif component == "vacuum":
@@ -435,7 +445,9 @@ def load_manifest(
         vectors.append(vector)
         weights.append(weight)
         displacement = read_xplasma(
-            displacement_path, geometry.s, center_half_mesh=True
+            displacement_path,
+            geometry.s,
+            center_half_mesh=center_half_mesh,
         )
         if profile_dpsi is None:
             profile_dpsi = displacement.dpsi_ds

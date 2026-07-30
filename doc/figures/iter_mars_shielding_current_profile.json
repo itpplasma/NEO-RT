@@ -1,0 +1,58 @@
+{
+  "case_name": "ITER TC24 phiI000",
+  "linearity_closure_relative_l2": 6.025021401145614e-16,
+  "nchi": 1024,
+  "poloidal_mode_max": 70,
+  "poloidal_mode_min": -70,
+  "provenance": {
+    "component": "total",
+    "equilibrium": {
+      "path": "/home/ert/proj/iter_tc24/BOOZER/ngfile/fromefit.bc",
+      "sha256": "d73a9bcf343b886242bc2155cf5abe647bb64ad8b2a2d354fb072c81a0ee2ca6"
+    },
+    "geometry": {
+      "path": "/home/ert/proj/iter_tc24/MARSF_results/RMZM_F_GEOM",
+      "sha256": "549a6016d9e5237ab936bfdd1f4bb6e6deac0fc80db0117ea2cafef53894c0db"
+    },
+    "manifest": {
+      "path": "/home/ert/proj/iter_tc24/MARSF_results/conversion_phiI000.toml",
+      "sha256": "b1431894f0b9dffc4d7b10049c0daf56293f04bb2d8bab27de4c5dd8e0c18be0"
+    },
+    "rows": {
+      "lower": {
+        "displacement_sha256": "e26c54ec8624f5ff849bad95840f2fc17437746703ac8662ad043fa9c8f26a54",
+        "vacuum_sha256": "81b58cb07eec0019d7262fa06f18aeb3fdef33132d6275ea3511fb90629a79d4",
+        "weight_imag": 0.0,
+        "weight_real": 1.0,
+        "with_plasma_sha256": "366cd5ae8442df25a1d8e0ae4aa6d19fa07ce847c2a27305865640f859828269"
+      },
+      "middle": {
+        "displacement_sha256": "d6f5f4d57cd3e7f71bf5beae2a3db7508cbb93b748d4b1285e759a6f8bcecc67",
+        "vacuum_sha256": "b919983f8e0dbf56f4a575b3986e24fac86bf877b5d9574af39f3e6024954bf9",
+        "weight_imag": 0.0,
+        "weight_real": 1.0,
+        "with_plasma_sha256": "434a6b27857b19eb660a0313525706ec2a1fd99eefe929bf90ba42299fa727b4"
+      },
+      "upper": {
+        "displacement_sha256": "fb7d4673fca1bc71cd589a0c806b8e28729f1a08c5bbe9aa1665ba48e350a511",
+        "vacuum_sha256": "f86d911222fd3c56eb5a7d26663fdc6cdf12752a05b33f7492eeffe16832668f",
+        "weight_imag": 0.0,
+        "weight_real": 1.0,
+        "with_plasma_sha256": "5048f95ced7b2697d5ed5dad0aedf46a1c7bf175dde5b910337a22fc599a892e"
+      }
+    }
+  },
+  "radial_derivative": "cubic derivative of natural MARS B2/B3 half-mesh values; no pre-curl collocation",
+  "rational_surfaces_s_tor": {
+    "10": 0.9697045960106803,
+    "4": 0.3367832353310154,
+    "5": 0.48848330397173,
+    "6": 0.6107162200486045,
+    "7": 0.7124539831781631,
+    "8": 0.795914265857066,
+    "9": 0.8625560844980562
+  },
+  "surfaces": 241,
+  "toroidal_mode": -3,
+  "vacuum_over_total_current_l2": 0.0014482345739617924
+}
