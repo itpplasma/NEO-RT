@@ -1,6 +1,8 @@
 {
   "points": 350,
   "radial_coordinate": "MARS rho_pol=sqrt(psi_pol)",
-  "native_total": -5.2440799808745505e-05,
-  "max_profile_residual": 0.0
+  "native_total": -5.244078736357969e-05,
+  "raw_native_total": -2.9055525301181607e-05,
+  "max_profile_residual": 4.454543700051217e-11,
+  "relative_l2_residual": 1.6925483461534584e-08
 }

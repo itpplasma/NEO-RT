@@ -13,6 +13,7 @@ import numpy as np
 FOUR_PI_SQUARED = 4.0 * np.pi**2
 MARS_COLOR = "#0072B2"
 NEORT_COLOR = "#D55E00"
+RAW_COLOR = "#4D4D4D"
 
 
 def load_profiles(edge_path: Path, torque_path: Path) -> tuple[np.ndarray, np.ndarray]:
@@ -31,25 +32,40 @@ def cumulative_torque(edges: np.ndarray, density: np.ndarray) -> np.ndarray:
 
 
 def plot_comparison(
-    edges: np.ndarray, mars: np.ndarray, output: Path, title: str
+    edges: np.ndarray,
+    mars: np.ndarray,
+    reconstruction: np.ndarray,
+    output: Path,
+    title: str,
 ) -> dict[str, float | int | str]:
     radius, density = mars.T
-    reconstructed = density.copy()
+    if reconstruction.shape != (radius.size, 3):
+        raise ValueError("reconstruction must have radius, raw, and processed columns")
+    if not np.allclose(reconstruction[:, 0], radius, rtol=0.0, atol=1.0e-4):
+        raise ValueError("MARS and reconstructed radial meshes differ")
+    raw = reconstruction[:, 1]
+    reconstructed = reconstruction[:, 2]
     mars_cumulative = cumulative_torque(edges, density)
+    raw_cumulative = cumulative_torque(edges, raw)
     neort_cumulative = cumulative_torque(edges, reconstructed)
     figure, axes = plt.subplots(2, 1, figsize=(8.0, 7.0), sharex=True)
 
+    axes[0].plot(
+        radius,
+        raw,
+        color=RAW_COLOR,
+        lw=1.0,
+        alpha=0.75,
+        label="NEO-RT raw J/B contraction",
+    )
     axes[0].plot(radius, density, color=MARS_COLOR, lw=2.0, label="MARS output")
     axes[0].plot(
         radius,
         reconstructed,
         color=NEORT_COLOR,
-        ls="none",
-        marker="o",
-        markevery=max(1, radius.size // 24),
-        mfc="none",
-        ms=4.5,
-        label="NEO-RT response-profile path",
+        lw=1.5,
+        ls="--",
+        label="NEO-RT + MARS postprocessing",
     )
     axes[0].set_ylabel(r"native $T_{j\times b}$")
     axes[0].legend(frameon=False, loc="best")
@@ -57,6 +73,14 @@ def plot_comparison(
 
     axes[1].plot(
         edges, mars_cumulative, color=MARS_COLOR, lw=2.0, label="MARS midpoint sum"
+    )
+    axes[1].plot(
+        edges,
+        raw_cumulative,
+        color=RAW_COLOR,
+        lw=1.0,
+        alpha=0.75,
+        label="NEO-RT raw cumulative",
     )
     axes[1].plot(
         edges,
@@ -73,7 +97,7 @@ def plot_comparison(
     axes[1].text(
         0.02,
         0.04,
-        f"endpoint = {neort_cumulative[-1]:.8e}\n"
+        f"processed endpoint = {neort_cumulative[-1]:.8e}\n"
         f"max profile residual = {np.max(np.abs(reconstructed - density)):.1e}",
         transform=axes[1].transAxes,
         ha="left",
@@ -87,7 +111,8 @@ def plot_comparison(
     figure.text(
         0.5,
         0.005,
-        "No smoothing, fitting, sign change, normalization, or radial remapping.",
+        "Raw: unsmoothed. Processed: exact MARS stencil. No fit, sign change, "
+        "normalization, or radial remapping.",
         ha="center",
         fontsize=8,
     )
@@ -100,7 +125,11 @@ def plot_comparison(
         "points": int(radius.size),
         "radial_coordinate": "MARS rho_pol=sqrt(psi_pol)",
         "native_total": float(neort_cumulative[-1]),
+        "raw_native_total": float(raw_cumulative[-1]),
         "max_profile_residual": float(np.max(np.abs(reconstructed - density))),
+        "relative_l2_residual": float(
+            np.linalg.norm(reconstructed - density) / np.linalg.norm(density)
+        ),
     }
 
 
@@ -108,11 +137,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("profeq", type=Path)
     parser.add_argument("torquejxb", type=Path)
+    parser.add_argument("reconstruction", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--title", default="MARS–NEO-RT electromagnetic torque profile")
     args = parser.parse_args()
     edges, mars = load_profiles(args.profeq, args.torquejxb)
-    metrics = plot_comparison(edges, mars, args.output, args.title)
+    reconstruction = np.loadtxt(args.reconstruction, ndmin=2)
+    metrics = plot_comparison(edges, mars, reconstruction, args.output, args.title)
     args.output.with_suffix(".json").write_text(json.dumps(metrics, indent=2) + "\n")
     print(json.dumps(metrics, indent=2))
 

@@ -83,7 +83,7 @@ with:
 
 ```sh
 python python/plot_jxb_mars_comparison.py \
-  PROFEQ.OUT TORQUEJXB.OUT mars_neort_jxb_profile.png
+  PROFEQ.OUT TORQUEJXB.OUT reconstructed.out mars_neort_jxb_profile.png
 ```
 
 The figure uses MARS native `rho_pol=sqrt(psi_pol)` and torque normalization.

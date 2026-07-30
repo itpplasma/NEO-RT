@@ -23,8 +23,11 @@ def test_linear_profile_integral_and_render(tmp_path: Path) -> None:
     expected = 6.4 * np.pi**2
     assert np.isclose(cumulative[-1], expected, rtol=0.0, atol=1.0e-13)
 
+    reconstruction = np.column_stack((mars[:, 0], mars[:, 1], mars[:, 1]))
     output = tmp_path / "comparison.png"
-    metrics = PLOT_JXB.plot_comparison(edges, mars, output, "Manufactured profile")
+    metrics = PLOT_JXB.plot_comparison(
+        edges, mars, reconstruction, output, "Manufactured profile"
+    )
     assert output.is_file()
     assert output.with_suffix(".pdf").is_file()
     assert metrics["points"] == 3
