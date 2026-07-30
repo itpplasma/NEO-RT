@@ -126,6 +126,7 @@ set(NEO_RT_SOURCES
     src/config.f90
     src/datatypes.f90
     src/driftorbit.f90
+    src/electromagnetic_torque.f90
     src/freq.f90
     src/lib.f90
     src/logging.f90
