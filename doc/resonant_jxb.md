@@ -78,6 +78,17 @@ This checks mesh interpretation, normalization, and file compatibility. It is
 not an independent shielding-response physics benchmark because both values
 come from the MARS-computed torque profile.
 
+The complete radial profile and cumulative-integral comparison are reproduced
+with:
+
+```sh
+python python/plot_jxb_mars_comparison.py \
+  PROFEQ.OUT TORQUEJXB.OUT mars_neort_jxb_profile.png
+```
+
+The figure uses MARS native `rho_pol=sqrt(psi_pol)` and torque normalization.
+It applies no smoothing, fit, sign change, normalization, or radial remapping.
+
 The ITER TC24 MARS log reports two native evaluations,
 `-2.30520e-7` and `-6.28797e-7`, corresponding to `-124.072 N m` and
 `-338.436 N m`. The supplied TC24 archive does not include `TORQUEJXB.OUT` or
