@@ -128,6 +128,7 @@ set(NEO_RT_SOURCES
     src/generated/boozer_ampere_kernel.f90
     src/generated/boozer_jxb_kernel.f90
     src/boozer_ampere.f90
+    src/boozer_chartmap_geometry.f90
     src/boozer_jxb.f90
     src/boozer_vector_io.f90
     src/collis_nbi.f90
