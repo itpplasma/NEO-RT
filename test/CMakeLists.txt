@@ -65,6 +65,11 @@ add_test(NAME test_harmonic_bounds
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_response_jxb
+    COMMAND test_response_jxb.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_vmax_over_vth
     COMMAND test_vmax_over_vth.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
