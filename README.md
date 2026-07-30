@@ -146,6 +146,20 @@ For single-point runs such as ripple tests, populate a `config_t` instance, call
 
 When spline mode is active the `M_t`, `vth`, `qi`, and `mi` values come from the supplied plasma/profile data and overwrite any prior config settings, so reset them if you later switch back to the config-only workflow.
 
+### GPEC torque boundary
+
+`gpec_torque_contract` reads the integrated toroidal torque from a native
+`gpec_control_n*.out` file. The toroidal mode must be supplied separately
+because it is not serialized in that file. GPEC computes this value from the
+SI perturbed energy as `-2*n*Im(deltaW)`; its native torque output identifies
+the corresponding unit as Nm.
+
+An ideal GPEC response does not serialize a volume perturbed-current vector or
+a radial electromagnetic torque profile. It therefore cannot supply the
+required input to `electromagnetic_torque`, and the contract fails explicitly
+if volume current is requested. `pentrc_tgar_n*.out` contains kinetic
+nonambipolar transport torque, not electromagnetic JxB torque.
+
 ## Examples
 
 The `examples/` directory contains ready-to-run input decks. To run the base example:
