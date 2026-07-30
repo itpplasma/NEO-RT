@@ -5,6 +5,7 @@ module boozer_ampere
     private
 
     public :: boozer_harmonic_current
+    public :: boozer_harmonic_jacobian_current
 
 contains
 
@@ -27,6 +28,34 @@ contains
         if (signed_jacobian == 0.0_dp) error stop "zero Boozer Jacobian"
         if (mu0 == 0.0_dp) error stop "zero magnetic permeability"
         scale = 1.0_dp/(mu0*signed_jacobian)
+        call evaluate_kernel(scale, m, n, b_covariant, db_covariant_ds, &
+            j_contravariant)
+    end subroutine boozer_harmonic_current
+
+    pure subroutine boozer_harmonic_jacobian_current( &
+            mu0, m, n, b_covariant, db_covariant_ds, &
+            jacobian_j_contravariant)
+        ! Return J*J^i directly.  This is the natural Fourier-space quantity:
+        ! Ampere's curl numerator has no multiplication by the angle-dependent
+        ! Jacobian and therefore does not couple poloidal modes.
+        real(dp), intent(in) :: mu0
+        integer, intent(in) :: m, n
+        complex(dp), intent(in) :: b_covariant(3), db_covariant_ds(3)
+        complex(dp), intent(out) :: jacobian_j_contravariant(3)
+
+        if (mu0 == 0.0_dp) error stop "zero magnetic permeability"
+        call evaluate_kernel(1.0_dp/mu0, m, n, b_covariant, &
+            db_covariant_ds, jacobian_j_contravariant)
+    end subroutine boozer_harmonic_jacobian_current
+
+    pure subroutine evaluate_kernel( &
+            scale, m, n, b_covariant, db_covariant_ds, current)
+        real(dp), intent(in) :: scale
+        integer, intent(in) :: m, n
+        complex(dp), intent(in) :: b_covariant(3), db_covariant_ds(3)
+        complex(dp), intent(out) :: current(3)
+        real(dp) :: js_re, js_im, jphi_re, jphi_im, jtheta_re, jtheta_im
+
         call boozer_ampere_kernel( &
             scale, real(m, dp), real(n, dp), &
             real(b_covariant(1), dp), aimag(b_covariant(1)), &
@@ -35,9 +64,9 @@ contains
             real(db_covariant_ds(2), dp), aimag(db_covariant_ds(2)), &
             real(db_covariant_ds(3), dp), aimag(db_covariant_ds(3)), &
             js_re, js_im, jphi_re, jphi_im, jtheta_re, jtheta_im)
-        j_contravariant(1) = cmplx(js_re, js_im, dp)
-        j_contravariant(2) = cmplx(jphi_re, jphi_im, dp)
-        j_contravariant(3) = cmplx(jtheta_re, jtheta_im, dp)
-    end subroutine boozer_harmonic_current
+        current(1) = cmplx(js_re, js_im, dp)
+        current(2) = cmplx(jphi_re, jphi_im, dp)
+        current(3) = cmplx(jtheta_re, jtheta_im, dp)
+    end subroutine evaluate_kernel
 
 end module boozer_ampere

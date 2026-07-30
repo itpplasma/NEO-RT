@@ -75,6 +75,23 @@ add_test(NAME test_boozer_ampere
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_boozer_vector_io
+    COMMAND test_boozer_vector_io.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/boozer_vector_manufactured.nc
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_boozer_current_program
+    COMMAND ${CMAKE_BINARY_DIR}/neo_rt_boozer_current.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/boozer_vector_manufactured.nc
+        ${CMAKE_CURRENT_BINARY_DIR}/boozer_weighted_current.out
+        2.5
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_boozer_current_program PROPERTIES
+    PASS_REGULAR_EXPRESSION "computed weighted current on 4 surfaces for 2"
+)
+
 add_test(NAME test_mars_response
     COMMAND test_mars_response.x ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

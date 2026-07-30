@@ -121,11 +121,13 @@ add_link_options(${NETCDF_FLIBS})
 add_executable(${PROJECT_EXE_NAME} src/program.f90)
 add_executable(neo_rt_jxb_profile.x src/jxb_profile_program.f90)
 add_executable(neo_rt_jxb_from_mars.x src/mars_jxb_program.f90)
+add_executable(neo_rt_boozer_current.x src/boozer_current_program.f90)
 
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/generated/boozer_ampere_kernel.f90
     src/boozer_ampere.f90
+    src/boozer_vector_io.f90
     src/collis_nbi.f90
     src/config.f90
     src/datatypes.f90
@@ -197,6 +199,7 @@ endif()
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 target_link_libraries(neo_rt_jxb_profile.x neo_rt)
 target_link_libraries(neo_rt_jxb_from_mars.x neo_rt)
+target_link_libraries(neo_rt_boozer_current.x neo_rt)
 
 if(NEORT_BUILD_TESTING)
     set(BUILD_TESTING ON)

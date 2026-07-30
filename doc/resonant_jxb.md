@@ -139,6 +139,34 @@ the existing scalar file.  The shielding-response layer must either supply a
 documented vector reconstruction or extend the NetCDF contract with vector
 components or a vector potential.
 
+The new vector perturbation contract takes that explicit extension route.  A
+NetCDF file contains:
+
+- dimensions `s` and `mode`;
+- coordinates `s(s)` and signed poloidal integers `m(mode)`;
+- global integer `toroidal_mode`;
+- complex covariant components split into
+  `B_s_real/imag(mode,s)`, `B_phi_real/imag(mode,s)`, and
+  `B_theta_real/imag(mode,s)`;
+- required convention attributes `coordinate_order="s,phi,theta"`,
+  `component_variance="covariant"`, `radial_coordinate="s_tor"`,
+  `magnetic_component_units="T m"`, and the Fourier convention above.
+
+NEO-RT differentiates the angular covariant components on the nonuniform
+radial grid and emits the Jacobian-weighted contravariant current
+`J * J^i`.  Keeping this weighted quantity avoids artificial poloidal-mode
+coupling by the angle-dependent Boozer Jacobian:
+
+```sh
+fo exec neo_rt_boozer_current.x perturbation_vector.nc current.out
+```
+
+The optional third argument overrides SI `mu0`.  Output rows contain `s`, `m`,
+and the real and imaginary parts of all three weighted current components.
+`test_boozer_vector_io` verifies the complete reader-and-current path against
+the analytic `curl(curl(A))` of two manufactured vector-potential harmonics on
+a nonuniform radial grid.
+
 ## Code and literature survey
 
 - MARS-F/MARS-Q computes the flux-surface-averaged toroidal electromagnetic
