@@ -34,7 +34,7 @@ contains
         call read_dimension(ncid, "zeta", geometry%zeta_count)
         if (geometry%radial_count < 3) error stop "chartmap radial grid too short"
         if (geometry%theta_count < 3) error stop "chartmap theta grid too short"
-        if (geometry%zeta_count < 3) error stop "chartmap zeta grid too short"
+        if (geometry%zeta_count < 1) error stop "chartmap zeta grid is empty"
         allocate (geometry%rho(geometry%radial_count))
         allocate (geometry%theta(geometry%theta_count))
         allocate (geometry%zeta(geometry%zeta_count))
@@ -63,8 +63,15 @@ contains
         call validate_periodic_grid(geometry%zeta, "zeta", &
             2.0_dp*acos(-1.0_dp)/real(geometry%field_periods, dp))
         do component = 1, 3
-            call differentiate_angles(geometry, component)
+            call differentiate_theta(geometry, component)
         end do
+        ! In an axisymmetric Boozer chart, geometrical toroidal angle differs
+        ! from zeta only by a surface/poloidal shift. Therefore d/dzeta is the
+        ! exact rigid rotation about the symmetry axis, even when the compact
+        ! chartmap stores only two zeta planes.
+        geometry%position_zeta(1, :, :, :) = -geometry%position(2, :, :, :)
+        geometry%position_zeta(2, :, :, :) = geometry%position(1, :, :, :)
+        geometry%position_zeta(3, :, :, :) = 0.0_dp
     end subroutine read_boozer_chartmap_geometry
 
     subroutine evaluate_boozer_metric(geometry, s, metric, jacobian)
@@ -110,12 +117,11 @@ contains
         end if
     end subroutine evaluate_boozer_metric
 
-    subroutine differentiate_angles(geometry, component)
+    subroutine differentiate_theta(geometry, component)
         type(boozer_chartmap_geometry_t), intent(inout) :: geometry
         integer, intent(in) :: component
         real(dp) :: theta_values(geometry%theta_count)
-        real(dp) :: zeta_values(geometry%zeta_count)
-        integer :: radial_index, theta_index, zeta_index
+        integer :: radial_index, zeta_index
 
         do radial_index = 1, geometry%radial_count
             do zeta_index = 1, geometry%zeta_count
@@ -125,17 +131,8 @@ contains
                     component, radial_index, :, zeta_index) = &
                     periodic_spectral_derivative(theta_values, 2.0_dp*acos(-1.0_dp))
             end do
-            do theta_index = 1, geometry%theta_count
-                zeta_values = geometry%position( &
-                    component, radial_index, theta_index, :)
-                geometry%position_zeta( &
-                    component, radial_index, theta_index, :) = &
-                    periodic_spectral_derivative( &
-                    zeta_values, &
-                    2.0_dp*acos(-1.0_dp)/real(geometry%field_periods, dp))
-            end do
         end do
-    end subroutine differentiate_angles
+    end subroutine differentiate_theta
 
     pure function periodic_spectral_derivative(values, period) result(derivative)
         real(dp), intent(in) :: values(:), period

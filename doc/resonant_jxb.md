@@ -210,6 +210,47 @@ If its vector perturbation was converted from `BPLASMA`, MARS still supplied
 the response field itself. A vector perturbation produced by another
 shielding-response model uses exactly the same NEO-RT current and torque path.
 
+The production ITER chartmap stores two toroidal planes. Because it is
+axisymmetric, NEO-RT uses the exact rotational derivative
+`e_phi=(-y,x,0)` rather than trying to differentiate those two samples.
+
+### ITER paired-NetCDF versus native-MARS benchmark
+
+The real TC24 chartmap and all three converted perturbations—total, applied
+vacuum, and `PLS-VAC` plasma response—were run through the paired-NetCDF
+executable. `python/plot_iter_boozer_mars_jxb_comparison.py` compares every
+resulting surface against a native-staggered calculation made from the same
+MARS `BPLASMA` outputs:
+
+```sh
+python python/plot_iter_boozer_mars_jxb_comparison.py \
+  MARSF_results/conversion_phiI000.toml OUTRMAR run/iter_tc24_phiI000 \
+  iter_boozer_mars_jxb_comparison.png
+```
+
+`OUTRMAR` supplies exactly the `ASPCT`, `R0EXP`, and `B0EXP` values used by
+MARS's own
+`TORQFAC=R0EXP**3*B0EXP**2/(mu0*ASPCT**2)`. The script changes the native
+abscissa from `sqrt(psi_pol)` to `s_tor` by a cellwise Jacobian, so the
+integrated torque is invariant under the radial remapping.
+
+The benchmark deliberately exposes a failed approximation. Integrated values
+for native staggering versus the collocated Boozer contract are:
+
+- total: `+7.100e3 N m` versus `-5.838e5 N m`;
+- applied vacuum: `+5.49e-5 N m` versus `-3.570e3 N m`;
+- plasma response: `+1.292e3 N m` versus `-6.410e5 N m`.
+
+The whole-radius curves, cumulative integrals, CSV, and provenance JSON are in
+`doc/figures/iter_boozer_mars_jxb_comparison.*`. In particular, the native
+vacuum result is numerically zero while the collocated path invents a finite
+vacuum torque. This is decisive evidence that a MARS-derived perturbation must
+retain the full/half radial staggering through the curl. These collocated
+ITER values are a diagnostic of the lossy adapter, not physical torque
+predictions. The native curves reconstruct current from exported `BPLASMA`;
+they are not claimed to reproduce unavailable combined-coil `JPLASMA` or
+`TORQUEJXB` files.
+
 ### Full-vector MARS adapter
 
 `python/mars_vector_to_boozer_netcdf.py` reads the three covariant MARS

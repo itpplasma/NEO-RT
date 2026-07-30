@@ -1,0 +1,50 @@
+{
+  "boozer_provenance": {
+    "plasma_response": {
+      "path": "/home/ert/proj/iter_tc24/.worktrees/NEO-RT-jxb/run/iter_tc24_phiI000/plasma_response_jxb_profile.out",
+      "sha256": "10436eca49e0440b01b95f54978f0fbf9fcfe9064730b3c3857d5ca0ddc0b9a5"
+    },
+    "total": {
+      "path": "/home/ert/proj/iter_tc24/.worktrees/NEO-RT-jxb/run/iter_tc24_phiI000/total_jxb_profile.out",
+      "sha256": "084462f5d151430f45c52c40bc277244519e6dcd6ef346acecabbc93ad9e8b68"
+    },
+    "vacuum": {
+      "path": "/home/ert/proj/iter_tc24/.worktrees/NEO-RT-jxb/run/iter_tc24_phiI000/vacuum_jxb_profile.out",
+      "sha256": "5050b09e3c6bbaf64e3133f98f95aafafacdcd90d44edf839c222196c420e36e"
+    }
+  },
+  "case_name": "ITER TC24 phiI000",
+  "comparison": {
+    "plasma_response": {
+      "boozer_integrated_N_m": -640992.38419038,
+      "native_integrated_N_m": 1292.26429081521,
+      "profile_relative_l2": 29.16863892968093
+    },
+    "total": {
+      "boozer_integrated_N_m": -583758.5629543192,
+      "native_integrated_N_m": 7100.452029422803,
+      "profile_relative_l2": 5.138225380091202
+    },
+    "vacuum": {
+      "boozer_integrated_N_m": -3570.3933780552215,
+      "native_integrated_N_m": 5.492739380994244e-05,
+      "profile_relative_l2": 552218.4263207342
+    }
+  },
+  "interpretation": "The collocated Boozer contract is a smooth-input path. Its disagreement with native MARS quantifies loss of exported half-mesh shielding-layer derivatives.",
+  "mars_provenance": {
+    "manifest": {
+      "path": "/home/ert/proj/iter_tc24/MARSF_results/conversion_phiI000.toml",
+      "sha256": "b1431894f0b9dffc4d7b10049c0daf56293f04bb2d8bab27de4c5dd8e0c18be0"
+    },
+    "mars_aspect_ratio": 3.1461570882485916,
+    "mars_b0_t": 5.3,
+    "mars_r0_m": 6.2,
+    "mars_torqfac_N_m": 538215421.1786304,
+    "outrmar": {
+      "path": "/mnt/storage/codex-mars/tc24-marsk-charge-verified-20260726-8f98698c-r1/artifacts/chease/OUTRMAR",
+      "sha256": "ee3e7e4eafc6b24892461b6f2f24395ce01c35ed483722e3c9ac18864000adeb"
+    }
+  },
+  "published_radial_coordinate": "rho_tor=sqrt(s_tor)"
+}
