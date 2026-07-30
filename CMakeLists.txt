@@ -128,6 +128,7 @@ set(NEO_RT_SOURCES
     src/driftorbit.f90
     src/electromagnetic_torque.f90
     src/freq.f90
+    src/gpec_torque_contract.f90
     src/lib.f90
     src/logging.f90
     src/magfie.f90
