@@ -21,15 +21,17 @@ amplitudes. The weights must include the desired normalized surface measure.
 With current in A/m², magnetic field in T, radius in m, and dimensionless
 normalized weights, the result is in N/m².
 
-`mars_surface_torque` evaluates the equivalent MARS contravariant harmonic
-form
+`mars_surface_torque` evaluates the collocated MARS contravariant harmonic
+contraction
 
 \[
  T_{j\times b}={1\over2}\sum_m\Re\left(j_1^*b_2-j_2^*b_1\right).
 \]
 
-Its inputs and result retain MARS normalization. No coordinate or SI
-conversion is guessed.
+Its inputs and result retain MARS normalization. `mars_half_mesh_torque`
+implements the active MARS `KCTORQ=2` discretization: the \(j_2^*b_1\) product
+is averaged from the two adjacent full-mesh surfaces, while \(j_1^*b_2\) is
+evaluated on the half mesh. No coordinate or SI conversion is guessed.
 
 `integrate_mars_profile` reproduces MARS's midpoint radial integration,
 
@@ -62,7 +64,8 @@ The unit tests have independent behavioral oracles:
 - exact integration of a linear manufactured profile on a nonuniform mesh;
 - command-line parsing of MARS-shaped multi-column files.
 
-An archived MARS validation case provides a cross-code integration benchmark:
+An archived MARS validation case provides a profile-integration compatibility
+benchmark:
 
 ```sh
 fo exec neo_rt_jxb_profile.x \
@@ -70,9 +73,10 @@ fo exec neo_rt_jxb_profile.x \
   /mnt/storage/codex-mars/mastu-native-reload-validation-20260716/workspace/pair_a/native/TORQUEJXB.OUT
 ```
 
-NEO-RT returns `-5.2440799808745e-5`; the independent MARS log prints
-`-5.24408e-5`. This agreement is limited by the precision of the MARS text
-output.
+NEO-RT returns `-5.2440799808745e-5`; the MARS log prints `-5.24408e-5`.
+This checks mesh interpretation, normalization, and file compatibility. It is
+not an independent shielding-response physics benchmark because both values
+come from the MARS-computed torque profile.
 
 The ITER TC24 MARS log reports two native evaluations,
 `-2.30520e-7` and `-6.28797e-7`, corresponding to `-124.072 N m` and
@@ -128,4 +132,3 @@ solve for shielding currents. Consequently:
   implicitly;
 - all Fourier, coordinate, Jacobian, radial, and unit conventions remain the
   responsibility of the response-field adapter.
-

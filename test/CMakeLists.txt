@@ -81,6 +81,20 @@ set_tests_properties(test_jxb_profile_program PROPERTIES
     PASS_REGULAR_EXPRESSION "1.579136704174[0-9]+E\\+02"
 )
 
+add_test(NAME test_response_jxb_rejects_shape
+    COMMAND test_response_jxb_invalid.x shape
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_response_jxb_rejects_profile
+    COMMAND test_response_jxb_invalid.x profile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(
+    test_response_jxb_rejects_shape
+    test_response_jxb_rejects_profile
+    PROPERTIES WILL_FAIL TRUE
+)
+
 add_test(NAME test_vmax_over_vth
     COMMAND test_vmax_over_vth.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

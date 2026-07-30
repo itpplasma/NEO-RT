@@ -1,12 +1,13 @@
 program test_response_jxb
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use response_jxb, only: cylindrical_toroidal_torque, integrate_mars_profile, &
-        mars_surface_torque
+        mars_half_mesh_torque, mars_surface_torque
 
     implicit none
 
     call test_cylindrical_cross_product
     call test_mars_harmonic_sum
+    call test_mars_half_mesh_stagger
     call test_common_phase_invariance
     call test_linear_profile_integral
 
@@ -14,7 +15,11 @@ contains
 
     subroutine test_cylindrical_cross_product
         complex(dp) :: jr(2), jz(2), br(2), bz(2)
-        real(dp) :: radius(2), weight(2), actual, expected
+        complex(dp) :: phase
+        real(dp), parameter :: pi = acos(-1.0_dp)
+        integer, parameter :: number_of_phases = 128
+        real(dp) :: radius(2), weight(2), actual, expected, angle
+        integer :: index
 
         radius = [2.0_dp, 3.0_dp]
         weight = [0.25_dp, 0.75_dp]
@@ -22,7 +27,15 @@ contains
         jz = [cmplx(3.0_dp, -1.0_dp, dp), cmplx(0.5_dp, 4.0_dp, dp)]
         br = [cmplx(-1.0_dp, 3.0_dp, dp), cmplx(2.0_dp, -2.0_dp, dp)]
         bz = [cmplx(2.0_dp, 1.0_dp, dp), cmplx(-3.0_dp, 0.5_dp, dp)]
-        expected = 0.5_dp*sum(weight*radius*real(jz*conjg(br) - jr*conjg(bz), dp))
+        expected = 0.0_dp
+        do index = 0, number_of_phases - 1
+            angle = 2.0_dp*pi*real(index, dp)/real(number_of_phases, dp)
+            phase = cmplx(cos(angle), sin(angle), dp)
+            expected = expected + sum(weight*radius*( &
+                real(jz*phase, dp)*real(br*phase, dp) - &
+                real(jr*phase, dp)*real(bz*phase, dp)))
+        end do
+        expected = expected/real(number_of_phases, dp)
 
         actual = cylindrical_toroidal_torque(radius, weight, jr, jz, br, bz)
         call assert_close(actual, expected, "cylindrical cross-product oracle")
@@ -36,11 +49,28 @@ contains
         j2 = [cmplx(3.0_dp, -1.0_dp, dp), cmplx(2.0_dp, 0.25_dp, dp)]
         b1 = [cmplx(-2.0_dp, 1.0_dp, dp), cmplx(1.5_dp, -3.0_dp, dp)]
         b2 = [cmplx(0.5_dp, 4.0_dp, dp), cmplx(-1.0_dp, 2.0_dp, dp)]
-        expected = 0.5_dp*sum(real(conjg(j1)*b2 - conjg(j2)*b1, dp))
+        expected = 7.875_dp
 
         actual = mars_surface_torque(j1, j2, b1, b2)
         call assert_close(actual, expected, "MARS Eq. (8) harmonic oracle")
     end subroutine test_mars_harmonic_sum
+
+    subroutine test_mars_half_mesh_stagger
+        complex(dp) :: j1_half(1), b2_half(1)
+        complex(dp) :: j2_left(1), b1_left(1), j2_right(1), b1_right(1)
+        real(dp) :: actual
+
+        j1_half = cmplx(1.0_dp, 1.0_dp, dp)
+        b2_half = cmplx(3.0_dp, 3.0_dp, dp)
+        j2_left = cmplx(1.0_dp, 0.0_dp, dp)
+        b1_left = cmplx(4.0_dp, 0.0_dp, dp)
+        j2_right = cmplx(0.0_dp, 2.0_dp, dp)
+        b1_right = cmplx(0.0_dp, 3.0_dp, dp)
+
+        actual = mars_half_mesh_torque( &
+            j1_half, b2_half, j2_left, b1_left, j2_right, b1_right)
+        call assert_close(actual, 0.5_dp, "MARS KCTORQ=2 radial staggering")
+    end subroutine test_mars_half_mesh_stagger
 
     subroutine test_common_phase_invariance
         complex(dp), parameter :: phase = cmplx(0.6_dp, 0.8_dp, dp)
