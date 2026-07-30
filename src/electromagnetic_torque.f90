@@ -1,4 +1,12 @@
 module electromagnetic_torque
+    ! Algebraic electromagnetic-torque contraction for native complex harmonics.
+    !
+    ! J and B are stored non-axisymmetric Fourier amplitudes. The factor 1/2
+    ! is the real-field average of one complex harmonic; callers must use one
+    ! consistent Fourier sign convention for both vectors. Results retain the
+    ! input J*B normalization and are not SI torque by themselves. Geometry,
+    ! B0**2/mu0 scaling, radial-coordinate conversion, filtering, and edge
+    ! policies belong to an adapter outside this coordinate-independent kernel.
     use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
@@ -18,6 +26,9 @@ contains
 
     function staggered_cross_contraction(j1_half, b2_half, j2_full, b1_full) &
             result(density)
+        ! Return the unsmoothed native radial integration density on half cells.
+        ! Full-mesh J2*B1 products are averaged at adjacent cell endpoints;
+        ! half-mesh J1*B2 products are used at their native locations.
         complex(dp), intent(in) :: j1_half(:, :), b2_half(:, :)
         complex(dp), intent(in) :: j2_full(:, :), b1_full(:, :)
         real(dp) :: density(size(j1_half, 1))
