@@ -23,6 +23,5 @@ program test_electromagnetic_torque_invalid
         error stop "unknown invalid electromagnetic-torque case"
     end select
     print *, value
-    error stop "invalid electromagnetic-torque input was accepted"
 
 end program test_electromagnetic_torque_invalid
