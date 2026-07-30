@@ -270,13 +270,14 @@ zero-current check without `JPLASMA`.
 
 The second figure contains every rational harmonic in the delivered ITER
 range: `m=4,...,10` for `n=-3`, with the corresponding `q=m/3` surfaces
-marked at normalized toroidal flux
-`0.3368, 0.4885, 0.6107, 0.7125, 0.7959, 0.8626, 0.9697`.
+marked at `rho_tor=sqrt(s_tor)` values
+`0.5803, 0.6989, 0.7815, 0.8441, 0.8921, 0.9287, 0.9847`.
 It plots the coordinate-weighted tangential amplitude
 `sqrt(|sqrt(g) J^chi_m|^2 + |sqrt(g) J^phi_m|^2)`. This is a transparent
 native-MARS diagnostic, not a coordinate-invariant physical current norm.
 Both figures cover the full resolved radial domain, apply no smoothing or
-mode filtering, and have companion CSV and provenance JSON files.
+mode filtering, and have companion CSV and provenance JSON files. The CSV
+retains both `s_tor` and the published `rho_tor` abscissa.
 
 ## Code and literature survey
 

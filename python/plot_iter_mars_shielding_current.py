@@ -106,6 +106,7 @@ def profile_rows(
                     "component": component_name,
                     "field": field_name,
                     "stor": grids[component_index][valid],
+                    "rho_tor": np.sqrt(grids[component_index][valid]),
                     "amplitude": spectral_norm(coefficients[valid]),
                     "coefficients": coefficients[valid],
                     "modes": modes,
@@ -128,7 +129,7 @@ def render_profiles(
             field = str(row["field"])
             color, style = FIELD_STYLES[field]
             axis.semilogy(
-                row["stor"],
+                row["rho_tor"],
                 row["amplitude"],
                 color=color,
                 linestyle=style,
@@ -144,7 +145,7 @@ def render_profiles(
     axes[0].set_title(
         f"Native-staggered current from MARS magnetic field — {case_name}"
     )
-    axes[-1].set_xlabel(r"normalized toroidal flux $s_{\rm tor}$")
+    axes[-1].set_xlabel(r"$\rho_{\rm tor}=\sqrt{s_{\rm tor}}$")
     axes[-1].set_xlim(0.0, 1.0)
     fig.savefig(output, dpi=220)
     fig.savefig(output.with_suffix(".pdf"))
@@ -159,10 +160,11 @@ def render_resonant(
     resonances: dict[int, float],
     output: Path,
     case_name: str,
-) -> list[tuple[int, np.ndarray, np.ndarray]]:
+) -> list[tuple[int, np.ndarray, np.ndarray, np.ndarray]]:
     valid = np.all(np.isfinite(response[1]), axis=1)
     valid &= np.all(np.isfinite(response[2]), axis=1)
-    radial = stor[valid]
+    radial_s = stor[valid]
+    radial_rho = np.sqrt(radial_s)
     curves = []
     fig, axis = plt.subplots(figsize=(7.2, 4.8), constrained_layout=True)
     for index, (mode, surface) in enumerate(resonances.items()):
@@ -177,7 +179,7 @@ def render_resonant(
         color = MODE_COLORS[index % len(MODE_COLORS)]
         style = ("-", "--", ":", "-.")[index % 4]
         axis.semilogy(
-            radial,
+            radial_rho,
             amplitude,
             color=color,
             linestyle=style,
@@ -185,14 +187,18 @@ def render_resonant(
             label=rf"$m={mode}$",
         )
         axis.axvline(
-            surface, color=color, linestyle=":", linewidth=0.8, alpha=0.55
+            np.sqrt(surface),
+            color=color,
+            linestyle=":",
+            linewidth=0.8,
+            alpha=0.55,
         )
-        curves.append((mode, radial, amplitude))
+        curves.append((mode, radial_s, radial_rho, amplitude))
     axis.set_title(
         f"Plasma-response current at n={toroidal_mode} "
         f"rational harmonics — {case_name}"
     )
-    axis.set_xlabel(r"normalized toroidal flux $s_{\rm tor}$")
+    axis.set_xlabel(r"$\rho_{\rm tor}=\sqrt{s_{\rm tor}}$")
     axis.set_ylabel(
         r"$\sqrt{|\,\sqrt{g}J^\chi_m|^2+|\,\sqrt{g}J^\phi_m|^2}$"
         "\n(MARS units)"
@@ -217,28 +223,56 @@ def render_resonant(
 
 def write_profile_csv(path: Path, rows: list[dict[str, object]]) -> None:
     with path.open("w", newline="") as stream:
-        writer = csv.writer(stream)
-        writer.writerow(("component", "field", "s_tor", "spectral_norm"))
+        writer = csv.writer(stream, lineterminator="\n")
+        writer.writerow(
+            ("component", "field", "s_tor", "rho_tor", "spectral_norm")
+        )
         for row in rows:
-            for radial, amplitude in zip(
-                row["stor"], row["amplitude"], strict=True
+            for s_value, rho_value, amplitude in zip(
+                row["stor"], row["rho_tor"], row["amplitude"], strict=True
             ):
                 writer.writerow(
-                    (row["component"], row["field"], radial, amplitude)
+                    (
+                        row["component"],
+                        row["field"],
+                        s_value,
+                        rho_value,
+                        amplitude,
+                    )
                 )
 
 
 def write_resonant_csv(
     path: Path,
-    curves: list[tuple[int, np.ndarray, np.ndarray]],
+    curves: list[tuple[int, np.ndarray, np.ndarray, np.ndarray]],
     resonances: dict[int, float],
 ) -> None:
     with path.open("w", newline="") as stream:
-        writer = csv.writer(stream)
-        writer.writerow(("m", "s_tor", "tangential_current", "rational_s_tor"))
-        for mode, radial, amplitude in curves:
-            for s_value, value in zip(radial, amplitude, strict=True):
-                writer.writerow((mode, s_value, value, resonances[mode]))
+        writer = csv.writer(stream, lineterminator="\n")
+        writer.writerow(
+            (
+                "m",
+                "s_tor",
+                "rho_tor",
+                "tangential_current",
+                "rational_s_tor",
+                "rational_rho_tor",
+            )
+        )
+        for mode, radial_s, radial_rho, amplitude in curves:
+            for s_value, rho_value, value in zip(
+                radial_s, radial_rho, amplitude, strict=True
+            ):
+                writer.writerow(
+                    (
+                        mode,
+                        s_value,
+                        rho_value,
+                        value,
+                        resonances[mode],
+                        np.sqrt(resonances[mode]),
+                    )
+                )
 
 
 def main() -> None:
@@ -295,11 +329,16 @@ def main() -> None:
         "rational_surfaces_s_tor": {
             str(mode): value for mode, value in resonances.items()
         },
+        "rational_surfaces_rho_tor": {
+            str(mode): float(np.sqrt(value))
+            for mode, value in resonances.items()
+        },
         "provenance": provenance["total"],
         "radial_derivative": (
             "cubic derivative of natural MARS B2/B3 half-mesh values; "
             "no pre-curl collocation"
         ),
+        "published_radial_coordinate": "rho_tor=sqrt(s_tor)",
     }
     args.profile_output.with_suffix(".json").write_text(
         json.dumps(diagnostics, indent=2, sort_keys=True) + "\n"

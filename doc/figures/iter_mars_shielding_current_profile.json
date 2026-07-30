@@ -42,7 +42,17 @@
       }
     }
   },
+  "published_radial_coordinate": "rho_tor=sqrt(s_tor)",
   "radial_derivative": "cubic derivative of natural MARS B2/B3 half-mesh values; no pre-curl collocation",
+  "rational_surfaces_rho_tor": {
+    "10": 0.9847358001061403,
+    "4": 0.5803302812459603,
+    "5": 0.6989158060680342,
+    "6": 0.7814833459828843,
+    "7": 0.8440698923538045,
+    "8": 0.8921402725228057,
+    "9": 0.9287389754382316
+  },
   "rational_surfaces_s_tor": {
     "10": 0.9697045960106803,
     "4": 0.3367832353310154,
