@@ -1,0 +1,8 @@
+ GPEC_CONTROL: Plasma response for an external perturbation on the control surface
+ v1.5.4-12-ga430ad2
+
+      mpert =  51
+  vacuum energy =  1.29218915E+004
+ surface energy =  1.69798256E+004
+  plasma energy =  1.24886311E+004
+  toroidal torque = -1.23093339E+000
