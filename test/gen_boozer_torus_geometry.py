@@ -12,7 +12,7 @@ if len(sys.argv) != 2:
     raise SystemExit("usage: gen_boozer_torus_geometry.py OUTPUT.nc")
 
 output = Path(sys.argv[1])
-rho = np.array([0.2, 0.4, 0.6, 0.8])
+rho = np.array([0.2, 0.4, 0.6, 0.8, 1.0])
 theta = np.arange(16) * 2.0 * np.pi / 16.0
 zeta = np.arange(8) * 2.0 * np.pi / 8.0
 major_radius = 3.0

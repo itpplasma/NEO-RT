@@ -84,3 +84,21 @@ Also written when `comptorque=.true.`. Appends one line per harmonic with:
 4. `Tt` – Trapped-particle contribution to the torque integral.
 
 The sum of the three torque components matches the values written in `<runname>_torque.out` once all harmonics have been processed.
+
+## `neo_rt_boozer_jxb.x` profile
+
+`neo_rt_boozer_jxb.x AXISYMMETRIC.nc PERTURBATION.nc OUTPUT [MU0]` writes a
+full-radius SI electromagnetic torque-density profile. The axisymmetric input
+is a Boozer chartmap NetCDF containing `rho`, `theta`, `zeta`, and geometry
+`x`, `y`, `z` in centimetres. The perturbation input is the covariant vector
+harmonic NetCDF documented in `resonant_jxb.md`.
+
+The output begins with a header and has three columns:
+
+1. `s_tor` – normalised toroidal flux.
+2. `rho_tor` – `sqrt(s_tor)`.
+3. `dT_phi_ds_N_m` – phase-averaged toroidal electromagnetic torque per unit
+   `s_tor`, in N·m.
+
+The profile is unsmoothed and contains every radial surface supplied by the
+vector perturbation input.

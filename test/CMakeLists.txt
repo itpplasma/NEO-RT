@@ -103,6 +103,25 @@ set_tests_properties(test_boozer_current_program PROPERTIES
     PASS_REGULAR_EXPRESSION "computed weighted current on 4 surfaces for 2"
 )
 
+add_test(NAME test_boozer_jxb_program
+    COMMAND ${CMAKE_BINARY_DIR}/neo_rt_boozer_jxb.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/boozer_torus_geometry.nc
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/boozer_vector_manufactured.nc
+        ${CMAKE_CURRENT_BINARY_DIR}/boozer_jxb_profile.out
+        2.5
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_boozer_jxb_program PROPERTIES
+    PASS_REGULAR_EXPRESSION "computed Boozer jxb torque density on 4 surfaces"
+)
+
+add_test(NAME test_boozer_jxb_profile
+    COMMAND test_boozer_jxb_profile.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/boozer_torus_geometry.nc
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/boozer_vector_manufactured.nc
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_mars_response
     COMMAND test_mars_response.x ${CMAKE_CURRENT_SOURCE_DIR}/fixtures
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
