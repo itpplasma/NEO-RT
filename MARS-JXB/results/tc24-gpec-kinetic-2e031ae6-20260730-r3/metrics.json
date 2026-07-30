@@ -1,0 +1,48 @@
+{
+  "ideal_control_torque_native_N_m": -1.24265549,
+  "ideal_dw_profile_present": false,
+  "kinetic_control_torque_native_N_m": 255.783088,
+  "kinetic_profile_endpoint_native_N_m": 255.782098,
+  "profile_control_absolute_closure_N_m": 0.0009900000000016007,
+  "profile_control_relative_closure": 3.870466995072015e-06,
+  "profile_rows": 555,
+  "psi_n_max": 0.990144797,
+  "psi_n_min": 0.0493156744,
+  "rational_surfaces": [
+    {
+      "m": 4,
+      "n": 3,
+      "psi_n": 0.4894
+    },
+    {
+      "m": 5,
+      "n": 3,
+      "psi_n": 0.6544
+    },
+    {
+      "m": 6,
+      "n": 3,
+      "psi_n": 0.7626
+    },
+    {
+      "m": 7,
+      "n": 3,
+      "psi_n": 0.8388
+    },
+    {
+      "m": 8,
+      "n": 3,
+      "psi_n": 0.8929
+    },
+    {
+      "m": 9,
+      "n": 3,
+      "psi_n": 0.9307
+    },
+    {
+      "m": 10,
+      "n": 3,
+      "psi_n": 0.985
+    }
+  ]
+}

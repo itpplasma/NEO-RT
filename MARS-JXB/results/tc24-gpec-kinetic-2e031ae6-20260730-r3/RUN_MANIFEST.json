@@ -1,0 +1,97 @@
+{
+  "archive": "/mnt/storage/codex-gpec/tc24-gpec-kinetic-2e031ae6-20260730-r3",
+  "archive_verification": "rsync checksum comparison returned no differences",
+  "campaign": "tc24-gpec-kinetic-2e031ae6-20260730-r3",
+  "code": {
+    "describe": "v1.5.7-581-g2e031ae6",
+    "gpec_commit": "2e031ae675205ec9d69bb0298855155737f72579",
+    "dcon_executable_sha256": "e7d8e6e69ca225a4a4190db6a8ccc731889e4baeee53e14857ca9ed12f77bdec",
+    "gpec_executable_sha256": "8d35fd60417a610305bedb77d0c64f4a307e7edb2e3983a1b1540cf361885992"
+  },
+  "environment": {
+    "compiler": "GNU Fortran 12.2.0 and GCC 12.2.0",
+    "node": "node19",
+    "omp_num_threads": 16,
+    "omp_places": "cores",
+    "omp_proc_bind": "spread",
+    "slurm_cpus": 16,
+    "slurm_job": 920804,
+    "slurm_memory": "70G",
+    "slurm_result": "COMPLETED 0:0",
+    "slurm_wall_time": "00:10:06"
+  },
+  "inputs": {
+    "coil_groups": [
+      "fc_lower",
+      "fc_middle",
+      "fc_upper"
+    ],
+    "coil_num": 3,
+    "coil_phases_A": [
+      90000.0,
+      -45000.0,
+      -45000.0,
+      90000.0,
+      -45000.0,
+      -45000.0,
+      90000.0,
+      -45000.0,
+      -45000.0
+    ],
+    "coil_tree_sha256": "a8b522d9338c6050545bcf05f0e91d20699b805393c6242fb51584ba162eae94",
+    "equilibrium_sha256": "fbf1b1c06253647263869efe7842e4c60214f2a1844197d2306e5b80d95833f2",
+    "fourier_toroidal_mode": 3,
+    "gpec_in_sha256": "61735a6465528ddb1ff3e4b3b00a56592d23405851c4eccc8183c33cb0b9431a",
+    "kinetic_flags": {
+      "con_flag": true,
+      "electron_flag": false,
+      "ion_flag": true,
+      "kin_flag": true,
+      "passing_flag": true,
+      "trapped_flag": true
+    },
+    "ideal_flags": {
+      "con_flag": false,
+      "kin_flag": false
+    },
+    "pentrc": {
+      "moment": "pressure",
+      "nl": 6,
+      "nutype": "harmonic",
+      "wefac": -1.0,
+      "wdfac": 1.0,
+      "wpfac": 1.0,
+      "ximag": 0.01
+    },
+    "pentrc_in_sha256": "690729b975b08a366da87e89c6476d9bde526660731db5c1967dd0e080604ddf",
+    "profiles_sha256": "ee1ec3ed154587a5b59c58fb5c989c903b10ef303bf20790d9738bc8349ea93e",
+    "twin_contract": "Only kin_flag and con_flag differ in dcon.in. Absolute input paths differ by case name. Their normalized decks and referenced physical files are identical."
+  },
+  "outputs": {
+    "ideal_control_sha256": "79fe46575e4be58c5aac79755fb35a41312493d9e4f23f5a931e1692cd3d7682",
+    "ideal_control_torque_native_N_m": -1.24265549,
+    "ideal_dw_profile_present": false,
+    "kinetic_control_sha256": "65e9f9b7893ae70384d16c6f7033471e00ccc5d70edfa4d6850445aa3554fe64",
+    "kinetic_control_torque_native_N_m": 255.783088,
+    "kinetic_profile_endpoint_native_N_m": 255.782098,
+    "kinetic_profile_sha256": "0afd3d03804dfa36def507059d87ed555fd5c7aa5d9f3ce3a317b90cb459693a",
+    "profile_control_relative_closure": 3.870466995072015e-06,
+    "profile_source": "gpec_dw_profile_n3.out",
+    "profile_netcdf_status": "rejected because of demonstrated off-by-one packing in gpout_dw"
+  },
+  "status": {
+    "global_torque_gate": "passed",
+    "ideal_null_interpretation": "The printed ideal value is an anti-Hermitian numerical residual, not physical torque.",
+    "kinetic_channel": "self-consistent GPEC and PENTRC neoclassical toroidal viscosity",
+    "local_profile_gate": "diagnostic only pending radial and layer resolution convergence",
+    "mars_jxb_gate": "not addressed by this GPEC run"
+  },
+  "warnings": [
+    "DCON reported an unstable free-boundary n=3 mode in both twins.",
+    "Kinetic DCON reported displaced-surface search errors and found no kinetic singular surfaces.",
+    "Kinetic DCON terminated normally with finite outputs but reported IEEE overflow, underflow, and denormal flags.",
+    "The unsmoothed local torque density has sign-changing spikes up to order 1e9 N m near ideal rational surfaces. Its finite global integral closes, but the local spike amplitudes have no resolution-convergence claim.",
+    "The gpec_profile_output_n3.nc T and dTdpsi arrays are mispacked at this source commit. The accepted profile comes from the native ASCII output.",
+    "All plotted signs are native GPEC signs. No laboratory CCW sign claim is made."
+  ]
+}
