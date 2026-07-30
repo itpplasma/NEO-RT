@@ -3,12 +3,19 @@
 Generate POTATO profile_poly.in from NEO-2 HDF5 output.
 
 Reads neo2_out.h5 and computes the electrostatic potential phi_e from the
-ExB rotation (MtOvR) using the same formula as neort_to_potato.py:
+ExB rotation (MtOvR):
 
     Er(s) = sign_theta * psi_pr * vth(s) * MtOvR_ion(s) / C_CGS
 
-where psi_pr = psi_pr_hat * Bref (both available in the HDF5 file).
-This gives phi_e consistent with what NEO-RT uses internally.
+where psi_pr must be the POLOIDAL flux difference in POTATO's own gauge,
+psi_pr = (PsiedgeVs - PsiaxisVs) * 1e8 Mx from the EQDSK header, because
+POTATO's phielec_of_psi divides dPhi/ds_pol by exactly that quantity.
+Using NEO-2's psi_pr_hat*Bref here instead (that is the TOROIDAL flux
+derivative, -3.585e7 Mx) inflates Omega_ExB by x1.945 at every radius --
+the bug that made the AUG #30835 POTATO/NEO-RT torque benchmark disagree
+by 1.6x until 2026-07-16.  NB neort_to_potato.py still has this bug, and
+additionally fits in s_tor without converting to s_pol -- prefer this
+script.
 
 Usage:
     python import_neo2_profiles.py [--neo2 neo2_out.h5] [--sign-theta -1]
