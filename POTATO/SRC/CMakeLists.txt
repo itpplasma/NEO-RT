@@ -1,5 +1,5 @@
 add_library(potato_base
-  ${LIBNEO_SOURCE_DIR}/src/libneo_kinds.f90
+  ${LIBNEO_SOURCE_DIR}/src/util/libneo_kinds.f90
   logging_mod.f90
   wall_loss_mod.f90
   potato_input_mod.f90
@@ -39,7 +39,18 @@ add_library(potato_base
   box_counting.f90
   neo2_reader.f90
 )
+set(VODE_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+if(DEFINED BUILD_TESTING)
+  set(_POTATO_BUILD_TESTING_WAS_DEFINED TRUE)
+  set(_POTATO_BUILD_TESTING_SAVED ${BUILD_TESTING})
+endif()
+set(BUILD_TESTING OFF)
 find_or_fetch(vode)
+if(_POTATO_BUILD_TESTING_WAS_DEFINED)
+  set(BUILD_TESTING ${_POTATO_BUILD_TESTING_SAVED})
+else()
+  unset(BUILD_TESTING)
+endif()
 # vode (dvode_f90_m) uses labeled DO termination, deleted in f2018; build it with
 # the permissive legacy standard rather than POTATO's f2018.
 target_compile_options(vode PRIVATE -std=legacy)
@@ -47,7 +58,7 @@ target_link_libraries(potato_base PUBLIC
 vode
 BLAS::BLAS
 LAPACK::LAPACK
-HDF5::HDF5
+LIBNEO::hdf5_tools
 fortplot::fortplot
 OpenMP::OpenMP_Fortran
 )

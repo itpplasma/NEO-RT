@@ -42,6 +42,10 @@ endif()
 
 include(Util)
 
+if(NOT DEFINED LIBNEO_REF)
+    set(LIBNEO_REF 8d58a5eb55a376d6b5d8ae1c160ab7e2c9190b2c)
+endif()
+
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
@@ -88,35 +92,6 @@ FetchContent_Declare(
     GIT_TAG main
 )
 FetchContent_MakeAvailable(fortplot)
-
-# NetCDF
-find_program(NF_CONFIG "nf-config")
-
-if(NF_CONFIG)
-    execute_process(COMMAND nf-config --includedir
-        OUTPUT_VARIABLE NETCDFINCLUDE_DIR)
-    execute_process(COMMAND nc-config --libdir
-        OUTPUT_VARIABLE NETCDFLIB_DIR)
-    execute_process(COMMAND nf-config --flibs
-        OUTPUT_VARIABLE NETCDF_FLIBS)
-else()
-    message(SEND_ERROR "nf-config not found. Please install libnetcdff-dev")
-endif()
-
-string(STRIP ${NETCDFINCLUDE_DIR} NETCDFINCLUDE_DIR)
-string(STRIP ${NETCDFLIB_DIR} NETCDFLIB_DIR)
-string(STRIP ${NETCDF_FLIBS} NETCDF_FLIBS)
-
-message(STATUS "NetCDF include path: " ${NETCDFINCLUDE_DIR})
-message(STATUS "NetCDF lib path: " ${NETCDFLIB_DIR})
-message(STATUS "NetCDF Fortran libs: " ${NETCDF_FLIBS})
-
-# Replace space by semicolon in the Fortran libs
-string(REPLACE " " ";" NETCDF_FLIBS ${NETCDF_FLIBS})
-
-include_directories(${NETCDFINCLUDE_DIR})
-link_directories(${NETCDFLIB_DIR})
-add_link_options(${NETCDF_FLIBS})
 
 add_executable(${PROJECT_EXE_NAME} src/program.f90)
 
