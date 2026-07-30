@@ -21,15 +21,20 @@ function(find_or_fetch DEPENDENCY)
         set(_override "${${_DEP}_REF}")
     endif()
     if(NOT "${_override}" STREQUAL "")
-        execute_process(
-            COMMAND git ls-remote ${REPO_URL} ${_override}
-            OUTPUT_VARIABLE _found
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-        if(NOT "${_found}" STREQUAL "")
+        string(LENGTH "${_override}" _override_length)
+        if(_override_length EQUAL 40 AND "${_override}" MATCHES "^[0-9a-fA-F]+$")
             set(_ref "${_override}")
         else()
-            message(WARNING "${_DEP}_REF='${_override}' not found in ${REPO_URL}; ignoring")
+            execute_process(
+                COMMAND git ls-remote ${REPO_URL} ${_override}
+                OUTPUT_VARIABLE _found
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            if(NOT "${_found}" STREQUAL "")
+                set(_ref "${_override}")
+            else()
+                message(WARNING "${_DEP}_REF='${_override}' not found in ${REPO_URL}; ignoring")
+            endif()
         endif()
     endif()
     if("${_ref}" STREQUAL "" AND DEFINED ${_DEP}_RELEASE AND NOT "${${_DEP}_RELEASE}" STREQUAL "")
