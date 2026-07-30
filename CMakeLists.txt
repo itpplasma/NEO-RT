@@ -126,7 +126,9 @@ add_executable(neo_rt_boozer_current.x src/boozer_current_program.f90)
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/generated/boozer_ampere_kernel.f90
+    src/generated/boozer_jxb_kernel.f90
     src/boozer_ampere.f90
+    src/boozer_jxb.f90
     src/boozer_vector_io.f90
     src/collis_nbi.f90
     src/config.f90

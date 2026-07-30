@@ -1,4 +1,6 @@
-# Boozer Ampère derivation
+# Boozer electromagnetic derivations
+
+## Ampère kernel
 
 `generate_boozer_ampere.f90` asks fortsym to differentiate the real and
 quadrature fields associated with
@@ -35,6 +37,52 @@ fpm run --profile release
 python check_generated.py
 ```
 
-The dependency is pinned to the fortsym revision recorded in both the manifest
-and generated-file banner.  NEO-RT builds the committed leaf kernel and does
-not require a computer-algebra package at ordinary build time.
+## Toroidal `j×b` kernel
+
+For coordinates ordered `(s, phi, theta)`, define the Jacobian-weighted
+contravariant amplitudes
+
+\[
+K^i=\mathcal J J^i,\qquad C^i=\mathcal J B^i.
+\]
+
+The coordinate-basis cross product gives the volume-weighted covariant
+toroidal force directly:
+
+\[
+\mathcal J(\mathbf J\times\mathbf B)_\phi
+ =K^\theta C^s-K^sC^\theta .
+\]
+
+The vector perturbation contract supplies covariant magnetic components.
+Using \(\det g=\mathcal J^2\), the required weighted contravariant field is
+
+\[
+C^i=\mathcal J g^{ij}B_j
+   =\frac{\operatorname{cof}(g)_{ij}B_j}{\mathcal J}.
+\]
+
+`generate_boozer_jxb.f90` constructs the metric cofactors symbolically and
+emits both this raise and the complex phase average
+
+\[
+\frac12\operatorname{Re}
+\left(K^\theta C^{s*}-K^sC^{\theta*}\right)
+\]
+
+to `src/generated/boozer_jxb_kernel.f90`.  NEO-RT performs the remaining
+angular quadrature. Regenerate this kernel with:
+
+```sh
+cd derivations/fortsym
+fpm run --profile release generate_boozer_jxb
+```
+
+The dependency is pinned to the fortsym revision recorded in the manifest and
+generated-file banners. NEO-RT builds the committed leaf kernels and does not
+require a computer-algebra package at ordinary build time. Verify both
+committed kernels byte-for-byte with:
+
+```sh
+python derivations/fortsym/check_generated.py
+```

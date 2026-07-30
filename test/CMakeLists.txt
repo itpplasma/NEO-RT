@@ -75,6 +75,11 @@ add_test(NAME test_boozer_ampere
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_boozer_jxb
+    COMMAND test_boozer_jxb.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_boozer_vector_io
     COMMAND test_boozer_vector_io.x
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/boozer_vector_manufactured.nc

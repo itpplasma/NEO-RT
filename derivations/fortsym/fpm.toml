@@ -20,3 +20,8 @@ fortsym = { git = "https://github.com/lazy-fortran/fortsym.git", rev = "0cb719ca
 name = "generate_boozer_ampere"
 source-dir = "."
 main = "generate_boozer_ampere.f90"
+
+[[executable]]
+name = "generate_boozer_jxb"
+source-dir = "."
+main = "generate_boozer_jxb.f90"
