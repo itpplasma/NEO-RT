@@ -65,6 +65,25 @@ add_test(NAME test_harmonic_bounds
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_electromagnetic_torque
+    COMMAND test_electromagnetic_torque.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_electromagnetic_torque_invalid_half
+    COMMAND test_electromagnetic_torque_invalid.x half
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_electromagnetic_torque_invalid_half
+    PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME test_electromagnetic_torque_invalid_full
+    COMMAND test_electromagnetic_torque_invalid.x full
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_electromagnetic_torque_invalid_full
+    PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME test_vmax_over_vth
     COMMAND test_vmax_over_vth.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
