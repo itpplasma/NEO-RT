@@ -409,6 +409,58 @@ contains
         end function root_turn
     end function bounce_integral
 
+
+    pure function drift_toroidal_geometric(eta, bmod, sqrtg, hder, hcovar, &
+            hctrvr, hcurl) result(Om_tB_v)
+        !! Bounce-integrand of the toroidal magnetic drift, Om_tB/v**2, built
+        !! from the local field geometry alone.  hcurl is curl(h); removing its
+        !! parallel piece leaves h x (h.grad h), the curvature drift.  The
+        !! result is projected across the local field-line label so that purely
+        !! parallel motion carries no canonical toroidal component, which the
+        !! geometric poloidal angle does not give for free.
+        use do_magfie_mod, only: sign_theta
+        use util, only: mi, qi, c
+
+        real(dp), intent(in) :: eta, bmod, sqrtg
+        real(dp), intent(in) :: hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: Om_tB_v
+
+        real(dp) :: cross_gradB_phi, cross_gradB_theta, curl_parallel
+        real(dp) :: curvature_phi, curvature_theta, drift_phi_v, drift_theta_v
+
+        cross_gradB_phi = (hcovar(3)*hder(1) - hcovar(1)*hder(3))/sqrtg
+        cross_gradB_theta = (hcovar(1)*hder(2) - hcovar(2)*hder(1))/sqrtg
+        curl_parallel = sum(hcovar*hcurl)
+        curvature_phi = hcurl(2) - hctrvr(2)*curl_parallel
+        curvature_theta = hcurl(3) - hctrvr(3)*curl_parallel
+        drift_phi_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_phi &
+            + 0.5_dp*eta*bmod*cross_gradB_phi)
+        drift_theta_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_theta &
+            + 0.5_dp*eta*bmod*cross_gradB_theta)
+        Om_tB_v = fieldline_label_component(drift_phi_v, drift_theta_v, &
+                                            hctrvr(2), hctrvr(3))
+    end function drift_toroidal_geometric
+
+    function drift_toroidal_boozer(eta, bmod, hder, hctrvr) result(Om_tB_v)
+        !! The same quantity written with Boozer covariant components, where
+        !! B_theta and B_phi are flux functions and the shear enters explicitly.
+        use do_magfie_mod, only: q, dqds, psi_pr, sign_theta, Bphcov, &
+            dBthcovds, dBphcovds
+        use util, only: mi, qi, c
+
+        real(dp), intent(in) :: eta, bmod, hder(3), hctrvr(3)
+        real(dp) :: Om_tB_v
+        real(dp) :: shearterm
+
+        shearterm = Bphcov*dqds
+        if (noshear) shearterm = 0.0_dp
+
+        Om_tB_v = mi*c*q/(2.0_dp*qi*sign_theta*psi_pr*bmod)*( &
+            -(2.0_dp - eta*bmod)*bmod*hder(1) &
+            + 2.0_dp*(1.0_dp - eta*bmod)*hctrvr(3)* &
+            (dBthcovds + q*dBphcovds + shearterm))
+    end function drift_toroidal_boozer
+
     subroutine timestep(v, eta, neq, t, y, ydot)
         !
         !  Timestep function for orbit integration.
@@ -434,34 +486,10 @@ contains
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
         if (inp_swi == 11) then
-            ! Coordinate-independent first-order magnetic drift, evaluated from
-            ! the direct cylindrical EQDSK field and transformed to
-            ! (s_tor,phi,theta_geo).  hcurl is curl(h), and the parallel piece
-            ! is removed to obtain h cross (h dot grad h).
-            cross_gradB_phi = (hcovar(3)*hder(1) - hcovar(1)*hder(3))/sqrtg
-            cross_gradB_theta = (hcovar(1)*hder(2) - hcovar(2)*hder(1))/sqrtg
-            curl_parallel = sum(hcovar*hcurl)
-            curvature_phi = hcurl(2) - hctrvr(2)*curl_parallel
-            curvature_theta = hcurl(3) - hctrvr(3)*curl_parallel
-            drift_phi_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_phi &
-                + 0.5_dp*eta*bmod*cross_gradB_phi)
-            drift_theta_v = mi*c/(qi*bmod)*((1.0_dp - eta*bmod)*curvature_theta &
-                + 0.5_dp*eta*bmod*cross_gradB_theta)
-            ! Geometric theta is not a straight-field-line angle.  Project the
-            ! drift across the local field-line label so parallel motion has
-            ! identically zero canonical toroidal component.
-            Om_tB_v = fieldline_label_component( &
-                drift_phi_v, drift_theta_v, hctrvr(2), hctrvr(3))
+            Om_tB_v = drift_toroidal_geometric(eta, bmod, sqrtg, hder, hcovar, &
+                                               hctrvr, hcurl)
         else
-            shearterm = Bphcov * dqds
-            if (noshear) then
-                shearterm = 0
-            end if
-
-            Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
-                -(2.0_dp - eta * bmod) * bmod * hder(1) &
-                + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
-                (dBthcovds + q * dBphcovds + shearterm))
+            Om_tB_v = drift_toroidal_boozer(eta, bmod, hder, hctrvr)
         end if
 
         ydot(1) = y(2) * hctrvr(3) ! theta

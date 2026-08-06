@@ -112,3 +112,8 @@ add_test(NAME test_trapping_parameter
     COMMAND ${CMAKE_BINARY_DIR}/test_trapping_parameter.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_test(NAME test_drift_chart_consistency
+    COMMAND ${CMAKE_BINARY_DIR}/test_drift_chart_consistency.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
