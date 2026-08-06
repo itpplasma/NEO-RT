@@ -82,3 +82,8 @@ set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
         "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
 )
+
+add_test(NAME test_thermodynamic_force_sign
+    COMMAND test_thermodynamic_force_sign.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)

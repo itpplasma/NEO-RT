@@ -213,7 +213,11 @@ contains
         real(dp), intent(in) :: psi_pr ! toroidal flux at plasma boundary == dpsi_tor/ds
         real(dp), intent(in) :: q ! safety factor
 
-        A1 = dni1ds / ni1 - qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c) * Om_tE - 3.0_dp / &
+        ! Electric contribution: q_i*Phi_e'/T = q_i/(T*ev)*(chi'/c)*Om_tE with
+        ! chi' = sign_theta*psi_pr/q and Om_tE = -c*Phi_e'/chi' (driftorbit.lyx,
+        ! eq. Om_tE).  The PLUS sign makes the electric drive -q_i*Phi_e'/T,
+        ! matching A1 = n'/n - e*Phi'/T - 3 T'/(2 T).
+        A1 = dni1ds / ni1 + qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c) * Om_tE - 3.0_dp / &
             2.0_dp * dTi1ds / Ti1
         A2 = dTi1ds / Ti1
     end subroutine init_thermodynamic_forces
