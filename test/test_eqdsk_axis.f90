@@ -18,8 +18,8 @@ program test_eqdsk_axis
     real(dp) :: x(3), bmod, sqrtg, bder(3), hcov(3), hcon(3), hcurl(3)
     real(dp) :: theta, dtheta, q_integral
     real(dp) :: dVds_inner, dVds_outer
-    real(dp), parameter :: s_inner = (0.25_dp/64.0_dp)**2
-    real(dp), parameter :: s_outer = (0.5_dp/64.0_dp)**2
+    real(dp), parameter :: s_inner = (0.001_dp/64.0_dp)**2
+    real(dp), parameter :: s_outer = (0.002_dp/64.0_dp)**2
     complex(dp) :: bamp
     integer :: k
 
