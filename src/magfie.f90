@@ -44,7 +44,6 @@ contains
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
             dVds = dVds + abs(sqrtg)*dth
             B0 = B0 + bmod*dth
-            eps = eps - cos(x(3))*bmod*dth
 
             ! TODO: do fine search for minima and maxima
             if ((Bmin < 0) .or. (bmod < Bmin)) then
@@ -56,10 +55,23 @@ contains
 
         dVds = 2.0_dp * pi * dVds
         B0 = B0 / (2.0_dp * pi)
-        eps = eps / (B0 * pi)
 
         etatp = 1.0_dp / Bmax
         etadt = 1.0_dp / Bmin
+
+        ! Trapping parameter from the field-strength extrema on the surface.
+        !
+        ! It used to be the m=1 cosine coefficient of B in the chart's own
+        ! poloidal angle, which is not a property of the equilibrium: B(theta_B)
+        ! and B(theta_geo) carry different m=1 content, so the same surface
+        ! reported eps=0.0839 in Boozer coordinates and 0.0916 in the direct
+        ! GEQDSK chart.  Everything downstream -- the trapped bounce frequency
+        ! in orbit.f90 and the trapped drift in shaing.f90 -- is derived from
+        ! B = B0(1 - eps*cos(theta)), for which Bmax = B0(1+eps) and
+        ! Bmin = B0(1-eps).  Inverting that is chart independent and agrees
+        ! with the Boozer harmonic to better than a per cent, so the model
+        ! parameter now matches the model the formulae assume.
+        eps = (Bmax - Bmin)/(Bmax + Bmin)
 
         write(buffer, "(A,ES12.5)") " eps calc: ", eps
         call log_result(buffer)

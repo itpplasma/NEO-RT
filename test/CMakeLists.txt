@@ -107,3 +107,8 @@ add_test(NAME test_boozer_angle_map
             $ENV{NEORT_TEST_BOOZER_EQUILIBRIUM}
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_test(NAME test_trapping_parameter
+    COMMAND ${CMAKE_BINARY_DIR}/test_trapping_parameter.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
