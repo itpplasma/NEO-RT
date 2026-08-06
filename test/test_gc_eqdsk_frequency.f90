@@ -1,0 +1,139 @@
+program test_gc_eqdsk_frequency
+    !! End-to-end real-space frequency gate on an independently generated
+    !! circular GEQDSK.  The old fixed-s bounce integrator is used only as an
+    !! independent oracle for the lambda=0 return period.
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use do_magfie_mod, only: inp_swi, read_boozer_file, set_s, &
+        init_magfie_at_s, R0
+    use driftorbit, only: etatp, etadt
+    use neort_gc_dynamics, only: gc_field_sample_t
+    use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
+        gc_frequency_context_t, gc_frequency_result_t, &
+        initialize_gc_frequency_context, evaluate_gc_frequency
+    use neort_gc_models, only: GC_MODEL_SUCCESS
+    use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING
+    use neort_magfie, only: init_flux_surface_average
+    use neort_orbit, only: bounce_time, th0
+    use util, only: pi, qe, mu
+    use util_for_test, only: pass_test
+
+    implicit none
+
+    real(dp), parameter :: surface = 0.25_dp
+    real(dp), parameter :: velocity = 1.0e8_dp
+    real(dp), parameter :: mass = 2.014_dp*mu
+    real(dp), parameter :: electric_frequency = 4.0e3_dp
+    type(gc_frequency_context_t) :: positive, negative
+    type(gc_frequency_result_t) :: trapped, passing, reversed
+    type(gc_field_sample_t) :: sample_min, sample_max
+    character(len=1024) :: eqdsk_file
+    real(dp) :: eta_trapped, eta_passing, epsilon
+    real(dp) :: period_estimate, legacy_period, legacy_frequency
+    integer :: status
+
+    call get_environment_variable('EQDSK_FILE', eqdsk_file)
+    if (len_trim(eqdsk_file) == 0) then
+        error stop 'GEQDSK test fixture is not configured'
+    end if
+    inp_swi = 11
+    call read_boozer_file(trim(eqdsk_file))
+    call set_s(surface)
+    call init_magfie_at_s()
+    call init_flux_surface_average(surface)
+
+    call initialize_gc_frequency_context(surface, th0, 1.0_dp, electric_frequency, &
+        mass, qe, velocity, positive, status)
+    if (status /= GC_FREQUENCY_SUCCESS) error stop 'positive GC context failed'
+    call positive%field%evaluate([surface, 0.0_dp, 0.0_dp], sample_min, status)
+    if (status /= GC_MODEL_SUCCESS) error stop 'GC Bmin sample failed'
+    call positive%field%evaluate([surface, 0.0_dp, pi], sample_max, status)
+    if (status /= GC_MODEL_SUCCESS) error stop 'GC Bmax sample failed'
+    if (abs(sample_min%bmod - 1.0_dp/etadt) &
+        > 2.0e-5_dp*sample_min%bmod) then
+        error stop 'GC and legacy Bmin disagree'
+    end if
+    if (abs(sample_max%bmod - 1.0_dp/etatp) &
+        > 2.0e-5_dp*sample_max%bmod) then
+        error stop 'GC and legacy Bmax disagree'
+    end if
+
+    eta_trapped = 1.0_dp/(sample_min%bmod &
+        + 0.4_dp*(sample_max%bmod - sample_min%bmod))
+    epsilon = (sample_max%bmod - sample_min%bmod) &
+        /(sample_max%bmod + sample_min%bmod)
+    period_estimate = 30.0_dp*abs(positive%q_fieldline)*R0/velocity &
+        /sqrt(epsilon)
+    call evaluate_gc_frequency(positive, eta_trapped, 1, &
+        GC_ORBIT_TRAPPED, period_estimate, trapped, status)
+    call require_frequency('trapped', trapped, status)
+    legacy_period = bounce_time(velocity, eta_trapped)
+    legacy_frequency = 2.0_dp*pi/legacy_period
+    if (abs(trapped%omega_b/legacy_frequency - 1.0_dp) > 3.0e-4_dp) then
+        write(*,*) 'trapped GC/legacy bounce:', trapped%omega_b, legacy_frequency
+        error stop 'GC trapped zero-width period disagrees with independent solver'
+    end if
+    call require_electric('trapped', trapped%omega_electric)
+
+    eta_passing = (1.0_dp - 0.8_dp**2)/sample_min%bmod
+    period_estimate = 12.0_dp*abs(positive%q_fieldline)*R0/velocity
+    call evaluate_gc_frequency(positive, eta_passing, 1, &
+        GC_ORBIT_PASSING, period_estimate, passing, status)
+    call require_frequency('passing', passing, status)
+    legacy_period = bounce_time(velocity, eta_passing)
+    legacy_frequency = 2.0_dp*pi/legacy_period
+    if (abs(passing%omega_b/legacy_frequency - 1.0_dp) > 3.0e-4_dp) then
+        write(*,*) 'passing GC/legacy transit:', passing%omega_b, legacy_frequency
+        error stop 'GC passing zero-width period disagrees with independent solver'
+    end if
+    call require_electric('passing', passing%omega_electric)
+
+    call initialize_gc_frequency_context(surface, th0, 1.0_dp, electric_frequency, &
+        mass, -qe, velocity, negative, status)
+    if (status /= GC_FREQUENCY_SUCCESS) error stop 'negative GC context failed'
+    period_estimate = 30.0_dp*abs(negative%q_fieldline)*R0/velocity/sqrt(epsilon)
+    call evaluate_gc_frequency(negative, eta_trapped, 1, &
+        GC_ORBIT_TRAPPED, period_estimate, reversed, status)
+    call require_frequency('charge-reversed', reversed, status)
+    if (abs(reversed%omega_magnetic + trapped%omega_magnetic) &
+        > 3.0e-3_dp*abs(trapped%omega_magnetic)) then
+        write(*,*) 'magnetic charge reversal:', trapped%omega_magnetic, &
+            reversed%omega_magnetic
+        error stop 'GEQDSK magnetic precession did not reverse with charge'
+    end if
+    call require_electric('charge-reversed', reversed%omega_electric)
+
+    write(*, '(a,3es14.5)') 'GEQDSK trapped omega_b, omega_B, omega_E: ', &
+        trapped%omega_b, trapped%omega_magnetic, trapped%omega_electric
+    write(*, '(a,3es14.5)') 'GEQDSK passing omega_b, omega_B, omega_E: ', &
+        passing%omega_b, passing%omega_magnetic, passing%omega_electric
+    call pass_test
+
+contains
+
+    subroutine require_frequency(label, value, local_status)
+        character(*), intent(in) :: label
+        type(gc_frequency_result_t), intent(in) :: value
+        integer, intent(in) :: local_status
+
+        if (local_status /= GC_FREQUENCY_SUCCESS) then
+            write(*,*) trim(label)//' provider/statuses:', local_status, &
+                value%magnetic_limit_status, value%total_limit_status, &
+                value%baseline_residual
+            error stop 'GEQDSK GC frequency evaluation failed'
+        end if
+        if (abs(value%baseline_residual) > 2.0e-7_dp) then
+            error stop 'GEQDSK zero-width topological residual is nonzero'
+        end if
+    end subroutine require_frequency
+
+    subroutine require_electric(label, value)
+        character(*), intent(in) :: label
+        real(dp), intent(in) :: value
+
+        if (abs(value/electric_frequency - 1.0_dp) > 5.0e-3_dp) then
+            write(*,*) trim(label)//' electric/reference:', value, electric_frequency
+            error stop 'GEQDSK electric precession has wrong sign or magnitude'
+        end if
+    end subroutine require_electric
+
+end program test_gc_eqdsk_frequency

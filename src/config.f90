@@ -15,6 +15,8 @@ module neort_config
         logical :: comptorque = .false.  ! compute torque
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: magdrift = .false.  ! consider magnetic drift
+        ! 0: historical local bounce/drift; 1: real-space GC thin-orbit limit.
+        integer :: frequency_model = 0
         ! Negative means "follow magdrift", preserving every existing deck.
         integer :: magdrift_passing = -1
         logical :: nopassing = .false.  ! neglect passing particles
@@ -63,11 +65,11 @@ contains
 
     subroutine set_config(config)
         ! Set global control parameters via config struct
-        use do_magfie_mod, only: s, bfac, inp_swi
+        use do_magfie_mod, only: s, bfac, inp_swi, has_direct_eqdsk_gc
         use do_magfie_pert_mod, only: mph, set_mph, set_pert_angle_map_path, &
             perturbation_switch => inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, &
-            magdrift_passing, nopassing, pertfile, &
+            magdrift_passing, frequency_model, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
@@ -86,6 +88,7 @@ contains
         comptorque = config%comptorque
         supban = config%supban
         magdrift = config%magdrift
+        frequency_model = config%frequency_model
         magdrift_passing = config%magdrift_passing
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         nopassing = config%nopassing
@@ -95,6 +98,18 @@ contains
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
+        if (frequency_model < 0 .or. frequency_model > 1) then
+            error stop "frequency_model must be 0 (legacy) or 1 (GC thin limit)"
+        end if
+        if (frequency_model == 1 .and. inp_swi /= 11) then
+            error stop "frequency_model=1 requires direct GEQDSK input (inp_swi=11)"
+        end if
+        if (frequency_model == 1 .and. .not. has_direct_eqdsk_gc) then
+            error stop "frequency_model=1 requires the standalone direct-GEQDSK build"
+        end if
+        if (frequency_model == 1 .and. supban) then
+            error stop "frequency_model=1 and supban are mutually exclusive"
+        end if
         if (config%inp_swi_pert < 0) then
             perturbation_switch = config%inp_swi
         else
@@ -125,11 +140,11 @@ contains
 
     subroutine read_and_set_config(config_file)
         ! Set global control parameters directly from a file
-        use do_magfie_mod, only: s, bfac, inp_swi
+        use do_magfie_mod, only: s, bfac, inp_swi, has_direct_eqdsk_gc
         use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert, &
             set_pert_angle_map_path
         use driftorbit, only: epsmn, m0, comptorque, magdrift, &
-            magdrift_passing, nopassing, pertfile, &
+            magdrift_passing, frequency_model, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
@@ -144,12 +159,13 @@ contains
         character(len=1024) :: pert_angle_map
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
-            magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
+            magdrift, magdrift_passing, frequency_model, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, pert_angle_map
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
+        frequency_model = 0
         pert_angle_map = ''
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
@@ -159,6 +175,18 @@ contains
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         if (inp_swi_pert < 0) inp_swi_pert = inp_swi
+        if (frequency_model < 0 .or. frequency_model > 1) then
+            error stop "frequency_model must be 0 (legacy) or 1 (GC thin limit)"
+        end if
+        if (frequency_model == 1 .and. inp_swi /= 11) then
+            error stop "frequency_model=1 requires direct GEQDSK input (inp_swi=11)"
+        end if
+        if (frequency_model == 1 .and. .not. has_direct_eqdsk_gc) then
+            error stop "frequency_model=1 requires the standalone direct-GEQDSK build"
+        end if
+        if (frequency_model == 1 .and. supban) then
+            error stop "frequency_model=1 and supban are mutually exclusive"
+        end if
         if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9 .and. &
             inp_swi_pert /= 11) then
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"

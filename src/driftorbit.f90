@@ -22,6 +22,11 @@ module driftorbit
     integer :: m0 = 1                 ! Boozer poloidal perturbation mode
     integer :: mth = 1                ! canonical poloidal mode
     logical :: magdrift = .true.      ! consider magnetic drift
+    integer, parameter :: FREQUENCY_MODEL_LEGACY = 0
+    integer, parameter :: FREQUENCY_MODEL_GC_THIN = 1
+    ! Opt-in canonical real-space thin-orbit limit.  Zero preserves every
+    ! historical bounce/drift spline and its regression records.
+    integer :: frequency_model = FREQUENCY_MODEL_LEGACY
     !> Passing magnetic drift; defaults to magdrift through the config layer.
     integer :: magdrift_passing = -1
     logical :: nopassing = .false.    ! neglect passing particles
@@ -60,6 +65,6 @@ module driftorbit
     !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta)
 
     ! Shared read-only configuration (NOT threadprivate): efac, epsmn, m0,
-    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban
+    ! magdrift, frequency_model, nopassing, pertfile, comptorque, nonlin, supban
 
 end module driftorbit

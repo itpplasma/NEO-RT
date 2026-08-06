@@ -37,6 +37,7 @@ module do_magfie_mod
     integer :: ncol1 = 0, ncol2 = 0 ! number of columns in input file
 
     integer :: inp_swi = 0 ! type of input file
+    logical, parameter :: has_direct_eqdsk_gc = .true.
 
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_arrays_initialized = .false.
@@ -421,17 +422,24 @@ contains
         nfp = 1
     end subroutine read_eqdsk_file
 
-    subroutine do_magfie_eqdsk(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+    subroutine sample_eqdsk_field(x, field_scale, bmod, sqrtg, bder, &
+            hcovar, hctrvr, hcurl, q_value, dqds_value, psi_pol, &
+            grad_psi_pol, psi_tor_edge)
+        !! Side-effect-free NEO-RT view of the initialized GEQDSK field.
+        !! libneo keeps its interpolation workspace internally, but this
+        !! routine does not modify NEO-RT's current-surface globals.
         use geoflux_coordinates, only: geoflux_to_cyl, geoflux_get_flux_profiles
-        use field_sub, only: field_eq
+        use field_sub, only: field_eq, psif, dpsidr, dpsidz
 
-        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(in) :: x(3), field_scale
         real(dp), intent(out) :: bmod, sqrtg
-        real(dp), dimension(size(x)), intent(out) :: bder, hcovar, hctrvr, hcurl
+        real(dp), intent(out) :: bder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), intent(out) :: q_value, dqds_value, psi_pol
+        real(dp), intent(out) :: grad_psi_pol(3), psi_tor_edge
 
         real(dp) :: xgeo(3), xcyl(3), jac(3, 3), inv_det
         real(dp) :: bder_cyl(3), hcov_cyl(3), hcon_cyl(3), hcurl_cyl(3)
-        real(dp) :: sqrtg_cyl, psi_pol, dpsi_pol_ds, psi_tor_edge
+        real(dp) :: sqrtg_cyl, psi_profile, dpsi_profile_ds
         real(dp) :: br, bf, bz, brr, brf, brz, bfr, bff, bfz, bzr, bzf, bzz
         real(dp) :: hr, hf, hz
 
@@ -477,25 +485,47 @@ contains
         hcurl(2) = hcurl_cyl(2)
         hcurl(3) = (-jac(3, 1)*hcurl_cyl(1) + jac(1, 1)*hcurl_cyl(3))*inv_det
 
+        ! Use the same local cylindrical flux and derivatives that generated
+        ! B_R and B_Z.  The separately interpolated profile psi(s) is useful
+        ! for radial diagnostics but is not exact enough to define a conserved
+        ! canonical momentum for an off-surface orbit.
+        psi_pol = field_scale*psif
+        grad_psi_pol(1) = field_scale*(jac(1, 1)*dpsidr + jac(3, 1)*dpsidz)
+        grad_psi_pol(2) = 0.0_dp
+        grad_psi_pol(3) = field_scale*(jac(1, 2)*dpsidr + jac(3, 2)*dpsidz)
+
         ! Jacobian for NEO-RT array order (s,phi,theta).  At the outboard
         ! midplane increasing theta_geo points upward, so this ordering has the
         ! same orientation as cylindrical (R,phi,Z) and the Jacobian is positive.
         sqrtg = xcyl(1)/inv_det
 
-        call geoflux_get_flux_profiles(x(1), q, dqds, psi_pol, dpsi_pol_ds, psi_tor_edge)
-        q = eqdsk_pitch_sign*q
-        dqds = eqdsk_pitch_sign*dqds
+        call geoflux_get_flux_profiles(x(1), q_value, dqds_value, &
+            psi_profile, dpsi_profile_ds, psi_tor_edge)
+        q_value = eqdsk_pitch_sign*q_value
+        dqds_value = eqdsk_pitch_sign*dqds_value
+        bmod = bmod*field_scale
+        psi_tor_edge = psi_tor_edge*field_scale
+    end subroutine sample_eqdsk_field
+
+    subroutine do_magfie_eqdsk(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(out) :: bmod, sqrtg
+        real(dp), dimension(size(x)), intent(out) :: bder, hcovar, hctrvr, hcurl
+
+        real(dp) :: psi_pol, grad_psi_pol(3), psi_tor_edge
+
+        call sample_eqdsk_field(x(1:3), bfac, bmod, sqrtg, bder(1:3), &
+            hcovar(1:3), hctrvr(1:3), hcurl(1:3), q, dqds, psi_pol, &
+            grad_psi_pol, psi_tor_edge)
         iota = 1.0_dp/q
-        psi_pr = eqdsk_pitch_sign*psi_tor_edge*bfac
-        Bthcov = hcovar(3)*bmod*bfac
-        Bphcov = hcovar(2)*bmod*bfac
-        B0h = bmod*bfac
+        psi_pr = eqdsk_pitch_sign*psi_tor_edge
+        Bthcov = hcovar(3)*bmod
+        Bphcov = hcovar(2)*bmod
+        B0h = bmod
 
         ! The direct drift path does not consume covariant-field derivatives.
         dBthcovds = 0.0_dp
         dBphcovds = 0.0_dp
-
-        bmod = bmod*bfac
     end subroutine do_magfie_eqdsk
 
     subroutine read_boozer_chartmap_file(path)

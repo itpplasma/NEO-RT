@@ -6,6 +6,11 @@ foreach(test_src ${TEST_SOURCES})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
 
+target_sources(test_gc_orbit_limit.x PRIVATE
+    generated_manufactured_torus.f90
+    manufactured_gc_field.f90
+)
+
 add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
 target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)
@@ -102,6 +107,25 @@ set_tests_properties(test_eqdsk_axis PROPERTIES
         "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk;RZ_PERT_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/bmod_n.dat"
 )
 
+add_test(NAME test_gc_eqdsk_frequency
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_frequency.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_frequency_spline_path
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_frequency_spline_path.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gc_frequency_spline_path PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+    TIMEOUT 180
+)
+set_tests_properties(test_gc_eqdsk_frequency PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+)
+
 add_test(NAME test_boozer_angle_map
     COMMAND ${CMAKE_BINARY_DIR}/test_boozer_angle_map.x
             $ENV{NEORT_TEST_BOOZER_EQUILIBRIUM}
@@ -110,5 +134,20 @@ add_test(NAME test_boozer_angle_map
 
 add_test(NAME test_trapping_parameter
     COMMAND ${CMAKE_BINARY_DIR}/test_trapping_parameter.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_dynamics
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_dynamics.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_thin_orbit_limit
+    COMMAND ${CMAKE_BINARY_DIR}/test_thin_orbit_limit.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_orbit_limit
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_orbit_limit.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )

@@ -102,6 +102,12 @@ set(NEO_RT_SOURCES
     src/config.f90
     src/datatypes.f90
     src/driftorbit.f90
+    src/gc_dynamics.f90
+    src/gc_eqdsk_adapter.f90
+    src/gc_frequency_provider.f90
+    src/gc_frequency_splines.f90
+    src/gc_models.f90
+    src/gc_orbit_integrator.f90
     src/freq.f90
     src/lib.f90
     src/logging.f90
@@ -115,6 +121,7 @@ set(NEO_RT_SOURCES
     src/resonance.f90
     src/shaing.f90
     src/transport.f90
+    src/thin_orbit_limit.f90
     src/util.f90
 )
 

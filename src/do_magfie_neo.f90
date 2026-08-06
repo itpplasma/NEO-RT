@@ -24,6 +24,7 @@ module do_magfie_mod
     ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
 
     real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius changeable
+    logical, parameter :: has_direct_eqdsk_gc = .false.
 
     !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
     !$omp threadprivate (q, dqds, iota, R0, eps, bfac)
@@ -76,6 +77,31 @@ contains
         ! set B_r to zero for now
         hcovar(1) = 0
     end subroutine do_magfie
+
+    subroutine sample_eqdsk_field(x, field_scale, bmod, sqrtg, bder, &
+            hcovar, hctrvr, hcurl, q_value, dqds_value, psi_pol, &
+            grad_psi_pol, psi_tor_edge)
+        !! The NEO-2-coupled build has no direct GEQDSK backend.  Keep the
+        !! common real-space adapter linkable and report an unusable sample.
+        real(8), intent(in) :: x(3), field_scale
+        real(8), intent(out) :: bmod, sqrtg, bder(3), hcovar(3)
+        real(8), intent(out) :: hctrvr(3), hcurl(3), q_value, dqds_value
+        real(8), intent(out) :: psi_pol, grad_psi_pol(3), psi_tor_edge
+
+        associate (unused_x => x, unused_scale => field_scale)
+        end associate
+        bmod = 0.0d0
+        sqrtg = 0.0d0
+        bder = 0.0d0
+        hcovar = 0.0d0
+        hctrvr = 0.0d0
+        hcurl = 0.0d0
+        q_value = 0.0d0
+        dqds_value = 0.0d0
+        psi_pol = 0.0d0
+        grad_psi_pol = 0.0d0
+        psi_tor_edge = 0.0d0
+    end subroutine sample_eqdsk_field
 
 end module do_magfie_mod
 
