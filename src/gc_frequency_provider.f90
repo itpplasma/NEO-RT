@@ -188,7 +188,16 @@ contains
         end if
         result%baseline_residual = magnetic%baseline_residual
         result%magnetic_error = magnetic%error_estimate
-        result%electric_error = magnetic%error_estimate + total%error_estimate
+        if (magnetic%status == THIN_LIMIT_SUCCESS &
+                .and. total%status == THIN_LIMIT_SUCCESS) then
+            result%electric_error = magnetic%error_estimate &
+                + total%error_estimate
+        else
+            ! Keep failed-limit diagnostics finite; adding two huge error
+            ! sentinels can overflow before the caller applies its boundary
+            ! separatrix policy.
+            result%electric_error = huge(1.0_dp)
+        end if
         result%magnetic_order = magnetic%observed_order
         result%total_order = total%observed_order
         result%lambda_used(1:2) = [minval(magnetic%lambda_used), &

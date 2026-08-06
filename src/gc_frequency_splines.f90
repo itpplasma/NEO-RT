@@ -9,6 +9,7 @@ module neort_gc_frequency_splines
         gc_frequency_context_t, gc_frequency_result_t, &
         initialize_gc_frequency_context, evaluate_gc_frequency
     use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING
+    use neort_thin_orbit_limit, only: THIN_LIMIT_RETURN_ERROR
 
     implicit none
     private
@@ -53,6 +54,7 @@ module neort_gc_frequency_splines
         real(dp) :: failed_electric_error = 0.0_dp
         real(dp) :: failed_magnetic_order = 0.0_dp
         real(dp) :: failed_total_order = 0.0_dp
+        integer :: boundary_extrapolations = 0
     end type gc_spline_diagnostics_t
 
     type(gc_frequency_context_t) :: surface_context
@@ -106,7 +108,8 @@ contains
         real(dp) :: omega_b(MAX_KNOTS), omega_magnetic(MAX_KNOTS)
         real(dp) :: omega_electric(MAX_KNOTS)
         real(dp) :: start_time, end_time, magnetic_scale, electric_scale
-        integer :: k, n, provider_status
+        integer :: k, n, n_fit, provider_status
+        logical :: boundary_extrapolation
 
         status = GC_SPLINE_INVALID_INPUT
         failed_knot = 0
@@ -123,10 +126,24 @@ contains
         if (orbit_class == GC_ORBIT_PASSING .and. any(eta >= eta_tp)) return
 
         call cpu_time(start_time)
+        n_fit = n
+        boundary_extrapolation = .false.
         do k = 1, n
             call evaluate_gc_frequency(surface_context, eta(k), 1, orbit_class, &
                 period_estimate(k), result, provider_status)
             if (provider_status /= GC_FREQUENCY_SUCCESS) then
+                if (orbit_class == GC_ORBIT_PASSING .and. k >= n - 1 &
+                        .and. result%magnetic_limit_status == THIN_LIMIT_RETURN_ERROR &
+                        .and. result%total_limit_status == THIN_LIMIT_RETURN_ERROR) then
+                    ! The last passing knot is deliberately close to the
+                    ! trapped-passing separatrix.  A real-space return is
+                    ! undefined there, while the logarithmic limit below is
+                    ! the correct continuation of the last two converged
+                    ! knots.  Interior failures remain fatal.
+                    n_fit = k - 1
+                    boundary_extrapolation = .true.
+                    exit
+                end if
                 diagnostics%failed_provider_status = provider_status
                 diagnostics%failed_magnetic_status = result%magnetic_limit_status
                 diagnostics%failed_total_status = result%total_limit_status
@@ -162,20 +179,29 @@ contains
         call cpu_time(end_time)
         diagnostics%elapsed_seconds = diagnostics%elapsed_seconds &
             + max(0.0_dp, end_time - start_time)
+        if (n_fit < 3) then
+            status = GC_SPLINE_PROVIDER_ERROR
+            return
+        end if
+        if (boundary_extrapolation) then
+            diagnostics%boundary_extrapolations = &
+                diagnostics%boundary_extrapolations + 1
+        end if
 
         region = gc_region_spline_t()
-        region%knot_count = n
+        region%knot_count = n_fit
         region%orbit_class = orbit_class
         region%eta_min = eta(1)
-        region%eta_max = eta(n)
+        region%eta_max = eta(n_fit)
         region%eta_tp = eta_tp
-        region%omega_b_coeff(1:n - 1, :) = spline_coeff(eta, omega_b(1:n))
-        region%omega_magnetic_coeff(1:n - 1, :) = &
-            spline_coeff(eta, omega_magnetic(1:n))
-        region%omega_electric_coeff(1:n - 1, :) = &
-            spline_coeff(eta, omega_electric(1:n))
-        call fit_log_extrapolation(region, eta, omega_b, omega_magnetic, &
-            omega_electric)
+        region%omega_b_coeff(1:n_fit - 1, :) = spline_coeff( &
+            eta(1:n_fit), omega_b(1:n_fit))
+        region%omega_magnetic_coeff(1:n_fit - 1, :) = &
+            spline_coeff(eta(1:n_fit), omega_magnetic(1:n_fit))
+        region%omega_electric_coeff(1:n_fit - 1, :) = &
+            spline_coeff(eta(1:n_fit), omega_electric(1:n_fit))
+        call fit_log_extrapolation(region, eta(1:n_fit), omega_b, &
+            omega_magnetic, omega_electric)
         region%initialized = .true.
         if (orbit_class == GC_ORBIT_TRAPPED) then
             trapped_spline = region

@@ -655,13 +655,14 @@ contains
         character(len=512) :: buffer
 
         call get_gc_spline_diagnostics(value)
-        write(buffer, '(A,1X,A,1X,A,I0,1X,A,ES11.4,1X,A,I0,1X,A,ES11.4,1X,A,ES11.4)') &
+        write(buffer, '(A,1X,A,1X,A,I0,1X,A,ES11.4,1X,A,I0,1X,A,ES11.4,1X,A,ES11.4,1X,A,I0)') &
             'GC thin-limit spline', trim(label), 'knots=', value%orbit_evaluations, &
             'cpu_s=', value%elapsed_seconds, 'max_refine=', &
             value%maximum_refinements, 'max_relerr=', &
             max(value%maximum_magnetic_relative_error, &
                 value%maximum_electric_relative_error), 'min_lambda=', &
-            value%minimum_lambda
+            value%minimum_lambda, 'boundary_extrap=', &
+            value%boundary_extrapolations
         call log_result(buffer)
     end subroutine log_gc_spline_diagnostics
 
