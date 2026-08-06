@@ -6,6 +6,8 @@ program test_eqdsk_axis
     use do_magfie_pert_mod, only: inp_swi_pert, read_boozer_pert_file, &
         init_magfie_pert_at_s, do_magfie_pert_amp, set_mph
     use neort_orbit, only: fieldline_label_component
+    use neort_magfie, only: init_flux_surface_average
+    use driftorbit, only: dVds
     use util, only: pi
     use util_for_test, only: pass_test
 
@@ -15,6 +17,9 @@ program test_eqdsk_axis
     character(len=1024) :: eqdsk_file, perturbation_file
     real(dp) :: x(3), bmod, sqrtg, bder(3), hcov(3), hcon(3), hcurl(3)
     real(dp) :: theta, dtheta, q_integral
+    real(dp) :: dVds_inner, dVds_outer
+    real(dp), parameter :: s_inner = (0.25_dp/64.0_dp)**2
+    real(dp), parameter :: s_outer = (0.5_dp/64.0_dp)**2
     complex(dp) :: bamp
     integer :: k
 
@@ -26,6 +31,21 @@ program test_eqdsk_axis
 
     inp_swi = 11
     call read_boozer_file(trim(eqdsk_file))
+
+    call set_s(s_inner)
+    call init_magfie_at_s()
+    call init_flux_surface_average(s_inner)
+    dVds_inner = dVds
+    call set_s(s_outer)
+    call init_magfie_at_s()
+    call init_flux_surface_average(s_outer)
+    dVds_outer = dVds
+    if (abs(dVds_outer/dVds_inner - 1.0_dp) > 1.0e-2_dp) then
+        write(*,*) 'Circular-axis dV/ds must have a finite constant limit:', &
+            dVds_inner, dVds_outer
+        error stop "GEQDSK near-axis volume derivative failed"
+    end if
+
     call set_s(0.25_dp)
     call init_magfie_at_s()
 
