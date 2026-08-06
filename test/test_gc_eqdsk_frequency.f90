@@ -23,8 +23,8 @@ program test_gc_eqdsk_frequency
     real(dp), parameter :: velocity = 1.0e8_dp
     real(dp), parameter :: mass = 2.014_dp*mu
     real(dp), parameter :: electric_frequency = 4.0e3_dp
-    type(gc_frequency_context_t) :: positive, negative
-    type(gc_frequency_result_t) :: trapped, passing, reversed
+    type(gc_frequency_context_t) :: positive, negative, near_separatrix
+    type(gc_frequency_result_t) :: trapped, passing, reversed, near_result
     type(gc_field_sample_t) :: sample_min, sample_max
     character(len=1024) :: eqdsk_file
     real(dp) :: eta_trapped, eta_passing, epsilon
@@ -101,6 +101,29 @@ program test_gc_eqdsk_frequency
         error stop 'GEQDSK magnetic precession did not reverse with charge'
     end if
     call require_electric('charge-reversed', reversed%omega_electric)
+
+    ! This surface is close to the passing/trapped boundary in the ITER
+    ! GEQDSK and exercises the adaptive small-lambda ladder that the
+    ! production real-space sweep needs.  The assertion is deliberately on
+    ! the provider contract; the circular legacy fixture is not a substitute
+    ! for the real-space return-map result at this shaped surface.
+    call set_s(0.368_dp)
+    call init_magfie_at_s()
+    call init_flux_surface_average(0.368_dp)
+    call initialize_gc_frequency_context(0.368_dp, th0, 1.0_dp, &
+        electric_frequency, mass, qe, velocity, near_separatrix, status)
+    if (status /= GC_FREQUENCY_SUCCESS) then
+        error stop 'near-separatrix GC context failed'
+    end if
+    call near_separatrix%field%evaluate([0.368_dp, 0.0_dp, pi], &
+        sample_max, status)
+    if (status /= GC_MODEL_SUCCESS) error stop 'near-separatrix Bmax failed'
+    eta_passing = 0.98_dp/sample_max%bmod
+    period_estimate = 12.0_dp*abs(near_separatrix%q_fieldline)*R0/velocity
+    call evaluate_gc_frequency(near_separatrix, eta_passing, 1, &
+        GC_ORBIT_PASSING, period_estimate, near_result, status)
+    call require_frequency('near-separatrix passing', near_result, status)
+    call require_electric('near-separatrix passing', near_result%omega_electric)
 
     write(*, '(a,3es14.5)') 'GEQDSK trapped omega_b, omega_B, omega_E: ', &
         trapped%omega_b, trapped%omega_magnetic, trapped%omega_electric
