@@ -4,12 +4,15 @@ program test_gc_frequency_report
     !! selected by frequency_model in the normal NEO-RT executable.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: inp_swi, read_boozer_file, set_s, &
-        init_magfie_at_s, q
+        init_magfie_at_s
     use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
         frequency_model, magdrift, magdrift_passing, sign_vpar, &
         etatp, etadt, mth, mph, nlev
     use neort_freq, only: init_canon_freq_trapped_spline, &
         init_canon_freq_passing_spline, Om_th, Om_ph, Om_tB
+    use neort_gc_frequency_splines, only: GC_SPLINE_SUCCESS, &
+        evaluate_gc_spline
+    use neort_gc_orbit_integrator, only: GC_ORBIT_PASSING, GC_ORBIT_TRAPPED
     use neort_magfie, only: init_flux_surface_average
     use neort_orbit, only: th0
     use neort_profiles, only: vth, Om_tE
@@ -30,6 +33,10 @@ program test_gc_frequency_report
     real(dp) :: eta, eta_min, eta_max, eta_fraction
     real(dp) :: omega_b, omega_phi, omega_magnetic
     real(dp) :: omega_electric
+    real(dp) :: gc_omega_b, gc_domega_bdv, gc_domega_bdeta
+    real(dp) :: gc_omega_magnetic, gc_domega_magnetic_dv
+    real(dp) :: gc_domega_magnetic_deta, gc_domega_electric_deta
+    integer :: gc_status, gc_orbit_class
     real(dp) :: domega_bdv, domega_bdeta, domega_phdv, domega_phdeta
     real(dp) :: domega_bmagdv, domega_bmagdeta
     real(dp) :: roots(nlev, 3), root_value(2), residual
@@ -89,8 +96,20 @@ program test_gc_frequency_report
                 call Om_ph(velocity, eta, omega_phi, domega_phdv, domega_phdeta)
                 call Om_tB(velocity, eta, omega_magnetic, domega_bmagdv, &
                     domega_bmagdeta)
-                omega_electric = omega_phi - omega_magnetic
-                if (class_index == 1) omega_electric = omega_electric - q*omega_b
+                if (model == FREQUENCY_MODEL_GC_THIN) then
+                    gc_orbit_class = merge(GC_ORBIT_PASSING, GC_ORBIT_TRAPPED, &
+                        class_index == 1)
+                    call evaluate_gc_spline(velocity, eta, int(sign_vpar), &
+                        gc_orbit_class, gc_omega_b, gc_domega_bdv, &
+                        gc_domega_bdeta, gc_omega_magnetic, &
+                        gc_domega_magnetic_dv, gc_domega_magnetic_deta, &
+                        omega_electric, gc_domega_electric_deta, gc_status)
+                    if (gc_status /= GC_SPLINE_SUCCESS) then
+                        error stop 'GC frequency report spline evaluation failed'
+                    end if
+                else
+                    omega_electric = Om_tE
+                end if
                 write (unit_frequency, '(a,1x,a,1x,5(es20.12,1x))') &
                     trim(model_name), trim(class_name), eta/etatp, omega_b, &
                     omega_phi, omega_magnetic, omega_electric
