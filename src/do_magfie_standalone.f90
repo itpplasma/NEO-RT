@@ -998,10 +998,18 @@ contains
 
         xgeo = [x(1), x(3), x(2)]
         call geoflux_to_cyl(xgeo, xcyl)
+        ! Returning zero here would be indistinguishable from a perturbation
+        ! that genuinely vanishes, so an orbit leaving the tabulated box would
+        ! quietly contribute nothing to the resonant integral instead of
+        ! reporting that its field is missing.  The grid is built with a margin
+        ! beyond the analysed surfaces precisely so this cannot happen.
         if (xcyl(1) < rz_rad(1) .or. xcyl(1) > rz_rad(rz_nrad) .or. &
             xcyl(3) < rz_zet(1) .or. xcyl(3) > rz_zet(rz_nzet)) then
-            bamp = (0.0_dp, 0.0_dp)
-            return
+            write (*, *) 'rz_pert_amp: orbit left the tabulated R-Z box at ', &
+                'R=', xcyl(1), ' Z=', xcyl(3), ' s=', x(1)
+            write (*, *) 'rz_pert_amp: box R=[', rz_rad(1), rz_rad(rz_nrad), &
+                '] Z=[', rz_zet(1), rz_zet(rz_nzet), ']'
+            error stop 'rz_pert_amp: perturbation grid does not cover the orbit'
         end if
 
         ir = bracket_index(rz_rad, xcyl(1))
