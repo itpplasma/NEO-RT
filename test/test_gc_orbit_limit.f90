@@ -163,6 +163,9 @@ contains
         if (status /= GC_MODEL_SUCCESS) error stop 'passing invariants failed'
         period_estimate = passing_period(field, radius, eta)
         call configure_options(radius, options)
+        ! Exercise the coordinate-general variational limit explicitly on a
+        ! passing orbit; trapped cases above retain the Richardson oracle.
+        options%use_variational_limit = .true.
 
         call compute_thin_precession(field, zero_potential, invariants, &
             reference, 1, signed_rho0, reference_velocity, q_safety, &

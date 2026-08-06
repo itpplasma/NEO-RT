@@ -8,7 +8,8 @@ module neort_gc_orbit_integrator
     use neort_gc_models, only: GC_MODEL_SUCCESS, gc_field_t, gc_potential_t, &
         gc_invariants_t, state_from_invariants, canonical_flux_from_state
     use neort_thin_orbit_limit, only: orbit_return_t, thin_limit_result_t, &
-        estimate_thin_limit, THIN_LIMIT_SUCCESS, THIN_LIMIT_CONVERGENCE_ERROR
+        estimate_thin_limit, THIN_LIMIT_SUCCESS, THIN_LIMIT_RETURN_ERROR, &
+        THIN_LIMIT_BASELINE_ERROR, THIN_LIMIT_CONVERGENCE_ERROR
     use util, only: pi
 
     implicit none
@@ -48,6 +49,13 @@ module neort_gc_orbit_integrator
         real(dp) :: minimum_observed_order = 1.25_dp
         real(dp) :: limit_relative_tolerance = 5.0e-3_dp
         real(dp) :: limit_absolute_tolerance = 1.0e-2_dp
+        !! The derivative at zero orbit width is evaluated from the linear
+        !! variational return map.  The Richardson map remains available as
+        !! an independent oracle by setting this switch false.
+        logical :: use_variational_limit = .false.
+        logical :: use_variational_fallback = .true.
+        real(dp) :: variational_state_relative_step = 1.0e-6_dp
+        real(dp) :: variational_parameter_step = 1.0e-5_dp
         !! In a numerically generated real-space chart, the nominal fixed-s
         !! surface need not coincide pointwise with the local psi(R,Z) surface.
         !! Use the lambda=0 return as 2*pi*W*q(psi*) in that case.
@@ -81,6 +89,19 @@ contains
         real(dp) :: convergence_tolerance
         integer :: attempt, k
         logical :: converged
+
+        if (options%use_variational_limit) then
+            call compute_variational_precession(field_model, potential_model, &
+                invariants, reference_position, parallel_sign, rho0, &
+                reference_velocity, q_reference, orbit_class, winding, &
+                period_estimate, options, result, base)
+            if (result%status == THIN_LIMIT_SUCCESS) then
+                if (present(base_return)) base_return = base
+                if (present(plus_return)) plus_return = orbit_return_t()
+                if (present(minus_return)) minus_return = orbit_return_t()
+                return
+            end if
+        end if
 
         call compute_return_map(field_model, potential_model, invariants, &
             reference_position, parallel_sign, rho0, 0.0_dp, &
@@ -120,10 +141,290 @@ contains
         if (result%status == THIN_LIMIT_SUCCESS .and. .not. converged) then
             result%status = THIN_LIMIT_CONVERGENCE_ERROR
         end if
+        if (options%use_variational_fallback &
+                .and. result%status /= THIN_LIMIT_SUCCESS) then
+            block
+                type(thin_limit_result_t) :: finite_width_result
+
+                finite_width_result = result
+                call compute_variational_precession(field_model, potential_model, &
+                    invariants, reference_position, parallel_sign, rho0, &
+                    reference_velocity, q_reference, orbit_class, winding, &
+                    period_estimate, options, result, base)
+                if (result%status /= THIN_LIMIT_SUCCESS) then
+                    result = finite_width_result
+                else
+                    if (present(base_return)) base_return = base
+                    if (present(plus_return)) plus_return = orbit_return_t()
+                    if (present(minus_return)) minus_return = orbit_return_t()
+                    return
+                end if
+            end block
+        end if
         if (present(base_return)) base_return = base
         if (present(plus_return)) plus_return = plus
         if (present(minus_return)) minus_return = minus
     end subroutine compute_thin_precession
+
+    subroutine compute_variational_precession(field_model, potential_model, &
+            invariants, reference_position, parallel_sign, rho0, &
+            reference_velocity, q_reference, orbit_class, winding, &
+            period_estimate, options, result, base)
+        !! Evaluate d[(Delta phi - topology)/period]/d(lambda) at lambda=0.
+        !! The augmented ODE is the exact first variation of the same
+        !! coordinate-general guiding-center RHS used by compute_return_map.
+        !! Finite differences are used only for the local Jacobian and the
+        !! fixed-invariant initial tangent; no orbit-width cancellation occurs.
+        class(gc_field_t), intent(in) :: field_model
+        class(gc_potential_t), intent(in) :: potential_model
+        type(gc_invariants_t), intent(in) :: invariants
+        real(dp), intent(in) :: reference_position(3)
+        integer, intent(in) :: parallel_sign
+        real(dp), intent(in) :: rho0, reference_velocity, q_reference
+        integer, intent(in) :: orbit_class, winding
+        real(dp), intent(in) :: period_estimate
+        type(gc_orbit_options_t), intent(in) :: options
+        type(thin_limit_result_t), intent(out) :: result
+        type(orbit_return_t), intent(out) :: base
+
+        type(vode_state_t) :: integrator
+        type(fortnum_status_t) :: integration_status
+        real(dp) :: initial_state(5), initial_plus(5), initial_minus(5)
+        real(dp) :: initial_augmented(10), derivative(10), atol(10)
+        real(dp), allocatable :: final_state(:)
+        real(dp) :: final_rhs(5), return_time, maximum_time
+        real(dp) :: event_time_tolerance, topology, time_tangent
+        real(dp) :: delta_phi_tangent, state_step, parameter_step
+        real(dp) :: convergence_tolerance
+        integer :: status, k, event_direction, rhs_status
+        logical :: found
+
+        result = thin_limit_result_t()
+        base = orbit_return_t()
+        base%orbit_class = orbit_class
+        base%winding = winding
+        if (reference_velocity <= 0.0_dp .or. period_estimate <= 0.0_dp &
+                .or. rho0 == 0.0_dp .or. parallel_sign == 0) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        if (orbit_class /= GC_ORBIT_TRAPPED &
+                .and. orbit_class /= GC_ORBIT_PASSING) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        if ((orbit_class == GC_ORBIT_TRAPPED .and. winding /= 0) &
+                .or. (orbit_class == GC_ORBIT_PASSING .and. abs(winding) /= 1)) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+
+        call initialize_fixed_invariants(field_model, potential_model, &
+            invariants, reference_position, parallel_sign, rho0, 0.0_dp, &
+            options, initial_state, status)
+        if (status /= GC_ORBIT_SUCCESS) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        parameter_step = options%variational_parameter_step
+        if (parameter_step <= 0.0_dp) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        call initialize_fixed_invariants(field_model, potential_model, &
+            invariants, reference_position, parallel_sign, rho0, parameter_step, &
+            options, initial_plus, status)
+        if (status /= GC_ORBIT_SUCCESS) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        call initialize_fixed_invariants(field_model, potential_model, &
+            invariants, reference_position, parallel_sign, rho0, -parameter_step, &
+            options, initial_minus, status)
+        if (status /= GC_ORBIT_SUCCESS) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        initial_augmented(1:5) = initial_state
+        initial_augmented(6:10) = (initial_plus - initial_minus) &
+            /(2.0_dp*parameter_step)
+
+        rhs_status = GC_ORBIT_SUCCESS
+        call variational_rhs(0.0_dp, initial_augmented, derivative)
+        if (rhs_status /= GC_ORBIT_SUCCESS) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        if (orbit_class == GC_ORBIT_TRAPPED) then
+            if (abs(derivative(3)) <= tiny(derivative(3))) then
+                result%status = THIN_LIMIT_RETURN_ERROR
+                return
+            end if
+            event_direction = merge(ODE_EVENT_RISING, ODE_EVENT_FALLING, &
+                derivative(3) > 0.0_dp)
+        else
+            event_direction = merge(ODE_EVENT_RISING, ODE_EVENT_FALLING, &
+                winding > 0)
+        end if
+
+        maximum_time = options%max_periods*period_estimate*reference_velocity
+        event_time_tolerance = options%event_relative_tolerance &
+            *period_estimate*reference_velocity
+        event_time_tolerance = max(event_time_tolerance, &
+            100.0_dp*epsilon(maximum_time)*max(1.0_dp, maximum_time))
+        atol = options%absolute_tolerance
+        call vode_init(integrator, 10, 0.0_dp, initial_augmented)
+        call vode_integrate_to(variational_rhs, integrator, maximum_time, &
+            options%relative_tolerance, atol, final_state, integration_status, &
+            event=return_event, event_dir=event_direction, &
+            event_tol=event_time_tolerance, t_root=return_time, &
+            root_found=found)
+        if (rhs_status /= GC_ORBIT_SUCCESS &
+                .or. integration_status%code /= FORTNUM_OK .or. .not. found) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+
+        call evaluate_rhs(final_state(1:5), 0.0_dp, final_rhs, status)
+        if (status /= GC_ORBIT_SUCCESS .or. abs(final_rhs(3)) <= tiny(final_rhs(3))) then
+            result%status = THIN_LIMIT_RETURN_ERROR
+            return
+        end if
+        time_tangent = -final_state(8)/final_rhs(3)
+        delta_phi_tangent = final_state(7) + final_rhs(2)*time_tangent
+        base%period = return_time/reference_velocity
+        base%delta_phi = final_state(2) - initial_state(2)
+        base%status = GC_ORBIT_SUCCESS
+        topology = 2.0_dp*pi*real(winding, dp)*q_reference
+        if (options%topology_from_zero_width_return &
+                .and. orbit_class == GC_ORBIT_PASSING) then
+            topology = base%delta_phi
+        end if
+        result%baseline_residual = base%delta_phi - topology
+        result%omega = reference_velocity*delta_phi_tangent/return_time
+        result%centered = result%omega
+        result%richardson_coarse = result%omega
+        result%richardson_fine = result%omega
+        result%error_estimate = 0.0_dp
+        result%observed_order = 2.0_dp
+        result%lambda_used = [parameter_step, parameter_step/2.0_dp, &
+            parameter_step/4.0_dp]
+        result%refinement_count = 0
+        convergence_tolerance = options%baseline_relative_tolerance &
+            *max(1.0_dp, abs(topology))
+        if (abs(result%baseline_residual) > convergence_tolerance) then
+            result%status = THIN_LIMIT_BASELINE_ERROR
+        else
+            result%status = THIN_LIMIT_SUCCESS
+        end if
+
+    contains
+
+        subroutine variational_rhs(time, state, derivative, context)
+            real(dp), intent(in) :: time
+            real(dp), intent(in) :: state(:)
+            real(dp), intent(out) :: derivative(:)
+            class(*), intent(in), optional :: context
+
+            real(dp) :: f0(5), fplus(5), fminus(5), jacobian(5, 5)
+            real(dp) :: perturbed(5), step
+            integer :: local_status, j
+
+            associate (unused_time => time, unused_context => context)
+            end associate
+            derivative = 0.0_dp
+            call evaluate_rhs(state(1:5), 0.0_dp, f0, local_status)
+            if (local_status /= GC_ORBIT_SUCCESS) then
+                rhs_status = local_status
+                return
+            end if
+            call evaluate_rhs(state(1:5), parameter_step, fplus, local_status)
+            if (local_status /= GC_ORBIT_SUCCESS) then
+                rhs_status = local_status
+                return
+            end if
+            call evaluate_rhs(state(1:5), -parameter_step, fminus, local_status)
+            if (local_status /= GC_ORBIT_SUCCESS) then
+                rhs_status = local_status
+                return
+            end if
+            derivative(1:5) = f0
+            derivative(6:10) = (fplus - fminus)/(2.0_dp*parameter_step)
+            do j = 1, 5
+                perturbed = state(1:5)
+                step = options%variational_state_relative_step &
+                    *max(1.0_dp, abs(perturbed(j)))
+                if (step <= 0.0_dp) then
+                    rhs_status = GC_ORBIT_STATE_ERROR
+                    return
+                end if
+                perturbed(j) = perturbed(j) + step
+                call evaluate_rhs(perturbed, 0.0_dp, fplus, local_status)
+                if (local_status /= GC_ORBIT_SUCCESS) then
+                    rhs_status = local_status
+                    return
+                end if
+                perturbed(j) = state(j) - step
+                call evaluate_rhs(perturbed, 0.0_dp, fminus, local_status)
+                if (local_status /= GC_ORBIT_SUCCESS) then
+                    rhs_status = local_status
+                    return
+                end if
+                jacobian(:, j) = (fplus - fminus)/(2.0_dp*step)
+            end do
+            derivative(6:10) = derivative(6:10) &
+                + matmul(jacobian, state(6:10))
+        end subroutine variational_rhs
+
+        subroutine evaluate_rhs(state, orbit_width_scale, derivative, local_status)
+            real(dp), intent(in) :: state(5), orbit_width_scale
+            real(dp), intent(out) :: derivative(5)
+            integer, intent(out) :: local_status
+            type(gc_field_sample_t) :: sample
+            real(dp) :: potential, gradient(3), xdot(3), pdot, xidot
+            integer :: field_status, potential_status, dynamics_status
+
+            derivative = 0.0_dp
+            call field_model%evaluate(state(1:3), sample, field_status)
+            if (field_status /= GC_MODEL_SUCCESS) then
+                local_status = GC_ORBIT_FIELD_ERROR
+                return
+            end if
+            call potential_model%evaluate(state(1:3), sample, potential, &
+                gradient, potential_status)
+            if (potential_status /= GC_MODEL_SUCCESS) then
+                local_status = GC_ORBIT_FIELD_ERROR
+                return
+            end if
+            call gc_rhs(sample, gradient, rho0, orbit_width_scale, state(4), &
+                state(5), xdot, pdot, xidot, dynamics_status)
+            if (dynamics_status /= GC_SUCCESS) then
+                local_status = GC_ORBIT_STATE_ERROR
+                return
+            end if
+            derivative(1:3) = xdot
+            derivative(4) = pdot
+            derivative(5) = xidot
+            local_status = GC_ORBIT_SUCCESS
+        end subroutine evaluate_rhs
+
+        function return_event(time, state, context) result(value)
+            real(dp), intent(in) :: time
+            real(dp), intent(in) :: state(:)
+            class(*), intent(in), optional :: context
+            real(dp) :: value
+
+            associate (unused_time => time, unused_context => context)
+            end associate
+            if (orbit_class == GC_ORBIT_PASSING) then
+                value = state(3) - reference_position(3) &
+                    - 2.0_dp*pi*real(winding, dp)
+            else
+                value = state(3) - reference_position(3)
+            end if
+        end function return_event
+
+    end subroutine compute_variational_precession
 
     subroutine compute_return_map(field_model, potential_model, invariants, &
             reference_position, parallel_sign, rho0, orbit_width_scale, &
