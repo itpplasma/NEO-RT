@@ -18,6 +18,7 @@ program test_eqdsk_axis
     real(dp) :: x(3), bmod, sqrtg, bder(3), hcov(3), hcon(3), hcurl(3)
     real(dp) :: theta, dtheta, q_integral
     real(dp) :: dVds_inner, dVds_outer
+    real(dp) :: dVds_scan(151), dVds_curvature, dVds_max_curvature
     real(dp), parameter :: s_inner = (0.001_dp/64.0_dp)**2
     real(dp), parameter :: s_outer = (0.002_dp/64.0_dp)**2
     complex(dp) :: bamp
@@ -44,6 +45,24 @@ program test_eqdsk_axis
         write(*,*) 'Circular-axis dV/ds must have a finite constant limit:', &
             dVds_inner, dVds_outer
         error stop "GEQDSK near-axis volume derivative failed"
+    end if
+
+    do k = 10, 160
+        call set_s(real(k, dp)/250.0_dp)
+        call init_magfie_at_s()
+        call init_flux_surface_average(real(k, dp)/250.0_dp)
+        dVds_scan(k - 9) = dVds
+    end do
+    dVds_max_curvature = 0.0_dp
+    do k = 2, size(dVds_scan) - 1
+        dVds_curvature = abs(dVds_scan(k + 1) - 2.0_dp*dVds_scan(k) &
+            + dVds_scan(k - 1))/(sum(dVds_scan)/real(size(dVds_scan), dp))
+        dVds_max_curvature = max(dVds_max_curvature, dVds_curvature)
+    end do
+    if (dVds_max_curvature > 8.0e-4_dp) then
+        write(*,*) 'Circular-equilibrium dV/ds radial metric rings: ', &
+            dVds_max_curvature
+        error stop "GEQDSK radial metric rings between grid cells"
     end if
 
     call set_s(0.25_dp)
