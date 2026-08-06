@@ -101,3 +101,9 @@ set_tests_properties(test_eqdsk_axis PROPERTIES
     ENVIRONMENT
         "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk;RZ_PERT_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/bmod_n.dat"
 )
+
+add_test(NAME test_boozer_angle_map
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_angle_map.x
+            $ENV{NEORT_TEST_BOOZER_EQUILIBRIUM}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)

@@ -764,6 +764,9 @@ module do_magfie_pert_mod
 
     integer :: ncol1, ncol2 ! number of columns in input file
     integer :: inp_swi_pert = -1 ! perturbation .bc format, independent of axisymmetric input
+    !> Axisymmetric Boozer file used only to map the geoflux geometric angle
+    !> onto Boozer angles.  Empty unless the hybrid chart pairing is requested.
+    character(len=1024) :: pert_angle_map_path = ''
     integer :: mph ! toroidal perturbation mode (threadprivate)
     integer :: mph_shared = 0 ! shared copy for namelist input (when pertfile=.false.)
 
@@ -811,6 +814,8 @@ contains
         ! allocates params, modes - SHARED arrays
         call boozer_read_pert(path)
 
+        call build_angle_map_if_requested()
+
         ! Update mph_shared from perturbation file (for use in parallel regions)
         mph_shared = nint(nfp * modes(1, 1, 2))
 
@@ -833,6 +838,32 @@ contains
             end do
         end do
     end subroutine read_boozer_pert_file
+
+    subroutine set_pert_angle_map_path(path)
+        character(len=*), intent(in) :: path
+
+        pert_angle_map_path = trim(path)
+    end subroutine set_pert_angle_map_path
+
+    subroutine build_angle_map_if_requested()
+        !! Main thread only.  The geometric angle must be measured about the
+        !! chart's own axis, so the map is built after the axisymmetric field
+        !! is loaded and before any parallel region evaluates it.
+        use do_magfie_mod, only: inp_swi
+        use geoflux_coordinates, only: geoflux_get_axis
+        use boozer_angle_map, only: build_boozer_angle_map
+
+        real(dp) :: R_axis_cm, Z_axis_cm
+
+        if (len_trim(pert_angle_map_path) == 0) return
+        if (inp_swi /= 11 .or. inp_swi_pert /= 9) return
+
+        call geoflux_get_axis(R_axis_cm, Z_axis_cm)
+        ! libneo reports the axis in CGS; the Boozer file stores metres, and the
+        ! geometric angle is only invariant if both share a unit.
+        call build_boozer_angle_map(trim(pert_angle_map_path), &
+                                    R_axis_cm/100.0_dp, Z_axis_cm/100.0_dp)
+    end subroutine build_angle_map_if_requested
 
     subroutine init_magfie_pert_at_s()
         ! Per-thread: Initialize perturbation field at current s value
@@ -908,6 +939,11 @@ contains
             return
         end if
 
+        if (hybrid_angle_map_active()) then
+            call boozer_pert_amp_on_geoflux(x, bamp)
+            return
+        end if
+
         ! safety measure in order not to extrapolate
         x1 = max(params(1, 1), x(1))
         x1 = min(params(nflux, 1), x1)
@@ -977,6 +1013,48 @@ contains
             + (1.0_dp - wr)*wz*rz_bamp(ir, iz + 1) &
             + wr*wz*rz_bamp(ir + 1, iz + 1))
     end subroutine rz_pert_amp
+
+    logical function hybrid_angle_map_active()
+        !! True when the orbit runs in the direct-GEQDSK chart while the
+        !! perturbation is still a Boozer-Fourier series.
+        use do_magfie_mod, only: inp_swi
+        use boozer_angle_map, only: boozer_angle_map_ready
+
+        hybrid_angle_map_active = (inp_swi == 11) .and. (inp_swi_pert == 9) &
+            .and. boozer_angle_map_ready()
+    end function hybrid_angle_map_active
+
+    subroutine boozer_pert_amp_on_geoflux(x, bamp)
+        !! Evaluate a Boozer-Fourier perturbation at a point reported in the
+        !! geoflux chart.  The poloidal sum is taken at theta_B, and the
+        !! toroidal offset phi_B - phi_geom is folded into the returned complex
+        !! amplitude so that the caller's exp(i*n*phi_geom) reconstructs
+        !! exp(i*n*phi_B).  This is the same identity the R-Z grid path applies
+        !! ahead of the run, evaluated here instead of pre-baked.
+        use math_constants, only: pi
+        use boozer_angle_map, only: boozer_angle_at, boozer_angle_map_nper
+
+        real(dp), dimension(:), intent(in) :: x
+        complex(dp), intent(out) :: bamp
+
+        real(dp) :: x1, theta_b, nu, phi_offset
+
+        x1 = max(params(1, 1), x(1))
+        x1 = min(params(nflux, 1), x1)
+
+        call boozer_angle_at(x(1), x(3), theta_b, nu)
+
+        call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+        call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+        Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+        Bmns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
+        bamp = fast_fourier_sum(Bmnc, Bmns, modes(1, :, 1), theta_b)
+
+        phi_offset = 2.0_dp*pi*nu/real(boozer_angle_map_nper(), dp)
+        bamp = bamp*exp(imun*mph*phi_offset)
+
+        s_prev = x1
+    end subroutine boozer_pert_amp_on_geoflux
 
     pure integer function bracket_index(axis, value) result(index)
         real(dp), intent(in) :: axis(:), value

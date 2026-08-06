@@ -25,6 +25,11 @@ module neort_config
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
         integer :: inp_swi_pert = -1  ! negative inherits inp_swi
+        ! Axisymmetric Boozer file supplying theta_B(s, theta_geo) and the
+        ! stream function.  Only meaningful for inp_swi=11 with a Boozer
+        ! perturbation, where the orbit's angles are not the ones the
+        ! perturbation is indexed in.
+        character(len=1024) :: pert_angle_map = ''
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp ! upper velocity cutoff / vth
@@ -34,9 +39,24 @@ module neort_config
 
 contains
 
-    pure logical function perturbation_chart_is_compatible(axis_switch, perturbation_switch)
+    pure logical function perturbation_chart_is_compatible(axis_switch, &
+            perturbation_switch, have_angle_map)
+        !! A Boozer-Fourier perturbation may only be combined with the direct
+        !! GEQDSK chart when the theta_B(s, theta_geo) map is supplied.  Without
+        !! it the Fourier sum would be taken against the geometric angle, which
+        !! returns a smooth and entirely wrong answer rather than failing.
         integer, intent(in) :: axis_switch, perturbation_switch
+        logical, intent(in), optional :: have_angle_map
 
+        logical :: mapped
+
+        mapped = .false.
+        if (present(have_angle_map)) mapped = have_angle_map
+
+        if (axis_switch == 11 .and. perturbation_switch == 9) then
+            perturbation_chart_is_compatible = mapped
+            return
+        end if
         perturbation_chart_is_compatible = &
             (axis_switch == 11) .eqv. (perturbation_switch == 11)
     end function perturbation_chart_is_compatible
@@ -44,7 +64,7 @@ contains
     subroutine set_config(config)
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph, &
+        use do_magfie_pert_mod, only: mph, set_mph, set_pert_angle_map_path, &
             perturbation_switch => inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
@@ -85,9 +105,11 @@ contains
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
         end if
         if (pertfile) then
-            if (.not. perturbation_chart_is_compatible(inp_swi, perturbation_switch)) then
-                error stop "direct GEQDSK and R-Z perturbation switches must be paired"
+            if (.not. perturbation_chart_is_compatible(inp_swi, &
+                    perturbation_switch, len_trim(config%pert_angle_map) > 0)) then
+                error stop "direct GEQDSK needs an R-Z perturbation or a Boozer angle map"
             end if
+            call set_pert_angle_map_path(config%pert_angle_map)
         end if
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
@@ -104,7 +126,8 @@ contains
     subroutine read_and_set_config(config_file)
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
+        use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert, &
+            set_pert_angle_map_path
         use driftorbit, only: epsmn, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
@@ -118,13 +141,16 @@ contains
         real(dp) :: qs, ms
         integer :: log_level = 0
 
+        character(len=1024) :: pert_angle_map
+
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, pert_angle_map
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
+        pert_angle_map = ''
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
@@ -138,9 +164,11 @@ contains
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
         end if
         if (pertfile) then
-            if (.not. perturbation_chart_is_compatible(inp_swi, inp_swi_pert)) then
-                error stop "direct GEQDSK and R-Z perturbation switches must be paired"
+            if (.not. perturbation_chart_is_compatible(inp_swi, inp_swi_pert, &
+                    len_trim(pert_angle_map) > 0)) then
+                error stop "direct GEQDSK needs an R-Z perturbation or a Boozer angle map"
             end if
+            call set_pert_angle_map_path(pert_angle_map)
         end if
 
         M_t = M_t * efac / bfac
