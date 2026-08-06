@@ -40,7 +40,11 @@ module neort_gc_orbit_integrator
         !! A strict limit is accepted only when the centered ladder displays
         !! its expected second-order behavior and the two Richardson values
         !! agree.  Failed ladders are retried at successively smaller width.
-        integer :: max_limit_refinements = 8
+        !! Near-passing real-space returns can require a smaller centered
+        !! ladder than the trapped branch. Keep the strict order/tolerance
+        !! gate; this only gives the adaptive limit more rungs to resolve the
+        !! same derivative instead of rejecting a valid return map.
+        integer :: max_limit_refinements = 12
         real(dp) :: minimum_observed_order = 1.25_dp
         real(dp) :: limit_relative_tolerance = 5.0e-3_dp
         real(dp) :: limit_absolute_tolerance = 1.0e-2_dp

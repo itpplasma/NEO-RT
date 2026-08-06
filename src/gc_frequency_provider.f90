@@ -187,6 +187,16 @@ contains
                 /(2.0_dp*pi*real(winding, dp))
         end if
         result%baseline_residual = magnetic%baseline_residual
+        result%magnetic_error = magnetic%error_estimate
+        result%electric_error = magnetic%error_estimate + total%error_estimate
+        result%magnetic_order = magnetic%observed_order
+        result%total_order = total%observed_order
+        result%lambda_used(1:2) = [minval(magnetic%lambda_used), &
+            maxval(magnetic%lambda_used)]
+        result%lambda_used(3:4) = [minval(total%lambda_used), &
+            maxval(total%lambda_used)]
+        result%maximum_refinements = max(magnetic%refinement_count, &
+            total%refinement_count)
         if (magnetic%status /= THIN_LIMIT_SUCCESS &
             .or. total%status /= THIN_LIMIT_SUCCESS) then
             status = GC_FREQUENCY_LIMIT_ERROR
@@ -199,16 +209,6 @@ contains
         end if
         result%omega_magnetic = magnetic%omega
         result%omega_electric = total%omega - magnetic%omega
-        result%magnetic_error = magnetic%error_estimate
-        result%electric_error = magnetic%error_estimate + total%error_estimate
-        result%magnetic_order = magnetic%observed_order
-        result%total_order = total%observed_order
-        result%lambda_used(1:2) = [minval(magnetic%lambda_used), &
-            maxval(magnetic%lambda_used)]
-        result%lambda_used(3:4) = [minval(total%lambda_used), &
-            maxval(total%lambda_used)]
-        result%maximum_refinements = max(magnetic%refinement_count, &
-            total%refinement_count)
         status = GC_FREQUENCY_SUCCESS
     end subroutine evaluate_gc_frequency
 
