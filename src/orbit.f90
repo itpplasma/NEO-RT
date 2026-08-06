@@ -42,7 +42,7 @@ contains
         component = vector_phi - field_phi/field_theta*vector_theta
     end function fieldline_label_component
 
-    subroutine dvode_error_context(where, v_in, eta_in, tcur, tout, ist)
+    subroutine vode_error_context(where, v_in, eta_in, tcur, tout, ist)
         use do_magfie_mod, only: s, iota, R0, q, psi_pr, eps
         use driftorbit, only: etatp, etadt, etamin, etamax, mth, mph, sign_vpar
         use neort_profiles, only: vth, Om_tE
@@ -56,7 +56,7 @@ contains
         else
             reg = 'trapped'
         end if
-        write(0,'(A,1X,A,1X,A)') '[ERROR] DVODE MXSTEP in', trim(where), trim(reg)
+        write(0,'(A,1X,A,1X,A)') '[ERROR] fortnum VODE step limit in', trim(where), trim(reg)
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  v=', v_in, 'eta=', eta_in
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5,2X,A,I0)') '  tcur=', tcur, 'tout=', tout, 'istate=', ist
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  vth=', vth, 'Om_tE=', Om_tE
@@ -66,8 +66,8 @@ contains
             '  etatp=', etatp, 'etadt=', etadt, 'etamin=', etamin, 'etamax=', etamax
         write(0,'(A,1X,I0,2X,A,1X,I0,2X,A,1X,ES12.5)') '  mth=', mth, 'mph=', mph, 'sign_vpar=', dble(sign_vpar)
         write(0,'(A,1X,ES12.5,2X,A,1X,ES12.5)') '  eps=', eps, 'psi_pr=', psi_pr
-        call error('DVODE MXSTEP')
-    end subroutine dvode_error_context
+        call error('fortnum VODE step limit')
+    end subroutine vode_error_context
 
     pure function to_es(x) result(sout)
         real(dp), intent(in) :: x
@@ -195,7 +195,7 @@ contains
 
         ! Map the fortnum status onto the legacy istate convention the callers
         ! already branch on: 2 = success, -1 = step budget exhausted (the old
-        ! DVODE MXSTEP case), anything else = unexpected failure.
+        ! fortnum VODE step-limit case), anything else = unexpected failure.
         if (status%code == FORTNUM_OK) then
             istate = 2
         else if (status%code == FORTNUM_CONVERGENCE_ERROR) then
@@ -204,7 +204,7 @@ contains
             istate = 0
         end if
         if (istate == -1) then
-            call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
+            call vode_error_context('bounce_fast', v, eta, t1, t2, istate)
         end if
 
         bounceavg = yend / taub
@@ -339,7 +339,7 @@ contains
                 event2=root_turn, event_dir2=ODE_EVENT_ANY, &
                 t_root=t_root, root_found=found)
             if (status%code == FORTNUM_CONVERGENCE_ERROR) then
-                call dvode_error_context('bounce_integral', v, eta, &
+                call vode_error_context('bounce_integral', v, eta, &
                     t_now, t_now + dt, -1)
             end if
 
