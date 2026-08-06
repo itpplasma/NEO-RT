@@ -4,7 +4,7 @@ program test_gc_frequency_report
     !! selected by frequency_model in the normal NEO-RT executable.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: inp_swi, read_boozer_file, set_s, &
-        init_magfie_at_s
+        init_magfie_at_s, q
     use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
         frequency_model, magdrift, magdrift_passing, sign_vpar, &
         etatp, etadt, mth, mph, nlev
@@ -29,6 +29,7 @@ program test_gc_frequency_report
     character(len=1024) :: eqdsk_file, output_prefix
     real(dp) :: eta, eta_min, eta_max, eta_fraction
     real(dp) :: omega_b, omega_phi, omega_magnetic
+    real(dp) :: omega_electric
     real(dp) :: domega_bdv, domega_bdeta, domega_phdv, domega_phdeta
     real(dp) :: domega_bmagdv, domega_bmagdeta
     real(dp) :: roots(nlev, 3), root_value(2), residual
@@ -88,9 +89,11 @@ program test_gc_frequency_report
                 call Om_ph(velocity, eta, omega_phi, domega_phdv, domega_phdeta)
                 call Om_tB(velocity, eta, omega_magnetic, domega_bmagdv, &
                     domega_bmagdeta)
+                omega_electric = omega_phi - omega_magnetic
+                if (class_index == 1) omega_electric = omega_electric - q*omega_b
                 write (unit_frequency, '(a,1x,a,1x,5(es20.12,1x))') &
                     trim(model_name), trim(class_name), eta/etatp, omega_b, &
-                    omega_phi, omega_magnetic, omega_phi - omega_magnetic
+                    omega_phi, omega_magnetic, omega_electric
             end do
         end do
 

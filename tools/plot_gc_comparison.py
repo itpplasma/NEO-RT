@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-MODEL_LABEL = {"legacy": "Legacy", "gc_thin": "GC thin"}
-MODEL_COLOR = {"legacy": "#355c7d", "gc_thin": "#c06c84"}
+MODEL_LABEL = {"legacy": "Legacy", "gc_thin": "GC thin", "gc": "GC thin"}
+MODEL_COLOR = {"legacy": "#355c7d", "gc_thin": "#c06c84", "gc": "#c06c84"}
 
 
 def read_frequency(path: Path):
@@ -104,9 +104,10 @@ def plot_frequencies(data, output):
     axes[1, 0].set_xlabel(r"$\eta/\eta_{tp}$")
     axes[1, 1].set_xlabel(r"$\eta/\eta_{tp}$")
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False)
-    fig.suptitle("Direct real-space frequency comparison", y=0.98)
-    fig.tight_layout(rect=(0, 0, 1, 0.92))
+    fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.985),
+               ncol=2, frameon=False)
+    fig.suptitle("Direct real-space frequency comparison", y=1.06)
+    fig.tight_layout(rect=(0, 0, 1, 0.88))
     fig.savefig(output, dpi=180)
     plt.close(fig)
 
@@ -151,6 +152,7 @@ def plot_transport(run_dir, output):
     ax.set_xticks(positions, labels, rotation=35, ha="right")
     ax.set_ylabel("coefficient")
     ax.set_title("Transport coefficients at s=0.25")
+    ax.set_yscale("log")
     configure_axes(ax)
     ax.legend(frameon=False)
     fig.tight_layout()
@@ -173,6 +175,7 @@ def plot_torque(run_dir, output):
     ax.set_xticks(positions, labels)
     ax.set_ylabel("torque density [native executable units]")
     ax.set_title("Torque density at s=0.25; native signs retained")
+    ax.set_yscale("symlog", linthresh=1.0)
     configure_axes(ax)
     ax.legend(frameon=False)
     fig.tight_layout()
@@ -192,6 +195,7 @@ def plot_torque_spectrum(run_dir, output):
     ax.set_xlabel(r"$m_{th}$")
     ax.set_ylabel("torque integral by harmonic [native units]")
     ax.set_title("Torque spectrum")
+    ax.set_yscale("symlog", linthresh=100.0)
     configure_axes(ax)
     ax.legend(frameon=False)
     fig.tight_layout()
@@ -228,12 +232,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("run_dir", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--frequency-dir", type=Path)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     summary = {"run_dir": str(args.run_dir)}
-    frequency = read_frequency(args.run_dir / "frequency_scan.out")
-    resonances = read_resonances(args.run_dir / "frequency_resonances.out")
+    frequency_dir = args.frequency_dir or args.run_dir
+    frequency = read_frequency(frequency_dir / "frequency_scan.out")
+    resonances = read_resonances(frequency_dir / "frequency_resonances.out")
     plot_frequencies(frequency, args.output_dir / "frequencies.png")
     plot_resonances(resonances, args.output_dir / "resonances.png")
     plot_transport(args.run_dir, args.output_dir / "transport.png")
