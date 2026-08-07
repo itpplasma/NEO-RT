@@ -10,8 +10,11 @@ program test_gc_eqdsk_frequency
     use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
         gc_frequency_context_t, gc_frequency_result_t, &
         initialize_gc_frequency_context, evaluate_gc_frequency
-    use neort_gc_models, only: GC_MODEL_SUCCESS
-    use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING
+    use neort_gc_models, only: GC_MODEL_SUCCESS, gc_invariants_t, &
+        invariants_from_state
+    use neort_gc_orbit_integrator, only: GC_ORBIT_SUCCESS, GC_ORBIT_TRAPPED, &
+        GC_ORBIT_PASSING, compute_zero_width_passing_cycle
+    use neort_thin_orbit_limit, only: orbit_return_t
     use neort_magfie, only: init_flux_surface_average
     use neort_orbit, only: bounce_time, th0
     use util, only: pi, qe, mu
@@ -30,7 +33,11 @@ program test_gc_eqdsk_frequency
     real(dp) :: eta_trapped, eta_passing, epsilon
     real(dp) :: period_estimate, legacy_period, legacy_frequency
     real(dp) :: quadrature_period, quadrature_frequency
+    real(dp) :: cycle_error, xi_reference
+    type(gc_invariants_t) :: passing_invariants
+    type(orbit_return_t) :: passing_cycle
     integer :: status
+    integer :: invariant_status
 
     call get_environment_variable('EQDSK_FILE', eqdsk_file)
     if (len_trim(eqdsk_file) == 0) then
@@ -84,6 +91,24 @@ program test_gc_eqdsk_frequency
     legacy_frequency = 2.0_dp*pi/legacy_period
     quadrature_period = zero_width_passing_period(positive, eta_passing, velocity)
     quadrature_frequency = 2.0_dp*pi/quadrature_period
+    xi_reference = sqrt(1.0_dp - eta_passing*positive%reference_sample%bmod)
+    call invariants_from_state(positive%reference_sample, 0.0_dp, 0.0_dp, &
+        0.0_dp, 1.0_dp, xi_reference, passing_invariants, invariant_status)
+    if (invariant_status /= GC_MODEL_SUCCESS) then
+        error stop 'passing invariant construction failed'
+    end if
+    call compute_zero_width_passing_cycle(positive%field, positive%zero_potential, &
+        passing_invariants, positive%reference_position, positive%htheta_sign, &
+        positive%reference_velocity, 1, passing_cycle, cycle_error)
+    if (passing_cycle%status /= GC_ORBIT_SUCCESS &
+        .or. cycle_error > 2.0e-12_dp) then
+        write(*, '(a,i0,1x,es14.5)') 'passing cycle status/error:', &
+            passing_cycle%status, cycle_error
+        error stop 'passing cycle did not meet nested quadrature certificate'
+    end if
+    if (abs(passing_cycle%period/quadrature_period - 1.0_dp) > 2.0e-6_dp) then
+        error stop 'passing cycle disagrees with independent midpoint oracle'
+    end if
     ! Independent full-cycle expression: omega_b=2*pi/tau, with
     ! tau=(1/v)*integral[dtheta/(xi*h^theta)] on the passing section.
     if (abs(passing%omega_b/quadrature_frequency - 1.0_dp) > 2.0e-6_dp) then

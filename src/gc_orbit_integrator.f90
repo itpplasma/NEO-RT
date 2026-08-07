@@ -187,7 +187,6 @@ contains
             end if
         end if
 
-        base = orbit_return_t()
         if (orbit_class == GC_ORBIT_PASSING &
             .and. options%topology_from_zero_width_return) then
             ! The direct-EQDSK chart has a closed zero-width field-line
@@ -532,28 +531,33 @@ contains
 
     subroutine compute_zero_width_passing_cycle(field_model, potential_model, &
             invariants, reference_position, parallel_sign, reference_velocity, &
-            winding, result)
+            winding, result, convergence_error)
         !! Independent lambda=0 full-cycle oracle for a direct flux-surface
         !! section.  The theta quadrature is deliberately separate from the
         !! VODE event return map used by the finite-width ladder.
+        !! If requested, convergence_error reports the final maximum relative
+        !! change of the period and toroidal increment under panel doubling.
         class(gc_field_t), intent(in) :: field_model
         class(gc_potential_t), intent(in) :: potential_model
         type(gc_invariants_t), intent(in) :: invariants
         real(dp), intent(in) :: reference_position(3), reference_velocity
         integer, intent(in) :: parallel_sign, winding
         type(orbit_return_t), intent(out) :: result
+        real(dp), intent(out), optional :: convergence_error
 
         integer, parameter :: initial_panels = 64
         integer, parameter :: maximum_refinement = 9
         real(dp), parameter :: quadrature_tolerance = 2.0e-12_dp
         real(dp) :: previous_period_u, previous_delta_phi
         real(dp) :: period_u, delta_phi
+        real(dp) :: nested_error
         integer :: refinement, n_panels, local_status
         logical :: converged
 
         result = orbit_return_t()
         result%orbit_class = GC_ORBIT_PASSING
         result%winding = winding
+        if (present(convergence_error)) convergence_error = huge(1.0_dp)
         if (reference_velocity <= 0.0_dp .or. parallel_sign == 0 &
             .or. abs(winding) /= 1) then
             result%status = GC_ORBIT_STATE_ERROR
@@ -571,10 +575,13 @@ contains
                 return
             end if
             if (refinement > 0) then
-                converged = abs(period_u - previous_period_u) &
-                    <= quadrature_tolerance*max(1.0_dp, abs(period_u)) &
-                    .and. abs(delta_phi - previous_delta_phi) &
-                    <= quadrature_tolerance*max(1.0_dp, abs(delta_phi))
+                nested_error = max( &
+                    abs(period_u - previous_period_u) &
+                    /max(1.0_dp, abs(period_u)), &
+                    abs(delta_phi - previous_delta_phi) &
+                    /max(1.0_dp, abs(delta_phi)))
+                if (present(convergence_error)) convergence_error = nested_error
+                converged = nested_error <= quadrature_tolerance
                 if (converged) exit
             end if
             previous_period_u = period_u
@@ -599,7 +606,6 @@ contains
             type(gc_field_sample_t) :: sample
             real(dp) :: dtheta, theta, p, xi, potential, gradient(3)
             real(dp) :: time_integrand, phi_integrand, time_sum, phi_sum
-            real(dp) :: scale
             integer :: j, field_status, potential_status, state_status
             integer :: weight
 
@@ -617,12 +623,11 @@ contains
                     status = GC_ORBIT_FIELD_ERROR
                     return
                 end if
-                scale = max(1.0_dp, max(abs(sample%hcon(2)), &
-                    abs(sample%hcon(3))))
-                if (abs(sample%hcon(1)) > 100.0_dp*epsilon(scale)*scale) then
-                    status = GC_ORBIT_STATE_ERROR
-                    return
-                end if
+                ! The zero-width expression is the tangent pullback on the
+                ! fixed-s section and uses only h^phi/h^theta.  A smooth
+                ! cubic EQDSK interpolation leaves a small h^s residual on
+                ! that section; rejecting it at machine epsilon incorrectly
+                ! turns a valid tangent quadrature into a state failure.
                 call potential_model%evaluate([reference_position(1), &
                     reference_position(2), theta], sample, potential, gradient, &
                     potential_status)
