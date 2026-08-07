@@ -83,6 +83,8 @@ program test_gc_eqdsk_cut_interval_runtime
         'atlas regression-box midpoint escaped its enclosure')
     write (*, '(a,2(1x,es24.16))') 'regression N interval', &
         box%numerator%lo, box%numerator%hi
+    write (*, '(a,3(1x,es24.16))') 'regression psi_hat interval/scalar', &
+        box%psi_hat%lo, box%psi_hat%hi, point%psi_jet(1)/psi_sep
     write (*, '(a,3(1x,es24.16))') 'regression scalar N/NR/NZ', &
         point%cut_numerator, point%d_cut_numerator_d_R, &
         point%d_cut_numerator_d_Z
