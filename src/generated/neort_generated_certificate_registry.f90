@@ -4,14 +4,14 @@ module neort_generated_certificate_registry
         'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: regenerate_command = &
         'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'
-    integer, parameter :: certificate_count = 16
+    integer, parameter :: certificate_count = 17
     character(len=32), parameter :: certificate_id(certificate_count) = &
         [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &
         'root_enclosures', 'interpolation', 'profile_endpoints', &
         'refinement', 'harmonic_integrand', 'simple_root_force', &
         'eqdsk_cell_jet', 'eqdsk_profile_jet', 'eqdsk_cut_jet', &
         'eqdsk_cut_numerator_jet', 'eqdsk_cut_r_chart', &
-        'eqdsk_cut_z_chart' ]
+        'eqdsk_cut_z_chart', 'eqdsk_cut_r_flux_chart' ]
     character(len=64), parameter :: certificate_fingerprint(certificate_count) = &
         [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &
         'neort-cert-v1:littlejohn:22:fortsym-5457884', &
@@ -28,7 +28,8 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_cut_jet:7:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_numerator_jet:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_r_chart:2:fortsym-5457884', &
-        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884' ]
+        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_cut_r_flux_chart:2:fortsym-5457884' ]
     ! Fingerprints are provenance/arity manifests, not algebraic proofs.
     ! Root multiplicity and crossing counts require interval/theorem gates.
 contains
