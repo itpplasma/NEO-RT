@@ -264,6 +264,8 @@ contains
         orbit%section%reference = [2.0_dp, 0.0_dp, 0.0_dp]
         orbit%section%reference_id = 'cut-R'
         orbit%section%locked = .true.
+        orbit%section%required_return_crossings = 2
+        orbit%section%return_crossings = 2
         orbit%p_phi = p_phi
         orbit%dp_phi_dx = dp_phi_dx
         orbit%tau_b = tau_b
