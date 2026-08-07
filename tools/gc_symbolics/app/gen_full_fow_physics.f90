@@ -114,7 +114,8 @@ program gen_full_fow_physics
     type(expr_t) :: pair_field_residual, conjugate_modulus_residual
     type(expr_t) :: n_abs, tau_pos, g_prime_abs, f_prime_abs
     type(expr_t) :: root_weight_abs, phase_weight_abs, h_axisymmetric
-    type(expr_t) :: psi, b_phi_cov, phi_coordinate, phi_dot_symbol
+    type(expr_t) :: psi, b_phi_cov, cylindrical_bhat_phi
+    type(expr_t) :: phi_coordinate, phi_dot_symbol
     type(expr_t) :: psi_r, psi_z, b_r_from_psi, b_z_from_psi
     type(expr_t) :: canonical_p_phi, canonical_p_phi_cylindrical
     type(expr_t) :: phase_space_lagrangian
@@ -344,6 +345,7 @@ program gen_full_fow_physics
     bhat1 = sym(arena, "bhat1")
     bhat2 = sym(arena, "bhat2")
     bhat3 = sym(arena, "bhat3")
+    cylindrical_bhat_phi = sym(arena, "bhat_phi")
     curl1 = sym(arena, "curl_bhat1")
     curl2 = sym(arena, "curl_bhat2")
     curl3 = sym(arena, "curl_bhat3")
@@ -755,10 +757,12 @@ program gen_full_fow_physics
     ! Axisymmetric invariant and launch algebra.  The signed charge remains
     ! in q*Phi and psi_star; only J_K conversion above uses abs(q).
     invariant_h = p_parallel**2/(2*mass) + mu*bmod + q_phi_energy
-    invariant_pphi = charge/c_light*psi + p_parallel*radius*bhat2
+    invariant_pphi = charge/c_light*psi + &
+        p_parallel*radius*cylindrical_bhat_phi
     invariant_psistar = c_light/charge*invariant_pphi
     invariant_vparallel_squared = 2*(h-mu*bmod-q_phi_energy)/mass
-    invariant_ppar_from_pphi = (p_phi-charge*psi/c_light)/(radius*bhat2)
+    invariant_ppar_from_pphi = (p_phi-charge*psi/c_light)/ &
+        (radius*cylindrical_bhat_phi)
     invariant_ppar_squared = mass**2*invariant_vparallel_squared
     invariant_launch_residual = invariant_ppar_from_pphi**2 - &
         invariant_ppar_squared
@@ -1230,7 +1234,7 @@ program gen_full_fow_physics
     phi_dot_symbol = sym(arena, "phi_dot")
     canonical_p_phi = charge/c_light*psi + p_parallel*b_phi_cov
     canonical_p_phi_cylindrical = charge/c_light*psi + &
-        p_parallel*radius*bhat2
+        p_parallel*radius*cylindrical_bhat_phi
     phase_space_lagrangian = canonical_p_phi*phi_dot_symbol - h
     d_lagrangian_d_phi = diff(phase_space_lagrangian, phi_coordinate)
     d_lagrangian_d_phi_dot = diff(phase_space_lagrangian, phi_dot_symbol)
