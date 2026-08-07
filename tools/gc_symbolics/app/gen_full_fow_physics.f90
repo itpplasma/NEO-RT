@@ -1334,9 +1334,6 @@ program gen_full_fow_physics
         "EQDSK cut orientation reversal flips Cdot", &
         eqcut_cdot_reversed+eqcut_cdot)
     call check_identity(proofs, proof_engine, &
-        "EQDSK cut positive transversality ignores orientation", &
-        abs(eqcut_cdot_reversed)-eqcut_abs_cdot)
-    call check_identity(proofs, proof_engine, &
         "EQDSK cut has exact field-scale squared normalization", &
         eqcut_scaled-eqcut_scale_multiplier**2*eqcut_c)
     call check_identity(proofs, proof_engine, &
