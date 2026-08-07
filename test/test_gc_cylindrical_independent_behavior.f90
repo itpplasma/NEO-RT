@@ -30,7 +30,8 @@ program test_gc_cylindrical_independent_behavior
     expected_pphi = charge/c_light*psi
     call require_close('analytic E cross B phi dot', output(16), expected_phi_dot)
     call require_close('analytic radial drift', output(14), 0.0_dp)
-    call require_close('analytic parallel drift', output(15), 0.0_dp)
+    call require_close('analytic parallel drift', output(15), &
+        p_parallel/mass)
     call require_close('analytic parallel force', output(17), 0.0_dp)
     call require_close('analytic H conservation', output(20), 0.0_dp)
     call require_close('axisymmetric canonical p_phi', output(22), expected_pphi)
