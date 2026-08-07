@@ -1049,7 +1049,9 @@
   subroutine find_bounds_fixpoints(regions,ierr)
 !
   use global_invariants,    only : toten,perpinv,sigma
-  use find_all_roots_mod,   only : nroots,roots,relerr_allroots
+  use find_all_roots_mod,   only : nroots,roots,relerr_allroots,          &
+                                   root_eval_valid,root_eval_error,        &
+                                   root_invalid_domain,root_no_intersection
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use field_sub, only : psif
@@ -1082,6 +1084,10 @@
                                                    psiast_x_tot,R_x_tot,rsc_tmp
 !------------
 !
+  ierr=0
+  regions%nregions=0
+  if(allocated(regions%all_regions)) deallocate(regions%all_regions)
+
   if(wrbounds) then
 ! write vpar2 on the cut as function of R
     open(2001,file='vpar2_vs_R.dat')
@@ -1118,8 +1124,6 @@
     separin_e=.false.
   endif
 !
-  ierr=0
-!
 ! find inner boundaries of allowed regions:
   relerr_allroots=1.d-12
 !
@@ -1127,16 +1131,12 @@
 !
   if(ierr.ne.0) then
     print *,'find_bounds_fixpoints: error in find_all_roots, inner boundaries'
+    return
   endif
 !
-! displace the roots by root accuracy distance so that vpar2 > 0 always:
-  do i=1,nroots
-!
-    call vparzero1D(roots(i),vpar2,dvpar2_dR)
-!
-    roots(i)=roots(i)*(1.d0+sign(relerr,dvpar2_dR))
-  enddo
-!
+! Keep the exact turning root.  p_parallel=0 is an allowed phase-space
+! boundary; moving it by an unconstrained relative offset can leave the
+! Poincare interval and fabricate an evaluation in forbidden space.
   if(nroots.gt.0) then
     if(allocated(R_bo)) deallocate(R_bo,Z_bo,psiast_bo)
     allocate(R_bo(nroots),Z_bo(nroots),psiast_bo(nroots))
@@ -1342,7 +1342,11 @@
 !
       if(within_rhopol) then
 !
-        call classify_extrema(R_b_in,R_e_in)
+        call classify_extrema(R_b_in,R_e_in,ierr)
+        if(ierr.ne.0) then
+          print *,'find_bounds_fixpoints: unresolved extrema for range, ierr = ',ierr
+          return
+        endif
 !
         if(nroots.gt.0) then
           pphi_min_reg=min(pphi_b,pphi_e,minval(psiast_extr))
@@ -1398,9 +1402,10 @@
 !
         call find_all_roots(boucross,R_b_in,R_e_in,ierr)
 !
-        if(ierr.ne.0) then
-          print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 1'
-        endif
+          if(ierr.ne.0) then
+            print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 1'
+            return
+          endif
 !
         if(nroots.gt.0) then
           within_rhopol=.true.
@@ -1408,6 +1413,7 @@
 !
           call get_poicut(R,Z,dZ_dR)
           call tormom_of_RZ(toten,perpinv,sigma,R,Z,p_phi,ierr)
+          if(ierr.ne.0) return
 !
           all_regions(isig,ireg)%inner_b=.false.
           all_regions(isig,ireg)%R_b=R
@@ -1423,9 +1429,10 @@
 !
         call find_all_roots(boucross,R_b_in,R_e_in,ierr)
 !
-        if(ierr.ne.0) then
-          print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 2'
-        endif
+          if(ierr.ne.0) then
+            print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 2'
+            return
+          endif
 !
         if(nroots.gt.0) then
           within_rhopol=.true.
@@ -1433,6 +1440,7 @@
 !
           call get_poicut(R,Z,dZ_dR)
           call tormom_of_RZ(toten,perpinv,sigma,R,Z,p_phi,ierr)
+          if(ierr.ne.0) return
 !
           all_regions(isig,ireg)%inner_b=.false.
           all_regions(isig,ireg)%R_b=R
@@ -1457,6 +1465,7 @@
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 1'
+            return
           endif
 !
           if(nroots.gt.0) then
@@ -1464,15 +1473,19 @@
 !
             call get_poicut(R,Z,dZ_dR)
             call tormom_of_RZ(toten,perpinv,sigma,R,Z,p_phi,ierr)
+            if(ierr.ne.0) return
 !
             all_regions(isig,ireg)%inner_e=.false.
             all_regions(isig,ireg)%R_e=R
             all_regions(isig,ireg)%Z_e=Z
             all_regions(isig,ireg)%psiast_e=p_phi
           else
-! this shold never happen
-            print *,'cutter error'
-            stop !no further processing, debug the code
+! A right endpoint outside the global range must have a certified crossing.
+! A successful scan with no crossing is an unresolved topology condition,
+! not permission to omit torque from this region.
+            print *,'cutter: no certified right boundary'
+            ierr=root_no_intersection
+            return
           endif
         elseif(all_regions(isig,ireg)%psiast_e.gt.pphi_max) then
           pphi_minmax=pphi_max
@@ -1482,6 +1495,7 @@
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 2'
+            return
           endif
 !
           if(nroots.gt.0) then
@@ -1489,15 +1503,18 @@
 !
             call get_poicut(R,Z,dZ_dR)
             call tormom_of_RZ(toten,perpinv,sigma,R,Z,p_phi,ierr)
+            if(ierr.ne.0) return
 !
             all_regions(isig,ireg)%inner_e=.false.
             all_regions(isig,ireg)%R_e=R
             all_regions(isig,ireg)%Z_e=Z
             all_regions(isig,ireg)%psiast_e=p_phi
           else
-! this shold never happen
-            print *,'cutter error'
-            stop !no further processing, debug the code
+! A right endpoint outside the global range must have a certified crossing.
+! A successful scan with no crossing is an unresolved topology condition.
+            print *,'cutter: no certified right boundary'
+            ierr=root_no_intersection
+            return
           endif
         endif
       endif
@@ -1537,7 +1554,11 @@
       R_b_in=all_regions(isig,ireg)%R_b
       R_e_in=all_regions(isig,ireg)%R_e
 !
-      call classify_extrema(R_b_in,R_e_in)
+      call classify_extrema(R_b_in,R_e_in,ierr)
+      if(ierr.ne.0) then
+        print *,'find_bounds_fixpoints: unresolved extremum topology, ierr = ',ierr
+        return
+      endif
 !
       n_o=0
       n_x=0
@@ -1655,6 +1676,7 @@
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 1'
+                return
               endif
 !
               nsc=nsc+nroots
@@ -1666,6 +1688,7 @@
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 2'
+                return
               endif
 !
               nsc=nsc+nroots
@@ -1678,6 +1701,7 @@
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 3'
+              return
             endif
 !
             nsc=nsc+nroots
@@ -1703,6 +1727,7 @@
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 4'
+                return
               endif
 !
               if(nroots.gt.0) then
@@ -1717,6 +1742,7 @@
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 5'
+                return
               endif
 !
               if(nroots.gt.0) then
@@ -1732,6 +1758,7 @@
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 6'
+              return
             endif
 !
             if(nroots.gt.0) then
@@ -1804,7 +1831,7 @@
 !
 !------------
 !
-  subroutine classify_extrema(R_b_in,R_e_in)
+  subroutine classify_extrema(R_b_in,R_e_in,ierr_classify)
 !
 ! Find all extremum points of psi^* on the Poincare cut in the interval R_b_in < R < R_e_in,
 ! determines their types (X- or O-point). Results - cylindrical coordinates (R,Z), values
@@ -1814,11 +1841,20 @@
 !
   implicit none
 !
-  integer :: ierr,nroots1,nroots2,i
+  integer, intent(out) :: ierr_classify
+  integer :: ierr, ierr_type, nroots1,nroots2,nvalid,i
   double precision :: R_b_in,R_e_in
   double precision :: vvrt,dvvrt_dx,dvrdz,p_phi
   double precision, dimension(:), allocatable :: R_tmp1,R_tmp2,R_tmp
+  double precision, dimension(:), allocatable :: R_valid,Z_valid,psi_valid
+  logical, dimension(:), allocatable :: opoint_valid
+  logical :: opoint
 !
+  ierr_classify=0
+  nroots=0
+  if(allocated(opoint_extr)) then
+    deallocate(opoint_extr,R_extr,Z_extr,psiast_extr)
+  endif
   R_e=0.5d0*(R_b_in+R_e_in)
 !
   R_b=R_b_in
@@ -1827,7 +1863,8 @@
   call find_all_roots(get_vvert,0.d0,1.d0,ierr)
 !
   if(ierr.ne.0) then
-    print *,'classify_extrema: error in find_all_roots 1'
+    ierr_classify=ierr
+    return
   endif
 !
   nroots1=nroots
@@ -1853,7 +1890,9 @@
   call find_all_roots(get_vvert,0.d0,1.d0,ierr)
 !
   if(ierr.ne.0) then
-    print *,'classify_extrema: error in find_all_roots 2'
+    if(allocated(R_tmp1)) deallocate(R_tmp1)
+    ierr_classify=ierr
+    return
   endif
 !
   nroots2=nroots
@@ -1886,29 +1925,42 @@
     deallocate(R_tmp2)
   endif
 !
+  nvalid=0
   if(nroots.gt.0) then
-    if(allocated(opoint_extr)) then
-      deallocate(opoint_extr,R_extr,Z_extr,psiast_extr)
-    endif
-    allocate(opoint_extr(nroots))
-    allocate(R_extr(nroots),Z_extr(nroots),psiast_extr(nroots))
+    allocate(R_valid(nroots),Z_valid(nroots),psi_valid(nroots),opoint_valid(nroots))
+    do i=1,nroots
+      R=R_tmp(i)
+      call get_poicut(R,Z,dZ_dR)
+      call tormom_of_RZ(toten,perpinv,sigma,R,Z,p_phi,ierr)
+      if(ierr.ne.0) then
+        deallocate(R_tmp,R_valid,Z_valid,psi_valid,opoint_valid)
+        ierr_classify=ierr
+        return
+      endif
+      call determine_fixpoint_type(R,Z,opoint,ierr_type)
+      if(ierr_type.ne.0) then
+        deallocate(R_tmp,R_valid,Z_valid,psi_valid,opoint_valid)
+        ierr_classify=ierr_type
+        return
+      endif
+      nvalid=nvalid+1
+      R_valid(nvalid)=R
+      Z_valid(nvalid)=Z
+      psi_valid(nvalid)=p_phi
+      opoint_valid(nvalid)=opoint
+    enddo
+    deallocate(R_tmp)
   endif
-!
-  do i=1,nroots
-!
-    R=R_tmp(i)
-!
-    call get_poicut(R,Z,dZ_dR)
-    call tormom_of_RZ(toten,perpinv,sigma,R,Z,p_phi,ierr)
-    call determine_fixpoint_type(R,Z,opoint_extr(i))
-!
-    R_extr(i)=R
-    Z_extr(i)=Z
-    psiast_extr(i)=p_phi
-!
-  enddo
-!
-  if(nroots.gt.0) deallocate(R_tmp)
+
+  nroots=nvalid
+  if(nvalid.gt.0) then
+    allocate(opoint_extr(nvalid),R_extr(nvalid),Z_extr(nvalid),psiast_extr(nvalid))
+    opoint_extr=opoint_valid(1:nvalid)
+    R_extr=R_valid(1:nvalid)
+    Z_extr=Z_valid(1:nvalid)
+    psiast_extr=psi_valid(1:nvalid)
+  endif
+  if(allocated(R_valid)) deallocate(R_valid,Z_valid,psi_valid,opoint_valid)
 !
   end subroutine classify_extrema
 !
@@ -1968,6 +2020,9 @@
 ! Computes the normal guiding center velocity
 ! with respect to the Poincare cut
 !
+  use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                  root_invalid_domain
+
   implicit none
 !
   integer :: ierr
@@ -1981,6 +2036,12 @@
 !
   call get_poicut(z(1),z(3),dZ_dR)
   call get_z45(toten,perpinv,sigma,z,ierr)
+  if(ierr.ne.0) then
+    vvrt=0.d0
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    return
+  endif
   call velo(dtau,z,vz)
 !
   vvrt=vz(3)-dZ_dR*vz(1)
@@ -2016,7 +2077,7 @@
 !
 !------------
 !
-  subroutine determine_fixpoint_type(R_in,Z_in,opoint)
+  subroutine determine_fixpoint_type(R_in,Z_in,opoint,ierr_out)
 !
 ! Determines type of fixed point with coordinates (R_in,Z_in)
 ! opoint = .true.   - O-point
@@ -2026,92 +2087,69 @@
 !
   double precision, parameter :: dtau=0.d0, hdiff=1.d-6
   logical :: opoint
-  integer :: ierr,iden_R,iden_Z
-  double precision :: R_in,Z_in,dvrdr,dvrdz,dvzdr,dvzdz
-  double precision, dimension(5) :: z,vz,vz_base
+  integer :: ierr,ierr_out
+  double precision :: R_in,Z_in,dvrdr,dvrdz,dvzdr,dvzdz,hstep
+  double precision, dimension(5) :: z,vz
 !
+  ierr_out=0
+  opoint=.false.
   z(1)=R_in
   z(2)=0.d0
   z(3)=Z_in
 !
-  iden_R=0
-  iden_Z=0
-!
   call get_z45(toten,perpinv,sigma,z,ierr)
-  call velo(dtau,z,vz_base)
-!
-  z(1)=R_in-hdiff*R_in
-!
-  call get_z45(toten,perpinv,sigma,z,ierr)
-!
-  if(ierr.eq.0) then
-!
-    call velo(dtau,z,vz)
-!
-    iden_R=iden_R+1
-    dvrdr=vz(1)
-    dvzdr=vz(3)
-  else
-    dvrdr=vz_base(1)
-    dvzdr=vz_base(3)
+  if(ierr.ne.0) then
+    ierr_out=ierr
+    return
   endif
-!
-  z(1)=R_in+hdiff*R_in
-!
-  call get_z45(toten,perpinv,sigma,z,ierr)
-!
-  if(ierr.eq.0) then
-!
-    call velo(dtau,z,vz)
-!
-    iden_R=iden_R+1
-    dvrdr=(vz(1)-dvrdr)/dble(iden_R)
-    dvzdr=(vz(3)-dvzdr)/dble(iden_R)
-  else
-    if(iden_R.eq.0) then
-      print *,'determine_fixpoint_type: iden_R = 0'
-      stop
-    endif
-    dvrdr=(vz_base(1)-dvrdr)/dble(iden_R)
-    dvzdr=(vz_base(3)-dvzdr)/dble(iden_R)
+  hstep=hdiff*R_in
+  if(hstep.le.0.d0) then
+    ierr_out=2
+    return
   endif
-!
+
+! A fixed-point type requires certified two-sided finite differences.  A
+! forbidden perturbation is unresolved topology, not a one-sided derivative.
+  z(1)=R_in-hstep
+  call get_z45(toten,perpinv,sigma,z,ierr)
+  if(ierr.ne.0) then
+    ierr_out=ierr
+    return
+  endif
+  call velo(dtau,z,vz)
+  dvrdr=vz(1)
+  dvzdr=vz(3)
+
+  z(1)=R_in+hstep
+  call get_z45(toten,perpinv,sigma,z,ierr)
+  if(ierr.ne.0) then
+    ierr_out=ierr
+    return
+  endif
+  call velo(dtau,z,vz)
+  dvrdr=(vz(1)-dvrdr)/(2.d0*hstep)
+  dvzdr=(vz(3)-dvzdr)/(2.d0*hstep)
+
   z(1)=R_in
-  z(3)=Z_in-hdiff*R_in
-!
+  z(3)=Z_in-hstep
   call get_z45(toten,perpinv,sigma,z,ierr)
-!
-  if(ierr.eq.0) then
-!
-    call velo(dtau,z,vz)
-!
-    iden_Z=iden_Z+1
-    dvrdz=vz(1)
-    dvzdz=vz(3)
-  else
-    dvrdz=vz_base(1)
-    dvzdz=vz_base(3)
+  if(ierr.ne.0) then
+    ierr_out=ierr
+    return
   endif
-!
-  z(3)=Z_in+hdiff*R_in
-!
+  call velo(dtau,z,vz)
+  dvrdz=vz(1)
+  dvzdz=vz(3)
+
+  z(3)=Z_in+hstep
   call get_z45(toten,perpinv,sigma,z,ierr)
-!
-  if(ierr.eq.0) then
-!
-    call velo(dtau,z,vz)
-!
-    iden_Z=iden_Z+1
-    dvrdz=(vz(1)-dvrdz)/dble(iden_Z)
-    dvzdz=(vz(3)-dvzdz)/dble(iden_Z)
-  else
-    if(iden_Z.eq.0) then
-      print *,'determine_fixpoint_type: iden_Z = 0'
-      stop
-    endif
-    dvrdz=(vz_base(1)-dvrdz)/dble(iden_Z)
-    dvzdz=(vz_base(3)-dvzdz)/dble(iden_Z)
+  if(ierr.ne.0) then
+    ierr_out=ierr
+    return
   endif
+  call velo(dtau,z,vz)
+  dvrdz=(vz(1)-dvrdz)/(2.d0*hstep)
+  dvzdz=(vz(3)-dvzdz)/(2.d0*hstep)
 !
   if(4.d0*dvrdz*dvzdr+(dvrdr-dvzdz)**2.lt.0.d0) then
     opoint=.true.
@@ -2139,8 +2177,11 @@
                            delpphi,ddelpphi_dRst,z,ierr)
 !
   if(ierr.ne.0) then
-    print *,'sepcross: error in starter_doublecount = ',ierr
-    stop !no further processing, debug the code
+    delpphi=0.d0
+    ddelpphi_dRst=0.d0
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    return
   endif
 !
   delpphi=delpphi-psiast_x_tot(ixp_tot)
@@ -2165,8 +2206,11 @@
                            delpphi,ddelpphi_dRst,z,ierr)
 !
   if(ierr.ne.0) then
-    print *,'boucross: error in starter_doublecount = ',ierr
-    stop !no further processing, debug the code
+    delpphi=0.d0
+    ddelpphi_dRst=0.d0
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    return
   endif
 !
   delpphi=delpphi-pphi_minmax

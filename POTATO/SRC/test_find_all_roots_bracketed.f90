@@ -1,6 +1,8 @@
 program test_find_all_roots_bracketed
   use find_all_roots_mod, only : customgrid,ncustom,niter,nroots,nsearch_min, &
-                                 relerr_allroots,roots,xcustom
+                                 relerr_allroots,roots,xcustom,              &
+                                 root_eval_valid,root_eval_error,            &
+                                 root_invalid_domain
   implicit none
 
   integer :: ierr
@@ -52,6 +54,23 @@ program test_find_all_roots_bracketed
   call require(.not.evaluated_outside_bounds, &
                'bracketed equidistant grid exceeded decimal interval')
 
+  customgrid=.false.
+  nsearch_min=1
+  call find_all_roots_bracketed(endpoint_roots,0.d0,1.d0,ierr)
+  call require(ierr.eq.0,'endpoint roots ierr')
+  call require(nroots.eq.2,'endpoint roots nroots')
+  call require(abs(roots(1)).lt.1.d-14,'endpoint left root')
+  call require(abs(roots(2)-0.75d0).lt.1.d-10,'endpoint interior root')
+
+  call find_all_roots(flat_derivative_root,0.d0,1.d0,ierr)
+  call require(ierr.eq.0,'flat derivative ierr')
+  call require(nroots.eq.1,'flat derivative nroots')
+  call require(abs(roots(1)-0.5d0).lt.1.d-10,'flat derivative root')
+
+  call find_all_roots(invalid_domain,0.d0,1.d0,ierr)
+  call require(ierr.eq.root_invalid_domain,'invalid domain status')
+  call require(nroots.eq.0,'invalid domain fabricated root')
+
 contains
 
   subroutine require(ok,msg)
@@ -95,5 +114,36 @@ contains
     f=(x-0.3d0)*(x-0.7d0)
     df=2.d0*x-1.d0
   end subroutine decimal_interval_roots
+
+  subroutine endpoint_roots(x,f,df)
+    double precision, intent(in) :: x
+    double precision, intent(out) :: f,df
+
+    f=x*(x-0.75d0)
+    df=2.d0*x-0.75d0
+  end subroutine endpoint_roots
+
+  subroutine flat_derivative_root(x,f,df)
+    double precision, intent(in) :: x
+    double precision, intent(out) :: f,df
+
+    f=(x-0.5d0)**3
+    df=3.d0*(x-0.5d0)**2
+  end subroutine flat_derivative_root
+
+  subroutine invalid_domain(x,f,df)
+    double precision, intent(in) :: x
+    double precision, intent(out) :: f,df
+
+    if(x.gt.0.75d0) then
+      root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      f=0.d0
+      df=0.d0
+      return
+    endif
+    f=x-0.9d0
+    df=1.d0
+  end subroutine invalid_domain
 
 end program test_find_all_roots_bracketed
