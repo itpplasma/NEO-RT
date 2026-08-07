@@ -90,6 +90,17 @@ program test_gc_eqdsk_cut_interval_runtime
         box%numerator_R%lo, box%numerator_R%hi
     write (*, '(a,2(1x,es24.16))') 'regression NZ interval', &
         box%numerator_Z%lo, box%numerator_Z%hi
+    do j = 0, 8
+        Z_value = -1.5955200195312504e1_dp+real(j,dp) &
+            *(-1.5953979492187504e1_dp+1.5955200195312504e1_dp)/8.0_dp
+        position = [R_value, Z_value, 0.0_dp]
+        call evaluate_eqdsk_cut_jet(position, 1.0_dp, 1, &
+            [0.0_dp,0.0_dp,0.0_dp], point, point_status)
+        call require(point_status == EQDSK_CUT_JET_SUCCESS, &
+            'atlas regression scalar branch evaluation failed')
+        write (*, '(a,2(1x,es24.16))') 'regression scalar Z/N', &
+            Z_value, point%cut_numerator
+    end do
 
     cell_R = max(1, min(nrad-1, nrad/2))
     cell_Z = max(1, min(nzet-1, zero_Z))
