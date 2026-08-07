@@ -290,6 +290,16 @@ add_test(NAME test_gc_cylindrical_transport_provider
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_transport_provider.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_eqdsk_nonlocal_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_nonlocal_transport.x
+        ${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk
+        ${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/convexwall.dat
+        ${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/bmod_n.dat
+        ${CMAKE_SOURCE_DIR}/examples/orbit/plasma.in
+        ${CMAKE_SOURCE_DIR}/examples/orbit/profile.in
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gc_eqdsk_nonlocal_transport PROPERTIES TIMEOUT 180)
 add_test(NAME test_gc_full_fow_runtime_metadata
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_runtime_metadata.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

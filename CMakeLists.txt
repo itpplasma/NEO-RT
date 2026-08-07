@@ -121,6 +121,7 @@ set(NEO_RT_SOURCES
     src/gc_nonlocal_transport_types.f90
     src/gc_nonlocal_transport_integral.f90
     src/gc_cylindrical_transport_provider.f90
+    src/gc_eqdsk_nonlocal_transport.f90
     src/gc_full_fow_runtime_metadata.f90
     src/gc_full_fow_runtime_delivery.f90
     src/gc_model2_transport_dispatch.f90

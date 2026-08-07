@@ -1,0 +1,2427 @@
+module neort_gc_eqdsk_nonlocal_transport
+    !! Standalone direct-EQDSK full-FOW transport factory.
+    !!
+    !! This is the production seam for a real-space nonlocal calculation.  It
+    !! owns a concrete direct-EQDSK field, the native NEO-RT profiles, the
+    !! direct R-Z perturbation, and the validated wall.  It instantiates the
+    !! generic fixed-(H0,Jperp) cylindrical transport provider; it does not
+    !! manufacture a field, a potential, a perturbation, or a frequency.
+    !!
+    !! The class coordinate is s_tor on the outboard branch of the physical
+    !! Poincare cut
+    !!
+    !!     (grad B cross grad psi) dot grad phi = 0.
+    !!
+    !! The cut is located in direct R-Z space for every surface.  H0 and Jperp
+    !! are held fixed.  A complete same-oriented return is integrated in
+    !! (R,Z,phi), with Phi already in the Hamiltonian.  No Boozer angle or
+    !! local flux-surface reduction is used in this module.
+    !!
+    !! The provider's single canonical conversion is
+    !! psi_star=(c/q)*p_phi.  W_outer contains the explicit Eq. 17 profile
+    !! factor and the shell residence average, but no tau_b, n^2, or canonical
+    !! Jacobian.  The latter three factors are owned by the generic transport
+    !! and resonance layers.
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use fortnum_ode_vode, only: vode_init, vode_integrate_to, vode_state_t
+    use fortnum_status, only: FORTNUM_OK, fortnum_status_t
+    use do_magfie_mod, only: R0, a, bfac, inp_swi, psi_pr, sample_eqdsk_field, s
+    use do_magfie_pert_mod, only: do_magfie_pert_amp, inp_swi_pert, &
+        read_boozer_pert_file, rz_nrad, rz_nzet, set_mph
+    use geoflux_coordinates, only: cyl_to_geoflux, geoflux_get_flux_profiles, &
+        geoflux_to_cyl
+    use neort_gc_cylindrical_class_adapter, only: &
+        GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
+        gc_cylindrical_class_interval_t, gc_cylindrical_class_options_t, &
+        gc_cylindrical_class_launch_t, gc_cylindrical_class_point_t, &
+        gc_cylindrical_class_result_t, &
+        enumerate_gc_cylindrical_classes, &
+        evaluate_gc_cylindrical_class_point, &
+        initialize_gc_cylindrical_class_adapter, &
+        launch_gc_cylindrical_class
+    use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
+    use neort_gc_cylindrical_model, only: &
+        GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_FIELD_ERROR, GC_CYL_INTEGRATOR_ERROR, &
+        GC_CYL_INVARIANT_ERROR, GC_CYL_NO_RETURN, GC_CYL_PERTURBATION_ERROR, &
+        GC_CYL_POTENTIAL_ERROR, GC_CYL_START_ERROR, GC_CYL_STATE_ERROR, &
+        GC_CYL_SUCCESS, GC_CYL_WALL_ERROR, GC_CYL_WALL_LOSS, &
+        gc_cylindrical_field_sample_t, gc_cylindrical_field_t, &
+        gc_cylindrical_invariants_t, gc_cylindrical_potential_t, &
+        gc_cylindrical_polygon_wall_t, gc_cylindrical_state_t, &
+        gc_cylindrical_invariant_residuals, invariants_from_cylindrical_state
+    use neort_gc_cylindrical_nonlocal_provider, only: &
+        GC_CYL_NONLOCAL_CALLBACK_FAILURE, GC_CYL_NONLOCAL_ORBIT_ERROR_STATUS, &
+        GC_CYL_NONLOCAL_ORBIT_UNRESOLVED, GC_CYL_NONLOCAL_ORBIT_VALID, &
+        GC_CYL_NONLOCAL_ORBIT_WALL, GC_CYL_NONLOCAL_SUCCESS, &
+        GC_CYL_NONLOCAL_WALL_CLEAR, GC_CYL_NONLOCAL_WALL_HIT, &
+        gc_cylindrical_nonlocal_context_t, gc_cylindrical_nonlocal_orbit_t, &
+        initialize_gc_cylindrical_nonlocal_provider
+    use neort_gc_cylindrical_orbit, only: gc_cylindrical_orbit_options_t
+    use neort_gc_cylindrical_physical_return, only: &
+        GC_CYL_PHYSICAL_EVENT_RADIAL_DOMAIN, GC_CYL_PHYSICAL_EVENT_RETURN, &
+        GC_CYL_PHYSICAL_EVENT_WALL, gc_cylindrical_physical_return_options_t, &
+        gc_cylindrical_physical_return_t, &
+        compute_gc_cylindrical_physical_return
+    use neort_gc_cylindrical_transport_provider, only: &
+        GC_CYL_TRANSPORT_SUCCESS, gc_cylindrical_transport_node_factory_i, &
+        gc_cylindrical_transport_outer_factor_i, &
+        gc_cylindrical_transport_provider_t, &
+        clear_gc_cylindrical_transport_provider, &
+        initialize_gc_cylindrical_transport_provider
+    use neort_gc_eqdsk_cylindrical_adapter, only: &
+        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field, &
+        map_eqdsk_flux_position
+    use neort_gc_nonlocal_resonance_types, only: &
+        GC_NONLOCAL_MAX_FORCE_VALUES, GC_NONLOCAL_SAMPLE_VALID, &
+        gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t
+    use neort_gc_nonlocal_transport_types, only: &
+        GC_NONLOCAL_COMPLETE_CYCLE_FREQUENCIES, &
+        gc_nonlocal_transport_reference_t
+    use neort_gc_perpendicular_invariant, only: &
+        gc_buchholz_jk_from_mu_phys, gc_mu_phys_from_buchholz_jk
+    use neort_profiles, only: A1, A2, M_t, Om_tE, Ti1, ni1, vth, &
+        am1_global, Z1_global, init_plasma_at_s, init_profile_at_s, &
+        init_thermodynamic_forces, prepare_plasma_splines, &
+        prepare_profile_splines, read_plasma_input
+    use neort_wall_io, only: WALL_IO_OK, load_wall_polygon, wall_polygon_t
+    use util, only: c, eV, mu, pi, qe, readdata
+
+    implicit none
+    private
+
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_SUCCESS = 0
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_INVALID_INPUT = 1
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE = 1001
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE = 1002
+    integer, parameter, public :: &
+        GC_EQDSK_NONLOCAL_PERTURBATION_UNAVAILABLE = 1003
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE = 1004
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_WALL_UNAVAILABLE = 1005
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_DERIVATIVE_UNAVAILABLE = 1006
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED = 1007
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_SPECIES_MISMATCH = 1008
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_DOMAIN_ERROR = 1009
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_ORBIT_ERROR = 1010
+    integer, parameter, public :: GC_EQDSK_NONLOCAL_NONFINITE = 1011
+
+    integer, parameter :: FACTORY_FORCE_COUNT = 3
+    integer, parameter :: PROFILE_DENSITY = 1
+    integer, parameter :: PROFILE_TEMPERATURE = 2
+    integer, parameter :: PROFILE_PHI = 3
+    integer, parameter :: PROFILE_A1STAR = 4
+    integer, parameter :: PROFILE_A2STAR = 5
+    integer, parameter :: PROFILE_OMEGA_E = 6
+    integer, parameter :: AUGMENTED_STATE_SIZE = 8
+    integer, parameter :: MAX_CUT_ROOTS = 64
+
+    type, public :: gc_eqdsk_nonlocal_species_t
+        !! All quantities are in the direct NEO-RT CGS convention.
+        character(len=32) :: name = ''
+        real(dp) :: mass_g = 0.0_dp
+        real(dp) :: charge_esu = 0.0_dp
+        real(dp) :: reference_energy_erg = 0.0_dp
+        real(dp) :: reference_velocity_cm_s = 0.0_dp
+        character(len=16) :: mass_units = 'g'
+        character(len=16) :: charge_units = 'statC'
+        character(len=16) :: energy_units = 'erg'
+        character(len=16) :: velocity_units = 'cm/s'
+    end type gc_eqdsk_nonlocal_species_t
+
+    type, public :: gc_eqdsk_nonlocal_options_t
+        real(dp) :: field_scale = 1.0_dp
+        real(dp) :: profile_electric_factor = 1.0_dp
+        real(dp) :: profile_bfactor = 1.0_dp
+        real(dp) :: surface_min = 0.05_dp
+        real(dp) :: surface_max = 0.95_dp
+        real(dp) :: reference_surface = 0.50_dp
+        integer :: cut_theta_points = 257
+        real(dp) :: cut_root_tolerance = 1.0e-10_dp
+        real(dp) :: cut_derivative_step = 1.0e-5_dp
+        real(dp) :: orbit_derivative_fraction = 2.0e-4_dp
+        real(dp) :: orbit_derivative_tolerance = 2.0e-3_dp
+        real(dp) :: invariant_relative_tolerance = 3.0e-8_dp
+        real(dp) :: orbit_maximum_step = 0.0_dp
+        real(dp) :: topology_probe_fraction = 0.125_dp
+        integer :: topology_probe_count = 5
+        ! Negative selects the launch cut coordinate x as the Eq. 17 target.
+        ! Otherwise this is an explicit s_tor threshold, never a geometric
+        ! minor-radius approximation.
+        real(dp) :: residence_target_s_tor = -1.0_dp
+        type(gc_cylindrical_class_options_t) :: class_options = &
+            gc_cylindrical_class_options_t()
+        type(gc_cylindrical_orbit_options_t) :: orbit_options = &
+            gc_cylindrical_orbit_options_t()
+    end type gc_eqdsk_nonlocal_options_t
+
+    type, extends(gc_cylindrical_potential_t), public :: &
+            gc_eqdsk_profile_potential_t
+        !! Phi is integrated from native Omega_E(s_tor) once.
+        real(dp), allocatable :: s_tor(:)
+        real(dp), allocatable :: psi_pol(:)
+        real(dp), allocatable :: phi(:)
+        real(dp), allocatable :: omega_e(:)
+        real(dp) :: c_light = 0.0_dp
+        logical :: initialized = .false.
+    contains
+        procedure :: evaluate => evaluate_eqdsk_profile_potential
+    end type gc_eqdsk_profile_potential_t
+
+    type, public :: gc_eqdsk_orbit_result_t
+        integer :: status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
+        real(dp) :: period = 0.0_dp
+        real(dp) :: delta_phi = 0.0_dp
+        real(dp) :: shell_average = 0.0_dp
+        complex(dp) :: h_m = cmplx(0.0_dp, 0.0_dp, kind=dp)
+        logical :: wall_hit = .false.
+        real(dp) :: energy_error = 0.0_dp
+        real(dp) :: magnetic_moment_error = 0.0_dp
+        real(dp) :: canonical_momentum_error = 0.0_dp
+        integer :: return_orientation = 0
+        integer :: event_kind = 0
+        logical :: physical_return_found = .false.
+        logical :: radial_domain_hit = .false.
+        type(gc_cylindrical_state_t) :: state_at_return
+    end type gc_eqdsk_orbit_result_t
+
+    type, public :: gc_eqdsk_nonlocal_factory_t
+        !! The concrete field is owned here.  It is never a pointer to a
+        !! temporary local object, so cached class adapters retain a valid
+        !! target for their whole factory lifetime.
+        type(eqdsk_cylindrical_field_t) :: field
+        type(gc_cylindrical_transport_provider_t) :: provider
+        type(gc_eqdsk_nonlocal_species_t) :: species
+        type(gc_eqdsk_nonlocal_options_t) :: options
+        type(gc_eqdsk_profile_potential_t) :: potential
+        type(gc_cylindrical_polygon_wall_t) :: wall
+        character(len=1024) :: eqdsk_path = ''
+        character(len=1024) :: wall_path = ''
+        character(len=1024) :: perturbation_path = ''
+        character(len=1024) :: plasma_path = ''
+        character(len=1024) :: profile_path = ''
+        character(len=16) :: wall_units = ''
+        character(len=16) :: wall_backend_units = 'cm'
+        character(len=64) :: wall_hash = ''
+        character(len=64) :: section_reference_id = ''
+        character(len=32) :: section_coordinate = 's_tor:Poincare_C0'
+        character(len=32) :: section_units = 's_tor'
+        real(dp) :: section_position(3) = 0.0_dp
+        real(dp) :: section_flux = 0.0_dp
+        integer :: section_orientation = 0
+        real(dp) :: minor_radius_cm = 0.0_dp
+        real(dp) :: psi_pr_effective = 0.0_dp
+        real(dp) :: phi_eff = 0.0_dp
+        real(dp), allocatable :: profile_s(:)
+        real(dp), allocatable :: profile_psi(:)
+        real(dp), allocatable :: profile_dpsi_ds(:)
+        real(dp), allocatable :: profile_values(:, :)
+        logical :: field_ready = .false.
+        logical :: profile_ready = .false.
+        logical :: perturbation_ready = .false.
+        logical :: wall_ready = .false.
+        logical :: cut_ready = .false.
+        logical :: topology_ready = .false.
+        logical :: initialized = .false.
+        integer :: physical_return_attempts = 0
+        integer :: physical_return_successes = 0
+        integer :: wall_return_count = 0
+        integer :: radial_return_count = 0
+        integer :: no_return_count = 0
+        integer :: invariant_rejection_count = 0
+        integer :: field_error_count = 0
+        integer :: potential_error_count = 0
+        integer :: state_error_count = 0
+        integer :: start_error_count = 0
+        integer :: integrator_error_count = 0
+        integer :: other_return_error_count = 0
+        integer :: last_return_status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
+        integer :: last_return_event_kind = 0
+        real(dp) :: last_launch_event_value = 0.0_dp
+        real(dp) :: last_return_event_value = 0.0_dp
+        real(dp) :: last_invariant_scaled_drift = 0.0_dp
+        real(dp) :: last_energy_error = 0.0_dp
+        real(dp) :: last_magnetic_moment_error = 0.0_dp
+        real(dp) :: last_canonical_momentum_error = 0.0_dp
+        integer :: topology_certification_attempts = 0
+        integer :: topology_certification_successes = 0
+        integer :: harmonic_average_successes = 0
+        integer :: residence_average_successes = 0
+    end type gc_eqdsk_nonlocal_factory_t
+
+    type, public :: gc_eqdsk_nonlocal_diagnostics_t
+        integer :: physical_return_attempts = 0
+        integer :: physical_return_successes = 0
+        integer :: wall_returns = 0
+        integer :: radial_domain_returns = 0
+        integer :: no_returns = 0
+        integer :: invariant_rejections = 0
+        integer :: field_errors = 0
+        integer :: potential_errors = 0
+        integer :: state_errors = 0
+        integer :: start_errors = 0
+        integer :: integrator_errors = 0
+        integer :: other_return_errors = 0
+        integer :: categorized_returns = 0
+        logical :: return_accounting_complete = .false.
+        integer :: last_return_status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
+        integer :: last_return_event_kind = 0
+        real(dp) :: last_launch_event_value = 0.0_dp
+        real(dp) :: last_return_event_value = 0.0_dp
+        real(dp) :: last_invariant_scaled_drift = 0.0_dp
+        real(dp) :: last_energy_error = 0.0_dp
+        real(dp) :: last_magnetic_moment_error = 0.0_dp
+        real(dp) :: last_canonical_momentum_error = 0.0_dp
+        integer :: topology_certification_attempts = 0
+        integer :: topology_certification_successes = 0
+        integer :: harmonic_average_successes = 0
+        integer :: residence_average_successes = 0
+        logical :: field_ready = .false.
+        logical :: profile_ready = .false.
+        logical :: perturbation_ready = .false.
+        logical :: wall_ready = .false.
+        logical :: cut_ready = .false.
+        logical :: topology_ready = .false.
+        logical :: initialized = .false.
+    end type gc_eqdsk_nonlocal_diagnostics_t
+
+    public :: initialize_gc_eqdsk_nonlocal_transport
+    public :: clear_gc_eqdsk_nonlocal_transport
+    public :: evaluate_gc_eqdsk_native_profile
+    public :: gc_eqdsk_nonlocal_status_message
+    public :: get_gc_eqdsk_nonlocal_diagnostics
+    public :: poincare_cut_value_position
+
+contains
+
+    pure subroutine get_gc_eqdsk_nonlocal_diagnostics(factory, diagnostics)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        type(gc_eqdsk_nonlocal_diagnostics_t), intent(out) :: diagnostics
+
+        diagnostics = gc_eqdsk_nonlocal_diagnostics_t()
+        diagnostics%physical_return_attempts = factory%physical_return_attempts
+        diagnostics%physical_return_successes = &
+            factory%physical_return_successes
+        diagnostics%wall_returns = factory%wall_return_count
+        diagnostics%radial_domain_returns = factory%radial_return_count
+        diagnostics%no_returns = factory%no_return_count
+        diagnostics%invariant_rejections = factory%invariant_rejection_count
+        diagnostics%field_errors = factory%field_error_count
+        diagnostics%potential_errors = factory%potential_error_count
+        diagnostics%state_errors = factory%state_error_count
+        diagnostics%start_errors = factory%start_error_count
+        diagnostics%integrator_errors = factory%integrator_error_count
+        diagnostics%other_return_errors = factory%other_return_error_count
+        diagnostics%categorized_returns = diagnostics%physical_return_successes &
+            +diagnostics%wall_returns+diagnostics%radial_domain_returns &
+            +diagnostics%no_returns+diagnostics%invariant_rejections &
+            +diagnostics%field_errors+diagnostics%potential_errors &
+            +diagnostics%state_errors+diagnostics%start_errors &
+            +diagnostics%integrator_errors+diagnostics%other_return_errors
+        diagnostics%return_accounting_complete = &
+            diagnostics%categorized_returns == diagnostics%physical_return_attempts
+        diagnostics%last_return_status = factory%last_return_status
+        diagnostics%last_return_event_kind = factory%last_return_event_kind
+        diagnostics%last_launch_event_value = factory%last_launch_event_value
+        diagnostics%last_return_event_value = factory%last_return_event_value
+        diagnostics%last_invariant_scaled_drift = &
+            factory%last_invariant_scaled_drift
+        diagnostics%last_energy_error = factory%last_energy_error
+        diagnostics%last_magnetic_moment_error = &
+            factory%last_magnetic_moment_error
+        diagnostics%last_canonical_momentum_error = &
+            factory%last_canonical_momentum_error
+        diagnostics%topology_certification_attempts = &
+            factory%topology_certification_attempts
+        diagnostics%topology_certification_successes = &
+            factory%topology_certification_successes
+        diagnostics%harmonic_average_successes = &
+            factory%harmonic_average_successes
+        diagnostics%residence_average_successes = &
+            factory%residence_average_successes
+        diagnostics%field_ready = factory%field_ready
+        diagnostics%profile_ready = factory%profile_ready
+        diagnostics%perturbation_ready = factory%perturbation_ready
+        diagnostics%wall_ready = factory%wall_ready
+        diagnostics%cut_ready = factory%cut_ready
+        diagnostics%topology_ready = factory%topology_ready
+        diagnostics%initialized = factory%initialized
+    end subroutine get_gc_eqdsk_nonlocal_diagnostics
+
+    subroutine initialize_gc_eqdsk_nonlocal_transport(eqdsk_path, wall_path, &
+            wall_units, perturbation_path, plasma_path, profile_path, species, &
+            h0_nodes, h0_weights, jperp_nodes, jperp_weights, harmonic_m, &
+            harmonic_n, factory, status, options)
+        character(len=*), intent(in) :: eqdsk_path, wall_path, wall_units
+        character(len=*), intent(in) :: perturbation_path, plasma_path
+        character(len=*), intent(in) :: profile_path
+        type(gc_eqdsk_nonlocal_species_t), intent(in) :: species
+        real(dp), intent(in) :: h0_nodes(:), h0_weights(:)
+        real(dp), intent(in) :: jperp_nodes(:), jperp_weights(:)
+        integer, intent(in) :: harmonic_m, harmonic_n
+        type(gc_eqdsk_nonlocal_factory_t), target, intent(out) :: factory
+        integer, intent(out) :: status
+        type(gc_eqdsk_nonlocal_options_t), intent(in), optional :: options
+
+        type(wall_polygon_t) :: input_wall
+        type(gc_nonlocal_transport_reference_t) :: reference
+        character(len=128) :: wall_message
+        integer :: local_status, wall_status
+
+        factory = gc_eqdsk_nonlocal_factory_t()
+        status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        if (present(options)) factory%options = options
+        factory%species = species
+        factory%eqdsk_path = trim(eqdsk_path)
+        factory%wall_path = trim(wall_path)
+        factory%wall_units = trim(wall_units)
+        factory%perturbation_path = trim(perturbation_path)
+        factory%plasma_path = trim(plasma_path)
+        factory%profile_path = trim(profile_path)
+
+        local_status = validate_factory_inputs(factory, harmonic_m, harmonic_n, &
+            h0_nodes, h0_weights, jperp_nodes, jperp_weights)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        if (.not. readable_file(factory%eqdsk_path)) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            return
+        end if
+        if (.not. readable_file(factory%wall_path)) then
+            status = GC_EQDSK_NONLOCAL_WALL_UNAVAILABLE
+            return
+        end if
+        if (.not. readable_file(factory%perturbation_path)) then
+            status = GC_EQDSK_NONLOCAL_PERTURBATION_UNAVAILABLE
+            return
+        end if
+        if (.not. readable_file(factory%plasma_path)) then
+            status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+            return
+        end if
+        if (.not. readable_file(factory%profile_path)) then
+            status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+            return
+        end if
+
+        call initialize_direct_field(factory, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        call load_direct_wall(factory, input_wall, wall_message, wall_status)
+        if (wall_status /= WALL_IO_OK) then
+            status = GC_EQDSK_NONLOCAL_WALL_UNAVAILABLE
+            return
+        end if
+        call factory%wall%set_vertices(input_wall%vertices, local_status)
+        if (local_status /= GC_CYL_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_WALL_UNAVAILABLE
+            return
+        end if
+        factory%wall_units = input_wall%input_units
+        factory%wall_hash = input_wall%hash
+        factory%wall_ready = .true.
+
+        call load_native_profiles(factory, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        call load_direct_perturbation(factory, harmonic_n, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        call build_poincare_reference(factory, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+
+        reference = make_transport_reference(factory)
+        call initialize_gc_cylindrical_transport_provider(factory%provider, &
+            h0_nodes, h0_weights, jperp_nodes, jperp_weights, reference, &
+            harmonic_m, harmonic_n, FACTORY_FORCE_COUNT, factory_node_factory, &
+            factory_outer_factor, local_status, user_data=factory, &
+            section_reference_id=factory%section_reference_id)
+        if (local_status /= GC_CYL_TRANSPORT_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+            return
+        end if
+        factory%initialized = .true.
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine initialize_gc_eqdsk_nonlocal_transport
+
+    subroutine clear_gc_eqdsk_nonlocal_transport(factory)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+
+        call clear_gc_cylindrical_transport_provider(factory%provider)
+        if (allocated(factory%profile_s)) deallocate(factory%profile_s)
+        if (allocated(factory%profile_psi)) deallocate(factory%profile_psi)
+        if (allocated(factory%profile_dpsi_ds)) deallocate(factory%profile_dpsi_ds)
+        if (allocated(factory%profile_values)) deallocate(factory%profile_values)
+        call clear_profile_potential(factory%potential)
+        if (allocated(factory%wall%vertices)) deallocate(factory%wall%vertices)
+        factory%wall%initialized = .false.
+        factory%field = eqdsk_cylindrical_field_t()
+        factory%field_ready = .false.
+        factory%profile_ready = .false.
+        factory%perturbation_ready = .false.
+        factory%wall_ready = .false.
+        factory%cut_ready = .false.
+        factory%topology_ready = .false.
+        factory%initialized = .false.
+        factory%physical_return_attempts = 0
+        factory%physical_return_successes = 0
+        factory%wall_return_count = 0
+        factory%radial_return_count = 0
+        factory%no_return_count = 0
+        factory%invariant_rejection_count = 0
+        factory%field_error_count = 0
+        factory%potential_error_count = 0
+        factory%state_error_count = 0
+        factory%start_error_count = 0
+        factory%integrator_error_count = 0
+        factory%other_return_error_count = 0
+        factory%last_return_status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
+        factory%last_return_event_kind = 0
+        factory%last_launch_event_value = 0.0_dp
+        factory%last_return_event_value = 0.0_dp
+        factory%last_invariant_scaled_drift = 0.0_dp
+        factory%last_energy_error = 0.0_dp
+        factory%last_magnetic_moment_error = 0.0_dp
+        factory%last_canonical_momentum_error = 0.0_dp
+        factory%topology_certification_attempts = 0
+        factory%topology_certification_successes = 0
+        factory%harmonic_average_successes = 0
+        factory%residence_average_successes = 0
+    end subroutine clear_gc_eqdsk_nonlocal_transport
+
+    subroutine evaluate_gc_eqdsk_native_profile(factory, psi_star, density, &
+            temperature_erg, potential, a1_star, a2_star, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        real(dp), intent(in) :: psi_star
+        real(dp), intent(out) :: density, temperature_erg, potential
+        real(dp), intent(out) :: a1_star, a2_star
+        integer, intent(out) :: status
+
+        real(dp) :: values(FACTORY_FORCE_COUNT + 3)
+
+        density = 0.0_dp
+        temperature_erg = 0.0_dp
+        potential = 0.0_dp
+        a1_star = 0.0_dp
+        a2_star = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+        if (.not. factory%profile_ready) return
+        call interpolate_profile(factory, psi_star, values, status)
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        density = values(PROFILE_DENSITY)
+        temperature_erg = values(PROFILE_TEMPERATURE)
+        potential = values(PROFILE_PHI)
+        a1_star = values(PROFILE_A1STAR)
+        a2_star = values(PROFILE_A2STAR)
+        if (.not. all(ieee_is_finite([density, temperature_erg, potential, &
+            a1_star, a2_star]))) then
+            density = 0.0_dp
+            temperature_erg = 0.0_dp
+            potential = 0.0_dp
+            a1_star = 0.0_dp
+            a2_star = 0.0_dp
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        if (density <= 0.0_dp .or. temperature_erg <= 0.0_dp) then
+            status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine evaluate_gc_eqdsk_native_profile
+
+    function gc_eqdsk_nonlocal_status_message(status) result(message)
+        integer, intent(in) :: status
+        character(len=64) :: message
+
+        select case (status)
+        case (GC_EQDSK_NONLOCAL_SUCCESS)
+            message = 'success'
+        case (GC_EQDSK_NONLOCAL_INVALID_INPUT)
+            message = 'invalid input'
+        case (GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE)
+            message = 'direct EQDSK field unavailable'
+        case (GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE)
+            message = 'native profile unavailable'
+        case (GC_EQDSK_NONLOCAL_PERTURBATION_UNAVAILABLE)
+            message = 'direct R-Z perturbation unavailable'
+        case (GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE)
+            message = 'physical topology unavailable'
+        case (GC_EQDSK_NONLOCAL_WALL_UNAVAILABLE)
+            message = 'wall certification unavailable'
+        case (GC_EQDSK_NONLOCAL_DERIVATIVE_UNAVAILABLE)
+            message = 'orbit derivative unavailable'
+        case (GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED)
+            message = 'production certification failed'
+        case (GC_EQDSK_NONLOCAL_SPECIES_MISMATCH)
+            message = 'requested species does not match native profile'
+        case (GC_EQDSK_NONLOCAL_DOMAIN_ERROR)
+            message = 'direct EQDSK domain error'
+        case (GC_EQDSK_NONLOCAL_ORBIT_ERROR)
+            message = 'full-FOW orbit return failed'
+        case (GC_EQDSK_NONLOCAL_NONFINITE)
+            message = 'nonfinite physical quantity'
+        case default
+            message = 'unknown direct EQDSK nonlocal status'
+        end select
+    end function gc_eqdsk_nonlocal_status_message
+
+    subroutine evaluate_eqdsk_profile_potential(self, position, field, potential, &
+            gradient, status)
+        class(gc_eqdsk_profile_potential_t), intent(in) :: self
+        real(dp), intent(in) :: position(3)
+        type(gc_cylindrical_field_sample_t), intent(in) :: field
+        real(dp), intent(out) :: potential, gradient(3)
+        integer, intent(out) :: status
+
+        real(dp) :: values(2), psi
+
+        associate (unused_position => position)
+        end associate
+        potential = 0.0_dp
+        gradient = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+        if (.not. self%initialized) return
+        if (self%c_light <= 0.0_dp) return
+        psi = field%psi
+        call interpolate_potential(self, psi, values, status)
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        potential = values(1)
+        gradient = values(2)*field%grad_psi
+        if (.not. all(ieee_is_finite([potential, gradient]))) then
+            potential = 0.0_dp
+            gradient = 0.0_dp
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        status = GC_CYL_SUCCESS
+    end subroutine evaluate_eqdsk_profile_potential
+
+    subroutine initialize_direct_field(factory, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        integer, intent(out) :: status
+        integer :: local_status
+
+        factory%field_ready = .false.
+        call initialize_eqdsk_cylindrical_field(trim(factory%eqdsk_path), &
+            factory%options%field_scale, factory%field, local_status)
+        if (local_status /= GC_CYL_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            return
+        end if
+        if (.not. factory%field%domain_initialized) then
+            status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+            return
+        end if
+        if (.not. all(ieee_is_finite([R0, a, psi_pr]))) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            return
+        end if
+        if (a <= 0.0_dp) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            return
+        end if
+        factory%minor_radius_cm = a
+        factory%psi_pr_effective = factory%options%field_scale*psi_pr
+        factory%field_ready = .true.
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine initialize_direct_field
+
+    subroutine load_direct_wall(factory, input_wall, message, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        type(wall_polygon_t), intent(out) :: input_wall
+        character(len=*), intent(out) :: message
+        integer, intent(out) :: status
+
+        call load_wall_polygon(trim(factory%wall_path), input_wall, status, &
+            message, trim(factory%wall_units))
+    end subroutine load_direct_wall
+
+    subroutine load_native_profiles(factory, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        integer, intent(out) :: status
+
+        integer :: nplasma, nrotation, i, local_status
+        real(dp) :: am1, am2, z1, z2, q_value, dqds_value
+        real(dp) :: psi_value, dpsi_ds, psi_edge
+        real(dp), allocatable :: plasma(:, :), rotation(:, :)
+        real(dp) :: s_value
+
+        status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+        factory%profile_ready = .false.
+        call read_plasma_input(trim(factory%plasma_path), nplasma, am1, am2, &
+            z1, z2, plasma)
+        if (.not. allocated(plasma)) return
+        if (nplasma < 3 .or. size(plasma, 2) /= 6) then
+            deallocate(plasma)
+            return
+        end if
+        if (.not. all(ieee_is_finite(plasma))) then
+            deallocate(plasma)
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        if (abs(am1*mu - factory%species%mass_g) > &
+            3.0e-10_dp*max(abs(factory%species%mass_g), tiny(1.0_dp))) then
+            deallocate(plasma)
+            status = GC_EQDSK_NONLOCAL_SPECIES_MISMATCH
+            return
+        end if
+        if (abs(z1*qe - factory%species%charge_esu) > &
+            3.0e-10_dp*max(abs(factory%species%charge_esu), tiny(1.0_dp))) then
+            deallocate(plasma)
+            status = GC_EQDSK_NONLOCAL_SPECIES_MISMATCH
+            return
+        end if
+        do i = 2, nplasma
+            if (plasma(i, 1) <= plasma(i - 1, 1)) then
+                deallocate(plasma)
+                return
+            end if
+        end do
+        if (plasma(1, 1) > factory%options%surface_min .or. &
+            plasma(nplasma, 1) < factory%options%surface_max) then
+            deallocate(plasma)
+            return
+        end if
+
+        call prepare_plasma_splines(nplasma, am1, am2, z1, z2, plasma)
+        call readdata(trim(factory%profile_path), 2, rotation)
+        if (.not. allocated(rotation)) then
+            deallocate(plasma)
+            return
+        end if
+        nrotation = size(rotation, 1)
+        if (nrotation < 2 .or. size(rotation, 2) /= 2) then
+            deallocate(plasma, rotation)
+            return
+        end if
+        if (.not. all(ieee_is_finite(rotation))) then
+            deallocate(plasma, rotation)
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        do i = 2, nrotation
+            if (rotation(i, 1) <= rotation(i - 1, 1)) then
+                deallocate(plasma, rotation)
+                return
+            end if
+        end do
+        if (rotation(1, 1) > factory%options%surface_min .or. &
+            rotation(nrotation, 1) < factory%options%surface_max) then
+            deallocate(plasma, rotation)
+            return
+        end if
+        call prepare_profile_splines(rotation)
+
+        if (allocated(factory%profile_s)) deallocate(factory%profile_s)
+        if (allocated(factory%profile_psi)) deallocate(factory%profile_psi)
+        if (allocated(factory%profile_dpsi_ds)) then
+            deallocate(factory%profile_dpsi_ds)
+        end if
+        if (allocated(factory%profile_values)) deallocate(factory%profile_values)
+        allocate(factory%profile_s(nplasma), factory%profile_psi(nplasma), &
+            factory%profile_dpsi_ds(nplasma), &
+            factory%profile_values(nplasma, 6))
+        factory%profile_s = plasma(:, 1)
+        factory%profile_values = 0.0_dp
+
+        do i = 1, nplasma
+            s_value = factory%profile_s(i)
+            call geoflux_get_flux_profiles(s_value, q_value, dqds_value, &
+                psi_value, dpsi_ds, psi_edge)
+            call sample_one_profile_surface(factory, s_value, q_value, &
+                psi_value, dpsi_ds, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                deallocate(plasma, rotation)
+                status = local_status
+                return
+            end if
+            if (Ti1 <= 0.0_dp .or. ni1 <= 0.0_dp .or. &
+                abs(dpsi_ds) <= tiny(dpsi_ds)) then
+                deallocate(plasma, rotation)
+                return
+            end if
+            factory%profile_psi(i) = factory%options%field_scale*psi_value
+            factory%profile_dpsi_ds(i) = factory%options%field_scale*dpsi_ds
+            factory%profile_values(i, PROFILE_DENSITY) = ni1
+            factory%profile_values(i, PROFILE_TEMPERATURE) = Ti1*eV
+            factory%profile_values(i, PROFILE_OMEGA_E) = Om_tE
+            factory%profile_values(i, PROFILE_A1STAR) = &
+                A1/factory%profile_dpsi_ds(i)
+            factory%profile_values(i, PROFILE_A2STAR) = &
+                A2/factory%profile_dpsi_ds(i)
+        end do
+        deallocate(plasma, rotation)
+
+        call initialize_profile_potential(factory, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        factory%phi_eff = c*factory%species%reference_energy_erg &
+            /(factory%species%charge_esu &
+            *factory%species%reference_velocity_cm_s)
+        if (.not. ieee_is_finite(factory%phi_eff)) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        factory%profile_ready = .true.
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine load_native_profiles
+
+    subroutine sample_one_profile_surface(factory, s_value, q_value, psi_value, &
+            dpsi_ds, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: s_value
+        real(dp), intent(inout) :: q_value, psi_value, dpsi_ds
+        integer, intent(out) :: status
+
+        real(dp) :: dqds_unused, psi_edge_unused
+
+        call geoflux_get_flux_profiles(s_value, q_value, dqds_unused, &
+            psi_value, dpsi_ds, psi_edge_unused)
+        if (.not. all(ieee_is_finite([q_value, psi_value, dpsi_ds]))) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        if (abs(q_value) <= tiny(q_value)) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            return
+        end if
+        s = s_value
+        call init_plasma_at_s()
+        call init_profile_at_s(R0, factory%options%profile_electric_factor, &
+            factory%options%profile_bfactor)
+        call init_thermodynamic_forces(factory%psi_pr_effective, q_value)
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine sample_one_profile_surface
+
+    subroutine initialize_profile_potential(factory, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        integer, intent(out) :: status
+
+        integer :: i, n
+
+        status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+        n = size(factory%profile_s)
+        if (n < 2) return
+        if (allocated(factory%potential%s_tor)) then
+            call clear_profile_potential(factory%potential)
+        end if
+        allocate(factory%potential%s_tor(n), factory%potential%psi_pol(n), &
+            factory%potential%phi(n), factory%potential%omega_e(n))
+        factory%potential%s_tor = factory%profile_s
+        factory%potential%psi_pol = factory%profile_psi
+        factory%potential%omega_e = &
+            factory%profile_values(:, PROFILE_OMEGA_E)
+        factory%potential%phi(1) = 0.0_dp
+        do i = 2, n
+            factory%potential%phi(i) = factory%potential%phi(i - 1) + &
+                0.5_dp*(factory%potential%omega_e(i - 1) &
+                +factory%potential%omega_e(i))/c &
+                *(factory%potential%psi_pol(i) &
+                -factory%potential%psi_pol(i - 1))
+        end do
+        factory%potential%c_light = c
+        factory%potential%initialized = .true.
+        factory%profile_values(:, PROFILE_PHI) = 0.0_dp
+        do i = 1, n
+            factory%profile_values(i, PROFILE_PHI) = factory%potential%phi(i)
+        end do
+        if (.not. all(ieee_is_finite(factory%potential%phi))) then
+            call clear_profile_potential(factory%potential)
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine initialize_profile_potential
+
+    subroutine clear_profile_potential(potential)
+        type(gc_eqdsk_profile_potential_t), intent(inout) :: potential
+
+        if (allocated(potential%s_tor)) deallocate(potential%s_tor)
+        if (allocated(potential%psi_pol)) deallocate(potential%psi_pol)
+        if (allocated(potential%phi)) deallocate(potential%phi)
+        if (allocated(potential%omega_e)) deallocate(potential%omega_e)
+        potential%c_light = 0.0_dp
+        potential%initialized = .false.
+    end subroutine clear_profile_potential
+
+    subroutine load_direct_perturbation(factory, harmonic_n, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        integer, intent(in) :: harmonic_n
+        integer, intent(out) :: status
+
+        factory%perturbation_ready = .false.
+        if (harmonic_n == 0) then
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+            return
+        end if
+        if (factory%options%profile_bfactor <= 0.0_dp) then
+            status = GC_EQDSK_NONLOCAL_PERTURBATION_UNAVAILABLE
+            return
+        end if
+        if (inp_swi /= 11) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            return
+        end if
+        ! The direct R-Z reader uses the shared NEO-RT perturbation b-factor.
+        ! This is a serialized standalone factory boundary; the legacy global
+        ! state has no instance API, so concurrent direct factories are not
+        ! certified by this seam.
+        bfac = factory%options%profile_bfactor
+        inp_swi_pert = 11
+        call read_boozer_pert_file(trim(factory%perturbation_path))
+        call set_mph(harmonic_n)
+        if (inp_swi_pert /= 11 .or. rz_nrad < 2 .or. rz_nzet < 2) then
+            status = GC_EQDSK_NONLOCAL_PERTURBATION_UNAVAILABLE
+            return
+        end if
+        factory%perturbation_ready = .true.
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine load_direct_perturbation
+
+    subroutine build_poincare_reference(factory, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        integer, intent(out) :: status
+
+        real(dp) :: dposition(3), distance
+        real(dp) :: q_value, dqds_value, psi_value, dpsi_ds, psi_edge
+        integer :: wall_status
+
+        factory%cut_ready = .false.
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        call physical_cut_map(factory, factory%options%reference_surface, &
+            factory%section_position, dposition, status)
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call factory%wall%evaluate(factory%section_position, distance, wall_status)
+        if (wall_status /= GC_CYL_SUCCESS .or. distance <= 0.0_dp) then
+            status = GC_EQDSK_NONLOCAL_WALL_UNAVAILABLE
+            return
+        end if
+        call geoflux_get_flux_profiles(factory%options%reference_surface, &
+            q_value, dqds_value, psi_value, dpsi_ds, psi_edge)
+        factory%section_flux = factory%options%field_scale*psi_value
+        if (.not. ieee_is_finite(factory%section_flux)) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        factory%section_orientation = 1
+        factory%section_reference_id = 'direct-eqdsk-C0-outboard-v1'
+        factory%cut_ready = .true.
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine build_poincare_reference
+
+    subroutine interpolate_profile(factory, psi, values, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        real(dp), intent(in) :: psi
+        real(dp), intent(out) :: values(:)
+        integer, intent(out) :: status
+
+        integer :: left, right, n, i
+        real(dp) :: weight
+
+        values = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+        if (.not. factory%profile_ready) return
+        n = size(factory%profile_psi)
+        if (size(values) < size(factory%profile_values, 2)) return
+        call locate_monotonic(factory%profile_psi, psi, left, right, weight, &
+            status)
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        do i = 1, size(factory%profile_values, 2)
+            values(i) = (1.0_dp - weight)*factory%profile_values(left, i) &
+                +weight*factory%profile_values(right, i)
+        end do
+        if (n < 2 .or. .not. all(ieee_is_finite(values))) then
+            values = 0.0_dp
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine interpolate_profile
+
+    subroutine interpolate_potential(potential, psi, values, status)
+        class(gc_eqdsk_profile_potential_t), intent(in) :: potential
+        real(dp), intent(in) :: psi
+        real(dp), intent(out) :: values(2)
+        integer, intent(out) :: status
+
+        integer :: left, right
+        real(dp) :: weight, dpsi
+
+        values = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+        if (.not. potential%initialized) return
+        call locate_monotonic(potential%psi_pol, psi, left, right, weight, status)
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        dpsi = potential%psi_pol(right) - potential%psi_pol(left)
+        if (abs(dpsi) <= tiny(dpsi)) then
+            status = GC_EQDSK_NONLOCAL_DERIVATIVE_UNAVAILABLE
+            return
+        end if
+        values(1) = (1.0_dp - weight)*potential%phi(left) &
+            +weight*potential%phi(right)
+        values(2) = (potential%phi(right) - potential%phi(left))/dpsi
+        if (.not. all(ieee_is_finite(values))) then
+            values = 0.0_dp
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine interpolate_potential
+
+    subroutine locate_monotonic(axis, value, left, right, weight, status)
+        real(dp), intent(in) :: axis(:), value
+        integer, intent(out) :: left, right
+        real(dp), intent(out) :: weight
+        integer, intent(out) :: status
+
+        integer :: low, high, mid, n
+        logical :: ascending
+        real(dp) :: tolerance, denominator
+
+        left = 0
+        right = 0
+        weight = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
+        n = size(axis)
+        if (n < 2) return
+        if (.not. all(ieee_is_finite([axis, value]))) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        ascending = axis(n) > axis(1)
+        if (ascending) then
+            if (value < axis(1) .or. value > axis(n)) return
+        else
+            if (value > axis(1) .or. value < axis(n)) return
+        end if
+        low = 1
+        high = n
+        do while (high - low > 1)
+            mid = (low + high)/2
+            if (ascending) then
+                if (axis(mid) <= value) then
+                    low = mid
+                else
+                    high = mid
+                end if
+            else
+                if (axis(mid) >= value) then
+                    low = mid
+                else
+                    high = mid
+                end if
+            end if
+        end do
+        if (value == axis(n)) then
+            low = n - 1
+            high = n
+        end if
+        denominator = axis(high) - axis(low)
+        tolerance = 100.0_dp*epsilon(max(1.0_dp, abs(value)))
+        if (abs(denominator) <= tolerance) then
+            status = GC_EQDSK_NONLOCAL_DERIVATIVE_UNAVAILABLE
+            return
+        end if
+        left = low
+        right = high
+        weight = (value - axis(left))/denominator
+        weight = max(0.0_dp, min(1.0_dp, weight))
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine locate_monotonic
+
+    subroutine physical_cut_map(factory, surface, position, dposition_ds, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: surface
+        real(dp), intent(out) :: position(3), dposition_ds(3)
+        integer, intent(out) :: status
+
+        real(dp) :: theta, theta_minus, theta_plus, step, surface_step
+        real(dp) :: position_minus(3), position_plus(3)
+        logical :: has_minus, has_plus
+        integer :: local_status
+
+        position = 0.0_dp
+        dposition_ds = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        if (.not. factory%field_ready) return
+        if (surface < factory%options%surface_min .or. &
+            surface > factory%options%surface_max) return
+        call find_outboard_cut_theta(factory, surface, theta, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        call map_eqdsk_flux_position(surface, theta, 0.0_dp, position, &
+            local_status)
+        if (local_status /= GC_CYL_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+            return
+        end if
+        surface_step = factory%options%cut_derivative_step &
+            *max(1.0_dp, abs(surface))
+        step = min(surface_step, 0.25_dp &
+            *(factory%options%surface_max-factory%options%surface_min))
+        if (step <= 0.0_dp) return
+        has_minus = surface - step >= factory%options%surface_min
+        has_plus = surface + step <= factory%options%surface_max
+        if (has_minus .and. has_plus) then
+            call map_cut_without_derivative(factory, surface-step, position_minus, &
+                local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = local_status
+                return
+            end if
+            call map_cut_without_derivative(factory, surface+step, position_plus, &
+                local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = local_status
+                return
+            end if
+            dposition_ds = (position_plus-position_minus)/(2.0_dp*step)
+        else if (has_plus) then
+            call map_cut_without_derivative(factory, surface+step, position_plus, &
+                local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = local_status
+                return
+            end if
+            dposition_ds = (position_plus-position)/step
+        else if (has_minus) then
+            call map_cut_without_derivative(factory, surface-step, position_minus, &
+                local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = local_status
+                return
+            end if
+            dposition_ds = (position-position_minus)/step
+        else
+            return
+        end if
+        if (.not. all(ieee_is_finite([position, dposition_ds]))) then
+            position = 0.0_dp
+            dposition_ds = 0.0_dp
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        if (position(1) <= 0.0_dp) then
+            status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine physical_cut_map
+
+    subroutine map_cut_without_derivative(factory, surface, position, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: surface
+        real(dp), intent(out) :: position(3)
+        integer, intent(out) :: status
+        real(dp) :: theta
+
+        position = 0.0_dp
+        call find_outboard_cut_theta(factory, surface, theta, status)
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call map_eqdsk_flux_position(surface, theta, 0.0_dp, position, status)
+        if (status /= GC_CYL_SUCCESS) status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+    end subroutine map_cut_without_derivative
+
+    subroutine find_outboard_cut_theta(factory, surface, theta, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: surface
+        real(dp), intent(out) :: theta
+        integer, intent(out) :: status
+
+        integer :: n, i, nroots, local_status
+        real(dp) :: theta_left, theta_right, f_left, f_right, root
+        real(dp) :: roots(MAX_CUT_ROOTS), positions(3, MAX_CUT_ROOTS)
+        real(dp) :: theta_scale, best_radius
+
+        theta = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        n = max(32, factory%options%cut_theta_points)
+        nroots = 0
+        theta_scale = 2.0_dp*pi/real(n, dp)
+        theta_left = -pi
+        call poincare_cut_value(factory, surface, theta_left, f_left, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        do i = 1, n
+            theta_right = -pi + real(i, dp)*theta_scale
+            call poincare_cut_value(factory, surface, theta_right, f_right, &
+                local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = local_status
+                return
+            end if
+            if (f_left == 0.0_dp) then
+                root = theta_left
+                call append_cut_root(root, roots, nroots)
+            end if
+            if (f_left*f_right < 0.0_dp) then
+                call bisect_cut_root(factory, surface, theta_left, theta_right, &
+                    f_left, f_right, root, local_status)
+                if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                    status = local_status
+                    return
+                end if
+                call append_cut_root(root, roots, nroots)
+            end if
+            theta_left = theta_right
+            f_left = f_right
+        end do
+        if (abs(theta_left-pi) <= 10.0_dp*epsilon(pi) .and. &
+            f_left == 0.0_dp) then
+            call append_cut_root(-pi, roots, nroots)
+        end if
+        if (nroots < 1) return
+        do i = 1, nroots
+            call map_eqdsk_flux_position(surface, roots(i), 0.0_dp, &
+                positions(:, i), local_status)
+            if (local_status /= GC_CYL_SUCCESS) then
+                status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+                return
+            end if
+        end do
+        best_radius = -huge(1.0_dp)
+        do i = 1, nroots
+            if (positions(1, i) > best_radius) then
+                best_radius = positions(1, i)
+                theta = roots(i)
+            end if
+        end do
+        if (.not. ieee_is_finite(theta)) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine find_outboard_cut_theta
+
+    subroutine append_cut_root(root, roots, nroots)
+        real(dp), intent(in) :: root
+        real(dp), intent(inout) :: roots(:)
+        integer, intent(inout) :: nroots
+        integer :: i
+
+        do i = 1, nroots
+            if (abs(root-roots(i)) <= 1.0e-8_dp) return
+        end do
+        if (nroots < size(roots)) then
+            nroots = nroots + 1
+            roots(nroots) = root
+        end if
+    end subroutine append_cut_root
+
+    subroutine bisect_cut_root(factory, surface, left, right, fleft, fright, &
+            root, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: surface, left, right, fleft, fright
+        real(dp), intent(out) :: root
+        integer, intent(out) :: status
+
+        integer :: iteration
+        real(dp) :: a_left, a_right, fa, fb, midpoint, fm
+
+        a_left = left
+        a_right = right
+        fa = fleft
+        fb = fright
+        root = 0.5_dp*(left+right)
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        do iteration = 1, 100
+            midpoint = 0.5_dp*(a_left+a_right)
+            call poincare_cut_value(factory, surface, midpoint, fm, status)
+            if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+            if (abs(fm) <= factory%options%cut_root_tolerance .or. &
+                abs(a_right-a_left) <= 1.0e-12_dp) then
+                root = midpoint
+                status = GC_EQDSK_NONLOCAL_SUCCESS
+                return
+            end if
+            if (fa*fm <= 0.0_dp) then
+                a_right = midpoint
+                fb = fm
+            else
+                a_left = midpoint
+                fa = fm
+            end if
+        end do
+        root = 0.5_dp*(a_left+a_right)
+        call poincare_cut_value(factory, surface, root, fm, status)
+        if (status == GC_EQDSK_NONLOCAL_SUCCESS) then
+            if (abs(fm) > factory%options%cut_root_tolerance) then
+                status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+            end if
+        end if
+        associate (unused_fb => fb)
+        end associate
+    end subroutine bisect_cut_root
+
+    subroutine poincare_cut_value(factory, surface, theta, value, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: surface, theta
+        real(dp), intent(out) :: value
+        integer, intent(out) :: status
+        real(dp) :: position(3)
+
+        value = 0.0_dp
+        call map_eqdsk_flux_position(surface, theta, 0.0_dp, position, status)
+        if (status /= GC_CYL_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+            return
+        end if
+        call poincare_cut_value_position(factory, position, value, status)
+    end subroutine poincare_cut_value
+
+    subroutine poincare_cut_value_position(factory, position, value, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: position(3)
+        real(dp), intent(out) :: value
+        integer, intent(out) :: status
+        type(gc_cylindrical_field_sample_t) :: field_sample
+
+        value = 0.0_dp
+        call factory%field%evaluate(position, field_sample, status)
+        if (status /= GC_CYL_SUCCESS) then
+            if (status == GC_CYL_EQUILIBRIUM_DOMAIN) then
+                status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+            else
+                status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            end if
+            return
+        end if
+        value = field_sample%grad_b(3)*field_sample%grad_psi(1) &
+            -field_sample%grad_b(1)*field_sample%grad_psi(3)
+        if (.not. ieee_is_finite(value)) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine poincare_cut_value_position
+
+    subroutine factory_node_factory(h0, jperp, user_data, adapter, context, &
+            status)
+        real(dp), intent(in) :: h0, jperp
+        class(*), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_class_adapter_t), intent(out) :: adapter
+        type(gc_cylindrical_nonlocal_context_t), intent(out) :: context
+        integer, intent(out) :: status
+
+        integer :: local_status
+
+        adapter = gc_cylindrical_class_adapter_t()
+        context = gc_cylindrical_nonlocal_context_t()
+        status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            if (.not. factory%field_ready .or. .not. factory%profile_ready) return
+            if (.not. factory%wall_ready .or. .not. factory%cut_ready) return
+            call initialize_gc_cylindrical_class_adapter(factory%field, &
+                factory%potential, h0, jperp, factory%species%mass_g, &
+                factory%species%charge_esu, c, factory%options%surface_min, &
+                factory%options%surface_max, physical_cut_map_callback, adapter, &
+                local_status, options=factory%options%class_options, &
+                splitter=certified_splitter_callback, user_data=factory)
+            if (local_status /= GC_CYL_CLASS_SUCCESS) then
+                status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+                return
+            end if
+            call initialize_gc_cylindrical_nonlocal_provider(h0, jperp, context, &
+                local_status, particle_charge=factory%species%charge_esu, &
+                c_light=c, component_provider=factory_component_provider, &
+                orbit_provider=factory_orbit_provider, &
+                harmonic_provider=factory_harmonic_provider, &
+                force_provider=factory_force_provider, &
+                section_coordinate=factory%section_coordinate, &
+                section_reference=factory%section_position, &
+                section_reference_id=factory%section_reference_id, &
+                user_data=factory)
+            if (local_status /= GC_CYL_NONLOCAL_SUCCESS) then
+                status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+                return
+            end if
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_node_factory
+
+    subroutine factory_outer_factor(reference, h0, jperp, x, sigma, component_id, &
+            launch, sample, user_data, outer_factor, status)
+        type(gc_nonlocal_transport_reference_t), intent(in) :: reference
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        type(gc_cylindrical_class_launch_t), intent(in) :: launch
+        type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
+        class(*), pointer, intent(inout) :: user_data
+        real(dp), intent(out) :: outer_factor
+        integer, intent(out) :: status
+
+        real(dp) :: density, temperature, potential, a1_star, a2_star
+        real(dp) :: exponent, shell_average
+        type(gc_eqdsk_orbit_result_t) :: shell_result
+        integer :: local_status
+
+        outer_factor = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+        associate (unused_reference => reference, unused_jperp => jperp, &
+                unused_x => x, unused_sigma => sigma, &
+                unused_component_id => component_id, unused_a1 => a1_star, &
+                unused_a2 => a2_star)
+        end associate
+        if (.not. associated(user_data)) return
+        if (sample%status /= GC_NONLOCAL_SAMPLE_VALID) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            if (.not. factory%initialized) return
+            call evaluate_gc_eqdsk_native_profile(factory, sample%psi_star, &
+                density, temperature, potential, a1_star, a2_star, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = local_status
+                return
+            end if
+            call integrate_physical_cycle(factory, launch, 0, 0, .false., .true., &
+                0.0_dp, 0.0_dp, shell_result)
+            if (shell_result%status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = shell_result%status
+                return
+            end if
+            shell_average = shell_result%shell_average
+            if (shell_average < 0.0_dp .or. shell_average > 1.0_dp) then
+                status = GC_EQDSK_NONLOCAL_NONFINITE
+                return
+            end if
+            exponent = (factory%species%charge_esu*potential-h0)/temperature
+            if (exponent > log(huge(1.0_dp))) then
+                status = GC_EQDSK_NONLOCAL_NONFINITE
+                return
+            end if
+            outer_factor = factory%phi_eff*density &
+                /temperature**1.5_dp*exp(exponent)*shell_average
+            if (.not. ieee_is_finite(outer_factor)) then
+                outer_factor = 0.0_dp
+                status = GC_EQDSK_NONLOCAL_NONFINITE
+                return
+            end if
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_outer_factor
+
+    subroutine factory_component_provider(h0, jperp, user_data, components, &
+            status)
+        real(dp), intent(in) :: h0, jperp
+        class(*), pointer, intent(inout) :: user_data
+        type(gc_nonlocal_component_t), allocatable, intent(out) :: components(:)
+        integer, intent(out) :: status
+
+        type(gc_cylindrical_class_adapter_t) :: adapter
+        type(gc_cylindrical_class_result_t) :: classes
+        integer :: local_status, i
+
+        if (allocated(components)) deallocate(components)
+        status = GC_CYL_NONLOCAL_CALLBACK_FAILURE
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            call initialize_gc_cylindrical_class_adapter(factory%field, &
+                factory%potential, h0, jperp, factory%species%mass_g, &
+                factory%species%charge_esu, c, factory%options%surface_min, &
+                factory%options%surface_max, physical_cut_map_callback, adapter, &
+                local_status, options=factory%options%class_options, &
+                splitter=certified_splitter_callback, user_data=factory)
+            if (local_status /= GC_CYL_CLASS_SUCCESS) return
+            call enumerate_gc_cylindrical_classes(adapter, classes, local_status)
+            if (local_status /= GC_CYL_CLASS_SUCCESS) return
+            if (.not. classes%class_complete) return
+            if (classes%nclasses < 1 .or. .not. allocated(classes%classes)) return
+            allocate(components(classes%nclasses))
+            do i = 1, classes%nclasses
+                components(i)%component_id = classes%classes(i)%component_id
+                components(i)%sigma = classes%classes(i)%sigma
+                components(i)%x_min = classes%classes(i)%rc_min
+                components(i)%x_max = classes%classes(i)%rc_max
+            end do
+            status = GC_CYL_NONLOCAL_SUCCESS
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_component_provider
+
+    subroutine factory_orbit_provider(h0, jperp, x, sigma, component_id, &
+            user_data, orbit, status)
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        class(*), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_nonlocal_orbit_t), intent(out) :: orbit
+        integer, intent(out) :: status
+
+        type(gc_cylindrical_class_launch_t) :: launch
+        type(gc_eqdsk_orbit_result_t) :: result
+        integer :: local_status
+
+        orbit = gc_cylindrical_nonlocal_orbit_t()
+        status = GC_CYL_NONLOCAL_CALLBACK_FAILURE
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            call make_raw_launch(factory, h0, jperp, x, sigma, component_id, &
+                launch, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = GC_CYL_NONLOCAL_CALLBACK_FAILURE
+                return
+            end if
+            call integrate_physical_cycle(factory, launch, 0, 0, .false., .false., &
+                0.0_dp, 0.0_dp, result)
+            call fill_orbit_metadata(factory, h0, jperp, x, sigma, component_id, &
+                launch, result, orbit, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = GC_CYL_NONLOCAL_SUCCESS
+                return
+            end if
+            if (orbit%status == GC_CYL_NONLOCAL_ORBIT_WALL .or. &
+                orbit%status == GC_CYL_NONLOCAL_ORBIT_UNRESOLVED) then
+                status = GC_CYL_NONLOCAL_SUCCESS
+                return
+            end if
+            call compute_orbit_derivatives(factory, h0, jperp, x, sigma, &
+                component_id, result, orbit, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                orbit%status = GC_CYL_NONLOCAL_ORBIT_UNRESOLVED
+                status = GC_CYL_NONLOCAL_SUCCESS
+                return
+            end if
+            status = GC_CYL_NONLOCAL_SUCCESS
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_orbit_provider
+
+    subroutine factory_harmonic_provider(h0, jperp, x, sigma, component_id, &
+            harmonic_m, harmonic_n, orbit, user_data, h_m, status)
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id, harmonic_m, harmonic_n
+        type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
+        class(*), pointer, intent(inout) :: user_data
+        complex(dp), intent(out) :: h_m
+        integer, intent(out) :: status
+
+        type(gc_cylindrical_class_launch_t) :: launch
+        type(gc_eqdsk_orbit_result_t) :: result
+        integer :: local_status
+
+        h_m = cmplx(0.0_dp, 0.0_dp, kind=dp)
+        status = GC_CYL_NONLOCAL_CALLBACK_FAILURE
+        if (.not. associated(user_data)) return
+        if (orbit%status /= GC_CYL_NONLOCAL_ORBIT_VALID) return
+        if (orbit%tau_b <= 0.0_dp) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            call make_raw_launch(factory, h0, jperp, x, sigma, component_id, &
+                launch, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+            call integrate_physical_cycle(factory, launch, harmonic_m, harmonic_n, &
+                .true., .false., 2.0_dp*pi/orbit%tau_b, &
+                orbit%omega_phi, result)
+            if (result%status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+            if (abs(result%period-orbit%tau_b) > &
+                5.0e-8_dp*max(1.0_dp, orbit%tau_b)) return
+            h_m = result%h_m
+            if (.not. all(ieee_is_finite([real(h_m, dp), aimag(h_m)]))) then
+                h_m = cmplx(0.0_dp, 0.0_dp, kind=dp)
+                status = GC_CYL_NONLOCAL_CALLBACK_FAILURE
+                return
+            end if
+            status = GC_CYL_NONLOCAL_SUCCESS
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_harmonic_provider
+
+    subroutine factory_force_provider(h0, jperp, x, sigma, component_id, orbit, &
+            user_data, force, status)
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
+        class(*), pointer, intent(inout) :: user_data
+        real(dp), intent(out) :: force(:)
+        integer, intent(out) :: status
+
+        real(dp) :: density, temperature, potential, a1_star, a2_star
+        integer :: local_status
+
+        force = 0.0_dp
+        status = GC_CYL_NONLOCAL_CALLBACK_FAILURE
+        associate (unused_jperp => jperp, unused_x => x, unused_sigma => sigma, &
+                unused_component_id => component_id, unused_orbit => orbit, &
+                unused_density => density)
+        end associate
+        if (size(force) < FACTORY_FORCE_COUNT) return
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            if (orbit%status /= GC_CYL_NONLOCAL_ORBIT_VALID) return
+            if (.not. factory%profile_ready) return
+            call evaluate_gc_eqdsk_native_profile(factory, &
+                c*orbit%p_phi/factory%species%charge_esu, density, &
+                temperature, potential, a1_star, a2_star, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+            force(1) = a1_star
+            force(2) = a2_star
+            force(3) = a1_star + (h0-factory%species%charge_esu*potential) &
+                /temperature*a2_star
+            if (.not. all(ieee_is_finite(force(1:FACTORY_FORCE_COUNT)))) then
+                force = 0.0_dp
+                status = GC_CYL_NONLOCAL_CALLBACK_FAILURE
+                return
+            end if
+            status = GC_CYL_NONLOCAL_SUCCESS
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_force_provider
+
+    subroutine physical_cut_map_callback(rc, user_data, position, dposition_drc, &
+            status)
+        real(dp), intent(in) :: rc
+        class(*), pointer, intent(inout) :: user_data
+        real(dp), intent(out) :: position(3), dposition_drc(3)
+        integer, intent(out) :: status
+
+        position = 0.0_dp
+        dposition_drc = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            call physical_cut_map(factory, rc, position, dposition_drc, status)
+            if (status /= GC_EQDSK_NONLOCAL_SUCCESS) status = GC_CYL_SUCCESS + 4
+        class default
+            status = GC_CYL_SUCCESS + 4
+        end select
+    end subroutine physical_cut_map_callback
+
+    subroutine certified_splitter_callback(h0, jperp, sigma, candidate, user_data, &
+            split_classes, certified, status)
+        real(dp), intent(in) :: h0, jperp
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_class_interval_t), intent(in) :: candidate
+        class(*), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
+            split_classes(:)
+        logical, intent(out) :: certified
+        integer, intent(out) :: status
+
+        if (allocated(split_classes)) deallocate(split_classes)
+        certified = .false.
+        status = GC_CYL_CLASS_SUCCESS
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            call certify_homoclinic_component(factory, h0, jperp, sigma, candidate, &
+                certified, status)
+            if (status /= GC_CYL_CLASS_SUCCESS) return
+            if (certified) then
+                allocate(split_classes(1))
+                split_classes(1) = candidate
+                split_classes(1)%topology_certified = .true.
+                split_classes(1)%orbit_return_certified = .true.
+            end if
+        class default
+            status = GC_CYL_CLASS_SUCCESS
+        end select
+    end subroutine certified_splitter_callback
+
+    subroutine certify_homoclinic_component(factory, h0, jperp, sigma, candidate, &
+            certified, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: h0, jperp
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_class_interval_t), intent(in) :: candidate
+        logical, intent(out) :: certified
+        integer, intent(out) :: status
+
+        type(gc_cylindrical_class_launch_t) :: launch
+        type(gc_eqdsk_orbit_result_t) :: result
+        real(dp) :: edge_fraction, fraction, x
+        integer :: i, local_status, probe_count
+
+        certified = .false.
+        status = GC_CYL_CLASS_SUCCESS
+        factory%topology_certification_attempts = &
+            factory%topology_certification_attempts + 1
+        probe_count = max(3, factory%options%topology_probe_count)
+        edge_fraction = factory%options%topology_probe_fraction
+        do i = 1, probe_count
+            fraction = edge_fraction+(1.0_dp-2.0_dp*edge_fraction) &
+                *real(i-1, dp)/real(probe_count-1, dp)
+            x = candidate%rc_min + fraction*(candidate%rc_max-candidate%rc_min)
+            call make_raw_launch(factory, h0, jperp, x, sigma, &
+                candidate%component_id, launch, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+            call integrate_physical_cycle(factory, launch, 0, 0, .false., &
+                .false., 0.0_dp, 0.0_dp, result)
+            if (result%status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+            if (.not. physical_return_has_identity(factory, launch, result)) return
+        end do
+        certified = .true.
+        factory%topology_ready = .true.
+        factory%topology_certification_successes = &
+            factory%topology_certification_successes + 1
+    end subroutine certify_homoclinic_component
+
+    subroutine make_raw_launch(factory, h0, jperp, x, sigma, component_id, &
+            launch, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        type(gc_cylindrical_class_launch_t), intent(out) :: launch
+        integer, intent(out) :: status
+
+        type(gc_cylindrical_class_adapter_t) :: adapter
+        type(gc_cylindrical_class_point_t) :: point
+        integer :: local_status
+        real(dp) :: magnetic_moment, energy, p_phi, canonical
+
+        launch = gc_cylindrical_class_launch_t()
+        launch%h0 = h0
+        launch%jperp = jperp
+        launch%rc = x
+        launch%sigma = sigma
+        launch%component_id = component_id
+        status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
+        call initialize_gc_cylindrical_class_adapter(factory%field, &
+            factory%potential, h0, jperp, factory%species%mass_g, &
+            factory%species%charge_esu, c, factory%options%surface_min, &
+            factory%options%surface_max, physical_cut_map_callback, adapter, &
+            local_status, options=factory%options%class_options, &
+            user_data=factory)
+        if (local_status /= GC_CYL_CLASS_SUCCESS) return
+        call evaluate_gc_cylindrical_class_point(adapter, x, sigma, point, &
+            local_status)
+        if (local_status /= GC_CYL_CLASS_SUCCESS .or. .not. point%allowed) return
+        magnetic_moment = gc_mu_phys_from_buchholz_jk(jperp, &
+            factory%species%charge_esu, c)
+        launch%position = point%position
+        launch%vparallel_squared = max(0.0_dp, point%vparallel_squared)
+        launch%vparallel = point%vparallel
+        launch%omega_c = point%omega_c
+        launch%psi_star = point%psi_star
+        launch%dpsi_star_drc = point%dpsi_star_drc
+        launch%derivative_available = point%derivative_available
+        launch%endpoint_tangent = point%at_turning_point
+        launch%state%R = point%position(1)
+        launch%state%Z = point%position(2)
+        launch%state%phi = point%position(3)
+        launch%state%p_parallel = factory%species%mass_g*point%vparallel
+        launch%state%mu = magnetic_moment
+        p_phi = factory%species%charge_esu/c*point%psi_star
+        canonical = factory%species%charge_esu/c*point%field%psi &
+            +launch%state%p_parallel*point%position(1)*point%field%bhat(2)
+        energy = launch%state%p_parallel**2/(2.0_dp*factory%species%mass_g) &
+            +magnetic_moment*point%field%bmod &
+            +factory%species%charge_esu*point%potential
+        launch%p_phi = p_phi
+        launch%energy_residual = energy-h0
+        launch%jperp_residual = gc_buchholz_jk_from_mu_phys(magnetic_moment, &
+            factory%species%charge_esu, c)-jperp
+        launch%canonical_residual = canonical-p_phi
+        if (.not. all(ieee_is_finite([launch%position, launch%state%p_parallel, &
+            launch%state%mu, launch%p_phi, launch%energy_residual, &
+            launch%jperp_residual, launch%canonical_residual]))) return
+        launch%class_certified = .false.
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine make_raw_launch
+
+    subroutine fill_orbit_metadata(factory, h0, jperp, x, sigma, component_id, &
+            launch, result, orbit, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        type(gc_cylindrical_class_launch_t), intent(in) :: launch
+        type(gc_eqdsk_orbit_result_t), intent(in) :: result
+        type(gc_cylindrical_nonlocal_orbit_t), intent(out) :: orbit
+        integer, intent(out) :: status
+
+        orbit = gc_cylindrical_nonlocal_orbit_t()
+        orbit%component_id = component_id
+        orbit%sigma = sigma
+        orbit%section%coordinate = factory%section_coordinate
+        orbit%section%reference = factory%section_position
+        orbit%section%reference_id = factory%section_reference_id
+        orbit%section%locked = factory%cut_ready
+        orbit%p_phi = launch%p_phi
+        orbit%dp_phi_dx = factory%species%charge_esu/c*launch%dpsi_star_drc
+        orbit%wall_checked = .true.
+        orbit%wall_status = GC_CYL_NONLOCAL_WALL_CLEAR
+        orbit%winding = 1
+        orbit%section_return_crossings = 1
+        orbit%winding_available = .true.
+        orbit%section_return_available = .true.
+        orbit%p_phi_mapping_certified = .false.
+        orbit%mapping_orientation = sign_of_real(orbit%dp_phi_dx)
+        orbit%electric_potential_included = factory%potential%initialized
+        orbit%delta_phi_b = result%delta_phi
+        orbit%phase_advance_available = .false.
+        orbit%period_derivative_available = .false.
+        orbit%derivatives_available = .false.
+        status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
+        associate (unused_h0 => h0, unused_jperp => jperp, unused_x => x)
+        end associate
+        if (result%wall_hit) then
+            orbit%status = GC_CYL_NONLOCAL_ORBIT_WALL
+            orbit%wall_status = GC_CYL_NONLOCAL_WALL_HIT
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+            return
+        end if
+        if (result%status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            orbit%status = GC_CYL_NONLOCAL_ORBIT_UNRESOLVED
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+            return
+        end if
+        if (.not. physical_return_has_identity(factory, launch, result)) then
+            orbit%status = GC_CYL_NONLOCAL_ORBIT_UNRESOLVED
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+            return
+        end if
+        if (result%period <= 0.0_dp) then
+            orbit%status = GC_CYL_NONLOCAL_ORBIT_UNRESOLVED
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+            return
+        end if
+        orbit%tau_b = result%period
+        orbit%omega_b = 2.0_dp*pi/result%period
+        orbit%omega_phi = result%delta_phi/result%period
+        orbit%delta_phi_b = result%delta_phi
+        orbit%complete_cycle_return = .true.
+        orbit%p_phi_mapping_certified = launch%derivative_available
+        orbit%phase_advance_available = .true.
+        orbit%status = GC_CYL_NONLOCAL_ORBIT_VALID
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine fill_orbit_metadata
+
+    subroutine compute_orbit_derivatives(factory, h0, jperp, x, sigma, &
+            component_id, base, orbit, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        type(gc_eqdsk_orbit_result_t), intent(in) :: base
+        type(gc_cylindrical_nonlocal_orbit_t), intent(inout) :: orbit
+        integer, intent(out) :: status
+
+        type(gc_cylindrical_class_launch_t) :: minus_launch, plus_launch
+        type(gc_eqdsk_orbit_result_t) :: minus_result, plus_result
+        real(dp) :: lower, upper, step, x_minus, x_plus, denominator
+        integer :: local_status
+
+        status = GC_EQDSK_NONLOCAL_DERIVATIVE_UNAVAILABLE
+        call find_cached_component_bounds(factory, sigma, component_id, lower, &
+            upper, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        step = factory%options%orbit_derivative_fraction*max(upper-lower, &
+            max(1.0_dp, abs(x)))
+        step = min(step, 0.25_dp*(upper-lower))
+        if (step <= 0.0_dp) return
+        x_minus = max(lower, x-step)
+        x_plus = min(upper, x+step)
+        denominator = x_plus-x_minus
+        if (denominator <= 0.0_dp) return
+        call make_raw_launch(factory, h0, jperp, x_minus, sigma, component_id, &
+            minus_launch, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call integrate_physical_cycle(factory, minus_launch, 0, 0, .false., &
+            .false., 0.0_dp, 0.0_dp, minus_result)
+        if (.not. physical_return_has_identity(factory, minus_launch, &
+            minus_result)) return
+        call make_raw_launch(factory, h0, jperp, x_plus, sigma, component_id, &
+            plus_launch, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call integrate_physical_cycle(factory, plus_launch, 0, 0, .false., &
+            .false., 0.0_dp, 0.0_dp, plus_result)
+        if (.not. physical_return_has_identity(factory, plus_launch, &
+            plus_result)) return
+        orbit%dtau_b_dx = (plus_result%period-minus_result%period)/denominator
+        orbit%ddelta_phi_b_dx = &
+            (plus_result%delta_phi-minus_result%delta_phi)/denominator
+        orbit%domega_b_dx = -2.0_dp*pi*orbit%dtau_b_dx/base%period**2
+        orbit%domega_phi_dx = (orbit%ddelta_phi_b_dx*base%period &
+            -base%delta_phi*orbit%dtau_b_dx)/base%period**2
+        if (.not. all(ieee_is_finite([orbit%dtau_b_dx, &
+            orbit%ddelta_phi_b_dx, orbit%domega_b_dx, &
+            orbit%domega_phi_dx]))) return
+        orbit%period_derivative_available = .true.
+        orbit%derivatives_available = .true.
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine compute_orbit_derivatives
+
+    subroutine find_cached_component_bounds(factory, sigma, component_id, lower, &
+            upper, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        integer, intent(in) :: sigma, component_id
+        real(dp), intent(out) :: lower, upper
+        integer, intent(out) :: status
+
+        integer :: i
+
+        lower = 0.0_dp
+        upper = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_DERIVATIVE_UNAVAILABLE
+        if (.not. allocated(factory%provider%node_class_result%classes)) return
+        do i = 1, size(factory%provider%node_class_result%classes)
+            if (factory%provider%node_class_result%classes(i)%sigma /= sigma) cycle
+            if (factory%provider%node_class_result%classes(i)%component_id /= &
+                component_id) cycle
+            lower = factory%provider%node_class_result%classes(i)%rc_min
+            upper = factory%provider%node_class_result%classes(i)%rc_max
+            if (upper <= lower) return
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+            return
+        end do
+    end subroutine find_cached_component_bounds
+
+    subroutine integrate_physical_cycle(factory, launch, harmonic_m, harmonic_n, &
+            include_harmonic, include_shell, omega_b, omega_phi, result)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        type(gc_cylindrical_class_launch_t), intent(in) :: launch
+        integer, intent(in) :: harmonic_m, harmonic_n
+        logical, intent(in) :: include_harmonic, include_shell
+        real(dp), intent(in) :: omega_b, omega_phi
+        type(gc_eqdsk_orbit_result_t), intent(out) :: result
+
+        type(gc_cylindrical_invariants_t) :: invariants
+        type(gc_cylindrical_physical_return_options_t) :: return_options
+        type(gc_cylindrical_physical_return_t) :: physical_return
+        integer :: local_status
+
+        result = gc_eqdsk_orbit_result_t()
+        if (.not. factory%field_ready) return
+        if (.not. factory%profile_ready) return
+        if (.not. factory%wall_ready) return
+        if (.not. factory%cut_ready) return
+        if (.not. launch_state_is_consistent(factory, launch)) return
+        invariants%energy = launch%h0
+        invariants%magnetic_moment = gc_mu_phys_from_buchholz_jk(launch%jperp, &
+            factory%species%charge_esu, c)
+        invariants%canonical_toroidal_momentum = launch%p_phi
+        call make_physical_return_options(factory, invariants, return_options)
+        factory%physical_return_attempts = factory%physical_return_attempts + 1
+        call compute_gc_cylindrical_physical_return(factory%field, &
+            factory%potential, launch%state, invariants, &
+            factory%species%mass_g, factory%species%charge_esu, c, &
+            factory_physical_return_event, return_options, physical_return, &
+            wall_model=factory%wall, radial_domain=factory_radial_domain_event, &
+            user_data=factory)
+        call record_physical_return(factory, physical_return)
+        result%event_kind = physical_return%event_kind
+        result%return_orientation = physical_return%return_orientation
+        result%wall_hit = physical_return%wall_hit
+        result%radial_domain_hit = physical_return%radial_domain_hit
+        result%physical_return_found = physical_return%physical_return_found
+        result%state_at_return = physical_return%state_at_event
+        result%energy_error = physical_return%energy_error
+        result%magnetic_moment_error = physical_return%magnetic_moment_error
+        result%canonical_momentum_error = physical_return%canonical_momentum_error
+        if (physical_return%event_kind == GC_CYL_PHYSICAL_EVENT_WALL) then
+            result%status = GC_CYL_WALL_LOSS
+            return
+        end if
+        if (physical_return%event_kind == GC_CYL_PHYSICAL_EVENT_RADIAL_DOMAIN) then
+            return
+        end if
+        if (physical_return%status == GC_CYL_NO_RETURN) then
+            return
+        end if
+        if (physical_return%status /= GC_CYL_SUCCESS) return
+        if (physical_return%event_kind /= GC_CYL_PHYSICAL_EVENT_RETURN) return
+        if (.not. physical_return%physical_return_found) return
+        if (physical_return%period <= 0.0_dp) return
+        result%period = physical_return%period
+        result%delta_phi = physical_return%delta_phi
+        if (include_harmonic .or. include_shell) then
+            call integrate_cycle_averages(factory, launch, result%period, &
+                harmonic_m, harmonic_n, include_harmonic, include_shell, &
+                omega_b, omega_phi, result, local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                result%status = local_status
+                return
+            end if
+        end if
+        result%status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine integrate_physical_cycle
+
+    subroutine record_physical_return(factory, result)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        type(gc_cylindrical_physical_return_t), intent(in) :: result
+
+        factory%last_return_status = result%status
+        factory%last_return_event_kind = result%event_kind
+        factory%last_launch_event_value = result%launch_event_value
+        factory%last_return_event_value = result%return_event_value
+        factory%last_invariant_scaled_drift = &
+            result%maximum_invariant_scaled_drift
+        factory%last_energy_error = result%energy_error
+        factory%last_magnetic_moment_error = result%magnetic_moment_error
+        factory%last_canonical_momentum_error = &
+            result%canonical_momentum_error
+        if (result%status == GC_CYL_SUCCESS .and. &
+            result%event_kind == GC_CYL_PHYSICAL_EVENT_RETURN .and. &
+            result%physical_return_found) then
+            factory%physical_return_successes = &
+                factory%physical_return_successes + 1
+            return
+        end if
+        if (result%event_kind == GC_CYL_PHYSICAL_EVENT_WALL .or. &
+            result%status == GC_CYL_WALL_LOSS) then
+            factory%wall_return_count = factory%wall_return_count + 1
+            return
+        end if
+        if (result%event_kind == GC_CYL_PHYSICAL_EVENT_RADIAL_DOMAIN .or. &
+            result%status == GC_CYL_EQUILIBRIUM_DOMAIN) then
+            factory%radial_return_count = factory%radial_return_count + 1
+            return
+        end if
+        select case (result%status)
+        case (GC_CYL_NO_RETURN)
+            factory%no_return_count = factory%no_return_count + 1
+        case (GC_CYL_INVARIANT_ERROR)
+            factory%invariant_rejection_count = &
+                factory%invariant_rejection_count + 1
+        case (GC_CYL_FIELD_ERROR)
+            factory%field_error_count = factory%field_error_count + 1
+        case (GC_CYL_POTENTIAL_ERROR)
+            factory%potential_error_count = factory%potential_error_count + 1
+        case (GC_CYL_STATE_ERROR)
+            factory%state_error_count = factory%state_error_count + 1
+        case (GC_CYL_START_ERROR)
+            factory%start_error_count = factory%start_error_count + 1
+        case (GC_CYL_INTEGRATOR_ERROR)
+            factory%integrator_error_count = factory%integrator_error_count + 1
+        case default
+            factory%other_return_error_count = &
+                factory%other_return_error_count + 1
+        end select
+    end subroutine record_physical_return
+
+    subroutine make_physical_return_options(factory, invariants, options)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        type(gc_cylindrical_invariants_t), intent(in) :: invariants
+        type(gc_cylindrical_physical_return_options_t), intent(out) :: options
+
+        real(dp) :: tolerance
+
+        options = gc_cylindrical_physical_return_options_t()
+        options%relative_tolerance = factory%options%orbit_options%relative_tolerance
+        options%absolute_tolerance = &
+            factory%options%orbit_options%absolute_tolerance
+        options%invariant_relative_tolerance = &
+            factory%options%invariant_relative_tolerance
+        tolerance = factory%options%invariant_relative_tolerance
+        options%invariant_absolute_tolerance(1) = &
+            max(tiny(1.0_dp), tolerance*abs(invariants%energy))
+        options%invariant_absolute_tolerance(2) = &
+            max(tiny(1.0_dp), tolerance*abs(invariants%magnetic_moment))
+        options%invariant_absolute_tolerance(3) = &
+            max(tiny(1.0_dp), &
+            tolerance*abs(invariants%canonical_toroidal_momentum))
+        options%event_time_tolerance = &
+            factory%options%orbit_options%event_time_tolerance
+        options%event_value_tolerance = factory%options%cut_root_tolerance
+        options%minimum_return_time = &
+            factory%options%orbit_options%minimum_event_time
+        options%maximum_time = factory%options%orbit_options%maximum_time
+        if (factory%options%orbit_maximum_step > 0.0_dp) then
+            options%maximum_step = factory%options%orbit_maximum_step
+        else
+            options%maximum_step = 2.0_dp*pi*factory%minor_radius_cm &
+                /(256.0_dp*factory%species%reference_velocity_cm_s)
+        end if
+        options%radial_distance_scale = 1.0_dp
+        options%wall_distance_scale = max(1.0_dp, factory%minor_radius_cm)
+        options%return_orientation = 0
+    end subroutine make_physical_return_options
+
+    subroutine factory_physical_return_event(position, state, field, user_data, &
+            value, status)
+        real(dp), intent(in) :: position(3)
+        type(gc_cylindrical_state_t), intent(in) :: state
+        type(gc_cylindrical_field_sample_t), intent(in) :: field
+        class(*), pointer, intent(inout) :: user_data
+        real(dp), intent(out) :: value
+        integer, intent(out) :: status
+
+        real(dp) :: scale
+
+        associate (unused_state => state)
+        end associate
+        value = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            call poincare_cut_value_position(factory, position, value, status)
+            if (status == GC_EQDSK_NONLOCAL_SUCCESS) then
+                scale = sqrt(field%grad_b(1)**2+field%grad_b(3)**2) &
+                    *sqrt(field%grad_psi(1)**2+field%grad_psi(3)**2)
+                if (scale <= tiny(scale)) then
+                    status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+                    return
+                end if
+                value = value/scale
+                status = GC_CYL_SUCCESS
+            end if
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_physical_return_event
+
+    subroutine factory_radial_domain_event(position, state, field, user_data, &
+            margin, status)
+        real(dp), intent(in) :: position(3)
+        type(gc_cylindrical_state_t), intent(in) :: state
+        type(gc_cylindrical_field_sample_t), intent(in) :: field
+        class(*), pointer, intent(inout) :: user_data
+        real(dp), intent(out) :: margin
+        integer, intent(out) :: status
+
+        real(dp) :: lower, upper, scale
+
+        associate (unused_position => position, unused_state => state)
+        end associate
+        margin = -1.0_dp
+        status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+            if (.not. factory%profile_ready) return
+            lower = min(factory%profile_psi(1), &
+                factory%profile_psi(size(factory%profile_psi)))
+            upper = max(factory%profile_psi(1), &
+                factory%profile_psi(size(factory%profile_psi)))
+            scale = upper-lower
+            if (scale <= 0.0_dp) return
+            margin = min(field%psi-lower, upper-field%psi)/scale
+            if (.not. ieee_is_finite(margin)) return
+            status = GC_CYL_SUCCESS
+        class default
+            status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        end select
+    end subroutine factory_radial_domain_event
+
+    subroutine integrate_cycle_averages(factory, launch, period, harmonic_m, &
+            harmonic_n, include_harmonic, include_shell, omega_b, omega_phi, &
+            result, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        type(gc_cylindrical_class_launch_t), intent(in) :: launch
+        real(dp), intent(in) :: period, omega_b, omega_phi
+        integer, intent(in) :: harmonic_m, harmonic_n
+        logical, intent(in) :: include_harmonic, include_shell
+        type(gc_eqdsk_orbit_result_t), intent(inout) :: result
+        integer, intent(out) :: status
+
+        type(vode_state_t) :: integrator
+        type(fortnum_status_t) :: integration_status
+        real(dp) :: initial(AUGMENTED_STATE_SIZE), atol(AUGMENTED_STATE_SIZE)
+        real(dp), allocatable :: final(:)
+        integer :: callback_status
+
+        status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
+        callback_status = GC_CYL_SUCCESS
+        initial = 0.0_dp
+        initial(1) = launch%state%R
+        initial(2) = launch%state%Z
+        initial(3) = launch%state%phi
+        initial(4) = launch%state%p_parallel
+        initial(5) = launch%state%mu
+        atol(1:5) = factory%options%orbit_options%absolute_tolerance
+        atol(6:7) = max(tiny(1.0_dp), &
+            factory%options%orbit_options%relative_tolerance &
+            *factory%species%reference_energy_erg*period)
+        atol(8) = max(tiny(1.0_dp), &
+            factory%options%orbit_options%relative_tolerance*period)
+        call vode_init(integrator, AUGMENTED_STATE_SIZE, 0.0_dp, initial)
+        if (factory%options%orbit_maximum_step > 0.0_dp) then
+            integrator%hmax = factory%options%orbit_maximum_step
+        else
+            integrator%hmax = period/2000.0_dp
+        end if
+        integrator%max_steps = 500000
+        call vode_integrate_to(average_rhs, integrator, period, &
+            factory%options%orbit_options%relative_tolerance, atol, final, &
+            integration_status)
+        if (callback_status /= GC_CYL_SUCCESS) return
+        if (integration_status%code /= FORTNUM_OK) return
+        if (size(final) /= AUGMENTED_STATE_SIZE) return
+        if (include_harmonic) then
+            result%h_m = cmplx(final(6), final(7), kind=dp)/period
+            if (.not. all(ieee_is_finite([real(result%h_m, dp), &
+                aimag(result%h_m)]))) return
+            factory%harmonic_average_successes = &
+                factory%harmonic_average_successes + 1
+        end if
+        if (include_shell) then
+            result%shell_average = final(8)/period
+            if (.not. ieee_is_finite(result%shell_average)) return
+            if (result%shell_average < -1.0e-8_dp) return
+            if (result%shell_average > 1.0_dp+1.0e-8_dp) return
+            result%shell_average = max(0.0_dp, min(1.0_dp, &
+                result%shell_average))
+            factory%residence_average_successes = &
+                factory%residence_average_successes + 1
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+
+    contains
+
+        subroutine average_rhs(time, state_array, derivative, context)
+            real(dp), intent(in) :: time
+            real(dp), intent(in) :: state_array(:)
+            real(dp), intent(out) :: derivative(:)
+            class(*), intent(in), optional :: context
+
+            type(gc_cylindrical_state_t) :: state
+            type(gc_cylindrical_field_sample_t) :: field
+            complex(dp) :: b_n, phase, h_n
+            real(dp) :: potential, gradient(3), phase_argument
+            real(dp) :: geoflux_position(3), chart_position(3), orbit_surface
+            real(dp) :: target_surface
+            integer :: field_status, potential_status, dynamics_status
+            integer :: surface_status
+
+            associate (unused_context => context)
+            end associate
+            derivative = 0.0_dp
+            if (size(state_array) /= AUGMENTED_STATE_SIZE) then
+                callback_status = GC_CYL_INTEGRATOR_ERROR
+                return
+            end if
+            state%R = state_array(1)
+            state%Z = state_array(2)
+            state%phi = state_array(3)
+            state%p_parallel = state_array(4)
+            state%mu = state_array(5)
+            call factory%field%evaluate(state_array(1:3), field, field_status)
+            if (field_status /= GC_CYL_SUCCESS) then
+                callback_status = field_status
+                return
+            end if
+            call factory%potential%evaluate(state_array(1:3), field, potential, &
+                gradient, potential_status)
+            if (potential_status /= GC_CYL_SUCCESS) then
+                callback_status = potential_status
+                return
+            end if
+            call gc_cylindrical_rhs(field, gradient, factory%species%mass_g, &
+                factory%species%charge_esu, c, state, derivative(1:5), &
+                dynamics_status)
+            if (dynamics_status /= GC_CYL_SUCCESS) then
+                callback_status = dynamics_status
+                return
+            end if
+            if (include_harmonic) then
+                call cyl_to_geoflux([state%R, state%phi, state%Z], &
+                    geoflux_position)
+                chart_position = [geoflux_position(1), geoflux_position(3), &
+                    geoflux_position(2)]
+                call do_magfie_pert_amp(chart_position, b_n)
+                phase_argument = real(harmonic_n, dp) &
+                    *(state%phi-launch%state%phi) &
+                    -(real(harmonic_m, dp)*omega_b &
+                    +real(harmonic_n, dp)*omega_phi)*time
+                phase = cmplx(cos(phase_argument), sin(phase_argument), kind=dp)
+                h_n = state%mu*b_n*phase
+                derivative(6) = real(h_n, dp)
+                derivative(7) = aimag(h_n)
+            end if
+            if (include_shell) then
+                call surface_from_profile_psi(factory, field%psi, orbit_surface, &
+                    surface_status)
+                if (surface_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                    callback_status = GC_CYL_EQUILIBRIUM_DOMAIN
+                    return
+                end if
+                target_surface = factory%options%residence_target_s_tor
+                if (target_surface < 0.0_dp) target_surface = launch%rc
+                if (orbit_surface <= target_surface) then
+                    derivative(8) = 1.0_dp
+                end if
+            end if
+        end subroutine average_rhs
+
+    end subroutine integrate_cycle_averages
+
+    subroutine surface_from_profile_psi(factory, psi, surface, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        real(dp), intent(in) :: psi
+        real(dp), intent(out) :: surface
+        integer, intent(out) :: status
+
+        real(dp) :: weight
+        integer :: left, right
+
+        surface = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+        if (.not. factory%profile_ready) return
+        call locate_monotonic(factory%profile_psi, psi, left, right, weight, &
+            status)
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        surface = (1.0_dp-weight)*factory%profile_s(left) &
+            +weight*factory%profile_s(right)
+        if (.not. ieee_is_finite(surface)) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine surface_from_profile_psi
+
+    logical function launch_state_is_consistent(factory, launch) result(valid)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        type(gc_cylindrical_class_launch_t), intent(in) :: launch
+
+        real(dp) :: scale
+
+        valid = .false.
+        if (.not. all(ieee_is_finite([launch%state%R, launch%state%Z, &
+            launch%state%phi, launch%state%p_parallel, launch%state%mu, &
+            launch%h0, launch%jperp, launch%p_phi]))) return
+        if (launch%state%R <= 0.0_dp) return
+        if (launch%state%mu < 0.0_dp) return
+        scale = max(tiny(1.0_dp), abs(launch%h0))
+        if (abs(launch%energy_residual) > &
+            factory%options%invariant_relative_tolerance*scale) return
+        scale = max(tiny(1.0_dp), abs(launch%jperp))
+        if (abs(launch%jperp_residual) > &
+            factory%options%invariant_relative_tolerance*scale) return
+        scale = max(tiny(1.0_dp), abs(launch%p_phi))
+        if (abs(launch%canonical_residual) > &
+            factory%options%invariant_relative_tolerance*scale) return
+        valid = .true.
+    end function launch_state_is_consistent
+
+    logical function physical_return_has_identity(factory, launch, result) &
+            result(certified)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        type(gc_cylindrical_class_launch_t), intent(in) :: launch
+        type(gc_eqdsk_orbit_result_t), intent(in) :: result
+
+        real(dp) :: position_tolerance
+
+        certified = .false.
+        if (result%status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        if (.not. result%physical_return_found) return
+        if (result%event_kind /= GC_CYL_PHYSICAL_EVENT_RETURN) return
+        if (result%return_orientation == 0) return
+        position_tolerance = factory%options%orbit_derivative_tolerance &
+            *max(1.0_dp, factory%minor_radius_cm)
+        if (abs(result%period) <= tiny(result%period)) return
+        if (.not. ieee_is_finite(result%delta_phi)) return
+        if (position_tolerance <= 0.0_dp) return
+        if (sqrt((result%state_at_return%R-launch%state%R)**2 &
+            +(result%state_at_return%Z-launch%state%Z)**2) > &
+            position_tolerance) return
+        if (result%state_at_return%p_parallel*launch%state%p_parallel < 0.0_dp) &
+            return
+        certified = .true.
+    end function physical_return_has_identity
+
+    function make_transport_reference(factory) result(reference)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        type(gc_nonlocal_transport_reference_t) :: reference
+
+        reference = gc_nonlocal_transport_reference_t()
+        reference%section_id = 1
+        reference%section_coordinate = factory%section_coordinate
+        reference%section_units = factory%section_units
+        reference%section_position = factory%section_position
+        reference%section_flux = factory%section_flux
+        reference%p_zeta_orientation = factory%section_orientation
+        reference%frequency_semantics = GC_NONLOCAL_COMPLETE_CYCLE_FREQUENCIES
+        reference%hamiltonian_includes_phi = factory%potential%initialized
+        reference%fixed = factory%cut_ready
+    end function make_transport_reference
+
+    integer function validate_factory_inputs(factory, harmonic_m, harmonic_n, &
+            h0_nodes, h0_weights, jperp_nodes, jperp_weights) result(status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        integer, intent(in) :: harmonic_m, harmonic_n
+        real(dp), intent(in) :: h0_nodes(:), h0_weights(:)
+        real(dp), intent(in) :: jperp_nodes(:), jperp_weights(:)
+
+        status = GC_EQDSK_NONLOCAL_INVALID_INPUT
+        if (harmonic_n == 0) return
+        if (harmonic_m == 0 .and. harmonic_n == 0) return
+        if (size(h0_nodes) < 1 .or. size(h0_nodes) /= size(h0_weights)) return
+        if (size(jperp_nodes) < 1 .or. size(jperp_nodes) /= size(jperp_weights)) return
+        if (.not. all(ieee_is_finite(h0_nodes))) return
+        if (.not. all(ieee_is_finite(h0_weights))) return
+        if (.not. all(ieee_is_finite(jperp_nodes))) return
+        if (.not. all(ieee_is_finite(jperp_weights))) return
+        if (any(jperp_nodes < 0.0_dp)) return
+        if (.not. all(ieee_is_finite([factory%species%mass_g, &
+            factory%species%charge_esu, &
+            factory%species%reference_energy_erg, &
+            factory%species%reference_velocity_cm_s]))) return
+        if (factory%species%mass_g <= 0.0_dp) return
+        if (abs(factory%species%charge_esu) <= tiny(1.0_dp)) return
+        if (factory%species%reference_energy_erg <= 0.0_dp) return
+        if (factory%species%reference_velocity_cm_s <= 0.0_dp) return
+        if (factory%options%field_scale <= 0.0_dp) return
+        if (factory%options%surface_min <= 0.0_dp .or. &
+            factory%options%surface_max >= 1.0_dp .or. &
+            factory%options%surface_max <= factory%options%surface_min) return
+        if (factory%options%reference_surface < factory%options%surface_min .or. &
+            factory%options%reference_surface > factory%options%surface_max) return
+        if (factory%options%cut_theta_points < 32) return
+        if (factory%options%cut_root_tolerance <= 0.0_dp) return
+        if (factory%options%cut_derivative_step <= 0.0_dp) return
+        if (factory%options%orbit_derivative_fraction <= 0.0_dp) return
+        if (factory%options%orbit_derivative_tolerance <= 0.0_dp) return
+        if (factory%options%invariant_relative_tolerance <= 0.0_dp) return
+        if (factory%options%orbit_maximum_step < 0.0_dp) return
+        if (factory%options%topology_probe_fraction <= 0.0_dp) return
+        if (factory%options%topology_probe_fraction >= 0.5_dp) return
+        if (factory%options%topology_probe_count < 3) return
+        if (factory%options%residence_target_s_tor >= 0.0_dp) then
+            if (factory%options%residence_target_s_tor < &
+                factory%options%surface_min) return
+            if (factory%options%residence_target_s_tor > &
+                factory%options%surface_max) return
+        end if
+        if (len_trim(factory%wall_units) == 0) return
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end function validate_factory_inputs
+
+    logical function readable_file(path)
+        character(len=*), intent(in) :: path
+        logical :: exists
+        integer :: ios
+
+        readable_file = .false.
+        if (len_trim(path) == 0) return
+        inquire(file=trim(path), exist=exists, iostat=ios)
+        if (ios == 0) readable_file = exists
+    end function readable_file
+
+    integer function sign_of_real(value) result(sign_value)
+        real(dp), intent(in) :: value
+
+        sign_value = 0
+        if (value > 0.0_dp) sign_value = 1
+        if (value < 0.0_dp) sign_value = -1
+    end function sign_of_real
+
+end module neort_gc_eqdsk_nonlocal_transport
