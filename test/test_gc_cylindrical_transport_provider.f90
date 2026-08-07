@@ -177,7 +177,7 @@ contains
             orbit_provider=transport_orbit, harmonic_provider=transport_harmonic, &
             force_provider=transport_force, section_coordinate='R_c', &
             section_reference=section_reference, section_reference_id='cut-R', &
-            user_data=state)
+            user_data=state, required_return_crossings=2)
     end subroutine transport_node_factory
 
     subroutine transport_components(h0, jperp, user_data, components, status)
