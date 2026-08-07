@@ -16,6 +16,7 @@ program test_gc_dynamics
 
     call check_uniform_e_cross_b()
     call check_uniform_grad_b()
+    call check_curvature_b_star()
     call check_invariants()
     call pass_test
 
@@ -69,6 +70,40 @@ contains
         call require_close('uniform grad-B parallel motion', xdot(3), p*xi, 1.0e-14_dp)
         call require_close('uniform grad-B pdot', pdot, 0.0_dp, 1.0e-14_dp)
     end subroutine check_uniform_grad_b
+
+    subroutine check_curvature_b_star()
+        !! A nonzero curl(h) must enter both h* and B_parallel*.
+        field = gc_field_sample_t()
+        field%bmod = 2.0_dp
+        field%sqrtg = 1.0_dp
+        field%hcov = [0.0_dp, 0.0_dp, 1.0_dp]
+        field%hcon = field%hcov
+        field%curl_h = [0.2_dp, -0.1_dp, 0.3_dp]
+        grad_phi = 0.0_dp
+        p = 1.2_dp
+        xi = -0.4_dp
+        rho0 = 0.2_dp
+        lambda = 0.5_dp
+
+        call gc_rhs(field, grad_phi, rho0, lambda, p, xi, &
+            xdot, pdot, xidot, status)
+        if (status /= GC_SUCCESS) error stop 'curvature B-star RHS failed'
+
+        block
+            real(dp) :: a_c(3), hstar(3), h_parallel_star
+            a_c = field%curl_h*lambda*rho0/field%bmod
+            hstar = field%hcon + p*xi*a_c
+            h_parallel_star = 1.0_dp + p*xi*dot_product(a_c, field%hcov)
+            call require_close('curvature B-star xdot(1)', xdot(1), &
+                p*xi*hstar(1)/h_parallel_star, 1.0e-14_dp)
+            call require_close('curvature B-star xdot(2)', xdot(2), &
+                p*xi*hstar(2)/h_parallel_star, 1.0e-14_dp)
+            call require_close('curvature B-star xdot(3)', xdot(3), &
+                p*xi*hstar(3)/h_parallel_star, 1.0e-14_dp)
+        end block
+        call require_close('curvature B-star pdot', pdot, 0.0_dp, 1.0e-14_dp)
+        call require_close('curvature B-star xidot', xidot, 0.0_dp, 1.0e-14_dp)
+    end subroutine check_curvature_b_star
 
     subroutine check_invariants()
         !! Static-field guiding-center dynamics must conserve
