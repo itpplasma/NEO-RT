@@ -406,7 +406,8 @@ contains
         smallest = min(abs(lo), abs(hi))
         largest = max(abs(lo), abs(hi))
         if (lo <= 0.0_dp .and. hi >= 0.0_dp) smallest = 0.0_dp
-        value%lo = down(smallest*smallest + constant)
+        value%lo = smallest*smallest + constant
+        if (value%lo /= 0.0_dp) value%lo = down(value%lo)
         value%hi = up(largest*largest + constant)
     end function reference_square
 
@@ -447,7 +448,8 @@ contains
         smallest = min(abs(lo), abs(hi))
         largest = max(abs(lo), abs(hi))
         if (lo <= 0.0_dp .and. hi >= 0.0_dp) smallest = 0.0_dp
-        value%lo = down(smallest*smallest + constant)
+        value%lo = smallest*smallest + constant
+        if (value%lo /= 0.0_dp) value%lo = down(value%lo)
         value%hi = up(largest*largest + constant)
     end function square_plus_constant
 
