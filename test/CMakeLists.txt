@@ -211,6 +211,11 @@ add_test(NAME test_gc_cylindrical_dynamics
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_perpendicular_invariant
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_perpendicular_invariant.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_gc_cylindrical_topology
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_topology.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -218,6 +223,11 @@ add_test(NAME test_gc_cylindrical_topology
 
 add_test(NAME test_gc_cylindrical_orbit
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_orbit.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_cylindrical_physical_return
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_physical_return.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 

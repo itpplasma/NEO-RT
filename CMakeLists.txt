@@ -104,9 +104,11 @@ set(NEO_RT_SOURCES
     src/datatypes.f90
     src/driftorbit.f90
     src/gc_wall_context.f90
+    src/gc_perpendicular_invariant.f90
     src/gc_dynamics.f90
     src/gc_cylindrical_model.f90
     src/gc_cylindrical_dynamics.f90
+    src/gc_cylindrical_physical_return.f90
     src/gc_cylindrical_topology.f90
     src/gc_cylindrical_class_adapter.f90
     src/gc_cylindrical_orbit.f90
