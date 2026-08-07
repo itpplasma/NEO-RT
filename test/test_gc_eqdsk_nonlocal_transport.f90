@@ -116,8 +116,8 @@ contains
         species%reference_energy_erg = 2.0e3_dp*1.602176634e-12_dp
         species%reference_velocity_cm_s = 1.0e7_dp
         options = gc_eqdsk_nonlocal_options_t()
-        options%surface_min = 0.05_dp
-        options%surface_max = 0.90_dp
+        options%surface_min = 0.0_dp
+        options%surface_max = 1.0_dp
         options%reference_surface = 0.50_dp
         options%orbit_maximum_step = 4.0e-9_dp
         options%invariant_relative_tolerance = 1.0e-6_dp
