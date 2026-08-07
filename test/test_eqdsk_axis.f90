@@ -24,12 +24,15 @@ program test_eqdsk_axis
     real(dp) :: q_adapter, dqds_adapter, psi_adapter, dpsi_adapter
     real(dp) :: psi_edge_adapter, h_radial
     real(dp) :: legacy_state(7)
-    real(dp) :: dVds_inner, dVds_outer, dVds_expected
+    real(dp) :: dVds_inner, dVds_outer, dVds_resolved_inner
+    real(dp) :: dVds_resolved_outer, dVds_expected
     real(dp) :: dVds_scan(151), dVds_curvature, dVds_max_curvature
     real(dp), parameter :: fixture_rmajor_cm = 160.0_dp
     real(dp), parameter :: fixture_aminor_cm = 50.0_dp
     real(dp), parameter :: s_inner = (0.001_dp/fixture_aminor_cm)**2
     real(dp), parameter :: s_outer = (0.002_dp/fixture_aminor_cm)**2
+    real(dp), parameter :: s_resolved_inner = (10.0_dp/fixture_aminor_cm)**2
+    real(dp), parameter :: s_resolved_outer = (20.0_dp/fixture_aminor_cm)**2
     complex(dp) :: bamp
     type(eqdsk_gc_field_t) :: gc_field
     type(gc_field_sample_t) :: gc_sample, gc_sample_minus, gc_sample_plus
@@ -47,6 +50,9 @@ program test_eqdsk_axis
 
     ! The fixture generator prescribes s_tor = r**2/a**2 on concentric
     ! circular surfaces, so geometry independently gives this normalization.
+    ! The sub-grid samples test only the finite axis limit; absolute agreement
+    ! with the continuum fixture is tested where the 2.5 cm R-Z grid resolves
+    ! the surface radius.
     dVds_expected = 2.0_dp*pi**2*fixture_rmajor_cm*fixture_aminor_cm**2
     call set_s(s_inner)
     call init_magfie_at_s()
@@ -56,11 +62,24 @@ program test_eqdsk_axis
     call init_magfie_at_s()
     call init_flux_surface_average(s_outer)
     dVds_outer = dVds
-    if (abs(dVds_inner/dVds_expected - 1.0_dp) > 1.0e-2_dp .or. &
-        abs(dVds_outer/dVds_expected - 1.0_dp) > 1.0e-2_dp) then
-        write(*,*) 'Circular-axis dV/ds_tor normalization failed:', &
-            dVds_inner, dVds_outer, dVds_expected
+    if (abs(dVds_outer/dVds_inner - 1.0_dp) > 1.0e-2_dp) then
+        write(*,*) 'Circular-axis dV/ds_tor has no finite constant limit:', &
+            dVds_inner, dVds_outer
         error stop "GEQDSK near-axis volume derivative failed"
+    end if
+    call set_s(s_resolved_inner)
+    call init_magfie_at_s()
+    call init_flux_surface_average(s_resolved_inner)
+    dVds_resolved_inner = dVds
+    call set_s(s_resolved_outer)
+    call init_magfie_at_s()
+    call init_flux_surface_average(s_resolved_outer)
+    dVds_resolved_outer = dVds
+    if (abs(dVds_resolved_inner/dVds_expected - 1.0_dp) > 1.0e-2_dp .or. &
+        abs(dVds_resolved_outer/dVds_expected - 1.0_dp) > 1.0e-2_dp) then
+        write(*,*) 'Circular dV/ds_tor normalization failed on resolved surfaces:', &
+            dVds_resolved_inner, dVds_resolved_outer, dVds_expected
+        error stop "GEQDSK resolved volume derivative failed"
     end if
 
     do k = 10, 160
