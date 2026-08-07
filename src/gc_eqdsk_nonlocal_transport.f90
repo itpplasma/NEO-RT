@@ -34,7 +34,8 @@ module neort_gc_eqdsk_nonlocal_transport
         rz_nzet, set_mph
     use geoflux_coordinates, only: geoflux_get_flux_profiles
     use neort_gc_cylindrical_class_adapter, only: &
-        GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
+        GC_CYL_CLASS_SPLITTER_FAILURE, GC_CYL_CLASS_SUCCESS, &
+        gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_options_t, &
         gc_cylindrical_class_launch_t, gc_cylindrical_class_point_t, &
         gc_cylindrical_class_result_t, &
