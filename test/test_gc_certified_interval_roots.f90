@@ -493,12 +493,20 @@ contains
 
     real(dp) function down(number)
         real(dp), intent(in) :: number
-        down = ieee_next_after(number, -huge(number))
+        if (number == 0.0_dp) then
+            down = -tiny(number)
+        else
+            down = ieee_next_after(number, -huge(number))
+        end if
     end function down
 
     real(dp) function up(number)
         real(dp), intent(in) :: number
-        up = ieee_next_after(number, huge(number))
+        if (number == 0.0_dp) then
+            up = tiny(number)
+        else
+            up = ieee_next_after(number, huge(number))
+        end if
     end function up
 
     logical function valid_test_interval(interval)
