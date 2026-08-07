@@ -6,6 +6,8 @@ program test_eqdsk_axis
     use do_magfie_pert_mod, only: inp_swi_pert, read_boozer_pert_file, &
         init_magfie_pert_at_s, do_magfie_pert_amp, set_mph
     use neort_orbit, only: fieldline_label_component
+    use neort_magfie, only: init_flux_surface_average
+    use driftorbit, only: dVds
     use util, only: pi
     use util_for_test, only: pass_test
 
@@ -15,6 +17,12 @@ program test_eqdsk_axis
     character(len=1024) :: eqdsk_file, perturbation_file
     real(dp) :: x(3), bmod, sqrtg, bder(3), hcov(3), hcon(3), hcurl(3)
     real(dp) :: theta, dtheta, q_integral
+    real(dp) :: dVds_inner, dVds_outer, dVds_expected
+    real(dp) :: dVds_scan(151), dVds_curvature, dVds_max_curvature
+    real(dp), parameter :: fixture_rmajor_cm = 160.0_dp
+    real(dp), parameter :: fixture_aminor_cm = 50.0_dp
+    real(dp), parameter :: s_tor_inner = (0.001_dp/fixture_aminor_cm)**2
+    real(dp), parameter :: s_tor_outer = (0.002_dp/fixture_aminor_cm)**2
     complex(dp) :: bamp
     integer :: k
 
@@ -26,6 +34,44 @@ program test_eqdsk_axis
 
     inp_swi = 11
     call read_boozer_file(trim(eqdsk_file))
+
+    ! The synthetic fixture has s_tor = r**2/a**2 and concentric circular
+    ! surfaces. Its independent geometric oracle is therefore
+    ! dV/ds_tor = 2*pi**2*R0*a**2, including the finite magnetic-axis limit.
+    dVds_expected = 2.0_dp*pi**2*fixture_rmajor_cm*fixture_aminor_cm**2
+    call set_s(s_tor_inner)
+    call init_magfie_at_s()
+    call init_flux_surface_average(s_tor_inner)
+    dVds_inner = dVds
+    call set_s(s_tor_outer)
+    call init_magfie_at_s()
+    call init_flux_surface_average(s_tor_outer)
+    dVds_outer = dVds
+    if (abs(dVds_inner/dVds_expected - 1.0_dp) > 1.0e-2_dp .or. &
+        abs(dVds_outer/dVds_expected - 1.0_dp) > 1.0e-2_dp) then
+        write(*,*) 'Circular-axis dV/ds_tor normalization failed:', &
+            dVds_inner, dVds_outer, dVds_expected
+        error stop "GEQDSK near-axis volume derivative failed"
+    end if
+
+    do k = 10, 160
+        call set_s(real(k, dp)/250.0_dp)
+        call init_magfie_at_s()
+        call init_flux_surface_average(real(k, dp)/250.0_dp)
+        dVds_scan(k - 9) = dVds
+    end do
+    dVds_max_curvature = 0.0_dp
+    do k = 2, size(dVds_scan) - 1
+        dVds_curvature = abs(dVds_scan(k + 1) - 2.0_dp*dVds_scan(k) &
+            + dVds_scan(k - 1))/dVds_expected
+        dVds_max_curvature = max(dVds_max_curvature, dVds_curvature)
+    end do
+    if (dVds_max_curvature > 8.0e-4_dp) then
+        write(*,*) 'Circular-equilibrium dV/ds_tor radial metric rings:', &
+            dVds_max_curvature
+        error stop "GEQDSK radial metric rings between grid cells"
+    end if
+
     call set_s(0.25_dp)
     call init_magfie_at_s()
 
