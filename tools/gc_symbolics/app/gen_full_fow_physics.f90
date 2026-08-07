@@ -178,6 +178,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cut_numerator_roots(3)
     type(expr_t) :: eqdsk_cut_interval_roots(4)
     type(expr_t) :: eqdsk_cut_r_chart_roots(2), eqdsk_cut_z_chart_roots(2)
+    type(expr_t) :: eqdsk_cut_r_flux_chart_roots(2)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
     type(expr_t) :: frequency_contribution_roots(2)
@@ -245,8 +246,11 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_r_chart_slope, eqcut_r_chart_ds
     type(expr_t) :: eqcut_z_chart_slope, eqcut_z_chart_ds
     type(expr_t) :: eqcut_chart_n_r, eqcut_chart_n_z
+    type(expr_t) :: eqcut_chart_psi_r, eqcut_chart_psi_z
+    type(expr_t) :: eqcut_chart_psi_sep, eqcut_r_chart_dpsihat
     type(expr_t) :: eqcut_r_chart_tangent_residual
     type(expr_t) :: eqcut_z_chart_tangent_residual
+    type(expr_t) :: eqcut_r_chart_flux_residual
     character(len=64) :: eqdsk_cell_arg_names(38)
     character(len=64) :: eqdsk_profile_arg_names(9)
     type(expr_t) :: axis_b_r, axis_b_phi, axis_b_z, axis_bhat_r
@@ -593,14 +597,22 @@ program gen_full_fow_physics
     ! tangent point in one chart from evaluating the other denominator.
     eqcut_chart_n_r = sym(arena, "N_R")
     eqcut_chart_n_z = sym(arena, "N_Z")
+    eqcut_chart_psi_r = sym(arena, "psi_R")
+    eqcut_chart_psi_z = sym(arena, "psi_Z")
+    eqcut_chart_psi_sep = sym(arena, "psi_sep")
     eqcut_r_chart_slope = -eqcut_chart_n_r/eqcut_chart_n_z
     eqcut_r_chart_ds = sqrt(one+eqcut_r_chart_slope**2)
+    eqcut_r_chart_dpsihat = (eqcut_chart_psi_r + &
+        eqcut_chart_psi_z*eqcut_r_chart_slope)/eqcut_chart_psi_sep
     eqcut_z_chart_slope = -eqcut_chart_n_z/eqcut_chart_n_r
     eqcut_z_chart_ds = sqrt(one+eqcut_z_chart_slope**2)
     eqcut_r_chart_tangent_residual = eqcut_chart_n_r + &
         eqcut_chart_n_z*eqcut_r_chart_slope
     eqcut_z_chart_tangent_residual = &
         eqcut_chart_n_r*eqcut_z_chart_slope+eqcut_chart_n_z
+    eqcut_r_chart_flux_residual = eqcut_chart_psi_sep* &
+        eqcut_r_chart_dpsihat - (eqcut_chart_psi_r + &
+        eqcut_chart_psi_z*eqcut_r_chart_slope)
 
     ! ------------------------------------------------------------------
     ! Positive action, cyclotron frequency, and exact phase-space candidate.
@@ -1523,6 +1535,9 @@ program gen_full_fow_physics
         "Z-chart tangent is orthogonal to grad N", &
         eqcut_z_chart_tangent_residual)
     call check_identity(proofs, proof_engine, &
+        "R-chart normalized-flux derivative is the cut chain rule", &
+        eqcut_r_chart_flux_residual)
+    call check_identity(proofs, proof_engine, &
         "section reversal flips dpsi_star/dx", &
         dpsi_dx_reversed + dpsi_dx_section)
     call check_identity(proofs, proof_engine, &
@@ -1669,6 +1684,8 @@ program gen_full_fow_physics
     eqdsk_cut_interval_roots = [eqcut_n, eqcut_n_r, eqcut_n_z, eqcut_g]
     eqdsk_cut_r_chart_roots = [eqcut_r_chart_slope, eqcut_r_chart_ds]
     eqdsk_cut_z_chart_roots = [eqcut_z_chart_slope, eqcut_z_chart_ds]
+    eqdsk_cut_r_flux_chart_roots = [eqcut_r_chart_slope, &
+        eqcut_r_chart_dpsihat]
     eq17_outer_roots = [eq17_outer_factor]
     frequency_contribution_roots = [frequency_contribution, phase_contribution]
     frequency_identity_roots = [n_squared_frequency_contribution, &
@@ -1742,6 +1759,7 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_interval_roots)
     call simplify_array(eqdsk_cut_r_chart_roots)
     call simplify_array(eqdsk_cut_z_chart_roots)
+    call simplify_array(eqdsk_cut_r_flux_chart_roots)
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
@@ -2160,6 +2178,21 @@ program gen_full_fow_physics
         "evaluate_neort_eqdsk_cut_z_chart", &
         [character(len=64) :: "N_R", "N_Z"], eqdsk_cut_z_chart_roots, &
         [character(len=64) :: "dR_dZ", "ds_dZ"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_r_flux_chart_symbolic.f90", &
+        "neort_eqdsk_cut_r_flux_chart_symbolic", &
+        "evaluate_neort_eqdsk_cut_r_flux_chart", &
+        [character(len=64) :: "N_R", "N_Z", "psi_R", "psi_Z", &
+        "psi_sep"], eqdsk_cut_r_flux_chart_roots, &
+        [character(len=64) :: "dZ_dR", "dpsihat_dR"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_r_flux_chart_interval_symbolic.f90", &
+        "neort_eqdsk_cut_r_flux_chart_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_r_flux_chart_interval", &
+        [character(len=64) :: "N_R", "N_Z", "psi_R", "psi_Z", &
+        "psi_sep"], eqdsk_cut_r_flux_chart_roots, &
+        [character(len=64) :: "dZ_dR", "dpsihat_dR"], &
+        interval_kernel=.true.)
     call emit_certificate_registry(trim(output_path)// &
         "/neort_generated_certificate_registry.f90")
 
@@ -2391,14 +2424,14 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 16"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 17"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
         write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force', &"
         write (unit, "(a)") "        'eqdsk_cell_jet', 'eqdsk_profile_jet', 'eqdsk_cut_jet', &"
         write (unit, "(a)") "        'eqdsk_cut_numerator_jet', 'eqdsk_cut_r_chart', &"
-        write (unit, "(a)") "        'eqdsk_cut_z_chart' ]"
+        write (unit, "(a)") "        'eqdsk_cut_z_chart', 'eqdsk_cut_r_flux_chart' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -2415,7 +2448,8 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_jet:7:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_numerator_jet:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_chart:2:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884' ]"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_flux_chart:2:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"
