@@ -1936,6 +1936,19 @@
     allocate(R_valid(nroots),Z_valid(nroots),psi_valid(nroots),opoint_valid(nroots))
     do i=1,nroots
       R=R_tmp(i)
+
+! A zero of the cut velocity at an allowed-region endpoint is the physical
+! turning/separatrix boundary, not an O- or X-point in the open interval.
+! Keep the exact boundary in all_regions; do not pass it to the two-sided
+! fixed-point classifier, whose finite differences would necessarily probe
+! the forbidden side and report a false topology failure.
+      if(R.le.R_b_in .or. R.ge.R_e_in) then
+        call get_poicut(R,Z,dZ_dR)
+        print *,'classify_extrema: endpoint stationary root H,J,sigma,Rlo,Rhi,R,Z = ', &
+                toten,perpinv,sigma,R_b_in,R_e_in,R,Z
+        cycle
+      endif
+
       call get_poicut(R,Z,dZ_dR)
       call tormom_of_RZ(toten,perpinv,sigma,R,Z,p_phi,ierr)
       if(ierr.ne.0) then
@@ -1943,7 +1956,7 @@
         ierr_classify=ierr
         return
       endif
-      call determine_fixpoint_type(R,Z,opoint,ierr_type)
+      call determine_fixpoint_type(R,Z,R_b_in,R_e_in,opoint,ierr_type)
       if(ierr_type.ne.0) then
         deallocate(R_tmp,R_valid,Z_valid,psi_valid,opoint_valid)
         ierr_classify=ierr_type
@@ -2083,7 +2096,7 @@
 !
 !------------
 !
-  subroutine determine_fixpoint_type(R_in,Z_in,opoint,ierr_out)
+  subroutine determine_fixpoint_type(R_in,Z_in,R_lo,R_hi,opoint,ierr_out)
 !
 ! Determines type of fixed point with coordinates (R_in,Z_in)
 ! opoint = .true.   - O-point
@@ -2094,7 +2107,7 @@
   double precision, parameter :: dtau=0.d0, hdiff=1.d-6
   logical :: opoint
   integer :: ierr,ierr_out
-  double precision :: R_in,Z_in,dvrdr,dvrdz,dvzdr,dvzdz,hstep
+  double precision :: R_in,Z_in,R_lo,R_hi,dvrdr,dvrdz,dvzdr,dvzdz,hstep
   double precision, dimension(5) :: z,vz
 !
   ierr_out=0
@@ -2119,6 +2132,8 @@
   z(1)=R_in-hstep
   call get_z45(toten,perpinv,sigma,z,ierr)
   if(ierr.ne.0) then
+    print *,'determine_fixpoint_type: invalid R- neighborhood H,J,sigma,Rlo,Rhi,R,Z,h,ierr = ', &
+            toten,perpinv,sigma,R_lo,R_hi,R_in,Z_in,hstep,ierr
     ierr_out=ierr
     return
   endif
@@ -2129,6 +2144,8 @@
   z(1)=R_in+hstep
   call get_z45(toten,perpinv,sigma,z,ierr)
   if(ierr.ne.0) then
+    print *,'determine_fixpoint_type: invalid R+ neighborhood H,J,sigma,Rlo,Rhi,R,Z,h,ierr = ', &
+            toten,perpinv,sigma,R_lo,R_hi,R_in,Z_in,hstep,ierr
     ierr_out=ierr
     return
   endif
@@ -2140,6 +2157,8 @@
   z(3)=Z_in-hstep
   call get_z45(toten,perpinv,sigma,z,ierr)
   if(ierr.ne.0) then
+    print *,'determine_fixpoint_type: invalid Z- neighborhood H,J,sigma,Rlo,Rhi,R,Z,h,ierr = ', &
+            toten,perpinv,sigma,R_lo,R_hi,R_in,Z_in,hstep,ierr
     ierr_out=ierr
     return
   endif
@@ -2150,6 +2169,8 @@
   z(3)=Z_in+hstep
   call get_z45(toten,perpinv,sigma,z,ierr)
   if(ierr.ne.0) then
+    print *,'determine_fixpoint_type: invalid Z+ neighborhood H,J,sigma,Rlo,Rhi,R,Z,h,ierr = ', &
+            toten,perpinv,sigma,R_lo,R_hi,R_in,Z_in,hstep,ierr
     ierr_out=ierr
     return
   endif
