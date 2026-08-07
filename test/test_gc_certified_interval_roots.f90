@@ -265,11 +265,13 @@ contains
             case (1, 12, 13)
                 value%f = point_interval(x*x + 1.0_dp)
             case (2)
-                value%f = point_interval((x - 1.0_dp)*(x + 2.0_dp))
+                value%f = point_hull((x - 1.0_dp)*(x + 2.0_dp), &
+                    x*x + x - 2.0_dp)
             case (3, 10, 14)
                 value%f = point_interval((x - 0.3_dp)**2)
             case (4)
-                value%f = point_interval((x - 0.2_dp)*(x - 0.21_dp))
+                value%f = point_hull((x - 0.2_dp)*(x - 0.21_dp), &
+                    x*x - 0.41_dp*x + 0.2_dp*0.21_dp)
             case (16)
                 value%f = point_interval(x)
             case (17)

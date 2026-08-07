@@ -280,6 +280,9 @@ contains
 
             if (.not. valid) then
                 call promote_status(result%status, GC_INTERVAL_ROOT_CALLBACK_FAILURE)
+                result%unresolved_boxes = result%unresolved_boxes + 1
+                head = head + 1
+                cycle
             end if
             if (.not. needs_split .and. valid) then
                 !! The current box was not certified as a root, but it also
