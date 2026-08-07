@@ -12,6 +12,7 @@ program test_eqdsk_axis
     use neort_orbit, only: fieldline_label_component
     use neort_magfie, only: init_flux_surface_average
     use driftorbit, only: dVds
+    use circular_torus_volume_kernel, only: evaluate_circular_torus_dvds
     use util, only: pi
     use util_for_test, only: pass_test
 
@@ -26,6 +27,8 @@ program test_eqdsk_axis
     real(dp) :: legacy_state(7)
     real(dp) :: dVds_inner, dVds_outer, dVds_resolved_inner
     real(dp) :: dVds_resolved_outer, dVds_expected
+    real(dp) :: dVds_expected_inner, dVds_expected_outer
+    real(dp) :: dVds_expected_resolved_inner, dVds_expected_resolved_outer
     real(dp) :: dVds_scan(151), dVds_curvature, dVds_max_curvature
     real(dp), parameter :: fixture_rmajor_cm = 160.0_dp
     real(dp), parameter :: fixture_aminor_cm = 50.0_dp
@@ -48,12 +51,15 @@ program test_eqdsk_axis
     inp_swi = 11
     call read_boozer_file(trim(eqdsk_file))
 
-    ! The fixture generator prescribes s_tor = r**2/a**2 on concentric
-    ! circular surfaces, so geometry independently gives this normalization.
-    ! The sub-grid samples test only the finite axis limit; absolute agreement
-    ! with the continuum fixture is tested where the 2.5 cm R-Z grid resolves
-    ! the surface radius.
-    dVds_expected = 2.0_dp*pi**2*fixture_rmajor_cm*fixture_aminor_cm**2
+    ! Fortsym derives the exact finite-aspect metric for concentric circular
+    ! surfaces with B_phi=F/R.  The 65x65 EQDSK carries a 2.5 cm discretization,
+    ! so the continuum oracle allows the corresponding interpolation error.
+    call evaluate_circular_torus_dvds(0.0_dp, fixture_rmajor_cm, &
+        fixture_aminor_cm, dVds_expected)
+    call evaluate_circular_torus_dvds(s_inner, fixture_rmajor_cm, &
+        fixture_aminor_cm, dVds_expected_inner)
+    call evaluate_circular_torus_dvds(s_outer, fixture_rmajor_cm, &
+        fixture_aminor_cm, dVds_expected_outer)
     call set_s(s_inner)
     call init_magfie_at_s()
     call init_flux_surface_average(s_inner)
@@ -62,9 +68,11 @@ program test_eqdsk_axis
     call init_magfie_at_s()
     call init_flux_surface_average(s_outer)
     dVds_outer = dVds
-    if (abs(dVds_outer/dVds_inner - 1.0_dp) > 1.0e-2_dp) then
-        write(*,*) 'Circular-axis dV/ds_tor has no finite constant limit:', &
-            dVds_inner, dVds_outer
+    if (abs(dVds_inner/dVds_expected_inner - 1.0_dp) > 2.0e-2_dp .or. &
+        abs(dVds_outer/dVds_expected_outer - 1.0_dp) > 2.0e-2_dp .or. &
+        abs(dVds_outer/dVds_inner - 1.0_dp) > 1.0e-2_dp) then
+        write(*,*) 'Circular-axis dV/ds_tor limit failed:', dVds_inner, &
+            dVds_outer, dVds_expected_inner, dVds_expected_outer
         error stop "GEQDSK near-axis volume derivative failed"
     end if
     call set_s(s_resolved_inner)
@@ -75,10 +83,17 @@ program test_eqdsk_axis
     call init_magfie_at_s()
     call init_flux_surface_average(s_resolved_outer)
     dVds_resolved_outer = dVds
-    if (abs(dVds_resolved_inner/dVds_expected - 1.0_dp) > 1.0e-2_dp .or. &
-        abs(dVds_resolved_outer/dVds_expected - 1.0_dp) > 1.0e-2_dp) then
+    call evaluate_circular_torus_dvds(s_resolved_inner, fixture_rmajor_cm, &
+        fixture_aminor_cm, dVds_expected_resolved_inner)
+    call evaluate_circular_torus_dvds(s_resolved_outer, fixture_rmajor_cm, &
+        fixture_aminor_cm, dVds_expected_resolved_outer)
+    if (abs(dVds_resolved_inner/dVds_expected_resolved_inner - 1.0_dp) &
+            > 2.0e-2_dp .or. &
+        abs(dVds_resolved_outer/dVds_expected_resolved_outer - 1.0_dp) &
+            > 2.0e-2_dp) then
         write(*,*) 'Circular dV/ds_tor normalization failed on resolved surfaces:', &
-            dVds_resolved_inner, dVds_resolved_outer, dVds_expected
+            dVds_resolved_inner, dVds_resolved_outer, &
+            dVds_expected_resolved_inner, dVds_expected_resolved_outer
         error stop "GEQDSK resolved volume derivative failed"
     end if
 
