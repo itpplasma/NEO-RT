@@ -1,6 +1,5 @@
 module test_physical_return_models
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: GC_CYL_SUCCESS, &
         gc_cylindrical_field_sample_t, gc_cylindrical_field_t, &
         gc_cylindrical_wall_t, make_gc_cylindrical_field_sample
@@ -54,6 +53,7 @@ end module test_physical_return_models
 
 program test_gc_cylindrical_physical_return
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: GC_CYL_EQUILIBRIUM_DOMAIN, &
         GC_CYL_NO_RETURN, GC_CYL_SUCCESS, &
         GC_CYL_WALL_LOSS, gc_cylindrical_field_sample_t, &
