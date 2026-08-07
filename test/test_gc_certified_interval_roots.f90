@@ -7,6 +7,8 @@ program test_gc_certified_interval_roots
     type(gc_interval_root_options_t) :: options
     type(gc_interval_root_result_t) :: result, coarse, fine, repeat
     integer :: callback_mode, callback_calls
+    real(dp), parameter :: nearby_root_a = 0.2_dp
+    real(dp), parameter :: nearby_root_b = 0.21_dp
 
     options%max_depth = 80
     options%max_boxes = 20000
@@ -207,8 +209,8 @@ contains
                 value%stationary_point = ieee_next_after(0.3_dp, huge(0.3_dp))
             end if
         case (4)
-            a = 0.2_dp
-            b = 0.21_dp
+            a = nearby_root_a
+            b = nearby_root_b
             value%f = quadratic_interval(lo, hi, 1.0_dp, -(a + b), a*b)
             value%df = gc_interval_t(down(2.0_dp*lo - (a + b)), &
                 up(2.0_dp*hi - (a + b)))
@@ -270,7 +272,8 @@ contains
             case (3, 10, 14)
                 value%f = point_interval((x - 0.3_dp)**2)
             case (4)
-                value%f = point_interval((x - 0.2_dp)*(x - 0.21_dp))
+                value%f = point_interval(x*x - (nearby_root_a + nearby_root_b)*x + &
+                    nearby_root_a*nearby_root_b)
             case (16)
                 value%f = point_interval(x)
             case (17)
@@ -340,7 +343,8 @@ contains
         case (3, 10, 14)
             value = reference_square(lo - 0.3_dp, hi - 0.3_dp, 0.0_dp)
         case (4)
-            value = reference_quadratic(lo, hi, 1.0_dp, -0.41_dp, 0.2_dp*0.21_dp)
+            value = reference_quadratic(lo, hi, 1.0_dp, &
+                -(nearby_root_a + nearby_root_b), nearby_root_a*nearby_root_b)
         case (5, 15)
             value = gc_interval_t(0.0_dp, 0.0_dp)
         case (7)
@@ -377,8 +381,8 @@ contains
             value = gc_interval_t(down(2.0_dp*(lo - 0.3_dp)), &
                 up(2.0_dp*(hi - 0.3_dp)))
         case (4)
-            value = gc_interval_t(down(2.0_dp*lo - 0.41_dp), &
-                up(2.0_dp*hi - 0.41_dp))
+            value = gc_interval_t(down(2.0_dp*lo - (nearby_root_a + nearby_root_b)), &
+                up(2.0_dp*hi - (nearby_root_a + nearby_root_b)))
         case (5, 7, 15)
             value = gc_interval_t(0.0_dp, 0.0_dp)
         case (16, 17)
