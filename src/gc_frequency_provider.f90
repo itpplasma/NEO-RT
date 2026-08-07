@@ -9,7 +9,8 @@ module neort_gc_frequency_provider
         gc_zero_potential_t, gc_linear_flux_potential_t, &
         invariants_from_state, make_linear_flux_potential
     use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
-        gc_orbit_options_t, compute_thin_precession
+        gc_orbit_options_t, gc_orbit_average_t, gc_orbit_perturbation_i, &
+        compute_thin_precession, compute_gc_orbit_average
     use neort_thin_orbit_limit, only: THIN_LIMIT_SUCCESS, orbit_return_t, &
         thin_limit_result_t
     use util, only: pi, c
@@ -53,6 +54,7 @@ module neort_gc_frequency_provider
     end type gc_frequency_result_t
 
     public :: initialize_gc_frequency_context, evaluate_gc_frequency
+    public :: evaluate_gc_phase_average
 
 contains
 
@@ -220,5 +222,50 @@ contains
         result%omega_electric = total%omega - magnetic%omega
         status = GC_FREQUENCY_SUCCESS
     end subroutine evaluate_gc_frequency
+
+    subroutine evaluate_gc_phase_average(context, velocity, eta, &
+            parallel_direction, orbit_class, period_estimate, omega_b, mth, mph, &
+            perturbation, result, status)
+        !! Evaluate the perturbation Hamiltonian on the direct real-space
+        !! zero-width orbit.  The caller supplies the native perturbation
+        !! evaluator; this layer supplies the same field, potential, invariant,
+        !! and sign conventions as the direct frequency provider.
+        type(gc_frequency_context_t), intent(in) :: context
+        real(dp), intent(in) :: velocity, eta, period_estimate, omega_b
+        integer, intent(in) :: parallel_direction, orbit_class, mth, mph
+        procedure(gc_orbit_perturbation_i) :: perturbation
+        type(gc_orbit_average_t), intent(out) :: result
+        integer, intent(out) :: status
+
+        type(gc_invariants_t) :: invariants
+        real(dp) :: speed_ratio, xi_squared, rho0
+        integer :: invariant_status, parallel_sign, winding
+
+        result = gc_orbit_average_t()
+        status = GC_FREQUENCY_INVALID_INPUT
+        if (.not. context%initialized .or. velocity <= 0.0_dp &
+            .or. eta <= 0.0_dp .or. period_estimate <= 0.0_dp) return
+        if (abs(parallel_direction) /= 1) return
+        if (orbit_class /= GC_ORBIT_TRAPPED &
+            .and. orbit_class /= GC_ORBIT_PASSING) return
+
+        speed_ratio = velocity/context%reference_velocity
+        rho0 = context%rho0*speed_ratio
+        xi_squared = 1.0_dp - eta*context%reference_sample%bmod
+        if (xi_squared <= 0.0_dp) return
+        parallel_sign = parallel_direction*context%htheta_sign
+        winding = merge(parallel_direction, 0, orbit_class == GC_ORBIT_PASSING)
+        call invariants_from_state(context%reference_sample, 0.0_dp, rho0, &
+            0.0_dp, speed_ratio, real(parallel_sign, dp)*sqrt(xi_squared), &
+            invariants, invariant_status)
+        if (invariant_status /= GC_MODEL_SUCCESS) return
+
+        call compute_gc_orbit_average(context%field, context%electric_potential, &
+            invariants, context%reference_position, parallel_sign, rho0, &
+            context%reference_velocity, eta, orbit_class, winding, &
+            period_estimate, omega_b, mth, mph, perturbation, &
+            context%orbit_options, result)
+        status = result%status
+    end subroutine evaluate_gc_phase_average
 
 end module neort_gc_frequency_provider

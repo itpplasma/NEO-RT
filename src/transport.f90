@@ -9,11 +9,16 @@ module neort_transport
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph
+    use neort_gc_frequency_splines, only: &
+        evaluate_gc_phase_average_surface
+    use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
+        gc_orbit_average_t
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
-        sign_vpar_htheta, sign_vpar
+        sign_vpar_htheta, sign_vpar, frequency_model, &
+        FREQUENCY_MODEL_GC_THIN
 
   implicit none
 
@@ -79,6 +84,8 @@ contains
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
+        integer :: direct_status, orbit_class
+        type(gc_orbit_average_t) :: direct_average
         real(dp) :: Hmn2, attenuation_factor
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku
@@ -104,7 +111,27 @@ contains
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
                 taub = 2.0_dp * pi / abs(Omth)
-                call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
+                if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
+                    orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
+                        eta > etatp)
+                    call evaluate_gc_phase_average_surface(v, eta, &
+                        int(sign_vpar), orbit_class, taub, Omth, mth, mph, &
+                        evaluate_direct_perturbation, direct_average, &
+                        direct_status)
+                    if (direct_status /= 0) then
+                        call error(fmt_dbg('direct GC orbit average failed: mth=', &
+                            dble(mth), ' eta=', eta))
+                    end if
+                    bounceavg = 0.0_dp
+                    bounceavg(3) = real(direct_average%perturbation_average)
+                    bounceavg(4) = aimag(direct_average%perturbation_average)
+                    bounceavg(5) = direct_average%inverse_b_average
+                    bounceavg(6) = direct_average%b_average
+                    istate_dv = 2
+                else
+                    call bounce_fast(v, eta, taub, bounceavg, &
+                        timestep_transport, istate_dv)
+                end if
                 if (istate_dv == -1) then
                     call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
                 else if (istate_dv /= 2) then
@@ -138,6 +165,24 @@ contains
         call debug("compute_transport_integral complete")
 
     end subroutine compute_transport_integral
+
+    subroutine evaluate_direct_perturbation(position, bmod, amplitude, status)
+        real(dp), intent(in) :: position(3), bmod
+        complex(dp), intent(out) :: amplitude
+        integer, intent(out) :: status
+        complex(dp) :: field_amplitude
+
+        amplitude = (0.0_dp, 0.0_dp)
+        status = 1
+        if (bmod <= 0.0_dp) return
+        if (pertfile) then
+            call do_magfie_pert_amp(position, field_amplitude)
+            amplitude = epsmn*field_amplitude/bmod
+        else
+            amplitude = epsmn*exp(imun*real(m0, dp)*position(3))
+        end if
+        status = 0
+    end subroutine evaluate_direct_perturbation
 
     subroutine timestep_transport(v, eta, neq, t, y, ydot)
         !

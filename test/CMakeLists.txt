@@ -151,3 +151,8 @@ add_test(NAME test_gc_orbit_limit
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_orbit_limit.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_test(NAME test_gc_transport_orbit
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_transport_orbit.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)

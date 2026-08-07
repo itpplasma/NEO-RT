@@ -7,8 +7,10 @@ module neort_gc_frequency_splines
     use spline, only: spline_coeff, spline_val_0
     use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
         gc_frequency_context_t, gc_frequency_result_t, &
-        initialize_gc_frequency_context, evaluate_gc_frequency
-    use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING
+        initialize_gc_frequency_context, evaluate_gc_frequency, &
+        evaluate_gc_phase_average
+    use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
+        gc_orbit_average_t, gc_orbit_perturbation_i
     use neort_thin_orbit_limit, only: THIN_LIMIT_RETURN_ERROR
 
     implicit none
@@ -68,6 +70,7 @@ module neort_gc_frequency_splines
 
     public :: initialize_gc_spline_surface, fit_gc_frequency_region
     public :: evaluate_gc_spline, gc_spline_q, get_gc_spline_diagnostics
+    public :: evaluate_gc_phase_average_surface
 
 contains
 
@@ -279,6 +282,23 @@ contains
 
         value = diagnostics
     end subroutine get_gc_spline_diagnostics
+
+    subroutine evaluate_gc_phase_average_surface(velocity, eta, &
+            parallel_direction, orbit_class, period_estimate, omega_b, mth, mph, &
+            perturbation, result, status)
+        real(dp), intent(in) :: velocity, eta, period_estimate, omega_b
+        integer, intent(in) :: parallel_direction, orbit_class, mth, mph
+        procedure(gc_orbit_perturbation_i) :: perturbation
+        type(gc_orbit_average_t), intent(out) :: result
+        integer, intent(out) :: status
+
+        result = gc_orbit_average_t()
+        status = GC_SPLINE_NOT_INITIALIZED
+        if (.not. surface_initialized) return
+        call evaluate_gc_phase_average(surface_context, velocity, eta, &
+            parallel_direction, orbit_class, period_estimate, omega_b, mth, mph, &
+            perturbation, result, status)
+    end subroutine evaluate_gc_phase_average_surface
 
     subroutine fit_log_extrapolation(region, eta, omega_b, omega_magnetic, &
             omega_electric)
