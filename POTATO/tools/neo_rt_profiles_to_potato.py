@@ -12,6 +12,8 @@ import numpy as np
 from numpy.polynomial import Polynomial
 
 C_CGS = 2.99792458e10
+EV_TO_ERG = 1.602176634e-12
+DALTON_TO_G = 1.66053906660e-24
 
 
 def sha256(path: Path) -> str:
@@ -54,7 +56,7 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
 
     rotation = np.asarray(numeric_rows(profile), dtype=float)
     plasma_rows = numeric_rows(plasma)
-    if rotation.shape[1] < 3 or len(plasma_rows) < 2:
+    if rotation.shape[1] < 2 or len(plasma_rows) < 2:
         raise ValueError("truncated NEO-RT profile input")
     species = np.asarray(plasma_rows[0], dtype=float)
     if int(round(species[0])) != 50 or species.size < 5:
@@ -78,7 +80,15 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
     density = np.interp(s_tor, data[:, 0], data[:, 1+ion])
     temperature_ev = np.interp(s_tor, data[:, 0], data[:, 3+ion])
     mach = np.interp(s_tor, rotation[:, 0], rotation[:, 1])
-    vth_cm_s = np.interp(s_tor, rotation[:, 0], rotation[:, 2])
+    if rotation.shape[1] >= 3:
+        vth_cm_s = np.interp(s_tor, rotation[:, 0], rotation[:, 2])
+        vth_source = "profile column 3"
+    else:
+        ion_mass_g = species[1+ion] * DALTON_TO_G
+        if ion_mass_g <= 0.0 or np.any(temperature_ev <= 0.0):
+            raise ValueError("ion mass and temperature must be positive to derive vth")
+        vth_cm_s = np.sqrt(2.0 * temperature_ev * EV_TO_ERG / ion_mass_g)
+        vth_source = "sqrt(2*Ti/m_i) from plasma.in"
     omega_e_s = mach*vth_cm_s/r0_cm
 
     # Phi is statvolt and psi_pol is gauss cm^2. The sign is explicit because
@@ -111,6 +121,8 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
         "output_abscissa": "s_pol=rho_pol^2",
         "selected_ion_index_one_based": ion + 1,
         "selected_ion_charge": float(charges[ion]),
+        "selected_ion_mass_dalton": float(species[1+ion]),
+        "thermal_speed_source": vth_source,
         "r0_cm": r0_cm,
         "psi_pol_span_tm2": psi_span_tm2,
         "potential_relation": "dPhi/dpsi_pol = relation_sign*Omega_E/c",

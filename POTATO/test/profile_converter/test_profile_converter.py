@@ -60,6 +60,25 @@ def main() -> int:
         )
         if not np.array_equal(zero_coefficients, np.zeros(4)):
             raise AssertionError("zero-frequency control produced a nonzero potential")
+
+        two_column_profile = root / "profile_two_columns.in"
+        two_column_profile.write_text(
+            "0.0 0.02\n"
+            "0.5 0.03\n"
+            "1.0 0.04\n"
+        )
+        derived = MODULE.convert(
+            two_column_profile, plasma, geometry, root / "profile_derived.in",
+            r0_cm=100.0, psi_span_tm2=2.0, relation_sign=1, degree=3,
+        )
+        expected_vth_axis = np.sqrt(
+            2.0 * 1.0e4 * MODULE.EV_TO_ERG / (2.0 * MODULE.DALTON_TO_G)
+        )
+        expected_omega_axis = 0.02 * expected_vth_axis / 100.0
+        if derived["thermal_speed_source"] != "sqrt(2*Ti/m_i) from plasma.in":
+            raise AssertionError("two-column profile did not derive the thermal speed")
+        if not np.isclose(derived["omega_e_s_range"][0], expected_omega_axis):
+            raise AssertionError("derived thermal speed does not match sqrt(2 Ti / m_i)")
     return 0
 
 
