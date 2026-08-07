@@ -249,8 +249,8 @@ program test_gc_model2_transport_dispatch
         'signed force slots were not accepted')
     call require(.not. execution%runtime%nonlocal_transport_certified, &
         'runtime state was certified before provider evidence was finalized')
-    call require(execution%runtime%cylindrical_backend_entries == 1, &
-        'runtime state did not report the attempted physical node')
+    call require(execution%runtime%cylindrical_backend_entries == 4, &
+        'runtime state did not report all attempted physical nodes')
     call configure_observed_evidence(observed)
     call finalize_gc_model2_transport_execution(execution, backend, observed, status)
     call require(status == GC_MODEL2_DISPATCH_SUCCESS .and. execution%certified, &
@@ -277,7 +277,7 @@ program test_gc_model2_transport_dispatch
     call require(metadata_value(output_path, 'nonlocal_transport_certified') == &
         'true', 'runtime record lost nonlocal certification')
     call require(metadata_value(output_path, 'cylindrical_backend_entries') == &
-        '1', 'runtime record lost actual backend count')
+        '4', 'runtime record lost actual backend count')
     inquire (file=trim(output_path), exist=exists, iostat=io_status)
     call require(io_status == 0 .and. exists, 'runtime record is missing')
 

@@ -346,6 +346,11 @@ contains
                     return
                 end if
             end do
+        end do
+        !! Complete all cross-branch structural checks before invoking a
+        !! provider for any one branch.  A fail-closed callback on branch one
+        !! must not mask an invalid later branch.
+        do i = 1, branch_count
             if (atlas%branches(i)%branch_id /= i) then
                 status = PCA_INVALID_CONTRACT
                 message = 'branch identity is not the canonical array position'
