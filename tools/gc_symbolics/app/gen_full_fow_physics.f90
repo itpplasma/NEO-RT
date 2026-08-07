@@ -354,8 +354,8 @@ program gen_full_fow_physics
     do i = 1, 6
         do j = 1, 6
             k = 2+(i-1)*6+j
-            write (eqdsk_cell_arg_names(k), &
-                '("coefficient_",i0,"_",i0)') i-1, j-1
+            write (eqdsk_cell_arg_names(k), "(a,i0,a,i0)") &
+                "coefficient_", i-1, "_", j-1
             cell_coefficient(i,j) = &
                 sym(arena, trim(eqdsk_cell_arg_names(k)))
             cell_psi = cell_psi + cell_coefficient(i,j)* &
@@ -377,7 +377,7 @@ program gen_full_fow_physics
     eqdsk_profile_arg_names(1) = "profile_delta"
     profile_value = zero
     do i = 0, 5
-        write (eqdsk_profile_arg_names(i+2), '("coefficient_",i0)') i
+        write (eqdsk_profile_arg_names(i+2), "(a,i0)") "coefficient_", i
         profile_coefficient(i) = &
             sym(arena, trim(eqdsk_profile_arg_names(i+2)))
         profile_value = profile_value + &
