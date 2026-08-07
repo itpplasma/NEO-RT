@@ -13,6 +13,10 @@
   module cc_mod
     logical :: dowrite=.false. !write canonical frequencies and bounce integrals for sampling grid and interpolation
     logical :: wrbounds=.false. !write vpar^2 and psi^* curves vs cut parameter R_c, extremum and boundary points
+! These controls are set by get_matrix_res for each parallel energy slice.
+! Keeping them per-thread prevents a diagnostic flag write in one slice from
+! racing with a read in another slice.
+    !$omp threadprivate(dowrite,wrbounds)
   end module cc_mod
 !
   module global_invariants
@@ -97,7 +101,7 @@
 ! The grid-build regions never write next; they copyin the master value to keep
 ! the prior shared semantics.  numbasef is set before any parallel region and
 ! read only, so it stays shared.
-    !$omp threadprivate(Rorb_max,next)
+    !$omp threadprivate(write_orb,Rorb_max,next)
   end module orbit_dim_mod
 !
 !------------------------------------------------------
@@ -110,7 +114,9 @@
 ! disables the trim (default, preserves non-torque paths).
     double precision :: delphi_max=0.d0
     integer          :: iclass
-    !$omp threadprivate(iclass)
+! Relerror and relmargin are configured by sample_class_doublecount for each
+! energy slice; they are not immutable global input once the torque loop starts.
+    !$omp threadprivate(relerror,relmargin,iclass)
   end module get_matrix_mod
 !
 !------------------------------------------------------
