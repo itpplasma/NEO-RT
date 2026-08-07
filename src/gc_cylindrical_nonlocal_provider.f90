@@ -17,14 +17,15 @@ module neort_gc_cylindrical_nonlocal_provider
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_nonlocal_resonance_types, only: &
-        GC_NONLOCAL_CLASS_COUNTERPASSING, GC_NONLOCAL_CLASS_COPASSING, &
-        GC_NONLOCAL_CLASS_TRAPPED, &
         GC_NONLOCAL_MAX_FORCE_VALUES, &
         GC_NONLOCAL_SAMPLE_INVALID, &
         GC_NONLOCAL_SAMPLE_UNRESOLVED, GC_NONLOCAL_SAMPLE_VALID, &
         GC_NONLOCAL_SAMPLE_WALL, GC_NONLOCAL_SUCCESS, &
         gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t, &
         gc_nonlocal_resonance_options_t, gc_nonlocal_resonance_result_t
+    use neort_gc_nonlocal_transport_types, only: &
+        GC_NONLOCAL_CLASS_COUNTERPASSING, GC_NONLOCAL_CLASS_COPASSING, &
+        GC_NONLOCAL_CLASS_TRAPPED
     use neort_full_fow_action_symbolic, only: &
         evaluate_neort_action_normalization
 
