@@ -16,7 +16,7 @@ module neort_transport
     use neort_gc_frequency_provider, only: gc_full_orbit_frequency_result_t, &
         GC_FREQUENCY_SUCCESS
     use neort_gc_full_resonance, only: GC_RESONANCE_SUCCESS, GC_RESONANCE_PARTIAL, &
-        find_gc_resonances
+        GC_RESONANCE_BOUNDARY_INVALID, find_gc_resonances
     use neort_gc_orbit_integrator, only: GC_ORBIT_SUCCESS, GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
         gc_orbit_average_t
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
@@ -121,6 +121,7 @@ contains
         integer :: nroots, kr, ku
         real(dp) :: full_root_values(nlev), full_root_derivatives(nlev)
         type(gc_transport_failure_t) :: full_failures
+        real(dp) :: resonance_scan_min, resonance_scan_max
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
@@ -292,6 +293,8 @@ contains
             lower = etamin
             upper = min(etamax, etatp*(1.0_dp - 1.0e-8_dp))
             if (upper > lower) then
+                resonance_scan_min = lower
+                resonance_scan_max = upper
                 call find_gc_resonances(full_residual, lower, upper, nlev, &
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
                     region_roots, region_derivatives, region_count, region_status)
@@ -305,6 +308,8 @@ contains
             lower = max(etamin, etatp*(1.0_dp + 1.0e-8_dp))
             upper = etamax
             if (upper > lower .and. root_count < size(root_values)) then
+                resonance_scan_min = lower
+                resonance_scan_max = upper
                 call find_gc_resonances(full_residual, lower, upper, nlev, &
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
                     region_roots, region_derivatives, region_count, region_status)
@@ -332,8 +337,12 @@ contains
             residual = 0.0_dp
             call Om_th(v, pitch, thin_omega_b, thin_dv, thin_deta)
             if (thin_omega_b == 0.0_dp) then
-                full_failures%frequency_failures = full_failures%frequency_failures + 1
-                residual_status = 1
+                if (is_open_scan_endpoint(pitch)) then
+                    residual_status = GC_RESONANCE_BOUNDARY_INVALID
+                else
+                    full_failures%frequency_failures = full_failures%frequency_failures + 1
+                    residual_status = 1
+                end if
                 return
             end if
             period_estimate = 2.0_dp*pi/abs(thin_omega_b)
@@ -343,14 +352,26 @@ contains
                 int(sign_vpar), local_class, period_estimate, local_frequency, &
                 residual_status)
             if (residual_status /= GC_FREQUENCY_SUCCESS) then
-                full_failures%frequency_failures = full_failures%frequency_failures + 1
-                if (local_frequency%orbit_status /= GC_ORBIT_SUCCESS) &
-                    full_failures%orbit_failures = full_failures%orbit_failures + 1
+                if (is_open_scan_endpoint(pitch)) then
+                    residual_status = GC_RESONANCE_BOUNDARY_INVALID
+                else
+                    full_failures%frequency_failures = full_failures%frequency_failures + 1
+                    if (local_frequency%orbit_status /= GC_ORBIT_SUCCESS) &
+                        full_failures%orbit_failures = full_failures%orbit_failures + 1
+                    residual_status = 1
+                end if
                 return
             end if
             residual = real(mth, dp)*local_frequency%omega_b &
                 +real(mph, dp)*local_frequency%omega_phi
         end subroutine full_residual
+
+        logical function is_open_scan_endpoint(pitch)
+            real(dp), intent(in) :: pitch
+
+            is_open_scan_endpoint = pitch == resonance_scan_min &
+                .or. pitch == resonance_scan_max
+        end function is_open_scan_endpoint
 
     end subroutine compute_transport_integral
 

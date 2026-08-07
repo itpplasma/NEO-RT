@@ -1,12 +1,24 @@
 program test_gc_full_resonance
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_full_resonance, only: GC_RESONANCE_SUCCESS, GC_RESONANCE_PARTIAL, &
-        find_gc_resonances
+        GC_RESONANCE_BOUNDARY_INVALID, find_gc_resonances
 
     implicit none
 
     real(dp) :: roots(8), derivatives(8)
     integer :: nroots, status
+
+    call find_gc_resonances(invalid_open_endpoints, 0.0_dp, 1.0_dp, 8, &
+        1.0e-12_dp, 1.0e-12_dp, roots, derivatives, nroots, status)
+    if (status /= GC_RESONANCE_SUCCESS .or. nroots /= 1) &
+        error stop "invalid open endpoints were treated as a partial scan"
+    if (abs(roots(1) - 0.35_dp) > 1.0e-9_dp) &
+        error stop "root in the shrunken open interval was not recovered"
+
+    call find_gc_resonances(positive_local_minimum, 0.0_dp, 1.0_dp, 3, &
+        1.0e-12_dp, 1.0e-10_dp, roots, derivatives, nroots, status)
+    if (status /= GC_RESONANCE_SUCCESS .or. nroots /= 0) &
+        error stop "positive local minimum was reported as a failed scan/root"
 
     call find_gc_resonances(two_roots, 0.0_dp, 1.0_dp, 40, 1.0e-12_dp, &
         1.0e-12_dp, roots, derivatives, nroots, status)
@@ -49,6 +61,25 @@ program test_gc_full_resonance
     write (*, '(A)') "test_gc_full_resonance OK"
 
 contains
+
+    subroutine invalid_open_endpoints(eta, residual, local_status)
+        real(dp), intent(in) :: eta
+        real(dp), intent(out) :: residual
+        integer, intent(out) :: local_status
+
+        residual = eta - 0.35_dp
+        local_status = merge(GC_RESONANCE_BOUNDARY_INVALID, 0, &
+            eta == 0.0_dp .or. eta == 1.0_dp)
+    end subroutine invalid_open_endpoints
+
+    subroutine positive_local_minimum(eta, residual, local_status)
+        real(dp), intent(in) :: eta
+        real(dp), intent(out) :: residual
+        integer, intent(out) :: local_status
+
+        residual = (eta - 0.37_dp)**2 + 1.0e-4_dp
+        local_status = 0
+    end subroutine positive_local_minimum
 
     subroutine two_roots(eta, residual, local_status)
         real(dp), intent(in) :: eta

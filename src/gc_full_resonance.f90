@@ -13,6 +13,7 @@ module neort_gc_full_resonance
     integer, parameter, public :: GC_RESONANCE_INVALID_INPUT = 1
     integer, parameter, public :: GC_RESONANCE_NOT_CONVERGED = 2
     integer, parameter, public :: GC_RESONANCE_PARTIAL = 3
+    integer, parameter, public :: GC_RESONANCE_BOUNDARY_INVALID = 4
 
     integer, parameter :: scan_refinement_factor = 8
     integer, parameter :: maximum_scan_points = 4096
@@ -42,7 +43,7 @@ contains
 
         real(dp), allocatable :: eta(:), residual(:)
         integer, allocatable :: sample_status(:)
-        integer :: nscan, k, local_status
+        integer :: nscan, k, local_status, first_valid, last_valid
         logical :: partial_scan, failed, capacity_exhausted
 
         roots = 0.0_dp
@@ -58,25 +59,67 @@ contains
         allocate(eta(0:nscan), residual(0:nscan), sample_status(0:nscan))
         partial_scan = .false.
         do k = 0, nscan
-            eta(k) = eta_min + real(k, dp)*(eta_max - eta_min)/real(nscan, dp)
-            call evaluate(eta(k), residual(k), sample_status(k))
-            if (sample_status(k) /= 0 .or. .not. ieee_is_finite(residual(k))) then
-                partial_scan = .true.
+            if (k == 0) then
+                eta(k) = eta_min
+            else if (k == nscan) then
+                eta(k) = eta_max
+            else
+                eta(k) = eta_min + real(k, dp)*(eta_max - eta_min)/real(nscan, dp)
             end if
+            call evaluate(eta(k), residual(k), sample_status(k))
         end do
 
+        ! An open orbit interval may be invalid exactly at its endpoints
+        ! (most notably at the trapped/passing separatrix).  Those samples do
+        ! not describe a missing interior interval: discard the invalid
+        ! prefix/suffix and search only the valid open interval.  Any other
+        ! invalid sample remains evidence that the scan could have hidden a
+        ! root.
+        first_valid = -1
         do k = 0, nscan
-            if (sample_status(k) == 0 .and. ieee_is_finite(residual(k)) &
+            if (sample_is_valid(sample_status(k), residual(k))) then
+                first_valid = k
+                exit
+            end if
+        end do
+        last_valid = -1
+        do k = nscan, 0, -1
+            if (sample_is_valid(sample_status(k), residual(k))) then
+                last_valid = k
+                exit
+            end if
+        end do
+        if (first_valid < 0 .or. last_valid < first_valid &
+                .or. first_valid == last_valid) then
+            status = GC_RESONANCE_PARTIAL
+            return
+        end if
+
+        partial_scan = .false.
+        do k = 0, first_valid - 1
+            partial_scan = partial_scan .or. &
+                sample_status(k) /= GC_RESONANCE_BOUNDARY_INVALID
+        end do
+        do k = first_valid, last_valid
+            partial_scan = partial_scan .or. &
+                .not. sample_is_valid(sample_status(k), residual(k))
+        end do
+        do k = last_valid + 1, nscan
+            partial_scan = partial_scan .or. &
+                sample_status(k) /= GC_RESONANCE_BOUNDARY_INVALID
+        end do
+
+        do k = first_valid, last_valid
+            if (sample_is_valid(sample_status(k), residual(k)) &
                     .and. abs(residual(k)) <= residual_tolerance) then
-                call append_root(eta(k), evaluate, eta_min, eta_max, &
+                call append_root(eta(k), evaluate, eta(first_valid), eta(last_valid), &
                     eta_tolerance, roots, derivatives, nroots, &
                     capacity_exhausted, local_status)
                 partial_scan = partial_scan .or. local_status /= GC_RESONANCE_SUCCESS
             end if
-            if (k == 0) cycle
-            if (sample_status(k - 1) == 0 .and. sample_status(k) == 0 &
-                    .and. ieee_is_finite(residual(k - 1)) &
-                    .and. ieee_is_finite(residual(k))) then
+            if (k == first_valid) cycle
+            if (sample_is_valid(sample_status(k - 1), residual(k - 1)) &
+                    .and. sample_is_valid(sample_status(k), residual(k))) then
                 if (opposite_signs(residual(k - 1), residual(k))) then
                     call bisect_valid_segment(evaluate, eta(k - 1), eta(k), &
                         residual(k - 1), residual(k), residual_tolerance, &
@@ -85,11 +128,10 @@ contains
                     partial_scan = partial_scan .or. local_status /= GC_RESONANCE_SUCCESS
                 end if
             end if
-            if (k == nscan) cycle
-            if (sample_status(k - 1) == 0 .and. sample_status(k) == 0 &
-                    .and. sample_status(k + 1) == 0 &
-                    .and. ieee_is_finite(residual(k - 1)) &
-                    .and. ieee_is_finite(residual(k + 1)) &
+            if (k == last_valid) cycle
+            if (sample_is_valid(sample_status(k - 1), residual(k - 1)) &
+                    .and. sample_is_valid(sample_status(k), residual(k)) &
+                    .and. sample_is_valid(sample_status(k + 1), residual(k + 1)) &
                     .and. abs(residual(k)) <= abs(residual(k - 1)) &
                     .and. abs(residual(k)) <= abs(residual(k + 1)) &
                     .and. (residual(k) /= residual(k - 1) &
@@ -104,6 +146,14 @@ contains
         if (capacity_exhausted) partial_scan = .true.
         status = merge(GC_RESONANCE_PARTIAL, GC_RESONANCE_SUCCESS, partial_scan)
     end subroutine find_gc_resonances
+
+    logical function sample_is_valid(sample_status, sample_residual)
+        integer, intent(in) :: sample_status
+        real(dp), intent(in) :: sample_residual
+
+        sample_is_valid = sample_status == GC_RESONANCE_SUCCESS &
+            .and. ieee_is_finite(sample_residual)
+    end function sample_is_valid
 
     logical function opposite_signs(left_value, right_value)
         real(dp), intent(in) :: left_value, right_value
@@ -216,6 +266,9 @@ contains
                 left = first
             end if
         end do
+        ! A resolved local minimum above tolerance is a valid no-root result,
+        ! not an incomplete scan.  `failed` is reserved for invalid samples
+        ! or refinement/derivative evaluations that prevent a decision.
         if (best_residual > residual_tolerance) return
         call estimate_derivative(evaluate, best_eta, eta_a, eta_b, eta_tolerance, &
             derivative, derivative_status)
