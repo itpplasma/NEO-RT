@@ -142,7 +142,7 @@ program gen_manufactured_torus
     spec%pure_procedure = .true.
     spec%generator = str('tools/gc_symbolics/app/gen_manufactured_torus.f90')
     spec%generator_revision = str( &
-        'fortsym@545788453a204d58705f735b519c3863c2f734c8')
+        'fortsym@3cc3bb564b803088269318cd4005f4dde51bd488')
     spec%regenerate_command = str( &
         'cd tools/gc_symbolics && fo exec gen_manufactured_torus ../../test/generated_manufactured_torus.f90')
     allocate(spec%args(7), spec%outputs(20))

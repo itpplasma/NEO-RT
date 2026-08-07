@@ -3,7 +3,7 @@ version = "0.1.0"
 license = "MIT"
 
 [dependencies]
-fortsym = { git = "https://github.com/lazy-fortran/fortsym.git", rev = "545788453a204d58705f735b519c3863c2f734c8" }
+fortsym = { git = "https://github.com/lazy-fortran/fortsym.git", rev = "3cc3bb564b803088269318cd4005f4dde51bd488" }
 
 [build]
 auto-executables = true

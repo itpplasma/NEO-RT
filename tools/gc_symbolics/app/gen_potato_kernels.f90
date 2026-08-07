@@ -23,7 +23,7 @@ program gen_potato_kernels
     implicit none
 
     character(*), parameter :: FORTSYM_REVISION = &
-        'fortsym@545788453a204d58705f735b519c3863c2f734c8'
+        'fortsym@3cc3bb564b803088269318cd4005f4dde51bd488'
     character(*), parameter :: REGENERATE_COMMAND = &
         'cd tools/gc_symbolics && fo exec gen_potato_kernels ../../POTATO/SRC/generated'
 
@@ -457,17 +457,23 @@ contains
         character(*), intent(in) :: output_directory, filename
         type(expr_t), intent(in) :: roots(:)
         type(kernel_spec_t), intent(in) :: spec
+        type(str_t) :: emitted
         character(4096) :: path
         integer :: unit, ios
+        logical :: ok
 
         path = trim(output_directory)//'/'//trim(filename)
+        emitted = emit_kernel(roots, spec, ok)
+        if (.not. ok .or. len(chars(emitted)) == 0) then
+            error stop 'fortsym refused generated POTATO kernel'
+        end if
         open (newunit=unit, file=trim(path), status='replace', &
             action='write', iostat=ios)
         if (ios /= 0) then
             write (output_unit, '(a)') 'cannot open generated output '//trim(path)
             error stop 1
         end if
-        write (unit, '(a)') chars(emit_kernel(roots, spec))
+        write (unit, '(a)') chars(emitted)
         close (unit)
         write (output_unit, '(a)') 'wrote '//trim(path)
     end subroutine write_kernel
