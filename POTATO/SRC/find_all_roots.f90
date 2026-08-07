@@ -52,6 +52,8 @@
   do i=0,nsearch
     xarr(i)=x1+hx*dble(i)
   enddo
+  xarr(0)=x1
+  xarr(nsearch)=x2
 !
 ! Merge the equidistant grid with externally provided custom (generally non-equidistand) grid:
 !
@@ -283,6 +285,8 @@
   do i=0,nsearch
     xarr(i)=x1in+hx*dble(i)
   enddo
+  xarr(0)=x1in
+  xarr(nsearch)=x2in
 !
   if(customgrid) then
     kxc_first=1

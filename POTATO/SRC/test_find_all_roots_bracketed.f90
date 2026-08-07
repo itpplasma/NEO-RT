@@ -39,6 +39,19 @@ program test_find_all_roots_bracketed
                'bracketed root finder evaluated outside requested interval')
   call require(nroots.eq.2,'bounded bracketed nroots')
 
+  customgrid=.false.
+  nsearch_min=100
+  evaluated_outside_bounds=.false.
+  call find_all_roots(decimal_interval_roots,0.1d0,0.9d0,ierr)
+  call require(ierr.eq.0,'decimal legacy ierr')
+  call require(.not.evaluated_outside_bounds, &
+               'legacy equidistant grid exceeded decimal interval')
+  evaluated_outside_bounds=.false.
+  call find_all_roots_bracketed(decimal_interval_roots,0.1d0,0.9d0,ierr)
+  call require(ierr.eq.0,'decimal bracketed ierr')
+  call require(.not.evaluated_outside_bounds, &
+               'bracketed equidistant grid exceeded decimal interval')
+
 contains
 
   subroutine require(ok,msg)
@@ -73,5 +86,14 @@ contains
     if(x.lt.0.d0 .or. x.gt.1.d0) evaluated_outside_bounds=.true.
     call two_roots(x,f,df)
   end subroutine bounded_two_roots
+
+  subroutine decimal_interval_roots(x,f,df)
+    double precision, intent(in) :: x
+    double precision, intent(out) :: f,df
+
+    if(x.lt.0.1d0 .or. x.gt.0.9d0) evaluated_outside_bounds=.true.
+    f=(x-0.3d0)*(x-0.7d0)
+    df=2.d0*x-1.d0
+  end subroutine decimal_interval_roots
 
 end program test_find_all_roots_bracketed
