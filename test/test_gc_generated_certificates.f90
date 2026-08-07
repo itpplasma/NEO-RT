@@ -19,6 +19,15 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('simple_root_force', &
             'neort-cert-v1:simple_root_force:3:fortsym-5457884')) error stop &
         'simple-root-force certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cell_jet', &
+            'neort-cert-v1:eqdsk_cell_jet:10:fortsym-5457884')) error stop &
+        'EQDSK cell-jet certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_profile_jet', &
+            'neort-cert-v1:eqdsk_profile_jet:4:fortsym-5457884')) error stop &
+        'EQDSK profile-jet certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_jet', &
+            'neort-cert-v1:eqdsk_cut_jet:7:fortsym-5457884')) error stop &
+        'EQDSK cut-jet certificate registry mismatch'
     if (index(fortsym_revision, '545788453a204d58705f735b519c3863c2f734c8') == 0) &
         error stop 'Fortsym revision provenance missing'
     if (index(regenerate_command, 'gen_full_fow_physics') == 0) &

@@ -77,6 +77,9 @@ module neort_gc_eqdsk_nonlocal_transport
     use neort_gc_eqdsk_cylindrical_adapter, only: &
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field, &
         map_eqdsk_flux_position
+    use neort_gc_eqdsk_cut_jet, only: &
+        EQDSK_CUT_JET_NONFINITE, EQDSK_CUT_JET_OUT_OF_DOMAIN, &
+        EQDSK_CUT_JET_SUCCESS, eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_gc_full_fow_normalization_runtime, only: &
         GC_FULL_FOW_NORMALIZATION_SUCCESS, &
         evaluate_gc_full_fow_canonical_flux, &
@@ -106,7 +109,6 @@ module neort_gc_eqdsk_nonlocal_transport
         evaluate_neort_profile_endpoints
     use neort_profile_potential_segment_symbolic, only: &
         evaluate_neort_profile_potential_segment
-    use neort_buchholz_cut_symbolic, only: evaluate_neort_buchholz_cut
     use neort_full_fow_harmonic_symbolic, only: &
         evaluate_neort_full_fow_harmonic_integrand
     use neort_profiles, only: A1, A2, M_t, Om_tE, Ti1, ni1, vth, &
@@ -1693,38 +1695,25 @@ contains
         real(dp), intent(in) :: position(3)
         real(dp), intent(out) :: value
         integer, intent(out) :: status
-        type(gc_cylindrical_field_sample_t) :: field_sample
-        real(dp) :: cut_cross(3), cut_identity_residual
+        type(eqdsk_cut_jet_t) :: cut
+        integer :: cut_status
 
         value = 0.0_dp
-        call factory%field%evaluate(position, field_sample, status)
-        if (status /= GC_CYL_SUCCESS) then
-            if (status == GC_CYL_EQUILIBRIUM_DOMAIN) then
-                status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
-            else
-                status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
-            end if
-            return
-        end if
-        if (position(1) <= 0.0_dp) then
+        call evaluate_eqdsk_cut_jet(position, factory%field%field_scale, 1, &
+            [0.0_dp, 0.0_dp, 0.0_dp], cut, cut_status)
+        if (cut_status == EQDSK_CUT_JET_OUT_OF_DOMAIN) then
             status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
             return
         end if
-        call evaluate_neort_buchholz_cut(field_sample%grad_b(1), &
-            field_sample%grad_b(2), field_sample%grad_b(3), &
-            field_sample%grad_psi(1), field_sample%grad_psi(2), &
-            field_sample%grad_psi(3), 0.0_dp, 1.0_dp/position(1), 0.0_dp, &
-            cut_cross(1), cut_cross(2), cut_cross(3), value, &
-            cut_identity_residual)
-        if (.not. all(ieee_is_finite([value, cut_cross, &
-                cut_identity_residual]))) then
+        if (cut_status == EQDSK_CUT_JET_NONFINITE) then
             status = GC_EQDSK_NONLOCAL_NONFINITE
             return
         end if
-        if (cut_identity_residual /= 0.0_dp) then
-            status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+        if (cut_status /= EQDSK_CUT_JET_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
             return
         end if
+        value = cut%cut_value
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine poincare_cut_value_position
 
@@ -2910,13 +2899,41 @@ contains
         real(dp), intent(out) :: rate
         integer, intent(out) :: status
 
+        type(eqdsk_cut_jet_t) :: cut
+        real(dp) :: derivative(5), potential, potential_gradient(3)
+        integer :: cut_status, dynamics_status, potential_status
+
         rate = 0.0_dp
-        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
-        associate (unused_position => position, unused_state => state, &
-                unused_field => field, unused_user_data => user_data)
-        end associate
-        ! Cdot is owned by the generated cut-atlas/Littlejohn geometry seam.
-        ! This handwritten adapter cannot certify transversality.
+        status = GC_CYL_FIELD_ERROR
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+        type is (gc_eqdsk_nonlocal_factory_t)
+            if (abs(factory%section_orientation) /= 1) return
+            call factory%potential%evaluate(position, field, potential, &
+                potential_gradient, potential_status)
+            if (potential_status /= GC_CYL_SUCCESS) then
+                status = GC_CYL_POTENTIAL_ERROR
+                return
+            end if
+            call gc_cylindrical_rhs(field, potential_gradient, &
+                factory%species%mass_g, factory%species%charge_esu, c, state, &
+                derivative, dynamics_status)
+            if (dynamics_status /= GC_CYL_SUCCESS) then
+                status = dynamics_status
+                return
+            end if
+            ! coordinate_velocity follows the state order (R,Z,phi).  The
+            ! generated adapter owns the conversion from dot(phi) to physical
+            ! arc velocity used by grad(C).Xdot.
+            call evaluate_eqdsk_cut_jet(position, factory%field%field_scale, &
+                factory%section_orientation, &
+                [derivative(1), derivative(2), derivative(3)], cut, cut_status)
+            status = map_cut_jet_gc_status(cut_status)
+            if (status /= GC_CYL_SUCCESS) return
+            rate = cut%cut_rate
+        class default
+            status = GC_CYL_FIELD_ERROR
+        end select
     end subroutine factory_physical_return_rate
 
     subroutine factory_physical_return_event(position, state, field, user_data, &
@@ -2928,18 +2945,40 @@ contains
         real(dp), intent(out) :: value
         integer, intent(out) :: status
 
+        type(eqdsk_cut_jet_t) :: cut
+        integer :: cut_status
+
+        value = 0.0_dp
+        status = GC_CYL_FIELD_ERROR
         associate (unused_state => state, unused_field => field)
         end associate
-        value = 0.0_dp
-        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
-        associate (unused_position => position, unused_user_data => user_data)
-        end associate
-        ! The production event value and its Cdot rate are one generated
-        ! contract.  The former handwritten normalization by sampled gradient
-        ! magnitudes is intentionally removed: it was neither a certified C
-        ! chart nor the generated Cdot=grad(C).Xdot required for transverse
-        ! roots.  Until the generated cut-atlas provider is linked, fail closed.
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+        type is (gc_eqdsk_nonlocal_factory_t)
+            if (abs(factory%section_orientation) /= 1) return
+            call evaluate_eqdsk_cut_jet(position, factory%field%field_scale, &
+                factory%section_orientation, [0.0_dp, 0.0_dp, 0.0_dp], cut, &
+                cut_status)
+            status = map_cut_jet_gc_status(cut_status)
+            if (status /= GC_CYL_SUCCESS) return
+            value = cut%cut_value
+        class default
+            status = GC_CYL_FIELD_ERROR
+        end select
     end subroutine factory_physical_return_event
+
+    integer function map_cut_jet_gc_status(cut_status) result(status)
+        integer, intent(in) :: cut_status
+
+        select case (cut_status)
+        case (EQDSK_CUT_JET_SUCCESS)
+            status = GC_CYL_SUCCESS
+        case (EQDSK_CUT_JET_OUT_OF_DOMAIN)
+            status = GC_CYL_EQUILIBRIUM_DOMAIN
+        case default
+            status = GC_CYL_FIELD_ERROR
+        end select
+    end function map_cut_jet_gc_status
 
     subroutine factory_radial_domain_event(position, state, field, user_data, &
             margin, status)

@@ -139,6 +139,9 @@ set(NEO_RT_SOURCES
     src/generated/neort_cylindrical_bilinear_complex_symbolic.f90
     src/generated/neort_profile_endpoint_symbolic.f90
     src/generated/neort_profile_potential_segment_symbolic.f90
+    src/generated/neort_eqdsk_quintic_cell_jet_symbolic.f90
+    src/generated/neort_eqdsk_quintic_profile_jet_symbolic.f90
+    src/generated/neort_eqdsk_cut_jet_symbolic.f90
     src/generated/neort_cylindrical_hamiltonian_symbolic.f90
     src/generated/neort_cylindrical_canonical_symbolic.f90
     src/generated/neort_cylindrical_vparallel_symbolic.f90
@@ -153,6 +156,7 @@ set(NEO_RT_SOURCES
     src/gc_cylindrical_class_adapter.f90
     src/gc_cylindrical_orbit.f90
     src/gc_eqdsk_adapter.f90
+    src/gc_eqdsk_cut_jet.f90
     src/gc_frequency_provider.f90
     src/gc_full_resonance.f90
     src/gc_nonlocal_resonance_types.f90
