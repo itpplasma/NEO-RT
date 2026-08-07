@@ -1,5 +1,9 @@
 file(GLOB TEST_SOURCES "test_*.f90")
 
+if(NOT USE_STANDALONE)
+    list(FILTER TEST_SOURCES EXCLUDE REGEX "test_gc_cylindrical_eqdsk\\.f90$")
+endif()
+
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})
@@ -95,6 +99,31 @@ add_test(NAME test_input_switches_reject_full_nonlin
 )
 set_tests_properties(test_input_switches_reject_full_nonlin PROPERTIES WILL_FAIL TRUE)
 
+add_test(NAME test_wall_polygon_io
+    COMMAND ${CMAKE_BINARY_DIR}/test_wall_polygon_io.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_wall_config
+    COMMAND ${CMAKE_BINARY_DIR}/test_wall_config.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_wall_config_rejects_missing
+    COMMAND ${CMAKE_BINARY_DIR}/test_wall_config.x missing
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_wall_config_rejects_missing PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_wall_config_rejects_malformed
+    COMMAND ${CMAKE_BINARY_DIR}/test_wall_config.x malformed
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_wall_config_rejects_malformed PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_wall_config_rejects_namelist_missing
+    COMMAND ${CMAKE_BINARY_DIR}/test_wall_config.x namelist_missing
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_wall_config_rejects_namelist_missing PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME test_nonlinear_contract
     COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -176,6 +205,42 @@ add_test(NAME test_gc_dynamics
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_dynamics.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_test(NAME test_gc_cylindrical_dynamics
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_dynamics.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_cylindrical_topology
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_topology.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_cylindrical_orbit
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_orbit.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+if(USE_STANDALONE)
+    add_test(NAME test_gc_cylindrical_backend_entry
+        COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_backend_entry.x
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    set_tests_properties(test_gc_cylindrical_backend_entry PROPERTIES
+        ENVIRONMENT
+            "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+        TIMEOUT 180
+    )
+
+    add_test(NAME test_gc_cylindrical_eqdsk
+        COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_eqdsk.x
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    set_tests_properties(test_gc_cylindrical_eqdsk PROPERTIES
+        ENVIRONMENT
+            "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+    )
+endif()
 
 add_test(NAME test_thin_orbit_limit
     COMMAND ${CMAKE_BINARY_DIR}/test_thin_orbit_limit.x

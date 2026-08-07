@@ -23,7 +23,7 @@ program probe_frequency_comparison
     integer, parameter :: npoints = 180
     real(dp), parameter :: speed = 6.9199e7_dp ! 5 keV deuteron [cm/s]
     real(dp), parameter :: mass = 2.0_dp*mu
-    character(len=1024) :: chartmap, eqdsk, output, argument
+    character(len=1024) :: chartmap, eqdsk, output, wall_file, argument
     type(gc_frequency_context_t) :: context
     type(gc_full_orbit_frequency_result_t) :: full
     real(dp) :: boozer_surface, direct_surface, eta_ratio, eta
@@ -38,8 +38,11 @@ program probe_frequency_comparison
     call get_command_argument(4, argument)
     read(argument, *) direct_surface
     call get_command_argument(5, output)
+    call get_command_argument(6, wall_file)
     if (len_trim(chartmap) == 0 .or. len_trim(eqdsk) == 0 &
-        .or. len_trim(output) == 0) error stop 'five arguments are required'
+        .or. len_trim(output) == 0 .or. len_trim(wall_file) == 0) then
+        error stop 'six arguments are required: chartmap eqdsk boozer_s direct_s output wall_file'
+    end if
 
     qi = qe
     mi = mass
@@ -80,7 +83,8 @@ program probe_frequency_comparison
     call init_magfie_at_s()
     call init_flux_surface_average(direct_surface)
     call initialize_gc_frequency_context(direct_surface, th0, 1.0_dp, 0.0_dp, &
-        mass, qe, speed, context, status)
+        mass, qe, speed, context, status, selected_frequency_model=2, &
+        wall_file=trim(wall_file), wall_units='m')
     if (status /= GC_FREQUENCY_SUCCESS) error stop 'full-orbit context failed'
     write(unit, '(a,es20.12)') '# direct_surface_s_tor ', direct_surface
     write(unit, '(a,es20.12)') '# direct_eta_tp ', etatp

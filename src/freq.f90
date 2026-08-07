@@ -5,6 +5,7 @@ module neort_freq
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
     use neort_profiles, only: vth, Om_tE, dOm_tEds
+    use neort_gc_wall_context, only: configured_wall_file, configured_wall_units
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
         magdrift_passing, frequency_model, FREQUENCY_MODEL_GC_THIN, &
         FREQUENCY_MODEL_GC_FULL, &
@@ -93,7 +94,8 @@ contains
         end if
         if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
             call initialize_gc_spline_surface(s, th0, bfac, Om_tE, mi, qi, &
-                vth, gc_status)
+                vth, gc_status, selected_frequency_model=FREQUENCY_MODEL_GC_FULL, &
+                wall_path=configured_wall_file, wall_units=configured_wall_units)
             if (gc_status /= GC_SPLINE_SUCCESS) then
                 write(0, *) 'GC full-orbit surface initialization failed:', &
                     gc_status, s
@@ -517,7 +519,7 @@ contains
         etamin = (1.0_dp + epst_spl)*etatp
         etamax = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
         call initialize_gc_spline_surface(s, th0, bfac, Om_tE, mi, qi, vth, &
-            status)
+            status, selected_frequency_model=FREQUENCY_MODEL_GC_THIN)
         if (status /= GC_SPLINE_SUCCESS) then
             write(0, *) 'GC thin-limit surface initialization failed:', status, s
             error stop 'GC thin-limit surface initialization failed'
@@ -615,10 +617,10 @@ contains
         do attempt = 0, 5
             call initialize_gc_frequency_context(s - radial_step, th0, bfac, &
                 Om_tE - radial_step*dOm_tEds, mi, qi, v, context_minus, &
-                status_minus)
+                status_minus, selected_frequency_model=FREQUENCY_MODEL_GC_THIN)
             call initialize_gc_frequency_context(s + radial_step, th0, bfac, &
                 Om_tE + radial_step*dOm_tEds, mi, qi, v, context_plus, &
-                status_plus)
+                status_plus, selected_frequency_model=FREQUENCY_MODEL_GC_THIN)
             if (status_minus == GC_FREQUENCY_SUCCESS .and. &
                     status_plus == GC_FREQUENCY_SUCCESS) then
                 call evaluate_gc_frequency(context_minus, eta, direction, &

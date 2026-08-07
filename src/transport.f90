@@ -382,7 +382,7 @@ contains
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
                     region_roots, region_derivatives, region_count, region_status, &
                     region_diagnostics, classify_full_residual, &
-                    full_canonical_measure_unavailable)
+                    full_nonlocal_measure_unavailable)
                 thermal_weight = thermal_measure_weight(velocity)
                 call accumulate_resonance_diagnostics(full_failures, &
                     region_diagnostics, thermal_weight)
@@ -402,7 +402,7 @@ contains
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
                     region_roots, region_derivatives, region_count, region_status, &
                     region_diagnostics, classify_full_residual, &
-                    full_canonical_measure_unavailable)
+                    full_nonlocal_measure_unavailable)
                 thermal_weight = thermal_measure_weight(velocity)
                 call accumulate_resonance_diagnostics(full_failures, &
                     region_diagnostics, thermal_weight)
@@ -502,13 +502,12 @@ contains
                 +orbit_status
         end function encode_full_residual_orbit_status
 
-        subroutine full_canonical_measure_unavailable(pitch, density, measure_status)
-            !! The direct GEQDSK adapter has no cylindrical wall/Poincare-cut
-            !! contract.  Its old launch-section |d psi_star/d eta| is not the
-            !! full R B_parallel* |dot(section)| measure, so model-2 transport
-            !! remains uncertified and fail-closed until a cylindrical provider
-            !! supplies that quantity together with disconnected component and
-            !! sigma identities.
+        subroutine full_nonlocal_measure_unavailable(pitch, density, measure_status)
+            !! Model 2 deliberately does not enter the old local eta torque
+            !! integral.  Buchholz et al. Eq. 17 needs a nonlocal fixed-H,
+            !! fixed-J_perp class coordinate and |d psi_star/dx| at its
+            !! resonance root; a callback over the local eta scan cannot
+            !! supply that transform without changing the transport integral.
             real(dp), intent(in) :: pitch
             real(dp), intent(out) :: density
             integer, intent(out) :: measure_status
@@ -517,7 +516,7 @@ contains
             end associate
             density = 0.0_dp
             measure_status = GC_RESONANCE_INVALID_INPUT
-        end subroutine full_canonical_measure_unavailable
+        end subroutine full_nonlocal_measure_unavailable
 
         real(dp) function thermal_measure_weight(velocity)
             real(dp), intent(in) :: velocity

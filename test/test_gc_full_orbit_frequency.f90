@@ -1,6 +1,7 @@
 program test_gc_full_orbit_frequency
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
+        GC_FREQUENCY_BACKEND_LEGACY, &
         GC_FREQUENCY_ORBIT_ERROR, gc_frequency_context_t, &
         gc_full_orbit_frequency_result_t, initialize_gc_frequency_context, &
         evaluate_gc_full_orbit_frequency
@@ -31,13 +32,16 @@ program test_gc_full_orbit_frequency
     call init_flux_surface_average(surface)
 
     call initialize_gc_frequency_context(surface, theta0, 1.0_dp, 0.0_dp, &
-        2.014_dp*mu, qe, speed, context, status)
+        2.014_dp*mu, qe, speed, context, status, &
+        selected_frequency_model=0)
     call require(status == GC_FREQUENCY_SUCCESS, 'context initialization')
     eta = (1.0_dp - 0.8_dp**2)/context%reference_sample%bmod
     period_estimate = 12.0_dp*abs(context%q_fieldline)*R0/speed
     call evaluate_gc_full_orbit_frequency(context, eta, 1, &
         GC_ORBIT_PASSING, period_estimate, full, status)
     call require(status == GC_FREQUENCY_SUCCESS, 'physical-width return')
+    call require(full%backend_id == GC_FREQUENCY_BACKEND_LEGACY, &
+        'legacy regression did not stay on legacy backend')
     call require(full%omega_b > 0.0_dp, 'positive bounce frequency')
     call require(abs(full%omega_phi/full%omega_b &
         - full%delta_phi/(2.0_dp*pi)) < 2.0e-12_dp, &

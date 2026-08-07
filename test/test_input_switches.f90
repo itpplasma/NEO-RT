@@ -61,6 +61,8 @@ program test_input_switches
         error stop "GC full frequency model lacks its direct-GEQDSK gate"
     end if
 
+    call write_wall("input_switches_wall.dat")
+
     config%inp_swi = 10
     config%inp_swi_pert = 9
     config%pertfile = .true.
@@ -77,6 +79,8 @@ program test_input_switches
     config = config_t()
     config%frequency_model = FREQUENCY_MODEL_GC_FULL
     config%inp_swi = 11
+    config%wall_file = "input_switches_wall.dat"
+    config%wall_units = "m"
     call set_config(config)
     if (configured_frequency_model /= FREQUENCY_MODEL_GC_FULL) then
         error stop "GC full frequency model was not accepted for direct GEQDSK"
@@ -96,6 +100,8 @@ program test_input_switches
     end if
 
     open (newunit=unit, file="input_switches.in", status="old")
+    close (unit, status="delete")
+    open (newunit=unit, file="input_switches_wall.dat", status="old")
     close (unit, status="delete")
 
 contains
@@ -129,9 +135,25 @@ contains
         end if
         if (present(selected_model)) then
             write (u, '(A,I0)') "    frequency_model = ", selected_model
+            if (selected_model == FREQUENCY_MODEL_GC_FULL) then
+                write (u, '(A)') '    wall_file = "input_switches_wall.dat"'
+                write (u, '(A)') '    wall_units = "m"'
+            end if
         end if
         write (u, '(A)') "/"
         close (u)
     end subroutine write_namelist
+
+    subroutine write_wall(path)
+        character(len=*), intent(in) :: path
+        integer :: u
+
+        open (newunit=u, file=path, status="replace", form="formatted")
+        write (u, '(A)') "1.0 0.0"
+        write (u, '(A)') "2.0 0.0"
+        write (u, '(A)') "2.0 1.0"
+        write (u, '(A)') "1.0 1.0"
+        close (u)
+    end subroutine write_wall
 
 end program test_input_switches

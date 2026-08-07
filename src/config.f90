@@ -2,6 +2,8 @@ module neort_config
     use iso_fortran_env, only: dp => real64
     use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
         FREQUENCY_MODEL_GC_FULL
+    use neort_gc_wall_context, only: configured_wall_file, configured_wall_units
+    use neort_wall_io, only: require_readable_wall_polygon
 
     implicit none
 
@@ -20,6 +22,8 @@ module neort_config
         ! 0: historical local bounce/drift; 1: GC thin-orbit limit;
         ! 2: finite-width full-orbit frequency seam.
         integer :: frequency_model = 0
+        character(len=1024) :: wall_file = ''
+        character(len=16) :: wall_units = 'm' ! wall_file input units: m or cm
         ! Negative means "follow magdrift", preserving every existing deck.
         integer :: magdrift_passing = -1
         logical :: nopassing = .false.  ! neglect passing particles
@@ -77,10 +81,12 @@ contains
     end function frequency_model_requires_direct_eqdsk
 
     subroutine validate_frequency_model(model, axis_switch, has_direct_eqdsk, &
-            superbanana, nonlinear)
+            superbanana, nonlinear, wall_path, wall_units)
         integer, intent(in) :: model, axis_switch
         logical, intent(in) :: has_direct_eqdsk, superbanana
         logical, intent(in), optional :: nonlinear
+        character(len=*), intent(in), optional :: wall_path
+        character(len=*), intent(in), optional :: wall_units
         logical :: use_nonlinear
 
         use_nonlinear = .false.
@@ -103,6 +109,15 @@ contains
                 error stop "frequency_model=1 requires the standalone direct-GEQDSK build"
             end if
             error stop "frequency_model=2 requires the standalone direct-GEQDSK build"
+        end if
+        if (model == FREQUENCY_MODEL_GC_FULL) then
+            if (.not. present(wall_path)) then
+                error stop "frequency_model=2 requires wall_file"
+            end if
+            if (.not. present(wall_units)) then
+                error stop "frequency_model=2 requires wall_units (m or cm)"
+            end if
+            call require_readable_wall_polygon(wall_path, wall_units)
         end if
         if (superbanana) then
             if (model == FREQUENCY_MODEL_GC_THIN) then
@@ -150,8 +165,11 @@ contains
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
+        configured_wall_file = config%wall_file
+        configured_wall_units = config%wall_units
         call validate_frequency_model(frequency_model, inp_swi, &
-            has_direct_eqdsk_gc, supban, nonlin)
+            has_direct_eqdsk_gc, supban, nonlin, config%wall_file, &
+            config%wall_units)
         if (config%inp_swi_pert < 0) then
             perturbation_switch = config%inp_swi
         else
@@ -199,16 +217,21 @@ contains
         integer :: log_level = 0
 
         character(len=1024) :: pert_angle_map
+        character(len=1024) :: wall_file
+        character(len=16) :: wall_units
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
             magdrift, magdrift_passing, frequency_model, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, pert_angle_map
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, &
+            log_level, pert_angle_map, wall_file, wall_units
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
         frequency_model = 0
         pert_angle_map = ''
+        wall_file = ''
+        wall_units = 'm'
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
@@ -218,7 +241,7 @@ contains
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         if (inp_swi_pert < 0) inp_swi_pert = inp_swi
         call validate_frequency_model(frequency_model, inp_swi, &
-            has_direct_eqdsk_gc, supban, nonlin)
+            has_direct_eqdsk_gc, supban, nonlin, wall_file, wall_units)
         if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9 .and. &
             inp_swi_pert /= 11) then
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
@@ -232,6 +255,8 @@ contains
         end if
 
         M_t = M_t * efac / bfac
+        configured_wall_file = wall_file
+        configured_wall_units = wall_units
         qi = qs * qe
         mi = ms * mu
         call set_mph(mph)

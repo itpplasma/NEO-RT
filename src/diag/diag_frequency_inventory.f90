@@ -6,6 +6,7 @@ module diag_frequency_inventory
     use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan, &
         ieee_is_finite
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
+    use neort_gc_wall_context, only: configured_wall_file, configured_wall_units
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_profiles, only: vth, Om_tE, mi, qi
     use driftorbit, only: etatp, sign_vpar, frequency_model, mph, &
@@ -17,7 +18,9 @@ module diag_frequency_inventory
     use neort_gc_frequency_provider, only: &
         GC_FREQUENCY_SUCCESS, gc_frequency_context_t, &
         gc_full_orbit_frequency_result_t, initialize_gc_frequency_context, &
-        evaluate_gc_full_orbit_frequency
+        evaluate_gc_full_orbit_frequency, &
+        gc_frequency_runtime_metadata_t, reset_gc_frequency_runtime_metadata, &
+        get_gc_frequency_runtime_metadata
     use neort_gc_full_resonance, only: find_gc_resonances
     use util, only: files_exist
     implicit none
@@ -39,8 +42,10 @@ contains
         character(len=*), intent(in) :: runname
         character(len=512) :: config_file
         integer :: unit_frequency, unit_resonance, model, setup_status
+        type(gc_frequency_runtime_metadata_t) :: metadata
 
         config_file = trim(runname)//'.in'
+        call reset_gc_frequency_runtime_metadata()
         call neort_init(config_file, 'in_file', 'in_file_pert')
         model = frequency_model
         if (model /= FREQUENCY_MODEL_LEGACY .and. &
@@ -73,12 +78,47 @@ contains
         else
             call write_legacy_inventory(unit_frequency, unit_resonance)
         end if
+        call get_gc_frequency_runtime_metadata(metadata)
+        call write_runtime_metadata(unit_frequency, metadata)
         close (unit_frequency)
         close (unit_resonance)
         if (setup_status /= GC_FREQUENCY_SUCCESS) then
             write (0, '(A,I0)') 'frequency_inventory full-orbit setup status: ', setup_status
         end if
     end subroutine run_frequency_inventory_diag
+
+    subroutine write_runtime_metadata(unit, metadata)
+        integer, intent(in) :: unit
+        type(gc_frequency_runtime_metadata_t), intent(in) :: metadata
+
+        write (unit, '(A)') '# runtime_metadata_v1'
+        write (unit, '(A,A)') '# backend=', trim(metadata%backend)
+        write (unit, '(A,A)') '# coordinates=', trim(metadata%coordinates)
+        write (unit, '(A,A)') '# wall_certification=', logical_text(metadata%wall_certified)
+        write (unit, '(A,A)') '# wall_hash=', trim(metadata%wall_hash)
+        write (unit, '(A,A)') '# wall_units=', trim(metadata%wall_units)
+        write (unit, '(A,A)') '# wall_backend_units=', trim(metadata%wall_backend_units)
+        write (unit, '(A,A)') '# canonical_measure_certified=', &
+            logical_text(metadata%canonical_measure_certified)
+        write (unit, '(A,A)') '# component_identity_certified=', &
+            logical_text(metadata%component_identity_certified)
+        write (unit, '(A,I0)') '# cylindrical_entry_count=', &
+            metadata%cylindrical_entry_count
+        write (unit, '(A,I0)') '# legacy_entry_count=', metadata%legacy_entry_count
+        write (unit, '(A,A)') '# nonlocal_transport_required=', &
+            logical_text(metadata%nonlocal_transport_required)
+    end subroutine write_runtime_metadata
+
+    pure function logical_text(value) result(text)
+        logical, intent(in) :: value
+        character(len=5) :: text
+
+        if (value) then
+            text = 'true '
+        else
+            text = 'false'
+        end if
+    end function logical_text
 
     subroutine write_legacy_inventory(unit_frequency, unit_resonance)
         integer, intent(in) :: unit_frequency, unit_resonance
@@ -123,7 +163,8 @@ contains
         real(dp) :: roots(max_inventory_roots), derivatives(max_inventory_roots)
 
         call initialize_gc_frequency_context(surface, 0.0_dp, bfac, Om_tE, mi, qi, &
-            vth, context, setup_status)
+            vth, context, setup_status, selected_frequency_model=2, &
+            wall_file=configured_wall_file, wall_units=configured_wall_units)
         if (setup_status /= GC_FREQUENCY_SUCCESS) then
             call harmonic_bounds(mph, q, mth_max_abs, mth_min, mth_max)
             do orbit_class = GC_ORBIT_TRAPPED, GC_ORBIT_PASSING

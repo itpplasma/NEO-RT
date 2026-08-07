@@ -42,7 +42,7 @@ program test_gc_eqdsk_frequency
     call init_flux_surface_average(surface)
 
     call initialize_gc_frequency_context(surface, th0, 1.0_dp, electric_frequency, &
-        mass, qe, velocity, positive, status)
+        mass, qe, velocity, positive, status, selected_frequency_model=1)
     if (status /= GC_FREQUENCY_SUCCESS) error stop 'positive GC context failed'
     call positive%field%evaluate([surface, 0.0_dp, 0.0_dp], sample_min, status)
     if (status /= GC_MODEL_SUCCESS) error stop 'GC Bmin sample failed'
@@ -88,7 +88,7 @@ program test_gc_eqdsk_frequency
     call require_electric('passing', passing%omega_electric)
 
     call initialize_gc_frequency_context(surface, th0, 1.0_dp, electric_frequency, &
-        mass, -qe, velocity, negative, status)
+        mass, -qe, velocity, negative, status, selected_frequency_model=1)
     if (status /= GC_FREQUENCY_SUCCESS) error stop 'negative GC context failed'
     period_estimate = 30.0_dp*abs(negative%q_fieldline)*R0/velocity/sqrt(epsilon)
     call evaluate_gc_frequency(negative, eta_trapped, 1, &
@@ -111,7 +111,8 @@ program test_gc_eqdsk_frequency
     call init_magfie_at_s()
     call init_flux_surface_average(0.368_dp)
     call initialize_gc_frequency_context(0.368_dp, th0, 1.0_dp, &
-        electric_frequency, mass, qe, velocity, near_separatrix, status)
+        electric_frequency, mass, qe, velocity, near_separatrix, status, &
+        selected_frequency_model=1)
     if (status /= GC_FREQUENCY_SUCCESS) then
         error stop 'near-separatrix GC context failed'
     end if

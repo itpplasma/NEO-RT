@@ -99,10 +99,16 @@ set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/collis_nbi.f90
     src/boozer_angle_map.f90
+    src/wall_polygon_io.f90
     src/config.f90
     src/datatypes.f90
     src/driftorbit.f90
+    src/gc_wall_context.f90
     src/gc_dynamics.f90
+    src/gc_cylindrical_model.f90
+    src/gc_cylindrical_dynamics.f90
+    src/gc_cylindrical_topology.f90
+    src/gc_cylindrical_orbit.f90
     src/gc_eqdsk_adapter.f90
     src/gc_frequency_provider.f90
     src/gc_full_resonance.f90
@@ -127,6 +133,13 @@ set(NEO_RT_SOURCES
 )
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
+
+if(USE_STANDALONE)
+    list(APPEND NEO_RT_SOURCES
+        src/gc_eqdsk_cylindrical_adapter.f90
+        src/gc_cylindrical_backend.f90
+    )
+endif()
 
 if(USE_STANDALONE)
     find_or_fetch(libneo)
@@ -167,6 +180,7 @@ target_link_libraries(neo_rt PUBLIC
 )
 
 if(USE_STANDALONE)
+    target_compile_definitions(neo_rt PRIVATE NEO_RT_USE_STANDALONE)
     target_link_libraries(neo_rt PUBLIC
         LIBNEO::boozer
         LIBNEO::magfie

@@ -65,7 +65,6 @@ module neort_gc_frequency_splines
     type(gc_spline_diagnostics_t) :: diagnostics
     real(dp) :: reference_speed = 0.0_dp
     logical :: surface_initialized = .false.
-
     !$omp threadprivate (surface_context, trapped_spline, passing_spline)
     !$omp threadprivate (diagnostics, reference_speed, surface_initialized)
 
@@ -79,10 +78,12 @@ contains
 
     subroutine initialize_gc_spline_surface(surface, reference_theta, &
             field_scale, omega_e, particle_mass, particle_charge, velocity, &
-            status)
+            status, selected_frequency_model, wall_path, wall_units)
         real(dp), intent(in) :: surface, reference_theta, field_scale, omega_e
         real(dp), intent(in) :: particle_mass, particle_charge, velocity
         integer, intent(out) :: status
+        integer, intent(in), optional :: selected_frequency_model
+        character(len=*), intent(in), optional :: wall_path, wall_units
 
         integer :: provider_status
 
@@ -93,7 +94,8 @@ contains
         diagnostics = gc_spline_diagnostics_t()
         call initialize_gc_frequency_context(surface, reference_theta, &
             field_scale, omega_e, particle_mass, particle_charge, velocity, &
-            surface_context, provider_status)
+            surface_context, provider_status, selected_frequency_model, &
+            wall_path, wall_units)
         if (provider_status /= GC_FREQUENCY_SUCCESS) then
             status = GC_SPLINE_PROVIDER_ERROR
             return
