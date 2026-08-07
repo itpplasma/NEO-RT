@@ -36,6 +36,8 @@ module neort_gc_nonlocal_resonance_integral
         GC_NONLOCAL_SUCCESS, gc_nonlocal_component_t, &
         gc_nonlocal_orbit_sample_t, gc_nonlocal_resonance_options_t, &
         gc_nonlocal_resonance_result_t
+    use neort_full_fow_simple_root_symbolic, only: &
+        evaluate_neort_full_fow_simple_root_force
 
     implicit none
     private
@@ -794,20 +796,49 @@ contains
         real(dp), intent(out) :: contribution(:)
         integer, intent(out) :: status
 
+        real(dp) :: abs_hm_squared, simple_root_weight
+        integer :: force_index
+
         contribution = 0.0_dp
-        status = GC_NONLOCAL_CALLBACK_FAILURE
-        associate (unused_sample => sample, &
-                unused_residual_derivative => residual_derivative, &
-                unused_force_count => force_count, &
-                unused_derivative_tolerance => derivative_tolerance)
-        end associate
-        ! The frequency/phase root weight is a generated Fortsym contract.
-        ! It must be supplied by
-        ! neort_full_fow_frequency_contribution_symbolic/
-        ! evaluate_neort_frequency_root_contribution; the old hand-written
-        ! |dpsi_star/dx|*|H_m|**2*tau/|F'| expression is deliberately not a
-        ! fallback.  The generated runtime module is absent from this
-        ! checkout, so accepting a root here would violate the physics gate.
+        status = GC_NONLOCAL_INVALID_INPUT
+        if (force_count < 1 .or. &
+                force_count > GC_NONLOCAL_MAX_FORCE_VALUES) return
+        if (size(contribution) < force_count) return
+        if (sample%status /= GC_NONLOCAL_SAMPLE_VALID) return
+        if (sample%nforce /= force_count) then
+            status = GC_NONLOCAL_FORCE_CONTRACT
+            return
+        end if
+        if (.not. ieee_is_finite(derivative_tolerance) .or. &
+                derivative_tolerance <= 0.0_dp) return
+        if (.not. ieee_is_finite(residual_derivative)) then
+            status = GC_NONLOCAL_NONFINITE
+            return
+        end if
+        if (.not. finite_sample(sample, force_count)) then
+            status = GC_NONLOCAL_NONFINITE
+            return
+        end if
+        if (sample%tau_b <= 0.0_dp) return
+        if (abs(residual_derivative) <= derivative_tolerance) then
+            status = GC_NONLOCAL_SINGULAR_RESONANCE
+            return
+        end if
+
+        do force_index = 1, force_count
+            call evaluate_neort_full_fow_simple_root_force( &
+                sample%dpsi_star_dx, real(sample%h_m, dp), &
+                aimag(sample%h_m), sample%tau_b, residual_derivative, &
+                sample%thermodynamic_force(force_index), abs_hm_squared, &
+                simple_root_weight, contribution(force_index))
+            if (.not. all(ieee_is_finite([abs_hm_squared, &
+                    simple_root_weight, contribution(force_index)]))) then
+                contribution = 0.0_dp
+                status = GC_NONLOCAL_NONFINITE
+                return
+            end if
+        end do
+        status = GC_NONLOCAL_SUCCESS
     end subroutine evaluate_gc_nonlocal_root_contribution
 
     pure logical function is_recoverable_status(status)

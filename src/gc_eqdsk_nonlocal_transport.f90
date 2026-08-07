@@ -29,8 +29,9 @@ module neort_gc_eqdsk_nonlocal_transport
     use fortnum_status, only: FORTNUM_OK, fortnum_status_t
     use do_magfie_mod, only: R0, a, bfac, inp_swi, psi_pr, sample_eqdsk_field, s
     use field_eq_mod, only: btf, hfpol, psi_sep, rtf, splfpol, use_fpol
-    use do_magfie_pert_mod, only: inp_swi_pert, &
-        read_boozer_pert_file, rz_nrad, rz_nzet, set_mph
+    use do_magfie_pert_mod, only: inp_swi_pert, MAGFIE_PERT_OK, &
+        do_magfie_pert_amp_cylindrical, read_boozer_pert_file, rz_nrad, &
+        rz_nzet, set_mph
     use geoflux_coordinates, only: geoflux_get_flux_profiles
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
@@ -105,6 +106,9 @@ module neort_gc_eqdsk_nonlocal_transport
         evaluate_neort_profile_endpoints
     use neort_profile_potential_segment_symbolic, only: &
         evaluate_neort_profile_potential_segment
+    use neort_buchholz_cut_symbolic, only: evaluate_neort_buchholz_cut
+    use neort_full_fow_harmonic_symbolic, only: &
+        evaluate_neort_full_fow_harmonic_integrand
     use neort_profiles, only: A1, A2, M_t, Om_tE, Ti1, ni1, vth, &
         am1_global, Z1_global, init_plasma_at_s, init_profile_at_s, &
         init_thermodynamic_forces, prepare_plasma_splines, &
@@ -1690,6 +1694,7 @@ contains
         real(dp), intent(out) :: value
         integer, intent(out) :: status
         type(gc_cylindrical_field_sample_t) :: field_sample
+        real(dp) :: cut_cross(3), cut_identity_residual
 
         value = 0.0_dp
         call factory%field%evaluate(position, field_sample, status)
@@ -1701,10 +1706,23 @@ contains
             end if
             return
         end if
-        value = field_sample%grad_b(3)*field_sample%grad_psi(1) &
-            -field_sample%grad_b(1)*field_sample%grad_psi(3)
-        if (.not. ieee_is_finite(value)) then
+        if (position(1) <= 0.0_dp) then
+            status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+            return
+        end if
+        call evaluate_neort_buchholz_cut(field_sample%grad_b(1), &
+            field_sample%grad_b(2), field_sample%grad_b(3), &
+            field_sample%grad_psi(1), field_sample%grad_psi(2), &
+            field_sample%grad_psi(3), 0.0_dp, 1.0_dp/position(1), 0.0_dp, &
+            cut_cross(1), cut_cross(2), cut_cross(3), value, &
+            cut_identity_residual)
+        if (.not. all(ieee_is_finite([value, cut_cross, &
+                cut_identity_residual]))) then
             status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        if (cut_identity_residual /= 0.0_dp) then
+            status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
             return
         end if
         status = GC_EQDSK_NONLOCAL_SUCCESS
@@ -3057,8 +3075,10 @@ contains
             real(dp) :: potential, gradient(3)
             real(dp) :: orbit_surface
             real(dp) :: target_surface
+            real(dp) :: harmonic_values(8)
+            complex(dp) :: perturbation_amplitude
             integer :: field_status, potential_status, dynamics_status
-            integer :: surface_status
+            integer :: surface_status, perturbation_status
 
             associate (unused_context => context)
             end associate
@@ -3103,20 +3123,33 @@ contains
                 return
             end if
             if (include_harmonic) then
-                ! Buchholz Eq. 4's canonical coefficient and its phase/root
-                ! contribution are generated contracts.  The generated
-                ! modules are not present in this checkout, so a harmonic
-                ! average must fail closed; do not keep a hand-written
-                ! Eq. 4 coefficient, exp(i*n*phi) phase, or root weight here.
-                ! The eventual seam is:
-                !   neort_full_fow_perturbation_symbolic/
-                !       evaluate_neort_perturbation_coefficient
-                !   neort_full_fow_resonance_symbolic/
-                !       evaluate_neort_resonance_weights
-                !   neort_full_fow_frequency_contribution_symbolic/
-                !       evaluate_neort_frequency_root_contribution
-                callback_status = GC_CYL_PERTURBATION_ERROR
-                return
+                if (.not. factory%perturbation_ready) then
+                    callback_status = GC_CYL_PERTURBATION_ERROR
+                    return
+                end if
+                call do_magfie_pert_amp_cylindrical(state_array(1:3), &
+                    perturbation_amplitude, perturbation_status)
+                if (perturbation_status /= MAGFIE_PERT_OK) then
+                    callback_status = GC_CYL_PERTURBATION_ERROR
+                    return
+                end if
+                call evaluate_neort_full_fow_harmonic_integrand( &
+                    factory%species%mass_g, factory%species%charge_esu, &
+                    state%mu, field%bmod, launch%h0, potential, &
+                    state%p_parallel, real(perturbation_amplitude, dp), &
+                    aimag(perturbation_amplitude), real(harmonic_m, dp), &
+                    real(harmonic_n, dp), state%phi, launch%state%phi, &
+                    time, omega_b, omega_phi, harmonic_values(1), &
+                    harmonic_values(2), harmonic_values(3), &
+                    harmonic_values(4), harmonic_values(5), &
+                    harmonic_values(6), harmonic_values(7), &
+                    harmonic_values(8))
+                if (.not. all(ieee_is_finite(harmonic_values))) then
+                    callback_status = GC_CYL_PERTURBATION_ERROR
+                    return
+                end if
+                derivative(6) = harmonic_values(7)
+                derivative(7) = harmonic_values(8)
             end if
             if (include_shell) then
                 call surface_from_profile_psi(factory, field%psi, orbit_surface, &

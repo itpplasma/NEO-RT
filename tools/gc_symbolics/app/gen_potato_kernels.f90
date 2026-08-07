@@ -23,7 +23,7 @@ program gen_potato_kernels
     implicit none
 
     character(*), parameter :: FORTSYM_REVISION = &
-        'fortsym@58a0e06c95ecc943dfdcb044b7ca6a9964c1c55d'
+        'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: REGENERATE_COMMAND = &
         'cd tools/gc_symbolics && fo exec gen_potato_kernels ../../POTATO/SRC/generated'
 
@@ -478,7 +478,7 @@ contains
         type(kernel_spec_t) :: spec
 
         call common_spec(spec, 'potato_jperp_domain_kernel', &
-            'potato_jperp_domain_kernel')
+            'potato_jperp_domain_generated_mod')
         allocate (spec%args(5), spec%outputs(3))
         spec%args = [str('energy_H'), str('qPhi'), str('magnetic_field_B'), &
             str('qPhi_prime'), str('magnetic_field_B_prime')]
@@ -494,7 +494,8 @@ contains
         type(expr_t), intent(in) :: coefficient, hm_real, hm_imag, hm_squared
         type(kernel_spec_t) :: spec
 
-        call common_spec(spec, 'potato_hm_eq4_kernel', 'potato_hm_eq4_kernel')
+        call common_spec(spec, 'potato_hm_eq4_kernel', &
+            'potato_hm_eq4_generated_mod')
         allocate (spec%args(7), spec%outputs(4))
         spec%args = [str('energy_H'), str('qPhi'), str('magnetic_field_B'), &
             str('Jperp'), str('deltaB_m_real'), str('deltaB_m_imag'), &
@@ -511,7 +512,7 @@ contains
         type(kernel_spec_t) :: spec
 
         call common_spec(spec, 'potato_root_jacobian_kernel', &
-            'potato_root_jacobian_kernel')
+            'potato_root_jacobian_generated_mod')
         allocate (spec%args(2), spec%outputs(1))
         spec%args = [str('dpsiast_dR'), str('dresonance_dR')]
         spec%outputs = [str('root_jacobian')]
@@ -526,7 +527,7 @@ contains
         type(kernel_spec_t) :: spec
 
         call common_spec(spec, 'potato_resonance_harmonic_kernel', &
-            'potato_resonance_harmonic_kernel')
+            'potato_resonance_harmonic_generated_mod')
         allocate (spec%args(3), spec%outputs(4))
         spec%args = [str('mode_m'), str('mode_n'), str('delta_phi')]
         spec%outputs = [str('target_delphi'), str('search_extent'), &
@@ -535,7 +536,7 @@ contains
             [target, extent, g, no_root], spec)
 
         call common_spec(spec, 'potato_resonance_extent_envelope_kernel', &
-            'potato_resonance_extent_envelope_kernel')
+            'potato_resonance_extent_envelope_generated_mod')
         allocate (spec%args(2), spec%outputs(1))
         spec%args = [str('current_extent_envelope'), str('harmonic_extent')]
         spec%outputs = [str('extent_envelope')]
@@ -551,7 +552,7 @@ contains
         type(kernel_spec_t) :: spec
 
         call common_spec(spec, 'potato_frequency_reduction_kernel', &
-            'potato_frequency_reduction_kernel')
+            'potato_frequency_reduction_generated_mod')
         allocate (spec%args(5), spec%outputs(6))
         spec%args = [str('mode_n'), str('resonance_q'), &
             str('resonance_q_prime'), str('bounce_time'), &
@@ -572,7 +573,7 @@ contains
         type(kernel_spec_t) :: spec
 
         call common_spec(spec, 'potato_resonance_torque_kernel', &
-            'potato_resonance_torque_kernel')
+            'potato_resonance_torque_generated_mod')
         allocate (spec%args(9), spec%outputs(2))
         spec%args = [str('dpsiast_dR'), str('dresonance_dR'), str('mode_n'), &
             str('orbit_H_m_squared'), str('maxwellian_weight'), str('Phi_eff'), &
@@ -590,7 +591,7 @@ contains
         type(kernel_spec_t) :: spec
 
         call common_spec(spec, 'potato_gap_error_kernel', &
-            'potato_gap_error_kernel')
+            'potato_gap_error_generated_mod')
         allocate (spec%args(3), spec%outputs(2))
         spec%args = [str('integrand_envelope'), str('Jperp_gap_lo'), &
             str('Jperp_gap_hi')]
@@ -612,7 +613,7 @@ contains
         type(kernel_spec_t) :: spec
 
         call common_spec(spec, 'potato_limiting_kernel', &
-            'potato_limiting_kernel')
+            'potato_limiting_generated_mod')
         allocate (spec%args(8), spec%outputs(10))
         spec%args = [str('hessian_H_RR'), str('hessian_H_Rp'), &
             str('hessian_H_pp'), str('regular_tau_value'), &

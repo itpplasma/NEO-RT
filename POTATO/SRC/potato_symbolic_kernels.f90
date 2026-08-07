@@ -6,26 +6,26 @@ module potato_symbolic_kernel_mod
     !! domain validation and status propagation remain in handwritten code.
     use, intrinsic :: iso_fortran_env, only : real64
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-    use potato_gap_error_kernel, only : potato_gap_error_kernel_generated => &
+    use potato_gap_error_generated_mod, only : potato_gap_error_kernel_generated => &
         potato_gap_error_kernel
-    use potato_hm_eq4_kernel, only : potato_hm_eq4_kernel_generated => &
+    use potato_hm_eq4_generated_mod, only : potato_hm_eq4_kernel_generated => &
         potato_hm_eq4_kernel
-    use potato_jperp_domain_kernel, only : potato_jperp_domain_kernel_generated => &
+    use potato_jperp_domain_generated_mod, only : potato_jperp_domain_kernel_generated => &
         potato_jperp_domain_kernel
-    use potato_limiting_kernel, only : potato_limiting_kernel_generated => &
+    use potato_limiting_generated_mod, only : potato_limiting_kernel_generated => &
         potato_limiting_kernel
-    use potato_root_jacobian_kernel, only : potato_root_jacobian_kernel_generated => &
+    use potato_root_jacobian_generated_mod, only : potato_root_jacobian_kernel_generated => &
         potato_root_jacobian_kernel
-    use potato_resonance_harmonic_kernel, only : &
+    use potato_resonance_harmonic_generated_mod, only : &
         potato_resonance_harmonic_kernel_generated => &
         potato_resonance_harmonic_kernel
-    use potato_resonance_extent_envelope_kernel, only : &
+    use potato_resonance_extent_envelope_generated_mod, only : &
         potato_resonance_extent_envelope_kernel_generated => &
         potato_resonance_extent_envelope_kernel
-    use potato_frequency_reduction_kernel, only : &
+    use potato_frequency_reduction_generated_mod, only : &
         potato_frequency_reduction_kernel_generated => &
         potato_frequency_reduction_kernel
-    use potato_resonance_torque_kernel, only : potato_resonance_torque_kernel_generated => &
+    use potato_resonance_torque_generated_mod, only : potato_resonance_torque_kernel_generated => &
         potato_resonance_torque_kernel
     implicit none
     private

@@ -38,9 +38,11 @@ set(generated_files
     neort_potato_velocity_symbolic.f90
     neort_full_fow_action_symbolic.f90
     neort_full_fow_perturbation_symbolic.f90
+    neort_full_fow_harmonic_symbolic.f90
     neort_full_fow_resonance_symbolic.f90
     neort_full_fow_frequency_contribution_symbolic.f90
     neort_full_fow_frequency_identity_symbolic.f90
+    neort_full_fow_simple_root_symbolic.f90
     neort_full_fow_sign_symmetry_symbolic.f90
     neort_full_fow_normalization_symbolic.f90
     neort_full_fow_quadrature_map_symbolic.f90

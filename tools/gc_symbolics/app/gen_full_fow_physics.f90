@@ -29,13 +29,14 @@ program gen_full_fow_physics
 
     character(*), parameter :: DEFAULT_OUTPUT = "../../src/generated"
     character(*), parameter :: FORTSYM_REVISION = &
-        "fortsym@58a0e06c95ecc943dfdcb044b7ca6a9964c1c55d"
+        "fortsym@545788453a204d58705f735b519c3863c2f734c8"
 
     type(arena_t), target :: arena
     type(symengine_engine_t) :: proof_engine
     type(native_engine_t) :: simplify_engine
     type(suite_t) :: proofs
     type(expr_t) :: roots(48), action_roots(11), perturbation_roots(6)
+    type(expr_t) :: harmonic_integrand_roots(8)
     type(expr_t) :: resonance_roots(3), eq17_roots(2), cylindrical_roots(22)
     type(expr_t) :: noether_roots(4)
     type(expr_t) :: refinement_roots(14), boundary_roots(13), cut_roots(5)
@@ -71,6 +72,15 @@ program gen_full_fow_physics
     type(expr_t) :: dot_mu, cylindrical_measure, hamiltonian_dot
     type(expr_t) :: energy_on_shell, eta_on_shell, c_on_shell
     type(expr_t) :: perturbation_ratio, boozer_ratio, chi, chi_shifted
+    type(expr_t) :: harmonic_delta_b_real, harmonic_delta_b_imag
+    type(expr_t) :: harmonic_phi, harmonic_phi_launch, harmonic_time
+    type(expr_t) :: harmonic_omega_b, harmonic_omega_phi
+    type(expr_t) :: harmonic_phase_argument, harmonic_phase_real
+    type(expr_t) :: harmonic_phase_imag, harmonic_factor
+    type(expr_t) :: harmonic_integrand_real, harmonic_integrand_imag
+    type(expr_t) :: harmonic_complete_phase, harmonic_complete_phase_residual
+    type(expr_t) :: harmonic_modulus_residual, harmonic_shell_residual
+    type(expr_t) :: harmonic_shell_identity
     type(expr_t) :: field_original, field_phase_shifted, field_sign_sum
     type(expr_t) :: field_reversal, field_fixed_conjugate
     type(expr_t) :: fixed_conjugation_difference
@@ -183,11 +193,17 @@ program gen_full_fow_physics
     type(expr_t) :: frequency_contribution_positive
     type(expr_t) :: phase_contribution_positive
     type(expr_t) :: frequency_identity_roots(2)
+    type(expr_t) :: simple_root_force_roots(3)
     type(expr_t) :: n_squared_frequency_contribution
     type(expr_t) :: phase_contribution_identity
+    type(expr_t) :: frequency_residual_derivative, root_force_value
+    type(expr_t) :: root_hm_squared, simple_root_weight
+    type(expr_t) :: simple_root_force_contribution
+    type(expr_t) :: simple_root_phase_identity
     type(expr_t) :: e_ref, n0, residence, eq17_outer_factor
     type(expr_t) :: eq17_outer_unit_phi
     type(expr_t) :: gauge_constant, eq17_outer_shift, eq17_gauge_residual
+    type(expr_t) :: gauge_outer_ledger_residual
     type(expr_t) :: gauge_force_shift, gauge_force_residual
     type(expr_t) :: section_root_residual, crossing_orientation_residual
     type(expr_t) :: sign_omega_b, sign_omega_phi, sign_torque_phi
@@ -307,7 +323,10 @@ program gen_full_fow_physics
     ! definition inserted after the fact.
     resonance_x = sym(arena, "x")
     resonance_xr = sym(arena, "x_r")
-    g_prime_x = sym(arena, "g_prime_at_xr")
+    ! Keep the emitted symbol identical to the public kernel argument.  A
+    ! different local spelling leaves an undeclared symbol in generated code
+    ! even though the Fortsym identity itself proves successfully.
+    g_prime_x = g_prime
     tau_prime_x = sym(arena, "tau_prime_at_xr")
     resonance_delta = resonance_x - resonance_xr
     g_local = g_prime_x*resonance_delta
@@ -339,6 +358,13 @@ program gen_full_fow_physics
         exp(((charge*(electrostatic_potential+gauge_constant)) - &
         (h+charge*gauge_constant))/temperature)*residence
     eq17_gauge_residual = eq17_outer_shift - eq17_outer_factor
+    ! The complete outer-factor equality is proved above.  The runtime ledger
+    ! emits its defining gauge-invariant exponent identity so it has no hidden
+    ! Eref/n0/Phi_eff/residence inputs.
+    gauge_outer_ledger_residual = &
+        (charge*(electrostatic_potential+gauge_constant) - &
+        (h+charge*gauge_constant)) - &
+        (charge*electrostatic_potential-h)
     gauge_force_shift = a1 + ((h+charge*gauge_constant) - &
         charge*(electrostatic_potential+gauge_constant))/temperature*a2
     gauge_force_residual = gauge_force_shift-force_bracket
@@ -511,6 +537,41 @@ program gen_full_fow_physics
     c_on_shell = 2*energy_on_shell - jk_omega_c
     perturbation_ratio = c_on_shell/energy_on_shell
     boozer_ratio = 2 - eta_on_shell*bmod
+
+    ! Canonical temporal Fourier integrand for a single real-field toroidal
+    ! amplitude A(R,Z), with delta B=Re[A exp(i*n*phi)].  The direct orbit
+    ! state uses physical time and cylindrical phi; no Boozer angle or q
+    ! reduction enters this phase.
+    harmonic_delta_b_real = sym(arena, "delta_b_real")
+    harmonic_delta_b_imag = sym(arena, "delta_b_imag")
+    harmonic_phi = sym(arena, "orbit_phi")
+    harmonic_phi_launch = sym(arena, "launch_phi")
+    harmonic_time = sym(arena, "orbit_time")
+    harmonic_omega_b = sym(arena, "omega_b")
+    harmonic_omega_phi = sym(arena, "omega_phi")
+    harmonic_phase_argument = n_mode*(harmonic_phi-harmonic_phi_launch) - &
+        (m_mode*harmonic_omega_b+n_mode*harmonic_omega_phi)*harmonic_time
+    harmonic_phase_real = cos(harmonic_phase_argument)
+    harmonic_phase_imag = sin(harmonic_phase_argument)
+    harmonic_shell_residual = eq4_coeff-c_on_shell
+    harmonic_shell_identity = &
+        2*((energy_on_shell+q_phi_energy)-q_phi_energy) - mu*bmod - &
+        c_on_shell
+    harmonic_factor = eq4_coeff/bmod
+    harmonic_integrand_real = harmonic_factor* &
+        (harmonic_delta_b_real*harmonic_phase_real - &
+        harmonic_delta_b_imag*harmonic_phase_imag)
+    harmonic_integrand_imag = harmonic_factor* &
+        (harmonic_delta_b_real*harmonic_phase_imag + &
+        harmonic_delta_b_imag*harmonic_phase_real)
+    harmonic_complete_phase = n_mode*(harmonic_omega_phi*tau) - &
+        (m_mode*(2*pi_expr(arena)/tau) + &
+        n_mode*harmonic_omega_phi)*tau
+    harmonic_complete_phase_residual = &
+        harmonic_complete_phase + 2*pi_expr(arena)*m_mode
+    harmonic_modulus_residual = harmonic_integrand_real**2 + &
+        harmonic_integrand_imag**2 - harmonic_factor**2* &
+        (harmonic_delta_b_real**2+harmonic_delta_b_imag**2)
 
     ! ------------------------------------------------------------------
     ! Real-field phase, sign, conjugation, and simultaneous (m,n) reversal.
@@ -705,6 +766,19 @@ program gen_full_fow_physics
         f_prime_abs
     phase_contribution_positive = dpsi_abs*hm_squared_positive* &
         n_abs*tau_pos**2/g_prime_abs
+    ! Direct simple-root delta weight used by the class integral.  Absolute
+    ! values belong only to the positive coordinate measure, complex harmonic
+    ! modulus, and delta-function Jacobian.  The thermodynamic force remains
+    ! signed and the transport layer, not this root kernel, owns n_mode**2.
+    frequency_residual_derivative = &
+        sym(arena, "frequency_residual_derivative")
+    root_force_value = sym(arena, "force_value")
+    root_hm_squared = hm_real**2 + hm_imag**2
+    simple_root_weight = abs(dpsi_star_dx_contribution)*root_hm_squared* &
+        tau_b/abs(frequency_residual_derivative)
+    simple_root_force_contribution = simple_root_weight*root_force_value
+    simple_root_phase_identity = simple_root_force_contribution - &
+        simple_root_weight*root_force_value
 
     ! Cylindrical geometry kernel.  Both vector components and physical
     ! derivative directions are explicit: (R,phi,Z) and (R,arc_phi,Z).
@@ -879,6 +953,15 @@ program gen_full_fow_physics
         f_prime_from_series - n_mode*g_prime_x/tau)
     call check_identity(proofs, proof_engine, "Eq4 coefficient definition", &
         eq4_coeff - (2*(h - q_phi_energy) - jk*omega_c))
+    call check_identity(proofs, proof_engine, &
+        "canonical harmonic phase closes over one bounce", &
+        harmonic_complete_phase_residual)
+    call check_identity(proofs, proof_engine, &
+        "canonical harmonic phase preserves amplitude modulus", &
+        harmonic_modulus_residual)
+    call check_identity(proofs, proof_engine, &
+        "canonical harmonic Eq4 coefficient has the on-shell limit", &
+        harmonic_shell_identity)
     call check_identity(proofs, proof_engine, "psi_star definition", &
         psi_star - c_light/charge*p_phi)
     call check_identity(proofs, proof_engine, "d psi_star / d p_phi", &
@@ -890,6 +973,12 @@ program gen_full_fow_physics
         "frequency-root and phase-root contribution weights", &
         n_abs**2*frequency_contribution_positive - &
         phase_contribution_positive)
+    call check_identity(proofs, proof_engine, &
+        "simple-root harmonic modulus from complex components", &
+        root_hm_squared-(hm_real**2+hm_imag**2))
+    call check_identity(proofs, proof_engine, &
+        "simple-root contribution preserves signed force", &
+        simple_root_phase_identity)
     call check_identity(proofs, proof_engine, "Eq17 force bracket", &
         force_bracket - (a1 + (h - q_phi_energy)/temperature*a2))
     call check_identity(proofs, proof_engine, &
@@ -1197,15 +1286,21 @@ program gen_full_fow_physics
     frequency_contribution_roots = [frequency_contribution, phase_contribution]
     frequency_identity_roots = [n_squared_frequency_contribution, &
         phase_contribution_identity]
+    simple_root_force_roots = [root_hm_squared, simple_root_weight, &
+        simple_root_force_contribution]
     axisymmetric_pphi_roots = [axis_pphi, axis_pphi_dot, axis_pphi_residual]
     sign_symmetry_roots = [sign_amplitude_residual, phase_amplitude_residual, &
         pair_field_residual, fixed_conjugation_difference, &
         conjugate_modulus_residual, section_root_residual, &
         crossing_orientation_residual, gauge_force_residual, &
-        eq17_gauge_residual, toroidal_resonance_residual, &
+        gauge_outer_ledger_residual, toroidal_resonance_residual, &
         toroidal_power_residual, torque_component_difference, &
         charge_reversal_energy_difference, &
         potential_reversal_energy_difference]
+    harmonic_integrand_roots = [eq4_coeff, c_on_shell, &
+        harmonic_shell_residual, harmonic_phase_argument, &
+        harmonic_phase_real, harmonic_phase_imag, harmonic_integrand_real, &
+        harmonic_integrand_imag]
     normalization_roots = [norm_phi_eff, norm_jk_scale, norm_h_hat, &
         norm_jk_hat, norm_psi_hat, norm_dpsi_hat_dx, norm_tau_hat, &
         norm_omega_b_hat, norm_omega_phi_hat, norm_domega_b_hat_dx, &
@@ -1252,8 +1347,10 @@ program gen_full_fow_physics
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
+    call simplify_array(simple_root_force_roots)
     call simplify_array(axisymmetric_pphi_roots)
     call simplify_array(sign_symmetry_roots)
+    call simplify_array(harmonic_integrand_roots)
     call simplify_array(normalization_roots)
     call simplify_array(quadrature_map_roots)
     call simplify_array(polynomial_enclosure_roots)
@@ -1294,6 +1391,18 @@ program gen_full_fow_physics
         perturbation_roots, [character(len=64) :: "q_phi_energy", "e_on_shell", &
         "c_on_shell", "eta_on_shell", "perturbation_ratio", "boozer_ratio"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_harmonic_symbolic.f90", &
+        "neort_full_fow_harmonic_symbolic", &
+        "evaluate_neort_full_fow_harmonic_integrand", &
+        [character(len=64) :: "mass", "charge", "mu", "bmod", "h", &
+        "electrostatic_potential", "p_parallel", &
+        "delta_b_real", "delta_b_imag", "m_mode", "n_mode", &
+        "orbit_phi", "launch_phi", "orbit_time", "omega_b", "omega_phi"], &
+        harmonic_integrand_roots, [character(len=64) :: "eq4_coefficient", &
+        "c_on_shell", "on_shell_residual", "phase_argument", &
+        "phase_real", "phase_imag", &
+        "integrand_real", "integrand_imag"])
+    call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_resonance_symbolic.f90", &
         "neort_full_fow_resonance_symbolic", &
         "evaluate_neort_resonance_weights", [character(len=64) :: "n_mode", "tau", "g_prime"], &
@@ -1314,9 +1423,18 @@ program gen_full_fow_physics
         frequency_identity_roots, [character(len=64) :: "n_squared_frequency_contribution", &
         "phase_contribution_identity"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_simple_root_symbolic.f90", &
+        "neort_full_fow_simple_root_symbolic", &
+        "evaluate_neort_full_fow_simple_root_force", &
+        [character(len=64) :: "dpsi_star_dx", "Hm_real", "Hm_imag", &
+        "tau_b", "frequency_residual_derivative", "force_value"], &
+        simple_root_force_roots, [character(len=64) :: "abs_Hm_squared", &
+        "simple_root_weight", "force_contribution"])
+    call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_sign_symmetry_symbolic.f90", &
         "neort_full_fow_sign_symmetry_symbolic", &
-        "evaluate_neort_sign_symmetry_ledger", [character(len=64) :: "a_real", "a_imag", &
+        "evaluate_neort_full_fow_sign_symmetry_ledger", &
+        [character(len=64) :: "a_real", "a_imag", &
         "m_mode", "n_mode", "theta", "phi", "amplitude_phase", &
         "dpsi_star_dx", "F_prime", "Cdot", "signed_R_Bparallel_star", &
         "h", "charge", "electrostatic_potential", "temperature", "a1", &
@@ -1712,23 +1830,25 @@ contains
         write (unit, "(a)") "module neort_generated_certificate_registry"
         write (unit, "(a)") "    implicit none"
         write (unit, "(a)") "    character(*), parameter :: fortsym_revision = &"
-        write (unit, "(a)") "        'fortsym@58a0e06c95ecc943dfdcb044b7ca6a9964c1c55d'"
+        write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 8"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 10"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
-        write (unit, "(a)") "        'refinement' ]"
+        write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
-        write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:eq13_cdot:3:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:boundary_limits:13:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:root_enclosures:3:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:interpolation:9:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-58a0e06' ]"
+        write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eq13_cdot:3:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:boundary_limits:13:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:root_enclosures:3:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:interpolation:9:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:harmonic_integrand:8:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

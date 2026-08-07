@@ -313,6 +313,10 @@ add_test(NAME test_gc_full_fow_symbolic_kernel
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_symbolic_kernel.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_full_fow_simple_root_force
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_simple_root_force.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_full_fow_scales_boundary_cut
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_scales_boundary_cut.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
