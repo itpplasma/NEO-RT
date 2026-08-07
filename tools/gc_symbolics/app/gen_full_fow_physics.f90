@@ -49,6 +49,7 @@ program gen_full_fow_physics
     type(expr_t) :: potato_mu_roots(2), cylindrical_hamiltonian_roots(1)
     type(expr_t) :: cylindrical_canonical_roots(2)
     type(expr_t) :: cylindrical_launch_roots(3)
+    type(expr_t) :: cylindrical_vparallel_roots(1)
     type(expr_t) :: buchholz_specific_energy_roots(1)
     type(expr_t) :: mass, charge, c_light, mu, bmod, h, electrostatic_potential
     type(expr_t) :: p_phi
@@ -1200,6 +1201,7 @@ program gen_full_fow_physics
     potato_mu_roots = [jpotato_from_mu, mu_from_jpotato]
     cylindrical_hamiltonian_roots = [invariant_h]
     cylindrical_canonical_roots = [invariant_pphi, invariant_psistar]
+    cylindrical_vparallel_roots = [invariant_vparallel_squared]
     cylindrical_launch_roots = [invariant_vparallel_squared, &
         invariant_ppar_from_pphi, invariant_launch_residual]
 
@@ -1238,6 +1240,7 @@ program gen_full_fow_physics
     call simplify_array(potato_mu_roots)
     call simplify_array(cylindrical_hamiltonian_roots)
     call simplify_array(cylindrical_canonical_roots)
+    call simplify_array(cylindrical_vparallel_roots)
     call simplify_array(cylindrical_launch_roots)
 
     action_roots = roots(1:11)
@@ -1387,6 +1390,14 @@ program gen_full_fow_physics
         "evaluate_neort_cylindrical_canonical", [character(len=64) :: "charge", "c_light", &
         "radius", "p_parallel", "psi", "bhat_phi"], &
         cylindrical_canonical_roots, [character(len=64) :: "canonical_p_phi", "psi_star"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_cylindrical_vparallel_symbolic.f90", &
+        "neort_cylindrical_vparallel_symbolic", &
+        "evaluate_neort_cylindrical_vparallel", &
+        [character(len=64) :: "h", "mu", "bmod", &
+        "electrostatic_potential", "mass", "charge"], &
+        cylindrical_vparallel_roots, [character(len=64) :: &
+        "v_parallel_squared"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_launch_symbolic.f90", &
         "neort_cylindrical_launch_symbolic", &
