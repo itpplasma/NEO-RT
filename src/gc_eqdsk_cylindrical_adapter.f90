@@ -4,6 +4,7 @@ module neort_gc_eqdsk_cylindrical_adapter
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: inp_swi, read_boozer_file, R0, a
+    use field_eq_mod, only: rad, zet
     use geoflux_coordinates, only: geoflux_to_cyl
     use field_sub, only: dpsidr, dpsidz, field_eq, psif
     use neort_gc_cylindrical_model, only: GC_CYL_EQUILIBRIUM_DOMAIN, &
@@ -18,6 +19,8 @@ module neort_gc_eqdsk_cylindrical_adapter
         real(dp) :: field_scale = 1.0_dp
         real(dp) :: domain_R_min = 0.0_dp
         real(dp) :: domain_R_max = 0.0_dp
+        real(dp) :: domain_Z_min = 0.0_dp
+        real(dp) :: domain_Z_max = 0.0_dp
         logical :: domain_initialized = .false.
     contains
         procedure :: evaluate => evaluate_eqdsk_cylindrical_field
@@ -53,9 +56,16 @@ contains
         status = GC_CYL_INVALID_INPUT
         if (inp_swi /= 11 .or. field_scale <= 0.0_dp) return
         if (.not. all(ieee_is_finite([R0, a])) .or. a <= 0.0_dp) return
-        field%domain_R_min = R0 - a
-        field%domain_R_max = R0 + a
-        if (field%domain_R_min <= 0.0_dp) return
+        if (.not. allocated(rad) .or. .not. allocated(zet)) return
+        if (size(rad) < 2 .or. size(zet) < 2) return
+        if (.not. all(ieee_is_finite([rad, zet]))) return
+        if (rad(size(rad)) <= rad(1) .or. zet(size(zet)) <= zet(1)) return
+        field%domain_R_min = max(R0-a, rad(1))
+        field%domain_R_max = min(R0+a, rad(size(rad)))
+        field%domain_Z_min = zet(1)
+        field%domain_Z_max = zet(size(zet))
+        if (field%domain_R_min <= 0.0_dp .or. &
+                field%domain_R_max <= field%domain_R_min) return
         field%domain_initialized = .true.
         status = GC_CYL_SUCCESS
     end subroutine configure_eqdsk_cylindrical_field
@@ -96,7 +106,9 @@ contains
         if (self%field_scale <= 0.0_dp .or. position(1) <= 0.0_dp) return
         if (self%domain_initialized) then
             if (position(1) < self%domain_R_min .or. &
-                    position(1) > self%domain_R_max) then
+                    position(1) > self%domain_R_max .or. &
+                    position(2) < self%domain_Z_min .or. &
+                    position(2) > self%domain_Z_max) then
                 status = GC_CYL_EQUILIBRIUM_DOMAIN
                 return
             end if
