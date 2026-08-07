@@ -28,8 +28,8 @@ program test_gc_eqdsk_cut_graph_atlas
     options%max_z_depth = 12
     options%map_absolute_tolerance = 1.0e-11_dp
     options%map_relative_tolerance = 1.0e-13_dp
-    call build_eqdsk_cut_graph_atlas(atlas, rad(1), rad(nrad), zet(1), &
-        zet(nzet), options, status)
+    call build_eqdsk_cut_graph_atlas(atlas, field%domain_R_min, &
+        field%domain_R_max, zet(1), zet(nzet), options, status)
     if (status /= EQDSK_CUT_ATLAS_SUCCESS) then
         write (*, '(a,1x,i0)') 'full circular atlas status', status
         write (*, '(a,2(1x,i0),2(1x,es24.16))') &
@@ -52,7 +52,8 @@ program test_gc_eqdsk_cut_graph_atlas
 
     scale = max(1.0_dp, maxval(abs(zet)))
     do i = 0, 16
-        radius = rad(1)+(rad(nrad)-rad(1))*real(i,dp)/16.0_dp
+        radius = field%domain_R_min+(field%domain_R_max- &
+            field%domain_R_min)*real(i,dp)/16.0_dp
         call map_eqdsk_cut_graph_atlas(atlas, radius, position, dposition, &
             dZ_dR, dpsihat_dR, status)
         call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
@@ -72,8 +73,8 @@ program test_gc_eqdsk_cut_graph_atlas
     boundary_options = options
     boundary_options%max_r_depth = 1
     boundary_options%max_z_depth = 1
-    call build_eqdsk_cut_graph_atlas(boundary_atlas, rad(1), rad(nrad), &
-        0.0_dp, zet(nzet), boundary_options, status)
+    call build_eqdsk_cut_graph_atlas(boundary_atlas, field%domain_R_min, &
+        field%domain_R_max, 0.0_dp, zet(nzet), boundary_options, status)
     call require(status /= EQDSK_CUT_ATLAS_SUCCESS, &
         'cut on the requested Z boundary was incorrectly certified')
     call require(.not. boundary_atlas%global_completeness_certified, &
