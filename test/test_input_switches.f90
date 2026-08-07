@@ -5,8 +5,6 @@ program test_input_switches
     use do_magfie_pert_mod, only: perturbation_switch => inp_swi_pert
     use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
         FREQUENCY_MODEL_GC_FULL, configured_frequency_model => frequency_model
-    use neort_gc_frequency_provider, only: configured_width_scale => &
-        gc_full_orbit_width_scale
 
     implicit none
 
@@ -72,12 +70,10 @@ program test_input_switches
     config = config_t()
     config%frequency_model = FREQUENCY_MODEL_GC_FULL
     config%inp_swi = 11
-    config%gc_full_orbit_width_scale = 0.25d0
     call set_config(config)
     if (configured_frequency_model /= FREQUENCY_MODEL_GC_FULL) then
         error stop "GC full frequency model was not accepted for direct GEQDSK"
     end if
-    if (configured_width_scale /= 0.25d0) error stop "full-orbit width scale not set"
 
     call write_namelist("input_switches.in", .true.)
     call read_and_set_config("input_switches.in")
@@ -91,7 +87,6 @@ program test_input_switches
     if (configured_frequency_model /= FREQUENCY_MODEL_GC_FULL) then
         error stop "namelist GC full frequency model was not read"
     end if
-    if (configured_width_scale /= 0.5d0) error stop "namelist width scale not read"
 
     open (newunit=unit, file="input_switches.in", status="old")
     close (unit, status="delete")
@@ -127,8 +122,6 @@ contains
         end if
         if (present(selected_model)) then
             write (u, '(A,I0)') "    frequency_model = ", selected_model
-            if (selected_model == FREQUENCY_MODEL_GC_FULL) &
-                write (u, '(A)') "    gc_full_orbit_width_scale = 0.5"
         end if
         write (u, '(A)') "/"
         close (u)

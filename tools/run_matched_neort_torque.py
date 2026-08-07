@@ -47,7 +47,7 @@ def write_profiles(directory: Path, s_tor: np.ndarray, s_pol: np.ndarray) -> Non
             stream.write(f"{surface:.16e} 0.0 {speed:.16e}\n")
 
 
-def deck(surface: float, model: int, vsteps: int, width_scale: float) -> str:
+def deck(surface: float, model: int, vsteps: int) -> str:
     input_switch = 10 if model == 0 else 11
     return f"""&params
     s = {surface:.16e}
@@ -69,7 +69,6 @@ def deck(surface: float, model: int, vsteps: int, width_scale: float) -> str:
     efac = 1.0
     inp_swi = {input_switch}
     frequency_model = {model}
-    gc_full_orbit_width_scale = {width_scale:.16e}
     mth_max_abs = 3
     vsteps = {vsteps}
     vmax_over_vth = 4.0
@@ -93,13 +92,10 @@ def main() -> None:
     parser.add_argument("--eqdsk", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--model", type=int, choices=(0, 1, 2), required=True)
-    parser.add_argument("--width-scale", type=float, default=1.0)
     parser.add_argument("--vsteps", type=int, default=128)
     parser.add_argument("--surface-count", type=int, default=25)
     parser.add_argument("--workers", type=int, default=1)
     args = parser.parse_args()
-    if args.width_scale < 0.0:
-        parser.error("--width-scale must be nonnegative")
 
     args.output.mkdir(parents=True, exist_ok=False)
     map_s_tor, map_s_pol = radial_map(args.chartmap)
@@ -116,9 +112,7 @@ def main() -> None:
         shutil.copy2(args.chartmap if args.model == 0 else args.eqdsk, work / "in_file")
         shutil.copy2(args.output / "plasma.in", work / "plasma.in")
         shutil.copy2(args.output / "profile.in", work / "profile.in")
-        (work / "torque.in").write_text(
-            deck(float(surface), args.model, args.vsteps, args.width_scale)
-        )
+        (work / "torque.in").write_text(deck(float(surface), args.model, args.vsteps))
         started = time.perf_counter()
         completed = subprocess.run(
             [str(args.executable.resolve()), "torque"],

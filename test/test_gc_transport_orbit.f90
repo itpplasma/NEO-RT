@@ -45,7 +45,7 @@ program test_gc_transport_orbit
     use neort_gc_orbit_integrator, only: GC_ORBIT_PASSING, &
         GC_ORBIT_SUCCESS, GC_ORBIT_NO_RETURN, gc_orbit_average_t, &
         gc_orbit_options_t, compute_gc_orbit_average, &
-        compute_gc_full_orbit_average
+        compute_gc_full_orbit_average, normalized_full_hamiltonian_factor
 
     implicit none
 
@@ -69,6 +69,14 @@ program test_gc_transport_orbit
     call invariants_from_state(sample_from_state, 0.0_dp, 1.0_dp, 1.0_dp, &
         1.0_dp, 0.8_dp, full_invariants, status)
     if (status /= GC_MODEL_SUCCESS) error stop "full invariant setup failed"
+    full_invariants%energy = 5.0_dp
+    full_invariants%magnetic_moment = 0.75_dp
+    if (abs(normalized_full_hamiltonian_factor(full_invariants, 1.0_dp, &
+            2.0_dp, 4.0_dp) - 1.625_dp) > 1.0e-14_dp) then
+        error stop "full Hamiltonian potential normalization mismatch"
+    end if
+    call invariants_from_state(sample_from_state, 0.0_dp, 1.0_dp, 1.0_dp, &
+        1.0_dp, 0.8_dp, full_invariants, status)
 
     expected_period = 2.0_dp*acos(-1.0_dp)/0.8_dp
     call compute_gc_orbit_average(field, potential, invariants, &
@@ -92,7 +100,7 @@ program test_gc_transport_orbit
     end if
 
     call compute_gc_full_orbit_average(field, potential, full_invariants, &
-        reference_position, 1, 1.0_dp, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
+        reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
         expected_period, 0.8_dp, 0.4_dp, 0, 1, constant_perturbation, options, result)
     if (result%status /= GC_ORBIT_SUCCESS) error stop "full uniform orbit failed"
     expected_full_average = cmplx(2.0_dp - 0.36_dp, 0.0_dp, dp)
@@ -111,7 +119,7 @@ program test_gc_transport_orbit
 
     options%max_periods = 1.0e-6_dp
     call compute_gc_full_orbit_average(field, potential, full_invariants, &
-        reference_position, 1, 1.0_dp, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
+        reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
         expected_period, 0.8_dp, 0.4_dp, 0, 1, constant_perturbation, options, result)
     if (result%status /= GC_ORBIT_NO_RETURN) then
         error stop "full no-return status was not preserved"

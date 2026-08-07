@@ -38,7 +38,6 @@ module neort_config
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp ! upper velocity cutoff / vth
-        real(dp) :: gc_full_orbit_width_scale = 1.0_dp
         integer :: log_level = 0 ! how much to log
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
@@ -120,7 +119,6 @@ contains
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
-        use neort_gc_frequency_provider, only: gc_full_orbit_width_scale
         use util, only: qe, mu, qi, mi
 
         type(config_t), intent(in) :: config
@@ -167,9 +165,6 @@ contains
         mth_max_abs = config%mth_max_abs
         if (config%vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         vmax_over_vth = config%vmax_over_vth
-        if (config%gc_full_orbit_width_scale < 0.0_dp) &
-            error stop "gc_full_orbit_width_scale must be nonnegative"
-        gc_full_orbit_width_scale = config%gc_full_orbit_width_scale
 
         qi = config%qs * qe
         mi = config%ms * mu
@@ -189,7 +184,6 @@ contains
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
-        use neort_gc_frequency_provider, only: gc_full_orbit_width_scale
         use util, only: qe, mu, qi, mi
 
         character(len=*), intent(in) :: config_file
@@ -200,12 +194,10 @@ contains
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
             magdrift, magdrift_passing, frequency_model, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, gc_full_orbit_width_scale, &
-            log_level, pert_angle_map
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, pert_angle_map
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
-        gc_full_orbit_width_scale = 1.0_dp
         inp_swi_pert = -1
         frequency_model = 0
         pert_angle_map = ''
@@ -216,8 +208,6 @@ contains
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
-        if (gc_full_orbit_width_scale < 0.0_dp) &
-            error stop "gc_full_orbit_width_scale must be nonnegative"
         if (inp_swi_pert < 0) inp_swi_pert = inp_swi
         call validate_frequency_model(frequency_model, inp_swi, &
             has_direct_eqdsk_gc, supban)

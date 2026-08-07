@@ -83,9 +83,21 @@ module neort_gc_orbit_integrator
     public :: compute_return_map, compute_thin_precession
     public :: compute_gc_orbit_average
     public :: compute_gc_full_orbit_average
+    public :: normalized_full_hamiltonian_factor
     public :: gc_orbit_perturbation_i
 
 contains
+
+    pure function normalized_full_hamiltonian_factor(invariants, potential, &
+            bmod, reference_kinetic_energy) result(value)
+        !! POTATO normalization: [2(H-Phi)-J_perp B]/p_ref^2.
+        type(gc_invariants_t), intent(in) :: invariants
+        real(dp), intent(in) :: potential, bmod, reference_kinetic_energy
+        real(dp) :: value
+
+        value = (2.0_dp*(invariants%energy - potential) &
+            -invariants%magnetic_moment*bmod)/reference_kinetic_energy
+    end function normalized_full_hamiltonian_factor
 
     subroutine compute_thin_precession(field_model, potential_model, &
             invariants, reference_position, parallel_sign, rho0, &
@@ -812,8 +824,7 @@ contains
     end subroutine compute_gc_orbit_average
 
     subroutine compute_gc_full_orbit_average(field_model, potential_model, invariants, &
-            reference_position, parallel_sign, rho0, orbit_width_scale, &
-            reference_velocity, eta, &
+            reference_position, parallel_sign, rho0, reference_velocity, eta, &
             orbit_class, winding, period_estimate, omega_b, omega_phi, mth, mph, perturbation, &
             options, result)
         !! Average a perturbation and field moments on the physical finite-width
@@ -825,7 +836,7 @@ contains
         type(gc_invariants_t), intent(in) :: invariants
         real(dp), intent(in) :: reference_position(3)
         integer, intent(in) :: parallel_sign
-        real(dp), intent(in) :: rho0, orbit_width_scale, reference_velocity, eta, period_estimate
+        real(dp), intent(in) :: rho0, reference_velocity, eta, period_estimate
         real(dp), intent(in) :: omega_b, omega_phi
         integer, intent(in) :: orbit_class, winding, mth, mph
         procedure(gc_orbit_perturbation_i) :: perturbation
@@ -834,10 +845,12 @@ contains
 
         type(vode_state_t) :: integrator
         type(fortnum_status_t) :: integration_status
+        type(gc_field_sample_t) :: reference_sample
         real(dp) :: initial_state(5), initial_derivative(5), initial_augmented(9)
         real(dp), allocatable :: final_state(:)
         real(dp) :: atol(9), maximum_time, return_time, event_time_tolerance
-        integer :: start_status, rhs_status, event_direction
+        real(dp) :: reference_potential, reference_gradient(3), reference_kinetic_energy
+        integer :: start_status, rhs_status, event_direction, reference_status
         logical :: found
 
         result = gc_orbit_average_t()
@@ -848,8 +861,16 @@ contains
         if (orbit_class == GC_ORBIT_TRAPPED .and. winding /= 0) return
         if (orbit_class == GC_ORBIT_PASSING .and. abs(winding) /= 1) return
 
+        call field_model%evaluate(reference_position, reference_sample, reference_status)
+        if (reference_status /= GC_MODEL_SUCCESS) return
+        call potential_model%evaluate(reference_position, reference_sample, &
+            reference_potential, reference_gradient, reference_status)
+        if (reference_status /= GC_MODEL_SUCCESS) return
+        reference_kinetic_energy = invariants%energy - reference_potential
+        if (reference_kinetic_energy <= 0.0_dp) return
+
         call initialize_fixed_invariants(field_model, potential_model, &
-            invariants, reference_position, parallel_sign, rho0, orbit_width_scale, &
+            invariants, reference_position, parallel_sign, rho0, 1.0_dp, &
             options, initial_state, start_status)
         if (start_status /= GC_ORBIT_SUCCESS) then
             result%status = start_status
@@ -931,7 +952,7 @@ contains
                 local_status = GC_ORBIT_FIELD_ERROR
                 return
             end if
-            call gc_rhs(sample, grad_potential, rho0, orbit_width_scale, state(4), &
+            call gc_rhs(sample, grad_potential, rho0, 1.0_dp, state(4), &
                 state(5), xdot, pdot, xidot, dynamics_status)
             if (dynamics_status /= GC_SUCCESS) then
                 local_status = GC_ORBIT_STATE_ERROR
@@ -950,9 +971,10 @@ contains
             class(*), intent(in), optional :: context
 
             type(gc_field_sample_t) :: sample
-            real(dp) :: base_derivative(5), phase_argument
+            real(dp) :: base_derivative(5), phase_argument, local_potential
+            real(dp) :: local_gradient(3), hamiltonian_factor
             complex(dp) :: amplitude, phase, hamiltonian
-            integer :: local_status, field_status, perturbation_status
+            integer :: local_status, field_status, potential_status, perturbation_status
 
             associate (unused_time => time, unused_context => context)
             end associate
@@ -973,6 +995,12 @@ contains
                 rhs_status = GC_ORBIT_PERTURBATION_ERROR
                 return
             end if
+            call potential_model%evaluate(state(1:3), sample, local_potential, &
+                local_gradient, potential_status)
+            if (potential_status /= GC_MODEL_SUCCESS) then
+                rhs_status = GC_ORBIT_FIELD_ERROR
+                return
+            end if
             ! Bounce harmonics are temporal Fourier coefficients, not spatial
             ! poloidal Fourier modes. This is POTATO's canonical phase and is
             ! valid for trapped, passing, shaped, and finite-width orbits.
@@ -981,7 +1009,9 @@ contains
                 -(real(mth, dp)*omega_b + real(mph, dp)*omega_phi) &
                 *time/reference_velocity
             phase = cmplx(cos(phase_argument), sin(phase_argument), dp)
-            hamiltonian = (2.0_dp - eta*sample%bmod)*amplitude*phase
+            hamiltonian_factor = normalized_full_hamiltonian_factor(invariants, &
+                local_potential, sample%bmod, reference_kinetic_energy)
+            hamiltonian = hamiltonian_factor*amplitude*phase
             derivative(1:5) = base_derivative
             derivative(6) = real(hamiltonian)
             derivative(7) = aimag(hamiltonian)
