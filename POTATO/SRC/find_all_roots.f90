@@ -17,6 +17,9 @@
     double precision :: root_search_left=0.d0,root_search_right=0.d0
     double precision :: root_left_invalid_bracket=0.d0
     double precision :: root_right_invalid_bracket=0.d0
+    double precision :: root_last_invalid_x=0.d0
+    integer :: root_last_invalid_status=0
+    integer :: root_scan_first_valid=0,root_scan_last_valid=0
     integer :: nroots, nsearch_min=100, ncustom, niter=100
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
@@ -25,7 +28,9 @@
     !$omp&                root_left_endpoint_contracted,                    &
     !$omp&                root_right_endpoint_contracted,root_search_left,  &
     !$omp&                root_search_right,root_left_invalid_bracket,       &
-    !$omp&                root_right_invalid_bracket)
+    !$omp&                root_right_invalid_bracket,root_last_invalid_x,    &
+    !$omp&                root_last_invalid_status,root_scan_first_valid,    &
+    !$omp&                root_scan_last_valid)
   end module find_all_roots_mod
 !
 ! The two public entry points intentionally share one bounded implementation.
@@ -54,7 +59,9 @@
                                  root_left_endpoint_contracted,            &
                                  root_right_endpoint_contracted,root_search_left, &
                                  root_search_right,root_left_invalid_bracket,      &
-                                 root_right_invalid_bracket
+                                 root_right_invalid_bracket,root_last_invalid_x,  &
+                                 root_last_invalid_status,root_scan_first_valid,   &
+                                 root_scan_last_valid
 
   implicit none
 
@@ -77,6 +84,10 @@
   root_search_right=x2in
   root_left_invalid_bracket=x1in
   root_right_invalid_bracket=x2in
+  root_last_invalid_x=x1in
+  root_last_invalid_status=root_success
+  root_scan_first_valid=0
+  root_scan_last_valid=-1
   if(x2in.le.x1in) then
     ierr=root_invalid_interval
     return
@@ -188,6 +199,8 @@
     if(validarr(last_valid)) exit
     last_valid=last_valid-1
   enddo
+  root_scan_first_valid=first_valid
+  root_scan_last_valid=last_valid
   if(first_valid.gt.last_valid) then
     call fail_search(root_invalid_domain)
     return
@@ -296,6 +309,8 @@
     fout=0.d0
     dfout=0.d0
     if(root_eval_error.eq.root_success) root_eval_error=root_invalid_domain
+    root_last_invalid_x=xin
+    root_last_invalid_status=root_eval_error
     ierr=root_eval_error
   endif
   end subroutine evaluate_at
@@ -499,6 +514,12 @@
   integer, intent(in) :: status
 
   ierr=status
+  if(status.eq.root_invalid_domain) then
+    print *, 'find_all_roots: invalid-domain diagnostic', root_last_invalid_x, &
+             root_scan_first_valid, root_scan_last_valid,                    &
+             root_left_endpoint_contracted,root_right_endpoint_contracted,   &
+             root_search_left,root_search_right
+  endif
   nroots=0
   if(allocated(roots)) deallocate(roots)
   if(allocated(xarr)) deallocate(xarr)
