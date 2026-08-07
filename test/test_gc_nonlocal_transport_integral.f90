@@ -119,13 +119,15 @@ contains
                 status = GC_NONLOCAL_INVALID_INPUT
                 return
             end if
-            components(1) = gc_nonlocal_component_t(101, 1, -provider%width, &
-                provider%width)
-            components(2) = gc_nonlocal_component_t(202, -1, -provider%width, &
-                provider%width)
+            components(1) = gc_nonlocal_component_t(component_id=101, sigma=1, &
+                x_min=-provider%width, x_max=provider%width)
+            components(2) = gc_nonlocal_component_t(component_id=202, sigma=-1, &
+                x_min=-provider%width, x_max=provider%width)
         else
-            components(1) = gc_nonlocal_component_t(101, 1, -1.0_dp, 1.0_dp)
-            components(2) = gc_nonlocal_component_t(202, -1, -1.0_dp, 1.0_dp)
+            components(1) = gc_nonlocal_component_t(component_id=101, sigma=1, &
+                x_min=-1.0_dp, x_max=1.0_dp)
+            components(2) = gc_nonlocal_component_t(component_id=202, sigma=-1, &
+                x_min=-1.0_dp, x_max=1.0_dp)
         end if
         status = GC_NONLOCAL_SUCCESS
     end subroutine manufactured_get_components

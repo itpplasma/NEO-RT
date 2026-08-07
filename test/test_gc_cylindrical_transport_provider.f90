@@ -198,10 +198,10 @@ contains
         end select
         if (h0 <= 0.0_dp .or. jperp < 0.0_dp) return
         allocate(components(2))
-        components(1) = gc_nonlocal_component_t(1, 1, &
-            -0.5_dp*state%width, 0.5_dp*state%width)
-        components(2) = gc_nonlocal_component_t(1, -1, &
-            -0.5_dp*state%width, 0.5_dp*state%width)
+        components(1) = gc_nonlocal_component_t(component_id=1, sigma=1, &
+            x_min=-0.5_dp*state%width, x_max=0.5_dp*state%width)
+        components(2) = gc_nonlocal_component_t(component_id=1, sigma=-1, &
+            x_min=-0.5_dp*state%width, x_max=0.5_dp*state%width)
         status = GC_CYL_NONLOCAL_SUCCESS
     end subroutine transport_components
 
