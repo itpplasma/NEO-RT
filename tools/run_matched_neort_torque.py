@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import csv
 import math
 import shutil
@@ -92,6 +93,7 @@ def main() -> None:
     parser.add_argument("--model", type=int, choices=(0, 2), required=True)
     parser.add_argument("--vsteps", type=int, default=128)
     parser.add_argument("--surface-count", type=int, default=25)
+    parser.add_argument("--workers", type=int, default=1)
     args = parser.parse_args()
 
     args.output.mkdir(parents=True, exist_ok=False)
@@ -100,11 +102,10 @@ def main() -> None:
     target_s_tor = np.interp(target_s_pol, map_s_pol, map_s_tor)
     write_profiles(args.output, map_s_tor, map_s_pol)
 
-    records = []
     start_all = time.perf_counter()
-    for index, (surface, poloidal) in enumerate(
-        zip(target_s_tor, target_s_pol, strict=True)
-    ):
+
+    def run_surface(item: tuple[int, float, float]) -> dict[str, float]:
+        index, surface, poloidal = item
         work = args.output / f"surface-{index:03d}"
         work.mkdir()
         shutil.copy2(args.chartmap if args.model == 0 else args.eqdsk, work / "in_file")
@@ -130,21 +131,28 @@ def main() -> None:
             raise RuntimeError("NEO-RT returned a different radial surface")
         total = co + counter + trapped
         density_si = total * 1.0e-7 / (dvds * 1.0e-6)
-        records.append(
-            {
-                "s_pol": poloidal,
-                "s_tor": surface,
-                "rho_tor": math.sqrt(surface),
-                "dVds_cm3": dvds,
-                "mach": mach,
-                "Tco_dyn_cm": co,
-                "Tcounter_dyn_cm": counter,
-                "Ttrapped_dyn_cm": trapped,
-                "Ttotal_dyn_cm": total,
-                "torque_density_Nm_m3": density_si,
-                "wall_seconds": time.perf_counter() - started,
-            }
+        return {
+            "s_pol": poloidal,
+            "s_tor": surface,
+            "rho_tor": math.sqrt(surface),
+            "dVds_cm3": dvds,
+            "mach": mach,
+            "Tco_dyn_cm": co,
+            "Tcounter_dyn_cm": counter,
+            "Ttrapped_dyn_cm": trapped,
+            "Ttotal_dyn_cm": total,
+            "torque_density_Nm_m3": density_si,
+            "wall_seconds": time.perf_counter() - started,
+        }
+
+    items = [
+        (index, float(surface), float(poloidal))
+        for index, (surface, poloidal) in enumerate(
+            zip(target_s_tor, target_s_pol, strict=True)
         )
+    ]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+        records = list(pool.map(run_surface, items))
 
     with (args.output / "torque.csv").open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(records[0]))
