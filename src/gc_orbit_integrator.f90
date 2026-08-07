@@ -813,19 +813,19 @@ contains
 
     subroutine compute_gc_full_orbit_average(field_model, potential_model, invariants, &
             reference_position, parallel_sign, rho0, reference_velocity, eta, &
-            orbit_class, winding, period_estimate, mth, mph, perturbation, &
+            orbit_class, winding, period_estimate, omega_b, omega_phi, mth, mph, perturbation, &
             options, result)
         !! Average a perturbation and field moments on the physical finite-width
-        !! return map.  The Fourier phase is the native canonical phase
-        !! mth*theta + mph*phi evaluated on the integrated trajectory.  This
-        !! routine deliberately has no q reduction and no externally supplied
-        !! drift frequency; a failed return remains a failed orbit.
+        !! return map. The Fourier phase is the temporal bounce-harmonic phase
+        !! mph*phi-(mth*omega_b+mph*omega_phi)*t. This routine deliberately has
+        !! no q reduction; a failed return remains a failed orbit.
         class(gc_field_t), intent(in) :: field_model
         class(gc_potential_t), intent(in) :: potential_model
         type(gc_invariants_t), intent(in) :: invariants
         real(dp), intent(in) :: reference_position(3)
         integer, intent(in) :: parallel_sign
         real(dp), intent(in) :: rho0, reference_velocity, eta, period_estimate
+        real(dp), intent(in) :: omega_b, omega_phi
         integer, intent(in) :: orbit_class, winding, mth, mph
         procedure(gc_orbit_perturbation_i) :: perturbation
         type(gc_orbit_options_t), intent(in) :: options
@@ -972,8 +972,13 @@ contains
                 rhs_status = GC_ORBIT_PERTURBATION_ERROR
                 return
             end if
-            phase_argument = real(mth, dp)*state(3) &
-                +real(mph, dp)*state(2)
+            ! Bounce harmonics are temporal Fourier coefficients, not spatial
+            ! poloidal Fourier modes. This is POTATO's canonical phase and is
+            ! valid for trapped, passing, shaped, and finite-width orbits.
+            phase_argument = real(mph, dp) &
+                *(state(2) - reference_position(2)) &
+                -(real(mth, dp)*omega_b + real(mph, dp)*omega_phi) &
+                *time/reference_velocity
             phase = cmplx(cos(phase_argument), sin(phase_argument), dp)
             hamiltonian = (2.0_dp - eta*sample%bmod)*amplitude*phase
             derivative(1:5) = base_derivative

@@ -352,14 +352,14 @@ contains
     end subroutine evaluate_gc_phase_average
 
     subroutine evaluate_gc_full_orbit_phase_average(context, eta, &
-            parallel_direction, orbit_class, period_estimate, mth, mph, &
+            parallel_direction, orbit_class, period_estimate, omega_b, omega_phi, mth, mph, &
             perturbation, result, status, velocity)
         !! Full-width counterpart of evaluate_gc_phase_average.  It shares the
         !! fixed-H, mu, P_phi construction and physical return-map convention
         !! of evaluate_gc_full_orbit_frequency, while retaining the actual
         !! canonical Fourier phase mth*theta + mph*phi.
         type(gc_frequency_context_t), intent(in) :: context
-        real(dp), intent(in) :: eta, period_estimate
+        real(dp), intent(in) :: eta, period_estimate, omega_b, omega_phi
         integer, intent(in) :: parallel_direction, orbit_class, mth, mph
         procedure(gc_orbit_perturbation_i) :: perturbation
         type(gc_orbit_average_t), intent(out) :: result
@@ -405,7 +405,7 @@ contains
         call compute_gc_full_orbit_average(context%field, &
             context%electric_potential, invariants, context%reference_position, &
             parallel_sign, context%rho0, context%reference_velocity, eta, &
-            orbit_class, winding, period_estimate, mth, mph, perturbation, &
+            orbit_class, winding, period_estimate, omega_b, omega_phi, mth, mph, perturbation, &
             context%orbit_options, result)
         status = result%status
     end subroutine evaluate_gc_full_orbit_phase_average

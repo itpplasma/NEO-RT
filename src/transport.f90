@@ -153,7 +153,7 @@ contains
                     Omph = full_frequency%omega_phi
                     taub = full_frequency%period
                     call evaluate_gc_full_orbit_phase_average_surface(v, eta, &
-                        int(sign_vpar), orbit_class, taub, mth, mph, &
+                        int(sign_vpar), orbit_class, taub, Omth, Omph, mth, mph, &
                         evaluate_direct_perturbation, direct_average, direct_status)
                     if (direct_status /= 0) cycle
                     bounceavg = 0.0_dp

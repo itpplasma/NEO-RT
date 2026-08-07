@@ -296,9 +296,9 @@ contains
     end subroutine evaluate_gc_full_orbit_frequency_surface
 
     subroutine evaluate_gc_full_orbit_phase_average_surface(velocity, eta, &
-            parallel_direction, orbit_class, period_estimate, mth, mph, &
+            parallel_direction, orbit_class, period_estimate, omega_b, omega_phi, mth, mph, &
             perturbation, result, status)
-        real(dp), intent(in) :: velocity, eta, period_estimate
+        real(dp), intent(in) :: velocity, eta, period_estimate, omega_b, omega_phi
         integer, intent(in) :: parallel_direction, orbit_class, mth, mph
         procedure(gc_orbit_perturbation_i) :: perturbation
         type(gc_orbit_average_t), intent(out) :: result
@@ -308,7 +308,7 @@ contains
         status = GC_SPLINE_NOT_INITIALIZED
         if (.not. surface_initialized) return
         call evaluate_gc_full_orbit_phase_average(surface_context, eta, &
-            parallel_direction, orbit_class, period_estimate, mth, mph, &
+            parallel_direction, orbit_class, period_estimate, omega_b, omega_phi, mth, mph, &
             perturbation, result, status, velocity)
     end subroutine evaluate_gc_full_orbit_phase_average_surface
 
