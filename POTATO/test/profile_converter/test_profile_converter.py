@@ -31,7 +31,7 @@ def main() -> int:
         )
         plasma.write_text(
             "% N am1 am2 Z1 Z2\n"
-            "50 2.0 3.0 1.0 1.0\n"
+            "3 2.0 3.0 1.0 1.0\n"
             "% s n1 n2 T1 T2 Te\n"
             "0.0 1.0e14 0.0 1.0e4 1.0 1.2e4\n"
             "0.5 0.8e14 0.0 0.8e4 1.0 1.0e4\n"
@@ -79,6 +79,20 @@ def main() -> int:
             raise AssertionError("two-column profile did not derive the thermal speed")
         if not np.isclose(derived["omega_e_s_range"][0], expected_omega_axis):
             raise AssertionError("derived thermal speed does not match sqrt(2 Ti / m_i)")
+
+        bad_plasma = root / "plasma_bad_count.in"
+        bad_plasma.write_text(plasma.read_text().replace("3 2.0 3.0", "4 2.0 3.0", 1))
+        try:
+            MODULE.convert(
+                two_column_profile, bad_plasma, geometry,
+                root / "profile_bad_count.in", r0_cm=100.0,
+                psi_span_tm2=2.0, relation_sign=1, degree=3,
+            )
+        except ValueError as error:
+            if "grid count" not in str(error):
+                raise
+        else:
+            raise AssertionError("mismatched plasma grid count was accepted")
     return 0
 
 

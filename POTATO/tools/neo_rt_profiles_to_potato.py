@@ -59,10 +59,14 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
     if rotation.shape[1] < 2 or len(plasma_rows) < 2:
         raise ValueError("truncated NEO-RT profile input")
     species = np.asarray(plasma_rows[0], dtype=float)
-    if int(round(species[0])) != 50 or species.size < 5:
-        raise ValueError("expected the NEO-RT two-ion header with leading grid count")
+    if species.size < 5 or species[0] <= 0.0 or not float(species[0]).is_integer():
+        raise ValueError("expected the NEO-RT two-ion header with an integer grid count")
     charges = species[3:5]
     data = np.asarray(plasma_rows[1:], dtype=float)
+    if data.shape[0] != int(species[0]):
+        raise ValueError(
+            f"plasma grid count {int(species[0])} does not match {data.shape[0]} rows"
+        )
     candidates = [index for index, charge in enumerate(charges)
                   if charge > 0.0 and np.any(data[:, 1+index] > 0.0)]
     if len(candidates) != 1:
