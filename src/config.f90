@@ -1,5 +1,7 @@
 module neort_config
     use iso_fortran_env, only: dp => real64
+    use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
+        FREQUENCY_MODEL_GC_FULL
 
     implicit none
 
@@ -15,7 +17,8 @@ module neort_config
         logical :: comptorque = .false.  ! compute torque
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: magdrift = .false.  ! consider magnetic drift
-        ! 0: historical local bounce/drift; 1: real-space GC thin-orbit limit.
+        ! 0: historical local bounce/drift; 1: GC thin-orbit limit;
+        ! 2: finite-width full-orbit frequency seam.
         integer :: frequency_model = 0
         ! Negative means "follow magdrift", preserving every existing deck.
         integer :: magdrift_passing = -1
@@ -63,6 +66,47 @@ contains
             (axis_switch == 11) .eqv. (perturbation_switch == 11)
     end function perturbation_chart_is_compatible
 
+    pure logical function frequency_model_requires_direct_eqdsk(model)
+        !! The finite-width GC models are available only through the
+        !! standalone direct-GEQDSK magnetic-field adapter.
+        integer, intent(in) :: model
+
+        frequency_model_requires_direct_eqdsk = &
+            model == FREQUENCY_MODEL_GC_THIN .or. &
+            model == FREQUENCY_MODEL_GC_FULL
+    end function frequency_model_requires_direct_eqdsk
+
+    subroutine validate_frequency_model(model, axis_switch, has_direct_eqdsk, &
+            superbanana)
+        integer, intent(in) :: model, axis_switch
+        logical, intent(in) :: has_direct_eqdsk, superbanana
+
+        if (model < FREQUENCY_MODEL_LEGACY .or. &
+                model > FREQUENCY_MODEL_GC_FULL) then
+            error stop "frequency_model must be 0 (legacy), 1 (GC thin limit), or 2 (GC full orbit)"
+        end if
+        if (.not. frequency_model_requires_direct_eqdsk(model)) return
+
+        if (axis_switch /= 11) then
+            if (model == FREQUENCY_MODEL_GC_THIN) then
+                error stop "frequency_model=1 requires direct GEQDSK input (inp_swi=11)"
+            end if
+            error stop "frequency_model=2 requires direct GEQDSK input (inp_swi=11)"
+        end if
+        if (.not. has_direct_eqdsk) then
+            if (model == FREQUENCY_MODEL_GC_THIN) then
+                error stop "frequency_model=1 requires the standalone direct-GEQDSK build"
+            end if
+            error stop "frequency_model=2 requires the standalone direct-GEQDSK build"
+        end if
+        if (superbanana) then
+            if (model == FREQUENCY_MODEL_GC_THIN) then
+                error stop "frequency_model=1 and supban are mutually exclusive"
+            end if
+            error stop "frequency_model=2 and supban are mutually exclusive"
+        end if
+    end subroutine validate_frequency_model
+
     subroutine set_config(config)
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi, has_direct_eqdsk_gc
@@ -98,18 +142,8 @@ contains
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
-        if (frequency_model < 0 .or. frequency_model > 1) then
-            error stop "frequency_model must be 0 (legacy) or 1 (GC thin limit)"
-        end if
-        if (frequency_model == 1 .and. inp_swi /= 11) then
-            error stop "frequency_model=1 requires direct GEQDSK input (inp_swi=11)"
-        end if
-        if (frequency_model == 1 .and. .not. has_direct_eqdsk_gc) then
-            error stop "frequency_model=1 requires the standalone direct-GEQDSK build"
-        end if
-        if (frequency_model == 1 .and. supban) then
-            error stop "frequency_model=1 and supban are mutually exclusive"
-        end if
+        call validate_frequency_model(frequency_model, inp_swi, &
+            has_direct_eqdsk_gc, supban)
         if (config%inp_swi_pert < 0) then
             perturbation_switch = config%inp_swi
         else
@@ -175,18 +209,8 @@ contains
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         if (inp_swi_pert < 0) inp_swi_pert = inp_swi
-        if (frequency_model < 0 .or. frequency_model > 1) then
-            error stop "frequency_model must be 0 (legacy) or 1 (GC thin limit)"
-        end if
-        if (frequency_model == 1 .and. inp_swi /= 11) then
-            error stop "frequency_model=1 requires direct GEQDSK input (inp_swi=11)"
-        end if
-        if (frequency_model == 1 .and. .not. has_direct_eqdsk_gc) then
-            error stop "frequency_model=1 requires the standalone direct-GEQDSK build"
-        end if
-        if (frequency_model == 1 .and. supban) then
-            error stop "frequency_model=1 and supban are mutually exclusive"
-        end if
+        call validate_frequency_model(frequency_model, inp_swi, &
+            has_direct_eqdsk_gc, supban)
         if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9 .and. &
             inp_swi_pert /= 11) then
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"

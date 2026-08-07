@@ -7,6 +7,7 @@ module neort_freq
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
         magdrift_passing, frequency_model, FREQUENCY_MODEL_GC_THIN, &
+        FREQUENCY_MODEL_GC_FULL, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin, supban
     use shaing, only: omph_shaing
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q, bfac
@@ -69,9 +70,10 @@ contains
 
     subroutine init_canon_freq_trapped_spline
         ! Initialise splines for canonical frequencies of trapped orbits
+        use neort_orbit, only: th0
 
         real(dp) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
-        integer :: k
+        integer :: k, gc_status
         real(dp) :: aa, b
         real(dp) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
         real(dp) :: v, eta, taub, taub_est, bounceavg(nvar)
@@ -88,6 +90,15 @@ contains
             call init_gc_frequency_trapped_spline()
             call trace('init_canon_freq_trapped_spline complete')
             return
+        end if
+        if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+            call initialize_gc_spline_surface(s, th0, bfac, Om_tE, mi, qi, &
+                vth, gc_status)
+            if (gc_status /= GC_SPLINE_SUCCESS) then
+                write(0, *) 'GC full-orbit surface initialization failed:', &
+                    gc_status, s
+                error stop 'GC full-orbit surface initialization failed'
+            end if
         end if
 
         taub0 = 0.0_dp

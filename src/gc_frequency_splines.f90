@@ -8,7 +8,8 @@ module neort_gc_frequency_splines
     use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
         gc_frequency_context_t, gc_frequency_result_t, &
         initialize_gc_frequency_context, evaluate_gc_frequency, &
-        evaluate_gc_phase_average
+        evaluate_gc_phase_average, evaluate_gc_full_orbit_frequency, &
+        evaluate_gc_full_orbit_phase_average, gc_full_orbit_frequency_result_t
     use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
         gc_orbit_average_t, gc_orbit_perturbation_i
     use neort_thin_orbit_limit, only: THIN_LIMIT_RETURN_ERROR
@@ -71,6 +72,8 @@ module neort_gc_frequency_splines
     public :: initialize_gc_spline_surface, fit_gc_frequency_region
     public :: evaluate_gc_spline, gc_spline_q, get_gc_spline_diagnostics
     public :: evaluate_gc_phase_average_surface
+    public :: evaluate_gc_full_orbit_frequency_surface
+    public :: evaluate_gc_full_orbit_phase_average_surface
 
 contains
 
@@ -276,6 +279,38 @@ contains
         q_value = 0.0_dp
         if (surface_initialized) q_value = surface_context%q_fieldline
     end function gc_spline_q
+
+    subroutine evaluate_gc_full_orbit_frequency_surface(velocity, eta, &
+            parallel_direction, orbit_class, period_estimate, result, status)
+        real(dp), intent(in) :: velocity, eta, period_estimate
+        integer, intent(in) :: parallel_direction, orbit_class
+        type(gc_full_orbit_frequency_result_t), intent(out) :: result
+        integer, intent(out) :: status
+
+        result = gc_full_orbit_frequency_result_t()
+        status = GC_SPLINE_NOT_INITIALIZED
+        if (.not. surface_initialized) return
+        call evaluate_gc_full_orbit_frequency(surface_context, eta, &
+            parallel_direction, orbit_class, period_estimate, result, status, &
+            velocity)
+    end subroutine evaluate_gc_full_orbit_frequency_surface
+
+    subroutine evaluate_gc_full_orbit_phase_average_surface(velocity, eta, &
+            parallel_direction, orbit_class, period_estimate, mth, mph, &
+            perturbation, result, status)
+        real(dp), intent(in) :: velocity, eta, period_estimate
+        integer, intent(in) :: parallel_direction, orbit_class, mth, mph
+        procedure(gc_orbit_perturbation_i) :: perturbation
+        type(gc_orbit_average_t), intent(out) :: result
+        integer, intent(out) :: status
+
+        result = gc_orbit_average_t()
+        status = GC_SPLINE_NOT_INITIALIZED
+        if (.not. surface_initialized) return
+        call evaluate_gc_full_orbit_phase_average(surface_context, eta, &
+            parallel_direction, orbit_class, period_estimate, mth, mph, &
+            perturbation, result, status, velocity)
+    end subroutine evaluate_gc_full_orbit_phase_average_surface
 
     subroutine get_gc_spline_diagnostics(value)
         type(gc_spline_diagnostics_t), intent(out) :: value

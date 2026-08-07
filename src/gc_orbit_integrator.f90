@@ -82,6 +82,7 @@ module neort_gc_orbit_integrator
 
     public :: compute_return_map, compute_thin_precession
     public :: compute_gc_orbit_average
+    public :: compute_gc_full_orbit_average
     public :: gc_orbit_perturbation_i
 
 contains
@@ -809,6 +810,196 @@ contains
         end function return_event
 
     end subroutine compute_gc_orbit_average
+
+    subroutine compute_gc_full_orbit_average(field_model, potential_model, invariants, &
+            reference_position, parallel_sign, rho0, reference_velocity, eta, &
+            orbit_class, winding, period_estimate, mth, mph, perturbation, &
+            options, result)
+        !! Average a perturbation and field moments on the physical finite-width
+        !! return map.  The Fourier phase is the native canonical phase
+        !! mth*theta + mph*phi evaluated on the integrated trajectory.  This
+        !! routine deliberately has no q reduction and no externally supplied
+        !! drift frequency; a failed return remains a failed orbit.
+        class(gc_field_t), intent(in) :: field_model
+        class(gc_potential_t), intent(in) :: potential_model
+        type(gc_invariants_t), intent(in) :: invariants
+        real(dp), intent(in) :: reference_position(3)
+        integer, intent(in) :: parallel_sign
+        real(dp), intent(in) :: rho0, reference_velocity, eta, period_estimate
+        integer, intent(in) :: orbit_class, winding, mth, mph
+        procedure(gc_orbit_perturbation_i) :: perturbation
+        type(gc_orbit_options_t), intent(in) :: options
+        type(gc_orbit_average_t), intent(out) :: result
+
+        type(vode_state_t) :: integrator
+        type(fortnum_status_t) :: integration_status
+        real(dp) :: initial_state(5), initial_derivative(5), initial_augmented(9)
+        real(dp), allocatable :: final_state(:)
+        real(dp) :: atol(9), maximum_time, return_time, event_time_tolerance
+        integer :: start_status, rhs_status, event_direction
+        logical :: found
+
+        result = gc_orbit_average_t()
+        if (reference_velocity <= 0.0_dp .or. period_estimate <= 0.0_dp &
+            .or. rho0 == 0.0_dp .or. parallel_sign == 0) return
+        if (orbit_class /= GC_ORBIT_TRAPPED &
+            .and. orbit_class /= GC_ORBIT_PASSING) return
+        if (orbit_class == GC_ORBIT_TRAPPED .and. winding /= 0) return
+        if (orbit_class == GC_ORBIT_PASSING .and. abs(winding) /= 1) return
+
+        call initialize_fixed_invariants(field_model, potential_model, &
+            invariants, reference_position, parallel_sign, rho0, 1.0_dp, &
+            options, initial_state, start_status)
+        if (start_status /= GC_ORBIT_SUCCESS) then
+            result%status = start_status
+            return
+        end if
+
+        rhs_status = GC_ORBIT_SUCCESS
+        call evaluate_state_rhs(initial_state, initial_derivative, rhs_status)
+        if (rhs_status /= GC_ORBIT_SUCCESS) then
+            result%status = rhs_status
+            return
+        end if
+        if (orbit_class == GC_ORBIT_TRAPPED) then
+            if (abs(initial_derivative(3)) <= tiny(initial_derivative(3))) then
+                result%status = GC_ORBIT_STATE_ERROR
+                return
+            end if
+            event_direction = merge(ODE_EVENT_RISING, ODE_EVENT_FALLING, &
+                initial_derivative(3) > 0.0_dp)
+        else
+            event_direction = merge(ODE_EVENT_RISING, ODE_EVENT_FALLING, &
+                winding > 0)
+        end if
+
+        initial_augmented = 0.0_dp
+        initial_augmented(1:5) = initial_state
+        maximum_time = options%max_periods*period_estimate*reference_velocity
+        event_time_tolerance = options%event_relative_tolerance &
+            *period_estimate*reference_velocity
+        event_time_tolerance = max(event_time_tolerance, &
+            100.0_dp*epsilon(maximum_time)*max(1.0_dp, maximum_time))
+        atol = options%absolute_tolerance
+        call vode_init(integrator, 9, 0.0_dp, initial_augmented)
+        call vode_integrate_to(full_average_rhs, integrator, maximum_time, &
+            options%relative_tolerance, atol, final_state, integration_status, &
+            event=full_return_event, event_dir=event_direction, &
+            event_tol=event_time_tolerance, t_root=return_time, &
+            root_found=found)
+        if (rhs_status /= GC_ORBIT_SUCCESS) then
+            result%status = rhs_status
+            return
+        end if
+        if (integration_status%code /= FORTNUM_OK) then
+            result%status = GC_ORBIT_INTEGRATOR_ERROR
+            return
+        end if
+        if (.not. found .or. return_time <= 0.0_dp) then
+            result%status = GC_ORBIT_NO_RETURN
+            return
+        end if
+
+        result%period = return_time/reference_velocity
+        result%perturbation_average = cmplx(final_state(6), final_state(7), dp) &
+            /return_time
+        result%inverse_b_average = final_state(8)/return_time
+        result%b_average = final_state(9)/return_time
+        result%status = GC_ORBIT_SUCCESS
+
+    contains
+
+        subroutine evaluate_state_rhs(state, derivative, local_status)
+            real(dp), intent(in) :: state(5)
+            real(dp), intent(out) :: derivative(5)
+            integer, intent(out) :: local_status
+
+            type(gc_field_sample_t) :: sample
+            real(dp) :: potential, grad_potential(3), xdot(3), pdot, xidot
+            integer :: field_status, potential_status, dynamics_status
+
+            derivative = 0.0_dp
+            call field_model%evaluate(state(1:3), sample, field_status)
+            if (field_status /= GC_MODEL_SUCCESS) then
+                local_status = GC_ORBIT_FIELD_ERROR
+                return
+            end if
+            call potential_model%evaluate(state(1:3), sample, potential, &
+                grad_potential, potential_status)
+            if (potential_status /= GC_MODEL_SUCCESS) then
+                local_status = GC_ORBIT_FIELD_ERROR
+                return
+            end if
+            call gc_rhs(sample, grad_potential, rho0, 1.0_dp, state(4), &
+                state(5), xdot, pdot, xidot, dynamics_status)
+            if (dynamics_status /= GC_SUCCESS) then
+                local_status = GC_ORBIT_STATE_ERROR
+                return
+            end if
+            derivative(1:3) = xdot
+            derivative(4) = pdot
+            derivative(5) = xidot
+            local_status = GC_ORBIT_SUCCESS
+        end subroutine evaluate_state_rhs
+
+        subroutine full_average_rhs(time, state, derivative, context)
+            real(dp), intent(in) :: time
+            real(dp), intent(in) :: state(:)
+            real(dp), intent(out) :: derivative(:)
+            class(*), intent(in), optional :: context
+
+            type(gc_field_sample_t) :: sample
+            real(dp) :: base_derivative(5), phase_argument
+            complex(dp) :: amplitude, phase, hamiltonian
+            integer :: local_status, field_status, perturbation_status
+
+            associate (unused_time => time, unused_context => context)
+            end associate
+            derivative = 0.0_dp
+            call evaluate_state_rhs(state(1:5), base_derivative, local_status)
+            if (local_status /= GC_ORBIT_SUCCESS) then
+                rhs_status = local_status
+                return
+            end if
+            call field_model%evaluate(state(1:3), sample, field_status)
+            if (field_status /= GC_MODEL_SUCCESS) then
+                rhs_status = GC_ORBIT_FIELD_ERROR
+                return
+            end if
+            call perturbation(state(1:3), sample%bmod, amplitude, &
+                perturbation_status)
+            if (perturbation_status /= 0) then
+                rhs_status = GC_ORBIT_PERTURBATION_ERROR
+                return
+            end if
+            phase_argument = real(mth, dp)*state(3) &
+                +real(mph, dp)*state(2)
+            phase = cmplx(cos(phase_argument), sin(phase_argument), dp)
+            hamiltonian = (2.0_dp - eta*sample%bmod)*amplitude*phase
+            derivative(1:5) = base_derivative
+            derivative(6) = real(hamiltonian)
+            derivative(7) = aimag(hamiltonian)
+            derivative(8) = 1.0_dp/sample%bmod
+            derivative(9) = sample%bmod
+        end subroutine full_average_rhs
+
+        function full_return_event(time, state, context) result(value)
+            real(dp), intent(in) :: time
+            real(dp), intent(in) :: state(:)
+            class(*), intent(in), optional :: context
+            real(dp) :: value
+
+            associate (unused_time => time, unused_context => context)
+            end associate
+            if (orbit_class == GC_ORBIT_PASSING) then
+                value = state(3) - reference_position(3) &
+                    -2.0_dp*pi*real(winding, dp)
+            else
+                value = state(3) - reference_position(3)
+            end if
+        end function full_return_event
+
+    end subroutine compute_gc_full_orbit_average
 
     subroutine initialize_fixed_invariants(field_model, potential_model, &
             invariants, reference_position, parallel_sign, rho0, &

@@ -1,8 +1,10 @@
 program test_input_switches
     use neort_config, only: config_t, set_config, read_and_set_config, &
-        perturbation_chart_is_compatible
+        perturbation_chart_is_compatible, frequency_model_requires_direct_eqdsk
     use do_magfie_mod, only: axisymmetric_switch => inp_swi
     use do_magfie_pert_mod, only: perturbation_switch => inp_swi_pert
+    use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
+        FREQUENCY_MODEL_GC_FULL, configured_frequency_model => frequency_model
 
     implicit none
 
@@ -18,6 +20,19 @@ program test_input_switches
         call set_config(config)
         stop
     end if
+    if (trim(mode) == "reject_full_boozer") then
+        config%frequency_model = FREQUENCY_MODEL_GC_FULL
+        config%inp_swi = 10
+        call set_config(config)
+        stop
+    end if
+    if (trim(mode) == "reject_full_supban") then
+        config%frequency_model = FREQUENCY_MODEL_GC_FULL
+        config%inp_swi = 11
+        config%supban = .true.
+        call set_config(config)
+        stop
+    end if
 
     if (config%inp_swi_pert /= -1) error stop "perturbation switch default changed"
     if (perturbation_chart_is_compatible(11, 9)) then
@@ -28,6 +43,15 @@ program test_input_switches
     end if
     if (.not. perturbation_chart_is_compatible(10, 9)) then
         error stop "Boozer chartmap rejected a Boozer perturbation"
+    end if
+    if (frequency_model_requires_direct_eqdsk(FREQUENCY_MODEL_LEGACY)) then
+        error stop "legacy frequency model unexpectedly requires direct GEQDSK"
+    end if
+    if (.not. frequency_model_requires_direct_eqdsk(FREQUENCY_MODEL_GC_THIN)) then
+        error stop "GC thin frequency model lost its direct-GEQDSK gate"
+    end if
+    if (.not. frequency_model_requires_direct_eqdsk(FREQUENCY_MODEL_GC_FULL)) then
+        error stop "GC full frequency model lacks its direct-GEQDSK gate"
     end if
 
     config%inp_swi = 10
@@ -43,36 +67,61 @@ program test_input_switches
     call set_config(config)
     if (perturbation_switch /= 9) error stop "inheritance from inp_swi failed"
 
+    config = config_t()
+    config%frequency_model = FREQUENCY_MODEL_GC_FULL
+    config%inp_swi = 11
+    call set_config(config)
+    if (configured_frequency_model /= FREQUENCY_MODEL_GC_FULL) then
+        error stop "GC full frequency model was not accepted for direct GEQDSK"
+    end if
+
     call write_namelist("input_switches.in", .true.)
     call read_and_set_config("input_switches.in")
     if (axisymmetric_switch /= 10) error stop "namelist axisymmetric switch not read"
     if (perturbation_switch /= 9) error stop "namelist perturbation switch not read"
 
-    call write_namelist("input_switches.in", .false.)
+    call write_namelist("input_switches.in", .false., FREQUENCY_MODEL_GC_FULL)
     call read_and_set_config("input_switches.in")
-    if (axisymmetric_switch /= 9) error stop "namelist inherited axisymmetric switch changed"
-    if (perturbation_switch /= 9) error stop "namelist inheritance failed"
+    if (axisymmetric_switch /= 11) error stop "namelist direct axisymmetric switch not read"
+    if (perturbation_switch /= 11) error stop "namelist direct perturbation switch not inherited"
+    if (configured_frequency_model /= FREQUENCY_MODEL_GC_FULL) then
+        error stop "namelist GC full frequency model was not read"
+    end if
 
     open (newunit=unit, file="input_switches.in", status="old")
     close (unit, status="delete")
 
 contains
 
-    subroutine write_namelist(path, mixed)
+    subroutine write_namelist(path, mixed, selected_model)
         character(len=*), intent(in) :: path
         logical, intent(in) :: mixed
+        integer, intent(in), optional :: selected_model
         integer :: u
 
         open (newunit=u, file=path, status="replace", form="formatted")
         write (u, '(A)') "&params"
         write (u, '(A)') "    qs = 1.0"
         write (u, '(A)') "    ms = 2.0"
-        write (u, '(A)') "    pertfile = .true."
+        if (present(selected_model)) then
+            if (selected_model == FREQUENCY_MODEL_GC_FULL) then
+                write (u, '(A)') "    pertfile = .false."
+            else
+                write (u, '(A)') "    pertfile = .true."
+            end if
+        else
+            write (u, '(A)') "    pertfile = .true."
+        end if
         if (mixed) then
             write (u, '(A)') "    inp_swi = 10"
             write (u, '(A)') "    inp_swi_pert = 9"
+        else if (present(selected_model)) then
+            write (u, '(A)') "    inp_swi = 11"
         else
             write (u, '(A)') "    inp_swi = 9"
+        end if
+        if (present(selected_model)) then
+            write (u, '(A,I0)') "    frequency_model = ", selected_model
         end if
         write (u, '(A)') "/"
         close (u)

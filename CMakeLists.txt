@@ -105,6 +105,7 @@ set(NEO_RT_SOURCES
     src/gc_dynamics.f90
     src/gc_eqdsk_adapter.f90
     src/gc_frequency_provider.f90
+    src/gc_full_resonance.f90
     src/gc_frequency_splines.f90
     src/gc_models.f90
     src/gc_orbit_integrator.f90

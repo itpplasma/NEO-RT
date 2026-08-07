@@ -13,7 +13,7 @@ program test_gc_full_orbit_frequency
     implicit none
 
     type(gc_frequency_context_t) :: context, narrow_context, tiny_context
-    type(gc_full_orbit_frequency_result_t) :: full, narrow, tiny_orbit
+    type(gc_full_orbit_frequency_result_t) :: full, reverse, narrow, tiny_orbit
     character(len=1024) :: eqdsk_file
     real(dp), parameter :: surface = 0.368_dp
     real(dp), parameter :: theta0 = 0.0_dp
@@ -42,6 +42,13 @@ program test_gc_full_orbit_frequency
     call require(abs(full%omega_phi/full%omega_b &
         - full%delta_phi/(2.0_dp*pi)) < 2.0e-12_dp, &
         'canonical return-map identity')
+    call evaluate_gc_full_orbit_frequency(context, eta, -1, &
+        GC_ORBIT_PASSING, period_estimate, reverse, status)
+    call require(status == GC_FREQUENCY_SUCCESS, 'reverse physical-width return')
+    call require(reverse%omega_b < 0.0_dp, 'signed reverse bounce frequency')
+    call require(abs(reverse%omega_phi/reverse%omega_b &
+        - reverse%delta_phi/(-2.0_dp*pi)) < 2.0e-12_dp, &
+        'reverse canonical return-map identity')
 
     ! Limiting expression for the physical launch family: the local surface
     ! and pitch stay fixed while rho0, and therefore the launch P_phi shift,

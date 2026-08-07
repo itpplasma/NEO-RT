@@ -72,6 +72,16 @@ add_test(NAME test_input_switches_reject_boozer_rz
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(test_input_switches_reject_boozer_rz PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_input_switches_reject_full_boozer
+    COMMAND ${CMAKE_BINARY_DIR}/test_input_switches.x reject_full_boozer
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_input_switches_reject_full_boozer PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_input_switches_reject_full_supban
+    COMMAND ${CMAKE_BINARY_DIR}/test_input_switches.x reject_full_supban
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_input_switches_reject_full_supban PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME test_nonlinear_contract
     COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
@@ -167,5 +177,9 @@ add_test(NAME test_gc_orbit_limit
 
 add_test(NAME test_gc_transport_orbit
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_transport_orbit.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_full_resonance
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_resonance.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )

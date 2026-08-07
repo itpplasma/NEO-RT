@@ -24,6 +24,7 @@ module driftorbit
     logical :: magdrift = .true.      ! consider magnetic drift
     integer, parameter :: FREQUENCY_MODEL_LEGACY = 0
     integer, parameter :: FREQUENCY_MODEL_GC_THIN = 1
+    integer, parameter :: FREQUENCY_MODEL_GC_FULL = 2
     ! Opt-in canonical real-space thin-orbit limit.  Zero preserves every
     ! historical bounce/drift spline and its regression records.
     integer :: frequency_model = FREQUENCY_MODEL_LEGACY

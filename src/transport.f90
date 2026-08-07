@@ -10,7 +10,13 @@ module neort_transport
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph
     use neort_gc_frequency_splines, only: &
-        evaluate_gc_phase_average_surface, gc_spline_q
+        evaluate_gc_phase_average_surface, gc_spline_q, &
+        evaluate_gc_full_orbit_frequency_surface, &
+        evaluate_gc_full_orbit_phase_average_surface
+    use neort_gc_frequency_provider, only: gc_full_orbit_frequency_result_t, &
+        GC_FREQUENCY_SUCCESS
+    use neort_gc_full_resonance, only: GC_RESONANCE_SUCCESS, &
+        find_gc_resonances
     use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
         gc_orbit_average_t
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
@@ -18,7 +24,7 @@ module neort_transport
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
         sign_vpar_htheta, sign_vpar, frequency_model, &
-        FREQUENCY_MODEL_GC_THIN
+        FREQUENCY_MODEL_GC_THIN, FREQUENCY_MODEL_GC_FULL
 
     implicit none
 
@@ -87,9 +93,11 @@ contains
         integer :: istate_dv
         integer :: direct_status, orbit_class
         type(gc_orbit_average_t) :: direct_average
+        type(gc_full_orbit_frequency_result_t) :: full_frequency
         real(dp) :: Hmn2, attenuation_factor
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku
+        real(dp) :: full_root_values(nlev), full_root_derivatives(nlev)
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
@@ -100,19 +108,61 @@ contains
 
         do ku = 1, vsteps
             v = ux * vth
-            call driftorbit_coarse(v, etamin, etamax, roots, nroots)
+            if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+                call collect_full_orbit_roots(v, full_root_values, &
+                    full_root_derivatives, nroots, direct_status)
+                if (direct_status /= GC_RESONANCE_SUCCESS) then
+                    call warning(fmt_dbg('full GC resonance search failed: v=', &
+                        v, ' status=', dble(direct_status)))
+                    nroots = 0
+                end if
+            else
+                call driftorbit_coarse(v, etamin, etamax, roots, nroots)
+            end if
             ! No explicit nroots==0 guard: the do-loop below is empty when
             ! nroots==0, and a bare `cycle` here would skip the trailing
             ! `ux = ux + du` velocity-grid increment and stall the sweep.
             do kr = 1, nroots
-                eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                if (eta_res(1) < 0.0_dp) cycle ! bracket-failure sentinel
+                if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+                    eta_res = [full_root_values(kr), full_root_derivatives(kr)]
+                else
+                    eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), &
+                        roots(kr, 1), roots(kr, 2))
+                end if
+                if (eta_res(1) < 0.0_dp) cycle
+                if (abs(eta_res(2)) <= sqrt(epsilon(eta_res(2))) &
+                        *max(1.0_dp, abs(Om_tE)) &
+                        /max(etamax - etamin, tiny(eta_res(2)))) then
+                    call warning(fmt_dbg('ill-conditioned resonance skipped: eta=', &
+                        eta_res(1), ' derivative=', eta_res(2)))
+                    cycle
+                end if
                 eta = eta_res(1)
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
                 taub = 2.0_dp * pi / abs(Omth)
-                if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
+                if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+                    orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
+                        eta > etatp)
+                    call evaluate_gc_full_orbit_frequency_surface(v, eta, &
+                        int(sign_vpar), orbit_class, taub, full_frequency, &
+                        direct_status)
+                    if (direct_status /= GC_FREQUENCY_SUCCESS) cycle
+                    Omth = full_frequency%omega_b
+                    Omph = full_frequency%omega_phi
+                    taub = full_frequency%period
+                    call evaluate_gc_full_orbit_phase_average_surface(v, eta, &
+                        int(sign_vpar), orbit_class, taub, mth, mph, &
+                        evaluate_direct_perturbation, direct_average, direct_status)
+                    if (direct_status /= 0) cycle
+                    bounceavg = 0.0_dp
+                    bounceavg(3) = real(direct_average%perturbation_average)
+                    bounceavg(4) = aimag(direct_average%perturbation_average)
+                    bounceavg(5) = direct_average%inverse_b_average
+                    bounceavg(6) = direct_average%b_average
+                    istate_dv = 2
+                else if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
                     orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
                         eta > etatp)
                     call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
@@ -166,6 +216,85 @@ contains
         D = dsdreff**(-2) * D / D_plateau
 
         call debug("compute_transport_integral complete")
+
+    contains
+
+        subroutine collect_full_orbit_roots(velocity, root_values, &
+                root_derivatives, root_count, root_status)
+            real(dp), intent(in) :: velocity
+            real(dp), intent(out) :: root_values(:), root_derivatives(:)
+            integer, intent(out) :: root_count, root_status
+
+            real(dp) :: region_roots(size(root_values))
+            real(dp) :: region_derivatives(size(root_values))
+            real(dp) :: lower, upper
+            integer :: region_count, region_status
+
+            root_values = 0.0_dp
+            root_derivatives = 0.0_dp
+            root_count = 0
+            root_status = GC_RESONANCE_SUCCESS
+
+            lower = etamin
+            upper = min(etamax, etatp*(1.0_dp - 1.0e-8_dp))
+            if (upper > lower) then
+                call find_gc_resonances(full_residual, lower, upper, nlev, &
+                    max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
+                    region_roots, region_derivatives, region_count, region_status)
+                if (region_status /= GC_RESONANCE_SUCCESS) then
+                    root_status = region_status
+                    return
+                end if
+                root_values(1:region_count) = region_roots(1:region_count)
+                root_derivatives(1:region_count) = &
+                    region_derivatives(1:region_count)
+                root_count = region_count
+            end if
+
+            lower = max(etamin, etatp*(1.0_dp + 1.0e-8_dp))
+            upper = etamax
+            if (upper > lower .and. root_count < size(root_values)) then
+                call find_gc_resonances(full_residual, lower, upper, nlev, &
+                    max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
+                    region_roots, region_derivatives, region_count, region_status)
+                if (region_status /= GC_RESONANCE_SUCCESS) then
+                    root_status = region_status
+                    return
+                end if
+                region_count = min(region_count, size(root_values) - root_count)
+                root_values(root_count + 1:root_count + region_count) = &
+                    region_roots(1:region_count)
+                root_derivatives(root_count + 1:root_count + region_count) = &
+                    region_derivatives(1:region_count)
+                root_count = root_count + region_count
+            end if
+        end subroutine collect_full_orbit_roots
+
+        subroutine full_residual(pitch, residual, residual_status)
+            real(dp), intent(in) :: pitch
+            real(dp), intent(out) :: residual
+            integer, intent(out) :: residual_status
+
+            real(dp) :: thin_omega_b, thin_dv, thin_deta, period_estimate
+            integer :: local_class
+            type(gc_full_orbit_frequency_result_t) :: local_frequency
+
+            residual = 0.0_dp
+            call Om_th(v, pitch, thin_omega_b, thin_dv, thin_deta)
+            if (thin_omega_b == 0.0_dp) then
+                residual_status = 1
+                return
+            end if
+            period_estimate = 2.0_dp*pi/abs(thin_omega_b)
+            local_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
+                pitch > etatp)
+            call evaluate_gc_full_orbit_frequency_surface(v, pitch, &
+                int(sign_vpar), local_class, period_estimate, local_frequency, &
+                residual_status)
+            if (residual_status /= GC_FREQUENCY_SUCCESS) return
+            residual = real(mth, dp)*local_frequency%omega_b &
+                +real(mph, dp)*local_frequency%omega_phi
+        end subroutine full_residual
 
     end subroutine compute_transport_integral
 

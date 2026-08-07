@@ -43,19 +43,22 @@ program test_gc_transport_orbit
     use neort_gc_models, only: GC_MODEL_SUCCESS, &
         gc_invariants_t, gc_zero_potential_t, invariants_from_state
     use neort_gc_orbit_integrator, only: GC_ORBIT_PASSING, &
-        GC_ORBIT_SUCCESS, gc_orbit_average_t, gc_orbit_options_t, &
-        compute_gc_orbit_average
+        GC_ORBIT_SUCCESS, GC_ORBIT_NO_RETURN, gc_orbit_average_t, &
+        gc_orbit_options_t, compute_gc_orbit_average, &
+        compute_gc_full_orbit_average
 
     implicit none
 
     type(uniform_field_t) :: field
     type(gc_zero_potential_t) :: potential
     type(gc_invariants_t) :: invariants
+    type(gc_invariants_t) :: full_invariants
     type(gc_orbit_average_t) :: result
     type(gc_orbit_options_t) :: options
     type(gc_field_sample_t) :: sample_from_state
     real(dp) :: reference_position(3)
     real(dp) :: expected_hamiltonian, expected_period
+    complex(dp) :: expected_full_average
     integer :: status
 
     reference_position = [0.5_dp, 0.0_dp, 0.0_dp]
@@ -63,6 +66,9 @@ program test_gc_transport_orbit
     call invariants_from_state(sample_from_state, 0.0_dp, 1.0_dp, 0.0_dp, &
         1.0_dp, 0.8_dp, invariants, status)
     if (status /= GC_MODEL_SUCCESS) error stop "uniform invariant setup failed"
+    call invariants_from_state(sample_from_state, 0.0_dp, 1.0_dp, 1.0_dp, &
+        1.0_dp, 0.8_dp, full_invariants, status)
+    if (status /= GC_MODEL_SUCCESS) error stop "full invariant setup failed"
 
     expected_period = 2.0_dp*acos(-1.0_dp)/0.8_dp
     call compute_gc_orbit_average(field, potential, invariants, &
@@ -84,6 +90,33 @@ program test_gc_transport_orbit
     if (abs(result%b_average - 1.0_dp) > 1.0e-10_dp) then
         error stop "uniform B average mismatch"
     end if
+
+    call compute_gc_full_orbit_average(field, potential, full_invariants, &
+        reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
+        expected_period, 0, 1, constant_perturbation, options, result)
+    if (result%status /= GC_ORBIT_SUCCESS) error stop "full uniform orbit failed"
+    expected_full_average = cmplx(2.0_dp - 0.36_dp, 0.0_dp, dp) &
+        *cmplx(0.0_dp, 2.0_dp/acos(-1.0_dp), dp)
+    if (abs(result%period - expected_period) > 1.0e-8_dp) then
+        error stop "full uniform orbit period mismatch"
+    end if
+    if (abs(result%perturbation_average - expected_full_average) > 1.0e-8_dp) then
+        error stop "full canonical phase mismatch"
+    end if
+    if (abs(result%inverse_b_average - 1.0_dp) > 1.0e-10_dp) then
+        error stop "full inverse-B average mismatch"
+    end if
+    if (abs(result%b_average - 1.0_dp) > 1.0e-10_dp) then
+        error stop "full B average mismatch"
+    end if
+
+    options%max_periods = 0.5_dp
+    call compute_gc_full_orbit_average(field, potential, full_invariants, &
+        reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
+        expected_period, 0, 1, constant_perturbation, options, result)
+    if (result%status /= GC_ORBIT_NO_RETURN) then
+        error stop "full no-return status was not preserved"
+    end if
     write (*, '(A)') 'test_gc_transport_orbit OK'
 
 contains
@@ -97,5 +130,17 @@ contains
         local_status = 0
         if (bmod <= 0.0_dp) local_status = 1
     end subroutine unit_poloidal_perturbation
+
+    subroutine constant_perturbation(position, bmod, amplitude, local_status)
+        real(dp), intent(in) :: position(3), bmod
+        complex(dp), intent(out) :: amplitude
+        integer, intent(out) :: local_status
+
+        associate (unused_position => position)
+        end associate
+        amplitude = cmplx(1.0_dp, 0.0_dp, dp)
+        local_status = 0
+        if (bmod <= 0.0_dp) local_status = 1
+    end subroutine constant_perturbation
 
 end program test_gc_transport_orbit
