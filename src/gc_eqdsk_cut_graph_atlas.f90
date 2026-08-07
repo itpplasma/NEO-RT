@@ -63,6 +63,8 @@ module neort_gc_eqdsk_cut_graph_atlas
         real(dp) :: requested_r_hi = 0.0_dp
         real(dp) :: requested_z_lo = 0.0_dp
         real(dp) :: requested_z_hi = 0.0_dp
+        real(dp) :: requested_psihat_lo = 0.0_dp
+        real(dp) :: requested_psihat_hi = 0.0_dp
         type(eqdsk_cut_graph_atlas_options_t) :: options
         type(eqdsk_cut_graph_atlas_strip_t), allocatable :: strips(:)
         integer :: certificate_id = 0
@@ -97,9 +99,10 @@ module neort_gc_eqdsk_cut_graph_atlas
 contains
 
     subroutine build_eqdsk_cut_graph_atlas(atlas, r_lo, r_hi, z_lo, z_hi, &
-            options, status)
+            psihat_lo, psihat_hi, options, status)
         type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
         real(dp), intent(in) :: r_lo, r_hi, z_lo, z_hi
+        real(dp), intent(in) :: psihat_lo, psihat_hi
         type(eqdsk_cut_graph_atlas_options_t), intent(in) :: options
         integer, intent(out) :: status
 
@@ -109,11 +112,13 @@ contains
         call clear_eqdsk_cut_graph_atlas(atlas)
         status = EQDSK_CUT_ATLAS_INVALID_INPUT
         if (.not. valid_options(options)) return
-        if (.not. all(ieee_is_finite([r_lo, r_hi, z_lo, z_hi]))) then
+        if (.not. all(ieee_is_finite([r_lo, r_hi, z_lo, z_hi, &
+                psihat_lo, psihat_hi]))) then
             status = EQDSK_CUT_ATLAS_NONFINITE
             return
         end if
-        if (r_lo >= r_hi .or. z_lo >= z_hi) return
+        if (r_lo >= r_hi .or. z_lo >= z_hi .or. &
+                psihat_lo >= psihat_hi) return
         status = validate_grid()
         if (status /= EQDSK_CUT_ATLAS_SUCCESS) return
         if (r_lo < rad(1) .or. r_hi > rad(nrad) .or. &
@@ -126,6 +131,8 @@ contains
         atlas%requested_r_hi = r_hi
         atlas%requested_z_lo = z_lo
         atlas%requested_z_hi = z_hi
+        atlas%requested_psihat_lo = psihat_lo
+        atlas%requested_psihat_hi = psihat_hi
         atlas%options = options
 
         do cell_R = 1, nrad-1
@@ -163,6 +170,8 @@ contains
         atlas%requested_r_hi = 0.0_dp
         atlas%requested_z_lo = 0.0_dp
         atlas%requested_z_hi = 0.0_dp
+        atlas%requested_psihat_lo = 0.0_dp
+        atlas%requested_psihat_hi = 0.0_dp
         atlas%options = eqdsk_cut_graph_atlas_options_t()
         atlas%certificate_id = 0
         atlas%global_completeness_certified = .false.
@@ -398,6 +407,16 @@ contains
         if (interval_status /= EQDSK_CUT_INTERVAL_SUCCESS) then
             outcome = Z_COVER_FATAL
             status = EQDSK_CUT_ATLAS_INTERVAL_FAILURE
+            return
+        end if
+        ! Buchholz's cut is the segment inside an explicit boundary flux
+        ! surface, not the complete zero set in the rectangular EQDSK spline
+        ! box.  Boxes certified outside that physical flux interval cannot
+        ! contribute a cut component.  Boundary-straddling boxes remain
+        ! unresolved until N or the flux enclosure separates them.
+        if (interval%psi_hat%hi < atlas%requested_psihat_lo .or. &
+                interval%psi_hat%lo > atlas%requested_psihat_hi) then
+            outcome = Z_COVER_SUCCESS
             return
         end if
         if (.not. interval_contains_zero(interval%numerator)) then
@@ -743,12 +762,14 @@ contains
         if (.not. valid_options(atlas%options)) return
         if (.not. all(ieee_is_finite([atlas%requested_r_lo, &
                 atlas%requested_r_hi, atlas%requested_z_lo, &
-                atlas%requested_z_hi]))) then
+                atlas%requested_z_hi, atlas%requested_psihat_lo, &
+                atlas%requested_psihat_hi]))) then
             validate_atlas_structure = EQDSK_CUT_ATLAS_NONFINITE
             return
         end if
         if (atlas%requested_r_lo >= atlas%requested_r_hi .or. &
-                atlas%requested_z_lo >= atlas%requested_z_hi) return
+                atlas%requested_z_lo >= atlas%requested_z_hi .or. &
+                atlas%requested_psihat_lo >= atlas%requested_psihat_hi) return
         if (atlas%requested_r_lo < rad(1) .or. &
                 atlas%requested_r_hi > rad(nrad) .or. &
                 atlas%requested_z_lo < zet(1) .or. &
