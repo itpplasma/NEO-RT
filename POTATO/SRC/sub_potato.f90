@@ -2103,12 +2103,13 @@
 ! opoint = .true.   - O-point
 ! opoint = .false.  - X-point
 !
-  use potato_topology_mod, only : root_has_two_sided_neighborhood
+  use potato_topology_mod, only : choose_two_sided_step
   implicit none
 !
-  double precision, parameter :: dtau=0.d0, hdiff=1.d-6
+  double precision, parameter :: dtau=0.d0, hdiff=1.d-6, boundary_safety=0.5d0
   logical :: opoint
   integer :: ierr,ierr_out
+  logical :: resolved_step
   double precision :: R_in,Z_in,R_lo,R_hi,dvrdr,dvrdz,dvzdr,dvzdz,hstep
   double precision, dimension(5) :: z,vz
 !
@@ -2123,8 +2124,8 @@
     ierr_out=ierr
     return
   endif
-  hstep=hdiff*R_in
-  if(.not.root_has_two_sided_neighborhood(R_in,R_lo,R_hi,hstep)) then
+  call choose_two_sided_step(R_in,R_lo,R_hi,hdiff*R_in,boundary_safety,hstep,resolved_step)
+  if(.not.resolved_step) then
     print *,'determine_fixpoint_type: root lacks strict two-sided neighborhood H,J,sigma,Rlo,Rhi,R,Z,h,ierr = ', &
             toten,perpinv,sigma,R_lo,R_hi,R_in,Z_in,hstep,2
     ierr_out=2

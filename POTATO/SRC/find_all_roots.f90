@@ -50,6 +50,32 @@
                                          hstep.gt.0.d0 .and. root-hstep.gt.rlo .and. &
                                          root+hstep.lt.rhi)
       end function root_has_two_sided_neighborhood
+
+      pure subroutine choose_two_sided_step(root,rlo,rhi,h_nominal,safety,hstep,ok)
+        double precision, intent(in) :: root,rlo,rhi,h_nominal,safety
+        double precision, intent(out) :: hstep
+        logical, intent(out) :: ok
+        double precision :: scale,h_resolution
+
+        hstep=0.d0
+        ok=.false.
+        if(.not.root_is_open_interval(root,rlo,rhi)) return
+        if(h_nominal.le.0.d0 .or. safety.le.0.d0 .or. safety.ge.1.d0) return
+
+        hstep=min(h_nominal,safety*(root-rlo),safety*(rhi-root))
+        scale=max(1.d0,abs(root),abs(rlo),abs(rhi))
+        h_resolution=64.d0*epsilon(1.d0)*scale
+        if(hstep.le.h_resolution) then
+          hstep=0.d0
+          return
+        endif
+        if(.not.root_has_two_sided_neighborhood(root,rlo,rhi,hstep)) then
+          hstep=0.d0
+          return
+        endif
+
+        ok=.true.
+      end subroutine choose_two_sided_step
   end module potato_topology_mod
 !
 ! The two public entry points intentionally share one bounded implementation.
