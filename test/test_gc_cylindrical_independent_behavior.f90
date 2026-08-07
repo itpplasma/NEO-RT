@@ -20,7 +20,7 @@ program test_gc_cylindrical_independent_behavior
     call evaluate_neort_cylindrical_littlejohn(mass, charge, c_light, mu, b0, &
         electric_field*radius, radius, p_parallel, psi, 0.0_dp, 0.0_dp, b0, &
         0.0_dp, 0.0_dp, 1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
-        0.0_dp, 0.0_dp, 0.0_dp, electric_field, 0.0_dp, 0.0_dp, &
+        0.0_dp, electric_field, 0.0_dp, 0.0_dp, &
         output(1), output(2), output(3), output(4), output(5), output(6), &
         output(7), output(8), output(9), output(10), output(11), output(12), &
         output(13), output(14), output(15), output(16), output(17), output(18), &
