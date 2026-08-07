@@ -114,6 +114,9 @@ set(NEO_RT_SOURCES
     src/gc_full_resonance.f90
     src/gc_nonlocal_resonance_types.f90
     src/gc_nonlocal_resonance_integral.f90
+    src/gc_cylindrical_nonlocal_provider.f90
+    src/gc_nonlocal_transport_types.f90
+    src/gc_nonlocal_transport_integral.f90
     src/gc_frequency_splines.f90
     src/gc_models.f90
     src/gc_orbit_integrator.f90
