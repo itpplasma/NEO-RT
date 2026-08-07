@@ -6,8 +6,11 @@ module gc_cylindrical_transport_provider_test_support
         initialize_gc_cylindrical_class_adapter
     use neort_gc_cylindrical_model, only: &
         GC_CYL_SUCCESS, gc_cylindrical_field_sample_t, &
-        gc_cylindrical_field_t, gc_cylindrical_potential_t, &
+        gc_cylindrical_allowed_component_t, gc_cylindrical_field_t, &
+        gc_cylindrical_potential_t, &
         make_gc_cylindrical_field_sample
+    use neort_gc_cylindrical_topology, only: &
+        gc_cylindrical_allowed_region_set_t
     use neort_gc_cylindrical_nonlocal_provider, only: &
         GC_CYL_NONLOCAL_ORBIT_VALID, GC_CYL_NONLOCAL_ORBIT_WALL, &
         GC_CYL_NONLOCAL_SUCCESS, GC_CYL_NONLOCAL_WALL_CLEAR, &
@@ -138,6 +141,57 @@ contains
         certified = .true.
     end subroutine transport_splitter
 
+    subroutine transport_topology_provider(h0, jperp, sigma, rc_min, rc_max, &
+            user_data, regions, status)
+        real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+        integer, intent(in) :: sigma
+        class(*), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_allowed_region_set_t), intent(out) :: regions
+        integer, intent(out) :: status
+
+        real(dp) :: begin_value, end_value
+
+        associate (unused_user_data => user_data)
+        end associate
+        regions = gc_cylindrical_allowed_region_set_t()
+        status = 1
+        if (abs(sigma) /= 1) return
+        if (rc_max <= rc_min) return
+        if (minimum_vparallel_squared(h0, jperp, rc_min, rc_max) <= 0.0_dp) return
+        regions%nroots = 0
+        allocate(regions%roots(0), regions%root_canonical(0))
+        regions%ncomponents = 1
+        allocate(regions%components(1))
+        begin_value = transport_psi_star(h0, jperp, sigma, rc_min)
+        end_value = transport_psi_star(h0, jperp, sigma, rc_max)
+        regions%components(1) = gc_cylindrical_allowed_component_t(&
+            component_id=1, sigma=sigma, x_begin=rc_min, x_end=rc_max, &
+            canonical_begin=begin_value, canonical_end=end_value, &
+            canonical_measure=abs(end_value - begin_value), &
+            lower_root=.false., upper_root=.false.)
+        regions%total_canonical_measure = regions%components(1)%canonical_measure
+        regions%topology_certified = .true.
+        regions%certificate_method = 'analytic-affine-test-oracle'
+        status = GC_CYL_SUCCESS
+    end subroutine transport_topology_provider
+
+    pure real(dp) function minimum_vparallel_squared(h0, jperp, rc_min, rc_max)
+        real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+
+        minimum_vparallel_squared = min(&
+            2.0_dp*h0 - jperp*(1.0_dp + 0.1_dp*rc_min), &
+            2.0_dp*h0 - jperp*(1.0_dp + 0.1_dp*rc_max))
+    end function minimum_vparallel_squared
+
+    pure real(dp) function transport_psi_star(h0, jperp, sigma, rc)
+        real(dp), intent(in) :: h0, jperp, rc
+        integer, intent(in) :: sigma
+
+        transport_psi_star = (2.0_dp + rc)*(1.0_dp &
+            +2.0_dp*real(sigma, dp) &
+            *sqrt(2.0_dp*h0 - jperp*(1.0_dp + 0.1_dp*rc)))
+    end function transport_psi_star
+
     subroutine transport_node_factory(h0, jperp, user_data, adapter, context, &
             status)
         real(dp), intent(in) :: h0, jperp
@@ -161,12 +215,14 @@ contains
         call initialize_gc_cylindrical_class_adapter(test_field, test_potential, &
             h0, jperp, MASS, CHARGE, C_LIGHT, -0.5_dp*state%width, &
             0.5_dp*state%width, transport_cut_map, adapter, status, &
-            splitter=transport_splitter, user_data=state)
+            splitter=transport_splitter, &
+            topology_provider=transport_topology_provider, user_data=state)
         if (state%omit_splitter) then
             call initialize_gc_cylindrical_class_adapter(test_field, &
                 test_potential, h0, jperp, MASS, CHARGE, C_LIGHT, &
                 -0.5_dp*state%width, 0.5_dp*state%width, transport_cut_map, &
-                adapter, status, user_data=state)
+                adapter, status, topology_provider=transport_topology_provider, &
+                user_data=state)
         end if
         if (status /= GC_CYL_CLASS_SUCCESS) return
         section_reference = [2.0_dp, 0.0_dp, 0.0_dp]
