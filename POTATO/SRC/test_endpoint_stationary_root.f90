@@ -4,7 +4,8 @@ program test_endpoint_stationary_root
   use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,xbeg,xend,eps, &
                                     icount,topology_context_h, &
                                     sample_matrix_topology_transition, &
-                                    topology_stencil_is_compatible
+                                    topology_stencil_is_compatible,topology_arr, &
+                                    xarr,amat_arr
   use potato_topology_mod, only : choose_two_sided_step, &
                                   root_has_two_sided_neighborhood,root_is_open_interval
   implicit none
@@ -14,7 +15,7 @@ program test_endpoint_stationary_root
   logical :: resolved_step
   double precision :: pitch_squared_zero,pitch_squared_plus
   double precision :: root,h_fixed,h_adaptive,qminus,qzero,qplus,curvature
-  external :: sample_matrix_out
+  external :: sample_matrix_out,sample_matrix_out_partitioned
 
   call find_all_roots_bracketed(manufactured_stationary_roots,0.d0,1.d0,ierr)
   call require(ierr.eq.0,'manufactured stationary-root scan ierr')
@@ -44,6 +45,8 @@ program test_endpoint_stationary_root
   call require(topology_stencil_is_compatible(signatures,3,4), &
                'second same-topology interpolation stencil was rejected')
   call test_topology_gate
+  call test_partitioned_piecewise
+  call test_endpoint_contraction
 
   call require(.not.root_has_two_sided_neighborhood(0.d0,0.d0,1.d0,1.d-6), &
                'left endpoint admitted by two-sided classifier')
@@ -139,5 +142,80 @@ contains
       amat(1,1)=x*x+1.d0
     endif
   end subroutine manufactured_topology_matrix
+
+  subroutine test_partitioned_piecewise
+    integer :: local_ierr,j
+    double precision :: integral,exact
+
+    nlagr=3
+    n1=1
+    n2=1
+    npoi=9
+    itermax=4
+    xbeg=0.d0
+    xend=1.d0
+    eps=1.d-10
+    icount=0
+    topology_context_h=43.d0
+    call sample_matrix_out_partitioned(manufactured_piecewise_matrix,local_ierr)
+    call require(local_ierr.eq.0,'piecewise sampler did not converge')
+
+    integral=0.d0
+    do j=2,npoi
+      if(topology_arr(j).eq.topology_arr(j-1)) then
+        integral=integral+0.5d0*(amat_arr(1,1,j)+amat_arr(1,1,j-1)) &
+            *(xarr(j)-xarr(j-1))
+      endif
+    enddo
+    exact=1.375d0
+    call require(abs(integral-exact).lt.1.d-5, &
+                 'piecewise trapezoid missed analytic branch integral')
+  end subroutine test_partitioned_piecewise
+
+  subroutine manufactured_piecewise_matrix
+    use sample_matrix_out_mod, only : x,amat,topology_signature,topology_error
+
+    topology_error=0
+    if(x.le.0.5d0) then
+      topology_signature=7
+      amat(1,1)=x
+    else
+      topology_signature=9
+      amat(1,1)=2.d0*x+1.d0
+    endif
+  end subroutine manufactured_piecewise_matrix
+
+  subroutine test_endpoint_contraction
+    integer :: local_ierr
+
+    nlagr=3
+    n1=1
+    n2=1
+    npoi=9
+    itermax=4
+    xbeg=0.d0
+    xend=1.d0
+    eps=1.d-10
+    icount=0
+    topology_context_h=44.d0
+    call sample_matrix_out_partitioned(manufactured_invalid_endpoint,local_ierr)
+    call require(local_ierr.eq.0,'invalid global endpoint was not contracted')
+    call require(abs(xarr(1)-0.1d0).lt.1.d-6, &
+                 'endpoint contraction was not refined to the valid boundary')
+  end subroutine test_endpoint_contraction
+
+  subroutine manufactured_invalid_endpoint
+    use sample_matrix_out_mod, only : x,amat,topology_signature,topology_error
+
+    if(x.lt.0.1d0) then
+      topology_error=2
+      topology_signature=0
+      amat(1,1)=0.d0
+    else
+      topology_error=0
+      topology_signature=11
+      amat(1,1)=x
+    endif
+  end subroutine manufactured_invalid_endpoint
 
 end program test_endpoint_stationary_root

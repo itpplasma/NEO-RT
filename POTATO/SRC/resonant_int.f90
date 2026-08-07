@@ -378,7 +378,7 @@ subroutine get_matrix_res
     !
     use sample_matrix_out_mod,        only : n1,n2,x,amat,icount, &
         topology_signature,topology_error,topology_context_h, &
-        topology_signature_of_classes
+        topology_signature_of_classes,topology_probe_only
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
     use get_matrix_mod,               only : iclass
@@ -431,6 +431,7 @@ subroutine get_matrix_res
         return
     endif
     topology_signature=topology_signature_of_classes(nclasses,ifuntype,sigma_class)
+    if(topology_probe_only) return
     !
     allocate(respoints_jp(nmodes,nclasses))
     amat=0.d0
@@ -501,7 +502,7 @@ subroutine resonant_torque
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
         resline_unit_is_private,resline_diag_unit_is_private
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
-        ind_hist,xarr,amat_arr,topology_error
+        ind_hist,xarr,amat_arr,topology_arr,topology_error
     use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
@@ -537,7 +538,7 @@ subroutine resonant_torque
     ! consumed by the serial accumulate/write pass below.
     double precision, dimension(:,:), allocatable :: taubox_all
     !
-    external :: get_matrix_res
+    external :: get_matrix_res,sample_matrix_out_partitioned
     !
     allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
     !
@@ -641,7 +642,8 @@ subroutine resonant_torque
             !
             ! New, adaptive integration:
             !
-            nperp_max=0 !initial size of respoints_all(nperp_max) - will be increased by sample_matrix_out
+            nperp_max=0 !initial size of respoints_all(nperp_max) - will be increased by sampling
+            if(allocated(respoints_all)) deallocate(respoints_all)
             xbeg=0.d0 !lower integration limit over normalized J_perp
             xend=perpinv_max*0.9999d0 !upper integration limit over normalized J_perp
             npoi=npoi_init !initial equidistant grid size over J_perp
@@ -649,7 +651,7 @@ subroutine resonant_torque
             !
             ! Generate J_perp grid with function values:
             !
-            call sample_matrix_out(get_matrix_res,ierr)
+            call sample_matrix_out_partitioned(get_matrix_res,ierr)
             if(ierr.ne.0) then
                 write(msg, '(A,I0,A,ES22.14)') &
                     'resonant_torque: adaptive J_perp sampling failed ierr = ', &
@@ -677,12 +679,16 @@ subroutine resonant_torque
             ! with trapezoidal integration rule over J_perp:
             nrespoints=0
             do iperp=1,npoi
-                if(iperp.eq.1) then
-                    trapez_fac=0.5d0*(xarr(2)-xarr(1))
-                elseif(iperp.eq.npoi) then
-                    trapez_fac=0.5d0*(xarr(npoi)-xarr(npoi-1))
-                else
-                    trapez_fac=0.5d0*(xarr(iperp+1)-xarr(iperp-1))
+                trapez_fac=0.d0
+                if(iperp.gt.1) then
+                    if(topology_arr(iperp).eq.topology_arr(iperp-1)) then
+                        trapez_fac=trapez_fac+0.5d0*(xarr(iperp)-xarr(iperp-1))
+                    endif
+                endif
+                if(iperp.lt.npoi) then
+                    if(topology_arr(iperp).eq.topology_arr(iperp+1)) then
+                        trapez_fac=trapez_fac+0.5d0*(xarr(iperp+1)-xarr(iperp))
+                    endif
                 endif
                 do iclass=1,respoints_all(iperp)%nclasses
                     do i=1,nmodes
@@ -776,7 +782,7 @@ subroutine resonant_torque
                 !        write(10000,*) xarr(i),amat_arr(:,1,i)
                 if(i.eq.1) then
                     torque_int_loc=0.d0
-                else
+                elseif(topology_arr(i).eq.topology_arr(i-1)) then
                     torque_int_loc=torque_int_loc &
                         +0.5d0*(sum(amat_arr(:,1,i))+sum(amat_arr(:,1,i-1))) &
                         *(xarr(i)-xarr(i-1))*step_energ
