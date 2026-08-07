@@ -242,6 +242,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_midplane
     type(expr_t) :: eqcut_r_chart_slope, eqcut_r_chart_ds
     type(expr_t) :: eqcut_z_chart_slope, eqcut_z_chart_ds
+    type(expr_t) :: eqcut_chart_n_r, eqcut_chart_n_z
     type(expr_t) :: eqcut_r_chart_tangent_residual
     type(expr_t) :: eqcut_z_chart_tangent_residual
     character(len=64) :: eqdsk_cell_arg_names(38)
@@ -587,14 +588,16 @@ program gen_full_fow_physics
     ! used only when N_Z is nonzero, and the Z chart only when N_R is
     ! nonzero.  Keeping the divisions in separate routines prevents a
     ! tangent point in one chart from evaluating the other denominator.
-    eqcut_r_chart_slope = -eqcut_n_r/eqcut_n_z
+    eqcut_chart_n_r = sym(arena, "N_R")
+    eqcut_chart_n_z = sym(arena, "N_Z")
+    eqcut_r_chart_slope = -eqcut_chart_n_r/eqcut_chart_n_z
     eqcut_r_chart_ds = sqrt(one+eqcut_r_chart_slope**2)
-    eqcut_z_chart_slope = -eqcut_n_z/eqcut_n_r
+    eqcut_z_chart_slope = -eqcut_chart_n_z/eqcut_chart_n_r
     eqcut_z_chart_ds = sqrt(one+eqcut_z_chart_slope**2)
-    eqcut_r_chart_tangent_residual = eqcut_n_r + &
-        eqcut_n_z*eqcut_r_chart_slope
-    eqcut_z_chart_tangent_residual = eqcut_n_r*eqcut_z_chart_slope + &
-        eqcut_n_z
+    eqcut_r_chart_tangent_residual = eqcut_chart_n_r + &
+        eqcut_chart_n_z*eqcut_r_chart_slope
+    eqcut_z_chart_tangent_residual = &
+        eqcut_chart_n_r*eqcut_z_chart_slope+eqcut_chart_n_z
 
     ! ------------------------------------------------------------------
     ! Positive action, cyclotron frequency, and exact phase-space candidate.
@@ -2108,7 +2111,7 @@ program gen_full_fow_physics
         "/neort_eqdsk_cut_numerator_symbolic.f90", &
         "neort_eqdsk_cut_numerator_symbolic", &
         "evaluate_neort_eqdsk_cut_numerator", &
-        [character(len=64) :: "radius", "psi", "psi_R", "psi_Z", &
+        [character(len=64) :: "radius", "psi_R", "psi_Z", &
         "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
         "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", "psi_sep"], &
         eqdsk_cut_numerator_roots, [character(len=64) :: "N", "N_R", "N_Z"])

@@ -156,7 +156,7 @@ contains
         end if
 
         call evaluate_neort_eqdsk_cut_numerator(position(1), &
-            result%psi_jet(1), result%psi_jet(2), result%psi_jet(3), &
+            result%psi_jet(2), result%psi_jet(3), &
             result%psi_jet(4), result%psi_jet(5), result%psi_jet(6), &
             result%psi_jet(7), result%psi_jet(8), result%psi_jet(9), &
             result%psi_jet(10), result%f_jet(1), result%f_jet(2), psi_sep, &

@@ -67,15 +67,14 @@ contains
             result)
         real(dp), intent(in) :: radius_in, z_in, b0_in, f0_in, psi_sep_in
         real(dp), intent(out) :: result(3)
-        real(dp) :: psi, psi_r, psi_z, psi_rr, psi_rz, psi_zz
+        real(dp) :: psi_r, psi_z, psi_rr, psi_rz, psi_zz
 
-        psi = b0_in*(radius_in**2+z_in**2)/2.0_dp
         psi_r = b0_in*radius_in
         psi_z = b0_in*z_in
         psi_rr = b0_in
         psi_rz = 0.0_dp
         psi_zz = b0_in
-        call evaluate_neort_eqdsk_cut_numerator(radius_in, psi, psi_r, psi_z, &
+        call evaluate_neort_eqdsk_cut_numerator(radius_in, psi_r, psi_z, &
             psi_rr, psi_rz, psi_zz, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, f0_in, &
             0.0_dp, psi_sep_in, result(1), result(2), result(3))
     end subroutine evaluate_numerator
