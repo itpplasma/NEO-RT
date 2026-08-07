@@ -267,7 +267,8 @@ contains
                 orbit_provider=manufactured_orbit, &
                 force_provider=manufactured_force, section_coordinate='R_c', &
                 section_reference=SECTION_REFERENCE, &
-                section_reference_id='manufactured-section', user_data=local_data)
+                section_reference_id='manufactured-section', user_data=local_data, &
+                required_return_crossings=2)
         else
             call initialize_gc_cylindrical_nonlocal_provider(H0_REFERENCE, &
                 JPERP_REFERENCE, local_context, local_status, &
@@ -277,7 +278,8 @@ contains
                 harmonic_provider=manufactured_harmonic, &
                 force_provider=manufactured_force, section_coordinate='R_c', &
                 section_reference=SECTION_REFERENCE, &
-                section_reference_id='manufactured-section', user_data=local_data)
+                section_reference_id='manufactured-section', user_data=local_data, &
+                required_return_crossings=2)
         end if
     end subroutine initialize_provider
 
@@ -294,7 +296,8 @@ contains
             force_provider=manufactured_force, &
             canonical_conversion_provider=manufactured_conversion, &
             section_coordinate='R_c', section_reference=SECTION_REFERENCE, &
-            section_reference_id='manufactured-section', user_data=local_data)
+            section_reference_id='manufactured-section', user_data=local_data, &
+            required_return_crossings=2)
     end subroutine initialize_conversion_provider
 
     subroutine initialize_missing_normalization(local_context, local_data, local_status)
@@ -309,7 +312,8 @@ contains
             harmonic_provider=manufactured_harmonic, &
             force_provider=manufactured_force, &
             section_coordinate='R_c', section_reference=SECTION_REFERENCE, &
-            section_reference_id='manufactured-section', user_data=local_data)
+            section_reference_id='manufactured-section', user_data=local_data, &
+            required_return_crossings=2)
     end subroutine initialize_missing_normalization
 
     subroutine manufactured_components(h0, jperp, user_data, components, status)
