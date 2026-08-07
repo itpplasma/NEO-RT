@@ -451,15 +451,18 @@ contains
                     status = local_status
                     return
                 end if
-            end if
-            if (abs(residual_derivative(i)) <= options%derivative_tolerance) then
-                if (abs(residual(i)) <= options%residual_tolerance) then
-                    call record_root(samples(i), residual_derivative(i), component, &
-                        component_index, options, result, &
-                        grid_coordinate(component, i, options), local_status)
-                    if (local_status /= GC_NONLOCAL_SUCCESS) then
-                        status = local_status
-                        return
+            else
+                ! Keep this as an ELSE: an exact sampled root, including a
+                ! stationary one, is submitted to record_root exactly once.
+                if (abs(residual_derivative(i)) <= options%derivative_tolerance) then
+                    if (abs(residual(i)) <= options%residual_tolerance) then
+                        call record_root(samples(i), residual_derivative(i), &
+                            component, component_index, options, result, &
+                            grid_coordinate(component, i, options), local_status)
+                        if (local_status /= GC_NONLOCAL_SUCCESS) then
+                            status = local_status
+                            return
+                        end if
                     end if
                 end if
             end if
