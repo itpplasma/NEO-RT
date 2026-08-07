@@ -59,7 +59,8 @@ program gen_full_fow_physics
     type(expr_t) :: curl1, curl2, curl3, gradb1, gradb2, gradb3
     type(expr_t) :: gradphi1, gradphi2, gradphi3, radius, p_parallel
     type(expr_t) :: n_mode, tau, g_prime, temperature, a1, a2, phi_eff
-    type(expr_t) :: a_real, a_imag, m_mode, theta, phi, phase_shift
+    type(expr_t) :: a_real, a_imag, m_mode, theta, phi
+    type(expr_t) :: phase_half_real, phase_half_imag, phase_half_norm
     type(expr_t) :: q_abs, zero, one, jk, omega_c, omega_c_var, jk_omega_c, jk_candidate
     type(expr_t) :: q_phi_energy
     type(expr_t) :: jk_max, d_jk_d_h, d_jk_d_phi, d_jk_d_omega, eq4_coeff
@@ -85,7 +86,7 @@ program gen_full_fow_physics
     type(expr_t) :: field_original, field_phase_shifted, field_sign_sum
     type(expr_t) :: phase_cos, phase_sin, chi_cos, chi_sin
     type(expr_t) :: shifted_chi_cos, shifted_chi_sin
-    type(expr_t) :: phase_relabel_residual
+    type(expr_t) :: phase_unit_residual, phase_relabel_residual
     type(expr_t) :: field_reversal, field_fixed_conjugate
     type(expr_t) :: fixed_conjugation_difference
     type(expr_t) :: amp_square, amp_square_sign, amp_square_conj
@@ -336,7 +337,8 @@ program gen_full_fow_physics
     m_mode = sym(arena, "m_mode")
     theta = sym(arena, "theta")
     phi = sym(arena, "phi")
-    phase_shift = sym(arena, "phase_shift")
+    phase_half_real = sym(arena, "phase_half_real")
+    phase_half_imag = sym(arena, "phase_half_imag")
     zero = num(arena, 0)
     one = num(arena, 1)
 
@@ -807,12 +809,17 @@ program gen_full_fow_physics
     ! Real-field phase, sign, conjugation, and simultaneous (m,n) reversal.
     chi = m_mode*theta + n_mode*phi
     field_original = a_real*cos(chi) - a_imag*sin(chi)
-    ! Expand the common phase rotation as the exact real 2x2 representation
-    ! of complex multiplication.  This avoids asking the proof backend to
-    ! discover a nested trigonometric angle-addition identity while retaining
-    ! the same arbitrary phase and coordinate-origin transformation.
-    phase_cos = cos(n_mode*phase_shift)
-    phase_sin = sin(n_mode*phase_shift)
+    ! Parameterize the complete unit circle by homogeneous half-phase
+    ! coordinates (u:v), excluding only the invalid pair (0:0).  This is the
+    ! exact algebraic form of exp(i*beta) for
+    ! (u,v) proportional to (cos(beta/2),sin(beta/2)); unlike a trigonometric
+    ! rewrite rule, its unit norm and the SO(2) relabelling are both proved by
+    ! Fortsym over the same expressions.
+    phase_half_norm = phase_half_real**2+phase_half_imag**2
+    phase_cos = (phase_half_real**2-phase_half_imag**2)/phase_half_norm
+    phase_sin = 2*phase_half_real*phase_half_imag/phase_half_norm
+    phase_unit_residual = exact_expand(phase_cos**2+phase_sin**2-one, &
+        "projective phase unit norm")
     chi_cos = cos(chi)
     chi_sin = sin(chi)
     shifted_chi_cos = chi_cos*phase_cos + chi_sin*phase_sin
@@ -1297,6 +1304,9 @@ program gen_full_fow_physics
         perturbation_ratio - boozer_ratio)
     call check_identity(proofs, proof_engine, "field sign reversal is odd", &
         field_sign_sum)
+    call check_identity(proofs, proof_engine, &
+        "projective phase parameterization has unit norm", &
+        phase_unit_residual)
     call check_identity(proofs, proof_engine, &
         "phase shift is a coordinate relabelling", &
         phase_relabel_residual)
