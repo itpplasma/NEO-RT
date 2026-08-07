@@ -174,6 +174,8 @@ program gen_full_fow_physics
     type(expr_t) :: profile_potential_roots(3)
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
     type(expr_t) :: eqdsk_cut_jet_roots(7)
+    type(expr_t) :: eqdsk_cut_numerator_roots(3)
+    type(expr_t) :: eqdsk_cut_r_chart_roots(2), eqdsk_cut_z_chart_roots(2)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
     type(expr_t) :: frequency_contribution_roots(2)
@@ -219,7 +221,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_local_f, eqcut_local_psi_r, eqcut_local_psi_z
     type(expr_t) :: eqcut_local_psi_rr, eqcut_local_psi_rz
     type(expr_t) :: eqcut_local_psi_zz, eqcut_local_g, eqcut_local_s
-    type(expr_t) :: eqcut_local_k
+    type(expr_t) :: eqcut_local_k, eqcut_local_n
+    type(expr_t) :: eqcut_n, eqcut_n_r, eqcut_n_z
     type(expr_t) :: eqcut_direct_grad_b_r, eqcut_direct_grad_b_z
     type(expr_t) :: eqcut_direct_c
     type(expr_t) :: eqcut_local_c, eqcut_c, eqcut_dc_dr
@@ -229,10 +232,18 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_g, eqcut_s, eqcut_k, eqcut_compact_c
     type(expr_t) :: eqcut_compact_residual, eqcut_emitted_residual
     type(expr_t) :: eqcut_f1_c_residual
+    type(expr_t) :: eqcut_n_compact, eqcut_n_residual
+    type(expr_t) :: eqcut_c_numerator_residual
+    type(expr_t) :: eqcut_f1_n_residual
+    type(expr_t) :: eqcut_f2_n_r_residual, eqcut_f2_n_z_residual
     type(expr_t) :: eqcut_f2_c_residual, eqcut_f2_cdot_residual
     type(expr_t) :: eqcut_reversed, eqcut_cdot_reversed
     type(expr_t) :: eqcut_scale_multiplier, eqcut_scaled
     type(expr_t) :: eqcut_midplane
+    type(expr_t) :: eqcut_r_chart_slope, eqcut_r_chart_ds
+    type(expr_t) :: eqcut_z_chart_slope, eqcut_z_chart_ds
+    type(expr_t) :: eqcut_r_chart_tangent_residual
+    type(expr_t) :: eqcut_z_chart_tangent_residual
     character(len=64) :: eqdsk_cell_arg_names(38)
     character(len=64) :: eqdsk_profile_arg_names(9)
     type(expr_t) :: axis_b_r, axis_b_phi, axis_b_z, axis_bhat_r
@@ -485,10 +496,33 @@ program gen_full_fow_physics
         eqcut_local_psi_z*eqcut_local_s/eqcut_local_radius**3)
     eqcut_c = exact_simplify(subs(subs(eqcut_local_c, eqcut_dr, zero), &
         eqcut_dz, zero), "EQDSK cut value")
+    ! This is the denominator-free numerator of the local Eq. 13 field
+    ! expression.  Fortsym differentiates it before the point substitution,
+    ! so its R/Z jets use the supplied third-order psi jet.
+    eqcut_local_n = eqcut_local_radius*eqcut_local_k + &
+        eqcut_local_psi_z*eqcut_local_g
+    eqcut_n = exact_simplify(subs(subs(eqcut_local_n, eqcut_dr, zero), &
+        eqcut_dz, zero), "EQDSK cut numerator")
+    eqcut_n_r = exact_simplify(subs(subs(exact_derivative(eqcut_local_n, &
+        eqcut_dr, "EQDSK cut numerator radial derivative"), &
+        eqcut_dr, zero), eqcut_dz, zero), &
+        "EQDSK cut numerator radial jet")
+    eqcut_n_z = exact_simplify(subs(subs(exact_derivative(eqcut_local_n, &
+        eqcut_dz, "EQDSK cut numerator vertical derivative"), &
+        eqcut_dr, zero), eqcut_dz, zero), &
+        "EQDSK cut numerator vertical jet")
+    eqcut_f1_n_residual = diff(eqcut_n, eqcut_f_hat_first)
+    eqcut_f2_n_r_residual = diff(eqcut_n_r, eqcut_f_hat_second)
+    eqcut_f2_n_z_residual = diff(eqcut_n_z, eqcut_f_hat_second)
+    eqcut_n = subs(eqcut_n, eqcut_f_hat_second, zero)
+    eqcut_n_r = subs(eqcut_n_r, eqcut_f_hat_second, zero)
+    eqcut_n_z = subs(eqcut_n_z, eqcut_f_hat_second, zero)
     eqcut_g = eqcut_psi_r**2+eqcut_psi_z**2+eqcut_f0**2
     eqcut_s = sqrt(eqcut_g)
     eqcut_k = (eqcut_psi_r**2-eqcut_psi_z**2)*eqcut_psi_rz + &
         eqcut_psi_r*eqcut_psi_z*(eqcut_psi_zz-eqcut_psi_rr)
+    eqcut_n_compact = eqcut_radius*eqcut_k + eqcut_psi_z*eqcut_g
+    eqcut_n_residual = eqcut_n-eqcut_n_compact
     eqcut_compact_c = eqcut_orientation*eqcut_field_scale**2* &
         (eqcut_k/(eqcut_radius**2*eqcut_s) + &
         eqcut_psi_z*eqcut_s/eqcut_radius**3)
@@ -511,6 +545,8 @@ program gen_full_fow_physics
         eqcut_direct_grad_b_r*eqcut_field_scale*eqcut_psi_z)/eqcut_radius
     eqcut_compact_residual = eqcut_direct_c-eqcut_compact_c
     eqcut_emitted_residual = eqcut_c-eqcut_compact_c
+    eqcut_c_numerator_residual = eqcut_c*eqcut_radius**3*eqcut_s - &
+        eqcut_orientation*eqcut_field_scale**2*eqcut_n
     eqcut_f1_c_residual = diff(eqcut_direct_c, eqcut_f_hat_first)
     eqcut_dc_dr = exact_simplify(subs(subs(exact_derivative( &
         eqcut_local_c, eqcut_dr, "EQDSK cut radial derivative"), &
@@ -546,6 +582,19 @@ program gen_full_fow_physics
         eqcut_scale_multiplier*eqcut_field_scale)
     eqcut_midplane = subs(subs(eqcut_c, eqcut_psi_z, zero), &
         eqcut_psi_rz, zero)
+
+    ! These pure chart kernels are guarded by their callers: the R chart is
+    ! used only when N_Z is nonzero, and the Z chart only when N_R is
+    ! nonzero.  Keeping the divisions in separate routines prevents a
+    ! tangent point in one chart from evaluating the other denominator.
+    eqcut_r_chart_slope = -eqcut_n_r/eqcut_n_z
+    eqcut_r_chart_ds = sqrt(one+eqcut_r_chart_slope**2)
+    eqcut_z_chart_slope = -eqcut_n_z/eqcut_n_r
+    eqcut_z_chart_ds = sqrt(one+eqcut_z_chart_slope**2)
+    eqcut_r_chart_tangent_residual = eqcut_n_r + &
+        eqcut_n_z*eqcut_r_chart_slope
+    eqcut_z_chart_tangent_residual = eqcut_n_r*eqcut_z_chart_slope + &
+        eqcut_n_z
 
     ! ------------------------------------------------------------------
     ! Positive action, cyclotron frequency, and exact phase-space candidate.
@@ -1426,6 +1475,19 @@ program gen_full_fow_physics
         "emitted EQDSK cut matches compact axisymmetric identity", &
         eqcut_emitted_residual)
     call check_identity(proofs, proof_engine, &
+        "EQDSK numerator matches compact N", eqcut_n_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK C numerator identity", eqcut_c_numerator_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK numerator value is independent of first F derivative", &
+        eqcut_f1_n_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK numerator R derivative does not require second F derivative", &
+        eqcut_f2_n_r_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK numerator Z derivative does not require second F derivative", &
+        eqcut_f2_n_z_residual)
+    call check_identity(proofs, proof_engine, &
         "EQDSK cut value is independent of first F derivative", &
         eqcut_f1_c_residual)
     call check_identity(proofs, proof_engine, &
@@ -1448,6 +1510,12 @@ program gen_full_fow_physics
         eqcut_f2_cdot_residual)
     call check_identity(proofs, proof_engine, &
         "up-down symmetric midplane is an Eq13 cut", eqcut_midplane)
+    call check_identity(proofs, proof_engine, &
+        "R-chart tangent is orthogonal to grad N", &
+        eqcut_r_chart_tangent_residual)
+    call check_identity(proofs, proof_engine, &
+        "Z-chart tangent is orthogonal to grad N", &
+        eqcut_z_chart_tangent_residual)
     call check_identity(proofs, proof_engine, &
         "section reversal flips dpsi_star/dx", &
         dpsi_dx_reversed + dpsi_dx_section)
@@ -1591,6 +1659,9 @@ program gen_full_fow_physics
     eqdsk_cut_jet_roots = [eqcut_c, eqcut_dc_dr, eqcut_dc_darc_phi, &
         eqcut_dc_dz, eqcut_cdot, eqcut_abs_cdot, &
         eqcut_orientation_scalar]
+    eqdsk_cut_numerator_roots = [eqcut_n, eqcut_n_r, eqcut_n_z]
+    eqdsk_cut_r_chart_roots = [eqcut_r_chart_slope, eqcut_r_chart_ds]
+    eqdsk_cut_z_chart_roots = [eqcut_z_chart_slope, eqcut_z_chart_ds]
     eq17_outer_roots = [eq17_outer_factor]
     frequency_contribution_roots = [frequency_contribution, phase_contribution]
     frequency_identity_roots = [n_squared_frequency_contribution, &
@@ -1656,6 +1727,9 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cell_jet_roots)
     call simplify_array(eqdsk_profile_jet_roots)
     call simplify_array(eqdsk_cut_jet_roots)
+    call simplify_array(eqdsk_cut_numerator_roots)
+    call simplify_array(eqdsk_cut_r_chart_roots)
+    call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
@@ -2030,6 +2104,26 @@ program gen_full_fow_physics
         [character(len=64) :: "cut_C", "d_cut_C_d_R", &
         "d_cut_C_d_arc_phi", "d_cut_C_d_Z", "cut_Cdot", &
         "absolute_cut_Cdot", "orientation_scalar"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_numerator_symbolic.f90", &
+        "neort_eqdsk_cut_numerator_symbolic", &
+        "evaluate_neort_eqdsk_cut_numerator", &
+        [character(len=64) :: "radius", "psi", "psi_R", "psi_Z", &
+        "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
+        "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", "psi_sep"], &
+        eqdsk_cut_numerator_roots, [character(len=64) :: "N", "N_R", "N_Z"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_r_chart_symbolic.f90", &
+        "neort_eqdsk_cut_r_chart_symbolic", &
+        "evaluate_neort_eqdsk_cut_r_chart", &
+        [character(len=64) :: "N_R", "N_Z"], eqdsk_cut_r_chart_roots, &
+        [character(len=64) :: "dZ_dR", "ds_dR"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_z_chart_symbolic.f90", &
+        "neort_eqdsk_cut_z_chart_symbolic", &
+        "evaluate_neort_eqdsk_cut_z_chart", &
+        [character(len=64) :: "N_R", "N_Z"], eqdsk_cut_z_chart_roots, &
+        [character(len=64) :: "dR_dZ", "ds_dZ"])
     call emit_certificate_registry(trim(output_path)// &
         "/neort_generated_certificate_registry.f90")
 
@@ -2216,12 +2310,14 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 13"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 16"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
         write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force', &"
-        write (unit, "(a)") "        'eqdsk_cell_jet', 'eqdsk_profile_jet', 'eqdsk_cut_jet' ]"
+        write (unit, "(a)") "        'eqdsk_cell_jet', 'eqdsk_profile_jet', 'eqdsk_cut_jet', &"
+        write (unit, "(a)") "        'eqdsk_cut_numerator_jet', 'eqdsk_cut_r_chart', &"
+        write (unit, "(a)") "        'eqdsk_cut_z_chart' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -2235,7 +2331,10 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cell_jet:10:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_profile_jet:4:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_jet:7:fortsym-5457884' ]"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_jet:7:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_numerator_jet:3:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_chart:2:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

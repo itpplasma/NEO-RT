@@ -57,6 +57,9 @@ set(generated_files
     neort_eqdsk_quintic_cell_jet_symbolic.f90
     neort_eqdsk_quintic_profile_jet_symbolic.f90
     neort_eqdsk_cut_jet_symbolic.f90
+    neort_eqdsk_cut_numerator_symbolic.f90
+    neort_eqdsk_cut_r_chart_symbolic.f90
+    neort_eqdsk_cut_z_chart_symbolic.f90
     neort_cylindrical_hamiltonian_symbolic.f90
     neort_cylindrical_canonical_symbolic.f90
     neort_cylindrical_vparallel_symbolic.f90

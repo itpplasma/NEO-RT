@@ -9,6 +9,8 @@ module neort_gc_eqdsk_cut_jet
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use field_eq_mod, only: btf, hfpol, icp, ipoint, nrad, nzet, rad, zet, &
         hrad, hzet, psi_sep, rtf, splfpol, splpsi, use_fpol
+    use neort_eqdsk_cut_numerator_symbolic, only: &
+        evaluate_neort_eqdsk_cut_numerator
     use neort_eqdsk_cut_jet_symbolic, only: evaluate_neort_eqdsk_cut_jet
     use neort_eqdsk_quintic_cell_jet_symbolic, only: &
         evaluate_neort_eqdsk_quintic_cell_jet
@@ -36,6 +38,9 @@ module neort_gc_eqdsk_cut_jet
         real(dp) :: cut_rate = 0.0_dp
         real(dp) :: absolute_cut_rate = 0.0_dp
         real(dp) :: orientation_scalar = 0.0_dp
+        real(dp) :: cut_numerator = 0.0_dp
+        real(dp) :: d_cut_numerator_d_R = 0.0_dp
+        real(dp) :: d_cut_numerator_d_Z = 0.0_dp
     end type eqdsk_cut_jet_t
 
     public :: evaluate_eqdsk_cut_jet
@@ -150,6 +155,21 @@ contains
             return
         end if
 
+        call evaluate_neort_eqdsk_cut_numerator(position(1), &
+            result%psi_jet(1), result%psi_jet(2), result%psi_jet(3), &
+            result%psi_jet(4), result%psi_jet(5), result%psi_jet(6), &
+            result%psi_jet(7), result%psi_jet(8), result%psi_jet(9), &
+            result%psi_jet(10), result%f_jet(1), result%f_jet(2), psi_sep, &
+            result%cut_numerator, result%d_cut_numerator_d_R, &
+            result%d_cut_numerator_d_Z)
+        if (.not. all(ieee_is_finite([result%cut_numerator, &
+                result%d_cut_numerator_d_R, &
+                result%d_cut_numerator_d_Z]))) then
+            result = eqdsk_cut_jet_t()
+            status = EQDSK_CUT_JET_NONFINITE
+            return
+        end if
+
         call evaluate_neort_eqdsk_cut_jet(position(1), field_scale, &
             real(cut_orientation,dp), result%psi_jet(1), result%psi_jet(2), &
             result%psi_jet(3), result%psi_jet(4), result%psi_jet(5), &
@@ -162,7 +182,9 @@ contains
             result%absolute_cut_rate, result%orientation_scalar)
         if (.not. all(ieee_is_finite([result%cut_value, result%d_cut_d_R, &
                 result%d_cut_d_arc_phi, result%d_cut_d_Z, result%cut_rate, &
-                result%absolute_cut_rate, result%orientation_scalar]))) then
+                result%absolute_cut_rate, result%orientation_scalar, &
+                result%cut_numerator, result%d_cut_numerator_d_R, &
+                result%d_cut_numerator_d_Z]))) then
             result = eqdsk_cut_jet_t()
             status = EQDSK_CUT_JET_NONFINITE
             return
