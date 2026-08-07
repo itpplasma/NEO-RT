@@ -44,8 +44,10 @@ program gen_full_fow_physics
     type(expr_t) :: normalization_roots(13), quadrature_map_roots(8)
     type(expr_t) :: polynomial_enclosure_roots(3)
     type(expr_t) :: cylindrical_bstar_roots(5)
-    type(expr_t) :: physical_mu_roots(3), buchholz_jk_roots(5)
-    type(expr_t) :: potato_jperp_roots(4), cylindrical_invariant_roots(6)
+    type(expr_t) :: physical_mu_roots(3), buchholz_action_roots(2)
+    type(expr_t) :: buchholz_energy_roots(3), potato_velocity_roots(2)
+    type(expr_t) :: potato_mu_roots(2), cylindrical_state_roots(3)
+    type(expr_t) :: cylindrical_launch_roots(3)
     type(expr_t) :: mass, charge, c_light, mu, bmod, h, electrostatic_potential
     type(expr_t) :: p_phi
     type(expr_t) :: b1, b2, b3, bhat1, bhat2, bhat3
@@ -1181,12 +1183,14 @@ program gen_full_fow_physics
         bparallel_star, cylindrical_measure]
     physical_mu_roots = [mu_from_vperp, vperp_squared_from_mu, &
         specific_energy_from_mu]
-    buchholz_jk_roots = [jk_from_mu, mu_from_jk, conversion_omega_c, &
+    buchholz_action_roots = [jk_from_mu, mu_from_jk]
+    buchholz_energy_roots = [conversion_omega_c, &
         vperp_squared_from_jk, specific_energy_from_jk]
-    potato_jperp_roots = [jpotato_from_vperp, &
-        vperp_squared_from_jpotato, jpotato_from_mu, mu_from_jpotato]
-    cylindrical_invariant_roots = [invariant_h, invariant_pphi, &
-        invariant_psistar, invariant_vparallel_squared, &
+    potato_velocity_roots = [jpotato_from_vperp, &
+        vperp_squared_from_jpotato]
+    potato_mu_roots = [jpotato_from_mu, mu_from_jpotato]
+    cylindrical_state_roots = [invariant_h, invariant_pphi, invariant_psistar]
+    cylindrical_launch_roots = [invariant_vparallel_squared, &
         invariant_ppar_from_pphi, invariant_launch_residual]
 
     do k = 1, size(roots)
@@ -1217,9 +1221,12 @@ program gen_full_fow_physics
     call simplify_array(polynomial_enclosure_roots)
     call simplify_array(cylindrical_bstar_roots)
     call simplify_array(physical_mu_roots)
-    call simplify_array(buchholz_jk_roots)
-    call simplify_array(potato_jperp_roots)
-    call simplify_array(cylindrical_invariant_roots)
+    call simplify_array(buchholz_action_roots)
+    call simplify_array(buchholz_energy_roots)
+    call simplify_array(potato_velocity_roots)
+    call simplify_array(potato_mu_roots)
+    call simplify_array(cylindrical_state_roots)
+    call simplify_array(cylindrical_launch_roots)
 
     action_roots = roots(1:11)
     perturbation_roots = roots(12:17)
@@ -1329,25 +1336,41 @@ program gen_full_fow_physics
         "mu_phys"], physical_mu_roots, ["mu_phys_from_v_perp", &
         "v_perp_squared_from_mu_phys", "specific_energy_from_mu_phys"])
     call emit_kernel_file(trim(output_path)// &
-        "/neort_buchholz_jk_symbolic.f90", "neort_buchholz_jk_symbolic", &
-        "evaluate_neort_buchholz_jk", ["mu_phys", "J_K", "mass", &
-        "charge", "c_light", "bmod"], buchholz_jk_roots, &
-        ["J_K_from_mu_phys", "mu_phys_from_J_K", "omega_c", &
-        "v_perp_squared_from_J_K", "specific_energy_from_J_K"])
+        "/neort_buchholz_action_symbolic.f90", &
+        "neort_buchholz_action_symbolic", "evaluate_neort_buchholz_action", &
+        ["mu_phys", "J_K", "mass", "charge", "c_light"], &
+        buchholz_action_roots, ["J_K_from_mu_phys", "mu_phys_from_J_K"])
     call emit_kernel_file(trim(output_path)// &
-        "/neort_potato_jperp_symbolic.f90", "neort_potato_jperp_symbolic", &
-        "evaluate_neort_potato_jperp", ["v_perp", "reference_velocity", &
-        "bmod", "J_potato", "mass", "mu_phys"], potato_jperp_roots, &
-        ["J_potato_from_v_perp", "v_perp_squared_from_J_potato", &
-        "J_potato_from_mu_phys", "mu_phys_from_J_potato"])
+        "/neort_buchholz_energy_symbolic.f90", &
+        "neort_buchholz_energy_symbolic", "evaluate_neort_buchholz_energy", &
+        ["J_K", "mass", "charge", "c_light", "bmod"], &
+        buchholz_energy_roots, ["omega_c", "v_perp_squared_from_J_K", &
+        "specific_energy_from_J_K"])
     call emit_kernel_file(trim(output_path)// &
-        "/neort_cylindrical_invariant_symbolic.f90", &
-        "neort_cylindrical_invariant_symbolic", &
-        "evaluate_neort_cylindrical_invariants", ["mass", "charge", &
+        "/neort_potato_velocity_symbolic.f90", &
+        "neort_potato_velocity_symbolic", "evaluate_neort_potato_velocity", &
+        ["v_perp", "J_potato", "reference_velocity", "bmod"], &
+        potato_velocity_roots, ["J_potato_from_v_perp", &
+        "v_perp_squared_from_J_potato"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_potato_mu_symbolic.f90", "neort_potato_mu_symbolic", &
+        "evaluate_neort_potato_mu", ["mu_phys", "J_potato", "mass", &
+        "reference_velocity"], potato_mu_roots, &
+        ["J_potato_from_mu_phys", "mu_phys_from_J_potato"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_cylindrical_state_invariant_symbolic.f90", &
+        "neort_cylindrical_state_invariant_symbolic", &
+        "evaluate_neort_cylindrical_state_invariants", ["mass", "charge", &
         "c_light", "mu", "bmod", "electrostatic_potential", "radius", &
-        "p_parallel", "psi", "bhat_phi", "h", "p_phi"], &
-        cylindrical_invariant_roots, ["hamiltonian", "canonical_p_phi", &
-        "psi_star", "v_parallel_squared", "p_parallel_from_p_phi", &
+        "p_parallel", "psi", "bhat_phi"], cylindrical_state_roots, &
+        ["hamiltonian", "canonical_p_phi", "psi_star"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_cylindrical_launch_symbolic.f90", &
+        "neort_cylindrical_launch_symbolic", &
+        "evaluate_neort_cylindrical_launch", ["mass", "charge", &
+        "c_light", "mu", "bmod", "electrostatic_potential", "radius", &
+        "psi", "bhat_phi", "h", "p_phi"], cylindrical_launch_roots, &
+        ["v_parallel_squared", "p_parallel_from_p_phi", &
         "launch_energy_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_eq17_symbolic.f90", "neort_full_fow_eq17_symbolic", &
