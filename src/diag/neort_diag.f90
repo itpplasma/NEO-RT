@@ -4,13 +4,14 @@ program neort_diag
     use diag_contrib_map,  only: run_contrib_diag
     use diag_bounce_debug, only: run_bounce_debug
     use diag_resonance_contour, only: run_resonance_contour_diag
+    use diag_frequency_inventory, only: run_frequency_inventory_diag
     implicit none
     character(len=256) :: diag, runname
     call get_command_argument(1, diag)
     call get_command_argument(2, runname)
     if (len_trim(diag) == 0 .or. len_trim(runname) == 0) then
         print *, "Usage: neo_rt_diag.x <diagnostic> <runname>"
-        print *, "Diagnostics: bounce_nonlin, atten_map, contrib, bounce_debug, resonance_contour"
+        print *, "Diagnostics: bounce_nonlin, atten_map, contrib, bounce_debug, resonance_contour, frequency_inventory"
         stop 1
     end if
 
@@ -25,6 +26,8 @@ program neort_diag
         call run_bounce_debug(trim(adjustl(runname)))
     case ("resonance_contour")
         call run_resonance_contour_diag(trim(adjustl(runname)))
+    case ("frequency_inventory")
+        call run_frequency_inventory_diag(trim(adjustl(runname)))
     case default
         print *, "Unknown diagnostic:", trim(diag)
         stop 2
