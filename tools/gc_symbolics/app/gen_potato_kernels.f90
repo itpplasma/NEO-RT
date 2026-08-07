@@ -470,7 +470,7 @@ contains
         write (output_unit, '(a)') 'wrote '//trim(path)
     end subroutine write_kernel
 
-    subroutine emit_jperp_kernel(directory, candidate, positive, derivative)
+    subroutine emit_jperp_kernel(directory, candidate, positive_bound, derivative)
         character(*), intent(in) :: directory
         type(expr_t), intent(in) :: candidate, positive_bound, derivative
         type(kernel_spec_t) :: spec
