@@ -12,11 +12,20 @@
     logical :: customgrid=.false.
     logical :: root_eval_valid=.true.
     integer :: root_eval_error=0
+    logical :: root_left_endpoint_contracted=.false.
+    logical :: root_right_endpoint_contracted=.false.
+    double precision :: root_search_left=0.d0,root_search_right=0.d0
+    double precision :: root_left_invalid_bracket=0.d0
+    double precision :: root_right_invalid_bracket=0.d0
     integer :: nroots, nsearch_min=100, ncustom, niter=100
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
     !$omp threadprivate(customgrid,root_eval_valid,root_eval_error,ncustom,niter, &
-    !$omp&                relerr_allroots,xcustom,nroots,roots)
+    !$omp&                relerr_allroots,xcustom,nroots,roots,              &
+    !$omp&                root_left_endpoint_contracted,                    &
+    !$omp&                root_right_endpoint_contracted,root_search_left,  &
+    !$omp&                root_search_right,root_left_invalid_bracket,       &
+    !$omp&                root_right_invalid_bracket)
   end module find_all_roots_mod
 !
 ! The two public entry points intentionally share one bounded implementation.
@@ -41,14 +50,18 @@
                                  nroots,roots,root_eval_valid,            &
                                  root_eval_error,root_success,            &
                                  root_nonconverged,root_invalid_domain,   &
-                                 root_invalid_interval
+                                 root_invalid_interval,                    &
+                                 root_left_endpoint_contracted,            &
+                                 root_right_endpoint_contracted,root_search_left, &
+                                 root_search_right,root_left_invalid_bracket,      &
+                                 root_right_invalid_bracket
 
   implicit none
 
   integer, intent(out) :: ierr
   double precision, intent(in) :: x1in,x2in
   integer :: i,iter,nsearch,ndummy,kx,kxc,k,kxc_first,kxc_last
-  integer :: ncustom_inside
+  integer :: ncustom_inside,first_valid,last_valid
   double precision :: x,hx,errdist,xb,xe,dfb,xext,fext
   double precision, dimension(:), allocatable :: xarr,farr,dfarr,dummy1d
   logical, dimension(:), allocatable :: validarr
@@ -58,6 +71,12 @@
   ierr=root_success
   nroots=0
   if(allocated(roots)) deallocate(roots)
+  root_left_endpoint_contracted=.false.
+  root_right_endpoint_contracted=.false.
+  root_search_left=x1in
+  root_search_right=x2in
+  root_left_invalid_bracket=x1in
+  root_right_invalid_bracket=x2in
   if(x2in.le.x1in) then
     ierr=root_invalid_interval
     return
@@ -152,13 +171,61 @@
   do i=0,nsearch
     call evaluate_at(xarr(i),farr(i),dfarr(i),valid)
     validarr(i)=valid
-    if(.not.valid) then
+  enddo
+
+! An undefined value is admissible only at an outer endpoint.  Find the
+! contiguous valid sample range first; every invalid sample between its two
+! ends is an interior hole and therefore fails closed.  The endpoint scans
+! below contract only across an invalid/valid bracket and retain the inward,
+! valid side as the effective search endpoint.
+  first_valid=0
+  do while(first_valid.le.nsearch)
+    if(validarr(first_valid)) exit
+    first_valid=first_valid+1
+  enddo
+  last_valid=nsearch
+  do while(last_valid.ge.0)
+    if(validarr(last_valid)) exit
+    last_valid=last_valid-1
+  enddo
+  if(first_valid.gt.last_valid) then
+    call fail_search(root_invalid_domain)
+    return
+  endif
+  if(first_valid.eq.last_valid) then
+    if(first_valid.gt.0) then
       call fail_search(root_invalid_domain)
+      return
+    endif
+    if(last_valid.lt.nsearch) then
+      call fail_search(root_invalid_domain)
+      return
+    endif
+  endif
+  do i=first_valid,last_valid
+    if(.not.validarr(i)) then
+      if(root_eval_error.eq.root_success) root_eval_error=root_invalid_domain
+      call fail_search(root_eval_error)
       return
     endif
   enddo
 
-  do i=1,nsearch
+  if(first_valid.gt.0) then
+    call contract_left_endpoint(first_valid)
+    if(ierr.ne.root_success) then
+      call fail_search(ierr)
+      return
+    endif
+  endif
+  if(last_valid.lt.nsearch) then
+    call contract_right_endpoint(last_valid)
+    if(ierr.ne.root_success) then
+      call fail_search(ierr)
+      return
+    endif
+  endif
+
+  do i=first_valid+1,last_valid
     if(farr(i-1).eq.0.d0) then
       x=xarr(i-1)
       call addroot_bracketed
@@ -203,8 +270,8 @@
     endif
   enddo
 
-  if(farr(nsearch).eq.0.d0) then
-    x=xarr(nsearch)
+  if(farr(last_valid).eq.0.d0) then
+    x=xarr(last_valid)
     call addroot_bracketed
   endif
   if(ierr.ne.root_success) then
@@ -232,6 +299,88 @@
     ierr=root_eval_error
   endif
   end subroutine evaluate_at
+
+  subroutine contract_left_endpoint(ivalid)
+  integer, intent(in) :: ivalid
+  integer :: icontract,status_mid
+  double precision :: xbad,xgood,xmid,fgood,dgood,fmid,dfmid
+  logical :: valid_mid
+
+  xbad=xarr(0)
+  xgood=xarr(ivalid)
+  fgood=farr(ivalid)
+  dgood=dfarr(ivalid)
+  if(xgood.le.xbad) then
+    ierr=root_invalid_interval
+    return
+  endif
+  do icontract=1,niter
+    if(abs(xgood-xbad).le.errdist) exit
+    xmid=0.5d0*(xbad+xgood)
+    call evaluate_at(xmid,fmid,dfmid,valid_mid)
+    if(valid_mid) then
+      xgood=xmid
+      fgood=fmid
+      dgood=dfmid
+    else
+      status_mid=root_eval_error
+      if(status_mid.eq.root_success) status_mid=root_invalid_domain
+      if(status_mid.ne.root_invalid_domain) then
+        ierr=status_mid
+        return
+      endif
+      xbad=xmid
+    endif
+  enddo
+  xarr(ivalid)=xgood
+  farr(ivalid)=fgood
+  dfarr(ivalid)=dgood
+  root_left_endpoint_contracted=.true.
+  root_search_left=xgood
+  root_left_invalid_bracket=xbad
+  ierr=root_success
+  end subroutine contract_left_endpoint
+
+  subroutine contract_right_endpoint(ivalid)
+  integer, intent(in) :: ivalid
+  integer :: icontract,status_mid
+  double precision :: xgood,xbad,xmid,fgood,dgood,fmid,dfmid
+  logical :: valid_mid
+
+  xgood=xarr(ivalid)
+  xbad=xarr(nsearch)
+  fgood=farr(ivalid)
+  dgood=dfarr(ivalid)
+  if(xbad.le.xgood) then
+    ierr=root_invalid_interval
+    return
+  endif
+  do icontract=1,niter
+    if(abs(xbad-xgood).le.errdist) exit
+    xmid=0.5d0*(xgood+xbad)
+    call evaluate_at(xmid,fmid,dfmid,valid_mid)
+    if(valid_mid) then
+      xgood=xmid
+      fgood=fmid
+      dgood=dfmid
+    else
+      status_mid=root_eval_error
+      if(status_mid.eq.root_success) status_mid=root_invalid_domain
+      if(status_mid.ne.root_invalid_domain) then
+        ierr=status_mid
+        return
+      endif
+      xbad=xmid
+    endif
+  enddo
+  xarr(ivalid)=xgood
+  farr(ivalid)=fgood
+  dfarr(ivalid)=dgood
+  root_right_endpoint_contracted=.true.
+  root_search_right=xgood
+  root_right_invalid_bracket=xbad
+  ierr=root_success
+  end subroutine contract_right_endpoint
 
   subroutine addroot_bracketed
   double precision :: rootdist
