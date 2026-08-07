@@ -3019,7 +3019,8 @@ contains
 
     subroutine integrate_cycle_averages(factory, launch, period, harmonic_m, &
             harmonic_n, include_harmonic, include_shell, omega_b, omega_phi, &
-            result, status, track_behavior, maximum_step_override)
+            result, status, track_behavior, maximum_step_override, &
+            tolerance_factor)
         type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
         type(gc_cylindrical_class_launch_t), intent(in) :: launch
         real(dp), intent(in) :: period, omega_b, omega_phi
