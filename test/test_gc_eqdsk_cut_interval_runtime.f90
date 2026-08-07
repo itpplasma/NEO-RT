@@ -3,8 +3,10 @@ program test_gc_eqdsk_cut_interval_runtime
     use field_eq_mod, only: nrad, nzet, psi_sep, rad, zet
     use neort_gc_eqdsk_cut_interval, only: &
         EQDSK_CUT_INTERVAL_CELL_MISMATCH, EQDSK_CUT_INTERVAL_SUCCESS, &
+        EQDSK_CUT_INTERVAL_UNINITIALIZED, &
         eqdsk_cut_interval_result_t, evaluate_eqdsk_cut_interval_box
     use neort_gc_eqdsk_cut_jet, only: EQDSK_CUT_JET_SUCCESS, &
+        EQDSK_CUT_JET_UNINITIALIZED, &
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_eqdsk_cut_r_flux_chart_symbolic, only: &
         evaluate_neort_eqdsk_cut_r_flux_chart
@@ -16,7 +18,7 @@ program test_gc_eqdsk_cut_interval_runtime
     type(eqdsk_cut_interval_result_t) :: box
     type(eqdsk_cut_jet_t) :: point
     character(len=1024) :: path
-    real(dp) :: R_value, Z_value, position(3), denominator
+    real(dp) :: R_value, Z_value, position(3), denominator, positive_psi_sep
     real(dp) :: point_dZ_dR, point_dpsihat_dR
     integer :: status, point_status, cell_R, cell_Z, zero_Z, i, j
 
@@ -44,6 +46,19 @@ program test_gc_eqdsk_cut_interval_runtime
         'exact symmetric midplane was excluded from Eq.13')
     call require(box%denominator_positive_certified, &
         'positive Eq.13 denominator was not certified')
+
+    positive_psi_sep = psi_sep
+    psi_sep = -positive_psi_sep
+    call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, rad(cell_R), &
+        rad(cell_R+1), 0.0_dp, 0.0_dp, box, status)
+    call require(status == EQDSK_CUT_INTERVAL_UNINITIALIZED, &
+        'negative psi_sep was accepted by interval profile ownership')
+    position = [0.5_dp*(rad(cell_R)+rad(cell_R+1)), 0.0_dp, 0.0_dp]
+    call evaluate_eqdsk_cut_jet(position, 1.0_dp, 1, &
+        [0.0_dp,0.0_dp,0.0_dp], point, point_status)
+    call require(point_status == EQDSK_CUT_JET_UNINITIALIZED, &
+        'negative psi_sep was accepted by scalar profile ownership')
+    psi_sep = positive_psi_sep
 
     call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, rad(cell_R), &
         rad(cell_R+1), zet(cell_Z), zet(cell_Z+1), box, status)

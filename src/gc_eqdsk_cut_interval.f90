@@ -88,7 +88,10 @@ contains
         if (size(splpsi,3) < icp) return
         if (size(ipoint,1) /= nrad .or. size(ipoint,2) /= nzet) return
         if (.not. all(ieee_is_finite([rad, zet, psi_sep, btf, rtf]))) return
-        if (abs(psi_sep) <= tiny(psi_sep)) return
+        ! Profile-cell ordering assumes psi_hat=psi/psi_sep increases from
+        ! zero to one.  Signed-flux support would require a distinct generated
+        ! normalization contract rather than silently accepting reversal.
+        if (psi_sep <= tiny(1.0_dp)) return
 
         status = EQDSK_CUT_INTERVAL_CELL_MISMATCH
         if (cell_R < 1 .or. cell_R >= nrad) return

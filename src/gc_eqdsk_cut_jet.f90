@@ -77,7 +77,10 @@ contains
         if (.not. all(ieee_is_finite([rad, zet, hrad, hzet, psi_sep, &
                 btf, rtf]))) return
         if (hrad <= 0.0_dp .or. hzet <= 0.0_dp) return
-        if (abs(psi_sep) <= tiny(1.0_dp)) return
+        ! Profile cells are ordered in psi_hat=psi/psi_sep from zero to one.
+        ! A negative separatrix flux would reverse that coordinate without
+        ! reversing the spline ownership rules, so it is not this contract.
+        if (psi_sep <= tiny(1.0_dp)) return
         if (position(1) < rad(1) .or. position(1) > rad(nrad) .or. &
                 position(2) < zet(1) .or. position(2) > zet(nzet)) then
             status = EQDSK_CUT_JET_OUT_OF_DOMAIN
