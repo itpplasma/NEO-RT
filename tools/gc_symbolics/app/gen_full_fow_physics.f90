@@ -784,7 +784,7 @@ program gen_full_fow_physics
     ! derivative directions are explicit: (R,phi,Z) and (R,arc_phi,Z).
     ! The arc_phi derivative is already physical (1/R*d/dphi); the only
     ! remaining cylindrical connection term is +bhat_phi/R in curl_Z.
-    geom_radius = sym(arena, "geometry_radius")
+    geom_radius = sym(arena, "radius")
     geom_arc_phi = sym(arena, "geometry_arc_phi")
     geom_z = sym(arena, "geometry_Z")
     geom_b_r = sym(arena, "b_R")
