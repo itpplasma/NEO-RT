@@ -5,7 +5,7 @@ program test_gc_full_resonance
 
     implicit none
 
-    real(dp) :: roots(4), derivatives(4)
+    real(dp) :: roots(8), derivatives(8)
     integer :: nroots, status
 
     call find_gc_resonances(two_roots, 0.0_dp, 1.0_dp, 40, 1.0e-12_dp, &
@@ -18,16 +18,32 @@ program test_gc_full_resonance
         abs(derivatives(2) - 0.5_dp) > 1.0e-6_dp) &
         error stop "manufactured root derivatives mismatch"
 
+    call find_gc_resonances(tangent_root, 0.0_dp, 1.0_dp, 3, &
+        1.0e-12_dp, 1.0e-10_dp, roots, derivatives, nroots, status)
+    if (status /= GC_RESONANCE_SUCCESS .or. nroots /= 1) &
+        error stop "tangent root was not recovered"
+    if (abs(roots(1) - 0.37_dp) > 1.0e-9_dp) &
+        error stop "tangent root position mismatch"
+    if (abs(derivatives(1)) > 1.0e-7_dp) &
+        error stop "tangent root derivative mismatch"
+
+    call find_gc_resonances(close_sign_roots, 0.0_dp, 1.0_dp, 4, &
+        1.0e-12_dp, 1.0e-10_dp, roots, derivatives, nroots, status)
+    if (status /= GC_RESONANCE_SUCCESS .or. nroots /= 2) &
+        error stop "closely spaced roots were not both recovered"
+    if (maxval(abs(roots(1:2) - [0.401_dp, 0.409_dp])) > 1.0e-9_dp) &
+        error stop "closely spaced root positions mismatch"
+
     call find_gc_resonances(root_hidden_by_loss, 0.0_dp, 1.0_dp, 20, &
         1.0e-12_dp, 1.0e-12_dp, roots, derivatives, nroots, status)
-    if (status /= GC_RESONANCE_SUCCESS .or. nroots /= 0) &
-        error stop "search bridged a no-return interval"
+    if (status /= GC_RESONANCE_PARTIAL .or. nroots /= 0) &
+        error stop "no-return interval was not exposed"
 
     call find_gc_resonances(one_bad_one_good, 0.0_dp, 1.0_dp, 4, &
         1.0e-12_dp, 1.0e-12_dp, roots, derivatives, nroots, status)
-    if (status /= GC_RESONANCE_PARTIAL .or. nroots /= 1) &
+    if (status /= GC_RESONANCE_PARTIAL .or. nroots /= 2) &
         error stop "valid root was discarded after a failed bracket"
-    if (abs(roots(1) - 0.8_dp) > 1.0e-10_dp) &
+    if (maxval(abs(roots(1:2) - [0.2_dp, 0.8_dp])) > 1.0e-10_dp) &
         error stop "retained root position mismatch"
 
     write (*, '(A)') "test_gc_full_resonance OK"
@@ -42,6 +58,24 @@ contains
         residual = (eta - 0.25_dp)*(eta - 0.75_dp)
         local_status = 0
     end subroutine two_roots
+
+    subroutine tangent_root(eta, residual, local_status)
+        real(dp), intent(in) :: eta
+        real(dp), intent(out) :: residual
+        integer, intent(out) :: local_status
+
+        residual = (eta - 0.37_dp)**2
+        local_status = 0
+    end subroutine tangent_root
+
+    subroutine close_sign_roots(eta, residual, local_status)
+        real(dp), intent(in) :: eta
+        real(dp), intent(out) :: residual
+        integer, intent(out) :: local_status
+
+        residual = (eta - 0.401_dp)*(eta - 0.409_dp)
+        local_status = 0
+    end subroutine close_sign_roots
 
     subroutine root_hidden_by_loss(eta, residual, local_status)
         real(dp), intent(in) :: eta

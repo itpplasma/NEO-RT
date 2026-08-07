@@ -195,3 +195,7 @@ add_test(NAME test_gc_full_resonance
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_resonance.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_transport_status
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_transport_status.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)

@@ -17,7 +17,7 @@ module neort_transport
         GC_FREQUENCY_SUCCESS
     use neort_gc_full_resonance, only: GC_RESONANCE_SUCCESS, GC_RESONANCE_PARTIAL, &
         find_gc_resonances
-    use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
+    use neort_gc_orbit_integrator, only: GC_ORBIT_SUCCESS, GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
         gc_orbit_average_t
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
@@ -28,9 +28,31 @@ module neort_transport
 
     implicit none
 
+    integer, parameter, public :: GC_TRANSPORT_SUCCESS = 0
+    integer, parameter, public :: GC_TRANSPORT_FULL_ORBIT_FAILURE = 71
+
+    type, public :: gc_transport_failure_t
+        integer :: resonance_partial = 0
+        integer :: resonance_failures = 0
+        integer :: frequency_failures = 0
+        integer :: phase_failures = 0
+        integer :: orbit_failures = 0
+    end type gc_transport_failure_t
+
     real(dp) :: Omth, dOmthdv, dOmthdeta
 
 contains
+
+    pure integer function gc_transport_failure_code(failures)
+        type(gc_transport_failure_t), intent(in) :: failures
+
+        gc_transport_failure_code = GC_TRANSPORT_SUCCESS
+        if (failures%resonance_partial > 0 .or. failures%resonance_failures > 0 &
+                .or. failures%frequency_failures > 0 .or. failures%phase_failures > 0 &
+                .or. failures%orbit_failures > 0) then
+            gc_transport_failure_code = GC_TRANSPORT_FULL_ORBIT_FAILURE
+        end if
+    end function gc_transport_failure_code
 
     pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
         ! Helper to compose a short debug line
@@ -98,11 +120,13 @@ contains
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku
         real(dp) :: full_root_values(nlev), full_root_derivatives(nlev)
+        type(gc_transport_failure_t) :: full_failures
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         D = 0.0_dp
         T = 0.0_dp
+        full_failures = gc_transport_failure_t()
         du = (vmax - vmin) / (vsteps * vth)
         ux = vmin / vth + du / 2.0_dp
 
@@ -116,9 +140,13 @@ contains
                     call warning(fmt_dbg('full GC resonance search failed: v=', &
                         v, ' status=', dble(direct_status)))
                     nroots = 0
+                    full_failures%resonance_failures = &
+                        full_failures%resonance_failures + 1
                 else if (direct_status == GC_RESONANCE_PARTIAL) then
                     call warning(fmt_dbg('full GC resonance search retained partial roots: v=', &
                         v, ' nroots=', dble(nroots)))
+                    full_failures%resonance_partial = &
+                        full_failures%resonance_partial + 1
                 end if
             else
                 call driftorbit_coarse(v, etamin, etamax, roots, nroots)
@@ -137,6 +165,9 @@ contains
                 if (abs(eta_res(2)) <= sqrt(epsilon(eta_res(2))) &
                         *max(1.0_dp, abs(Om_tE)) &
                         /max(etamax - etamin, tiny(eta_res(2)))) then
+                    if (frequency_model == FREQUENCY_MODEL_GC_FULL) &
+                        full_failures%resonance_failures = &
+                            full_failures%resonance_failures + 1
                     call warning(fmt_dbg('ill-conditioned resonance skipped: eta=', &
                         eta_res(1), ' derivative=', eta_res(2)))
                     cycle
@@ -152,14 +183,25 @@ contains
                     call evaluate_gc_full_orbit_frequency_surface(v, eta, &
                         int(sign_vpar), orbit_class, taub, full_frequency, &
                         direct_status)
-                    if (direct_status /= GC_FREQUENCY_SUCCESS) cycle
+                    if (direct_status /= GC_FREQUENCY_SUCCESS) then
+                        full_failures%frequency_failures = &
+                            full_failures%frequency_failures + 1
+                        if (full_frequency%orbit_status /= GC_ORBIT_SUCCESS) &
+                            full_failures%orbit_failures = full_failures%orbit_failures + 1
+                        cycle
+                    end if
                     Omth = full_frequency%omega_b
                     Omph = full_frequency%omega_phi
                     taub = full_frequency%period
                     call evaluate_gc_full_orbit_phase_average_surface(v, eta, &
                         int(sign_vpar), orbit_class, taub, Omth, Omph, mth, mph, &
                         evaluate_direct_perturbation, direct_average, direct_status)
-                    if (direct_status /= 0) cycle
+                    if (direct_status /= 0) then
+                        full_failures%phase_failures = full_failures%phase_failures + 1
+                        if (direct_average%status /= GC_ORBIT_SUCCESS) &
+                            full_failures%orbit_failures = full_failures%orbit_failures + 1
+                        cycle
+                    end if
                     bounceavg = 0.0_dp
                     bounceavg(3) = real(direct_average%perturbation_average)
                     bounceavg(4) = aimag(direct_average%perturbation_average)
@@ -215,6 +257,14 @@ contains
             ux = ux + du
         end do
 
+        if (frequency_model == FREQUENCY_MODEL_GC_FULL .and. &
+                gc_transport_failure_code(full_failures) /= GC_TRANSPORT_SUCCESS) then
+            D = 0.0_dp
+            T = 0.0_dp
+            call emit_gc_transport_failure(full_failures)
+            error stop GC_TRANSPORT_FULL_ORBIT_FAILURE
+        end if
+
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
         dsdreff = 2.0_dp / a * sqrt(s) ! TODO: Use exact value instead of this approximation
         D = dsdreff**(-2) * D / D_plateau
@@ -245,14 +295,11 @@ contains
                 call find_gc_resonances(full_residual, lower, upper, nlev, &
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
                     region_roots, region_derivatives, region_count, region_status)
-                if (region_status /= GC_RESONANCE_SUCCESS) then
-                    root_status = region_status
-                    return
-                end if
                 root_values(1:region_count) = region_roots(1:region_count)
                 root_derivatives(1:region_count) = &
                     region_derivatives(1:region_count)
                 root_count = region_count
+                if (region_status /= GC_RESONANCE_SUCCESS) root_status = region_status
             end if
 
             lower = max(etamin, etatp*(1.0_dp + 1.0e-8_dp))
@@ -261,16 +308,15 @@ contains
                 call find_gc_resonances(full_residual, lower, upper, nlev, &
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
                     region_roots, region_derivatives, region_count, region_status)
-                if (region_status /= GC_RESONANCE_SUCCESS) then
-                    root_status = region_status
-                    return
-                end if
                 region_count = min(region_count, size(root_values) - root_count)
                 root_values(root_count + 1:root_count + region_count) = &
                     region_roots(1:region_count)
                 root_derivatives(root_count + 1:root_count + region_count) = &
                     region_derivatives(1:region_count)
                 root_count = root_count + region_count
+                if (region_status /= GC_RESONANCE_SUCCESS) root_status = region_status
+            else if (upper > lower) then
+                root_status = GC_RESONANCE_PARTIAL
             end if
         end subroutine collect_full_orbit_roots
 
@@ -286,6 +332,7 @@ contains
             residual = 0.0_dp
             call Om_th(v, pitch, thin_omega_b, thin_dv, thin_deta)
             if (thin_omega_b == 0.0_dp) then
+                full_failures%frequency_failures = full_failures%frequency_failures + 1
                 residual_status = 1
                 return
             end if
@@ -295,12 +342,29 @@ contains
             call evaluate_gc_full_orbit_frequency_surface(v, pitch, &
                 int(sign_vpar), local_class, period_estimate, local_frequency, &
                 residual_status)
-            if (residual_status /= GC_FREQUENCY_SUCCESS) return
+            if (residual_status /= GC_FREQUENCY_SUCCESS) then
+                full_failures%frequency_failures = full_failures%frequency_failures + 1
+                if (local_frequency%orbit_status /= GC_ORBIT_SUCCESS) &
+                    full_failures%orbit_failures = full_failures%orbit_failures + 1
+                return
+            end if
             residual = real(mth, dp)*local_frequency%omega_b &
                 +real(mph, dp)*local_frequency%omega_phi
         end subroutine full_residual
 
     end subroutine compute_transport_integral
+
+    subroutine emit_gc_transport_failure(failures)
+        type(gc_transport_failure_t), intent(in) :: failures
+
+        write (0, '(A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') &
+            'GC_TRANSPORT_STATUS code=', gc_transport_failure_code(failures), &
+            'resonance_partial=', failures%resonance_partial, &
+            'resonance_failures=', failures%resonance_failures, &
+            'frequency_failures=', failures%frequency_failures, &
+            'phase_failures=', failures%phase_failures, &
+            'orbit_failures=', failures%orbit_failures
+    end subroutine emit_gc_transport_failure
 
     subroutine evaluate_direct_perturbation(position, bmod, amplitude, status)
         real(dp), intent(in) :: position(3), bmod
