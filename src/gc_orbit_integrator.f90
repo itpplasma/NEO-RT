@@ -22,6 +22,14 @@ module neort_gc_orbit_integrator
     integer, parameter, public :: GC_ORBIT_INTEGRATOR_ERROR = 4
     integer, parameter, public :: GC_ORBIT_NO_RETURN = 5
     integer, parameter, public :: GC_ORBIT_PERTURBATION_ERROR = 6
+    !! This status is reserved for a separately certified open-orbit result.
+    !! A max-periods timeout is GC_ORBIT_NO_RETURN and is never unconfined.
+    integer, parameter, public :: GC_ORBIT_UNCONFINED = 7
+    !! This status may be returned only by a wall-polygon classifier.
+    integer, parameter, public :: GC_ORBIT_WALL_LOSS = 8
+    !! This status denotes the computational equilibrium-domain guard.  It is
+    !! unresolved unless a physical wall/domain contract certifies it.
+    integer, parameter, public :: GC_ORBIT_RADIAL_DOMAIN = 9
 
     integer, parameter, public :: GC_ORBIT_TRAPPED = 1
     integer, parameter, public :: GC_ORBIT_PASSING = 2
@@ -85,8 +93,46 @@ module neort_gc_orbit_integrator
     public :: compute_gc_full_orbit_average
     public :: normalized_full_hamiltonian_factor
     public :: gc_orbit_perturbation_i
+    public :: gc_orbit_status_is_physical_loss
+    public :: gc_orbit_status_is_unconfined
+    public :: gc_orbit_status_is_wall_loss
+    public :: gc_orbit_status_is_radial_domain
 
 contains
+
+    pure logical function gc_orbit_status_is_unconfined(status)
+        integer, intent(in) :: status
+
+        gc_orbit_status_is_unconfined = status == GC_ORBIT_UNCONFINED
+    end function gc_orbit_status_is_unconfined
+
+    pure logical function gc_orbit_status_is_wall_loss(status)
+        integer, intent(in) :: status
+
+        gc_orbit_status_is_wall_loss = status == GC_ORBIT_WALL_LOSS
+    end function gc_orbit_status_is_wall_loss
+
+    pure logical function gc_orbit_status_is_radial_domain(status)
+        integer, intent(in) :: status
+
+        gc_orbit_status_is_radial_domain = status == GC_ORBIT_RADIAL_DOMAIN
+    end function gc_orbit_status_is_radial_domain
+
+    pure logical function gc_orbit_status_is_physical_loss(status)
+        integer, intent(in) :: status
+
+        gc_orbit_status_is_physical_loss = gc_orbit_status_is_wall_loss(status)
+    end function gc_orbit_status_is_physical_loss
+
+    pure integer function radial_domain_status(radial, options)
+        real(dp), intent(in) :: radial
+        type(gc_orbit_options_t), intent(in) :: options
+
+        radial_domain_status = GC_ORBIT_SUCCESS
+        if (radial <= options%radial_min .or. radial >= options%radial_max) then
+            radial_domain_status = GC_ORBIT_RADIAL_DOMAIN
+        end if
+    end function radial_domain_status
 
     pure function normalized_full_hamiltonian_factor(invariants, potential, &
             bmod, reference_kinetic_energy) result(value)
@@ -574,6 +620,8 @@ contains
             associate (unused_time => time, unused_context => context)
             end associate
             derivative = 0.0_dp
+            rhs_status = radial_domain_status(state(1), options)
+            if (rhs_status /= GC_ORBIT_SUCCESS) return
             call field_model%evaluate(state(1:3), sample, field_status)
             if (field_status /= GC_MODEL_SUCCESS) then
                 rhs_status = GC_ORBIT_FIELD_ERROR
@@ -733,6 +781,8 @@ contains
             integer :: field_status, potential_status, dynamics_status
 
             derivative = 0.0_dp
+            local_status = radial_domain_status(state(1), options)
+            if (local_status /= GC_ORBIT_SUCCESS) return
             call field_model%evaluate(state(1:3), sample, field_status)
             if (field_status /= GC_MODEL_SUCCESS) then
                 local_status = GC_ORBIT_FIELD_ERROR
@@ -782,7 +832,7 @@ contains
             end if
             call perturbation(state(1:3), sample%bmod, amplitude, &
                 perturbation_status)
-            if (perturbation_status /= 0) then
+            if (perturbation_status /= GC_ORBIT_SUCCESS) then
                 rhs_status = GC_ORBIT_PERTURBATION_ERROR
                 return
             end if
@@ -941,6 +991,8 @@ contains
             integer :: field_status, potential_status, dynamics_status
 
             derivative = 0.0_dp
+            local_status = radial_domain_status(state(1), options)
+            if (local_status /= GC_ORBIT_SUCCESS) return
             call field_model%evaluate(state(1:3), sample, field_status)
             if (field_status /= GC_MODEL_SUCCESS) then
                 local_status = GC_ORBIT_FIELD_ERROR
@@ -991,7 +1043,7 @@ contains
             end if
             call perturbation(state(1:3), sample%bmod, amplitude, &
                 perturbation_status)
-            if (perturbation_status /= 0) then
+            if (perturbation_status /= GC_ORBIT_SUCCESS) then
                 rhs_status = GC_ORBIT_PERTURBATION_ERROR
                 return
             end if
@@ -1083,7 +1135,11 @@ contains
             radial = radial - orbit_width_scale*rho0*p*xi &
                 *reference_sample%hcov(2)/reference_sample%grad_psi(1)
         end if
-        finite_step = 1.0e-6_dp*(options%radial_max - options%radial_min)
+        ! The finite-width first guess can lie outside the adapter's
+        ! computational chart.  Clamp the numerical launch guess and solve
+        ! for a represented fixed-invariant state; this is not a loss claim.
+        radial = min(options%radial_max, max(options%radial_min, radial))
+        finite_step = 1.0e-5_dp*(options%radial_max - options%radial_min)
         residual_scale = max(1.0_dp, abs(invariants%canonical_flux))
 
         do iteration = 1, 30
@@ -1111,8 +1167,7 @@ contains
             step = residual/derivative
             step = sign(min(abs(step), 0.2_dp*(options%radial_max &
                 - options%radial_min)), step)
-            radial = radial - step
-            if (radial <= options%radial_min .or. radial >= options%radial_max) return
+            radial = min(options%radial_max, max(options%radial_min, radial - step))
         end do
 
     contains

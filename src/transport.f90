@@ -14,11 +14,19 @@ module neort_transport
         evaluate_gc_full_orbit_frequency_surface, &
         evaluate_gc_full_orbit_phase_average_surface
     use neort_gc_frequency_provider, only: gc_full_orbit_frequency_result_t, &
-        GC_FREQUENCY_SUCCESS
+        GC_FREQUENCY_SUCCESS, GC_FREQUENCY_ORBIT_ERROR
     use neort_gc_full_resonance, only: GC_RESONANCE_SUCCESS, GC_RESONANCE_PARTIAL, &
-        GC_RESONANCE_BOUNDARY_INVALID, find_gc_resonances
-    use neort_gc_orbit_integrator, only: GC_ORBIT_SUCCESS, GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
-        gc_orbit_average_t
+        GC_RESONANCE_INVALID_INPUT, GC_RESONANCE_BOUNDARY_INVALID, &
+        GC_RESONANCE_SAMPLE_VALID, GC_RESONANCE_SAMPLE_BOUNDARY, &
+        GC_RESONANCE_SAMPLE_UNCONFINED, GC_RESONANCE_SAMPLE_WALL, &
+        GC_RESONANCE_SAMPLE_RADIAL_DOMAIN, GC_RESONANCE_SAMPLE_INVALID, &
+        gc_resonance_diagnostics_t, find_gc_resonances
+    use neort_gc_orbit_integrator, only: GC_ORBIT_SUCCESS, GC_ORBIT_TRAPPED, &
+        GC_ORBIT_PASSING, GC_ORBIT_FIELD_ERROR, GC_ORBIT_STATE_ERROR, &
+        GC_ORBIT_START_ROOT_ERROR, GC_ORBIT_INTEGRATOR_ERROR, GC_ORBIT_NO_RETURN, &
+        GC_ORBIT_PERTURBATION_ERROR, GC_ORBIT_UNCONFINED, GC_ORBIT_WALL_LOSS, &
+        GC_ORBIT_RADIAL_DOMAIN, gc_orbit_average_t, &
+        gc_orbit_status_is_physical_loss
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
@@ -31,12 +39,77 @@ module neort_transport
     integer, parameter, public :: GC_TRANSPORT_SUCCESS = 0
     integer, parameter, public :: GC_TRANSPORT_FULL_ORBIT_FAILURE = 71
 
+    ! Residual callback statuses use a separate namespace from both resonance
+    ! and orbit statuses.  In particular, GC_RESONANCE_BOUNDARY_INVALID has
+    ! the same integer value as GC_ORBIT_INTEGRATOR_ERROR.
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_BASE = 100
+    integer, parameter :: GC_FULL_RESIDUAL_SETUP_ERROR = 200
+    integer, parameter :: GC_FULL_RESIDUAL_ZERO_THIN_FREQUENCY = 201
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_FIELD_ERROR = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_FIELD_ERROR
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_STATE_ERROR = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_STATE_ERROR
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_START_ROOT_ERROR = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_START_ROOT_ERROR
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_INTEGRATOR_ERROR = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_INTEGRATOR_ERROR
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_NO_RETURN = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_NO_RETURN
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_PERTURBATION_ERROR = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_PERTURBATION_ERROR
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_UNCONFINED = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_UNCONFINED
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_WALL_LOSS = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_WALL_LOSS
+    integer, parameter :: GC_FULL_RESIDUAL_ORBIT_RADIAL_DOMAIN = &
+        GC_FULL_RESIDUAL_ORBIT_BASE + GC_ORBIT_RADIAL_DOMAIN
+
     type, public :: gc_transport_failure_t
         integer :: resonance_partial = 0
         integer :: resonance_failures = 0
         integer :: frequency_failures = 0
+        integer :: frequency_setup_failures = 0
         integer :: phase_failures = 0
         integer :: orbit_failures = 0
+        integer :: lost_orbits = 0
+        integer :: unconfined_samples = 0
+        integer :: wall_orbits = 0
+        integer :: radial_domain_orbits = 0
+        integer :: numerical_samples = 0
+        integer :: measure_failures = 0
+        integer :: unknown_measure_cells = 0
+        integer :: component_count = 0
+        integer :: field_error_samples = 0
+        integer :: state_error_samples = 0
+        integer :: start_root_error_samples = 0
+        integer :: integrator_error_samples = 0
+        integer :: no_return_samples = 0
+        integer :: perturbation_error_samples = 0
+        integer :: unknown_status_samples = 0
+        integer :: scanned_samples = 0
+        integer :: confined_samples = 0
+        integer :: boundary_samples = 0
+        real(dp) :: canonical_scan_measure = 0.0_dp
+        real(dp) :: canonical_confined_measure = 0.0_dp
+        real(dp) :: canonical_physical_measure = 0.0_dp
+        real(dp) :: canonical_boundary_measure = 0.0_dp
+        real(dp) :: canonical_unresolved_measure = 0.0_dp
+        real(dp) :: unknown_measure_coordinate_span = 0.0_dp
+        real(dp) :: thermal_scan_measure = 0.0_dp
+        real(dp) :: thermal_confined_measure = 0.0_dp
+        real(dp) :: thermal_physical_measure = 0.0_dp
+        real(dp) :: thermal_boundary_measure = 0.0_dp
+        real(dp) :: thermal_unresolved_measure = 0.0_dp
+        logical :: canonical_measure_certified = .false.
+        logical :: component_identity_certified = .false.
+        real(dp) :: canonical_coverage_fraction = 0.0_dp
+        real(dp) :: physical_canonical_coverage_fraction = 0.0_dp
+        real(dp) :: canonical_unresolved_fraction = 0.0_dp
+        real(dp) :: thermal_coverage_fraction = 0.0_dp
+        real(dp) :: physical_thermal_coverage_fraction = 0.0_dp
+        real(dp) :: thermal_unresolved_fraction = 0.0_dp
+        real(dp) :: confined_coverage_fraction = 0.0_dp
+        real(dp) :: physical_coverage_fraction = 0.0_dp
     end type gc_transport_failure_t
 
     real(dp) :: Omth, dOmthdv, dOmthdeta
@@ -48,8 +121,18 @@ contains
 
         gc_transport_failure_code = GC_TRANSPORT_SUCCESS
         if (failures%resonance_partial > 0 .or. failures%resonance_failures > 0 &
-                .or. failures%frequency_failures > 0 .or. failures%phase_failures > 0 &
-                .or. failures%orbit_failures > 0) then
+            .or. failures%frequency_failures > 0 &
+            .or. failures%frequency_setup_failures > 0 &
+            .or. failures%phase_failures > 0 &
+            .or. failures%orbit_failures > 0 .or. failures%unconfined_samples > 0 &
+            .or. failures%numerical_samples > 0 &
+            .or. failures%radial_domain_orbits > 0 &
+            .or. failures%unknown_status_samples > 0 .or. &
+            failures%measure_failures > 0 .or. &
+            (failures%scanned_samples > 0 &
+            .and. .not. failures%canonical_measure_certified) .or. &
+            (failures%scanned_samples > 0 &
+            .and. .not. failures%component_identity_certified)) then
             gc_transport_failure_code = GC_TRANSPORT_FULL_ORBIT_FAILURE
         end if
     end function gc_transport_failure_code
@@ -137,7 +220,7 @@ contains
                 call collect_full_orbit_roots(v, full_root_values, &
                     full_root_derivatives, nroots, direct_status)
                 if (direct_status /= GC_RESONANCE_SUCCESS .and. &
-                        direct_status /= GC_RESONANCE_PARTIAL) then
+                    direct_status /= GC_RESONANCE_PARTIAL) then
                     call warning(fmt_dbg('full GC resonance search failed: v=', &
                         v, ' status=', dble(direct_status)))
                     nroots = 0
@@ -164,11 +247,11 @@ contains
                 end if
                 if (eta_res(1) < 0.0_dp) cycle
                 if (abs(eta_res(2)) <= sqrt(epsilon(eta_res(2))) &
-                        *max(1.0_dp, abs(Om_tE)) &
-                        /max(etamax - etamin, tiny(eta_res(2)))) then
+                    *max(1.0_dp, abs(Om_tE)) &
+                    /max(etamax - etamin, tiny(eta_res(2)))) then
                     if (frequency_model == FREQUENCY_MODEL_GC_FULL) &
                         full_failures%resonance_failures = &
-                            full_failures%resonance_failures + 1
+                        full_failures%resonance_failures + 1
                     call warning(fmt_dbg('ill-conditioned resonance skipped: eta=', &
                         eta_res(1), ' derivative=', eta_res(2)))
                     cycle
@@ -185,10 +268,8 @@ contains
                         int(sign_vpar), orbit_class, taub, full_frequency, &
                         direct_status)
                     if (direct_status /= GC_FREQUENCY_SUCCESS) then
-                        full_failures%frequency_failures = &
-                            full_failures%frequency_failures + 1
-                        if (full_frequency%orbit_status /= GC_ORBIT_SUCCESS) &
-                            full_failures%orbit_failures = full_failures%orbit_failures + 1
+                        call record_frequency_outcome(full_failures, &
+                            full_frequency%orbit_status, direct_status)
                         cycle
                     end if
                     Omth = full_frequency%omega_b
@@ -197,10 +278,8 @@ contains
                     call evaluate_gc_full_orbit_phase_average_surface(v, eta, &
                         int(sign_vpar), orbit_class, taub, Omth, Omph, mth, mph, &
                         evaluate_direct_perturbation, direct_average, direct_status)
-                    if (direct_status /= 0) then
-                        full_failures%phase_failures = full_failures%phase_failures + 1
-                        if (direct_average%status /= GC_ORBIT_SUCCESS) &
-                            full_failures%orbit_failures = full_failures%orbit_failures + 1
+                    if (direct_status /= GC_FREQUENCY_SUCCESS) then
+                        call record_phase_outcome(full_failures, direct_average%status)
                         cycle
                     end if
                     bounceavg = 0.0_dp
@@ -218,7 +297,7 @@ contains
                         int(sign_vpar), orbit_class, taub, Omth, Omph, &
                         q_fieldline, mth, mph, evaluate_direct_perturbation, &
                         direct_average, direct_status)
-                    if (direct_status /= 0) then
+                    if (direct_status /= GC_FREQUENCY_SUCCESS) then
                         call error(fmt_dbg('direct GC orbit average failed: mth=', &
                             dble(mth), ' eta=', eta))
                     end if
@@ -258,12 +337,14 @@ contains
             ux = ux + du
         end do
 
-        if (frequency_model == FREQUENCY_MODEL_GC_FULL .and. &
-                gc_transport_failure_code(full_failures) /= GC_TRANSPORT_SUCCESS) then
-            D = 0.0_dp
-            T = 0.0_dp
+        if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+            call update_transport_coverage(full_failures)
             call emit_gc_transport_failure(full_failures)
-            error stop GC_TRANSPORT_FULL_ORBIT_FAILURE
+            if (gc_transport_failure_code(full_failures) /= GC_TRANSPORT_SUCCESS) then
+                D = 0.0_dp
+                T = 0.0_dp
+                error stop GC_TRANSPORT_FULL_ORBIT_FAILURE
+            end if
         end if
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
@@ -284,6 +365,8 @@ contains
             real(dp) :: region_derivatives(size(root_values))
             real(dp) :: lower, upper
             integer :: region_count, region_status
+            real(dp) :: thermal_weight
+            type(gc_resonance_diagnostics_t) :: region_diagnostics
 
             root_values = 0.0_dp
             root_derivatives = 0.0_dp
@@ -297,7 +380,12 @@ contains
                 resonance_scan_max = upper
                 call find_gc_resonances(full_residual, lower, upper, nlev, &
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
-                    region_roots, region_derivatives, region_count, region_status)
+                    region_roots, region_derivatives, region_count, region_status, &
+                    region_diagnostics, classify_full_residual, &
+                    full_canonical_measure_unavailable)
+                thermal_weight = thermal_measure_weight(velocity)
+                call accumulate_resonance_diagnostics(full_failures, &
+                    region_diagnostics, thermal_weight)
                 root_values(1:region_count) = region_roots(1:region_count)
                 root_derivatives(1:region_count) = &
                     region_derivatives(1:region_count)
@@ -312,7 +400,12 @@ contains
                 resonance_scan_max = upper
                 call find_gc_resonances(full_residual, lower, upper, nlev, &
                     max(1.0e-8_dp*abs(Om_tE), 1.0e-6_dp), 1.0e-10_dp, &
-                    region_roots, region_derivatives, region_count, region_status)
+                    region_roots, region_derivatives, region_count, region_status, &
+                    region_diagnostics, classify_full_residual, &
+                    full_canonical_measure_unavailable)
+                thermal_weight = thermal_measure_weight(velocity)
+                call accumulate_resonance_diagnostics(full_failures, &
+                    region_diagnostics, thermal_weight)
                 region_count = min(region_count, size(root_values) - root_count)
                 root_values(root_count + 1:root_count + region_count) = &
                     region_roots(1:region_count)
@@ -341,7 +434,9 @@ contains
                     residual_status = GC_RESONANCE_BOUNDARY_INVALID
                 else
                     full_failures%frequency_failures = full_failures%frequency_failures + 1
-                    residual_status = 1
+                    full_failures%frequency_setup_failures = &
+                        full_failures%frequency_setup_failures + 1
+                    residual_status = GC_FULL_RESIDUAL_ZERO_THIN_FREQUENCY
                 end if
                 return
             end if
@@ -352,13 +447,13 @@ contains
                 int(sign_vpar), local_class, period_estimate, local_frequency, &
                 residual_status)
             if (residual_status /= GC_FREQUENCY_SUCCESS) then
-                if (is_open_scan_endpoint(pitch)) then
-                    residual_status = GC_RESONANCE_BOUNDARY_INVALID
+                call record_frequency_outcome(full_failures, local_frequency%orbit_status, &
+                    residual_status)
+                if (local_frequency%orbit_status == GC_ORBIT_SUCCESS) then
+                    residual_status = GC_FULL_RESIDUAL_SETUP_ERROR
                 else
-                    full_failures%frequency_failures = full_failures%frequency_failures + 1
-                    if (local_frequency%orbit_status /= GC_ORBIT_SUCCESS) &
-                        full_failures%orbit_failures = full_failures%orbit_failures + 1
-                    residual_status = 1
+                    residual_status = encode_full_residual_orbit_status( &
+                        local_frequency%orbit_status)
                 end if
                 return
             end if
@@ -373,7 +468,248 @@ contains
                 .or. pitch == resonance_scan_max
         end function is_open_scan_endpoint
 
+        integer function classify_full_residual(sample_status)
+            integer, intent(in) :: sample_status
+
+            select case (sample_status)
+            case (GC_RESONANCE_SUCCESS)
+                classify_full_residual = GC_RESONANCE_SAMPLE_VALID
+            case (GC_RESONANCE_BOUNDARY_INVALID)
+                classify_full_residual = GC_RESONANCE_SAMPLE_BOUNDARY
+            case (GC_FULL_RESIDUAL_ORBIT_UNCONFINED)
+                classify_full_residual = GC_RESONANCE_SAMPLE_UNCONFINED
+            case (GC_FULL_RESIDUAL_ORBIT_WALL_LOSS)
+                classify_full_residual = GC_RESONANCE_SAMPLE_WALL
+            case (GC_FULL_RESIDUAL_ORBIT_RADIAL_DOMAIN)
+                classify_full_residual = GC_RESONANCE_SAMPLE_RADIAL_DOMAIN
+            case (GC_FULL_RESIDUAL_SETUP_ERROR, GC_FULL_RESIDUAL_ZERO_THIN_FREQUENCY, &
+                    GC_FULL_RESIDUAL_ORBIT_FIELD_ERROR, &
+                    GC_FULL_RESIDUAL_ORBIT_STATE_ERROR, &
+                    GC_FULL_RESIDUAL_ORBIT_START_ROOT_ERROR, &
+                    GC_FULL_RESIDUAL_ORBIT_INTEGRATOR_ERROR, &
+                    GC_FULL_RESIDUAL_ORBIT_NO_RETURN, &
+                    GC_FULL_RESIDUAL_ORBIT_PERTURBATION_ERROR)
+                classify_full_residual = GC_RESONANCE_SAMPLE_INVALID
+            case default
+                classify_full_residual = GC_RESONANCE_SAMPLE_INVALID
+            end select
+        end function classify_full_residual
+
+        integer function encode_full_residual_orbit_status(orbit_status)
+            integer, intent(in) :: orbit_status
+
+            encode_full_residual_orbit_status = GC_FULL_RESIDUAL_ORBIT_BASE &
+                +orbit_status
+        end function encode_full_residual_orbit_status
+
+        subroutine full_canonical_measure_unavailable(pitch, density, measure_status)
+            !! The direct GEQDSK adapter has no cylindrical wall/Poincare-cut
+            !! contract.  Its old launch-section |d psi_star/d eta| is not the
+            !! full R B_parallel* |dot(section)| measure, so model-2 transport
+            !! remains uncertified and fail-closed until a cylindrical provider
+            !! supplies that quantity together with disconnected component and
+            !! sigma identities.
+            real(dp), intent(in) :: pitch
+            real(dp), intent(out) :: density
+            integer, intent(out) :: measure_status
+
+            associate (unused_pitch => pitch)
+            end associate
+            density = 0.0_dp
+            measure_status = GC_RESONANCE_INVALID_INPUT
+        end subroutine full_canonical_measure_unavailable
+
+        real(dp) function thermal_measure_weight(velocity)
+            real(dp), intent(in) :: velocity
+            real(dp) :: speed_ratio
+
+            thermal_measure_weight = 0.0_dp
+            if (vth <= 0.0_dp .or. velocity <= 0.0_dp) return
+            speed_ratio = velocity/vth
+            thermal_measure_weight = du*speed_ratio**3*exp(-speed_ratio**2)
+        end function thermal_measure_weight
+
+        subroutine accumulate_resonance_diagnostics(failures, diagnostics, thermal_weight)
+            type(gc_transport_failure_t), intent(inout) :: failures
+            type(gc_resonance_diagnostics_t), intent(in) :: diagnostics
+            real(dp), intent(in) :: thermal_weight
+            logical :: first_scan
+
+            first_scan = failures%scanned_samples == 0
+            failures%scanned_samples = failures%scanned_samples + diagnostics%scan_samples
+            failures%confined_samples = failures%confined_samples + diagnostics%confined_samples
+            failures%boundary_samples = failures%boundary_samples + diagnostics%boundary_samples
+            ! full_residual records every non-success orbit status while it
+            ! evaluates a scan sample.  Do not add the same status again from
+            ! the scan diagnostics; transport counters also include root and
+            ! phase evaluations outside the retained scan cells.
+            failures%numerical_samples = failures%numerical_samples &
+                +diagnostics%numerical_samples
+            failures%measure_failures = failures%measure_failures &
+                +diagnostics%measure_failures
+            failures%unknown_measure_cells = failures%unknown_measure_cells &
+                +diagnostics%unknown_measure_cells
+            failures%component_count = failures%component_count &
+                +diagnostics%component_count
+            if (first_scan) then
+                failures%canonical_measure_certified = &
+                    diagnostics%canonical_measure_certified
+                failures%component_identity_certified = &
+                    diagnostics%component_identity_certified
+            else
+                failures%canonical_measure_certified = &
+                    failures%canonical_measure_certified .and. &
+                    diagnostics%canonical_measure_certified
+                failures%component_identity_certified = &
+                    failures%component_identity_certified .and. &
+                    diagnostics%component_identity_certified
+            end if
+            failures%canonical_scan_measure = failures%canonical_scan_measure &
+                +diagnostics%canonical_scan_measure
+            failures%canonical_confined_measure = failures%canonical_confined_measure &
+                +diagnostics%canonical_confined_measure
+            failures%canonical_physical_measure = failures%canonical_physical_measure &
+                +diagnostics%canonical_physical_measure
+            failures%canonical_boundary_measure = failures%canonical_boundary_measure &
+                +diagnostics%canonical_boundary_measure
+            failures%canonical_unresolved_measure = failures%canonical_unresolved_measure &
+                +diagnostics%canonical_unresolved_measure
+            failures%unknown_measure_coordinate_span = &
+                failures%unknown_measure_coordinate_span &
+                +diagnostics%unknown_measure_coordinate_span
+            failures%thermal_scan_measure = failures%thermal_scan_measure &
+                +thermal_weight*diagnostics%canonical_scan_measure
+            failures%thermal_confined_measure = failures%thermal_confined_measure &
+                +thermal_weight*diagnostics%canonical_confined_measure
+            failures%thermal_physical_measure = failures%thermal_physical_measure &
+                +thermal_weight*diagnostics%canonical_physical_measure
+            failures%thermal_boundary_measure = failures%thermal_boundary_measure &
+                +thermal_weight*diagnostics%canonical_boundary_measure
+            failures%thermal_unresolved_measure = failures%thermal_unresolved_measure &
+                +thermal_weight*diagnostics%canonical_unresolved_measure
+        end subroutine accumulate_resonance_diagnostics
+
+        subroutine record_frequency_outcome(failures, orbit_status, frequency_status)
+            type(gc_transport_failure_t), intent(inout) :: failures
+            integer, intent(in) :: orbit_status
+            integer, intent(in) :: frequency_status
+
+            call record_orbit_status(failures, orbit_status)
+            if (gc_orbit_status_is_physical_loss(orbit_status)) then
+                call record_physical_orbit(failures, orbit_status)
+                return
+            end if
+            failures%frequency_failures = failures%frequency_failures + 1
+            if (frequency_status /= GC_FREQUENCY_ORBIT_ERROR) then
+                failures%frequency_setup_failures = &
+                    failures%frequency_setup_failures + 1
+            end if
+            if (orbit_status /= GC_ORBIT_SUCCESS) then
+                failures%orbit_failures = failures%orbit_failures + 1
+            end if
+        end subroutine record_frequency_outcome
+
+        subroutine record_phase_outcome(failures, orbit_status)
+            type(gc_transport_failure_t), intent(inout) :: failures
+            integer, intent(in) :: orbit_status
+
+            call record_orbit_status(failures, orbit_status)
+            if (gc_orbit_status_is_physical_loss(orbit_status)) then
+                call record_physical_orbit(failures, orbit_status)
+                return
+            end if
+            failures%phase_failures = failures%phase_failures + 1
+            if (orbit_status /= GC_ORBIT_SUCCESS) then
+                failures%orbit_failures = failures%orbit_failures + 1
+            end if
+        end subroutine record_phase_outcome
+
+        subroutine record_orbit_status(failures, orbit_status)
+            type(gc_transport_failure_t), intent(inout) :: failures
+            integer, intent(in) :: orbit_status
+
+            select case (orbit_status)
+            case (GC_ORBIT_SUCCESS)
+                continue
+            case (GC_ORBIT_FIELD_ERROR)
+                failures%field_error_samples = failures%field_error_samples + 1
+            case (GC_ORBIT_STATE_ERROR)
+                failures%state_error_samples = failures%state_error_samples + 1
+            case (GC_ORBIT_START_ROOT_ERROR)
+                failures%start_root_error_samples = failures%start_root_error_samples + 1
+            case (GC_ORBIT_INTEGRATOR_ERROR)
+                failures%integrator_error_samples = failures%integrator_error_samples + 1
+            case (GC_ORBIT_NO_RETURN)
+                failures%no_return_samples = failures%no_return_samples + 1
+            case (GC_ORBIT_PERTURBATION_ERROR)
+                failures%perturbation_error_samples = &
+                    failures%perturbation_error_samples + 1
+            case (GC_ORBIT_UNCONFINED)
+                failures%unconfined_samples = failures%unconfined_samples + 1
+            case (GC_ORBIT_WALL_LOSS)
+                failures%wall_orbits = failures%wall_orbits + 1
+            case (GC_ORBIT_RADIAL_DOMAIN)
+                failures%radial_domain_orbits = failures%radial_domain_orbits + 1
+            case default
+                failures%unknown_status_samples = failures%unknown_status_samples + 1
+            end select
+        end subroutine record_orbit_status
+
+        subroutine record_physical_orbit(failures, orbit_status)
+            type(gc_transport_failure_t), intent(inout) :: failures
+            integer, intent(in) :: orbit_status
+
+            if (gc_orbit_status_is_physical_loss(orbit_status)) then
+                failures%lost_orbits = failures%lost_orbits + 1
+            end if
+        end subroutine record_physical_orbit
+
     end subroutine compute_transport_integral
+
+    subroutine update_transport_coverage(failures)
+        type(gc_transport_failure_t), intent(inout) :: failures
+
+        real(dp) :: canonical_eligible, thermal_eligible
+
+        if (.not. failures%canonical_measure_certified) then
+            failures%canonical_coverage_fraction = 0.0_dp
+            failures%physical_canonical_coverage_fraction = 0.0_dp
+            failures%canonical_unresolved_fraction = 0.0_dp
+            failures%thermal_coverage_fraction = 0.0_dp
+            failures%physical_thermal_coverage_fraction = 0.0_dp
+            failures%thermal_unresolved_fraction = 0.0_dp
+            failures%confined_coverage_fraction = 0.0_dp
+            failures%physical_coverage_fraction = 0.0_dp
+            return
+        end if
+
+        canonical_eligible = failures%canonical_scan_measure &
+            -failures%canonical_boundary_measure
+        if (canonical_eligible > 0.0_dp) then
+            failures%canonical_coverage_fraction = failures%canonical_confined_measure &
+                /canonical_eligible
+            failures%physical_canonical_coverage_fraction = &
+                (failures%canonical_confined_measure &
+                +failures%canonical_physical_measure)/canonical_eligible
+            failures%canonical_unresolved_fraction = &
+                failures%canonical_unresolved_measure/canonical_eligible
+        end if
+
+        thermal_eligible = failures%thermal_scan_measure &
+            -failures%thermal_boundary_measure
+        if (thermal_eligible > 0.0_dp) then
+            failures%thermal_coverage_fraction = failures%thermal_confined_measure &
+                /thermal_eligible
+            failures%physical_thermal_coverage_fraction = &
+                (failures%thermal_confined_measure &
+                +failures%thermal_physical_measure)/thermal_eligible
+            failures%thermal_unresolved_fraction = &
+                failures%thermal_unresolved_measure/thermal_eligible
+        end if
+        failures%confined_coverage_fraction = failures%canonical_coverage_fraction
+        failures%physical_coverage_fraction = &
+            failures%physical_canonical_coverage_fraction
+    end subroutine update_transport_coverage
 
     subroutine emit_gc_transport_failure(failures)
         type(gc_transport_failure_t), intent(in) :: failures
@@ -385,6 +721,40 @@ contains
             'frequency_failures=', failures%frequency_failures, &
             'phase_failures=', failures%phase_failures, &
             'orbit_failures=', failures%orbit_failures
+        write (0, '(A,I0)') 'GC_TRANSPORT_FREQUENCY frequency_setup_failures=', &
+            failures%frequency_setup_failures
+        write (0, '(A,I0,1X,A,ES16.8)') &
+            'GC_TRANSPORT_MEASURE unknown_measure_cells=', failures%unknown_measure_cells, &
+            'unknown_measure_coordinate_span=', failures%unknown_measure_coordinate_span
+        write (0, '(A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') &
+            'GC_TRANSPORT_LOSS lost_orbits=', failures%lost_orbits, &
+            'wall_orbits=', failures%wall_orbits, &
+            'radial_domain_orbits=', failures%radial_domain_orbits, &
+            'unconfined_samples=', failures%unconfined_samples, &
+            'numerical_samples=', failures%numerical_samples, &
+            'unknown_status_samples=', failures%unknown_status_samples, &
+            'measure_failures=', failures%measure_failures
+        write (0, '(A,I0,1X,A,I0,1X,A,I0)') &
+            'GC_TRANSPORT_TOPOLOGY component_count=', failures%component_count, &
+            'canonical_measure_certified=', merge(1, 0, failures%canonical_measure_certified), &
+            'component_identity_certified=', merge(1, 0, failures%component_identity_certified)
+        write (0, '(A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0,1X,A,I0)') &
+            'GC_TRANSPORT_ORBIT_STATUS field_errors=', failures%field_error_samples, &
+            'state_errors=', failures%state_error_samples, &
+            'start_root_errors=', failures%start_root_error_samples, &
+            'integrator_errors=', failures%integrator_error_samples, &
+            'no_return=', failures%no_return_samples, &
+            'perturbation_errors=', failures%perturbation_error_samples
+        write (0, '(A,ES16.8,1X,A,ES16.8,1X,A,ES16.8,1X,A,ES16.8,1X,A,ES16.8,1X,A,ES16.8)') &
+            'GC_TRANSPORT_COVERAGE canonical_coverage_fraction=', &
+            failures%canonical_coverage_fraction, &
+            'physical_canonical_coverage_fraction=', &
+            failures%physical_canonical_coverage_fraction, &
+            'canonical_unresolved_fraction=', failures%canonical_unresolved_fraction, &
+            'thermal_coverage_fraction=', failures%thermal_coverage_fraction, &
+            'physical_thermal_coverage_fraction=', &
+            failures%physical_thermal_coverage_fraction, &
+            'thermal_unresolved_fraction=', failures%thermal_unresolved_fraction
     end subroutine emit_gc_transport_failure
 
     subroutine evaluate_direct_perturbation(position, bmod, amplitude, status)

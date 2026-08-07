@@ -64,7 +64,7 @@ module neort_gc_frequency_provider
         real(dp) :: omega_phi = 0.0_dp
         real(dp) :: period = 0.0_dp
         real(dp) :: delta_phi = 0.0_dp
-        integer :: orbit_status = 0
+        integer :: orbit_status = GC_ORBIT_SUCCESS
     end type gc_full_orbit_frequency_result_t
 
     public :: initialize_gc_frequency_context, evaluate_gc_frequency

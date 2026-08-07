@@ -15,9 +15,45 @@ module neort_gc_full_resonance
     integer, parameter, public :: GC_RESONANCE_PARTIAL = 3
     integer, parameter, public :: GC_RESONANCE_BOUNDARY_INVALID = 4
 
+    integer, parameter, public :: GC_RESONANCE_SAMPLE_VALID = 0
+    integer, parameter, public :: GC_RESONANCE_SAMPLE_BOUNDARY = 1
+    integer, parameter, public :: GC_RESONANCE_SAMPLE_UNCONFINED = 2
+    !! Only this class is certified physical when the caller supplies a real
+    !! wall-polygon crossing status.  The other non-valid classes remain
+    !! fail-closed and do not contribute to physical coverage.
+    integer, parameter, public :: GC_RESONANCE_SAMPLE_WALL = 3
+    !! Computational-domain and timeout results are unresolved, not losses.
+    integer, parameter, public :: GC_RESONANCE_SAMPLE_RADIAL_DOMAIN = 4
+    integer, parameter, public :: GC_RESONANCE_SAMPLE_INVALID = 5
+
     integer, parameter :: scan_refinement_factor = 8
     integer, parameter :: maximum_scan_points = 4096
     integer, parameter :: maximum_refinement_iterations = 100
+
+    type, public :: gc_resonance_diagnostics_t
+        integer :: scan_samples = 0
+        integer :: confined_samples = 0
+        integer :: boundary_samples = 0
+        integer :: lost_orbits = 0
+        integer :: unconfined_samples = 0
+        integer :: wall_orbits = 0
+        integer :: radial_domain_orbits = 0
+        integer :: numerical_samples = 0
+        integer :: measure_failures = 0
+        integer :: unknown_measure_cells = 0
+        integer :: component_count = 0
+        real(dp) :: canonical_scan_measure = 0.0_dp
+        real(dp) :: canonical_confined_measure = 0.0_dp
+        real(dp) :: canonical_physical_measure = 0.0_dp
+        real(dp) :: canonical_boundary_measure = 0.0_dp
+        real(dp) :: canonical_unresolved_measure = 0.0_dp
+        real(dp) :: unknown_measure_coordinate_span = 0.0_dp
+        real(dp) :: confined_coverage_fraction = 0.0_dp
+        real(dp) :: physical_coverage_fraction = 0.0_dp
+        real(dp) :: unresolved_coverage_fraction = 0.0_dp
+        logical :: canonical_measure_certified = .false.
+        logical :: component_identity_certified = .false.
+    end type gc_resonance_diagnostics_t
 
     abstract interface
         subroutine gc_residual_i(eta, residual, status)
@@ -26,37 +62,70 @@ module neort_gc_full_resonance
             real(dp), intent(out) :: residual
             integer, intent(out) :: status
         end subroutine gc_residual_i
+
+        integer function gc_residual_class_i(sample_status)
+            integer, intent(in) :: sample_status
+        end function gc_residual_class_i
+
+        subroutine gc_residual_measure_i(eta, density, status)
+            import dp
+            real(dp), intent(in) :: eta
+            real(dp), intent(out) :: density
+            integer, intent(out) :: status
+        end subroutine gc_residual_measure_i
+
+        integer function gc_residual_component_i(eta, sample_status)
+            import dp
+            real(dp), intent(in) :: eta
+            integer, intent(in) :: sample_status
+        end function gc_residual_component_i
     end interface
 
-    public :: find_gc_resonances, gc_residual_i
+    public :: find_gc_resonances, gc_residual_i, gc_residual_class_i, &
+        gc_residual_measure_i, gc_residual_component_i
 
 contains
 
     subroutine find_gc_resonances(evaluate, eta_min, eta_max, scan_intervals, &
-            residual_tolerance, eta_tolerance, roots, derivatives, nroots, status)
+            residual_tolerance, eta_tolerance, roots, derivatives, nroots, status, &
+            diagnostics, classify_status, measure, component_id)
         procedure(gc_residual_i) :: evaluate
         real(dp), intent(in) :: eta_min, eta_max
         integer, intent(in) :: scan_intervals
         real(dp), intent(in) :: residual_tolerance, eta_tolerance
         real(dp), intent(out) :: roots(:), derivatives(:)
         integer, intent(out) :: nroots, status
+        type(gc_resonance_diagnostics_t), intent(out), optional :: diagnostics
+        procedure(gc_residual_class_i), optional :: classify_status
+        procedure(gc_residual_measure_i), optional :: measure
+        procedure(gc_residual_component_i), optional :: component_id
 
         real(dp), allocatable :: eta(:), residual(:)
-        integer, allocatable :: sample_status(:)
-        integer :: nscan, k, local_status, first_valid, last_valid
-        logical :: partial_scan, failed, capacity_exhausted
+        real(dp), allocatable :: sample_measure(:)
+        integer, allocatable :: sample_status(:), sample_class(:), sample_component(:)
+        integer :: nscan, k, component_start, active_component
+        integer :: measure_status
+        real(dp) :: measure_density
+        logical :: partial_scan, capacity_exhausted, sample_valid, measure_known
 
         roots = 0.0_dp
         derivatives = 0.0_dp
         nroots = 0
         status = GC_RESONANCE_INVALID_INPUT
         capacity_exhausted = .false.
+        if (present(diagnostics)) diagnostics = gc_resonance_diagnostics_t()
+        if (present(diagnostics)) then
+            diagnostics%canonical_measure_certified = present(measure)
+            diagnostics%component_identity_certified = present(component_id)
+        end if
         if (eta_max <= eta_min .or. scan_intervals < 1) return
         if (residual_tolerance <= 0.0_dp .or. eta_tolerance <= 0.0_dp) return
         if (size(derivatives) /= size(roots)) return
 
         nscan = min(maximum_scan_points, scan_intervals*scan_refinement_factor)
-        allocate(eta(0:nscan), residual(0:nscan), sample_status(0:nscan))
+        allocate(eta(0:nscan), residual(0:nscan), sample_measure(0:nscan), &
+            sample_status(0:nscan), sample_class(0:nscan), &
+            sample_component(0:nscan))
         partial_scan = .false.
         do k = 0, nscan
             if (k == 0) then
@@ -66,94 +135,256 @@ contains
             else
                 eta(k) = eta_min + real(k, dp)*(eta_max - eta_min)/real(nscan, dp)
             end if
-            call evaluate(eta(k), residual(k), sample_status(k))
         end do
-
-        ! An open orbit interval may be invalid exactly at its endpoints
-        ! (most notably at the trapped/passing separatrix).  Those samples do
-        ! not describe a missing interior interval: discard the invalid
-        ! prefix/suffix and search only the valid open interval.  Any other
-        ! invalid sample remains evidence that the scan could have hidden a
-        ! root.
-        first_valid = -1
         do k = 0, nscan
-            if (sample_is_valid(sample_status(k), residual(k))) then
-                first_valid = k
-                exit
+            call evaluate(eta(k), residual(k), sample_status(k))
+            sample_class(k) = resolve_sample_class(sample_status(k), classify_status)
+            sample_component(k) = 0
+            if (present(component_id)) then
+                sample_component(k) = component_id(eta(k), sample_status(k))
             end if
-        end do
-        last_valid = -1
-        do k = nscan, 0, -1
-            if (sample_is_valid(sample_status(k), residual(k))) then
-                last_valid = k
-                exit
-            end if
-        end do
-        if (first_valid < 0 .or. last_valid < first_valid &
-                .or. first_valid == last_valid) then
-            status = GC_RESONANCE_PARTIAL
-            return
-        end if
-
-        partial_scan = .false.
-        do k = 0, first_valid - 1
-            partial_scan = partial_scan .or. &
-                sample_status(k) /= GC_RESONANCE_BOUNDARY_INVALID
-        end do
-        do k = first_valid, last_valid
-            partial_scan = partial_scan .or. &
-                .not. sample_is_valid(sample_status(k), residual(k))
-        end do
-        do k = last_valid + 1, nscan
-            partial_scan = partial_scan .or. &
-                sample_status(k) /= GC_RESONANCE_BOUNDARY_INVALID
-        end do
-
-        do k = first_valid, last_valid
-            if (sample_is_valid(sample_status(k), residual(k)) &
-                    .and. abs(residual(k)) <= residual_tolerance) then
-                call append_root(eta(k), evaluate, eta(first_valid), eta(last_valid), &
-                    eta_tolerance, roots, derivatives, nroots, &
-                    capacity_exhausted, local_status)
-                partial_scan = partial_scan .or. local_status /= GC_RESONANCE_SUCCESS
-            end if
-            if (k == first_valid) cycle
-            if (sample_is_valid(sample_status(k - 1), residual(k - 1)) &
-                    .and. sample_is_valid(sample_status(k), residual(k))) then
-                if (opposite_signs(residual(k - 1), residual(k))) then
-                    call bisect_valid_segment(evaluate, eta(k - 1), eta(k), &
-                        residual(k - 1), residual(k), residual_tolerance, &
-                        eta_tolerance, roots, derivatives, nroots, &
-                        capacity_exhausted, local_status)
-                    partial_scan = partial_scan .or. local_status /= GC_RESONANCE_SUCCESS
+            sample_valid = sample_class(k) == GC_RESONANCE_SAMPLE_VALID
+            if (sample_valid) then
+                if (.not. ieee_is_finite(residual(k))) then
+                    sample_class(k) = GC_RESONANCE_SAMPLE_INVALID
+                    sample_valid = .false.
                 end if
             end if
-            if (k == last_valid) cycle
-            if (sample_is_valid(sample_status(k - 1), residual(k - 1)) &
-                    .and. sample_is_valid(sample_status(k), residual(k)) &
-                    .and. sample_is_valid(sample_status(k + 1), residual(k + 1)) &
-                    .and. abs(residual(k)) <= abs(residual(k - 1)) &
-                    .and. abs(residual(k)) <= abs(residual(k + 1)) &
-                    .and. (residual(k) /= residual(k - 1) &
-                    .or. residual(k) /= residual(k + 1))) then
-                call refine_tangent_root(evaluate, eta(k - 1), eta(k + 1), &
-                    residual_tolerance, eta_tolerance, eta(k), residual(k), &
-                    roots, derivatives, nroots, capacity_exhausted, failed)
-                partial_scan = partial_scan .or. failed
+            sample_measure(k) = sample_cell_width(eta, k)
+            measure_known = .false.
+            if (present(measure)) then
+                call measure(eta(k), measure_density, measure_status)
+                if (measure_status /= GC_RESONANCE_SUCCESS) then
+                    partial_scan = .true.
+                    if (present(diagnostics)) diagnostics%measure_failures = &
+                        diagnostics%measure_failures + 1
+                else if (.not. ieee_is_finite(measure_density) &
+                        .or. measure_density < 0.0_dp) then
+                    partial_scan = .true.
+                    if (present(diagnostics)) diagnostics%measure_failures = &
+                        diagnostics%measure_failures + 1
+                else
+                    sample_measure(k) = measure_density*sample_measure(k)
+                    measure_known = .true.
+                end if
             end if
+            call record_sample_class(diagnostics, sample_class(k), &
+                sample_measure(k), measure_known)
         end do
 
+        component_start = -1
+        active_component = 0
+        do k = 0, nscan
+            sample_valid = sample_class(k) == GC_RESONANCE_SAMPLE_VALID
+            if (sample_valid) then
+                if (component_start < 0) then
+                    component_start = k
+                    active_component = sample_component(k)
+                    if (present(diagnostics)) diagnostics%component_count = &
+                        diagnostics%component_count + 1
+                else if (sample_component(k) /= active_component) then
+                    call process_valid_component(evaluate, eta, residual, &
+                        component_start, k - 1, residual_tolerance, eta_tolerance, &
+                        roots, derivatives, nroots, capacity_exhausted, partial_scan)
+                    component_start = k
+                    active_component = sample_component(k)
+                    if (present(diagnostics)) diagnostics%component_count = &
+                        diagnostics%component_count + 1
+                end if
+                cycle
+            end if
+            if (component_start >= 0) then
+                call process_valid_component(evaluate, eta, residual, component_start, &
+                    k - 1, residual_tolerance, eta_tolerance, roots, derivatives, &
+                    nroots, capacity_exhausted, partial_scan)
+                component_start = -1
+            end if
+            if (sample_class(k) == GC_RESONANCE_SAMPLE_BOUNDARY) then
+                if (k > 0) then
+                    if (k < nscan) partial_scan = .true.
+                end if
+            else if (sample_class(k) /= GC_RESONANCE_SAMPLE_WALL) then
+                partial_scan = .true.
+            end if
+        end do
+        if (component_start >= 0) then
+            call process_valid_component(evaluate, eta, residual, component_start, &
+                nscan, residual_tolerance, eta_tolerance, roots, derivatives, &
+                nroots, capacity_exhausted, partial_scan)
+        end if
+
         if (capacity_exhausted) partial_scan = .true.
+        call update_coverage(diagnostics)
         status = merge(GC_RESONANCE_PARTIAL, GC_RESONANCE_SUCCESS, partial_scan)
     end subroutine find_gc_resonances
 
-    logical function sample_is_valid(sample_status, sample_residual)
+    integer function resolve_sample_class(sample_status, classify_status)
         integer, intent(in) :: sample_status
-        real(dp), intent(in) :: sample_residual
+        procedure(gc_residual_class_i), optional :: classify_status
 
-        sample_is_valid = sample_status == GC_RESONANCE_SUCCESS &
-            .and. ieee_is_finite(sample_residual)
-    end function sample_is_valid
+        resolve_sample_class = GC_RESONANCE_SAMPLE_INVALID
+        if (present(classify_status)) then
+            resolve_sample_class = classify_status(sample_status)
+        else if (sample_status == GC_RESONANCE_SUCCESS) then
+            resolve_sample_class = GC_RESONANCE_SAMPLE_VALID
+        else if (sample_status == GC_RESONANCE_BOUNDARY_INVALID) then
+            resolve_sample_class = GC_RESONANCE_SAMPLE_BOUNDARY
+        end if
+        if (resolve_sample_class < GC_RESONANCE_SAMPLE_VALID .or. &
+            resolve_sample_class > GC_RESONANCE_SAMPLE_INVALID) then
+            resolve_sample_class = GC_RESONANCE_SAMPLE_INVALID
+        end if
+    end function resolve_sample_class
+
+    real(dp) function sample_cell_width(eta, index)
+        real(dp), intent(in) :: eta(0:)
+        integer, intent(in) :: index
+
+        integer :: last_index
+
+        last_index = ubound(eta, 1)
+        if (index == 0) then
+            sample_cell_width = 0.5_dp*(eta(1) - eta(0))
+        else if (index == last_index) then
+            sample_cell_width = 0.5_dp*(eta(last_index) - eta(last_index - 1))
+        else
+            sample_cell_width = 0.5_dp*(eta(index + 1) - eta(index - 1))
+        end if
+    end function sample_cell_width
+
+    subroutine record_sample_class(diagnostics, sample_class, sample_measure, &
+            measure_known)
+        type(gc_resonance_diagnostics_t), intent(inout), optional :: diagnostics
+        integer, intent(in) :: sample_class
+        real(dp), intent(in) :: sample_measure
+        logical, intent(in) :: measure_known
+
+        if (.not. present(diagnostics)) return
+        diagnostics%scan_samples = diagnostics%scan_samples + 1
+        select case (sample_class)
+        case (GC_RESONANCE_SAMPLE_VALID)
+            diagnostics%confined_samples = diagnostics%confined_samples + 1
+        case (GC_RESONANCE_SAMPLE_BOUNDARY)
+            diagnostics%boundary_samples = diagnostics%boundary_samples + 1
+        case (GC_RESONANCE_SAMPLE_WALL)
+            diagnostics%lost_orbits = diagnostics%lost_orbits + 1
+            diagnostics%wall_orbits = diagnostics%wall_orbits + 1
+        case (GC_RESONANCE_SAMPLE_UNCONFINED)
+            diagnostics%unconfined_samples = diagnostics%unconfined_samples + 1
+        case (GC_RESONANCE_SAMPLE_RADIAL_DOMAIN)
+            diagnostics%radial_domain_orbits = diagnostics%radial_domain_orbits + 1
+        case default
+            diagnostics%numerical_samples = diagnostics%numerical_samples + 1
+        end select
+        if (.not. measure_known) then
+            diagnostics%canonical_measure_certified = .false.
+            diagnostics%unknown_measure_cells = diagnostics%unknown_measure_cells + 1
+            diagnostics%unknown_measure_coordinate_span = &
+                diagnostics%unknown_measure_coordinate_span + sample_measure
+            return
+        end if
+        diagnostics%canonical_scan_measure = diagnostics%canonical_scan_measure &
+            +sample_measure
+        select case (sample_class)
+        case (GC_RESONANCE_SAMPLE_VALID)
+            diagnostics%canonical_confined_measure = &
+                diagnostics%canonical_confined_measure + sample_measure
+        case (GC_RESONANCE_SAMPLE_BOUNDARY)
+            diagnostics%canonical_boundary_measure = &
+                diagnostics%canonical_boundary_measure + sample_measure
+        case (GC_RESONANCE_SAMPLE_WALL)
+            diagnostics%canonical_physical_measure = &
+                diagnostics%canonical_physical_measure + sample_measure
+        case (GC_RESONANCE_SAMPLE_UNCONFINED, GC_RESONANCE_SAMPLE_RADIAL_DOMAIN)
+            diagnostics%canonical_unresolved_measure = &
+                diagnostics%canonical_unresolved_measure + sample_measure
+        case default
+            diagnostics%canonical_unresolved_measure = &
+                diagnostics%canonical_unresolved_measure + sample_measure
+        end select
+    end subroutine record_sample_class
+
+    subroutine update_coverage(diagnostics)
+        type(gc_resonance_diagnostics_t), intent(inout), optional :: diagnostics
+
+        real(dp) :: covered_measure
+
+        if (.not. present(diagnostics)) return
+        if (.not. diagnostics%canonical_measure_certified) then
+            diagnostics%confined_coverage_fraction = 0.0_dp
+            diagnostics%physical_coverage_fraction = 0.0_dp
+            diagnostics%unresolved_coverage_fraction = 0.0_dp
+            return
+        end if
+        covered_measure = diagnostics%canonical_scan_measure &
+            -diagnostics%canonical_boundary_measure
+        if (covered_measure <= 0.0_dp) then
+            diagnostics%confined_coverage_fraction = 0.0_dp
+            diagnostics%physical_coverage_fraction = 0.0_dp
+            diagnostics%unresolved_coverage_fraction = 0.0_dp
+            return
+        end if
+        diagnostics%confined_coverage_fraction = diagnostics%canonical_confined_measure &
+            /covered_measure
+        diagnostics%physical_coverage_fraction = ( &
+            diagnostics%canonical_confined_measure &
+            +diagnostics%canonical_physical_measure)/covered_measure
+        diagnostics%canonical_unresolved_measure = max(0.0_dp, covered_measure &
+            -diagnostics%canonical_confined_measure &
+            -diagnostics%canonical_physical_measure)
+        diagnostics%unresolved_coverage_fraction = &
+            diagnostics%canonical_unresolved_measure/covered_measure
+    end subroutine update_coverage
+
+    subroutine process_valid_component(evaluate, eta, residual, first, last, &
+            residual_tolerance, eta_tolerance, roots, derivatives, nroots, &
+            capacity_exhausted, partial_scan)
+        procedure(gc_residual_i) :: evaluate
+        real(dp), intent(in) :: eta(0:), residual(0:)
+        integer, intent(in) :: first, last
+        real(dp), intent(in) :: residual_tolerance, eta_tolerance
+        real(dp), intent(inout) :: roots(:), derivatives(:)
+        integer, intent(inout) :: nroots
+        logical, intent(inout) :: capacity_exhausted, partial_scan
+
+        integer :: k, local_status
+        logical :: failed
+
+        if (last - first < 1) then
+            partial_scan = .true.
+            return
+        end if
+        do k = first, last
+            if (abs(residual(k)) <= residual_tolerance) then
+                call append_root(eta(k), evaluate, eta(first), eta(last), eta_tolerance, &
+                    roots, derivatives, nroots, capacity_exhausted, local_status)
+                if (local_status /= GC_RESONANCE_SUCCESS) partial_scan = .true.
+            end if
+            if (k > first) then
+                if (opposite_signs(residual(k - 1), residual(k))) then
+                    call bisect_valid_segment(evaluate, eta(k - 1), eta(k), &
+                        residual(k - 1), residual(k), residual_tolerance, eta_tolerance, &
+                        roots, derivatives, nroots, capacity_exhausted, local_status)
+                    if (local_status /= GC_RESONANCE_SUCCESS) partial_scan = .true.
+                end if
+            end if
+            if (k > first) then
+                if (k < last) then
+                    if (abs(residual(k)) <= abs(residual(k - 1))) then
+                        if (abs(residual(k)) <= abs(residual(k + 1))) then
+                            if (residual(k) /= residual(k - 1) .or. &
+                                residual(k) /= residual(k + 1)) then
+                                call refine_tangent_root(evaluate, eta(k - 1), eta(k + 1), &
+                                    residual_tolerance, eta_tolerance, eta(k), residual(k), &
+                                    roots, derivatives, nroots, capacity_exhausted, failed)
+                                if (failed) partial_scan = .true.
+                            end if
+                        end if
+                    end if
+                end if
+            end if
+        end do
+    end subroutine process_valid_component
 
     logical function opposite_signs(left_value, right_value)
         real(dp), intent(in) :: left_value, right_value
@@ -196,9 +427,10 @@ contains
             end if
             middle = 0.5_dp*(left + right)
             call evaluate(middle, fmiddle, middle_status)
-            if (middle_status /= 0 .or. .not. ieee_is_finite(fmiddle)) return
+            if (middle_status /= GC_RESONANCE_SUCCESS .or. &
+                .not. ieee_is_finite(fmiddle)) return
             if (abs(fmiddle) <= residual_tolerance .or. &
-                    right - left <= eta_tolerance) then
+                right - left <= eta_tolerance) then
                 converged = .true.
                 exit
             end if
@@ -246,9 +478,10 @@ contains
             second = left + golden_ratio*(right - left)
             call evaluate(first, ffirst, first_status)
             call evaluate(second, fsecond, second_status)
-            if (first_status /= 0 .or. second_status /= 0 &
-                    .or. .not. ieee_is_finite(ffirst) &
-                    .or. .not. ieee_is_finite(fsecond)) then
+            if (first_status /= GC_RESONANCE_SUCCESS .or. &
+                second_status /= GC_RESONANCE_SUCCESS &
+                .or. .not. ieee_is_finite(ffirst) &
+                .or. .not. ieee_is_finite(fsecond)) then
                 failed = .true.
                 return
             end if
@@ -298,9 +531,10 @@ contains
         if (eta_plus <= eta_minus) return
         call evaluate(eta_minus, fminus, minus_status)
         call evaluate(eta_plus, fplus, plus_status)
-        if (minus_status /= 0 .or. plus_status /= 0 &
-                .or. .not. ieee_is_finite(fminus) &
-                .or. .not. ieee_is_finite(fplus)) return
+        if (minus_status /= GC_RESONANCE_SUCCESS .or. &
+            plus_status /= GC_RESONANCE_SUCCESS &
+            .or. .not. ieee_is_finite(fminus) &
+            .or. .not. ieee_is_finite(fplus)) return
         derivative = (fplus - fminus)/(eta_plus - eta_minus)
         status = GC_RESONANCE_SUCCESS
     end subroutine estimate_derivative
@@ -335,7 +569,9 @@ contains
 
         integer :: k, insertion_point
 
-        if (nroots > 0 .and. any(abs(roots(1:nroots) - root) <= eta_tolerance)) return
+        if (nroots > 0) then
+            if (any(abs(roots(1:nroots) - root) <= eta_tolerance)) return
+        end if
         if (nroots == size(roots)) then
             capacity_exhausted = .true.
             return
