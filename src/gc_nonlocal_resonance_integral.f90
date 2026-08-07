@@ -12,9 +12,14 @@ module neort_gc_nonlocal_resonance_integral
     !! phase-residual weight is tau_b in this frequency-residual kernel; the
     !! torque layer owns the remaining n**2 prefactor from Eq. 10.  Keeping
     !! tau_b**2 here would count the delta-function change of variables twice.
-    !! The delta distribution is evaluated at simple roots.  H0 and J_perp
-    !! are explicit arguments, so an outer quadrature can apply the phase
-    !! space measure from Eq. 14 without hiding a local eta callback here.
+    !! The delta distribution is evaluated at simple roots.  Stationary
+    !! residuals are bracketed through the supplied residual derivative: an
+    !! on-resonance stationary point is reported as a singular resonance and
+    !! therefore cannot silently enter a simple-root delta formula, while a
+    !! resolved off-resonance extremum is not turned into a fabricated root.
+    !! H0 and J_perp are explicit arguments, so an outer quadrature can apply
+    !! the phase space measure from Eq. 14 without hiding a local eta callback
+    !! here.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_nonlocal_resonance_types, only: &
@@ -429,13 +434,15 @@ contains
         integer, intent(out) :: status
 
         integer :: i, local_status
-        logical :: partial
-        type(gc_nonlocal_orbit_sample_t) :: root_sample
-        real(dp) :: root_x
+        type(gc_nonlocal_orbit_sample_t) :: root_sample, stationary_sample
+        real(dp) :: root_x, stationary_x, stationary_residual
+        real(dp) :: stationary_derivative
 
         status = GC_NONLOCAL_SUCCESS
-        partial = .false.
-        do i = first, last - 1
+        ! Grid points are exact endpoint or stationary candidates.  A
+        ! stationary point whose residual is within tolerance is not a simple
+        ! delta root; record_root deliberately returns SINGULAR_RESONANCE.
+        do i = first, last
             if (is_exact_zero(residual(i))) then
                 call record_root(samples(i), residual_derivative(i), component, &
                     component_index, options, result, &
@@ -445,12 +452,25 @@ contains
                     return
                 end if
             end if
+            if (abs(residual_derivative(i)) <= options%derivative_tolerance) then
+                if (abs(residual(i)) <= options%residual_tolerance) then
+                    call record_root(samples(i), residual_derivative(i), component, &
+                        component_index, options, result, &
+                        grid_coordinate(component, i, options), local_status)
+                    if (local_status /= GC_NONLOCAL_SUCCESS) then
+                        status = local_status
+                        return
+                    end if
+                end if
+            end if
+        end do
+
+        do i = first, last - 1
             if (residual(i)*residual(i + 1) < 0.0_dp) then
                 call locate_root(evaluate, h0, jperp, harmonic_m, harmonic_n, &
                     component, options, grid_coordinate(component, i, options), &
                     grid_coordinate(component, i + 1, options), residual(i), &
-                    residual(i + 1), root_x, &
-                    root_sample, local_status)
+                    residual(i + 1), root_x, root_sample, local_status)
                 if (local_status /= GC_NONLOCAL_SUCCESS) then
                     status = local_status
                     return
@@ -463,23 +483,144 @@ contains
                     return
                 end if
             end if
-            if (residual_derivative(i)*residual_derivative(i + 1) < 0.0_dp) then
-                partial = .true.
-            end if
-        end do
-        if (last >= first) then
-            if (is_exact_zero(residual(last))) then
-                call record_root(samples(last), residual_derivative(last), component, &
-                    component_index, options, result, &
-                    grid_coordinate(component, last, options), local_status)
+
+            if (opposite_signs(residual_derivative(i), residual_derivative(i + 1))) then
+                call locate_stationary_point(evaluate, h0, jperp, harmonic_m, &
+                    harmonic_n, component, options, grid_coordinate(component, i, &
+                    options), grid_coordinate(component, i + 1, options), &
+                    residual_derivative(i), residual_derivative(i + 1), stationary_x, &
+                    stationary_sample, stationary_residual, stationary_derivative, &
+                    local_status)
                 if (local_status /= GC_NONLOCAL_SUCCESS) then
                     status = local_status
                     return
                 end if
+                if (abs(stationary_residual) <= options%residual_tolerance) then
+                    ! The derivative root is bracketed even when its final
+                    ! sample is only x-tolerance accurate.  Do not pass that
+                    ! approximate derivative to the simple-root weight: the
+                    ! stationary resonance is explicitly singular.
+                    status = GC_NONLOCAL_SINGULAR_RESONANCE
+                    return
+                end if
+                if (residual(i)*stationary_residual < 0.0_dp) then
+                    call locate_root(evaluate, h0, jperp, harmonic_m, harmonic_n, &
+                        component, options, grid_coordinate(component, i, options), &
+                        stationary_x, residual(i), stationary_residual, root_x, &
+                        root_sample, local_status)
+                    if (local_status /= GC_NONLOCAL_SUCCESS) then
+                        status = local_status
+                        return
+                    end if
+                    call record_root(root_sample, residual_derivative_at_root(root_sample, &
+                        harmonic_m, harmonic_n), component, component_index, options, &
+                        result, root_x, local_status)
+                    if (local_status /= GC_NONLOCAL_SUCCESS) then
+                        status = local_status
+                        return
+                    end if
+                end if
+                if (stationary_residual*residual(i + 1) < 0.0_dp) then
+                    call locate_root(evaluate, h0, jperp, harmonic_m, harmonic_n, &
+                        component, options, stationary_x, grid_coordinate(component, &
+                        i + 1, options), stationary_residual, residual(i + 1), root_x, &
+                        root_sample, local_status)
+                    if (local_status /= GC_NONLOCAL_SUCCESS) then
+                        status = local_status
+                        return
+                    end if
+                    call record_root(root_sample, residual_derivative_at_root(root_sample, &
+                        harmonic_m, harmonic_n), component, component_index, options, &
+                        result, root_x, local_status)
+                    if (local_status /= GC_NONLOCAL_SUCCESS) then
+                        status = local_status
+                        return
+                    end if
+                end if
             end if
-        end if
-        if (partial) status = GC_NONLOCAL_PARTIAL
+        end do
     end subroutine process_segment
+
+    pure logical function opposite_signs(left_value, right_value)
+        real(dp), intent(in) :: left_value, right_value
+
+        opposite_signs = (left_value < 0.0_dp .and. right_value > 0.0_dp) &
+            .or. (left_value > 0.0_dp .and. right_value < 0.0_dp)
+    end function opposite_signs
+
+    subroutine locate_stationary_point(evaluate, h0, jperp, harmonic_m, harmonic_n, &
+            component, options, left_coordinate, right_coordinate, &
+            left_derivative, right_derivative, stationary_x, stationary_sample, &
+            stationary_residual, stationary_derivative, status)
+        procedure(gc_nonlocal_orbit_evaluator_i) :: evaluate
+        real(dp), intent(in) :: h0, jperp, left_coordinate, right_coordinate, &
+            left_derivative, right_derivative
+        integer, intent(in) :: harmonic_m, harmonic_n
+        type(gc_nonlocal_component_t), intent(in) :: component
+        type(gc_nonlocal_resonance_options_t), intent(in) :: options
+        real(dp), intent(out) :: stationary_x, stationary_residual, &
+            stationary_derivative
+        type(gc_nonlocal_orbit_sample_t), intent(out) :: stationary_sample
+        integer, intent(out) :: status
+
+        real(dp) :: left_x, right_x, left_value, right_value, middle_x
+        integer :: iteration, callback_status, sample_status
+        logical :: valid
+
+        left_x = left_coordinate
+        right_x = right_coordinate
+        left_value = left_derivative
+        right_value = right_derivative
+        stationary_x = 0.5_dp*(left_x + right_x)
+        stationary_sample = gc_nonlocal_orbit_sample_t()
+        stationary_residual = 0.0_dp
+        stationary_derivative = 0.0_dp
+        status = GC_NONLOCAL_ROOT_NOT_CONVERGED
+        do iteration = 1, options%max_root_iterations
+            middle_x = 0.5_dp*(left_x + right_x)
+            call evaluate(h0, jperp, middle_x, component%sigma, &
+                component%component_id, stationary_sample, callback_status)
+            if (callback_status /= GC_NONLOCAL_SUCCESS) then
+                status = GC_NONLOCAL_CALLBACK_FAILURE
+                return
+            end if
+            call classify_sample(stationary_sample, component, options%force_count, &
+                valid, sample_status)
+            if (sample_status /= GC_NONLOCAL_SUCCESS) then
+                status = sample_status
+                return
+            end if
+            stationary_residual = real(harmonic_m, dp)*stationary_sample%omega_b &
+                +real(harmonic_n, dp)*stationary_sample%omega_phi
+            stationary_derivative = real(harmonic_m, dp) &
+                *stationary_sample%domega_b_dx &
+                +real(harmonic_n, dp)*stationary_sample%domega_phi_dx
+            if (.not. all(ieee_is_finite([stationary_residual, &
+                stationary_derivative]))) then
+                status = GC_NONLOCAL_NONFINITE
+                return
+            end if
+            stationary_x = middle_x
+            if (abs(stationary_derivative) <= options%derivative_tolerance) then
+                status = GC_NONLOCAL_SUCCESS
+                return
+            end if
+            if (right_x - left_x <= options%x_tolerance) then
+                status = GC_NONLOCAL_SUCCESS
+                return
+            end if
+            if (opposite_signs(left_value, stationary_derivative)) then
+                right_x = middle_x
+                right_value = stationary_derivative
+            else if (opposite_signs(stationary_derivative, right_value)) then
+                left_x = middle_x
+                left_value = stationary_derivative
+            else
+                status = GC_NONLOCAL_ROOT_NOT_CONVERGED
+                return
+            end if
+        end do
+    end subroutine locate_stationary_point
 
     subroutine locate_root(evaluate, h0, jperp, harmonic_m, harmonic_n, component, &
             options, left_coordinate, right_coordinate, left_residual, right_residual, &
@@ -529,19 +670,29 @@ contains
             root_x = middle_x
             root_sample = middle_sample
             if (abs(middle_value) <= options%residual_tolerance) then
-                status = GC_NONLOCAL_SUCCESS
-                return
+                if (abs(residual_derivative_at_root(middle_sample, harmonic_m, &
+                    harmonic_n)) <= options%derivative_tolerance) then
+                    status = GC_NONLOCAL_SUCCESS
+                    return
+                end if
+                if (is_exact_zero(middle_value)) then
+                    status = GC_NONLOCAL_SUCCESS
+                    return
+                end if
             end if
             if (right_x - left_x <= options%x_tolerance) then
                 status = GC_NONLOCAL_SUCCESS
                 return
             end if
-            if (left_value*middle_value < 0.0_dp) then
+            if (opposite_signs(left_value, middle_value)) then
                 right_x = middle_x
                 right_value = middle_value
-            else
+            else if (opposite_signs(middle_value, right_value)) then
                 left_x = middle_x
                 left_value = middle_value
+            else
+                status = GC_NONLOCAL_ROOT_NOT_CONVERGED
+                return
             end if
         end do
     end subroutine locate_root

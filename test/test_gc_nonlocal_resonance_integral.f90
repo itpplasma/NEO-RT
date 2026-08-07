@@ -7,6 +7,7 @@ program test_gc_nonlocal_resonance_integral
         GC_NONLOCAL_COMPONENT_IDENTITY, GC_NONLOCAL_INVALID_INPUT, &
         GC_NONLOCAL_PARTIAL, GC_NONLOCAL_SAMPLE_VALID, &
         GC_NONLOCAL_SAMPLE_WALL, GC_NONLOCAL_SUCCESS, &
+        GC_NONLOCAL_SINGULAR_RESONANCE, &
         gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t, &
         gc_nonlocal_resonance_options_t, gc_nonlocal_resonance_result_t
     implicit none
@@ -15,7 +16,7 @@ program test_gc_nonlocal_resonance_integral
     type(gc_nonlocal_component_t) :: coincident_components(2)
     type(gc_nonlocal_resonance_options_t) :: options
     type(gc_nonlocal_resonance_result_t) :: result
-    integer :: status
+    integer :: status, oracle_mode
 
     components(1) = gc_nonlocal_component_t(101, 1, -1.0_dp, 1.0_dp)
     components(2) = gc_nonlocal_component_t(202, -1, 2.0_dp, 4.0_dp)
@@ -73,6 +74,7 @@ program test_gc_nonlocal_resonance_integral
         'partial wall scan was incorrectly certified')
 
     call check_fail_closed_contract(components, options)
+    call check_stationary_oracles()
 
     write (*, '(a)') 'test_gc_nonlocal_resonance_integral OK'
 
@@ -185,6 +187,142 @@ contains
         call require(status == GC_NONLOCAL_INVALID_INPUT, &
             'unbounded scan option was accepted')
     end subroutine check_fail_closed_contract
+
+    subroutine check_stationary_oracles()
+        type(gc_nonlocal_component_t) :: oracle_component(1)
+        type(gc_nonlocal_resonance_options_t) :: oracle_options
+        type(gc_nonlocal_resonance_result_t) :: oracle_result
+        integer :: oracle_status
+
+        oracle_component(1) = gc_nonlocal_component_t(404, 1, -1.0_dp, 1.0_dp)
+        oracle_options = gc_nonlocal_resonance_options_t()
+        oracle_options%scan_intervals = 4
+        oracle_options%max_roots = 8
+        oracle_options%force_count = 2
+        oracle_options%residual_tolerance = 1.0e-12_dp
+        oracle_options%x_tolerance = 1.0e-12_dp
+        oracle_options%derivative_tolerance = 1.0e-13_dp
+
+        oracle_mode = 1
+        call integrate_gc_nonlocal_resonance(analytic_orbit, 7.0_dp, 11.0_dp, &
+            1, 0, oracle_component, oracle_options, oracle_result, oracle_status)
+        call require(oracle_status == GC_NONLOCAL_SUCCESS .and. &
+            oracle_result%certified, 'simple crossing did not certify')
+        call require(oracle_result%nroots == 1, &
+            'simple crossing root was not recovered')
+        call require_close(oracle_result%root_x(1), 0.25_dp, &
+            'simple crossing root position', 2.0e-12_dp)
+        call require(oracle_result%root_component_id(1) == 404 .and. &
+            oracle_result%root_sigma(1) == 1, &
+            'simple crossing component identity was lost')
+        call require_close(oracle_result%root_force_contribution(1, 1), 6.0_dp, &
+            'simple crossing canonical contribution', 2.0e-10_dp)
+
+        oracle_mode = 7
+        call integrate_gc_nonlocal_resonance(analytic_orbit, 7.0_dp, 11.0_dp, &
+            1, 0, oracle_component, oracle_options, oracle_result, oracle_status)
+        call require(oracle_status == GC_NONLOCAL_SUCCESS .and. &
+            oracle_result%certified .and. oracle_result%nroots == 2, &
+            'two crossings around an extremum were not recovered')
+        call require_close(oracle_result%root_x(1), 0.27_dp, &
+            'left extremum-side root position', 2.0e-11_dp)
+        call require_close(oracle_result%root_x(2), 0.47_dp, &
+            'right extremum-side root position', 2.0e-11_dp)
+        call require_close(oracle_result%contribution(1), 60.0_dp, &
+            'two-root canonical contribution', 2.0e-9_dp)
+
+        oracle_mode = 2
+        call integrate_gc_nonlocal_resonance(analytic_orbit, 7.0_dp, 11.0_dp, &
+            1, 0, oracle_component, oracle_options, oracle_result, oracle_status)
+        call require(oracle_status == GC_NONLOCAL_SINGULAR_RESONANCE .and. &
+            .not. oracle_result%certified, &
+            'quadratic tangent was not failed closed')
+        call require(oracle_result%nroots == 0, &
+            'quadratic tangent entered a simple-root sum')
+
+        oracle_mode = 3
+        call integrate_gc_nonlocal_resonance(analytic_orbit, 7.0_dp, 11.0_dp, &
+            1, 0, oracle_component, oracle_options, oracle_result, oracle_status)
+        call require(oracle_status == GC_NONLOCAL_SUCCESS .and. &
+            oracle_result%certified, &
+            'positive near-tangent minimum was marked unresolved')
+        call require(oracle_result%nroots == 0, &
+            'positive near-tangent minimum invented a root')
+
+        oracle_mode = 4
+        call integrate_gc_nonlocal_resonance(analytic_orbit, 7.0_dp, 11.0_dp, &
+            1, 0, oracle_component, oracle_options, oracle_result, oracle_status)
+        call require(oracle_status == GC_NONLOCAL_SINGULAR_RESONANCE .and. &
+            .not. oracle_result%certified, &
+            'quartic flat root was silently missed')
+
+        oracle_mode = 5
+        call integrate_gc_nonlocal_resonance(analytic_orbit, 7.0_dp, 11.0_dp, &
+            1, 0, oracle_component, oracle_options, oracle_result, oracle_status)
+        call require(oracle_status == GC_NONLOCAL_SINGULAR_RESONANCE .and. &
+            .not. oracle_result%certified, &
+            'boundary tangent was not failed closed')
+
+        oracle_mode = 6
+        call integrate_gc_nonlocal_resonance(analytic_orbit, 7.0_dp, 11.0_dp, &
+            1, 0, oracle_component, oracle_options, oracle_result, oracle_status)
+        call require(oracle_status == GC_NONLOCAL_SINGULAR_RESONANCE .and. &
+            .not. oracle_result%certified, &
+            'cubic degenerate root was silently accepted')
+    end subroutine check_stationary_oracles
+
+    subroutine analytic_orbit(h0, jperp, x, sigma, component_id, sample, &
+            callback_status)
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        type(gc_nonlocal_orbit_sample_t), intent(out) :: sample
+        integer, intent(out) :: callback_status
+
+        sample = gc_nonlocal_orbit_sample_t()
+        if (.not. all(ieee_is_finite([h0, jperp]))) then
+            callback_status = 1
+            return
+        end if
+        sample%status = GC_NONLOCAL_SAMPLE_VALID
+        sample%component_id = component_id
+        sample%sigma = sigma
+        sample%psi_star = 5.0_dp + 2.0_dp*x
+        sample%dpsi_star_dx = 2.0_dp
+        sample%tau_b = 1.5_dp
+        sample%h_m = cmplx(1.0_dp, 0.0_dp, kind=dp)
+        sample%nforce = 2
+        sample%thermodynamic_force(1:2) = [2.0_dp, -3.0_dp]
+        sample%omega_phi = 0.0_dp
+        sample%domega_phi_dx = 0.0_dp
+        select case (oracle_mode)
+        case (1)
+            sample%omega_b = x - 0.25_dp
+            sample%domega_b_dx = 1.0_dp
+        case (2)
+            sample%omega_b = (x - 0.37_dp)**2
+            sample%domega_b_dx = 2.0_dp*(x - 0.37_dp)
+        case (3)
+            sample%omega_b = (x - 0.37_dp)**2 + 0.01_dp
+            sample%domega_b_dx = 2.0_dp*(x - 0.37_dp)
+        case (4)
+            sample%omega_b = (x - 0.37_dp)**4
+            sample%domega_b_dx = 4.0_dp*(x - 0.37_dp)**3
+        case (5)
+            sample%omega_b = (x + 1.0_dp)**2
+            sample%domega_b_dx = 2.0_dp*(x + 1.0_dp)
+        case (6)
+            sample%omega_b = (x - 0.37_dp)**3
+            sample%domega_b_dx = 3.0_dp*(x - 0.37_dp)**2
+        case (7)
+            sample%omega_b = (x - 0.37_dp)**2 - 0.01_dp
+            sample%domega_b_dx = 2.0_dp*(x - 0.37_dp)
+        case default
+            callback_status = 1
+            return
+        end select
+        sample%derivatives_available = .true.
+        callback_status = GC_NONLOCAL_SUCCESS
+    end subroutine analytic_orbit
 
     subroutine check_phase_frequency_delta_equivalence()
         !! For r=n*g/tau at a resonance, n**2*tau/|dr/dx|
