@@ -1636,10 +1636,10 @@ contains
         allocate (kernel_spec%args(size(arg_names)), &
             kernel_spec%outputs(size(output_names)))
         do i = 1, size(arg_names)
-            kernel_spec%args(i) = str(arg_names(i))
+            kernel_spec%args(i) = str(trim(arg_names(i)))
         end do
         do i = 1, size(output_names)
-            kernel_spec%outputs(i) = str(output_names(i))
+            kernel_spec%outputs(i) = str(trim(output_names(i)))
         end do
 
         open (newunit=unit, file=trim(path), status="replace", action="write", &
@@ -1650,10 +1650,28 @@ contains
             close (unit)
             error stop "fortsym refused generated kernel"
         end if
+        if (maximum_line_length(chars(emitted)) > 132) then
+            close (unit)
+            error stop "fortsym emitted a nonconforming overlong line"
+        end if
         write (unit, "(a)") chars(emitted)
         close (unit)
         write (output_unit, "(a)") "wrote "//trim(path)
     end subroutine emit_kernel_file
+
+    pure integer function maximum_line_length(text) result(maximum_length)
+        character(*), intent(in) :: text
+        integer :: line_start, i
+
+        maximum_length = 0
+        line_start = 1
+        do i = 1, len(text)
+            if (text(i:i) /= new_line('a')) cycle
+            maximum_length = max(maximum_length, i-line_start)
+            line_start = i+1
+        end do
+        maximum_length = max(maximum_length, len(text)-line_start+1)
+    end function maximum_line_length
 
     subroutine emit_certificate_registry(path)
         character(*), intent(in) :: path
