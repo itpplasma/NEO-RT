@@ -8,7 +8,7 @@ program gen_potato_kernels
     !! each have their own generated interface.  Runtime POTATO code owns
     !! domain checks, status, topology partitioning, and error propagation;
     !! Fortsym owns the algebra.
-    use, intrinsic :: iso_fortran_env, only: output_unit
+    use, intrinsic :: iso_fortran_env, only: int64, output_unit
     use fortsym_arena, only: arena_t
     use fortsym_check, only: suite_t, suite_begin, suite_end, check_identity
     use fortsym_diff, only: diff
@@ -175,7 +175,8 @@ program gen_potato_kernels
     thermodynamic_force = sym(arena, 'thermodynamic_force')
     reference_energy = sym(arena, 'reference_energy')
     delta_root_weight = abs(mode_n)*root_jacobian
-    resonance_torque_weight = -pi_expr(arena)**rat(arena,3,2)/4 * &
+    resonance_torque_weight = &
+        -pi_expr(arena)**rat(arena,3_int64,2_int64)/4 * &
         reference_energy*delta_root_weight*orbit_H_m_squared* &
         maxwellian_weight*Phi_eff*bounce_time**2*thermodynamic_force
 
@@ -301,7 +302,8 @@ program gen_potato_kernels
         abs(-mode_n)*root_jacobian - delta_root_weight)
     call check_identity(proofs, proof_engine, &
         'Eq.17 torque weight has the signed leading prefactor', &
-        resonance_torque_weight + pi_expr(arena)**rat(arena,3,2)/4 * &
+        resonance_torque_weight + &
+        pi_expr(arena)**rat(arena,3_int64,2_int64)/4 * &
         reference_energy*delta_root_weight*orbit_H_m_squared* &
             maxwellian_weight*Phi_eff*bounce_time**2*thermodynamic_force)
     call check_identity(proofs, proof_engine, &

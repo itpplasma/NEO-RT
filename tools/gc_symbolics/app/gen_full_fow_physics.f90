@@ -36,7 +36,7 @@ program gen_full_fow_physics
     type(native_engine_t) :: simplify_engine
     type(suite_t) :: proofs
     type(expr_t) :: roots(48), action_roots(11), perturbation_roots(6)
-    type(expr_t) :: resonance_roots(3), eq17_roots(3), cylindrical_roots(22)
+    type(expr_t) :: resonance_roots(3), eq17_roots(2), cylindrical_roots(22)
     type(expr_t) :: noether_roots(4)
     type(expr_t) :: refinement_roots(14), boundary_roots(13), cut_roots(5)
     type(expr_t) :: cutdot_roots(3), section_roots(9), crossing_roots(5)
@@ -46,8 +46,10 @@ program gen_full_fow_physics
     type(expr_t) :: cylindrical_bstar_roots(5)
     type(expr_t) :: physical_mu_roots(3), buchholz_action_roots(2)
     type(expr_t) :: buchholz_energy_roots(3), potato_velocity_roots(2)
-    type(expr_t) :: potato_mu_roots(2), cylindrical_state_roots(3)
+    type(expr_t) :: potato_mu_roots(2), cylindrical_hamiltonian_roots(1)
+    type(expr_t) :: cylindrical_canonical_roots(2)
     type(expr_t) :: cylindrical_launch_roots(3)
+    type(expr_t) :: buchholz_specific_energy_roots(1)
     type(expr_t) :: mass, charge, c_light, mu, bmod, h, electrostatic_potential
     type(expr_t) :: p_phi
     type(expr_t) :: b1, b2, b3, bhat1, bhat2, bhat3
@@ -62,7 +64,7 @@ program gen_full_fow_physics
     type(expr_t) :: resonance_x, resonance_xr, resonance_delta
     type(expr_t) :: g_prime_x, tau_prime_x, g_local, tau_local, f_local
     type(expr_t) :: g_at_root, f_prime_from_series
-    type(expr_t) :: force_bracket, eq17_factor, bstar1, bstar2, bstar3
+    type(expr_t) :: force_bracket, bstar1, bstar2, bstar3
     type(expr_t) :: bparallel_star, force1, force2, force3, cross1, cross2
     type(expr_t) :: cross3, v1, v2, v3, dot_r, dot_z, dot_phi, dot_p
     type(expr_t) :: dot_mu, cylindrical_measure, hamiltonian_dot
@@ -178,6 +180,7 @@ program gen_full_fow_physics
     type(expr_t) :: n_squared_frequency_contribution
     type(expr_t) :: phase_contribution_identity
     type(expr_t) :: e_ref, n0, residence, eq17_outer_factor
+    type(expr_t) :: eq17_outer_unit_phi
     type(expr_t) :: gauge_constant, eq17_outer_shift, eq17_gauge_residual
     type(expr_t) :: gauge_force_shift, gauge_force_residual
     type(expr_t) :: section_root_residual, crossing_orientation_residual
@@ -317,13 +320,13 @@ program gen_full_fow_physics
 
     ! Eq. 17 force bracket and its single outer Phi_eff factor.
     force_bracket = a1 + (h - q_phi_energy)/temperature*a2
-    eq17_factor = phi_eff*force_bracket
     e_ref = sym(arena, "Eref")
     n0 = sym(arena, "n0")
     residence = sym(arena, "residence")
-    eq17_outer_factor = -(pi_expr(arena)**rat(arena,3_int64,2_int64))/4* &
-        e_ref*phi_eff*n0/(temperature/e_ref)**rat(arena,3_int64,2_int64)* &
+    eq17_outer_unit_phi = -(pi_expr(arena)**rat(arena,3_int64,2_int64))/4* &
+        e_ref*n0/(temperature/e_ref)**rat(arena,3_int64,2_int64)* &
         exp((q_phi_energy-h)/temperature)*residence
+    eq17_outer_factor = phi_eff*eq17_outer_unit_phi
     gauge_constant = sym(arena, "gauge_C")
     eq17_outer_shift = -(pi_expr(arena)**rat(arena,3_int64,2_int64))/4* &
         e_ref*phi_eff*n0/(temperature/e_ref)**rat(arena,3_int64,2_int64)* &
@@ -870,8 +873,9 @@ program gen_full_fow_physics
         phase_contribution_positive)
     call check_identity(proofs, proof_engine, "Eq17 force bracket", &
         force_bracket - (a1 + (h - q_phi_energy)/temperature*a2))
-    call check_identity(proofs, proof_engine, "Eq17 has one Phi_eff", &
-        eq17_factor - phi_eff*force_bracket)
+    call check_identity(proofs, proof_engine, &
+        "Eq17 outer factor owns exactly one Phi_eff", &
+        eq17_outer_factor-phi_eff*eq17_outer_unit_phi)
     call check_identity(proofs, proof_engine, &
         "Eq17 outer factor gauge invariance", eq17_gauge_residual)
     call check_identity(proofs, proof_engine, &
@@ -1114,7 +1118,7 @@ program gen_full_fow_physics
         d_jk_d_phi, d_jk_d_omega, eq4_coeff, psi_star, dpsi_dp_phi, &
         q_phi_energy, energy_on_shell, c_on_shell, eta_on_shell, &
         perturbation_ratio, boozer_ratio, f_prime, freq_weight, phase_weight, &
-        force_bracket, eq17_factor, bstar1, bstar2, bstar3, &
+        force_bracket, eq17_outer_factor, bstar1, bstar2, bstar3, &
         bparallel_star, force1, force2, force3, cross1, cross2, cross3, &
         v1, v2, v3, dot_r, dot_z, dot_phi, dot_p, dot_mu, &
         cylindrical_measure, hamiltonian_dot, h_axisymmetric, &
@@ -1186,10 +1190,12 @@ program gen_full_fow_physics
     buchholz_action_roots = [jk_from_mu, mu_from_jk]
     buchholz_energy_roots = [conversion_omega_c, &
         vperp_squared_from_jk, specific_energy_from_jk]
+    buchholz_specific_energy_roots = [conversion_jk*omega_c_var/mass]
     potato_velocity_roots = [jpotato_from_vperp, &
         vperp_squared_from_jpotato]
     potato_mu_roots = [jpotato_from_mu, mu_from_jpotato]
-    cylindrical_state_roots = [invariant_h, invariant_pphi, invariant_psistar]
+    cylindrical_hamiltonian_roots = [invariant_h]
+    cylindrical_canonical_roots = [invariant_pphi, invariant_psistar]
     cylindrical_launch_roots = [invariant_vparallel_squared, &
         invariant_ppar_from_pphi, invariant_launch_residual]
 
@@ -1223,24 +1229,26 @@ program gen_full_fow_physics
     call simplify_array(physical_mu_roots)
     call simplify_array(buchholz_action_roots)
     call simplify_array(buchholz_energy_roots)
+    call simplify_array(buchholz_specific_energy_roots)
     call simplify_array(potato_velocity_roots)
     call simplify_array(potato_mu_roots)
-    call simplify_array(cylindrical_state_roots)
+    call simplify_array(cylindrical_hamiltonian_roots)
+    call simplify_array(cylindrical_canonical_roots)
     call simplify_array(cylindrical_launch_roots)
 
     action_roots = roots(1:11)
     perturbation_roots = roots(12:17)
     resonance_roots = roots(18:20)
-    eq17_roots = [roots(12), roots(21), roots(22)]
+    eq17_roots = [roots(12), roots(21)]
     cylindrical_roots = roots(23:44)
     noether_roots = roots(45:48)
 
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_action_symbolic.f90", &
         "neort_full_fow_action_symbolic", "evaluate_neort_action_normalization", &
-        ["mass", "charge", "c_light", "mu", "bmod", "h", &
+        [character(len=64) :: "mass", "charge", "c_light", "mu", "bmod", "h", &
         "electrostatic_potential", "p_phi", "omega_c_value"], action_roots, &
-        ["j_k", "omega_c", "j_k_omega_c", "j_k_candidate", "j_k_max", &
+        [character(len=64) :: "j_k", "omega_c", "j_k_omega_c", "j_k_candidate", "j_k_max", &
         "d_j_k_candidate_d_h", "d_j_k_candidate_d_potential", &
         "d_j_k_candidate_d_omega_c", "eq4_coefficient", "psi_star", &
         "d_psi_star_d_p_phi"])
@@ -1248,40 +1256,40 @@ program gen_full_fow_physics
         "/neort_full_fow_perturbation_symbolic.f90", &
         "neort_full_fow_perturbation_symbolic", &
         "evaluate_neort_perturbation_coefficient", &
-        ["mass", "charge", "mu", "bmod", "h", &
+        [character(len=64) :: "mass", "charge", "mu", "bmod", "h", &
         "electrostatic_potential", "p_parallel", "temperature"], &
-        perturbation_roots, ["q_phi_energy", "e_on_shell", &
+        perturbation_roots, [character(len=64) :: "q_phi_energy", "e_on_shell", &
         "c_on_shell", "eta_on_shell", "perturbation_ratio", "boozer_ratio"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_resonance_symbolic.f90", &
         "neort_full_fow_resonance_symbolic", &
-        "evaluate_neort_resonance_weights", ["n_mode", "tau", "g_prime"], &
-        resonance_roots, ["frequency_phase_derivative", &
+        "evaluate_neort_resonance_weights", [character(len=64) :: "n_mode", "tau", "g_prime"], &
+        resonance_roots, [character(len=64) :: "frequency_phase_derivative", &
         "frequency_root_weight", "phase_root_weight"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_frequency_contribution_symbolic.f90", &
         "neort_full_fow_frequency_contribution_symbolic", &
         "evaluate_neort_frequency_root_contribution", &
-        ["dpsi_star_dx", "abs_Hm_squared", "tau_b", "n_mode", "g_prime"], &
-        frequency_contribution_roots, ["frequency_root_contribution", &
+        [character(len=64) :: "dpsi_star_dx", "abs_Hm_squared", "tau_b", "n_mode", "g_prime"], &
+        frequency_contribution_roots, [character(len=64) :: "frequency_root_contribution", &
         "phase_root_contribution"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_frequency_identity_symbolic.f90", &
         "neort_full_fow_frequency_identity_symbolic", &
-        "evaluate_neort_frequency_phase_identity", ["dpsi_star_dx", &
+        "evaluate_neort_frequency_phase_identity", [character(len=64) :: "dpsi_star_dx", &
         "abs_Hm_squared", "tau_b", "n_mode", "g_prime"], &
-        frequency_identity_roots, ["n_squared_frequency_contribution", &
+        frequency_identity_roots, [character(len=64) :: "n_squared_frequency_contribution", &
         "phase_contribution_identity"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_sign_symmetry_symbolic.f90", &
         "neort_full_fow_sign_symmetry_symbolic", &
-        "evaluate_neort_sign_symmetry_ledger", ["a_real", "a_imag", &
+        "evaluate_neort_sign_symmetry_ledger", [character(len=64) :: "a_real", "a_imag", &
         "m_mode", "n_mode", "theta", "phi", "amplitude_phase", &
         "dpsi_star_dx", "F_prime", "Cdot", "signed_R_Bparallel_star", &
         "h", "charge", "electrostatic_potential", "temperature", "a1", &
         "a2", "gauge_C", "sign_omega_b", "sign_omega_phi", &
         "sign_torque_phi", "sign_rotation_phi"], sign_symmetry_roots, &
-        ["amplitude_sign_squared_residual", &
+        [character(len=64) :: "amplitude_sign_squared_residual", &
         "amplitude_phase_squared_residual", "real_field_pair_residual", &
         "fixed_mode_conjugation_field_difference", &
         "fixed_mode_conjugation_modulus_residual", &
@@ -1295,105 +1303,116 @@ program gen_full_fow_physics
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_normalization_symbolic.f90", &
         "neort_full_fow_normalization_symbolic", &
-        "evaluate_neort_full_fow_normalization", ["mass", "charge", &
+        "evaluate_neort_full_fow_normalization", [character(len=64) :: "mass", "charge", &
         "c_light", "Eref", "reference_velocity", "h", "J_K_physical", &
         "psi_star_physical", "dpsi_star_dx_physical", "tau_b_physical", &
         "omega_b_physical", "omega_phi_physical", &
         "domega_b_dx_physical", "domega_phi_dx_physical", &
         "Hm_real_physical", "Hm_imag_physical"], normalization_roots, &
-        ["Phi_eff", "J_K_scale", "H_hat", "J_K_hat", "psi_star_hat", &
+        [character(len=64) :: "Phi_eff", "J_K_scale", "H_hat", "J_K_hat", "psi_star_hat", &
         "dpsi_star_hat_dx", "tau_b_hat", "omega_b_hat", "omega_phi_hat", &
         "domega_b_hat_dx", "domega_phi_hat_dx", "Hm_real_hat", &
         "Hm_imag_hat"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_quadrature_map_symbolic.f90", &
         "neort_full_fow_quadrature_map_symbolic", &
-        "evaluate_neort_full_fow_quadrature_map", ["mass", "charge", &
+        "evaluate_neort_full_fow_quadrature_map", [character(len=64) :: "mass", "charge", &
         "c_light", "Eref", "energy_unit_node", "energy_unit_weight", &
         "action_unit_node", "action_unit_weight", "qPhi_min", &
-        "J_K_max_physical"], quadrature_map_roots, ["H_hat", "H_physical", &
+        "J_K_max_physical"], quadrature_map_roots, [character(len=64) :: "H_hat", "H_physical", &
         "energy_normalized_weight", "J_K_hat_max", "J_K_hat", &
         "J_K_physical", "action_normalized_weight", "paired_weight"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_polynomial_cell_enclosure_symbolic.f90", &
         "neort_polynomial_cell_enclosure_symbolic", &
-        "evaluate_neort_polynomial_cell_enclosure", ["coefficient_0", &
+        "evaluate_neort_polynomial_cell_enclosure", [character(len=64) :: "coefficient_0", &
         "coefficient_1", "coefficient_2", "coefficient_3", &
         "coefficient_4", "coefficient_5", "cell_width"], &
-        polynomial_enclosure_roots, ["tail_absolute_bound", &
+        polynomial_enclosure_roots, [character(len=64) :: "tail_absolute_bound", &
         "polynomial_lower_bound", "polynomial_upper_bound"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_bstar_symbolic.f90", &
         "neort_cylindrical_bstar_symbolic", &
-        "evaluate_neort_cylindrical_bstar", ["charge", "c_light", &
+        "evaluate_neort_cylindrical_bstar", [character(len=64) :: "charge", "c_light", &
         "radius", "p_parallel", "b1", "b2", "b3", "bhat1", "bhat2", &
         "bhat3", "curl_bhat1", "curl_bhat2", "curl_bhat3"], &
-        cylindrical_bstar_roots, ["b_star_1", "b_star_2", "b_star_3", &
+        cylindrical_bstar_roots, [character(len=64) :: "b_star_1", "b_star_2", "b_star_3", &
         "b_parallel_star", "cylindrical_measure"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_physical_mu_symbolic.f90", "neort_physical_mu_symbolic", &
-        "evaluate_neort_physical_mu", ["v_perp", "mass", "bmod", &
-        "mu_phys"], physical_mu_roots, ["mu_phys_from_v_perp", &
+        "evaluate_neort_physical_mu", [character(len=64) :: "v_perp", "mass", "bmod", &
+        "mu_phys"], physical_mu_roots, [character(len=64) :: "mu_phys_from_v_perp", &
         "v_perp_squared_from_mu_phys", "specific_energy_from_mu_phys"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_buchholz_action_symbolic.f90", &
         "neort_buchholz_action_symbolic", "evaluate_neort_buchholz_action", &
-        ["mu_phys", "J_K", "mass", "charge", "c_light"], &
-        buchholz_action_roots, ["J_K_from_mu_phys", "mu_phys_from_J_K"])
+        [character(len=64) :: "mu_phys", "J_K", "mass", "charge", "c_light"], &
+        buchholz_action_roots, [character(len=64) :: "J_K_from_mu_phys", "mu_phys_from_J_K"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_buchholz_energy_symbolic.f90", &
         "neort_buchholz_energy_symbolic", "evaluate_neort_buchholz_energy", &
-        ["J_K", "mass", "charge", "c_light", "bmod"], &
-        buchholz_energy_roots, ["omega_c", "v_perp_squared_from_J_K", &
+        [character(len=64) :: "J_K", "mass", "charge", "c_light", "bmod"], &
+        buchholz_energy_roots, [character(len=64) :: "omega_c", "v_perp_squared_from_J_K", &
         "specific_energy_from_J_K"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_buchholz_specific_energy_symbolic.f90", &
+        "neort_buchholz_specific_energy_symbolic", &
+        "evaluate_neort_buchholz_specific_energy", [character(len=64) :: "J_K", &
+        "omega_c_value", "mass"], buchholz_specific_energy_roots, &
+        [character(len=64) :: "specific_energy_from_J_K"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_potato_velocity_symbolic.f90", &
         "neort_potato_velocity_symbolic", "evaluate_neort_potato_velocity", &
-        ["v_perp", "J_potato", "reference_velocity", "bmod"], &
-        potato_velocity_roots, ["J_potato_from_v_perp", &
+        [character(len=64) :: "v_perp", "J_potato", "reference_velocity", "bmod"], &
+        potato_velocity_roots, [character(len=64) :: "J_potato_from_v_perp", &
         "v_perp_squared_from_J_potato"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_potato_mu_symbolic.f90", "neort_potato_mu_symbolic", &
-        "evaluate_neort_potato_mu", ["mu_phys", "J_potato", "mass", &
+        "evaluate_neort_potato_mu", [character(len=64) :: "mu_phys", "J_potato", "mass", &
         "reference_velocity"], potato_mu_roots, &
-        ["J_potato_from_mu_phys", "mu_phys_from_J_potato"])
+        [character(len=64) :: "J_potato_from_mu_phys", "mu_phys_from_J_potato"])
     call emit_kernel_file(trim(output_path)// &
-        "/neort_cylindrical_state_invariant_symbolic.f90", &
-        "neort_cylindrical_state_invariant_symbolic", &
-        "evaluate_neort_cylindrical_state_invariants", ["mass", "charge", &
-        "c_light", "mu", "bmod", "electrostatic_potential", "radius", &
-        "p_parallel", "psi", "bhat_phi"], cylindrical_state_roots, &
-        ["hamiltonian", "canonical_p_phi", "psi_star"])
+        "/neort_cylindrical_hamiltonian_symbolic.f90", &
+        "neort_cylindrical_hamiltonian_symbolic", &
+        "evaluate_neort_cylindrical_hamiltonian", [character(len=64) :: "mass", "charge", &
+        "mu", "bmod", "electrostatic_potential", "p_parallel"], &
+        cylindrical_hamiltonian_roots, [character(len=64) :: "hamiltonian"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_cylindrical_canonical_symbolic.f90", &
+        "neort_cylindrical_canonical_symbolic", &
+        "evaluate_neort_cylindrical_canonical", [character(len=64) :: "charge", "c_light", &
+        "radius", "p_parallel", "psi", "bhat_phi"], &
+        cylindrical_canonical_roots, [character(len=64) :: "canonical_p_phi", "psi_star"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_launch_symbolic.f90", &
         "neort_cylindrical_launch_symbolic", &
-        "evaluate_neort_cylindrical_launch", ["mass", "charge", &
+        "evaluate_neort_cylindrical_launch", [character(len=64) :: "mass", "charge", &
         "c_light", "mu", "bmod", "electrostatic_potential", "radius", &
         "psi", "bhat_phi", "h", "p_phi"], cylindrical_launch_roots, &
-        ["v_parallel_squared", "p_parallel_from_p_phi", &
+        [character(len=64) :: "v_parallel_squared", "p_parallel_from_p_phi", &
         "launch_energy_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_eq17_symbolic.f90", "neort_full_fow_eq17_symbolic", &
-        "evaluate_neort_eq17_force", ["h", "charge", &
-        "electrostatic_potential", "temperature", "a1", "a2", "phi_eff"], &
+        "evaluate_neort_eq17_force", [character(len=64) :: "h", "charge", &
+        "electrostatic_potential", "temperature", "a1", "a2"], &
         eq17_roots, &
-        ["q_phi_energy", "force_bracket", "eq17_factor"])
+        [character(len=64) :: "q_phi_energy", "force_bracket"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_eq17_outer_symbolic.f90", &
         "neort_full_fow_eq17_outer_symbolic", &
-        "evaluate_neort_eq17_outer_factor", ["Eref", "Phi_eff", "n0", &
+        "evaluate_neort_eq17_outer_factor", [character(len=64) :: "Eref", "Phi_eff", "n0", &
         "temperature", "charge", "electrostatic_potential", "h", &
-        "residence", "c_light"], eq17_outer_roots, ["eq17_outer_factor"])
+        "residence"], eq17_outer_roots, [character(len=64) :: "eq17_outer_factor"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_littlejohn_symbolic.f90", &
         "neort_cylindrical_littlejohn_symbolic", &
         "evaluate_neort_cylindrical_littlejohn", &
-        ["mass", "charge", "c_light", "mu", "bmod", &
+        [character(len=64) :: "mass", "charge", "c_light", "mu", "bmod", &
         "electrostatic_potential", "radius", "p_parallel", "psi", "b1", &
         "b2", "b3", "bhat1", "bhat2", "bhat3", "curl_bhat1", &
         "curl_bhat2", "curl_bhat3", "grad_b1", "grad_b2", "grad_b3", &
         "grad_phi1", "grad_phi2", "grad_phi3"], cylindrical_roots, &
-        ["b_star_1", "b_star_2", "b_star_3", "b_parallel_star", "force_1", &
+        [character(len=64) :: "b_star_1", "b_star_2", "b_star_3", "b_parallel_star", "force_1", &
         "force_2", "force_3", "cross_1", "cross_2", "cross_3", "v_r", &
         "v_phi", "v_z", "dot_r", "dot_z", "dot_phi", "dot_p_parallel", &
         "dot_mu", "cylindrical_measure", "d_hamiltonian_dt", &
@@ -1401,43 +1420,43 @@ program gen_full_fow_physics
     call emit_kernel_file(trim(output_path)// &
         "/neort_axisymmetric_pphi_symbolic.f90", &
         "neort_axisymmetric_pphi_symbolic", &
-        "evaluate_neort_axisymmetric_p_phi", ["mass", "charge", "c_light", &
+        "evaluate_neort_axisymmetric_p_phi", [character(len=64) :: "mass", "charge", "c_light", &
         "mu", "radius", "p_parallel", "psi_axis", "Bmod_axis", &
         "bhat_R_axis", "bhat_phi_axis", "bhat_Z_axis", &
         "curl_bhat_phi_axis", "d_bhat_phi_d_R_axis", &
         "d_bhat_phi_d_Z_axis", "grad_b_R_axis", "grad_b_Z_axis", &
         "Phi_psi_axis"], &
-        axisymmetric_pphi_roots, ["canonical_p_phi", &
+        axisymmetric_pphi_roots, [character(len=64) :: "canonical_p_phi", &
         "d_canonical_p_phi_dt", "p_phi_dot_minus_zero"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_axisymmetric_noether_symbolic.f90", &
         "neort_axisymmetric_noether_symbolic", &
-        "evaluate_neort_axisymmetric_noether", ["charge", "c_light", "psi", &
+        "evaluate_neort_axisymmetric_noether", [character(len=64) :: "charge", "c_light", "psi", &
         "b_phi_cov", "p_parallel", "h", "phi_dot"], noether_roots, &
-        ["canonical_p_phi", "d_canonical_p_phi_dt_from_noether", &
+        [character(len=64) :: "canonical_p_phi", "d_canonical_p_phi_dt_from_noether", &
         "d_lagrangian_d_phi_dot", "canonical_p_phi_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_refinement_symbolic.f90", &
         "neort_full_fow_refinement_symbolic", &
         "evaluate_neort_full_fow_refinement_scales", &
-        ["state_R", "state_Z", "state_phi", "state_p_parallel", "state_mu", &
+        [character(len=64) :: "state_R", "state_Z", "state_phi", "state_p_parallel", "state_mu", &
         "tau_observable", "omega_b_observable", "omega_phi_observable", &
         "Hm_real", "Hm_imag", "root_derivative", "torque_density", "torque", &
         "R_ref", "Z_ref", "phi_ref", "p_parallel_ref", "mu_ref", "tau_ref", &
         "omega_b_ref", "omega_phi_ref", "Hm_real_ref", "Hm_imag_ref", &
         "Hm_squared_ref", "root_derivative_ref", "torque_density_ref", &
         "torque_ref"], refinement_roots, &
-        ["scale_R", "scale_Z", "scale_phi", "scale_p_parallel", "scale_mu", &
+        [character(len=64) :: "scale_R", "scale_Z", "scale_phi", "scale_p_parallel", "scale_mu", &
         "scale_tau", "scale_omega_b", "scale_omega_phi", "scale_Hm_real", &
         "scale_Hm_imag", "scale_Hm_squared", "scale_root_derivative", &
         "scale_torque_density", "scale_torque"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_buchholz_boundary_symbolic.f90", &
         "neort_buchholz_boundary_symbolic", &
-        "evaluate_neort_buchholz_boundary_limits", ["boundary_distance", &
+        "evaluate_neort_buchholz_boundary_limits", [character(len=64) :: "boundary_distance", &
         "boundary_reference_scale", "regular_coefficient", "reflecting_coefficient", &
         "lambda_positive"], boundary_roots, &
-        ["C_tau", "regular_form", "reflecting_sqrt_form", &
+        [character(len=64) :: "C_tau", "regular_form", "reflecting_sqrt_form", &
         "reflecting_derivative_form", "separatrix_log_form", &
         "separatrix_positive_tau_form", "xpoint_log_form", &
         "xpoint_positive_tau_form", &
@@ -1447,31 +1466,31 @@ program gen_full_fow_physics
         "xpoint_pair_coefficient_residual", "xpoint_pair_tau_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_buchholz_cut_symbolic.f90", "neort_buchholz_cut_symbolic", &
-        "evaluate_neort_buchholz_cut", ["grad_b1", "grad_b2", "grad_b3", &
+        "evaluate_neort_buchholz_cut", [character(len=64) :: "grad_b1", "grad_b2", "grad_b3", &
         "grad_psi1", "grad_psi2", "grad_psi3", "grad_phi_coordinate1", &
         "grad_phi_coordinate2", "grad_phi_coordinate3"], cut_roots, &
-        ["cut_cross_1", "cut_cross_2", "cut_cross_3", "cut_C", &
+        [character(len=64) :: "cut_cross_1", "cut_cross_2", "cut_cross_3", "cut_C", &
         "cut_identity_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_buchholz_cdot_symbolic.f90", "neort_buchholz_cdot_symbolic", &
-        "evaluate_neort_buchholz_cdot", ["d_cut_C_d_R", &
+        "evaluate_neort_buchholz_cdot", [character(len=64) :: "d_cut_C_d_R", &
         "d_cut_C_d_arc_phi", "d_cut_C_d_Z", "dot_cut_R", &
         "dot_cut_arc_phi", "dot_cut_Z"], cutdot_roots, &
-        ["cut_Cdot", "transversality_scalar", "orientation_scalar"])
+        [character(len=64) :: "cut_Cdot", "transversality_scalar", "orientation_scalar"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_crossing_symbolic.f90", &
         "neort_cylindrical_crossing_symbolic", &
         "evaluate_neort_cylindrical_crossing_density", &
-        ["R_Bparallel_star", "Cdot"], crossing_roots, &
-        ["signed_R_Bparallel_star", "signed_crossing_density", &
+        [character(len=64) :: "R_Bparallel_star", "Cdot"], crossing_roots, &
+        [character(len=64) :: "signed_R_Bparallel_star", "signed_crossing_density", &
         "absolute_R_Bparallel_star", "absolute_Cdot", &
         "positive_phase_space_crossing_density"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_section_reversal_symbolic.f90", &
         "neort_full_fow_section_reversal_symbolic", &
-        "evaluate_neort_section_reversal", ["dpsi_star_dx", "F_prime", &
+        "evaluate_neort_section_reversal", [character(len=64) :: "dpsi_star_dx", "F_prime", &
         "Cdot", "signed_R_Bparallel_star", "period", "frequency"], &
-        section_roots, ["dpsi_star_dx_reversed", "F_prime_reversed", &
+        section_roots, [character(len=64) :: "dpsi_star_dx_reversed", "F_prime_reversed", &
         "Cdot_reversed", "absolute_root_weight", &
         "absolute_root_weight_reversed", "positive_crossing_density", &
         "positive_crossing_density_reversed", "period_reversed", &
@@ -1479,11 +1498,11 @@ program gen_full_fow_physics
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_geometry_symbolic.f90", &
         "neort_cylindrical_geometry_symbolic", &
-        "evaluate_neort_cylindrical_geometry", ["radius", "b_R", &
+        "evaluate_neort_cylindrical_geometry", [character(len=64) :: "radius", "b_R", &
         "b_phi", "b_Z", "d_b_R_d_R", "d_b_phi_d_R", "d_b_Z_d_R", &
         "d_b_R_d_arc_phi", "d_b_phi_d_arc_phi", "d_b_Z_d_arc_phi", &
         "d_b_R_d_Z", "d_b_phi_d_Z", "d_b_Z_d_Z"], geometry_roots, &
-        ["bmod", "bhat_R", "bhat_phi", "bhat_Z", "grad_b_R", &
+        [character(len=64) :: "bmod", "bhat_R", "bhat_phi", "bhat_Z", "grad_b_R", &
         "grad_b_arc_phi", "grad_b_Z", "dbhat_R_dR", "dbhat_phi_dR", &
         "dbhat_Z_dR", "dbhat_R_darc_phi", "dbhat_phi_darc_phi", &
         "dbhat_Z_darc_phi", "dbhat_R_dZ", "dbhat_phi_dZ", "dbhat_Z_dZ", &
@@ -1491,26 +1510,26 @@ program gen_full_fow_physics
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_bilinear_complex_symbolic.f90", &
         "neort_cylindrical_bilinear_complex_symbolic", &
-        "evaluate_neort_cylindrical_bilinear_complex", ["u", "v", &
+        "evaluate_neort_cylindrical_bilinear_complex", [character(len=64) :: "u", "v", &
         "value_real_00", "value_imag_00", "value_real_10", "value_imag_10", &
         "value_real_01", "value_imag_01", "value_real_11", "value_imag_11"], &
-        interpolation_roots, ["weight_00", "weight_10", "weight_01", &
+        interpolation_roots, [character(len=64) :: "weight_00", "weight_10", "weight_01", &
         "weight_11", "value_real", "value_imag", &
         "partition_of_unity_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_profile_endpoint_symbolic.f90", &
         "neort_profile_endpoint_symbolic", &
-        "evaluate_neort_profile_endpoints", ["s0", "s1", "f0", "f1", &
-        "rho"], endpoint_roots, ["endpoint_value_s0", "endpoint_value_s1", &
+        "evaluate_neort_profile_endpoints", [character(len=64) :: "s0", "s1", "f0", "f1", &
+        "rho"], endpoint_roots, [character(len=64) :: "endpoint_value_s0", "endpoint_value_s1", &
         "endpoint_derivative_s0", "endpoint_derivative_s1", "affine_slope", &
         "affine_intercept", "df_drho", "axis_regular_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_profile_potential_segment_symbolic.f90", &
         "neort_profile_potential_segment_symbolic", &
-        "evaluate_neort_profile_potential_segment", ["psi0", "psi1", &
+        "evaluate_neort_profile_potential_segment", [character(len=64) :: "psi0", "psi1", &
         "Omega_E0", "Omega_E1", "Omega_E_constant", "c_light"], &
         profile_potential_roots, &
-        ["delta_Phi", "delta_Phi_reversed", "delta_Phi_constant_limit"])
+        [character(len=64) :: "delta_Phi", "delta_Phi_reversed", "delta_Phi_constant_limit"])
     call emit_certificate_registry(trim(output_path)// &
         "/neort_generated_certificate_registry.f90")
 
