@@ -137,7 +137,7 @@ program gen_full_fow_physics
     type(expr_t) :: geom_dbr_darc_phi, geom_dbphi_darc_phi
     type(expr_t) :: geom_dbz_darc_phi, geom_dbr_dz, geom_dbphi_dz
     type(expr_t) :: geom_dbz_dz
-    type(expr_t) :: interpolation_roots(7), endpoint_roots(8)
+    type(expr_t) :: interpolation_roots(9), endpoint_roots(8)
     type(expr_t) :: profile_potential_roots(3)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
@@ -150,6 +150,11 @@ program gen_full_fow_physics
     type(expr_t) :: interp_partition_residual
     type(expr_t) :: interp_corner00, interp_corner10, interp_corner01
     type(expr_t) :: interp_corner11
+    type(expr_t) :: interp_r, interp_z, interp_r0, interp_r1
+    type(expr_t) :: interp_z0, interp_z1
+    type(expr_t) :: interp_amplitude_scale
+    type(expr_t) :: interp_u0_residual, interp_u1_residual
+    type(expr_t) :: interp_v0_residual, interp_v1_residual
     type(expr_t) :: endpoint_s0, endpoint_s1, endpoint_f0, endpoint_f1
     type(expr_t) :: endpoint_slope, endpoint_intercept
     type(expr_t) :: endpoint_value_zero, endpoint_value_one
@@ -742,9 +747,21 @@ program gen_full_fow_physics
     call build_cylindrical_geometry(oracle_b, oracle_d_b, geom_radius, &
         oracle_bmod, oracle_bhat, oracle_grad_b, oracle_dbhat, oracle_curl)
 
-    ! Complex bilinear interpolation on a normalized (u,v) R-Z cell.
-    interp_u = sym(arena, "u")
-    interp_v = sym(arena, "v")
+    ! Complex bilinear interpolation on a physical R-Z cell.  The generated
+    ! kernel owns both coordinate normalization and corner weights.
+    interp_r = sym(arena, "coordinate_R")
+    interp_z = sym(arena, "coordinate_Z")
+    interp_r0 = sym(arena, "cell_R0")
+    interp_r1 = sym(arena, "cell_R1")
+    interp_z0 = sym(arena, "cell_Z0")
+    interp_z1 = sym(arena, "cell_Z1")
+    interp_amplitude_scale = sym(arena, "amplitude_scale")
+    interp_u = (interp_r-interp_r0)/(interp_r1-interp_r0)
+    interp_v = (interp_z-interp_z0)/(interp_z1-interp_z0)
+    interp_u0_residual = (interp_r0-interp_r0)/(interp_r1-interp_r0)
+    interp_u1_residual = (interp_r1-interp_r0)/(interp_r1-interp_r0)-1
+    interp_v0_residual = (interp_z0-interp_z0)/(interp_z1-interp_z0)
+    interp_v1_residual = (interp_z1-interp_z0)/(interp_z1-interp_z0)-1
     interp_w00 = (1-interp_u)*(1-interp_v)
     interp_w10 = interp_u*(1-interp_v)
     interp_w01 = (1-interp_u)*interp_v
@@ -757,10 +774,10 @@ program gen_full_fow_physics
     interp_i10 = sym(arena, "value_imag_10")
     interp_i01 = sym(arena, "value_imag_01")
     interp_i11 = sym(arena, "value_imag_11")
-    interp_value_real = interp_w00*interp_r00 + interp_w10*interp_r10 + &
-        interp_w01*interp_r01 + interp_w11*interp_r11
-    interp_value_imag = interp_w00*interp_i00 + interp_w10*interp_i10 + &
-        interp_w01*interp_i01 + interp_w11*interp_i11
+    interp_value_real = interp_amplitude_scale*(interp_w00*interp_r00 + &
+        interp_w10*interp_r10 + interp_w01*interp_r01 + interp_w11*interp_r11)
+    interp_value_imag = interp_amplitude_scale*(interp_w00*interp_i00 + &
+        interp_w10*interp_i10 + interp_w01*interp_i01 + interp_w11*interp_i11)
     interp_partition_residual = interp_w00 + interp_w10 + interp_w01 + &
         interp_w11 - 1
     interp_corner00 = (1-zero)*(1-zero)*interp_r00 + zero*(1-zero)* &
@@ -1072,6 +1089,14 @@ program gen_full_fow_physics
         crossing_positive_density - crossing_abs_measure*crossing_abs_cdot)
     call check_identity(proofs, proof_engine, "bilinear partition of unity", &
         interp_partition_residual)
+    call check_identity(proofs, proof_engine, "bilinear physical R lower corner", &
+        interp_u0_residual)
+    call check_identity(proofs, proof_engine, "bilinear physical R upper corner", &
+        interp_u1_residual)
+    call check_identity(proofs, proof_engine, "bilinear physical Z lower corner", &
+        interp_v0_residual)
+    call check_identity(proofs, proof_engine, "bilinear physical Z upper corner", &
+        interp_v1_residual)
     call check_identity(proofs, proof_engine, "bilinear corner (0,0) reproduction", &
         interp_corner00)
     call check_identity(proofs, proof_engine, "bilinear corner (1,0) reproduction", &
@@ -1160,8 +1185,9 @@ program gen_full_fow_physics
     geometry_roots(15) = geom_dbhat(2,3)
     geometry_roots(16) = geom_dbhat(3,3)
     geometry_roots(17:19) = geom_curl
-    interpolation_roots = [interp_w00, interp_w10, interp_w01, interp_w11, &
-        interp_value_real, interp_value_imag, interp_partition_residual]
+    interpolation_roots = [interp_u, interp_v, interp_w00, interp_w10, &
+        interp_w01, interp_w11, interp_value_real, interp_value_imag, &
+        interp_partition_residual]
     endpoint_roots = [endpoint_value_zero, endpoint_value_one, &
         endpoint_derivative_zero, endpoint_derivative_one, endpoint_slope, &
         endpoint_intercept, endpoint_dfd_rho, endpoint_axis_residual]
@@ -1525,11 +1551,14 @@ program gen_full_fow_physics
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_bilinear_complex_symbolic.f90", &
         "neort_cylindrical_bilinear_complex_symbolic", &
-        "evaluate_neort_cylindrical_bilinear_complex", [character(len=64) :: "u", "v", &
-        "value_real_00", "value_imag_00", "value_real_10", "value_imag_10", &
+        "evaluate_neort_cylindrical_bilinear_complex", &
+        [character(len=64) :: "coordinate_R", "coordinate_Z", "cell_R0", &
+        "cell_R1", "cell_Z0", "cell_Z1", "amplitude_scale", "value_real_00", &
+        "value_imag_00", "value_real_10", "value_imag_10", &
         "value_real_01", "value_imag_01", "value_real_11", "value_imag_11"], &
-        interpolation_roots, [character(len=64) :: "weight_00", "weight_10", "weight_01", &
-        "weight_11", "value_real", "value_imag", &
+        interpolation_roots, [character(len=64) :: "unit_R", "unit_Z", &
+        "weight_00", "weight_10", "weight_01", "weight_11", &
+        "value_real", "value_imag", &
         "partition_of_unity_residual"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_profile_endpoint_symbolic.f90", &
@@ -1697,7 +1726,7 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eq13_cdot:3:fortsym-58a0e06', &"
         write (unit, "(a)") "        'neort-cert-v1:boundary_limits:13:fortsym-58a0e06', &"
         write (unit, "(a)") "        'neort-cert-v1:root_enclosures:3:fortsym-58a0e06', &"
-        write (unit, "(a)") "        'neort-cert-v1:interpolation:7:fortsym-58a0e06', &"
+        write (unit, "(a)") "        'neort-cert-v1:interpolation:9:fortsym-58a0e06', &"
         write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-58a0e06', &"
         write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-58a0e06' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
