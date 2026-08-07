@@ -1,5 +1,6 @@
 module gc_cylindrical_transport_provider_test_support
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_launch_t, &
@@ -28,7 +29,7 @@ module gc_cylindrical_transport_provider_test_support
     real(dp), parameter, public :: JPERP_REFERENCE = 0.5_dp
     real(dp), parameter, public :: PI = 3.14159265358979323846264338328_dp
 
-    type, public :: transport_test_state_t
+    type, public, extends(gc_callback_context_t) :: transport_test_state_t
         real(dp) :: width = 1.0_dp
         logical :: omit_splitter = .false.
         logical :: wall_mode = .false.
@@ -91,7 +92,7 @@ contains
 
     subroutine transport_cut_map(rc, user_data, position, dposition_drc, status)
         real(dp), intent(in) :: rc
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: position(3), dposition_drc(3)
         integer, intent(out) :: status
 
@@ -107,7 +108,7 @@ contains
         real(dp), intent(in) :: h0, jperp
         integer, intent(in) :: sigma
         type(gc_cylindrical_class_interval_t), intent(in) :: candidate
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
             split_classes(:)
         logical, intent(out) :: certified
@@ -141,7 +142,7 @@ contains
     subroutine transport_node_factory(h0, jperp, user_data, adapter, context, &
             status)
         real(dp), intent(in) :: h0, jperp
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_class_adapter_t), intent(out) :: adapter
         type(gc_cylindrical_nonlocal_context_t), intent(out) :: context
         integer, intent(out) :: status
@@ -182,7 +183,7 @@ contains
 
     subroutine transport_components(h0, jperp, user_data, components, status)
         real(dp), intent(in) :: h0, jperp
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_nonlocal_component_t), allocatable, intent(out) :: components(:)
         integer, intent(out) :: status
 
@@ -209,7 +210,7 @@ contains
             orbit, status)
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_nonlocal_orbit_t), intent(out) :: orbit
         integer, intent(out) :: status
 
@@ -286,7 +287,7 @@ contains
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id, harmonic_m, harmonic_n
         type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         complex(dp), intent(out) :: h_m
         integer, intent(out) :: status
 
@@ -309,7 +310,7 @@ contains
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
         type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: force(:)
         integer, intent(out) :: status
 
@@ -330,7 +331,7 @@ contains
         integer, intent(in) :: sigma, component_id
         type(gc_cylindrical_class_launch_t), intent(in) :: launch
         type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: outer_factor
         integer, intent(out) :: status
 

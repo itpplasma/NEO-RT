@@ -1,5 +1,6 @@
 program test_gc_cylindrical_nonlocal_provider
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_nonlocal_resonance_types, only: &
         GC_NONLOCAL_SAMPLE_UNRESOLVED, GC_NONLOCAL_SAMPLE_VALID, &
         GC_NONLOCAL_SAMPLE_WALL, gc_nonlocal_component_t, &
@@ -32,7 +33,7 @@ program test_gc_cylindrical_nonlocal_provider
     real(dp), parameter :: X_ROOT = 0.2_dp
     real(dp), parameter :: TWO_PI = 6.28318530717958647692528676656_dp
 
-    type :: manufactured_data_t
+    type, extends(gc_callback_context_t) :: manufactured_data_t
         real(dp) :: expected_h0 = H0_REFERENCE
         real(dp) :: expected_jperp = JPERP_REFERENCE
         real(dp) :: expected_reference(3) = SECTION_REFERENCE
@@ -314,7 +315,7 @@ contains
 
     subroutine manufactured_components(h0, jperp, user_data, components, status)
         real(dp), intent(in) :: h0, jperp
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_nonlocal_component_t), allocatable, intent(out) :: components(:)
         integer, intent(out) :: status
 
@@ -340,7 +341,7 @@ contains
             orbit, status)
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_nonlocal_orbit_t), intent(out) :: orbit
         integer, intent(out) :: status
 
@@ -365,7 +366,7 @@ contains
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id, harmonic_m, harmonic_n
         type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         complex(dp), intent(out) :: h_m
         integer, intent(out) :: status
 
@@ -393,7 +394,7 @@ contains
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
         type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: force(:)
         integer, intent(out) :: status
 
@@ -419,7 +420,7 @@ contains
     subroutine manufactured_conversion(p_phi, dp_phi_dx, user_data, psi_star, &
             dpsi_star_dx, units, certified, status)
         real(dp), intent(in) :: p_phi, dp_phi_dx
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: psi_star, dpsi_star_dx
         character(len=*), intent(out) :: units
         logical, intent(out) :: certified

@@ -20,6 +20,7 @@ module neort_gc_cylindrical_transport_provider
     !! resonance layers respectively.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_launch_t, &
@@ -60,10 +61,11 @@ module neort_gc_cylindrical_transport_provider
     abstract interface
         subroutine gc_cylindrical_transport_node_factory_i(h0, jperp, &
                 user_data, adapter, context, status)
-            import :: dp, gc_cylindrical_class_adapter_t, &
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_class_adapter_t, &
                 gc_cylindrical_nonlocal_context_t
             real(dp), intent(in) :: h0, jperp
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             type(gc_cylindrical_class_adapter_t), intent(out) :: adapter
             type(gc_cylindrical_nonlocal_context_t), intent(out) :: context
             integer, intent(out) :: status
@@ -72,46 +74,51 @@ module neort_gc_cylindrical_transport_provider
         subroutine gc_cylindrical_transport_outer_factor_i(reference, h0, &
                 jperp, x, sigma, component_id, launch, sample, user_data, &
                 outer_factor, status)
-            import :: dp, gc_cylindrical_class_launch_t, &
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_class_launch_t, &
                 gc_nonlocal_orbit_sample_t, gc_nonlocal_transport_reference_t
             type(gc_nonlocal_transport_reference_t), intent(in) :: reference
             real(dp), intent(in) :: h0, jperp, x
             integer, intent(in) :: sigma, component_id
             type(gc_cylindrical_class_launch_t), intent(in) :: launch
             type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             real(dp), intent(out) :: outer_factor
             integer, intent(out) :: status
         end subroutine gc_cylindrical_transport_outer_factor_i
 
         subroutine gc_cylindrical_transport_quadrature_builder_i(h0_order, &
                 jk_order, user_data, quadrature, status)
-            import :: gc_nonlocal_transport_quadrature_t
+            import :: gc_callback_context_t, &
+                gc_nonlocal_transport_quadrature_t
             integer, intent(in) :: h0_order, jk_order
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             type(gc_nonlocal_transport_quadrature_t), intent(out) :: quadrature
             integer, intent(out) :: status
         end subroutine gc_cylindrical_transport_quadrature_builder_i
 
         subroutine gc_cylindrical_transport_class_kind_i(reference, h0, jperp, &
                 x, sigma, component_id, user_data, class_kind, status)
-            import :: dp, gc_nonlocal_transport_reference_t
+            import :: dp, gc_callback_context_t, &
+                gc_nonlocal_transport_reference_t
             type(gc_nonlocal_transport_reference_t), intent(in) :: reference
             real(dp), intent(in) :: h0, jperp, x
             integer, intent(in) :: sigma, component_id
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             integer, intent(out) :: class_kind, status
         end subroutine gc_cylindrical_transport_class_kind_i
 
         subroutine gc_cylindrical_transport_reset_i(user_data, status)
-            class(*), pointer, intent(inout) :: user_data
+            import :: gc_callback_context_t
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             integer, intent(out) :: status
         end subroutine gc_cylindrical_transport_reset_i
 
         subroutine gc_cylindrical_transport_evidence_i(user_data, evidence, &
                 status)
-            import :: gc_nonlocal_transport_observed_evidence_t
-            class(*), pointer, intent(inout) :: user_data
+            import :: gc_callback_context_t, &
+                gc_nonlocal_transport_observed_evidence_t
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             type(gc_nonlocal_transport_observed_evidence_t), intent(out) :: &
                 evidence
             integer, intent(out) :: status
@@ -140,7 +147,7 @@ module neort_gc_cylindrical_transport_provider
             reset_callback => null()
         procedure(gc_cylindrical_transport_evidence_i), pointer, nopass :: &
             evidence_callback => null()
-        class(*), pointer :: user_data => null()
+        class(gc_callback_context_t), pointer :: user_data => null()
         logical :: initialized = .false.
         logical :: node_ready = .false.
         real(dp) :: node_h0 = 0.0_dp
@@ -205,7 +212,7 @@ contains
         procedure(gc_cylindrical_transport_evidence_i), optional :: &
             evidence_callback
         integer, intent(out) :: status
-        class(*), target, intent(inout), optional :: user_data
+        class(gc_callback_context_t), target, intent(inout), optional :: user_data
         character(len=*), intent(in), optional :: section_reference_id
 
         provider%harmonic_m = 0
@@ -973,7 +980,7 @@ contains
         type(gc_nonlocal_transport_reference_t), intent(in) :: reference
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         integer, intent(out) :: class_kind, status
 
         associate (unused_reference => reference, unused_h0 => h0, &
@@ -986,7 +993,7 @@ contains
     end subroutine default_class_kind
 
     subroutine default_reset(user_data, status)
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         integer, intent(out) :: status
 
         associate (unused_user => user_data)
@@ -995,7 +1002,7 @@ contains
     end subroutine default_reset
 
     subroutine default_evidence(user_data, evidence, status)
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_nonlocal_transport_observed_evidence_t), intent(out) :: evidence
         integer, intent(out) :: status
 

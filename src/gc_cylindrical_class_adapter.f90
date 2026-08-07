@@ -19,6 +19,7 @@ module neort_gc_cylindrical_class_adapter
     !! before the intervals can be called complete topological classes.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: &
         GC_CYL_SUCCESS, gc_cylindrical_field_sample_t, &
         gc_cylindrical_field_t, gc_cylindrical_potential_t, &
@@ -151,9 +152,9 @@ module neort_gc_cylindrical_class_adapter
     abstract interface
         subroutine gc_cylindrical_class_cut_map_i(rc, user_data, position, &
                 dposition_drc, status)
-            import :: dp
+            import :: dp, gc_callback_context_t
             real(dp), intent(in) :: rc
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             real(dp), intent(out) :: position(3)
             real(dp), intent(out) :: dposition_drc(3)
             integer, intent(out) :: status
@@ -161,11 +162,12 @@ module neort_gc_cylindrical_class_adapter
 
         subroutine gc_cylindrical_class_splitter_i(h0, jperp, sigma, candidate, &
                 user_data, split_classes, certified, status)
-            import :: dp, gc_cylindrical_class_interval_t
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_class_interval_t
             real(dp), intent(in) :: h0, jperp
             integer, intent(in) :: sigma
             type(gc_cylindrical_class_interval_t), intent(in) :: candidate
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
                 split_classes(:)
             logical, intent(out) :: certified
@@ -189,7 +191,7 @@ module neort_gc_cylindrical_class_adapter
             cut_map => null()
         procedure(gc_cylindrical_class_splitter_i), pointer, nopass :: &
             splitter => null()
-        class(*), pointer :: user_data => null()
+        class(gc_callback_context_t), pointer :: user_data => null()
         logical :: initialized = .false.
         logical :: classes_enumerated = .false.
         logical :: class_complete = .false.
@@ -217,7 +219,7 @@ contains
         integer, intent(out) :: status
         type(gc_cylindrical_class_options_t), intent(in), optional :: options
         procedure(gc_cylindrical_class_splitter_i), optional :: splitter
-        class(*), target, intent(inout), optional :: user_data
+        class(gc_callback_context_t), target, intent(inout), optional :: user_data
 
         adapter%h0 = 0.0_dp
         adapter%jperp = 0.0_dp

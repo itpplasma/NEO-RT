@@ -16,6 +16,7 @@ module neort_gc_cylindrical_nonlocal_provider
     !! supplied, the provider returns GC_CYL_NONLOCAL_UNAVAILABLE.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_nonlocal_resonance_types, only: &
         GC_NONLOCAL_MAX_FORCE_VALUES, &
         GC_NONLOCAL_SAMPLE_INVALID, &
@@ -158,19 +159,20 @@ module neort_gc_cylindrical_nonlocal_provider
     abstract interface
         subroutine gc_cylindrical_nonlocal_component_provider_i(h0, jperp, &
                 user_data, components, status)
-            import :: dp, gc_nonlocal_component_t
+            import :: dp, gc_callback_context_t, gc_nonlocal_component_t
             real(dp), intent(in) :: h0, jperp
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             type(gc_nonlocal_component_t), allocatable, intent(out) :: components(:)
             integer, intent(out) :: status
         end subroutine gc_cylindrical_nonlocal_component_provider_i
 
         subroutine gc_cylindrical_nonlocal_orbit_provider_i(h0, jperp, x, &
                 sigma, component_id, user_data, orbit, status)
-            import :: dp, gc_cylindrical_nonlocal_orbit_t
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_nonlocal_orbit_t
             real(dp), intent(in) :: h0, jperp, x
             integer, intent(in) :: sigma, component_id
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             type(gc_cylindrical_nonlocal_orbit_t), intent(out) :: orbit
             integer, intent(out) :: status
         end subroutine gc_cylindrical_nonlocal_orbit_provider_i
@@ -178,22 +180,24 @@ module neort_gc_cylindrical_nonlocal_provider
         subroutine gc_cylindrical_nonlocal_harmonic_provider_i(h0, jperp, x, &
                 sigma, component_id, harmonic_m, harmonic_n, orbit, user_data, &
                 h_m, status)
-            import :: dp, gc_cylindrical_nonlocal_orbit_t
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_nonlocal_orbit_t
             real(dp), intent(in) :: h0, jperp, x
             integer, intent(in) :: sigma, component_id, harmonic_m, harmonic_n
             type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             complex(dp), intent(out) :: h_m
             integer, intent(out) :: status
         end subroutine gc_cylindrical_nonlocal_harmonic_provider_i
 
         subroutine gc_cylindrical_nonlocal_force_provider_i(h0, jperp, x, &
                 sigma, component_id, orbit, user_data, force, status)
-            import :: dp, gc_cylindrical_nonlocal_orbit_t
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_nonlocal_orbit_t
             real(dp), intent(in) :: h0, jperp, x
             integer, intent(in) :: sigma, component_id
             type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             real(dp), intent(out) :: force(:)
             integer, intent(out) :: status
         end subroutine gc_cylindrical_nonlocal_force_provider_i
@@ -201,9 +205,9 @@ module neort_gc_cylindrical_nonlocal_provider
         subroutine gc_cylindrical_nonlocal_canonical_conversion_i(p_phi, &
                 dp_phi_dx, user_data, psi_star, dpsi_star_dx, units, certified, &
                 status)
-            import :: dp
+            import :: dp, gc_callback_context_t
             real(dp), intent(in) :: p_phi, dp_phi_dx
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             real(dp), intent(out) :: psi_star, dpsi_star_dx
             character(len=*), intent(out) :: units
             logical, intent(out) :: certified
@@ -221,7 +225,7 @@ module neort_gc_cylindrical_nonlocal_provider
         type(gc_cylindrical_nonlocal_section_t) :: section
         logical :: initialized = .false.
         logical :: components_enumerated = .false.
-        class(*), pointer :: user_data => null()
+        class(gc_callback_context_t), pointer :: user_data => null()
         procedure(gc_cylindrical_nonlocal_component_provider_i), pointer, nopass :: &
             component_provider => null()
         procedure(gc_cylindrical_nonlocal_orbit_provider_i), pointer, nopass :: &
@@ -273,7 +277,7 @@ contains
         character(len=*), intent(in), optional :: section_coordinate
         real(dp), intent(in), optional :: section_reference(3)
         character(len=*), intent(in), optional :: section_reference_id
-        class(*), target, intent(inout), optional :: user_data
+        class(gc_callback_context_t), target, intent(inout), optional :: user_data
         integer, intent(in), optional :: required_return_crossings
 
         context%h0 = 0.0_dp

@@ -29,6 +29,7 @@ module neort_gc_eqdsk_nonlocal_transport
     use fortnum_status, only: FORTNUM_OK, fortnum_status_t
     use do_magfie_mod, only: R0, a, bfac, inp_swi, psi_pr, sample_eqdsk_field, s
     use field_eq_mod, only: btf, hfpol, psi_sep, rtf, splfpol, use_fpol
+    use neort_gc_callback_context, only: gc_callback_context_t
     use do_magfie_pert_mod, only: inp_swi_pert, MAGFIE_PERT_OK, &
         do_magfie_pert_amp_cylindrical, read_boozer_pert_file, rz_nrad, &
         rz_nzet, set_mph
@@ -283,7 +284,7 @@ module neort_gc_eqdsk_nonlocal_transport
         type(gc_eqdsk_cut_branch_t), allocatable :: branches(:)
     end type gc_eqdsk_cut_atlas_t
 
-    type, public :: gc_eqdsk_nonlocal_factory_t
+    type, public, extends(gc_callback_context_t) :: gc_eqdsk_nonlocal_factory_t
         !! The concrete field is owned here.  It is never a pointer to a
         !! temporary local object, so cached class adapters retain a valid
         !! target for their whole factory lifetime.
@@ -1721,7 +1722,7 @@ contains
     subroutine factory_node_factory(h0, jperp, user_data, adapter, context, &
             status)
         real(dp), intent(in) :: h0, jperp
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_class_adapter_t), intent(out) :: adapter
         type(gc_cylindrical_nonlocal_context_t), intent(out) :: context
         integer, intent(out) :: status
@@ -1774,7 +1775,7 @@ contains
         integer, intent(in) :: sigma, component_id
         type(gc_cylindrical_class_launch_t), intent(in) :: launch
         type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: outer_factor
         integer, intent(out) :: status
 
@@ -1819,7 +1820,7 @@ contains
         type(gc_nonlocal_transport_reference_t), intent(in) :: reference
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         integer, intent(out) :: class_kind, status
 
         type(gc_cylindrical_class_adapter_t) :: adapter
@@ -1877,7 +1878,7 @@ contains
     end subroutine factory_class_kind
 
     subroutine factory_reset_evidence(user_data, status)
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         integer, intent(out) :: status
 
         status = GC_EQDSK_NONLOCAL_INVALID_INPUT
@@ -1892,7 +1893,7 @@ contains
     end subroutine factory_reset_evidence
 
     subroutine factory_get_evidence(user_data, evidence, status)
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_nonlocal_transport_observed_evidence_t), intent(out) :: evidence
         integer, intent(out) :: status
 
@@ -1961,7 +1962,7 @@ contains
     subroutine factory_component_provider(h0, jperp, user_data, components, &
             status)
         real(dp), intent(in) :: h0, jperp
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_nonlocal_component_t), allocatable, intent(out) :: components(:)
         integer, intent(out) :: status
 
@@ -2008,7 +2009,7 @@ contains
             user_data, orbit, status)
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_nonlocal_orbit_t), intent(out) :: orbit
         integer, intent(out) :: status
 
@@ -2058,7 +2059,7 @@ contains
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id, harmonic_m, harmonic_n
         type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         complex(dp), intent(out) :: h_m
         integer, intent(out) :: status
 
@@ -2099,7 +2100,7 @@ contains
         real(dp), intent(in) :: h0, jperp, x
         integer, intent(in) :: sigma, component_id
         type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: force(:)
         integer, intent(out) :: status
 
@@ -2144,7 +2145,7 @@ contains
     subroutine physical_cut_map_callback(rc, user_data, position, dposition_drc, &
             status)
         real(dp), intent(in) :: rc
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: position(3), dposition_drc(3)
         integer, intent(out) :: status
 
@@ -2166,7 +2167,7 @@ contains
         real(dp), intent(in) :: h0, jperp
         integer, intent(in) :: sigma
         type(gc_cylindrical_class_interval_t), intent(in) :: candidate
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
             split_classes(:)
         logical, intent(out) :: certified
@@ -3314,7 +3315,7 @@ contains
     subroutine factory_build_quadrature(h0_order, jk_order, user_data, quadrature, &
             status)
         integer, intent(in) :: h0_order, jk_order
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_nonlocal_transport_quadrature_t), intent(out) :: quadrature
         integer, intent(out) :: status
 

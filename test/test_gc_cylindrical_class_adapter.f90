@@ -1,5 +1,6 @@
 module gc_cylindrical_class_adapter_test_support
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_SUCCESS, &
         gc_cylindrical_field_sample_t, gc_cylindrical_field_t, &
@@ -96,7 +97,7 @@ contains
     subroutine manufactured_cut_map(rc, user_data, position, dposition_drc, &
             status)
         real(dp), intent(in) :: rc
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: position(3)
         real(dp), intent(out) :: dposition_drc(3)
         integer, intent(out) :: status
@@ -111,7 +112,7 @@ contains
         real(dp), intent(in) :: h0, jperp
         integer, intent(in) :: sigma
         type(gc_cylindrical_class_interval_t), intent(in) :: candidate
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
             split_classes(:)
         logical, intent(out) :: certified
@@ -148,6 +149,7 @@ end module gc_cylindrical_class_adapter_test_support
 
 program test_gc_cylindrical_class_adapter
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use gc_cylindrical_class_adapter_test_support, only: &
         C_LIGHT, CHARGE, H0_REFERENCE, JPERP_REFERENCE, MASS, &
         manufactured_cut_map, manufactured_field_t, manufactured_potential_t, &
@@ -374,7 +376,7 @@ contains
         real(dp), intent(in) :: h0, jperp
         integer, intent(in) :: sigma
         type(gc_cylindrical_class_interval_t), intent(in) :: candidate
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
             split_classes(:)
         logical, intent(out) :: certified
