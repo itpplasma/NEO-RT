@@ -36,7 +36,8 @@ program test_gc_cylindrical_independent_behavior
     call require_close('axisymmetric canonical p_phi', output(22), expected_pphi)
     call evaluate_neort_axisymmetric_p_phi(mass, charge, c_light, mu, radius, &
         p_parallel, psi, b0, 0.0_dp, 0.0_dp, 1.0_dp, &
-        0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, electric_field/(b0*radius), &
+        0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+        electric_field/(b0*radius), &
         pphi_output(1), pphi_output(2), pphi_output(3))
     call require_close('generated axisymmetric P_phi', pphi_output(1), expected_pphi)
     call require_close('generated P_phi time derivative', pphi_output(2), 0.0_dp)
