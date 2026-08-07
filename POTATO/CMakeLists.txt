@@ -98,6 +98,16 @@ add_test(NAME test_signed_toroidal_bound
    COMMAND test_signed_toroidal_bound.x
 )
 
+add_executable(test_pitch_boundary.x
+   SRC/test_pitch_boundary.f90
+)
+target_link_libraries(test_pitch_boundary.x
+   potato_base
+)
+add_test(NAME test_pitch_boundary
+   COMMAND test_pitch_boundary.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )
