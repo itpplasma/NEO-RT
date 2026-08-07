@@ -6,6 +6,13 @@ foreach(test_src ${TEST_SOURCES})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
 
+target_link_libraries(test_frequency_inventory_format.x neort_diaglib)
+
+add_test(NAME test_frequency_inventory_format
+    COMMAND test_frequency_inventory_format.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 target_sources(test_gc_orbit_limit.x PRIVATE
     generated_manufactured_torus.f90
     manufactured_gc_field.f90
@@ -82,6 +89,11 @@ add_test(NAME test_input_switches_reject_full_supban
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(test_input_switches_reject_full_supban PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_input_switches_reject_full_nonlin
+    COMMAND ${CMAKE_BINARY_DIR}/test_input_switches.x reject_full_nonlin
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_input_switches_reject_full_nonlin PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME test_nonlinear_contract
     COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x

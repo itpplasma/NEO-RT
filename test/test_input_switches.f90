@@ -33,6 +33,13 @@ program test_input_switches
         call set_config(config)
         stop
     end if
+    if (trim(mode) == "reject_full_nonlin") then
+        config%frequency_model = FREQUENCY_MODEL_GC_FULL
+        config%inp_swi = 11
+        config%nonlin = .true.
+        call set_config(config)
+        stop
+    end if
 
     if (config%inp_swi_pert /= -1) error stop "perturbation switch default changed"
     if (perturbation_chart_is_compatible(11, 9)) then

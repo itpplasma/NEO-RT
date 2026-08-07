@@ -77,9 +77,14 @@ contains
     end function frequency_model_requires_direct_eqdsk
 
     subroutine validate_frequency_model(model, axis_switch, has_direct_eqdsk, &
-            superbanana)
+            superbanana, nonlinear)
         integer, intent(in) :: model, axis_switch
         logical, intent(in) :: has_direct_eqdsk, superbanana
+        logical, intent(in), optional :: nonlinear
+        logical :: use_nonlinear
+
+        use_nonlinear = .false.
+        if (present(nonlinear)) use_nonlinear = nonlinear
 
         if (model < FREQUENCY_MODEL_LEGACY .or. &
                 model > FREQUENCY_MODEL_GC_FULL) then
@@ -104,6 +109,9 @@ contains
                 error stop "frequency_model=1 and supban are mutually exclusive"
             end if
             error stop "frequency_model=2 and supban are mutually exclusive"
+        end if
+        if (model == FREQUENCY_MODEL_GC_FULL .and. use_nonlinear) then
+            error stop "frequency_model=2 nonlinear attenuation requires full-orbit derivatives"
         end if
     end subroutine validate_frequency_model
 
@@ -143,7 +151,7 @@ contains
         efac = config%efac
         inp_swi = config%inp_swi
         call validate_frequency_model(frequency_model, inp_swi, &
-            has_direct_eqdsk_gc, supban)
+            has_direct_eqdsk_gc, supban, nonlin)
         if (config%inp_swi_pert < 0) then
             perturbation_switch = config%inp_swi
         else
@@ -210,7 +218,7 @@ contains
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         if (inp_swi_pert < 0) inp_swi_pert = inp_swi
         call validate_frequency_model(frequency_model, inp_swi, &
-            has_direct_eqdsk_gc, supban)
+            has_direct_eqdsk_gc, supban, nonlin)
         if (pertfile .and. inp_swi_pert /= 8 .and. inp_swi_pert /= 9 .and. &
             inp_swi_pert /= 11) then
             error stop "inp_swi_pert must be 8/9 (.bc) or 11 (POTATO R-Z grid)"
