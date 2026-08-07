@@ -2095,12 +2095,27 @@ program gen_full_fow_physics
         "psi_Z", "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", &
         "psi_RRZ", "psi_RZZ", "psi_ZZZ"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_quintic_cell_jet_interval_symbolic.f90", &
+        "neort_eqdsk_quintic_cell_jet_interval_symbolic", &
+        "evaluate_neort_eqdsk_quintic_cell_jet_interval", &
+        eqdsk_cell_arg_names, eqdsk_cell_jet_roots, &
+        [character(len=64) :: "psi", "psi_R", "psi_Z", "psi_RR", &
+        "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", "psi_RZZ", &
+        "psi_ZZZ"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_quintic_profile_jet_symbolic.f90", &
         "neort_eqdsk_quintic_profile_jet_symbolic", &
         "evaluate_neort_eqdsk_quintic_profile_jet", &
         eqdsk_profile_arg_names, eqdsk_profile_jet_roots, &
         [character(len=64) :: "profile_value", "profile_first", &
         "profile_second", "vacuum_F"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_quintic_profile_jet_interval_symbolic.f90", &
+        "neort_eqdsk_quintic_profile_jet_interval_symbolic", &
+        "evaluate_neort_eqdsk_quintic_profile_jet_interval", &
+        eqdsk_profile_arg_names, eqdsk_profile_jet_roots, &
+        [character(len=64) :: "profile_value", "profile_first", &
+        "profile_second", "vacuum_F"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_jet_symbolic.f90", &
         "neort_eqdsk_cut_jet_symbolic", &
@@ -2121,6 +2136,15 @@ program gen_full_fow_physics
         "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
         "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", "psi_sep"], &
         eqdsk_cut_numerator_roots, [character(len=64) :: "N", "N_R", "N_Z"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_numerator_interval_symbolic.f90", &
+        "neort_eqdsk_cut_numerator_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_numerator_interval", &
+        [character(len=64) :: "radius", "psi_R", "psi_Z", &
+        "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
+        "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", "psi_sep"], &
+        eqdsk_cut_numerator_roots, [character(len=64) :: "N", "N_R", &
+        "N_Z"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_r_chart_symbolic.f90", &
         "neort_eqdsk_cut_r_chart_symbolic", &
@@ -2224,14 +2248,16 @@ contains
     end subroutine simplify_array
 
     subroutine emit_kernel_file(path, module_name, procedure_name, arg_names, &
-            kernel_roots, output_names)
+            kernel_roots, output_names, interval_kernel)
         character(*), intent(in) :: path, module_name, procedure_name
         character(*), intent(in) :: arg_names(:), output_names(:)
         type(expr_t), intent(in) :: kernel_roots(:)
+        logical, intent(in), optional :: interval_kernel
         type(kernel_spec_t) :: kernel_spec
         type(str_t) :: emitted
+        character(:), allocatable :: emitted_text
         integer :: unit, ios, i, j
-        logical :: ok
+        logical :: ok, make_interval
 
         if (size(kernel_roots) /= size(output_names)) then
             error stop "fortsym generator arity mismatch"
@@ -2283,14 +2309,57 @@ contains
             close (unit)
             error stop "fortsym refused generated kernel"
         end if
-        if (maximum_line_length(chars(emitted)) > 132) then
+        emitted_text = chars(emitted)
+        make_interval = .false.
+        if (present(interval_kernel)) make_interval = interval_kernel
+        if (make_interval) emitted_text = intervalize_kernel(emitted_text)
+        if (maximum_line_length(emitted_text) > 132) then
             close (unit)
             error stop "fortsym emitted a nonconforming overlong line"
         end if
-        write (unit, "(a)") chars(emitted)
+        write (unit, "(a)") emitted_text
         close (unit)
         write (output_unit, "(a)") "wrote "//trim(path)
     end subroutine emit_kernel_file
+
+    function intervalize_kernel(source) result(interval_source)
+        character(*), intent(in) :: source
+        character(:), allocatable :: interval_source
+        character(*), parameter :: interval_use = &
+            "        use neort_gc_outward_interval, only: "// &
+            "gc_outward_interval_t, &"//new_line('a')// &
+            "            operator(+), operator(-), operator(*), "// &
+            "operator(/), operator(**)"//new_line('a')// &
+            "        implicit none"
+
+        interval_source = replace_all(source, "        implicit none", &
+            interval_use)
+        interval_source = replace_all(interval_source, "real(dp)", &
+            "type(gc_outward_interval_t)")
+    end function intervalize_kernel
+
+    function replace_all(source, target, replacement) result(replaced)
+        character(*), intent(in) :: source, target, replacement
+        character(:), allocatable :: replaced
+        integer :: first, relative
+
+        if (len(target) == 0) error stop "empty generated-text replacement"
+        replaced = ''
+        first = 1
+        do
+            relative = index(source(first:), target)
+            if (relative == 0) then
+                replaced = replaced//source(first:)
+                exit
+            end if
+            if (relative > 1) then
+                replaced = replaced//source(first:first+relative-2)
+            end if
+            replaced = replaced//replacement
+            first = first+relative-1+len(target)
+            if (first > len(source)) exit
+        end do
+    end function replace_all
 
     pure integer function maximum_line_length(text) result(maximum_length)
         character(*), intent(in) :: text
