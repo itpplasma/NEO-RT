@@ -8,6 +8,8 @@ module gc_cylindrical_class_adapter_test_support
         GC_CYL_CLASS_INVALID_INPUT, GC_CYL_CLASS_SUCCESS, &
         gc_cylindrical_class_interval_t, &
         gc_cylindrical_class_cut_map_i, gc_cylindrical_class_splitter_i
+    use neort_gc_cylindrical_topology, only: &
+        gc_cylindrical_allowed_region_set_t
 
     implicit none
     private
@@ -36,6 +38,7 @@ module gc_cylindrical_class_adapter_test_support
 
     public :: manufactured_cut_map
     public :: identity_splitter
+    public :: manufactured_topology_provider
     public :: target_vparallel_squared
     public :: target_dvparallel_squared
 
@@ -128,6 +131,78 @@ contains
         status = GC_CYL_CLASS_SUCCESS
     end subroutine identity_splitter
 
+    subroutine manufactured_topology_provider(h0, jperp, sigma, rc_min, rc_max, &
+            user_data, regions, status)
+        real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+        integer, intent(in) :: sigma
+        class(*), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_allowed_region_set_t), intent(out) :: regions
+        integer, intent(out) :: status
+
+        real(dp), parameter :: exact_roots(3) = [0.5_dp, 1.0_dp, 2.0_dp]
+        integer :: i
+
+        associate (unused_h0 => h0, unused_jperp => jperp, &
+                unused_user_data => user_data)
+        end associate
+        regions = gc_cylindrical_allowed_region_set_t()
+        status = GC_CYL_CLASS_INVALID_INPUT
+        if (abs(sigma) /= 1) return
+        if (rc_min /= 0.5_dp .or. rc_max /= 4.5_dp) return
+        regions%nroots = size(exact_roots)
+        allocate(regions%roots(regions%nroots), &
+            regions%root_canonical(regions%nroots))
+        regions%roots = exact_roots
+        do i = 1, regions%nroots
+            regions%root_canonical(i) = 0.5_dp*exact_roots(i)**2
+        end do
+        regions%ncomponents = 2
+        allocate(regions%components(regions%ncomponents))
+        call set_component(regions%components(1), 1, sigma, 0.5_dp, 1.0_dp, &
+            .true., .true.)
+        call set_component(regions%components(2), 2, sigma, 2.0_dp, 4.5_dp, &
+            .true., .false.)
+        regions%total_canonical_measure = &
+            sum(regions%components%canonical_measure)
+        regions%topology_certified = .true.
+        regions%certificate_method = 'analytic-quartic-test-oracle'
+        status = GC_CYL_SUCCESS
+
+    contains
+
+        subroutine set_component(component, component_id, branch_sigma, &
+                x_begin, x_end, lower_root, upper_root)
+            use neort_gc_cylindrical_model, only: &
+                gc_cylindrical_allowed_component_t
+            type(gc_cylindrical_allowed_component_t), intent(out) :: component
+            integer, intent(in) :: component_id, branch_sigma
+            real(dp), intent(in) :: x_begin, x_end
+            logical, intent(in) :: lower_root, upper_root
+
+            component%component_id = component_id
+            component%sigma = branch_sigma
+            component%x_begin = x_begin
+            component%x_end = x_end
+            component%canonical_begin = manufactured_psi_star(x_begin, &
+                branch_sigma)
+            component%canonical_end = manufactured_psi_star(x_end, branch_sigma)
+            component%canonical_measure = abs(component%canonical_end &
+                -component%canonical_begin)
+            component%lower_root = lower_root
+            component%upper_root = upper_root
+        end subroutine set_component
+
+        pure real(dp) function manufactured_psi_star(radius, branch_sigma)
+            real(dp), intent(in) :: radius
+            integer, intent(in) :: branch_sigma
+
+            manufactured_psi_star = 0.5_dp*radius**2 &
+                +MASS*C_LIGHT/CHARGE*real(branch_sigma, dp) &
+                *sqrt(max(0.0_dp, target_vparallel_squared(radius)))*radius
+        end function manufactured_psi_star
+
+    end subroutine manufactured_topology_provider
+
     pure real(dp) function target_vparallel_squared(radius)
         real(dp), intent(in) :: radius
 
@@ -151,7 +226,8 @@ program test_gc_cylindrical_class_adapter
     use gc_cylindrical_class_adapter_test_support, only: &
         C_LIGHT, CHARGE, H0_REFERENCE, JPERP_REFERENCE, MASS, &
         manufactured_cut_map, manufactured_field_t, manufactured_potential_t, &
-        identity_splitter, target_dvparallel_squared, &
+        identity_splitter, manufactured_topology_provider, &
+        target_dvparallel_squared, &
         target_vparallel_squared
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_JK_UNITS, &
@@ -201,7 +277,8 @@ program test_gc_cylindrical_class_adapter
 
     call initialize_gc_cylindrical_class_adapter(field, potential, &
         H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
-        manufactured_cut_map, adapter, status, options=options)
+        manufactured_cut_map, adapter, status, options=options, &
+        topology_provider=manufactured_topology_provider)
     call require(status == GC_CYL_CLASS_SUCCESS, &
         'adapter initialization without splitter failed')
     call enumerate_gc_cylindrical_classes(adapter, result, status)
@@ -265,7 +342,8 @@ program test_gc_cylindrical_class_adapter
     call initialize_gc_cylindrical_class_adapter(field, potential, &
         H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
         manufactured_cut_map, split_adapter, status, options=options, &
-        splitter=identity_splitter)
+        splitter=identity_splitter, &
+        topology_provider=manufactured_topology_provider)
     call require(status == GC_CYL_CLASS_SUCCESS, &
         'adapter initialization with splitter failed')
     call enumerate_gc_cylindrical_classes(split_adapter, split_result, status)
@@ -308,7 +386,7 @@ program test_gc_cylindrical_class_adapter
     call require_close(launch_plus%state%p_parallel, MASS*expected_v, &
         'launch p_parallel is not m*v_parallel', 1.0e-12_dp)
     call require_close(launch_plus%state%mu, &
-        MASS*JPERP_REFERENCE*abs(CHARGE)/C_LIGHT, &
+        JPERP_REFERENCE*abs(CHARGE)/(MASS*C_LIGHT), &
         'launch magnetic moment/action conversion', 1.0e-12_dp)
     call launch_gc_cylindrical_class(split_adapter, RC_MIN, 1, tangent_id, &
         launch_tangent, status)
@@ -318,7 +396,8 @@ program test_gc_cylindrical_class_adapter
         'endpoint tangency was not retained in launch metadata')
 
     thin_speed = 1.0e-5_dp
-    thin_h0 = MASS*JPERP_REFERENCE*abs(CHARGE)/C_LIGHT*point_plus%field%bmod &
+    thin_h0 = JPERP_REFERENCE*abs(CHARGE)/(MASS*C_LIGHT) &
+        *point_plus%field%bmod &
         +CHARGE*point_plus%potential + 0.5_dp*MASS*thin_speed**2
     call initialize_gc_cylindrical_class_adapter(field, potential, thin_h0, &
         JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
@@ -338,7 +417,8 @@ program test_gc_cylindrical_class_adapter
     field%invalid_hole = .true.
     call initialize_gc_cylindrical_class_adapter(field, potential, &
         H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
-        manufactured_cut_map, invalid_adapter, status, options=options)
+        manufactured_cut_map, invalid_adapter, status, options=options, &
+        topology_provider=manufactured_topology_provider)
     call require(status == GC_CYL_CLASS_SUCCESS, &
         'invalid-hole adapter initialization failed')
     call enumerate_gc_cylindrical_classes(invalid_adapter, invalid_result, status)
@@ -351,7 +431,8 @@ program test_gc_cylindrical_class_adapter
     call initialize_gc_cylindrical_class_adapter(field, potential, &
         H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
         manufactured_cut_map, uncertified_adapter, status, options=options, &
-        splitter=uncertified_splitter)
+        splitter=uncertified_splitter, &
+        topology_provider=manufactured_topology_provider)
     call require(status == GC_CYL_CLASS_SUCCESS, &
         'uncertified-splitter adapter initialization failed')
     call enumerate_gc_cylindrical_classes(uncertified_adapter, &

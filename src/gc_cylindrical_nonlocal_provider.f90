@@ -17,8 +17,6 @@ module neort_gc_cylindrical_nonlocal_provider
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_nonlocal_resonance_types, only: &
-        GC_NONLOCAL_CLASS_COUNTERPASSING, GC_NONLOCAL_CLASS_COPASSING, &
-        GC_NONLOCAL_CLASS_TRAPPED, &
         GC_NONLOCAL_MAX_FORCE_VALUES, &
         GC_NONLOCAL_SAMPLE_INVALID, &
         GC_NONLOCAL_SAMPLE_UNRESOLVED, GC_NONLOCAL_SAMPLE_VALID, &
@@ -220,7 +218,7 @@ module neort_gc_cylindrical_nonlocal_provider
         type(gc_cylindrical_nonlocal_section_t) :: section
         logical :: initialized = .false.
         logical :: components_enumerated = .false.
-        class(*), pointer :: user_data => null()
+        class(*), pointer :: user_data
         procedure(gc_cylindrical_nonlocal_component_provider_i), pointer, nopass :: &
             component_provider => null()
         procedure(gc_cylindrical_nonlocal_orbit_provider_i), pointer, nopass :: &

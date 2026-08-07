@@ -64,10 +64,12 @@ contains
         type(gc_nonlocal_transport_quadrature_t), intent(out) :: quadrature
         integer, intent(out) :: status
 
+        real(dp), parameter :: gauss_abscissa(2) = &
+            [-1.0_dp/sqrt(3.0_dp), 1.0_dp/sqrt(3.0_dp)]
         integer :: i, j, node, n_nodes
 
         provider%quadrature_calls = provider%quadrature_calls + 1
-        if (h0_order < 2 .or. jk_order < 2) then
+        if (h0_order /= 2 .or. jk_order /= 2) then
             status = GC_NONLOCAL_INVALID_INPUT
             return
         end if
@@ -79,9 +81,8 @@ contains
         do i = 1, h0_order
             do j = 1, jk_order
                 node = node + 1
-                quadrature%h0(node) = real(i, dp)/real(h0_order+1, dp)
-                quadrature%j_k(node) = 2.0_dp*real(j, dp)/ &
-                    real(jk_order+1, dp)
+                quadrature%h0(node) = 0.5_dp*(1.0_dp + gauss_abscissa(i))
+                quadrature%j_k(node) = 1.0_dp + gauss_abscissa(j)
                 quadrature%weight(node) = 0.5_dp
                 quadrature%j_k_upper_bound(node) = 2.0_dp
             end do
@@ -119,13 +120,15 @@ contains
                 status = GC_NONLOCAL_INVALID_INPUT
                 return
             end if
-            components(1) = gc_nonlocal_component_t(101, 1, -provider%width, &
-                provider%width)
-            components(2) = gc_nonlocal_component_t(202, -1, -provider%width, &
-                provider%width)
+            components(1) = gc_nonlocal_component_t(component_id=101, sigma=1, &
+                x_min=-provider%width, x_max=provider%width)
+            components(2) = gc_nonlocal_component_t(component_id=202, sigma=-1, &
+                x_min=-provider%width, x_max=provider%width)
         else
-            components(1) = gc_nonlocal_component_t(101, 1, -1.0_dp, 1.0_dp)
-            components(2) = gc_nonlocal_component_t(202, -1, -1.0_dp, 1.0_dp)
+            components(1) = gc_nonlocal_component_t(component_id=101, sigma=1, &
+                x_min=-1.0_dp, x_max=1.0_dp)
+            components(2) = gc_nonlocal_component_t(component_id=202, sigma=-1, &
+                x_min=-1.0_dp, x_max=1.0_dp)
         end if
         status = GC_NONLOCAL_SUCCESS
     end subroutine manufactured_get_components

@@ -648,6 +648,8 @@ contains
         type(gc_cylindrical_field_sample_t) :: field
         type(gc_cylindrical_state_t) :: state
         real(dp) :: potential, gradient(3), tolerance
+        real(dp) :: energy_threshold, magnetic_moment_threshold
+        real(dp) :: canonical_momentum_threshold
         integer :: field_status, potential_status, residual_status
 
         energy_error = 0.0_dp
@@ -676,13 +678,17 @@ contains
             return
         end if
         tolerance = options%invariant_relative_tolerance
-        rejected = abs(energy_error) > tolerance*max(abs(invariants%energy), &
-            tiny(invariants%energy)) .or. &
-            abs(magnetic_moment_error) > tolerance*max(&
-            abs(invariants%magnetic_moment), tiny(invariants%magnetic_moment)) .or. &
-            abs(canonical_momentum_error) > tolerance*max(&
-            abs(invariants%canonical_toroidal_momentum), &
+        energy_threshold = max(tolerance*abs(invariants%energy), &
+            tiny(invariants%energy))
+        magnetic_moment_threshold = max(&
+            tolerance*abs(invariants%magnetic_moment), &
+            tiny(invariants%magnetic_moment))
+        canonical_momentum_threshold = max(&
+            tolerance*abs(invariants%canonical_toroidal_momentum), &
             tiny(invariants%canonical_toroidal_momentum))
+        rejected = abs(energy_error) > energy_threshold .or. &
+            abs(magnetic_moment_error) > magnetic_moment_threshold .or. &
+            abs(canonical_momentum_error) > canonical_momentum_threshold
         if (rejected) then
             status = GC_CYL_INVARIANT_ERROR
             return

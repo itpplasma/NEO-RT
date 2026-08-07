@@ -42,7 +42,7 @@ contains
 
         type(magfie_data_t) :: magfie_data
         type(transport_data_t) :: transport_data
-        type(gc_eqdsk_nonlocal_factory_t), pointer :: model2_factory => null()
+        type(gc_eqdsk_nonlocal_factory_t), target :: model2_factory
         type(gc_model2_transport_execution_t) :: model2_execution
         character(len=64) :: phase, lane
         character(len=256) :: delivery_message
@@ -152,7 +152,7 @@ contains
         use util, only: c, mi, qi
         use iso_fortran_env, only: dp => real64
 
-        type(gc_eqdsk_nonlocal_factory_t), pointer, intent(out) :: factory
+        type(gc_eqdsk_nonlocal_factory_t), target, intent(out) :: factory
         integer, intent(out) :: status
 
         type(gc_eqdsk_nonlocal_species_t) :: species
@@ -163,7 +163,6 @@ contains
         integer :: harmonic_index, mth_min, mth_max
 
         status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
-        allocate(factory)
         if (vth <= 0.0_dp .or. mi <= 0.0_dp .or. abs(qi) <= tiny(qi)) return
 
         species%name = 'configured_species'

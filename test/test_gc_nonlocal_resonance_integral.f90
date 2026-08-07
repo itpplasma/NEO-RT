@@ -18,8 +18,10 @@ program test_gc_nonlocal_resonance_integral
     type(gc_nonlocal_resonance_result_t) :: result
     integer :: status, oracle_mode
 
-    components(1) = gc_nonlocal_component_t(101, 1, -1.0_dp, 1.0_dp)
-    components(2) = gc_nonlocal_component_t(202, -1, 2.0_dp, 4.0_dp)
+    components(1) = gc_nonlocal_component_t(component_id=101, sigma=1, &
+        x_min=-1.0_dp, x_max=1.0_dp)
+    components(2) = gc_nonlocal_component_t(component_id=202, sigma=-1, &
+        x_min=2.0_dp, x_max=4.0_dp)
     options = gc_nonlocal_resonance_options_t()
     options%scan_intervals = 8
     options%max_roots = 8
@@ -27,8 +29,10 @@ program test_gc_nonlocal_resonance_integral
     options%residual_tolerance = 1.0e-12_dp
     options%x_tolerance = 1.0e-12_dp
 
-    coincident_components(1) = gc_nonlocal_component_t(303, 1, -1.0_dp, 1.0_dp)
-    coincident_components(2) = gc_nonlocal_component_t(303, -1, -1.0_dp, 1.0_dp)
+    coincident_components(1) = gc_nonlocal_component_t(component_id=303, &
+        sigma=1, x_min=-1.0_dp, x_max=1.0_dp)
+    coincident_components(2) = gc_nonlocal_component_t(component_id=303, &
+        sigma=-1, x_min=-1.0_dp, x_max=1.0_dp)
 
     call integrate_gc_nonlocal_resonance(manufactured_orbit, 7.0_dp, 11.0_dp, &
         2, 1, components, options, result, status)
@@ -194,7 +198,8 @@ contains
         type(gc_nonlocal_resonance_result_t) :: oracle_result
         integer :: oracle_status
 
-        oracle_component(1) = gc_nonlocal_component_t(404, 1, -1.0_dp, 1.0_dp)
+        oracle_component(1) = gc_nonlocal_component_t(component_id=404, &
+            sigma=1, x_min=-1.0_dp, x_max=1.0_dp)
         oracle_options = gc_nonlocal_resonance_options_t()
         oracle_options%scan_intervals = 4
         oracle_options%max_roots = 8

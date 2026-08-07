@@ -85,7 +85,8 @@ contains
         end associate
         provider%callback_count = provider%callback_count + 1
         allocate(components(1))
-        components(1) = gc_nonlocal_component_t(1, 1, 0.1_dp, 0.9_dp)
+        components(1) = gc_nonlocal_component_t(component_id=1, sigma=1, &
+            x_min=0.1_dp, x_max=0.9_dp)
         status = GC_NONLOCAL_SUCCESS
     end subroutine mock_get_components
 
@@ -184,6 +185,8 @@ program test_gc_model2_transport_dispatch
     use neort_transport, only: legacy_eta_transport_selected
     use neort_gc_nonlocal_transport_types, only: &
         gc_nonlocal_transport_options_t
+    use neort_gc_full_fow_runtime_metadata, only: &
+        GC_FULL_FOW_BOUND_METHOD, GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION
     use driftorbit, only: FREQUENCY_MODEL_GC_FULL, FREQUENCY_MODEL_GC_THIN, &
         FREQUENCY_MODEL_LEGACY
     implicit none
@@ -245,8 +248,8 @@ program test_gc_model2_transport_dispatch
         'signed force slots were not accepted')
     call require(.not. execution%runtime%nonlocal_transport_certified, &
         'runtime state was certified before provider evidence was finalized')
-    call require(execution%runtime%cylindrical_backend_entries == 1, &
-        'runtime state did not report the attempted physical node')
+    call require(execution%runtime%cylindrical_backend_entries == 4, &
+        'runtime state did not report all attempted physical nodes')
     call configure_observed_evidence(observed)
     call finalize_gc_model2_transport_execution(execution, backend, observed, status)
     call require(status == GC_MODEL2_DISPATCH_SUCCESS .and. execution%certified, &
@@ -273,7 +276,7 @@ program test_gc_model2_transport_dispatch
     call require(metadata_value(output_path, 'nonlocal_transport_certified') == &
         'true', 'runtime record lost nonlocal certification')
     call require(metadata_value(output_path, 'cylindrical_backend_entries') == &
-        '1', 'runtime record lost actual backend count')
+        '4', 'runtime record lost actual backend count')
     inquire (file=trim(output_path), exist=exists, iostat=io_status)
     call require(io_status == 0 .and. exists, 'runtime record is missing')
 
@@ -366,6 +369,8 @@ contains
         local_options%integral%resonance_options%max_root_iterations = 64
         local_options%integral%resonance_options%max_roots = 4
         local_options%integral%resonance_options%force_count = 3
+        local_options%poloidal_harmonics = [1]
+        local_options%toroidal_harmonic = 1
     end subroutine configure_options
 
     subroutine configure_observed_evidence(local_observed)
@@ -385,7 +390,8 @@ contains
         type(gc_model2_backend_evidence_t), intent(out) :: local_backend
         character(len=*), intent(out) :: local_base, local_wall
         integer(int64) :: local_clock
-        integer :: local_status, wall_unit
+        character(len=1024) :: perturbation_path
+        integer :: local_status, perturbation_unit, wall_unit
 
         call system_clock(count=local_clock)
         write (local_base, '(A,I0)') '/var/tmp/ert/model2-dispatch-test-', &
@@ -400,12 +406,27 @@ contains
         write (wall_unit, '(A)', iostat=local_status) 'wall'
         close (wall_unit, iostat=local_status)
         call require(local_status == 0, 'could not write dispatch test wall')
+        perturbation_path = trim(local_base)//'/perturbation.dat'
+        open (newunit=perturbation_unit, file=trim(perturbation_path), &
+            status='replace', action='write', iostat=local_status)
+        call require(local_status == 0, 'could not create dispatch test perturbation')
+        write (perturbation_unit, '(A)', iostat=local_status) 'perturbation'
+        close (perturbation_unit, iostat=local_status)
+        call require(local_status == 0, 'could not write dispatch test perturbation')
 
         local_backend = gc_model2_backend_evidence_t()
         local_backend%factory_available = .true.
         local_backend%field_certified = .true.
         local_backend%profile_certified = .true.
         local_backend%perturbation_certified = .true.
+        local_backend%perturbation_amplitude_convention = &
+            GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION
+        local_backend%perturbation_input_path = trim(perturbation_path)
+        local_backend%perturbation_provenance_certified = .true.
+        local_backend%phase_space_bound_method = GC_FULL_FOW_BOUND_METHOD
+        local_backend%orbit_step_refinement_certified = .true.
+        local_backend%orbit_base_step = 0.1_dp
+        local_backend%orbit_refined_step = 0.05_dp
         local_backend%topology_certified = .true.
         local_backend%wall_certified = .true.
         local_backend%canonical_measure_certified = .true.

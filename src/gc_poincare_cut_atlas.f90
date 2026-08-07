@@ -410,7 +410,9 @@ contains
                     return
                 end if
             end if
+        end do
 
+        do i = 1, branch_count
             !! This is the non-negotiable global branch proof.  A missing
             !! Fortsym provider must not be replaced by flags or samples.
             call branch_certificate(atlas%branches(i), local_status)

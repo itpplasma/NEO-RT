@@ -209,9 +209,14 @@ contains
         case (4)
             a = 0.2_dp
             b = 0.21_dp
-            value%f = quadratic_interval(lo, hi, 1.0_dp, -(a + b), a*b)
-            value%df = gc_interval_t(down(2.0_dp*lo - (a + b)), &
-                up(2.0_dp*hi - (a + b)))
+            value%f = interval_hull( &
+                quadratic_interval(lo, hi, 1.0_dp, -(a + b), a*b), &
+                quadratic_interval(lo, hi, 1.0_dp, -0.41_dp, a*b))
+            value%df = interval_hull( &
+                gc_interval_t(down(2.0_dp*lo - (a + b)), &
+                    up(2.0_dp*hi - (a + b))), &
+                gc_interval_t(down(2.0_dp*lo - 0.41_dp), &
+                    up(2.0_dp*hi - 0.41_dp)))
             value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
         case (5)
             value%f = gc_interval_t(0.0_dp, 0.0_dp)
@@ -260,11 +265,13 @@ contains
             case (1, 12, 13)
                 value%f = point_interval(x*x + 1.0_dp)
             case (2)
-                value%f = point_interval((x - 1.0_dp)*(x + 2.0_dp))
+                value%f = point_hull((x - 1.0_dp)*(x + 2.0_dp), &
+                    x*x + x - 2.0_dp)
             case (3, 10, 14)
                 value%f = point_interval((x - 0.3_dp)**2)
             case (4)
-                value%f = point_interval((x - 0.2_dp)*(x - 0.21_dp))
+                value%f = point_hull((x - 0.2_dp)*(x - 0.21_dp), &
+                    x*x - 0.41_dp*x + 0.2_dp*0.21_dp)
             case (16)
                 value%f = point_interval(x)
             case (17)
@@ -404,7 +411,8 @@ contains
         smallest = min(abs(lo), abs(hi))
         largest = max(abs(lo), abs(hi))
         if (lo <= 0.0_dp .and. hi >= 0.0_dp) smallest = 0.0_dp
-        value%lo = down(smallest*smallest + constant)
+        value%lo = smallest*smallest + constant
+        if (value%lo /= 0.0_dp) value%lo = down(value%lo)
         value%hi = up(largest*largest + constant)
     end function reference_square
 
@@ -445,7 +453,8 @@ contains
         smallest = min(abs(lo), abs(hi))
         largest = max(abs(lo), abs(hi))
         if (lo <= 0.0_dp .and. hi >= 0.0_dp) smallest = 0.0_dp
-        value%lo = down(smallest*smallest + constant)
+        value%lo = smallest*smallest + constant
+        if (value%lo /= 0.0_dp) value%lo = down(value%lo)
         value%hi = up(largest*largest + constant)
     end function square_plus_constant
 
@@ -474,14 +483,42 @@ contains
         end if
     end function point_interval
 
+    function point_hull(first, second) result(value)
+        !! Enclose both independently evaluated forms of the manufactured
+        !! polynomial. Floating-point distributivity is not assumed.
+        real(dp), intent(in) :: first, second
+        type(gc_interval_t) :: value
+        if (first == 0.0_dp .and. second == 0.0_dp) then
+            value = gc_interval_t(0.0_dp, 0.0_dp)
+        else
+            value = gc_interval_t(down(min(first, second)), &
+                up(max(first, second)))
+        end if
+    end function point_hull
+
+    function interval_hull(first, second) result(value)
+        type(gc_interval_t), intent(in) :: first, second
+        type(gc_interval_t) :: value
+        value = gc_interval_t(min(first%lo, second%lo), &
+            max(first%hi, second%hi))
+    end function interval_hull
+
     real(dp) function down(number)
         real(dp), intent(in) :: number
-        down = ieee_next_after(number, -huge(number))
+        if (number == 0.0_dp) then
+            down = -tiny(number)
+        else
+            down = ieee_next_after(number, -huge(number))
+        end if
     end function down
 
     real(dp) function up(number)
         real(dp), intent(in) :: number
-        up = ieee_next_after(number, huge(number))
+        if (number == 0.0_dp) then
+            up = tiny(number)
+        else
+            up = ieee_next_after(number, huge(number))
+        end if
     end function up
 
     logical function valid_test_interval(interval)

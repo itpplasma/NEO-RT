@@ -63,6 +63,11 @@ program test_gc_full_fow_runtime_delivery
         'real_field_amplitude_one_signed_n'
     state%conjugate_policy = 'conjugate_implicit'
     state%prefactor_convention = 'eq17_pi32_over_4_real_field'
+    state%action_convention = 'J_K=mass*c*mu_phys/abs(q)'
+    state%phase_space_bound_method = 'axisymmetric_geqdsk_fpol_fluxfunction'
+    state%frequency_convention = 'm*omega_b+3*omega_phi'
+    state%perturbation_input_path = 'inputs/perturbation/bmod_n.dat'
+    state%perturbation_provenance_certified = .true.
     state%quadrature_base_h0_order = 2
     state%quadrature_base_jk_order = 2
     state%quadrature_refined_h0_order = 4
@@ -71,10 +76,21 @@ program test_gc_full_fow_runtime_delivery
     state%quadrature_absolute_tolerance = 1.0e-12_dp
     state%poloidal_harmonic_min = -8
     state%poloidal_harmonic_max = 8
+    state%poloidal_harmonic_count = 17
+    state%executed_harmonic_count = 17
     state%toroidal_harmonic = 3
     state%quadrature_convergence_certified = .true.
     state%harmonic_batch_certified = .true.
     state%class_reconstruction_certified = .true.
+    state%orbit_step_refinement_certified = .true.
+    state%orbit_base_step = 2.0e-6_dp
+    state%orbit_refined_step = 1.0e-6_dp
+    state%orbit_period_refinement_error = 1.0e-10_dp
+    state%orbit_delta_phi_refinement_error = 1.0e-10_dp
+    state%orbit_omega_b_refinement_error = 1.0e-10_dp
+    state%orbit_omega_phi_refinement_error = 1.0e-10_dp
+    state%orbit_h_m_refinement_error = 1.0e-10_dp
+    state%orbit_shell_refinement_error = 1.0e-10_dp
 
     statuses = -1
     messages = ''

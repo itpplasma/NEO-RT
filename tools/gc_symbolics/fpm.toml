@@ -3,7 +3,7 @@ version = "0.1.0"
 license = "MIT"
 
 [dependencies]
-fortsym = { git = "https://github.com/lazy-fortran/fortsym.git", rev = "545788453a204d58705f735b519c3863c2f734c8" }
+fortsym = { git = "https://github.com/lazy-fortran/fortsym.git", rev = "77b031204c76fa88872ddface3af6ac3a25fbb00" }
 
 [build]
 auto-executables = true
@@ -18,6 +18,11 @@ source-form = "free"
 name = "gen_manufactured_torus"
 source-dir = "app"
 main = "gen_manufactured_torus.f90"
+
+[[executable]]
+name = "gen_circular_torus_volume"
+source-dir = "app"
+main = "gen_circular_torus_volume.f90"
 
 [[executable]]
 name = "gen_potato_kernels"

@@ -34,10 +34,12 @@ module neort_gc_eqdsk_nonlocal_transport
         rz_nzet, set_mph
     use geoflux_coordinates, only: geoflux_get_flux_profiles
     use neort_gc_cylindrical_class_adapter, only: &
-        GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
+        GC_CYL_CLASS_SPLITTER_FAILURE, GC_CYL_CLASS_SUCCESS, &
+        gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_options_t, &
         gc_cylindrical_class_launch_t, gc_cylindrical_class_point_t, &
         gc_cylindrical_class_result_t, &
+        clear_gc_cylindrical_class_adapter, &
         enumerate_gc_cylindrical_classes, &
         evaluate_gc_cylindrical_class_point, &
         initialize_gc_cylindrical_class_adapter, &
@@ -58,6 +60,7 @@ module neort_gc_eqdsk_nonlocal_transport
         GC_CYL_NONLOCAL_ORBIT_WALL, GC_CYL_NONLOCAL_SUCCESS, &
         GC_CYL_NONLOCAL_WALL_CLEAR, GC_CYL_NONLOCAL_WALL_HIT, &
         gc_cylindrical_nonlocal_context_t, gc_cylindrical_nonlocal_orbit_t, &
+        clear_gc_cylindrical_nonlocal_provider, &
         initialize_gc_cylindrical_nonlocal_provider
     use neort_gc_cylindrical_orbit, only: gc_cylindrical_orbit_options_t
     use neort_gc_cylindrical_physical_return, only: &
@@ -1738,8 +1741,8 @@ contains
 
         integer :: local_status
 
-        adapter = gc_cylindrical_class_adapter_t()
-        context = gc_cylindrical_nonlocal_context_t()
+        call clear_gc_cylindrical_class_adapter(adapter)
+        call clear_gc_cylindrical_nonlocal_provider(context)
         status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
         if (.not. associated(user_data)) return
         select type (factory => user_data)
@@ -2980,7 +2983,8 @@ contains
 
     subroutine integrate_cycle_averages(factory, launch, period, harmonic_m, &
             harmonic_n, include_harmonic, include_shell, omega_b, omega_phi, &
-            result, status, track_behavior, maximum_step_override)
+            result, status, track_behavior, maximum_step_override, &
+            tolerance_factor)
         type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
         type(gc_cylindrical_class_launch_t), intent(in) :: launch
         real(dp), intent(in) :: period, omega_b, omega_phi

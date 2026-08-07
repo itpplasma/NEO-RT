@@ -280,6 +280,9 @@ contains
 
             if (.not. valid) then
                 call promote_status(result%status, GC_INTERVAL_ROOT_CALLBACK_FAILURE)
+                result%unresolved_boxes = result%unresolved_boxes + 1
+                head = head + 1
+                cycle
             end if
             if (.not. needs_split .and. valid) then
                 !! The current box was not certified as a root, but it also
@@ -872,7 +875,7 @@ contains
 
     subroutine split_box(queue, head, tail)
         type(work_box_t), intent(inout) :: queue(:)
-        integer, intent(in) :: head
+        integer, intent(inout) :: head
         integer, intent(inout) :: tail
         real(dp) :: mid
 
@@ -886,6 +889,7 @@ contains
         queue(tail + 1)%depth = queue(head)%depth + 1
         queue(tail + 2)%depth = queue(head)%depth + 1
         tail = tail + 2
+        head = head + 1
     end subroutine split_box
 
     subroutine append_candidate(candidates, n, root, options, ok)

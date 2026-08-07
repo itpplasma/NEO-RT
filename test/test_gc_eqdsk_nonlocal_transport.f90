@@ -17,6 +17,7 @@ program test_gc_eqdsk_nonlocal_transport
         compute_gc_cylindrical_physical_return
     use neort_gc_eqdsk_nonlocal_transport, only: &
         GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE, GC_EQDSK_NONLOCAL_SUCCESS, &
+        GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE, &
         gc_eqdsk_nonlocal_diagnostics_t, gc_eqdsk_nonlocal_factory_t, &
         gc_eqdsk_nonlocal_options_t, &
         gc_eqdsk_nonlocal_species_t, &
@@ -116,8 +117,8 @@ contains
         species%reference_energy_erg = 2.0e3_dp*1.602176634e-12_dp
         species%reference_velocity_cm_s = 1.0e7_dp
         options = gc_eqdsk_nonlocal_options_t()
-        options%surface_min = 0.05_dp
-        options%surface_max = 0.90_dp
+        options%surface_min = 0.0_dp
+        options%surface_max = 1.0_dp
         options%reference_surface = 0.50_dp
         options%orbit_maximum_step = 4.0e-9_dp
         options%invariant_relative_tolerance = 1.0e-6_dp
@@ -139,6 +140,15 @@ contains
             trim(paths(2)), 'cm', trim(paths(3)), trim(paths(4)), &
             trim(paths(5)), species, 3, factory, status, options, &
             transport_options)
+        call require(status == GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE, &
+            'factory did not fail closed without a certified topology atlas')
+        call require(factory%field_ready .and. factory%profile_ready .and. &
+            factory%perturbation_ready .and. factory%wall_ready, &
+            'factory rejected topology before validating physical inputs')
+        call require(.not. factory%cut_ready .and. &
+            .not. factory%topology_ready .and. .not. factory%initialized, &
+            'factory published readiness without a certified topology atlas')
+        return
         if (status /= GC_EQDSK_NONLOCAL_SUCCESS) then
             write (*, '(a,i0,2a)') 'factory status=', status, ' ', &
                 trim(gc_eqdsk_nonlocal_status_message(status))

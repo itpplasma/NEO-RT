@@ -25,11 +25,12 @@ program gen_full_fow_physics
     use fortsym_expr, only: pi_expr
     use fortsym_kernel, only: emit_kernel, kernel_spec_t, KERNEL_SUBROUTINE
     use fortsym_string, only: chars, str, str_t
+    use fortsym_subs, only: subs
     implicit none
 
     character(*), parameter :: DEFAULT_OUTPUT = "../../src/generated"
     character(*), parameter :: FORTSYM_REVISION = &
-        "fortsym@545788453a204d58705f735b519c3863c2f734c8"
+        "fortsym@77b031204c76fa88872ddface3af6ac3a25fbb00"
 
     type(arena_t), target :: arena
     type(symengine_engine_t) :: proof_engine
@@ -238,6 +239,8 @@ program gen_full_fow_physics
     type(expr_t) :: vperp_squared_from_jpotato, jpotato_from_mu
     type(expr_t) :: mu_from_jpotato
     type(expr_t) :: invariant_h, invariant_pphi, invariant_psistar
+    type(expr_t) :: invariant_bhat_phi, invariant_interface_pphi
+    type(expr_t) :: invariant_interface_psistar
     type(expr_t) :: invariant_vparallel_squared, invariant_ppar_from_pphi
     type(expr_t) :: invariant_ppar_squared, invariant_launch_residual
     type(engine_result_t) :: simplified
@@ -266,6 +269,7 @@ program gen_full_fow_physics
     electrostatic_potential = sym(arena, "electrostatic_potential")
     p_phi = sym(arena, "p_phi")
     psi = sym(arena, "psi")
+    invariant_bhat_phi = sym(arena, "bhat_phi")
     b1 = sym(arena, "b1")
     b2 = sym(arena, "b2")
     b3 = sym(arena, "b3")
@@ -455,8 +459,11 @@ program gen_full_fow_physics
     invariant_h = p_parallel**2/(2*mass) + mu*bmod + q_phi_energy
     invariant_pphi = charge/c_light*psi + p_parallel*radius*bhat2
     invariant_psistar = c_light/charge*invariant_pphi
+    invariant_interface_pphi = subs(invariant_pphi, bhat2, invariant_bhat_phi)
+    invariant_interface_psistar = c_light/charge*invariant_interface_pphi
     invariant_vparallel_squared = 2*(h-mu*bmod-q_phi_energy)/mass
-    invariant_ppar_from_pphi = (p_phi-charge*psi/c_light)/(radius*bhat2)
+    invariant_ppar_from_pphi = &
+        (p_phi-charge*psi/c_light)/(radius*invariant_bhat_phi)
     invariant_ppar_squared = mass**2*invariant_vparallel_squared
     invariant_launch_residual = invariant_ppar_from_pphi**2 - &
         invariant_ppar_squared
@@ -784,7 +791,7 @@ program gen_full_fow_physics
     ! derivative directions are explicit: (R,phi,Z) and (R,arc_phi,Z).
     ! The arc_phi derivative is already physical (1/R*d/dphi); the only
     ! remaining cylindrical connection term is +bhat_phi/R in curl_Z.
-    geom_radius = sym(arena, "geometry_radius")
+    geom_radius = sym(arena, "radius")
     geom_arc_phi = sym(arena, "geometry_arc_phi")
     geom_z = sym(arena, "geometry_Z")
     geom_b_r = sym(arena, "b_R")
@@ -1039,6 +1046,9 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "axisymmetric invariant canonical flux definition", &
         invariant_psistar-c_light/charge*invariant_pphi)
+    call check_identity(proofs, proof_engine, &
+        "standalone canonical interface is a symbol relabelling", &
+        invariant_interface_pphi-subs(invariant_pphi, bhat2, invariant_bhat_phi))
     call check_identity(proofs, proof_engine, &
         "fixed-H launch compares parallel momentum squared", &
         invariant_ppar_squared-2*mass*(h-mu*bmod-q_phi_energy))
@@ -1321,7 +1331,8 @@ program gen_full_fow_physics
         vperp_squared_from_jpotato]
     potato_mu_roots = [jpotato_from_mu, mu_from_jpotato]
     cylindrical_hamiltonian_roots = [invariant_h]
-    cylindrical_canonical_roots = [invariant_pphi, invariant_psistar]
+    cylindrical_canonical_roots = &
+        [invariant_interface_pphi, invariant_interface_psistar]
     cylindrical_vparallel_roots = [invariant_vparallel_squared]
     cylindrical_launch_roots = [invariant_vparallel_squared, &
         invariant_ppar_from_pphi, invariant_launch_residual]
@@ -1830,7 +1841,7 @@ contains
         write (unit, "(a)") "module neort_generated_certificate_registry"
         write (unit, "(a)") "    implicit none"
         write (unit, "(a)") "    character(*), parameter :: fortsym_revision = &"
-        write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
+        write (unit, "(a)") "        'fortsym@77b031204c76fa88872ddface3af6ac3a25fbb00'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
         write (unit, "(a)") "    integer, parameter :: certificate_count = 10"
@@ -1839,16 +1850,16 @@ contains
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
         write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
-        write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eq13_cdot:3:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:boundary_limits:13:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:root_enclosures:3:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:interpolation:9:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:harmonic_integrand:8:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-5457884' ]"
+        write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:eq13_cdot:3:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:boundary_limits:13:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:root_enclosures:3:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:interpolation:9:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:harmonic_integrand:8:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-77b0312' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

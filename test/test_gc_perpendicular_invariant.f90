@@ -39,7 +39,9 @@ program test_gc_perpendicular_invariant
     mu_ref = mass*v_perp**2/(2.0_dp*bmod)
     h_ref = 0.5_dp*mass*(v_parallel**2 + v_perp**2) &
         +charge*potential
-    j_k_ref = mass*c_light*v_perp**2/(2.0_dp*abs(charge)*bmod)
+    ! Buchholz et al. (2022), Eq. (4):
+    ! J_K = m**2*c*v_perp**2/(2*abs(q)*B).
+    j_k_ref = mass**2*c_light*v_perp**2/(2.0_dp*abs(charge)*bmod)
     omega_c = abs(charge)*bmod/(mass*c_light)
     e_ref = 0.5_dp*mass*v0**2
     jhat = abs(charge)*j_k_ref/(mass*c_light*e_ref)
