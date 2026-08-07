@@ -21,7 +21,48 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(MODULE)
 
 
+def manufactured_amplitude_identity() -> None:
+    """Check Eq. 10's signed pair against POTATO's one-real-field mode.
+
+    For a physical field ``Re[A exp(i*n*phi)]``, the mathematical Fourier pair
+    is ``H_n=A/2`` and ``H_-n=conj(A)/2``.  Thus the direct signed-pair power
+    is ``|A|^2/2`` and the Eq. 10 prefactor ``pi**(3/2)/2`` becomes the
+    executable single-mode prefactor ``pi**(3/2)/4``.
+    """
+    amplitude = 0.7 - 0.4j
+    n_tor = -3
+    phi = np.linspace(-np.pi, np.pi, 257, endpoint=False)
+    physical = np.real(amplitude*np.exp(1j*n_tor*phi))
+    positive = amplitude/2.0
+    negative = np.conj(amplitude)/2.0
+    reconstructed = positive*np.exp(1j*n_tor*phi) + \
+        negative*np.exp(-1j*n_tor*phi)
+    if not np.allclose(physical, reconstructed.real):
+        raise AssertionError("signed Fourier pair does not reconstruct real field")
+
+    pair_power = MODULE.pair_power_from_two_sided_coefficients(positive, negative)
+    direct_eq10 = 0.5*pair_power
+    executable_single_n = 0.5*MODULE.pair_power_from_real_field_amplitude(amplitude)
+    if not np.isclose(direct_eq10, executable_single_n):
+        raise AssertionError("Eq. 10 and the one-real-field /4 normalization differ")
+    if not np.allclose(
+            MODULE._to_real_field_single_n(positive, MODULE.TWO_SIDED_COMPLEX),
+            amplitude):
+        raise AssertionError("two-sided coefficient was not converted to A")
+    if not np.allclose(
+            MODULE._to_real_field_single_n(amplitude, MODULE.REAL_FIELD_SINGLE_N),
+            amplitude):
+        raise AssertionError("real-field amplitude was unexpectedly rescaled")
+    for ambiguous in (None, "", "unspecified"):
+        try:
+            MODULE._to_real_field_single_n(amplitude, ambiguous)
+        except ValueError:
+            continue
+        raise AssertionError("ambiguous amplitude convention was accepted")
+
+
 def main() -> int:
+    manufactured_amplitude_identity()
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         chartmap = root / "chartmap.nc"
@@ -65,10 +106,21 @@ def main() -> int:
             chartmap, components, output, component="total", n_tor=-3,
             s_max=0.81, nrad=257, nzet=257, ntheta=256,
             margin_fraction=0.1,
+            amplitude_convention=MODULE.REAL_FIELD_SINGLE_N,
         )
         rad, zet, values = MODULE.read_bmod_n(output)
         if metadata["signed_toroidal_mode"] != -3:
             raise AssertionError("signed toroidal harmonic was not preserved")
+        if metadata["input_amplitude_convention"] != MODULE.REAL_FIELD_SINGLE_N:
+            raise AssertionError("input amplitude convention was not recorded")
+        if metadata["output_amplitude_convention"] != MODULE.REAL_FIELD_SINGLE_N:
+            raise AssertionError("output amplitude convention was not recorded")
+        if metadata["conjugate_harmonic"] != "implicit; no explicit -n is stored":
+            raise AssertionError("conjugate-harmonic policy was not recorded")
+        if "full real-field amplitude" not in metadata["source_fourier_convention"]:
+            raise AssertionError("real-field source convention is not descriptive")
+        if metadata["pair_accounting"]["implicit_single_n"] != "0.5*abs(A)**2":
+            raise AssertionError("implicit-pair accounting was not recorded")
         if json.loads(output.with_suffix(".dat.json").read_text()) != metadata:
             raise AssertionError("metadata sidecar differs from returned provenance")
         if values.shape != (257, 257) or not np.all(np.isfinite(values)):
@@ -100,6 +152,38 @@ def main() -> int:
         if metadata["toroidal_angle_transform"] != (
                 "A_RZ=A_B*exp(i*n*(phi_B-phi_geom))"):
             raise AssertionError("missing Boozer-to-geometric toroidal-angle provenance")
+        two_sided_components = root / "components_two_sided.npz"
+        two_sided_output = root / "two_sided.dat"
+        np.savez(
+            two_sided_components, boozer_s=s, boozer_m=modes,
+            boozer_total=coefficients/2.0,
+        )
+        two_sided_metadata = MODULE.convert(
+            chartmap, two_sided_components, two_sided_output,
+            component="total", n_tor=-3, s_max=0.81, nrad=257, nzet=257,
+            ntheta=256, margin_fraction=0.1,
+            amplitude_convention=MODULE.TWO_SIDED_COMPLEX,
+        )
+        _, _, two_sided_values = MODULE.read_bmod_n(two_sided_output)
+        if not np.allclose(values, two_sided_values):
+            raise AssertionError("equivalent amplitude representations disagree")
+        if two_sided_metadata["input_amplitude_convention"] != (
+                MODULE.TWO_SIDED_COMPLEX):
+            raise AssertionError("two-sided source convention was not recorded")
+        if "two-sided" not in two_sided_metadata["source_fourier_convention"]:
+            raise AssertionError("two-sided source convention is not descriptive")
+
+        try:
+            MODULE.convert(
+                chartmap, components, root / "ambiguous.dat", component="total",
+                n_tor=-3, s_max=0.81, nrad=9, nzet=9, ntheta=16,
+                margin_fraction=0.1,
+            )
+        except ValueError as error:
+            if "ambiguous" not in str(error):
+                raise AssertionError("ambiguous-input rejection is not explicit") from error
+        else:
+            raise AssertionError("missing amplitude provenance was accepted")
         if not np.isclose(metadata["toroidal_shift_radians_max_abs"], 0.08):
             raise AssertionError("manufactured toroidal shift was not recorded")
         if values[0, 0] != 0.0j or values[-1, -1] != 0.0j:

@@ -35,16 +35,22 @@ Gaussian filter:
 
 ```bash
 python tools/boozer_npz_to_bmod_n.py chartmap.nc components.npz bmod_n.dat \
-    --component total --n-tor=-3 --s-max=0.704
+    --component total --n-tor=-3 --s-max=0.704 \
+    --input-amplitude-convention real-field-single-n
 ```
 
 Here `chartmap.nc` supplies the accepted Boozer-surface geometry and
 `components.npz` is the provenance product from `rmp_torque mars_to_boozer`.
 The signed `n` must also be used as `n_tor` in `potato.in`. The converter writes
-a JSON sidecar, performs no smoothing or fit, uses `s_tor` explicitly, writes
+a JSON sidecar, requires an explicit amplitude convention, performs no smoothing
+or fit, uses `s_tor` explicitly, writes
 zero outside the outer mapped surface, and adds a zero-valued rectangular
 margin so the POTATO spline is not normally evaluated at a clamped nonzero
 boundary. Production target orbits must remain inside that mapped surface.
+`real-field-single-n` is the canonical `A` in
+`Delta|B|=Re[A exp(i*n*phi)]` representation; `two-sided-complex` accepts
+`H_n` and converts it to `A=2 H_n`, with the implicit-pair accounting recorded
+as `|A|^2/2` in the sidecar. Omitting the flag is rejected as ambiguous.
 
 The matching profile converter also keeps the coordinate and electric-field
 conventions explicit:

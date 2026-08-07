@@ -22,6 +22,58 @@ import numpy as np
 from scipy.interpolate import CubicSpline, LinearNDInterpolator, RegularGridInterpolator
 
 
+REAL_FIELD_SINGLE_N = "real-field-single-n"
+TWO_SIDED_COMPLEX = "two-sided-complex"
+REAL_FIELD_SOURCE_DESCRIPTION = (
+    "Delta|B|=Re[A_B*exp(i*n*phi_B)]; "
+    "A_B is the full real-field amplitude for one signed n; conjugate implicit"
+)
+TWO_SIDED_SOURCE_DESCRIPTION = (
+    "two-sided: Delta|B|=H_n*exp(i*n*phi_B)+H_-n*exp(-i*n*phi_B); "
+    "H_-n=conj(H_n)"
+)
+
+
+def pair_power_from_real_field_amplitude(amplitude: np.ndarray) -> np.ndarray:
+    """Return the Eq. 10 power of an implicit conjugate pair represented by A."""
+    return 0.5*np.abs(np.asarray(amplitude, dtype=np.complex128))**2
+
+
+def pair_power_from_two_sided_coefficients(
+        positive: np.ndarray, negative: np.ndarray) -> np.ndarray:
+    """Return the Eq. 10 power of explicitly supplied +/-n coefficients."""
+    positive_array = np.asarray(positive, dtype=np.complex128)
+    negative_array = np.asarray(negative, dtype=np.complex128)
+    if positive_array.shape != negative_array.shape:
+        raise ValueError("two-sided Fourier coefficients must have matching shapes")
+    return np.abs(positive_array)**2 + np.abs(negative_array)**2
+
+
+def _to_real_field_single_n(
+        coefficients: np.ndarray, convention: str | None) -> np.ndarray:
+    """Convert a supplied mode coefficient to POTATO's stored amplitude.
+
+    POTATO stores one signed toroidal mode ``A`` and reconstructs the physical
+    perturbation as ``Re[A exp(i*n*phi)]``.  A two-sided complex Fourier pair
+    instead stores ``H_n`` in
+    ``H_n exp(i*n*phi) + conj(H_n) exp(-i*n*phi)``; its equivalent real-field
+    amplitude is therefore ``A = 2*H_n``.
+    """
+    if convention == REAL_FIELD_SINGLE_N:
+        return np.asarray(coefficients, dtype=np.complex128)
+    if convention == TWO_SIDED_COMPLEX:
+        return 2.0*np.asarray(coefficients, dtype=np.complex128)
+    if convention is None or not str(convention).strip():
+        raise ValueError(
+            "input amplitude convention is ambiguous; explicitly choose "
+            f"{REAL_FIELD_SINGLE_N!r} or {TWO_SIDED_COMPLEX!r}"
+        )
+    raise ValueError(
+        "input amplitude convention must be explicitly "
+        f"{REAL_FIELD_SINGLE_N!r} or {TWO_SIDED_COMPLEX!r}"
+    )
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -96,7 +148,8 @@ def read_bmod_n(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 def convert(chartmap: Path, components: Path, output: Path, *, component: str,
             n_tor: int, s_max: float, nrad: int, nzet: int,
-            ntheta: int, margin_fraction: float) -> dict:
+            ntheta: int, margin_fraction: float,
+            amplitude_convention: str | None = None) -> dict:
     if n_tor == 0:
         raise ValueError("the perturbation toroidal mode must be nonzero")
     if not 0.0 < s_max <= 1.0:
@@ -138,7 +191,7 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
         key = f"boozer_{component}"
         if key not in data:
             raise KeyError(f"{components} has no {key}")
-        coefficients = np.asarray(data[key], dtype=np.complex128)
+        coefficients = _to_real_field_single_n(data[key], amplitude_convention)
     if coefficients.shape != (s_spectrum.size, modes.size):
         raise ValueError("Boozer coefficient matrix has inconsistent dimensions")
     if np.any(np.diff(s_spectrum) <= 0.0):
@@ -234,7 +287,7 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
     denominator = max(float(np.linalg.norm(amplitude_map)), np.finfo(float).tiny)
     gridding_relative_l2 = float(np.linalg.norm(mapped_back-amplitude_map)/denominator)
     metadata = {
-        "format": "POTATO bmod_n.dat, Fortran sequential, complex amplitude in gauss",
+        "format": "POTATO bmod_n.dat, Fortran sequential, complex single-n real-field amplitude in gauss",
         "inputs": {
             "chartmap": {"path": str(chartmap), "sha256": _sha256(chartmap)},
             "components": {"path": str(components), "sha256": _sha256(components)},
@@ -242,7 +295,19 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
         "output": {"path": str(output), "sha256": _sha256(output)},
         "component": component,
         "signed_toroidal_mode": n_tor,
-        "source_fourier_convention": "Delta|B|=Re[A_B*exp(i*n*phi_B)]",
+        "input_amplitude_convention": amplitude_convention,
+        "output_amplitude_convention": REAL_FIELD_SINGLE_N,
+        "conjugate_harmonic": "implicit; no explicit -n is stored",
+        "source_fourier_convention": (
+            REAL_FIELD_SOURCE_DESCRIPTION
+            if amplitude_convention == REAL_FIELD_SINGLE_N
+            else TWO_SIDED_SOURCE_DESCRIPTION
+        ),
+        "pair_accounting": {
+            "explicit_two_sided": "abs(H_n)**2 + abs(H_-n)**2",
+            "implicit_single_n": "0.5*abs(A)**2",
+            "two_sided_to_single_n": "A=2*H_n",
+        },
         "output_fourier_convention": "Delta|B|=Re[A_RZ(R,Z)*exp(i*n*phi_geom)]",
         "toroidal_angle_transform": "A_RZ=A_B*exp(i*n*(phi_B-phi_geom))",
         "chartmap_zeta_convention": zeta_convention,
@@ -283,6 +348,13 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--component", default="total")
     result.add_argument("--n-tor", type=int, required=True,
                         help="signed native toroidal harmonic used by POTATO")
+    result.add_argument(
+        "--input-amplitude-convention", required=True,
+        choices=(REAL_FIELD_SINGLE_N, TWO_SIDED_COMPLEX),
+        help=("normalization of the supplied selected-n coefficient: "
+              "real-field-single-n stores A in Re[A exp(i*n*phi)], "
+              "two-sided-complex stores H_n with its conjugate pair"),
+    )
     result.add_argument("--s-max", type=float, default=0.704,
                         help="largest mapped s_tor surface (default: 0.704)")
     result.add_argument("--nrad", type=int, default=801)
@@ -299,6 +371,7 @@ def main() -> None:
         component=args.component, n_tor=args.n_tor, s_max=args.s_max,
         nrad=args.nrad, nzet=args.nzet, ntheta=args.ntheta,
         margin_fraction=args.margin_fraction,
+        amplitude_convention=args.input_amplitude_convention,
     )
     print(json.dumps(metadata, indent=2, sort_keys=True))
 
