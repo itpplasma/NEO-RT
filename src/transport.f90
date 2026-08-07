@@ -15,7 +15,7 @@ module neort_transport
         evaluate_gc_full_orbit_phase_average_surface
     use neort_gc_frequency_provider, only: gc_full_orbit_frequency_result_t, &
         GC_FREQUENCY_SUCCESS
-    use neort_gc_full_resonance, only: GC_RESONANCE_SUCCESS, &
+    use neort_gc_full_resonance, only: GC_RESONANCE_SUCCESS, GC_RESONANCE_PARTIAL, &
         find_gc_resonances
     use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
         gc_orbit_average_t
@@ -111,10 +111,14 @@ contains
             if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
                 call collect_full_orbit_roots(v, full_root_values, &
                     full_root_derivatives, nroots, direct_status)
-                if (direct_status /= GC_RESONANCE_SUCCESS) then
+                if (direct_status /= GC_RESONANCE_SUCCESS .and. &
+                        direct_status /= GC_RESONANCE_PARTIAL) then
                     call warning(fmt_dbg('full GC resonance search failed: v=', &
                         v, ' status=', dble(direct_status)))
                     nroots = 0
+                else if (direct_status == GC_RESONANCE_PARTIAL) then
+                    call warning(fmt_dbg('full GC resonance search retained partial roots: v=', &
+                        v, ' nroots=', dble(nroots)))
                 end if
             else
                 call driftorbit_coarse(v, etamin, etamax, roots, nroots)

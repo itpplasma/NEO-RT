@@ -10,6 +10,7 @@ module neort_gc_full_resonance
     integer, parameter, public :: GC_RESONANCE_SUCCESS = 0
     integer, parameter, public :: GC_RESONANCE_INVALID_INPUT = 1
     integer, parameter, public :: GC_RESONANCE_NOT_CONVERGED = 2
+    integer, parameter, public :: GC_RESONANCE_PARTIAL = 3
 
     abstract interface
         subroutine gc_residual_i(eta, residual, status)
@@ -36,10 +37,12 @@ contains
         real(dp) :: eta_left, eta_right, residual_left, residual_right
         real(dp) :: deta
         integer :: k, left_status, right_status, root_status
+        logical :: bracket_failed
 
         roots = 0.0_dp
         derivatives = 0.0_dp
         nroots = 0
+        bracket_failed = .false.
         status = GC_RESONANCE_INVALID_INPUT
         if (eta_max <= eta_min .or. scan_intervals < 1) return
         if (residual_tolerance <= 0.0_dp .or. eta_tolerance <= 0.0_dp) return
@@ -60,8 +63,11 @@ contains
                         eta_tolerance, roots(nroots + 1), &
                         derivatives(nroots + 1), root_status)
                     if (root_status /= GC_RESONANCE_SUCCESS) then
-                        status = root_status
-                        return
+                        bracket_failed = .true.
+                        eta_left = eta_right
+                        residual_left = residual_right
+                        left_status = right_status
+                        cycle
                     end if
                     if (nroots == 0 .or. &
                         abs(roots(nroots + 1) - roots(nroots)) > eta_tolerance) then
@@ -73,7 +79,7 @@ contains
             residual_left = residual_right
             left_status = right_status
         end do
-        status = GC_RESONANCE_SUCCESS
+        status = merge(GC_RESONANCE_PARTIAL, GC_RESONANCE_SUCCESS, bracket_failed)
     end subroutine find_gc_resonances
 
     subroutine bisect_valid_segment(evaluate, eta_a, eta_b, residual_a, residual_b, &
