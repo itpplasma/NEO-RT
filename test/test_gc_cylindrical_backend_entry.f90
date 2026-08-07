@@ -1,12 +1,11 @@
 program test_gc_cylindrical_backend_entry
     !! Behavioral provider gate: model 2 must enter the cylindrical backend
-    !! for both return frequencies and phase averages, while models 0/1 must
+    !! for both return frequencies and phase averages, while model 0 must
     !! leave it completely uninitialized.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: inp_swi, read_boozer_file, set_s, &
         init_magfie_at_s, R0, a
-    use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
-        FREQUENCY_MODEL_GC_FULL
+    use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_FULL
     use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
         GC_FREQUENCY_BACKEND_LEGACY, GC_FREQUENCY_BACKEND_CYLINDRICAL, &
         gc_frequency_context_t, gc_full_orbit_frequency_result_t, &
@@ -29,7 +28,7 @@ program test_gc_cylindrical_backend_entry
     real(dp), parameter :: surface = 0.368_dp
     real(dp), parameter :: speed = 6.92e7_dp
     real(dp), parameter :: mass = 2.014_dp*mu
-    type(gc_frequency_context_t) :: legacy_context, thin_context, full_context
+    type(gc_frequency_context_t) :: legacy_context, full_context
     type(gc_full_orbit_frequency_result_t) :: full, reverse
     type(gc_orbit_average_t) :: average
     type(gc_frequency_runtime_metadata_t) :: metadata
@@ -60,17 +59,6 @@ program test_gc_cylindrical_backend_entry
     call require(status == GC_FREQUENCY_SUCCESS, 'model 0 initialization')
     call require(.not. legacy_context%cylindrical_backend%initialized, &
         'model 0 entered cylindrical backend')
-
-    call initialize_gc_frequency_context(surface, th0, 1.0_dp, 0.0_dp, &
-        mass, qe, speed, thin_context, status, &
-        selected_frequency_model=FREQUENCY_MODEL_GC_THIN)
-    call require(status == GC_FREQUENCY_SUCCESS, 'model 1 initialization')
-    call require(.not. thin_context%cylindrical_backend%initialized, &
-        'model 1 entered cylindrical backend')
-    call get_gc_frequency_runtime_metadata(metadata)
-    call require(metadata%cylindrical_entry_count == 0 .and. &
-        metadata%legacy_entry_count == 0, &
-        'models 0/1 entered a frequency backend before model-2 dispatch')
 
     call initialize_gc_frequency_context(surface, th0, 1.0_dp, 0.0_dp, &
         mass, qe, speed, full_context, status, &

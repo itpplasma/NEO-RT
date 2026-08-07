@@ -105,11 +105,49 @@ set(NEO_RT_SOURCES
     src/driftorbit.f90
     src/gc_wall_context.f90
     src/gc_perpendicular_invariant.f90
+    src/generated/neort_generated_certificate_registry.f90
+    src/generated/neort_cylindrical_geometry_symbolic.f90
+    src/generated/neort_cylindrical_bstar_symbolic.f90
+    src/generated/neort_cylindrical_littlejohn_symbolic.f90
+    src/generated/neort_axisymmetric_pphi_symbolic.f90
+    src/generated/neort_axisymmetric_noether_symbolic.f90
+    src/generated/neort_cylindrical_crossing_symbolic.f90
+    src/generated/neort_buchholz_cut_symbolic.f90
+    src/generated/neort_buchholz_cdot_symbolic.f90
+    src/generated/neort_buchholz_boundary_symbolic.f90
+    src/generated/neort_buchholz_action_symbolic.f90
+    src/generated/neort_buchholz_energy_symbolic.f90
+    src/generated/neort_buchholz_specific_energy_symbolic.f90
+    src/generated/neort_physical_mu_symbolic.f90
+    src/generated/neort_potato_mu_symbolic.f90
+    src/generated/neort_potato_velocity_symbolic.f90
+    src/generated/neort_full_fow_action_symbolic.f90
+    src/generated/neort_full_fow_perturbation_symbolic.f90
+    src/generated/neort_full_fow_resonance_symbolic.f90
+    src/generated/neort_full_fow_frequency_contribution_symbolic.f90
+    src/generated/neort_full_fow_frequency_identity_symbolic.f90
+    src/generated/neort_full_fow_sign_symmetry_symbolic.f90
+    src/generated/neort_full_fow_normalization_symbolic.f90
+    src/generated/neort_full_fow_quadrature_map_symbolic.f90
+    src/generated/neort_polynomial_cell_enclosure_symbolic.f90
+    src/generated/neort_full_fow_section_reversal_symbolic.f90
+    src/generated/neort_full_fow_eq17_symbolic.f90
+    src/generated/neort_full_fow_eq17_outer_symbolic.f90
+    src/generated/neort_full_fow_refinement_symbolic.f90
+    src/generated/neort_cylindrical_bilinear_complex_symbolic.f90
+    src/generated/neort_profile_endpoint_symbolic.f90
+    src/generated/neort_profile_potential_segment_symbolic.f90
+    src/generated/neort_cylindrical_hamiltonian_symbolic.f90
+    src/generated/neort_cylindrical_canonical_symbolic.f90
+    src/generated/neort_cylindrical_vparallel_symbolic.f90
+    src/generated/neort_cylindrical_launch_symbolic.f90
     src/gc_dynamics.f90
     src/gc_cylindrical_model.f90
     src/gc_cylindrical_dynamics.f90
     src/gc_cylindrical_physical_return.f90
     src/gc_cylindrical_topology.f90
+    src/gc_certified_interval_roots.f90
+    src/gc_poincare_cut_atlas.f90
     src/gc_cylindrical_class_adapter.f90
     src/gc_cylindrical_orbit.f90
     src/gc_eqdsk_adapter.f90
@@ -121,6 +159,7 @@ set(NEO_RT_SOURCES
     src/gc_nonlocal_transport_types.f90
     src/gc_nonlocal_transport_integral.f90
     src/gc_cylindrical_transport_provider.f90
+    src/gc_full_fow_normalization_runtime.f90
     src/gc_eqdsk_nonlocal_transport.f90
     src/gc_full_fow_runtime_metadata.f90
     src/gc_full_fow_runtime_delivery.f90
@@ -153,6 +192,12 @@ if(USE_STANDALONE)
         src/gc_cylindrical_backend.f90
     )
 endif()
+
+add_custom_target(check_neort_full_fow_generated
+    COMMAND ${CMAKE_COMMAND} -DNEORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_SOURCE_DIR}/tools/gc_symbolics/check_full_fow_generated.cmake
+    USES_TERMINAL
+    COMMENT "Regenerating and comparing Fortsym full-FOW kernels")
 
 if(USE_STANDALONE)
     find_or_fetch(libneo)

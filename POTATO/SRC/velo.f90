@@ -55,6 +55,7 @@
                              dpsiast_dR,dpsiast_dZ !<=NEW in version 4
       use field_eq_mod, only : ierrfield
       use wall_loss_mod, only : outside_wall
+      use orbit_dim_mod, only : orbit_wall_loss
 !
       implicit none
 !
@@ -78,6 +79,7 @@
       x(1:3) = z(1:3)
 !
       if(outside_wall(x(1),x(3))) then
+        orbit_wall_loss=.true.
         ierrfield=1
         vz=0.d0
         return

@@ -1,6 +1,7 @@
 program test_gc_cylindrical_dynamics
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use neort_gc_cylindrical_model, only: GC_CYL_SECTION_PHI, GC_CYL_SUCCESS, &
+    use neort_gc_cylindrical_model, only: GC_CYL_INVALID_INPUT, &
+        GC_CYL_SECTION_PHI, GC_CYL_SUCCESS, &
         gc_cylindrical_field_sample_t, gc_cylindrical_invariants_t, &
         gc_cylindrical_linear_flux_potential_t, &
         gc_cylindrical_section_t, &
@@ -35,6 +36,7 @@ program test_gc_cylindrical_dynamics
     call check_invariant_launch()
     call check_bstar_measure_and_section_flux()
     call check_axis_regular_rhs()
+    call check_negative_mu_rejected()
     call check_thin_limit()
     call pass_test
 
@@ -160,17 +162,18 @@ contains
 
         ! The cylindrical state stores physical mu.  The caller's eta is
         ! therefore related by mu=1/2*m*v^2*eta.  The class adapter's
-        ! compatibility name J_perp denotes Buchholz J_K=c*mu/abs(q).
+        ! compatibility name J_perp denotes Buchholz J_K=m*c*mu/abs(q).
         mu_plus = 0.5_dp*mass_value*speed_value**2*(eta_value + delta_eta)
         mu_minus = 0.5_dp*mass_value*speed_value**2*(eta_value - delta_eta)
-        j_k_plus = c_value*mu_plus/abs(charge_value)
-        j_k_minus = c_value*mu_minus/abs(charge_value)
+        j_k_plus = mass_value*c_value*mu_plus/abs(charge_value)
+        j_k_minus = mass_value*c_value*mu_minus/abs(charge_value)
         dmu_deta = (mu_plus - mu_minus)/(2.0_dp*delta_eta)
         djperp_deta = (j_k_plus - j_k_minus)/(2.0_dp*delta_eta)
         call require_close('dmu/deta physical invariant', dmu_deta, &
             0.5_dp*mass_value*speed_value**2, 1.0e-11_dp)
         call require_close('dJperp/deta normalization', djperp_deta, &
-            c_value*0.5_dp*mass_value*speed_value**2/abs(charge_value), &
+            mass_value*c_value*0.5_dp*mass_value*speed_value**2/ &
+            abs(charge_value), &
             1.0e-11_dp)
     end subroutine check_pitch_invariant_jacobian
 
@@ -216,7 +219,7 @@ contains
         call require_close('mu invariant residual', mu_residual, 0.0_dp, 1.0e-13_dp)
         call require_close('P_phi invariant residual', pphi_residual, 0.0_dp, 1.0e-13_dp)
         call require_close('Buchholz J_K normalization', &
-            gc_buchholz_jk_from_state(state, 1.0_dp, c_light), &
+            gc_buchholz_jk_from_state(state, 1.0_dp, 1.0_dp, c_light), &
             c_light*state%mu, 1.0e-13_dp)
     end subroutine check_invariant_launch
 
@@ -275,6 +278,22 @@ contains
             if (any(derivative /= derivative)) error stop 'axis RHS is non-finite'
         end do
     end subroutine check_axis_regular_rhs
+
+    subroutine check_negative_mu_rejected()
+        b = [0.0_dp, 0.0_dp, 2.0_dp]
+        db = 0.0_dp
+        call make_gc_cylindrical_field_sample(3.0_dp, b, db, 0.0_dp, &
+            [0.0_dp, 0.0_dp, 0.0_dp], field, status)
+        if (status /= GC_CYL_SUCCESS) error stop 'negative-mu fixture failed'
+        state = gc_cylindrical_state_t()
+        state%R = 3.0_dp
+        state%mu = -0.1_dp
+        call gc_cylindrical_rhs(field, [0.0_dp, 0.0_dp, 0.0_dp], &
+            1.0_dp, 1.0_dp, c_light, state, derivative, status)
+        if (status /= GC_CYL_INVALID_INPUT) then
+            error stop 'negative physical magnetic moment was accepted'
+        end if
+    end subroutine check_negative_mu_rejected
 
     subroutine check_thin_limit()
         b = [0.0_dp, 0.0_dp, 2.0_dp]

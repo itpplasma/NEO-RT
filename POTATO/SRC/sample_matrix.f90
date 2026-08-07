@@ -43,13 +43,25 @@
   ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi))
 !
   x=xbeg
+  matrix_eval_valid=.true.
+  matrix_eval_error=matrix_eval_success
   CALL get_matrix
+  IF(.NOT.matrix_eval_valid) THEN
+    ierr=matrix_eval_error
+    RETURN
+  ENDIF
 !
   xarr(1)=x
   amat_arr(:,:,1)=amat
 !
   x=xend
+  matrix_eval_valid=.true.
+  matrix_eval_error=matrix_eval_success
   CALL get_matrix
+  IF(.NOT.matrix_eval_valid) THEN
+    ierr=matrix_eval_error
+    RETURN
+  ENDIF
   xarr(npoi)=x
   amat_arr(:,:,npoi)=amat
 !
@@ -57,18 +69,19 @@
     x=xbeg+h*(i-1)+hh*(i-1)**2
     xarr(i)=x
   ENDDO
-! Initial interior fill. The class grid is threadprivate per energy slice, so
-! keep this inactive when called outside the outer energy team.
-  !$omp parallel do if(.false.) default(shared) private(i) schedule(dynamic) &
-  !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next, &
-  !$omp          dtau,toten,perpinv,sigma)
+! Initial interior fill. The class grid is threadprivate per energy slice.
   DO i=2,npoi-1
     if(.not.allocated(amat)) allocate(amat(n1,n2))
     x=xarr(i)
+    matrix_eval_valid=.true.
+    matrix_eval_error=matrix_eval_success
     CALL get_matrix
+    IF(.NOT.matrix_eval_valid) THEN
+      ierr=matrix_eval_error
+      RETURN
+    ENDIF
     amat_arr(:,:,i)=amat
   ENDDO
-  !$omp end parallel do
 !
   ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2))
 !
@@ -152,18 +165,19 @@
     amat_arr(:,:,inew)=amat_old(:,:,npoi_old)
     DEALLOCATE(isplit)
 !
-! Fill pass for new nodes. See the initial fill above for why this region stays
-! inactive.
-    !$omp parallel do if(.false.) default(shared) private(k) schedule(dynamic) &
-    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,next, &
-    !$omp          dtau,toten,perpinv,sigma)
+! Fill pass for new nodes.
     DO k=1,nnew
       if(.not.allocated(amat)) allocate(amat(n1,n2))
       x=xarr(newslots(k))
+      matrix_eval_valid=.true.
+      matrix_eval_error=matrix_eval_success
       CALL get_matrix
+      IF(.NOT.matrix_eval_valid) THEN
+        ierr=matrix_eval_error
+        RETURN
+      ENDIF
       amat_arr(:,:,newslots(k))=amat
     ENDDO
-    !$omp end parallel do
     DEALLOCATE(newslots)
 !
 ! check which intervals should be splitted

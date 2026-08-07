@@ -8,6 +8,13 @@ module neort
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
     use neort_transport, only: compute_transport_integral
     use do_magfie_mod, only: s
+    use neort_gc_eqdsk_nonlocal_transport, only: gc_eqdsk_nonlocal_factory_t
+    use neort_gc_model2_transport_dispatch, only: &
+        GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE, GC_MODEL2_DISPATCH_NOT_CERTIFIED, &
+        GC_MODEL2_DISPATCH_SUCCESS, gc_model2_backend_evidence_t, &
+        gc_model2_observed_evidence_t, gc_model2_transport_execution_t, &
+        gc_model2_transport_options_t, execute_gc_model2_transport, &
+        finalize_gc_model2_transport_execution
 
     implicit none
 
@@ -23,7 +30,68 @@ module neort
     ! truncated it. Set vmax_over_vth = 3.0 to reproduce pre-2026-07-20 results.
     real(dp) :: vmax_over_vth = 4.0_dp
 
+    type(gc_eqdsk_nonlocal_factory_t), pointer, save :: model2_factory => null()
+    type(gc_model2_transport_options_t), save :: model2_options
+    type(gc_model2_backend_evidence_t), save :: model2_backend
+    type(gc_model2_transport_execution_t), save :: model2_execution
+    integer, save :: model2_harmonic_m = 0
+    integer, save :: model2_harmonic_n = 0
+    integer, save :: model2_last_status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
+    logical, save :: model2_configured = .false.
+
 contains
+
+    subroutine configure_model2_transport(factory, harmonic_m, harmonic_n, backend, &
+            options, status)
+        type(gc_eqdsk_nonlocal_factory_t), target, intent(inout) :: factory
+        integer, intent(in) :: harmonic_m, harmonic_n
+        type(gc_model2_backend_evidence_t), intent(in) :: backend
+        type(gc_model2_transport_options_t), intent(in) :: options
+        integer, intent(out) :: status
+
+        model2_configured = .false.
+        model2_last_status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
+        model2_execution = gc_model2_transport_execution_t()
+        if (.not. factory%initialized) then
+            status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
+            return
+        end if
+        if (.not. factory%field_ready .or. .not. factory%profile_ready) then
+            status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
+            return
+        end if
+        if (.not. factory%perturbation_ready .or. .not. factory%wall_ready) then
+            status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
+            return
+        end if
+        model2_factory => factory
+        model2_harmonic_m = harmonic_m
+        model2_harmonic_n = harmonic_n
+        model2_backend = backend
+        model2_options = options
+        model2_configured = .true.
+        model2_last_status = GC_MODEL2_DISPATCH_SUCCESS
+        status = GC_MODEL2_DISPATCH_SUCCESS
+    end subroutine configure_model2_transport
+
+    subroutine clear_model2_transport()
+        nullify(model2_factory)
+        model2_options = gc_model2_transport_options_t()
+        model2_backend = gc_model2_backend_evidence_t()
+        model2_execution = gc_model2_transport_execution_t()
+        model2_harmonic_m = 0
+        model2_harmonic_n = 0
+        model2_last_status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
+        model2_configured = .false.
+    end subroutine clear_model2_transport
+
+    subroutine get_model2_transport_execution(execution, status)
+        type(gc_model2_transport_execution_t), intent(out) :: execution
+        integer, intent(out) :: status
+
+        execution = model2_execution
+        status = model2_last_status
+    end subroutine get_model2_transport_execution
 
     pure subroutine harmonic_bounds(mph_value, q_value, max_abs, mth_min, mth_max)
         integer, intent(in) :: mph_value, max_abs
@@ -157,7 +225,8 @@ contains
 
     subroutine compute_transport(result_)
         use driftorbit, only: mth, M_t, R0, etamin, etamax, sign_vpar, nopassing, comptorque, &
-            dVds, mph, dOm_tEds, dM_tds, supban
+            dVds, mph, dOm_tEds, dM_tds, supban, frequency_model, &
+            FREQUENCY_MODEL_GC_FULL
         use neort_profiles, only: Om_tE
         use do_magfie_mod, only: q
 
@@ -173,6 +242,11 @@ contains
         integer :: mthmin, mthmax
 
         call debug('compute_transport')
+
+        if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+            call compute_model2_transport(result_)
+            return
+        end if
 
         if (allocated(result_%harmonics)) deallocate(result_%harmonics)
 
@@ -231,6 +305,125 @@ contains
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
+
+    subroutine compute_model2_transport(result_)
+        use driftorbit, only: M_t, comptorque, dVds
+
+        type(transport_data_t), intent(out) :: result_
+
+        type(gc_model2_observed_evidence_t) :: observed
+        type(gc_model2_transport_execution_t) :: execution
+        integer :: status, i
+
+        if (allocated(result_%harmonics)) deallocate(result_%harmonics)
+        result_%summary%M_t = 0.0_dp
+        result_%summary%Dco = 0.0_dp
+        result_%summary%Dctr = 0.0_dp
+        result_%summary%Dt = 0.0_dp
+        result_%torque%has_torque = .false.
+        result_%torque%s = 0.0_dp
+        result_%torque%dVds = 0.0_dp
+        result_%torque%M_t = 0.0_dp
+        result_%torque%Tco = 0.0_dp
+        result_%torque%Tctr = 0.0_dp
+        result_%torque%Tt = 0.0_dp
+        execution = gc_model2_transport_execution_t()
+        if (.not. model2_configured .or. .not. associated(model2_factory)) then
+            model2_last_status = GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE
+            model2_execution = execution
+            return
+        end if
+
+        call execute_gc_model2_transport(model2_factory%provider, model2_harmonic_m, &
+            model2_harmonic_n, model2_backend, model2_options, execution, status)
+        if (status /= GC_MODEL2_DISPATCH_SUCCESS) then
+            model2_last_status = status
+            model2_execution = execution
+            return
+        end if
+
+        observed = execution%observed
+        call update_model2_backend_execution_certificates(observed)
+        call finalize_gc_model2_transport_execution(execution, model2_backend, observed, &
+            status)
+        model2_last_status = status
+        model2_execution = execution
+        if (status /= GC_MODEL2_DISPATCH_SUCCESS) return
+
+        allocate(result_%harmonics(size(execution%harmonics)))
+        do i = 1, size(execution%harmonics)
+            result_%harmonics(i)%Dresco = [execution%harmonics(i)%d11(1), &
+                execution%harmonics(i)%d12(1)]
+            result_%harmonics(i)%Dresctr = [execution%harmonics(i)%d11(2), &
+                execution%harmonics(i)%d12(2)]
+            result_%harmonics(i)%Drest = [execution%harmonics(i)%d11(3), &
+                execution%harmonics(i)%d12(3)]
+            result_%harmonics(i)%Tresco = execution%harmonics(i)%torque(1)
+            result_%harmonics(i)%Tresctr = execution%harmonics(i)%torque(2)
+            result_%harmonics(i)%Trest = execution%harmonics(i)%torque(3)
+            result_%harmonics(i)%vminp_over_vth = 0.0_dp
+            result_%harmonics(i)%vmaxp_over_vth = 0.0_dp
+            result_%harmonics(i)%vmint_over_vth = 0.0_dp
+            result_%harmonics(i)%vmaxt_over_vth = 0.0_dp
+            result_%harmonics(i)%mth = &
+                execution%harmonics(i)%poloidal_harmonic
+        end do
+        result_%summary%M_t = M_t
+        result_%summary%Dco = [execution%d11_class(1), execution%d12_class(1)]
+        result_%summary%Dctr = [execution%d11_class(2), execution%d12_class(2)]
+        result_%summary%Dt = [execution%d11_class(3), execution%d12_class(3)]
+        result_%torque%has_torque = comptorque
+        if (comptorque) then
+            result_%torque%s = s
+            result_%torque%dVds = dVds
+            result_%torque%M_t = M_t
+            result_%torque%Tco = execution%torque_class(1)
+            result_%torque%Tctr = execution%torque_class(2)
+            result_%torque%Tt = execution%torque_class(3)
+        else
+            result_%torque%s = 0.0_dp
+            result_%torque%dVds = 0.0_dp
+            result_%torque%M_t = 0.0_dp
+            result_%torque%Tco = 0.0_dp
+            result_%torque%Tctr = 0.0_dp
+            result_%torque%Tt = 0.0_dp
+        end if
+    end subroutine compute_model2_transport
+
+    subroutine update_model2_backend_execution_certificates(observed)
+        type(gc_model2_observed_evidence_t), intent(in) :: observed
+        logical :: component_certificate
+
+        model2_backend%topology_certified = .false.
+        if (observed%topology_certification_attempts > 0) then
+            model2_backend%topology_certified = &
+                observed%topology_certification_successes == &
+                observed%topology_certification_attempts
+        end if
+
+        model2_backend%canonical_measure_certified = .false.
+        if (model2_factory%provider%node_ready) then
+            if (model2_factory%provider%node_context%charge_c_locked) then
+                if (.not. associated(model2_factory%provider%node_context% &
+                    canonical_conversion_provider)) then
+                    model2_backend%canonical_measure_certified = .true.
+                end if
+            end if
+        end if
+
+        component_certificate = .false.
+        if (model2_factory%provider%node_ready) then
+            if (model2_factory%provider%node_context%components_enumerated) then
+                if (model2_factory%provider%node_class_result%class_complete) then
+                    if (allocated(model2_factory%provider%node_components)) then
+                        component_certificate = size(model2_factory%provider%node_components) == &
+                            model2_factory%provider%node_class_result%nclasses
+                    end if
+                end if
+            end if
+        end if
+        model2_backend%component_identity_certified = component_certificate
+    end subroutine update_model2_backend_execution_certificates
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
         use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing, supban

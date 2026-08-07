@@ -108,6 +108,19 @@ add_test(NAME test_signed_toroidal_bound
    COMMAND test_signed_toroidal_bound.x
 )
 
+add_executable(test_bmod_pert_status.x
+   SRC/test_bmod_pert_status.f90
+)
+target_link_libraries(test_bmod_pert_status.x
+   potato_base
+)
+add_test(NAME test_bmod_pert_status
+   COMMAND test_bmod_pert_status.x
+)
+set_tests_properties(test_bmod_pert_status PROPERTIES
+   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+)
+
 add_executable(test_pitch_boundary.x
    SRC/test_pitch_boundary.f90
 )
@@ -172,6 +185,19 @@ target_link_libraries(potato_resonance_probe.x
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME test_endpoint_stationary_root_determinism
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/test_endpoint_stationary_root_determinism.py
+            $<TARGET_FILE:test_endpoint_stationary_root.x>)
+    set_tests_properties(test_endpoint_stationary_root_determinism PROPERTIES
+        TIMEOUT 120)
+
+    add_test(NAME potato_symbolic_regeneration
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/test_potato_symbolic_regeneration.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/..)
+    set_tests_properties(potato_symbolic_regeneration PROPERTIES TIMEOUT 120)
+
     set(_neo2_reader_fixture "${CMAKE_CURRENT_BINARY_DIR}/neo2-reader-oracle.h5")
     add_test(NAME generate_neo2_reader_oracle
         COMMAND ${Python3_EXECUTABLE}

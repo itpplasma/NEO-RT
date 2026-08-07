@@ -17,12 +17,16 @@ module neort_gc_cylindrical_nonlocal_provider
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_nonlocal_resonance_types, only: &
+        GC_NONLOCAL_CLASS_COUNTERPASSING, GC_NONLOCAL_CLASS_COPASSING, &
+        GC_NONLOCAL_CLASS_TRAPPED, &
         GC_NONLOCAL_MAX_FORCE_VALUES, &
         GC_NONLOCAL_SAMPLE_INVALID, &
         GC_NONLOCAL_SAMPLE_UNRESOLVED, GC_NONLOCAL_SAMPLE_VALID, &
         GC_NONLOCAL_SAMPLE_WALL, GC_NONLOCAL_SUCCESS, &
         gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t, &
         gc_nonlocal_resonance_options_t, gc_nonlocal_resonance_result_t
+    use neort_full_fow_action_symbolic, only: &
+        evaluate_neort_action_normalization
 
     implicit none
     private
@@ -67,6 +71,8 @@ module neort_gc_cylindrical_nonlocal_provider
         real(dp) :: reference(3) = 0.0_dp
         character(len=64) :: reference_id = ''
         logical :: locked = .false.
+        integer :: required_return_crossings = 1
+        integer :: return_crossings = 0
     end type gc_cylindrical_nonlocal_section_t
 
     type, public :: gc_cylindrical_nonlocal_orbit_t
@@ -80,10 +86,17 @@ module neort_gc_cylindrical_nonlocal_provider
         integer :: component_id = 0
         integer :: sigma = 0
         integer :: winding = 0
+        integer :: class_kind = 0
+        integer :: parallel_sign_changes = 0
         integer :: section_return_crossings = 0
+        integer :: intersection_orientations(2) = 0
+        real(dp) :: intersection_times(2) = 0.0_dp
+        real(dp) :: intersection_rates(2) = 0.0_dp
+        logical :: intersection_multiplicity_certified = .false.
         logical :: winding_available = .false.
         logical :: section_return_available = .false.
         logical :: complete_cycle_return = .false.
+        logical :: class_behavior_certified = .false.
         logical :: p_phi_mapping_certified = .false.
         integer :: mapping_orientation = 0
         logical :: electric_potential_included = .false.
@@ -110,11 +123,18 @@ module neort_gc_cylindrical_nonlocal_provider
         !! existing nonlocal sample type intentionally does not carry.
         type(gc_nonlocal_orbit_sample_t) :: sample
         integer :: winding = 0
+        integer :: class_kind = 0
+        integer :: parallel_sign_changes = 0
         integer :: section_return_crossings = 0
+        integer :: intersection_orientations(2) = 0
+        real(dp) :: intersection_times(2) = 0.0_dp
+        real(dp) :: intersection_rates(2) = 0.0_dp
+        logical :: intersection_multiplicity_certified = .false.
         integer :: wall_status = GC_CYL_NONLOCAL_WALL_UNRESOLVED
         logical :: winding_available = .false.
         logical :: section_return_available = .false.
         logical :: complete_cycle_return = .false.
+        logical :: class_behavior_certified = .false.
         logical :: p_phi_mapping_certified = .false.
         integer :: mapping_orientation = 0
         logical :: electric_potential_included = .false.
@@ -233,7 +253,8 @@ contains
     subroutine initialize_gc_cylindrical_nonlocal_provider(h0, jperp, context, &
             status, particle_charge, c_light, component_provider, orbit_provider, &
             harmonic_provider, force_provider, canonical_conversion_provider, &
-            section_coordinate, section_reference, section_reference_id, user_data)
+            section_coordinate, section_reference, section_reference_id, user_data, &
+            required_return_crossings)
         real(dp), intent(in) :: h0, jperp
         type(gc_cylindrical_nonlocal_context_t), intent(out) :: context
         integer, intent(out) :: status
@@ -252,6 +273,7 @@ contains
         real(dp), intent(in), optional :: section_reference(3)
         character(len=*), intent(in), optional :: section_reference_id
         class(*), target, intent(inout), optional :: user_data
+        integer, intent(in), optional :: required_return_crossings
 
         context%h0 = 0.0_dp
         context%jperp = 0.0_dp
@@ -268,6 +290,14 @@ contains
         nullify(context%force_provider)
         nullify(context%canonical_conversion_provider)
         if (allocated(context%components)) deallocate(context%components)
+        if (present(required_return_crossings)) then
+            if (required_return_crossings < 1 .or. required_return_crossings > 2) then
+                status = GC_CYL_NONLOCAL_SECTION_ERROR
+                return
+            end if
+            context%section%required_return_crossings = required_return_crossings
+            context%section%return_crossings = required_return_crossings
+        end if
 
         status = GC_CYL_NONLOCAL_INVALID_INPUT
         if (.not. ieee_is_finite(h0)) return
@@ -485,7 +515,8 @@ contains
             status = GC_CYL_NONLOCAL_ORBIT_ERROR
             return
         end if
-        call validate_valid_orbit(orbit, local_status)
+        call validate_valid_orbit(orbit, context%section%required_return_crossings, &
+            local_status)
         if (local_status /= GC_CYL_NONLOCAL_SUCCESS) then
             status = local_status
             return
@@ -494,6 +525,9 @@ contains
         evaluation%sample%status = GC_NONLOCAL_SAMPLE_VALID
         evaluation%sample%component_id = component_id
         evaluation%sample%sigma = sigma
+        evaluation%sample%class_kind = orbit%class_kind
+        evaluation%sample%class_behavior_certified = &
+            orbit%class_behavior_certified
         evaluation%p_phi = orbit%p_phi
         evaluation%dp_phi_dx = orbit%dp_phi_dx
         evaluation%sample%tau_b = orbit%tau_b
@@ -709,11 +743,19 @@ contains
         type(gc_cylindrical_nonlocal_evaluation_t), intent(inout) :: evaluation
 
         evaluation%winding = orbit%winding
+        evaluation%class_kind = orbit%class_kind
+        evaluation%parallel_sign_changes = orbit%parallel_sign_changes
         evaluation%section_return_crossings = orbit%section_return_crossings
+        evaluation%intersection_orientations = orbit%intersection_orientations
+        evaluation%intersection_times = orbit%intersection_times
+        evaluation%intersection_rates = orbit%intersection_rates
+        evaluation%intersection_multiplicity_certified = &
+            orbit%intersection_multiplicity_certified
         evaluation%wall_status = orbit%wall_status
         evaluation%winding_available = orbit%winding_available
         evaluation%section_return_available = orbit%section_return_available
         evaluation%complete_cycle_return = orbit%complete_cycle_return
+        evaluation%class_behavior_certified = orbit%class_behavior_certified
         evaluation%p_phi_mapping_certified = orbit%p_phi_mapping_certified
         evaluation%mapping_orientation = orbit%mapping_orientation
         evaluation%electric_potential_included = orbit%electric_potential_included
@@ -737,7 +779,7 @@ contains
         logical, intent(out) :: certified
         integer, intent(out) :: status
 
-        real(dp) :: factor
+        real(dp) :: action_values(11)
         integer :: callback_status
 
         psi_star = 0.0_dp
@@ -763,11 +805,18 @@ contains
             definition = 'certified canonical conversion callback'
         else
             if (.not. context%charge_c_locked) return
-            factor = context%c_light/context%particle_charge
-            psi_star = factor*p_phi
-            dpsi_star_dx = factor*dp_phi_dx
+            call evaluate_neort_action_normalization(1.0_dp, &
+                context%particle_charge, context%c_light, 0.0_dp, 1.0_dp, &
+                0.0_dp, 0.0_dp, p_phi, 1.0_dp, action_values(1), &
+                action_values(2), action_values(3), action_values(4), &
+                action_values(5), action_values(6), action_values(7), &
+                action_values(8), action_values(9), action_values(10), &
+                action_values(11))
+            if (.not. all(ieee_is_finite(action_values))) return
+            psi_star = action_values(10)
+            dpsi_star_dx = action_values(11)*dp_phi_dx
             units = 'psi_star=(c/q)*p_phi'
-            definition = 'psi_star=(c/q)*p_phi'
+            definition = 'Fortsym psi_star=(c/q)*p_phi'
             certified = .true.
         end if
         if (.not. all(ieee_is_finite([psi_star, dpsi_star_dx]))) then
@@ -780,8 +829,9 @@ contains
         status = GC_CYL_NONLOCAL_SUCCESS
     end subroutine convert_canonical_coordinate
 
-    subroutine validate_valid_orbit(orbit, status)
+    subroutine validate_valid_orbit(orbit, required_return_crossings, status)
         type(gc_cylindrical_nonlocal_orbit_t), intent(in) :: orbit
+        integer, intent(in) :: required_return_crossings
         integer, intent(out) :: status
 
         real(dp), parameter :: two_pi = 6.28318530717958647692528676656_dp
@@ -817,6 +867,10 @@ contains
             status = GC_CYL_NONLOCAL_UNAVAILABLE
             return
         end if
+        ! class_kind, winding, and parallel-sign history are descriptive
+        ! diagnostics only.  They never certify or split a cut component.
+        ! Completeness is established by the exhaustive certified cut atlas
+        ! and its boundary/intersection evidence above.
         if (.not. orbit%p_phi_mapping_certified) then
             status = GC_CYL_NONLOCAL_MAPPING_UNAVAILABLE
             return
@@ -829,9 +883,35 @@ contains
             status = GC_CYL_NONLOCAL_UNAVAILABLE
             return
         end if
-        if (orbit%section_return_crossings <= 0) then
+        if (required_return_crossings < 1 .or. required_return_crossings > 2) then
             status = GC_CYL_NONLOCAL_SECTION_ERROR
             return
+        end if
+        if (orbit%section_return_crossings /= required_return_crossings) then
+            status = GC_CYL_NONLOCAL_SECTION_ERROR
+            return
+        end if
+        if (required_return_crossings == 2) then
+            if (.not. orbit%intersection_multiplicity_certified) then
+                status = GC_CYL_NONLOCAL_SECTION_ERROR
+                return
+            end if
+            if (abs(orbit%intersection_orientations(1)) /= 1 .or. &
+                    abs(orbit%intersection_orientations(2)) /= 1 .or. &
+                    orbit%intersection_orientations(1) == &
+                    orbit%intersection_orientations(2) .or. &
+                    orbit%intersection_times(2) <= orbit%intersection_times(1)) then
+                status = GC_CYL_NONLOCAL_SECTION_ERROR
+                return
+            end if
+            if (.not. all(ieee_is_finite(orbit%intersection_rates))) then
+                status = GC_CYL_NONLOCAL_SECTION_ERROR
+                return
+            end if
+            if (any(abs(orbit%intersection_rates) <= tiny(1.0_dp))) then
+                status = GC_CYL_NONLOCAL_SECTION_ERROR
+                return
+            end if
         end if
         values = [orbit%p_phi, orbit%dp_phi_dx, orbit%tau_b, orbit%omega_b, &
             orbit%omega_phi, orbit%domega_b_dx, orbit%domega_phi_dx, &
@@ -908,6 +988,11 @@ contains
                 return
             end if
         end do
+        if (orbit_section%required_return_crossings /= &
+                context_section%required_return_crossings) then
+            status = GC_CYL_NONLOCAL_SECTION_ERROR
+            return
+        end if
         status = GC_CYL_NONLOCAL_SUCCESS
     end subroutine validate_section_metadata
 

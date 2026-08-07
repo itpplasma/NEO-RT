@@ -65,7 +65,6 @@
 !
 ! Allow orbits to cross the separatrix into the scrape-off layer when requested:
   allow_sol = edge_extension
-  orbit_clip_resonance_classes = input_clip_resonance_classes
 !
   iunit=71
 !
@@ -104,6 +103,15 @@
     call close_logging()
     stop
   end select
+
+! The delphi clip is a torque-root-search optimization only.  Frequency,
+! single-orbit, and topology/evidence paths must retain the complete connected
+! class set even when the namelist requests clipping.
+  orbit_clip_resonance_classes = input_clip_resonance_classes .and. &
+                                 compute_resonant_torque
+  if(input_clip_resonance_classes .and. .not.compute_resonant_torque) then
+    call tee_message('resonance class clip disabled for non-torque evidence path')
+  endif
 !
 !
 ! Apply scaling to input parameters:

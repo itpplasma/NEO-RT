@@ -454,6 +454,10 @@ contains
         orbit%sigma = sigma
         orbit%winding = 2*sigma
         orbit%section_return_crossings = 2
+        orbit%intersection_orientations = [-1, 1]
+        orbit%intersection_times = [0.25_dp*tau, 0.75_dp*tau]
+        orbit%intersection_rates = [1.0_dp, -1.0_dp]
+        orbit%intersection_multiplicity_certified = .true.
         orbit%winding_available = .true.
         orbit%section_return_available = .true.
         orbit%complete_cycle_return = .true.

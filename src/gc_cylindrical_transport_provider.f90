@@ -39,7 +39,8 @@ module neort_gc_cylindrical_transport_provider
         gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t
     use neort_gc_nonlocal_transport_types, only: &
         GC_NONLOCAL_COMPLETE_CYCLE_FREQUENCIES, &
-        gc_nonlocal_transport_provider_t, &
+        gc_nonlocal_transport_observed_evidence_t, &
+        gc_nonlocal_transport_provider_t, gc_nonlocal_transport_quadrature_t, &
         gc_nonlocal_transport_reference_t
 
     implicit none
@@ -82,22 +83,63 @@ module neort_gc_cylindrical_transport_provider
             real(dp), intent(out) :: outer_factor
             integer, intent(out) :: status
         end subroutine gc_cylindrical_transport_outer_factor_i
+
+        subroutine gc_cylindrical_transport_quadrature_builder_i(h0_order, &
+                jk_order, user_data, quadrature, status)
+            import :: gc_nonlocal_transport_quadrature_t
+            integer, intent(in) :: h0_order, jk_order
+            class(*), pointer, intent(inout) :: user_data
+            type(gc_nonlocal_transport_quadrature_t), intent(out) :: quadrature
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_transport_quadrature_builder_i
+
+        subroutine gc_cylindrical_transport_class_kind_i(reference, h0, jperp, &
+                x, sigma, component_id, user_data, class_kind, status)
+            import :: dp, gc_nonlocal_transport_reference_t
+            type(gc_nonlocal_transport_reference_t), intent(in) :: reference
+            real(dp), intent(in) :: h0, jperp, x
+            integer, intent(in) :: sigma, component_id
+            class(*), pointer, intent(inout) :: user_data
+            integer, intent(out) :: class_kind, status
+        end subroutine gc_cylindrical_transport_class_kind_i
+
+        subroutine gc_cylindrical_transport_reset_i(user_data, status)
+            class(*), pointer, intent(inout) :: user_data
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_transport_reset_i
+
+        subroutine gc_cylindrical_transport_evidence_i(user_data, evidence, &
+                status)
+            import :: gc_nonlocal_transport_observed_evidence_t
+            class(*), pointer, intent(inout) :: user_data
+            type(gc_nonlocal_transport_observed_evidence_t), intent(out) :: &
+                evidence
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_transport_evidence_i
     end interface
 
     type, public, extends(gc_nonlocal_transport_provider_t) :: &
             gc_cylindrical_transport_provider_t
-        !! One configured harmonic and one explicit H0,Jperp quadrature.
+        !! One physical paired quadrature; the active harmonic is changed by
+        !! the batch dispatcher without rebuilding the phase-space domain.
         integer :: harmonic_m = 0
         integer :: harmonic_n = 0
         integer :: force_count = 0
         type(gc_nonlocal_transport_reference_t) :: reference
+        type(gc_nonlocal_transport_quadrature_t) :: quadrature
         character(len=64) :: section_reference_id = ''
-        real(dp), allocatable :: h0_nodes(:), h0_weights(:)
-        real(dp), allocatable :: jperp_nodes(:), jperp_weights(:)
         procedure(gc_cylindrical_transport_node_factory_i), pointer, nopass :: &
             node_factory => null()
         procedure(gc_cylindrical_transport_outer_factor_i), pointer, nopass :: &
             outer_factor_callback => null()
+        procedure(gc_cylindrical_transport_quadrature_builder_i), pointer, nopass :: &
+            quadrature_builder => null()
+        procedure(gc_cylindrical_transport_class_kind_i), pointer, nopass :: &
+            class_kind_callback => null()
+        procedure(gc_cylindrical_transport_reset_i), pointer, nopass :: &
+            reset_callback => null()
+        procedure(gc_cylindrical_transport_evidence_i), pointer, nopass :: &
+            evidence_callback => null()
         class(*), pointer :: user_data => null()
         logical :: initialized = .false.
         logical :: node_ready = .false.
@@ -125,28 +167,43 @@ module neort_gc_cylindrical_transport_provider
         procedure :: evaluate_profiles => cylindrical_evaluate_profiles
         procedure :: evaluate_outer_measure_factor => &
             cylindrical_evaluate_outer_factor
+        procedure :: set_harmonic => cylindrical_set_harmonic
+        procedure :: get_class_kind => cylindrical_get_class_kind
+        procedure :: begin_execution => cylindrical_begin_execution
+        procedure :: get_execution_evidence => cylindrical_get_execution_evidence
     end type gc_cylindrical_transport_provider_t
 
     public :: gc_cylindrical_transport_node_factory_i
     public :: gc_cylindrical_transport_outer_factor_i
+    public :: gc_cylindrical_transport_quadrature_builder_i
+    public :: gc_cylindrical_transport_class_kind_i
+    public :: gc_cylindrical_transport_reset_i
+    public :: gc_cylindrical_transport_evidence_i
     public :: initialize_gc_cylindrical_transport_provider
     public :: clear_gc_cylindrical_transport_provider
 
 contains
 
-    subroutine initialize_gc_cylindrical_transport_provider(provider, h0_nodes, &
-            h0_weights, jperp_nodes, jperp_weights, reference, harmonic_m, &
-            harmonic_n, force_count, node_factory, outer_factor_callback, &
-            status, user_data, section_reference_id)
+    subroutine initialize_gc_cylindrical_transport_provider(provider, quadrature, &
+            reference, harmonic_m, harmonic_n, force_count, node_factory, &
+            outer_factor_callback, class_kind_callback, reset_callback, &
+            evidence_callback, status, user_data, section_reference_id, &
+            quadrature_builder)
         type(gc_cylindrical_transport_provider_t), intent(out) :: provider
-        real(dp), intent(in) :: h0_nodes(:), h0_weights(:)
-        real(dp), intent(in) :: jperp_nodes(:), jperp_weights(:)
+        type(gc_nonlocal_transport_quadrature_t), intent(in) :: quadrature
         type(gc_nonlocal_transport_reference_t), intent(in) :: reference
         integer, intent(in) :: harmonic_m, harmonic_n, force_count
         procedure(gc_cylindrical_transport_node_factory_i), optional :: &
             node_factory
         procedure(gc_cylindrical_transport_outer_factor_i), optional :: &
             outer_factor_callback
+        procedure(gc_cylindrical_transport_quadrature_builder_i), optional :: &
+            quadrature_builder
+        procedure(gc_cylindrical_transport_class_kind_i), optional :: &
+            class_kind_callback
+        procedure(gc_cylindrical_transport_reset_i), optional :: reset_callback
+        procedure(gc_cylindrical_transport_evidence_i), optional :: &
+            evidence_callback
         integer, intent(out) :: status
         class(*), target, intent(inout), optional :: user_data
         character(len=*), intent(in), optional :: section_reference_id
@@ -156,12 +213,13 @@ contains
         provider%force_count = 0
         provider%reference = gc_nonlocal_transport_reference_t()
         provider%section_reference_id = ''
-        if (allocated(provider%h0_nodes)) deallocate(provider%h0_nodes)
-        if (allocated(provider%h0_weights)) deallocate(provider%h0_weights)
-        if (allocated(provider%jperp_nodes)) deallocate(provider%jperp_nodes)
-        if (allocated(provider%jperp_weights)) deallocate(provider%jperp_weights)
+        provider%quadrature = gc_nonlocal_transport_quadrature_t()
         nullify(provider%node_factory)
         nullify(provider%outer_factor_callback)
+        nullify(provider%quadrature_builder)
+        nullify(provider%class_kind_callback)
+        nullify(provider%reset_callback)
+        nullify(provider%evidence_callback)
         nullify(provider%user_data)
         provider%initialized = .false.
         provider%node_ready = .false.
@@ -183,8 +241,7 @@ contains
             status = GC_CYL_TRANSPORT_REFERENCE_MISMATCH
             return
         end if
-        if (.not. valid_quadrature_arrays(h0_nodes, h0_weights, jperp_nodes, &
-            jperp_weights)) return
+        if (.not. valid_quadrature(quadrature)) return
         if (.not. present(node_factory)) then
             status = GC_CYL_TRANSPORT_UNAVAILABLE
             return
@@ -194,14 +251,7 @@ contains
             return
         end if
 
-        allocate(provider%h0_nodes(size(h0_nodes)), &
-            provider%h0_weights(size(h0_weights)), &
-            provider%jperp_nodes(size(jperp_nodes)), &
-            provider%jperp_weights(size(jperp_weights)))
-        provider%h0_nodes = h0_nodes
-        provider%h0_weights = h0_weights
-        provider%jperp_nodes = jperp_nodes
-        provider%jperp_weights = jperp_weights
+        provider%quadrature = quadrature
         provider%reference = reference
         provider%section_reference_id = adjustl(section_reference_id)
         provider%harmonic_m = harmonic_m
@@ -209,6 +259,23 @@ contains
         provider%force_count = force_count
         provider%node_factory => node_factory
         provider%outer_factor_callback => outer_factor_callback
+        if (present(quadrature_builder)) provider%quadrature_builder => &
+            quadrature_builder
+        if (present(class_kind_callback)) then
+            provider%class_kind_callback => class_kind_callback
+        else
+            provider%class_kind_callback => default_class_kind
+        end if
+        if (present(reset_callback)) then
+            provider%reset_callback => reset_callback
+        else
+            provider%reset_callback => default_reset
+        end if
+        if (present(evidence_callback)) then
+            provider%evidence_callback => evidence_callback
+        else
+            provider%evidence_callback => default_evidence
+        end if
         if (present(user_data)) provider%user_data => user_data
         provider%initialized = .true.
         status = GC_CYL_TRANSPORT_SUCCESS
@@ -217,14 +284,14 @@ contains
     subroutine clear_gc_cylindrical_transport_provider(provider)
         type(gc_cylindrical_transport_provider_t), intent(inout) :: provider
 
-        if (allocated(provider%h0_nodes)) deallocate(provider%h0_nodes)
-        if (allocated(provider%h0_weights)) deallocate(provider%h0_weights)
-        if (allocated(provider%jperp_nodes)) deallocate(provider%jperp_nodes)
-        if (allocated(provider%jperp_weights)) deallocate(provider%jperp_weights)
         if (allocated(provider%node_components)) &
             deallocate(provider%node_components)
         nullify(provider%node_factory)
         nullify(provider%outer_factor_callback)
+        nullify(provider%quadrature_builder)
+        nullify(provider%class_kind_callback)
+        nullify(provider%reset_callback)
+        nullify(provider%evidence_callback)
         nullify(provider%user_data)
         provider%reference = gc_nonlocal_transport_reference_t()
         provider%section_reference_id = ''
@@ -234,6 +301,7 @@ contains
         provider%initialized = .false.
         provider%node_ready = .false.
         provider%cache_valid = .false.
+        provider%quadrature = gc_nonlocal_transport_quadrature_t()
     end subroutine clear_gc_cylindrical_transport_provider
 
     subroutine cylindrical_get_section_reference(provider, reference, status)
@@ -248,29 +316,107 @@ contains
         status = GC_CYL_TRANSPORT_SUCCESS
     end subroutine cylindrical_get_section_reference
 
-    subroutine cylindrical_get_quadrature(provider, h0_nodes, h0_weights, &
-            jperp_nodes, jperp_weights, status)
+    subroutine cylindrical_get_quadrature(provider, h0_order, jk_order, quadrature, &
+            status)
         class(gc_cylindrical_transport_provider_t), intent(inout) :: provider
-        real(dp), allocatable, intent(out) :: h0_nodes(:), h0_weights(:)
-        real(dp), allocatable, intent(out) :: jperp_nodes(:), jperp_weights(:)
+        integer, intent(in) :: h0_order, jk_order
+        type(gc_nonlocal_transport_quadrature_t), intent(out) :: quadrature
         integer, intent(out) :: status
 
-        if (allocated(h0_nodes)) deallocate(h0_nodes)
-        if (allocated(h0_weights)) deallocate(h0_weights)
-        if (allocated(jperp_nodes)) deallocate(jperp_nodes)
-        if (allocated(jperp_weights)) deallocate(jperp_weights)
+        quadrature = gc_nonlocal_transport_quadrature_t()
         status = GC_CYL_TRANSPORT_INVALID_INPUT
         if (.not. provider%initialized) return
-        allocate(h0_nodes(size(provider%h0_nodes)), &
-            h0_weights(size(provider%h0_weights)), &
-            jperp_nodes(size(provider%jperp_nodes)), &
-            jperp_weights(size(provider%jperp_weights)))
-        h0_nodes = provider%h0_nodes
-        h0_weights = provider%h0_weights
-        jperp_nodes = provider%jperp_nodes
-        jperp_weights = provider%jperp_weights
+        if (associated(provider%quadrature_builder)) then
+            call provider%quadrature_builder(h0_order, jk_order, provider%user_data, &
+                quadrature, status)
+            return
+        end if
+        if (h0_order /= provider%quadrature%h0_order .or. &
+                jk_order /= provider%quadrature%jk_order) then
+            status = GC_CYL_TRANSPORT_UNAVAILABLE
+            return
+        end if
+        quadrature = provider%quadrature
         status = GC_CYL_TRANSPORT_SUCCESS
     end subroutine cylindrical_get_quadrature
+
+    subroutine cylindrical_set_harmonic(provider, harmonic_m, harmonic_n, status)
+        class(gc_cylindrical_transport_provider_t), intent(inout) :: provider
+        integer, intent(in) :: harmonic_m, harmonic_n
+        integer, intent(out) :: status
+
+        status = GC_CYL_TRANSPORT_INVALID_INPUT
+        if (.not. provider%initialized) return
+        if (harmonic_m == 0 .and. harmonic_n == 0) return
+        if (harmonic_n == 0) return
+        provider%harmonic_m = harmonic_m
+        provider%harmonic_n = harmonic_n
+        provider%cache_valid = .false.
+        status = GC_CYL_TRANSPORT_SUCCESS
+    end subroutine cylindrical_set_harmonic
+
+    subroutine cylindrical_get_class_kind(provider, reference, h0, jperp, x, &
+            sigma, component_id, class_kind, status)
+        class(gc_cylindrical_transport_provider_t), intent(inout) :: provider
+        type(gc_nonlocal_transport_reference_t), intent(in) :: reference
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        integer, intent(out) :: class_kind, status
+
+        class_kind = 0
+        status = GC_CYL_TRANSPORT_INVALID_INPUT
+        if (.not. provider%initialized) return
+        if (.not. associated(provider%class_kind_callback)) then
+            status = GC_CYL_TRANSPORT_UNAVAILABLE
+            return
+        end if
+        if (.not. same_reference(reference, provider%reference)) then
+            status = GC_CYL_TRANSPORT_REFERENCE_MISMATCH
+            return
+        end if
+        call provider%class_kind_callback(reference, h0, jperp, x, sigma, &
+            component_id, provider%user_data, class_kind, status)
+        if (status /= GC_CYL_TRANSPORT_SUCCESS) then
+            status = GC_NONLOCAL_CALLBACK_FAILURE
+            return
+        end if
+        if (class_kind < 1 .or. class_kind > 3) then
+            status = GC_CYL_TRANSPORT_CLASS_UNCERTIFIED
+            return
+        end if
+        status = GC_CYL_TRANSPORT_SUCCESS
+    end subroutine cylindrical_get_class_kind
+
+    subroutine cylindrical_begin_execution(provider, status)
+        class(gc_cylindrical_transport_provider_t), intent(inout) :: provider
+        integer, intent(out) :: status
+
+        status = GC_CYL_TRANSPORT_INVALID_INPUT
+        if (.not. provider%initialized) return
+        if (.not. associated(provider%reset_callback)) then
+            status = GC_CYL_TRANSPORT_UNAVAILABLE
+            return
+        end if
+        call provider%reset_callback(provider%user_data, status)
+        provider%cache_valid = .false.
+        if (status /= GC_CYL_TRANSPORT_SUCCESS) status = GC_NONLOCAL_CALLBACK_FAILURE
+    end subroutine cylindrical_begin_execution
+
+    subroutine cylindrical_get_execution_evidence(provider, evidence, status)
+        class(gc_cylindrical_transport_provider_t), intent(inout) :: provider
+        type(gc_nonlocal_transport_observed_evidence_t), intent(out) :: evidence
+        integer, intent(out) :: status
+
+        evidence = gc_nonlocal_transport_observed_evidence_t()
+        status = GC_CYL_TRANSPORT_INVALID_INPUT
+        if (.not. provider%initialized) return
+        if (.not. associated(provider%evidence_callback)) then
+            status = GC_CYL_TRANSPORT_UNAVAILABLE
+            return
+        end if
+        call provider%evidence_callback(provider%user_data, evidence, status)
+        if (status /= GC_CYL_TRANSPORT_SUCCESS) status = GC_NONLOCAL_CALLBACK_FAILURE
+    end subroutine cylindrical_get_execution_evidence
 
     subroutine cylindrical_get_components(provider, reference, h0, jperp, &
             components, status)
@@ -362,11 +508,16 @@ contains
             status = GC_CYL_TRANSPORT_NORMALIZATION_ERROR
             return
         end if
+        call normalize_sample(provider%reference, sample, local_status)
+        if (local_status /= GC_CYL_TRANSPORT_SUCCESS) then
+            status = local_status
+            return
+        end if
         ! The class adapter has already evaluated psi_star=(c/q)*p_phi.
         ! Its launch derivative is therefore the same normalized quantity;
         ! multiplying it by c/q here would apply the canonical map twice.
-        expected_psi_star = launch%psi_star
-        expected_dpsi_star_dx = launch%dpsi_star_drc
+        expected_psi_star = launch%psi_star/provider%reference%psi_star_scale
+        expected_dpsi_star_dx = launch%dpsi_star_drc/provider%reference%psi_star_scale
         if (.not. close_values(sample%psi_star, expected_psi_star, &
             2.0e-10_dp)) then
             status = GC_CYL_TRANSPORT_NORMALIZATION_ERROR
@@ -388,14 +539,14 @@ contains
         provider%cache_x = x
         provider%cache_sigma = sigma
         provider%cache_component_id = component_id
-        provider%cache_sample = sample
         provider%cache_launch = launch
         provider%cache_force = 0.0_dp
         provider%cache_force(1:provider%force_count) = &
             sample%thermodynamic_force(1:provider%force_count)
-        provider%cache_valid = .true.
         sample%nforce = 0
         sample%thermodynamic_force = 0.0_dp
+        provider%cache_sample = sample
+        provider%cache_valid = .true.
         status = GC_CYL_TRANSPORT_SUCCESS
     end subroutine cylindrical_evaluate_orbit
 
@@ -458,8 +609,8 @@ contains
             return
         end if
         call provider%outer_factor_callback(reference, h0, jperp, x, sigma, &
-            component_id, provider%cache_launch, sample, provider%user_data, &
-            outer_factor, status)
+            component_id, provider%cache_launch, provider%cache_sample, &
+            provider%user_data, outer_factor, status)
         if (status /= GC_CYL_TRANSPORT_SUCCESS) then
             status = GC_NONLOCAL_CALLBACK_FAILURE
             return
@@ -501,10 +652,13 @@ contains
         if (.not. ieee_is_finite(jperp)) return
         if (jperp < 0.0_dp) return
         if (.not. refresh) then
-            if (same_real_exact(provider%node_h0, h0) .and. &
-                same_real_exact(provider%node_jperp, jperp)) then
-                status = GC_CYL_TRANSPORT_SUCCESS
-                return
+            if (provider%node_ready) then
+                if (same_real_exact(provider%node_h0, h0)) then
+                    if (same_real_exact(provider%node_jperp, jperp)) then
+                        status = GC_CYL_TRANSPORT_SUCCESS
+                        return
+                    end if
+                end if
             end if
         end if
         if (.not. associated(provider%node_factory)) then
@@ -602,7 +756,12 @@ contains
 
         status = GC_CYL_TRANSPORT_CLASS_UNCERTIFIED
         if (.not. result%class_complete) return
-        if (result%nclasses < 1) return
+        if (result%nclasses < 0) return
+        if (result%nclasses == 0) then
+            if (allocated(result%classes)) return
+            status = GC_CYL_TRANSPORT_SUCCESS
+            return
+        end if
         if (.not. allocated(result%classes)) return
         if (size(result%classes) /= result%nclasses) return
         do i = 1, result%nclasses
@@ -665,6 +824,8 @@ contains
         integer, intent(in) :: sigma, component_id
         type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
 
+        cache_matches = provider%node_ready
+        if (.not. cache_matches) return
         cache_matches = provider%cache_valid
         if (.not. cache_matches) return
         if (.not. same_real_exact(provider%cache_h0, h0)) then
@@ -692,11 +853,13 @@ contains
 
     logical function same_sample(first, second)
         type(gc_nonlocal_orbit_sample_t), intent(in) :: first, second
+        integer :: i
 
         same_sample = .true.
         if (first%status /= second%status) same_sample = .false.
         if (first%component_id /= second%component_id) same_sample = .false.
         if (first%sigma /= second%sigma) same_sample = .false.
+        if (first%class_kind /= second%class_kind) same_sample = .false.
         if (.not. close_values(first%psi_star, second%psi_star, 2.0e-10_dp)) &
             same_sample = .false.
         if (.not. close_values(first%dpsi_star_dx, second%dpsi_star_dx, &
@@ -711,7 +874,22 @@ contains
             2.0e-10_dp)) same_sample = .false.
         if (.not. close_values(first%domega_phi_dx, second%domega_phi_dx, &
             2.0e-10_dp)) same_sample = .false.
-        if (abs(first%h_m - second%h_m) > 2.0e-10_dp) same_sample = .false.
+        if (.not. close_values(real(first%h_m, dp), real(second%h_m, dp), &
+            2.0e-10_dp)) same_sample = .false.
+        if (.not. close_values(aimag(first%h_m), aimag(second%h_m), &
+            2.0e-10_dp)) same_sample = .false.
+        do i = 1, size(first%thermodynamic_force)
+            if (.not. close_values(first%thermodynamic_force(i), &
+                    second%thermodynamic_force(i), 2.0e-10_dp)) then
+                same_sample = .false.
+                return
+            end if
+        end do
+        if (first%nforce /= second%nforce) same_sample = .false.
+        if (first%derivatives_available .neqv. second%derivatives_available) &
+            same_sample = .false.
+        if (first%class_behavior_certified .neqv. &
+                second%class_behavior_certified) same_sample = .false.
     end function same_sample
 
     logical function valid_reference(reference)
@@ -726,27 +904,106 @@ contains
         if (abs(reference%p_zeta_orientation) /= 1) return
         if (reference%frequency_semantics /= &
             GC_NONLOCAL_COMPLETE_CYCLE_FREQUENCIES) return
+        if (.not. all(ieee_is_finite([reference%energy_scale, &
+            reference%velocity_scale, reference%psi_star_scale]))) return
+        if (reference%energy_scale <= 0.0_dp) return
+        if (reference%velocity_scale <= 0.0_dp) return
+        if (reference%psi_star_scale <= 0.0_dp) return
         if (.not. reference%hamiltonian_includes_phi) return
         if (.not. reference%fixed) return
         valid_reference = .true.
     end function valid_reference
 
-    logical function valid_quadrature_arrays(h0_nodes, h0_weights, jperp_nodes, &
-            jperp_weights)
-        real(dp), intent(in) :: h0_nodes(:), h0_weights(:), jperp_nodes(:), &
-            jperp_weights(:)
+    subroutine normalize_sample(reference, sample, status)
+        type(gc_nonlocal_transport_reference_t), intent(in) :: reference
+        type(gc_nonlocal_orbit_sample_t), intent(inout) :: sample
+        integer, intent(out) :: status
 
-        valid_quadrature_arrays = .false.
-        if (size(h0_nodes) < 1 .or. size(jperp_nodes) < 1) return
-        if (size(h0_nodes) /= size(h0_weights)) return
-        if (size(jperp_nodes) /= size(jperp_weights)) return
-        if (.not. all(ieee_is_finite(h0_nodes))) return
-        if (.not. all(ieee_is_finite(h0_weights))) return
-        if (.not. all(ieee_is_finite(jperp_nodes))) return
-        if (.not. all(ieee_is_finite(jperp_weights))) return
-        if (any(jperp_nodes < 0.0_dp)) return
-        valid_quadrature_arrays = .true.
-    end function valid_quadrature_arrays
+        status = GC_CYL_TRANSPORT_NORMALIZATION_ERROR
+        if (reference%energy_scale <= 0.0_dp) return
+        if (reference%velocity_scale <= 0.0_dp) return
+        if (reference%psi_star_scale <= 0.0_dp) return
+        sample%psi_star = sample%psi_star/reference%psi_star_scale
+        sample%dpsi_star_dx = sample%dpsi_star_dx/reference%psi_star_scale
+        sample%tau_b = sample%tau_b*reference%velocity_scale
+        sample%omega_b = sample%omega_b/reference%velocity_scale
+        sample%omega_phi = sample%omega_phi/reference%velocity_scale
+        sample%domega_b_dx = sample%domega_b_dx/reference%velocity_scale
+        sample%domega_phi_dx = sample%domega_phi_dx/reference%velocity_scale
+        sample%h_m = sample%h_m/reference%energy_scale
+        if (.not. all(ieee_is_finite([sample%psi_star, sample%dpsi_star_dx, &
+            sample%tau_b, sample%omega_b, sample%omega_phi, &
+            sample%domega_b_dx, sample%domega_phi_dx, real(sample%h_m, dp), &
+            aimag(sample%h_m)]))) return
+        status = GC_CYL_TRANSPORT_SUCCESS
+    end subroutine normalize_sample
+
+    logical function valid_quadrature(quadrature)
+        type(gc_nonlocal_transport_quadrature_t), intent(in) :: quadrature
+
+        valid_quadrature = .false.
+        if (.not. quadrature%paired_domain) return
+        if (.not. quadrature%domain_certified) return
+        if (quadrature%n_nodes < 4) return
+        if (.not. ieee_is_finite(quadrature%h0_min)) return
+        if (.not. ieee_is_finite(quadrature%h0_scale)) return
+        if (quadrature%h0_scale <= 0.0_dp) return
+        if (.not. allocated(quadrature%h0)) return
+        if (.not. allocated(quadrature%j_k)) return
+        if (.not. allocated(quadrature%weight)) return
+        if (.not. allocated(quadrature%j_k_upper_bound)) return
+        if (size(quadrature%h0) /= quadrature%n_nodes) return
+        if (size(quadrature%j_k) /= quadrature%n_nodes) return
+        if (size(quadrature%weight) /= quadrature%n_nodes) return
+        if (size(quadrature%j_k_upper_bound) /= quadrature%n_nodes) return
+        if (.not. all(ieee_is_finite(quadrature%h0))) return
+        if (.not. all(ieee_is_finite(quadrature%j_k))) return
+        if (.not. all(ieee_is_finite(quadrature%weight))) return
+        if (.not. all(ieee_is_finite(quadrature%j_k_upper_bound))) return
+        if (any(quadrature%weight < 0.0_dp)) return
+        if (any(quadrature%h0 < quadrature%h0_min)) return
+        if (any(quadrature%j_k_upper_bound < 0.0_dp)) return
+        if (any(quadrature%j_k < 0.0_dp)) return
+        if (any(quadrature%j_k > quadrature%j_k_upper_bound)) return
+        valid_quadrature = .true.
+    end function valid_quadrature
+
+    subroutine default_class_kind(reference, h0, jperp, x, sigma, component_id, &
+            user_data, class_kind, status)
+        type(gc_nonlocal_transport_reference_t), intent(in) :: reference
+        real(dp), intent(in) :: h0, jperp, x
+        integer, intent(in) :: sigma, component_id
+        class(*), pointer, intent(inout) :: user_data
+        integer, intent(out) :: class_kind, status
+
+        associate (unused_reference => reference, unused_h0 => h0, &
+                unused_jperp => jperp, unused_x => x, &
+                unused_component => component_id, unused_user => user_data)
+        end associate
+        class_kind = 1
+        if (sigma < 0) class_kind = 2
+        status = GC_CYL_TRANSPORT_SUCCESS
+    end subroutine default_class_kind
+
+    subroutine default_reset(user_data, status)
+        class(*), pointer, intent(inout) :: user_data
+        integer, intent(out) :: status
+
+        associate (unused_user => user_data)
+        end associate
+        status = GC_CYL_TRANSPORT_SUCCESS
+    end subroutine default_reset
+
+    subroutine default_evidence(user_data, evidence, status)
+        class(*), pointer, intent(inout) :: user_data
+        type(gc_nonlocal_transport_observed_evidence_t), intent(out) :: evidence
+        integer, intent(out) :: status
+
+        associate (unused_user => user_data)
+        end associate
+        evidence = gc_nonlocal_transport_observed_evidence_t()
+        status = GC_CYL_TRANSPORT_SUCCESS
+    end subroutine default_evidence
 
     logical function same_reference(first, second)
         type(gc_nonlocal_transport_reference_t), intent(in) :: first, second
@@ -769,6 +1026,15 @@ contains
         if (first%hamiltonian_includes_phi .neqv. &
             second%hamiltonian_includes_phi) same_reference = .false.
         if (first%fixed .neqv. second%fixed) same_reference = .false.
+        if (.not. same_reference) return
+        if (.not. close_values(first%energy_scale, second%energy_scale, &
+            2.0e-12_dp)) same_reference = .false.
+        if (.not. same_reference) return
+        if (.not. close_values(first%velocity_scale, second%velocity_scale, &
+            2.0e-12_dp)) same_reference = .false.
+        if (.not. same_reference) return
+        if (.not. close_values(first%psi_star_scale, second%psi_star_scale, &
+            2.0e-12_dp)) same_reference = .false.
         if (.not. same_reference) return
         if (.not. close_values(first%section_flux, second%section_flux, &
             2.0e-12_dp)) same_reference = .false.

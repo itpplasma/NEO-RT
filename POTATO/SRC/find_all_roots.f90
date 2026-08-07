@@ -3,14 +3,96 @@
 ! Modules:
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
+module resonance_status_mod
+! A resonance search has three materially different outcomes: a certified
+! empty root set, an unresolved search, and a resolved root with a finite
+! delta-function weight.  Keep those outcomes explicit instead of encoding
+! them all as nrespoi=0 or abs(H_m)^2=0.
+    use potato_symbolic_kernel_mod, only : potato_root_jacobian_kernel
+    implicit none
+
+    integer, parameter :: resonance_status_success=0
+    integer, parameter :: resonance_status_root_failure=1001
+    integer, parameter :: resonance_status_starter_failure=1002
+    integer, parameter :: resonance_status_bounce_failure=1003
+    integer, parameter :: resonance_status_tangent_root=1004
+    integer, parameter :: resonance_status_nonfinite_weight=1005
+    integer, parameter :: resonance_status_wall_not_zero=1006
+    integer, parameter :: resonance_status_missing_limit=1007
+    integer, parameter :: resonance_status_perturbation_failure=1008
+
+contains
+
+    pure logical function resonance_is_finite(value)
+        double precision, intent(in) :: value
+
+        resonance_is_finite=(value.eq.value .and. abs(value).le.huge(value))
+    end function resonance_is_finite
+
+    pure integer function resonance_status_from_root_error(root_ierr)
+        integer, intent(in) :: root_ierr
+
+        if(root_ierr.eq.0) then
+            resonance_status_from_root_error=resonance_status_success
+        else
+            resonance_status_from_root_error=resonance_status_root_failure
+        endif
+    end function resonance_status_from_root_error
+
+    pure subroutine classify_resonance_root(dresconddx,dpsiastdx,absHn2, &
+                                            wall_zero,root_factor,status)
+        double precision, intent(in) :: dresconddx,dpsiastdx,absHn2
+        logical, intent(in) :: wall_zero
+        double precision, intent(out) :: root_factor
+        integer, intent(out) :: status
+        double precision :: derivative_floor
+
+        root_factor=0.d0
+        status=resonance_status_success
+        if(.not.resonance_is_finite(dresconddx) .or. &
+           .not.resonance_is_finite(dpsiastdx) .or. &
+           .not.resonance_is_finite(absHn2)) then
+            status=resonance_status_nonfinite_weight
+            return
+        endif
+        derivative_floor=256.d0*epsilon(1.d0)* &
+                         max(1.d0,abs(dresconddx))
+        if(abs(dresconddx).le.derivative_floor) then
+            status=resonance_status_tangent_root
+            return
+        endif
+        if(absHn2.lt.0.d0) then
+            status=resonance_status_nonfinite_weight
+            return
+        endif
+        if(wall_zero .and. absHn2.ne.0.d0) then
+            status=resonance_status_wall_not_zero
+            return
+        endif
+        ! The quotient and absolute value are emitted by fortsym.  The
+        ! derivative-floor guard above is orchestration: it prevents the
+        ! generated kernel from being called on a tangent/degenerate root.
+        call potato_root_jacobian_kernel(dpsiastdx,dresconddx,root_factor)
+        if(.not.resonance_is_finite(root_factor)) then
+            root_factor=0.d0
+            status=resonance_status_nonfinite_weight
+        endif
+    end subroutine classify_resonance_root
+
+end module resonance_status_mod
+
   module find_all_roots_mod
     integer, parameter :: root_success=0
     integer, parameter :: root_nonconverged=1
     integer, parameter :: root_invalid_domain=2
     integer, parameter :: root_invalid_interval=3
     integer, parameter :: root_no_intersection=4
+    integer, parameter :: root_nonfinite_value=5
+    integer, parameter :: root_unresolved_separation=6
+    integer, parameter :: root_incomplete_certificate=7
     logical :: customgrid=.false.
     logical :: root_eval_valid=.true.
+    logical :: root_scan_complete=.false.
     integer :: root_eval_error=0
     logical :: root_left_endpoint_contracted=.false.
     logical :: root_right_endpoint_contracted=.false.
@@ -23,7 +105,8 @@
     integer :: nroots, nsearch_min=100, ncustom, niter=100
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
-    !$omp threadprivate(customgrid,root_eval_valid,root_eval_error,ncustom,niter, &
+    !$omp threadprivate(customgrid,root_eval_valid,root_eval_error,root_scan_complete, &
+    !$omp&                ncustom,niter, &
     !$omp&                relerr_allroots,xcustom,nroots,roots,              &
     !$omp&                root_left_endpoint_contracted,                    &
     !$omp&                root_right_endpoint_contracted,root_search_left,  &
@@ -76,6 +159,56 @@
 
         ok=.true.
       end subroutine choose_two_sided_step
+
+      pure subroutine solve_fixedpoint_quadratic(acoef,bcoef,ccoef,roots,nroots,ok)
+        double precision, intent(in) :: acoef,bcoef,ccoef
+        double precision, intent(out) :: roots(2)
+        integer, intent(out) :: nroots
+        logical, intent(out) :: ok
+        double precision :: discriminant,sdiscriminant,scale,tolerance,q,swap
+
+        roots=0.d0
+        nroots=0
+        ok=.true.
+        if(acoef.ne.acoef .or. bcoef.ne.bcoef .or. ccoef.ne.ccoef) then
+          ok=.false.
+          return
+        endif
+        scale=max(1.d0,abs(bcoef*bcoef),abs(4.d0*acoef*ccoef))
+        tolerance=1.d-12*scale
+        if(abs(acoef).le.1.d-12*max(1.d0,abs(bcoef),abs(ccoef))) then
+          if(abs(bcoef).le.1.d-14*max(1.d0,abs(ccoef))) return
+          nroots=1
+          roots(1)=-ccoef/bcoef
+          return
+        endif
+        discriminant=bcoef*bcoef-4.d0*acoef*ccoef
+        if(discriminant.lt.-tolerance) return
+        sdiscriminant=sqrt(max(0.d0,discriminant))
+        q=-0.5d0*(bcoef+sign(sdiscriminant,bcoef))
+        nroots=2
+        if(abs(q).gt.0.d0) then
+          roots(1)=q/acoef
+          roots(2)=ccoef/q
+        else
+          roots(1)=(-bcoef+sdiscriminant)/(2.d0*acoef)
+          roots(2)=(-bcoef-sdiscriminant)/(2.d0*acoef)
+        endif
+        if(roots(2).lt.roots(1)) then
+          swap=roots(1)
+          roots(1)=roots(2)
+          roots(2)=swap
+        endif
+        if(abs(roots(2)-roots(1)).le.128.d0*epsilon(1.d0)* &
+           max(1.d0,abs(roots(1)),abs(roots(2)))) then
+          ! A nearly coincident pair is a degenerate topology event.  It is
+          ! not safe to merge it into one root: the two branches may carry
+          ! different class sides.  The caller must refine the physical
+          ! boundary equation or fail closed.
+          nroots=0
+          ok=.false.
+        endif
+      end subroutine solve_fixedpoint_quadratic
   end module potato_topology_mod
 !
 ! The two public entry points intentionally share one bounded implementation.
@@ -122,6 +255,9 @@
 
   ierr=root_success
   nroots=0
+  root_eval_valid=.true.
+  root_eval_error=root_success
+  root_scan_complete=.false.
   if(allocated(roots)) deallocate(roots)
   root_left_endpoint_contracted=.false.
   root_right_endpoint_contracted=.false.
@@ -357,6 +493,27 @@
     root_last_invalid_x=xin
     root_last_invalid_status=root_eval_error
     ierr=root_eval_error
+    return
+  endif
+  if(fout.ne.fout) then
+    is_valid=.false.
+  endif
+  if(dfout.ne.dfout) then
+    is_valid=.false.
+  endif
+  if(abs(fout).gt.huge(fout)) then
+    is_valid=.false.
+  endif
+  if(abs(dfout).gt.huge(dfout)) then
+    is_valid=.false.
+  endif
+  if(.not.is_valid) then
+    fout=0.d0
+    dfout=0.d0
+    root_eval_error=root_nonfinite_value
+    root_last_invalid_x=xin
+    root_last_invalid_status=root_eval_error
+    ierr=root_eval_error
   endif
   end subroutine evaluate_at
 
@@ -443,15 +600,26 @@
   end subroutine contract_right_endpoint
 
   subroutine addroot_bracketed
-  double precision :: rootdist
+  integer :: iroot
+  double precision :: rootdist,scale
 
   if(x.lt.x1in .or. x.gt.x2in) then
     ierr=root_invalid_interval
     return
   endif
-  rootdist=max(errdist,epsilon(1.d0)*max(1.d0,abs(x)))
+  scale=max(1.d0,abs(x))
+  rootdist=128.d0*epsilon(1.d0)*scale
   if(nroots.gt.0) then
-    if(minval(abs(roots(1:nroots)-x)).le.rootdist) return
+    do iroot=1,nroots
+      if(x.eq.roots(iroot)) return
+      if(abs(roots(iroot)-x).le.rootdist) then
+        ! Two independently bracketed roots at floating-point separation are
+        ! not a certified duplicate.  Keeping one would silently lose a
+        ! narrow component or collapse a tangent topology transition.
+        ierr=root_unresolved_separation
+        return
+      endif
+    enddo
   endif
   nroots=nroots+1
   if(allocated(dummy1d)) deallocate(dummy1d)

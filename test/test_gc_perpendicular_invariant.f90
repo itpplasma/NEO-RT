@@ -31,7 +31,7 @@ program test_gc_perpendicular_invariant
     type(gc_cylindrical_field_sample_t) :: field
     type(gc_cylindrical_state_t) :: state
     real(dp) :: db_dq(3, 3)
-    real(dp) :: mu_ref, h_ref, j_k_ref, omega_c
+    real(dp) :: mu_ref, h_ref, j_k_ref, omega_c, e_ref, jhat
     real(dp) :: potato_ref, speed, xi, j_k_reversed, mu_reversed
     real(dp) :: potato_from_mu, mu_from_potato
     integer :: status
@@ -41,6 +41,8 @@ program test_gc_perpendicular_invariant
         +charge*potential
     j_k_ref = mass*c_light*v_perp**2/(2.0_dp*abs(charge)*bmod)
     omega_c = abs(charge)*bmod/(mass*c_light)
+    e_ref = 0.5_dp*mass*v0**2
+    jhat = abs(charge)*j_k_ref/(mass*c_light*e_ref)
     speed = sqrt(v_parallel**2 + v_perp**2)
     xi = v_parallel/speed
     potato_ref = (speed/v0)**2*(1.0_dp - xi**2)/bmod
@@ -65,28 +67,34 @@ program test_gc_perpendicular_invariant
         gc_buchholz_jk_from_vperp(v_perp, mass, bmod, charge, c_light), &
         j_k_ref, 1.0e-13_dp)
     call require_close('Buchholz J_K from mu', &
-        gc_buchholz_jk_from_mu_phys(mu_ref, charge, c_light), j_k_ref, &
+        gc_buchholz_jk_from_mu_phys(mu_ref, mass, charge, c_light), j_k_ref, &
         1.0e-13_dp)
     call require_close('mu from Buchholz J_K', &
-        gc_mu_phys_from_buchholz_jk(j_k_ref, charge, c_light), mu_ref, &
+        gc_mu_phys_from_buchholz_jk(j_k_ref, mass, charge, c_light), mu_ref, &
         1.0e-13_dp)
     call require_close('v_perp^2 from Buchholz J_K', &
         gc_vperp_squared_from_buchholz_jk(j_k_ref, charge, c_light, mass, &
         bmod), v_perp**2, 1.0e-13_dp)
-    call require_close('J_K omega_c specific energy', j_k_ref*omega_c, &
-        v_perp**2/2.0_dp, 1.0e-13_dp)
+    call require_close('J_K omega_c energy', j_k_ref*omega_c, &
+        mass*v_perp**2/2.0_dp, 1.0e-13_dp)
+    call require_close('J_K omega_c energy identity', j_k_ref*omega_c, &
+        0.5_dp*mass*v_perp**2, 1.0e-13_dp)
+    call require_close('J_K omega_c divided by mass', j_k_ref*omega_c/mass, &
+        0.5_dp*v_perp**2, 1.0e-13_dp)
     call require_close('specific energy from mu', &
         gc_perpendicular_specific_energy_from_mu_phys(mu_ref, bmod, mass), &
         v_perp**2/2.0_dp, 1.0e-13_dp)
     call require_close('specific energy from J_K', &
-        gc_perpendicular_specific_energy_from_buchholz_jk(j_k_ref, omega_c), &
+        gc_perpendicular_specific_energy_from_buchholz_jk(j_k_ref, omega_c, mass), &
         v_perp**2/2.0_dp, 1.0e-13_dp)
+    call require_close('Eq. 18 normalized J_K', jhat, &
+        (v_perp/v0)**2/bmod, 1.0e-13_dp)
     call require_close('specific H decomposition', h_ref/mass, &
-        v_parallel**2/2.0_dp + j_k_ref*omega_c &
+        v_parallel**2/2.0_dp + (j_k_ref*omega_c)/mass &
         +charge*potential/mass, 1.0e-13_dp)
 
     call require_close('state to Buchholz J_K', &
-        gc_buchholz_jk_from_state(state, charge, c_light), j_k_ref, &
+        gc_buchholz_jk_from_state(state, mass, charge, c_light), j_k_ref, &
         1.0e-13_dp)
 
     call require_close('POTATO J_perp from v_perp', &
@@ -105,8 +113,8 @@ program test_gc_perpendicular_invariant
     call require_close('POTATO round-trip mu', mu_from_potato, mu_ref, &
         1.0e-13_dp)
 
-    j_k_reversed = gc_buchholz_jk_from_mu_phys(mu_ref, -charge, c_light)
-    mu_reversed = gc_mu_phys_from_buchholz_jk(j_k_ref, -charge, c_light)
+    j_k_reversed = gc_buchholz_jk_from_mu_phys(mu_ref, mass, -charge, c_light)
+    mu_reversed = gc_mu_phys_from_buchholz_jk(j_k_ref, mass, -charge, c_light)
     call require_close('charge reversal leaves J_K magnitude', j_k_reversed, &
         j_k_ref, 1.0e-13_dp)
     call require_close('charge reversal inverse mu', mu_reversed, mu_ref, &

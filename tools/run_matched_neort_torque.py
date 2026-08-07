@@ -48,7 +48,12 @@ def write_profiles(directory: Path, s_tor: np.ndarray, s_pol: np.ndarray) -> Non
 
 
 def deck(surface: float, model: int, vsteps: int) -> str:
-    input_switch = 10 if model == 0 else 11
+    if model == 0:
+        input_switch = 10
+    elif model == 2:
+        input_switch = 11
+    else:
+        raise ValueError("frequency model 1 is unavailable")
     return f"""&params
     s = {surface:.16e}
     M_t = 0.0
@@ -91,7 +96,7 @@ def main() -> None:
     parser.add_argument("--chartmap", type=Path, required=True)
     parser.add_argument("--eqdsk", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model", type=int, choices=(0, 1, 2), required=True)
+    parser.add_argument("--model", type=int, choices=(0, 2), required=True)
     parser.add_argument("--vsteps", type=int, default=128)
     parser.add_argument("--surface-count", type=int, default=25)
     parser.add_argument("--workers", type=int, default=1)
@@ -109,7 +114,13 @@ def main() -> None:
         index, surface, poloidal = item
         work = args.output / f"surface-{index:03d}"
         work.mkdir()
-        shutil.copy2(args.chartmap if args.model == 0 else args.eqdsk, work / "in_file")
+        if args.model == 0:
+            source = args.chartmap
+        elif args.model == 2:
+            source = args.eqdsk
+        else:
+            raise ValueError("frequency model 1 is unavailable")
+        shutil.copy2(source, work / "in_file")
         shutil.copy2(args.output / "plasma.in", work / "plasma.in")
         shutil.copy2(args.output / "profile.in", work / "profile.in")
         (work / "torque.in").write_text(deck(float(surface), args.model, args.vsteps))

@@ -61,6 +61,10 @@ module neort_gc_cylindrical_physical_return
         real(dp) :: wall_distance_scale = 1.0_dp
         real(dp) :: radial_distance_scale = 1.0_dp
         integer :: return_orientation = 0
+        logical :: require_opposite_intersection = .false.
+        logical :: require_transverse_intersection = .false.
+        logical :: complete_atlas_multiplicity_certified = .false.
+        real(dp) :: cut_rate_tolerance = 1.0e-12_dp
         integer :: maximum_steps = 500000
     end type gc_cylindrical_physical_return_options_t
 
@@ -79,6 +83,11 @@ module neort_gc_cylindrical_physical_return
         real(dp) :: maximum_invariant_scaled_drift = 0.0_dp
         integer :: accepted_steps = 0
         integer :: rhs_evaluations = 0
+        integer :: intersection_count = 0
+        integer :: intersection_orientations(2) = 0
+        real(dp) :: intersection_times(2) = 0.0_dp
+        real(dp) :: intersection_rates(2) = 0.0_dp
+        logical :: intersection_multiplicity_certified = .false.
         type(gc_cylindrical_state_t) :: state_at_event
         logical :: physical_return_found = .false.
         logical :: wall_hit = .false.
@@ -102,6 +111,20 @@ module neort_gc_cylindrical_physical_return
     end interface
 
     abstract interface
+        subroutine gc_cylindrical_physical_event_rate_i(position, state, field, &
+                user_data, rate, status)
+            import :: dp, gc_cylindrical_field_sample_t, &
+                gc_cylindrical_state_t
+            real(dp), intent(in) :: position(3)
+            type(gc_cylindrical_state_t), intent(in) :: state
+            type(gc_cylindrical_field_sample_t), intent(in) :: field
+            class(*), pointer, intent(inout) :: user_data
+            real(dp), intent(out) :: rate
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_physical_event_rate_i
+    end interface
+
+    abstract interface
         subroutine gc_cylindrical_radial_domain_i(position, state, field, &
                 user_data, margin, status)
             import :: dp, gc_cylindrical_field_sample_t, &
@@ -116,6 +139,7 @@ module neort_gc_cylindrical_physical_return
     end interface
 
     public :: gc_cylindrical_physical_event_i
+    public :: gc_cylindrical_physical_event_rate_i
     public :: gc_cylindrical_radial_domain_i
     public :: compute_gc_cylindrical_physical_return
 
@@ -123,7 +147,8 @@ contains
 
     subroutine compute_gc_cylindrical_physical_return(field_model, &
             potential_model, initial_state, invariants, mass, charge, c_light, &
-            return_event, options, result, wall_model, radial_domain, user_data)
+            return_event, options, result, wall_model, radial_domain, user_data, &
+            return_event_rate)
         class(gc_cylindrical_field_t), intent(in) :: field_model
         class(gc_cylindrical_potential_t), intent(in) :: potential_model
         type(gc_cylindrical_state_t), intent(in) :: initial_state
@@ -135,19 +160,27 @@ contains
         class(gc_cylindrical_wall_t), intent(in), optional :: wall_model
         procedure(gc_cylindrical_radial_domain_i), optional :: radial_domain
         class(*), target, intent(inout), optional :: user_data
+        procedure(gc_cylindrical_physical_event_rate_i), optional :: &
+            return_event_rate
 
         type(vode_state_t) :: integrator
         type(fortnum_status_t) :: integration_status
         type(gc_cylindrical_state_t) :: state_at_start
         real(dp) :: y_initial(5), y_start(5)
         real(dp), allocatable :: y_final(:)
+        real(dp), allocatable :: y_stage_start(:)
         real(dp) :: derivative(5), target_time, pre_time
-        real(dp) :: root_time, event_tolerance, maximum_step
+        real(dp) :: root_time, maximum_step, cut_rate
+        real(dp) :: opposite_root_time, disarm_time, disarmed_time
         real(dp) :: event_value, probe_value, probe_time, slope
+        real(dp) :: disarmed_event_value
         real(dp) :: domain_value
         integer :: callback_status, event_index, pre_steps, pre_nfev
-        integer :: event_orientation, domain_kind
+        integer :: stage_steps, stage_nfev
+        integer :: disarm_steps, disarm_nfev, disarm_event_index
+        integer :: event_orientation, domain_kind, local_status
         logical :: found, have_domain, have_wall, have_radial, valid
+        logical :: disarm_found, disarmed_event_valid
         class(*), pointer :: callback_data
         procedure(gc_cylindrical_radial_domain_i), pointer :: radial_domain_proc
 
@@ -274,7 +307,11 @@ contains
         end if
 
         target_time = options%maximum_time
-        pre_time = min(options%minimum_return_time, target_time)
+        ! Always disarm the launch root before the first event restart.  The
+        ! configured minimum return time is retained, but a zero value cannot
+        ! disable this root-separation contract.
+        pre_time = min(max(options%minimum_return_time, &
+            choose_probe_time(options, maximum_step)), target_time)
         y_start = y_initial
 
         ! Integrate through the launch-disarm interval.  Physical cut events
@@ -317,65 +354,224 @@ contains
                 end if
             end if
             y_start = y_final
+            if (pre_time >= target_time) then
+                result%status = GC_CYL_NO_RETURN
+                result%numerical_failure = .true.
+                return
+            end if
         end if
 
-        ! Restarting at the exact disarmed state avoids using the VODE event
-        ! detector's t=0 value as a physical return.  The RHS itself is
-        ! unchanged, and the period is measured from the original launch.
-        call vode_init(integrator, 5, pre_time, y_start)
-        integrator%hmax = maximum_step
-        integrator%max_steps = options%maximum_steps
-        root_time = pre_time
-        found = .false.
-        event_index = 0
-        event_tolerance = make_event_tolerance(target_time, options)
-        if (have_domain) then
-            call vode_integrate_to(physical_rhs, integrator, target_time, &
-                options%relative_tolerance, options%absolute_tolerance, y_final, &
-                integration_status, event=physical_event, &
-                event_dir=map_event_direction(event_orientation), &
-                event_tol=event_tolerance, t_root=root_time, root_found=found, &
-                event_index=event_index, event2=domain_event, &
-                event_dir2=ODE_EVENT_FALLING)
-        else
-            call vode_integrate_to(physical_rhs, integrator, target_time, &
-                options%relative_tolerance, options%absolute_tolerance, y_final, &
-                integration_status, event=physical_event, &
-                event_dir=map_event_direction(event_orientation), &
-                event_tol=event_tolerance, t_root=root_time, root_found=found, &
-                event_index=event_index)
-        end if
-        result%accepted_steps = pre_steps+integrator%nsteps
-        result%rhs_evaluations = pre_nfev+integrator%nfev
-        if (callback_status /= GC_CYL_SUCCESS) then
-            result%status = callback_status
-            return
-        end if
-        if (integration_status%code /= FORTNUM_OK) then
-            result%status = GC_CYL_INTEGRATOR_ERROR
-            return
-        end if
-        if (.not. found) then
-            result%status = GC_CYL_NO_RETURN
+        ! A launch at C=0 must be outside the event root before the first
+        ! directed search.  This is the launch counterpart of the explicit
+        ! post-opposite disarm below; it prevents VODE from returning t=0 as
+        ! either directed crossing.
+        call evaluate_physical_value(y_start, event_value, valid)
+        if (.not. valid) then
+            result%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
             result%numerical_failure = .true.
             return
         end if
-        if (event_index == 2) then
-            call evaluate_domain(y_final, domain_value, domain_kind, valid)
-            if (.not. valid) then
-                result%status = callback_status
-                if (result%status == GC_CYL_SUCCESS) then
-                    result%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
-                end if
+        if (abs(event_value) <= options%event_value_tolerance) then
+            result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+            result%numerical_failure = .true.
+            return
+        end if
+        if (sign_integer(event_value) /= event_orientation) then
+            result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+            result%numerical_failure = .true.
+            return
+        end if
+
+        ! A Buchholz full-bounce return has two physical cut crossings: the
+        ! opposite-oriented crossing first, followed by the same-oriented
+        ! crossing that closes the period.  A single same-oriented event is
+        ! not sufficient evidence and must not be repaired by a scalar factor.
+        if (options%require_opposite_intersection) then
+            call integrate_to_cut(y_start, pre_time, target_time, &
+                -event_orientation, y_final, root_time, event_index, found, &
+                stage_steps, stage_nfev, local_status)
+            if (local_status /= GC_CYL_SUCCESS) then
+                result%status = local_status
+                result%numerical_failure = .true.
                 return
             end if
-            call finish_domain_event(y_final, root_time, domain_kind)
-            return
+            if (.not. found) then
+                result%status = GC_CYL_NO_RETURN
+                result%numerical_failure = .true.
+                return
+            end if
+            if (event_index == 2) then
+                call evaluate_domain(y_final, domain_value, domain_kind, valid)
+                if (.not. valid) then
+                    result%status = callback_status
+                    if (result%status == GC_CYL_SUCCESS) then
+                        result%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
+                    end if
+                    return
+                end if
+                call finish_domain_event(y_final, root_time, domain_kind)
+                return
+            end if
+            if (event_index /= 1) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                return
+            end if
+            call evaluate_physical_rate(y_final, cut_rate, valid)
+            if (.not. valid .or. abs(cut_rate) <= options%cut_rate_tolerance) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                return
+            end if
+            pre_steps = pre_steps+stage_steps
+            pre_nfev = pre_nfev+stage_nfev
+            result%intersection_count = 1
+            result%intersection_orientations(1) = -event_orientation
+            result%intersection_times(1) = root_time
+            result%intersection_rates(1) = cut_rate
+            opposite_root_time = root_time
+
+            ! The next event search must not restart on the exact previous
+            ! root.  Advance the unchanged physical state with cut detection
+            ! disabled, retaining wall/domain events, then restart from the
+            ! disarmed state.  The saved opposite_root_time remains the true
+            ! event time in the evidence.
+            disarm_time = min(choose_probe_time(options, maximum_step), &
+                0.25_dp*(target_time-opposite_root_time))
+            if (disarm_time <= options%event_time_tolerance) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                return
+            end if
+            y_stage_start = y_final
+            call advance_without_cut(y_stage_start, opposite_root_time, &
+                disarm_time, y_final, disarmed_time, disarm_found, &
+                disarm_event_index, disarm_steps, disarm_nfev, local_status)
+            if (local_status /= GC_CYL_SUCCESS) then
+                result%status = local_status
+                result%numerical_failure = .true.
+                return
+            end if
+            pre_steps = pre_steps+disarm_steps
+            pre_nfev = pre_nfev+disarm_nfev
+            if (disarm_found) then
+                call evaluate_domain(y_final, domain_value, domain_kind, valid)
+                if (.not. valid) then
+                    result%status = callback_status
+                    if (result%status == GC_CYL_SUCCESS) then
+                        result%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
+                    end if
+                    return
+                end if
+                call finish_domain_event(y_final, disarmed_time, domain_kind)
+                return
+            end if
+
+            ! The disarm interval is part of the event contract, not merely a
+            ! delay.  Verify that the unchanged state has left the root on the
+            ! side implied by the first crossing before enabling the cut event
+            ! again.  This makes a t=start rediscovery an explicit failure.
+            call evaluate_physical_value(y_final, disarmed_event_value, &
+                disarmed_event_valid)
+            if (.not. disarmed_event_valid) then
+                result%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
+                result%numerical_failure = .true.
+                return
+            end if
+            if (abs(disarmed_event_value) <= options%event_value_tolerance) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                result%numerical_failure = .true.
+                return
+            end if
+            if (sign_integer(disarmed_event_value) /= -event_orientation) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                result%numerical_failure = .true.
+                return
+            end if
+
+            y_stage_start = y_final
+            call integrate_to_cut(y_stage_start, disarmed_time, target_time, &
+                event_orientation, y_final, root_time, event_index, found, &
+                stage_steps, stage_nfev, local_status)
+            if (local_status /= GC_CYL_SUCCESS) then
+                result%status = local_status
+                result%numerical_failure = .true.
+                return
+            end if
+            if (.not. found) then
+                result%status = GC_CYL_NO_RETURN
+                result%numerical_failure = .true.
+                return
+            end if
+            if (event_index == 2) then
+                call evaluate_domain(y_final, domain_value, domain_kind, valid)
+                if (.not. valid) then
+                    result%status = callback_status
+                    if (result%status == GC_CYL_SUCCESS) then
+                        result%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
+                    end if
+                    return
+                end if
+                call finish_domain_event(y_final, root_time, domain_kind)
+                return
+            end if
+            if (event_index /= 1) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                return
+            end if
+            call evaluate_physical_rate(y_final, cut_rate, valid)
+            if (.not. valid .or. abs(cut_rate) <= options%cut_rate_tolerance) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                return
+            end if
+            pre_steps = pre_steps+stage_steps
+            pre_nfev = pre_nfev+stage_nfev
+            result%intersection_count = 2
+            result%intersection_orientations(2) = event_orientation
+            result%intersection_times(2) = root_time
+            result%intersection_rates(2) = cut_rate
+            result%intersection_multiplicity_certified = &
+                options%complete_atlas_multiplicity_certified
+        else
+            call integrate_to_cut(y_start, pre_time, target_time, &
+                event_orientation, y_final, root_time, event_index, found, &
+                stage_steps, stage_nfev, local_status)
+            if (local_status /= GC_CYL_SUCCESS) then
+                result%status = local_status
+                result%numerical_failure = .true.
+                return
+            end if
+            if (.not. found) then
+                result%status = GC_CYL_NO_RETURN
+                result%numerical_failure = .true.
+                return
+            end if
+            if (event_index == 2) then
+                call evaluate_domain(y_final, domain_value, domain_kind, valid)
+                if (.not. valid) then
+                    result%status = callback_status
+                    if (result%status == GC_CYL_SUCCESS) then
+                        result%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
+                    end if
+                    return
+                end if
+                call finish_domain_event(y_final, root_time, domain_kind)
+                return
+            end if
+            if (event_index /= 1) then
+                result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                return
+            end if
+            if (options%require_transverse_intersection) then
+                call evaluate_physical_rate(y_final, cut_rate, valid)
+                if (.not. valid .or. &
+                        abs(cut_rate) <= options%cut_rate_tolerance) then
+                    result%status = GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE
+                    return
+                end if
+            end if
+            pre_steps = pre_steps+stage_steps
+            pre_nfev = pre_nfev+stage_nfev
         end if
-        if (event_index /= 1) then
-            result%status = GC_CYL_INTEGRATOR_ERROR
-            return
-        end if
+        result%accepted_steps = pre_steps
+        result%rhs_evaluations = pre_nfev
         call finish_physical_event(y_final, root_time, valid)
         if (.not. valid) return
 
@@ -743,6 +939,196 @@ contains
             if (callback_status == GC_CYL_SUCCESS) callback_status = new_status
         end subroutine note_callback_failure
 
+        subroutine evaluate_physical_rate(state_array, rate, ok)
+            real(dp), intent(in) :: state_array(5)
+            real(dp), intent(out) :: rate
+            logical, intent(out) :: ok
+
+            type(gc_cylindrical_state_t) :: local_state
+            type(gc_cylindrical_field_sample_t) :: local_field
+            integer :: field_status, rate_status
+
+            rate = 0.0_dp
+            ok = .false.
+            if (.not. present(return_event_rate)) then
+                if (options%require_transverse_intersection) then
+                    call note_callback_failure(GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR)
+                    return
+                end if
+                ok = .true.
+                return
+            end if
+            local_state = state_from_array(state_array)
+            call field_model%evaluate(state_array(1:3), local_field, field_status)
+            if (field_status /= GC_CYL_SUCCESS) then
+                call note_callback_failure(map_field_status(field_status))
+                return
+            end if
+            call return_event_rate(state_array(1:3), local_state, local_field, &
+                callback_data, rate, rate_status)
+            if (rate_status /= GC_CYL_SUCCESS .or. .not. ieee_is_finite(rate)) then
+                call note_callback_failure(GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR)
+                return
+            end if
+            ok = .true.
+        end subroutine evaluate_physical_rate
+
+        subroutine advance_without_cut(state_in, start_time, delta_time, state_out, &
+                end_time, domain_hit, domain_index, accepted_steps_out, &
+                rhs_evaluations_out, stage_status)
+            real(dp), intent(in) :: state_in(:), start_time, delta_time
+            real(dp), allocatable, intent(out) :: state_out(:)
+            real(dp), intent(out) :: end_time
+            logical, intent(out) :: domain_hit
+            integer, intent(out) :: domain_index
+            integer, intent(out) :: accepted_steps_out, rhs_evaluations_out
+            integer, intent(out) :: stage_status
+
+            type(vode_state_t) :: disarm_integrator
+            type(fortnum_status_t) :: disarm_integration_status
+            real(dp) :: stop_time, root_time
+            logical :: found_domain
+
+            stage_status = GC_CYL_INTEGRATOR_ERROR
+            end_time = start_time
+            domain_hit = .false.
+            domain_index = 0
+            accepted_steps_out = 0
+            rhs_evaluations_out = 0
+            if (size(state_in) /= 5 .or. delta_time <= 0.0_dp) then
+                stage_status = GC_CYL_INVALID_INPUT
+                return
+            end if
+            stop_time = start_time+delta_time
+            if (stop_time >= target_time) then
+                stage_status = GC_CYL_NO_RETURN
+                return
+            end if
+            call vode_init(disarm_integrator, 5, start_time, state_in)
+            disarm_integrator%hmax = maximum_step
+            disarm_integrator%max_steps = options%maximum_steps
+            root_time = stop_time
+            found_domain = .false.
+            domain_index = 0
+            if (have_domain) then
+                call vode_integrate_to(physical_rhs, disarm_integrator, stop_time, &
+                    options%relative_tolerance, options%absolute_tolerance, &
+                    state_out, disarm_integration_status, event=domain_event, &
+                    event_dir=ODE_EVENT_FALLING, &
+                    event_tol=make_event_tolerance(stop_time, options), &
+                    t_root=root_time, root_found=found_domain, &
+                    event_index=domain_index)
+            else
+                call vode_integrate_to(physical_rhs, disarm_integrator, stop_time, &
+                    options%relative_tolerance, options%absolute_tolerance, &
+                    state_out, disarm_integration_status)
+            end if
+            accepted_steps_out = disarm_integrator%nsteps
+            rhs_evaluations_out = disarm_integrator%nfev
+            if (callback_status /= GC_CYL_SUCCESS) then
+                stage_status = callback_status
+                return
+            end if
+            if (disarm_integration_status%code /= FORTNUM_OK) then
+                stage_status = GC_CYL_INTEGRATOR_ERROR
+                return
+            end if
+            if (.not. allocated(state_out)) then
+                stage_status = GC_CYL_STATE_ERROR
+                return
+            end if
+            if (size(state_out) /= 5) then
+                stage_status = GC_CYL_STATE_ERROR
+                return
+            end if
+            if (.not. all(ieee_is_finite(state_out))) then
+                stage_status = GC_CYL_STATE_ERROR
+                return
+            end if
+            end_time = root_time
+            domain_hit = found_domain
+            stage_status = GC_CYL_SUCCESS
+        end subroutine advance_without_cut
+
+        subroutine integrate_to_cut(state_in, start_time, stop_time, orientation, &
+                state_out, root_time_out, event_index_out, root_found_out, &
+                accepted_steps_out, rhs_evaluations_out, stage_status)
+            real(dp), intent(in) :: state_in(:), start_time, stop_time
+            integer, intent(in) :: orientation
+            real(dp), allocatable, intent(out) :: state_out(:)
+            real(dp), intent(out) :: root_time_out
+            integer, intent(out) :: event_index_out
+            logical, intent(out) :: root_found_out
+            integer, intent(out) :: accepted_steps_out, rhs_evaluations_out
+            integer, intent(out) :: stage_status
+
+            type(vode_state_t) :: stage_integrator
+            type(fortnum_status_t) :: stage_integration_status
+            real(dp) :: stage_event_tolerance
+
+            stage_status = GC_CYL_INTEGRATOR_ERROR
+            root_time_out = start_time
+            event_index_out = 0
+            root_found_out = .false.
+            accepted_steps_out = 0
+            rhs_evaluations_out = 0
+            if (size(state_in) /= 5) then
+                stage_status = GC_CYL_STATE_ERROR
+                return
+            end if
+            if (stop_time <= start_time .or. abs(orientation) /= 1) then
+                stage_status = GC_CYL_INVALID_INPUT
+                return
+            end if
+            call vode_init(stage_integrator, 5, start_time, state_in)
+            stage_integrator%hmax = maximum_step
+            stage_integrator%max_steps = options%maximum_steps
+            stage_event_tolerance = make_event_tolerance(stop_time, options)
+            if (have_domain) then
+                call vode_integrate_to(physical_rhs, stage_integrator, stop_time, &
+                    options%relative_tolerance, options%absolute_tolerance, &
+                    state_out, stage_integration_status, event=physical_event, &
+                    event_dir=map_event_direction(orientation), &
+                    event_tol=stage_event_tolerance, t_root=root_time_out, &
+                    root_found=root_found_out, event_index=event_index_out, &
+                    event2=domain_event, event_dir2=ODE_EVENT_FALLING)
+            else
+                call vode_integrate_to(physical_rhs, stage_integrator, stop_time, &
+                    options%relative_tolerance, options%absolute_tolerance, &
+                    state_out, stage_integration_status, event=physical_event, &
+                    event_dir=map_event_direction(orientation), &
+                    event_tol=stage_event_tolerance, t_root=root_time_out, &
+                    root_found=root_found_out, event_index=event_index_out)
+            end if
+            accepted_steps_out = stage_integrator%nsteps
+            rhs_evaluations_out = stage_integrator%nfev
+            if (callback_status /= GC_CYL_SUCCESS) then
+                stage_status = callback_status
+                return
+            end if
+            if (stage_integration_status%code /= FORTNUM_OK) then
+                stage_status = GC_CYL_INTEGRATOR_ERROR
+                return
+            end if
+            if (.not. root_found_out) then
+                stage_status = GC_CYL_NO_RETURN
+                return
+            end if
+            if (.not. allocated(state_out)) then
+                stage_status = GC_CYL_STATE_ERROR
+                return
+            end if
+            if (size(state_out) /= 5) then
+                stage_status = GC_CYL_STATE_ERROR
+                return
+            end if
+            if (.not. all(ieee_is_finite(state_out))) then
+                stage_status = GC_CYL_STATE_ERROR
+                return
+            end if
+            stage_status = GC_CYL_SUCCESS
+        end subroutine integrate_to_cut
+
     end subroutine compute_gc_cylindrical_physical_return
 
     logical function valid_inputs(state_array, invariants, mass, charge, c_light, &
@@ -764,7 +1150,7 @@ contains
                 options%event_time_tolerance, options%event_value_tolerance, &
                 options%minimum_return_time, options%maximum_time, &
                 options%maximum_step, options%wall_distance_scale, &
-                options%radial_distance_scale]))) return
+                options%radial_distance_scale, options%cut_rate_tolerance]))) return
         if (state_array(1) <= 0.0_dp) return
         if (state_array(5) < 0.0_dp) return
         if (mass <= 0.0_dp) return
@@ -780,6 +1166,7 @@ contains
         if (options%maximum_step < 0.0_dp) return
         if (options%wall_distance_scale <= 0.0_dp) return
         if (options%radial_distance_scale <= 0.0_dp) return
+        if (options%cut_rate_tolerance < 0.0_dp) return
         if (options%maximum_steps < 1) return
         if (abs(options%return_orientation) > 1) return
         valid = .true.

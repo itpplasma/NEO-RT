@@ -73,10 +73,12 @@ def main():
         clipped = tmp / "clipped"
         clipped.mkdir()
         stage_case(case_dir, clipped, PROBE_FIELDS)
-        clipped_classes = bracket_classes(run_probe(exe, clipped))
-        if clipped_classes:
+        clipped_text = run_probe(exe, clipped)
+        clipped_classes = bracket_classes(clipped_text)
+        if not {3, 5}.issubset(clipped_classes):
             print(
-                f"default clip must report no brackets, got classes {clipped_classes}",
+                "evidence probe must retain the complete untrimmed bracket set, "
+                f"got classes {clipped_classes}",
                 file=sys.stderr,
             )
             return 1
@@ -85,10 +87,10 @@ def main():
         full.mkdir()
         stage_case(case_dir, full, ("  clip_resonance_classes = .false.", *PROBE_FIELDS))
         full_classes = bracket_classes(run_probe(exe, full))
-        if not {3, 5}.issubset(full_classes):
+        if clipped_classes != full_classes:
             print(
-                "full domain must report m=0 brackets in classes 3 and 5, "
-                f"got classes {full_classes}",
+                "probe evidence changed when the torque-only clip was toggled: "
+                f"default={clipped_classes}, explicit_false={full_classes}",
                 file=sys.stderr,
             )
             return 1

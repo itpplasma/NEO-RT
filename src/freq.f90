@@ -1,25 +1,19 @@
 module neort_freq
     use iso_fortran_env, only: dp => real64
-    use logger, only: debug, trace, get_log_level, log_result, LOG_TRACE
+    use logger, only: debug, trace, get_log_level, LOG_TRACE
     use util, only: pi, mi, qi
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use neort_gc_wall_context, only: configured_wall_file, configured_wall_units
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
-        magdrift_passing, frequency_model, FREQUENCY_MODEL_GC_THIN, &
+        magdrift_passing, frequency_model, &
         FREQUENCY_MODEL_GC_FULL, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin, supban
     use shaing, only: omph_shaing
     use do_magfie_mod, only: iota, s, Bthcov, Bphcov, q, bfac
-    use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
-        gc_frequency_context_t, gc_frequency_result_t, &
-        initialize_gc_frequency_context, evaluate_gc_frequency
     use neort_gc_frequency_splines, only: GC_SPLINE_SUCCESS, &
-        gc_spline_diagnostics_t, initialize_gc_spline_surface, &
-        fit_gc_frequency_region, evaluate_gc_spline, gc_spline_q, &
-        get_gc_spline_diagnostics
-    use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING
+        initialize_gc_spline_surface
     implicit none
 
     ! For splining in the trapped eta region
@@ -87,11 +81,6 @@ contains
 
         call trace('init_canon_freq_trapped_spline')
 
-        if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
-            call init_gc_frequency_trapped_spline()
-            call trace('init_canon_freq_trapped_spline complete')
-            return
-        end if
         if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
             call initialize_gc_spline_surface(s, th0, bfac, Om_tE, mi, qi, &
                 vth, gc_status, selected_frequency_model=FREQUENCY_MODEL_GC_FULL, &
@@ -202,12 +191,6 @@ contains
 
         call trace('init_canon_freq_passing_spline')
 
-        if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
-            call init_gc_frequency_passing_spline()
-            call trace('init_canon_freq_passing_spline complete')
-            return
-        end if
-
         taub0 = 0.0_dp
         taub1 = 0.0_dp
         leta0 = 0.0_dp
@@ -290,24 +273,6 @@ contains
         real(dp), intent(out) :: OmtB, dOmtBdv, dOmtBdeta
         real(dp) :: splineval(3)
         real(dp) :: Omth, dOmthdv, dOmthdeta
-        real(dp) :: OmE, dOmEdeta
-        integer :: orbit_class
-
-        if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
-            orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, eta > etatp)
-            call evaluate_gc_components_or_stop(v, eta, orbit_class, Omth, &
-                dOmthdv, dOmthdeta, OmtB, dOmtBdv, dOmtBdeta, OmE, &
-                dOmEdeta)
-            if ((orbit_class == GC_ORBIT_TRAPPED .and. .not. magdrift) &
-                    .or. (orbit_class == GC_ORBIT_PASSING .and. &
-                    (.not. magdrift .or. magdrift_passing <= 0))) then
-                OmtB = 0.0_dp
-                dOmtBdv = 0.0_dp
-                dOmtBdeta = 0.0_dp
-            end if
-            return
-        end if
-
         if (eta > etatp) then
             if (eta > etatp * (1 + epst_spl)) then
                 splineval = spline_val_0(OmtB_spl_coeff, eta)
@@ -344,33 +309,7 @@ contains
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
-        real(dp) :: OmtB, dOmtBdv, dOmtBdeta
-        real(dp) :: OmtE_gc, dOmtEdeta, q_gc
         real(dp) :: deta, dv
-        integer :: orbit_class
-
-        if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
-            orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, eta > etatp)
-            call evaluate_gc_components_or_stop(v, eta, orbit_class, Omth, &
-                dOmthdv, dOmthdeta, OmtB, dOmtBdv, dOmtBdeta, OmtE_gc, &
-                dOmtEdeta)
-            Omph = OmtE_gc
-            dOmphdv = 0.0_dp
-            dOmphdeta = dOmtEdeta
-            if (orbit_class == GC_ORBIT_PASSING) then
-                q_gc = gc_spline_q()
-                Omph = Omph + q_gc*Omth
-                dOmphdv = dOmphdv + q_gc*dOmthdv
-                dOmphdeta = dOmphdeta + q_gc*dOmthdeta
-            end if
-            if (magdrift .and. (orbit_class == GC_ORBIT_TRAPPED &
-                    .or. magdrift_passing > 0)) then
-                Omph = Omph + OmtB
-                dOmphdv = dOmphdv + dOmtBdv
-                dOmphdeta = dOmphdeta + dOmtBdeta
-            end if
-            return
-        end if
 
         if (supban .and. (eta > etatp)) then
             ! Shaing superbanana-plateau: the analytic bounce-averaged toroidal
@@ -417,16 +356,6 @@ contains
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Omth, dOmthdv, dOmthdeta
         real(dp) :: splineval(3)
-        real(dp) :: OmtB, dOmtBdv, dOmtBdeta, OmE, dOmEdeta
-        integer :: orbit_class
-
-        if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
-            orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, eta > etatp)
-            call evaluate_gc_components_or_stop(v, eta, orbit_class, Omth, &
-                dOmthdv, dOmthdeta, OmtB, dOmtBdv, dOmtBdeta, OmE, &
-                dOmEdeta)
-            return
-        end if
 
         if (eta > etatp) then
             if (eta > etatp*(1 + epst_spl)) then
@@ -455,12 +384,6 @@ contains
         real(dp) :: taub, taub_est, Omth, Omph_noE
 
         call trace('d_Om_ds')
-
-        if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
-            call d_gc_Om_ds(v, eta, taub_estimate, dOmthds, dOmphds)
-            call trace('d_Om_ds complete')
-            return
-        end if
 
         ! store current flux surface values
         s0 = s
@@ -509,185 +432,4 @@ contains
         call trace('d_Om_ds complete')
     end subroutine d_Om_ds
 
-    subroutine init_gc_frequency_trapped_spline()
-        use neort_orbit, only: th0
-
-        real(dp) :: eta_grid(netaspl), period_estimate(netaspl)
-        real(dp) :: aa, b, eta, taub_est
-        integer :: k, status, failed_knot
-
-        etamin = (1.0_dp + epst_spl)*etatp
-        etamax = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
-        call initialize_gc_spline_surface(s, th0, bfac, Om_tE, mi, qi, vth, &
-            status, selected_frequency_model=FREQUENCY_MODEL_GC_THIN)
-        if (status /= GC_SPLINE_SUCCESS) then
-            write(0, *) 'GC thin-limit surface initialization failed:', status, s
-            error stop 'GC thin-limit surface initialization failed'
-        end if
-
-        b = log(epst_spl)
-        aa = (log(etamax/etamin - 1.0_dp) - b)/real(netaspl - 1, dp)
-        taub_est = 0.0_dp
-        do k = netaspl - 1, 0, -1
-            eta = etamin*(1.0_dp + exp(aa*real(k, dp) + b))
-            eta_grid(k + 1) = eta
-            if (k == netaspl - 1) then
-                taub_est = bounce_time(vth, eta)
-            else
-                taub_est = bounce_time(vth, eta, taub_estimate=taub_est)
-            end if
-            period_estimate(k + 1) = taub_est
-        end do
-        call fit_gc_frequency_region(eta_grid, period_estimate, etatp, &
-            GC_ORBIT_TRAPPED, status, failed_knot)
-        if (status /= GC_SPLINE_SUCCESS) then
-            call get_gc_spline_diagnostics_for_failure()
-            write(0, *) 'GC trapped spline failed:', status, failed_knot, &
-                eta_grid(max(1, failed_knot))
-            error stop 'GC trapped thin-limit spline failed'
-        end if
-        freq_trapped_initialized = .true.
-        call log_gc_spline_diagnostics('trapped')
-    end subroutine init_gc_frequency_trapped_spline
-
-    subroutine init_gc_frequency_passing_spline()
-        real(dp) :: eta_grid(netaspl_pass), period_estimate(netaspl_pass)
-        real(dp) :: aa, b, eta, taub_est
-        integer :: k, status, failed_knot
-
-        etamin = etatp*epssp_spl
-        etamax = etatp
-        b = log((etamax - etamin)/etamax)
-        aa = (log(epsp_spl) - b)/real(netaspl_pass - 1, dp)
-        taub_est = 0.0_dp
-        do k = netaspl_pass - 1, 0, -1
-            eta = etamax*(1.0_dp - exp(aa*real(k, dp) + b))
-            eta_grid(k + 1) = eta
-            if (k == netaspl_pass - 1) then
-                taub_est = bounce_time(vth, eta)
-            else
-                taub_est = bounce_time(vth, eta, taub_estimate=taub_est)
-            end if
-            period_estimate(k + 1) = taub_est
-        end do
-        call fit_gc_frequency_region(eta_grid, period_estimate, etatp, &
-            GC_ORBIT_PASSING, status, failed_knot)
-        if (status /= GC_SPLINE_SUCCESS) then
-            call get_gc_spline_diagnostics_for_failure()
-            write(0, *) 'GC passing spline failed:', status, failed_knot, &
-                eta_grid(max(1, failed_knot))
-            error stop 'GC passing thin-limit spline failed'
-        end if
-        freq_passing_initialized = .true.
-        call log_gc_spline_diagnostics('trapped+passing')
-    end subroutine init_gc_frequency_passing_spline
-
-    subroutine evaluate_gc_components_or_stop(v, eta, orbit_class, Omth, &
-            dOmthdv, dOmthdeta, OmtB, dOmtBdv, dOmtBdeta, OmtE, dOmtEdeta)
-        real(dp), intent(in) :: v, eta
-        integer, intent(in) :: orbit_class
-        real(dp), intent(out) :: Omth, dOmthdv, dOmthdeta
-        real(dp), intent(out) :: OmtB, dOmtBdv, dOmtBdeta, OmtE, dOmtEdeta
-        integer :: status
-
-        call evaluate_gc_spline(v, eta, int(sign_vpar), orbit_class, Omth, &
-            dOmthdv, dOmthdeta, OmtB, dOmtBdv, dOmtBdeta, OmtE, &
-            dOmtEdeta, status)
-        if (status /= GC_SPLINE_SUCCESS) then
-            write(0, *) 'GC frequency spline evaluation failed:', status, &
-                s, v, eta, orbit_class
-            error stop 'GC frequency spline evaluation failed'
-        end if
-    end subroutine evaluate_gc_components_or_stop
-
-    subroutine d_gc_Om_ds(v, eta, period_estimate, dOmthds, dOmphds)
-        use neort_orbit, only: th0
-
-        real(dp), intent(in) :: v, eta, period_estimate
-        real(dp), intent(out) :: dOmthds, dOmphds
-
-        type(gc_frequency_context_t) :: context_minus, context_plus
-        type(gc_frequency_result_t) :: result_minus, result_plus
-        real(dp) :: radial_step, omega_phi_minus, omega_phi_plus
-        integer :: attempt, orbit_class, direction, status_minus, status_plus
-
-        orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, eta > etatp)
-        direction = int(sign_vpar)
-        radial_step = min(1.0e-4_dp, 0.2_dp*min(s, 1.0_dp - s))
-        do attempt = 0, 5
-            call initialize_gc_frequency_context(s - radial_step, th0, bfac, &
-                Om_tE - radial_step*dOm_tEds, mi, qi, v, context_minus, &
-                status_minus, selected_frequency_model=FREQUENCY_MODEL_GC_THIN)
-            call initialize_gc_frequency_context(s + radial_step, th0, bfac, &
-                Om_tE + radial_step*dOm_tEds, mi, qi, v, context_plus, &
-                status_plus, selected_frequency_model=FREQUENCY_MODEL_GC_THIN)
-            if (status_minus == GC_FREQUENCY_SUCCESS .and. &
-                    status_plus == GC_FREQUENCY_SUCCESS) then
-                call evaluate_gc_frequency(context_minus, eta, direction, &
-                    orbit_class, abs(period_estimate), result_minus, status_minus)
-                call evaluate_gc_frequency(context_plus, eta, direction, &
-                    orbit_class, abs(period_estimate), result_plus, status_plus)
-            end if
-            if (status_minus == GC_FREQUENCY_SUCCESS .and. &
-                    status_plus == GC_FREQUENCY_SUCCESS) exit
-            radial_step = 0.5_dp*radial_step
-        end do
-        if (status_minus /= GC_FREQUENCY_SUCCESS .or. &
-                status_plus /= GC_FREQUENCY_SUCCESS) then
-            write(0, *) 'GC radial frequency derivative failed:', &
-                status_minus, status_plus, s, eta, radial_step
-            error stop 'GC radial frequency derivative failed'
-        end if
-
-        omega_phi_minus = canonical_toroidal_frequency(result_minus, &
-            orbit_class)
-        omega_phi_plus = canonical_toroidal_frequency(result_plus, orbit_class)
-        dOmthds = (result_plus%omega_b - result_minus%omega_b) &
-            /(2.0_dp*radial_step)
-        dOmphds = (omega_phi_plus - omega_phi_minus)/(2.0_dp*radial_step)
-    end subroutine d_gc_Om_ds
-
-    function canonical_toroidal_frequency(result, orbit_class) result(omega)
-        type(gc_frequency_result_t), intent(in) :: result
-        integer, intent(in) :: orbit_class
-        real(dp) :: omega
-
-        omega = result%omega_electric
-        if (orbit_class == GC_ORBIT_PASSING) then
-            omega = omega + result%q_fieldline*result%omega_b
-        end if
-        if (magdrift .and. (orbit_class == GC_ORBIT_TRAPPED &
-                .or. magdrift_passing > 0)) then
-            omega = omega + result%omega_magnetic
-        end if
-    end function canonical_toroidal_frequency
-
-    subroutine log_gc_spline_diagnostics(label)
-        character(*), intent(in) :: label
-        type(gc_spline_diagnostics_t) :: value
-        character(len=512) :: buffer
-
-        call get_gc_spline_diagnostics(value)
-        write(buffer, '(A,1X,A,1X,A,I0,1X,A,ES11.4,1X,A,I0,1X,A,ES11.4,1X,A,ES11.4,1X,A,I0)') &
-            'GC thin-limit spline', trim(label), 'knots=', value%orbit_evaluations, &
-            'cpu_s=', value%elapsed_seconds, 'max_refine=', &
-            value%maximum_refinements, 'max_relerr=', &
-            max(value%maximum_magnetic_relative_error, &
-                value%maximum_electric_relative_error), 'min_lambda=', &
-            value%minimum_lambda, 'boundary_extrap=', &
-            value%boundary_extrapolations
-        call log_result(buffer)
-    end subroutine log_gc_spline_diagnostics
-
-    subroutine get_gc_spline_diagnostics_for_failure()
-        type(gc_spline_diagnostics_t) :: value
-
-        call get_gc_spline_diagnostics(value)
-        write(0, *) 'GC provider failure status/limits:', &
-            value%failed_provider_status, value%failed_magnetic_status, &
-            value%failed_total_status
-        write(0, *) 'GC provider failure eta/errors/orders:', value%failed_eta, &
-            value%failed_magnetic_error, value%failed_electric_error, &
-            value%failed_magnetic_order, value%failed_total_order
-    end subroutine get_gc_spline_diagnostics_for_failure
 end module neort_freq

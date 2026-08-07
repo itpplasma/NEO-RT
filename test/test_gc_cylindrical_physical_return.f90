@@ -99,6 +99,7 @@ program test_gc_cylindrical_physical_return
 
     call make_options(options)
     call check_circular_return(initial_state, invariants, options)
+    call check_disarm_restart(initial_state, invariants, options)
     call check_helical_return(initial_state, invariants, options)
     call check_orientation_reversal(initial_state, field, potential, options)
     call check_event_time_convergence(initial_state, invariants, options, coarse, fine)
@@ -154,6 +155,49 @@ contains
             error stop 'circular invariant drift was accepted'
         end if
     end subroutine check_circular_return
+
+    subroutine check_disarm_restart(initial, local_invariants, local_options)
+        type(gc_cylindrical_state_t), intent(in) :: initial
+        type(gc_cylindrical_invariants_t), intent(in) :: local_invariants
+        type(gc_cylindrical_physical_return_options_t), intent(in) :: local_options
+
+        type(gc_cylindrical_physical_return_options_t) :: disarm_options
+        type(gc_cylindrical_physical_return_t) :: local_result
+
+        disarm_options = local_options
+        disarm_options%require_opposite_intersection = .true.
+        disarm_options%require_transverse_intersection = .true.
+        ! This is manufactured complete-atlas evidence for the generic event
+        ! driver only.  The production EQDSK adapter cannot set this flag
+        ! without the committed Fortsym cut-atlas theorem certificate.
+        disarm_options%complete_atlas_multiplicity_certified = .true.
+        call compute_gc_cylindrical_physical_return(field, potential, initial, &
+            local_invariants, mass, charge, c_light, circular_event, &
+            disarm_options, local_result, return_event_rate=circular_event_rate)
+        if (local_result%status /= GC_CYL_SUCCESS) then
+            error stop 'two-stage disarm return failed'
+        end if
+        if (.not. local_result%physical_return_found) then
+            error stop 'two-stage disarm return was not certified'
+        end if
+        if (local_result%intersection_count /= 2) then
+            error stop 'two-stage disarm did not record two crossings'
+        end if
+        if (local_result%intersection_orientations(1) /= -1 .or. &
+                local_result%intersection_orientations(2) /= 1) then
+            error stop 'two-stage crossing orientations are wrong'
+        end if
+        if (local_result%intersection_times(2) <= &
+                local_result%intersection_times(1) + &
+                disarm_options%event_time_tolerance) then
+            error stop 'same-oriented event rediscovered at t=start'
+        end if
+        call require_close('disarmed full period', local_result%period, &
+            expected_circular_period, 3.0e-8_dp)
+        call require_close('true same-oriented event time', &
+            local_result%intersection_times(2), expected_circular_period, &
+            3.0e-8_dp)
+    end subroutine check_disarm_restart
 
     subroutine check_helical_return(initial, local_invariants, local_options)
         type(gc_cylindrical_state_t), intent(in) :: initial
@@ -330,6 +374,23 @@ contains
         value = sin(position(3))
         status = GC_CYL_SUCCESS
     end subroutine circular_event
+
+    subroutine circular_event_rate(position, state, sample, user_data, rate, status)
+        real(dp), intent(in) :: position(3)
+        type(gc_cylindrical_state_t), intent(in) :: state
+        type(gc_cylindrical_field_sample_t), intent(in) :: sample
+        class(*), pointer, intent(inout) :: user_data
+        real(dp), intent(out) :: rate
+        integer, intent(out) :: status
+
+        associate (unused_sample => sample, unused_user_data => user_data)
+        end associate
+        ! Independent manufactured oracle: for the pure toroidal test field,
+        ! dphi/dt=p_parallel/(mass*R), and C=sin(phi).  Production Cdot is
+        ! supplied by the generated geometry kernel, never by this test.
+        rate = cos(position(3))*state%p_parallel/(mass*position(1))
+        status = GC_CYL_SUCCESS
+    end subroutine circular_event_rate
 
     subroutine helical_event(position, state, sample, user_data, value, status)
         real(dp), intent(in) :: position(3)

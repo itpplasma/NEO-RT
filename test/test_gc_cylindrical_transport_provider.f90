@@ -244,6 +244,10 @@ contains
         orbit%sigma = sigma
         orbit%winding = 1
         orbit%section_return_crossings = 2
+        orbit%intersection_orientations = [-1, 1]
+        orbit%intersection_times = [0.25_dp*tau_b, 0.75_dp*tau_b]
+        orbit%intersection_rates = [1.0_dp, -1.0_dp]
+        orbit%intersection_multiplicity_certified = .true.
         orbit%winding_available = .true.
         orbit%section_return_available = .true.
         orbit%complete_cycle_return = .true.
@@ -358,6 +362,7 @@ program test_gc_cylindrical_transport_provider
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_cylindrical_transport_provider, only: &
         GC_CYL_TRANSPORT_CLASS_UNCERTIFIED, &
+        GC_CYL_TRANSPORT_NODE_MISMATCH, &
         GC_CYL_TRANSPORT_REFERENCE_MISMATCH, GC_CYL_TRANSPORT_SUCCESS, &
         GC_CYL_TRANSPORT_UNAVAILABLE, &
         gc_cylindrical_transport_provider_t, &
@@ -372,7 +377,8 @@ program test_gc_cylindrical_transport_provider
         integrate_gc_nonlocal_transport
     use neort_gc_nonlocal_transport_types, only: &
         GC_NONLOCAL_COMPLETE_CYCLE_FREQUENCIES, &
-        gc_nonlocal_transport_options_t, gc_nonlocal_transport_reference_t, &
+        gc_nonlocal_transport_options_t, gc_nonlocal_transport_quadrature_t, &
+        gc_nonlocal_transport_reference_t, &
         gc_nonlocal_transport_result_t
     use gc_cylindrical_transport_provider_test_support, only: &
         H0_REFERENCE, JPERP_REFERENCE, PI, &
@@ -386,6 +392,7 @@ program test_gc_cylindrical_transport_provider
     type(gc_nonlocal_transport_result_t) :: result
     type(gc_nonlocal_orbit_sample_t) :: sample
     type(transport_test_state_t), target :: state
+    type(gc_nonlocal_transport_quadrature_t) :: quadrature
     type(gc_nonlocal_component_t), allocatable :: components(:)
     real(dp) :: h0_nodes(2), h0_weights(2), jperp_nodes(2), jperp_weights(2)
     real(dp) :: forces(2), outer_factor, expected, expected_second, expected_thin
@@ -405,10 +412,28 @@ program test_gc_cylindrical_transport_provider
     h0_weights = [0.5_dp, 0.5_dp]
     jperp_nodes = [0.4_dp, 0.6_dp]
     jperp_weights = [1.0_dp, 1.0_dp]
+    quadrature = gc_nonlocal_transport_quadrature_t()
+    allocate(quadrature%h0(4), quadrature%j_k(4), quadrature%weight(4), &
+        quadrature%j_k_upper_bound(4))
+    quadrature%h0 = [4.0_dp, 4.0_dp, 4.5_dp, 4.5_dp]
+    quadrature%j_k = [0.4_dp, 0.6_dp, 0.4_dp, 0.6_dp]
+    quadrature%weight = 0.5_dp
+    quadrature%j_k_upper_bound = 1.0_dp
+    quadrature%h0_order = 2
+    quadrature%jk_order = 2
+    quadrature%n_nodes = 4
+    quadrature%paired_domain = .true.
+    quadrature%domain_certified = .true.
+    quadrature%converged = .true.
+    quadrature%h0_min = 0.0_dp
+    quadrature%h0_scale = 1.0_dp
     options = gc_nonlocal_transport_options_t()
     options%max_h0_nodes = 4
     options%max_jperp_nodes = 4
     options%max_total_nodes = 16
+    options%h0_order = 2
+    options%jk_order = 2
+    options%require_converged = .false.
     options%resonance_options = gc_nonlocal_resonance_options_t()
     options%resonance_options%scan_intervals = 16
     options%resonance_options%max_root_iterations = 128
@@ -418,12 +443,14 @@ program test_gc_cylindrical_transport_provider
     options%resonance_options%x_tolerance = 1.0e-12_dp
     options%resonance_options%derivative_tolerance = 1.0e-12_dp
 
-    call initialize_gc_cylindrical_transport_provider(provider, h0_nodes, &
-        h0_weights, jperp_nodes, jperp_weights, reference, 1, -2, 2, &
-        transport_node_factory, transport_outer_factor, status, state, &
+    call initialize_gc_cylindrical_transport_provider(provider, quadrature, &
+        reference, 1, -2, 2, transport_node_factory, transport_outer_factor, &
+        status=status, user_data=state, &
         section_reference_id='cut-R')
     call require(status == GC_CYL_TRANSPORT_SUCCESS, &
         'concrete provider initialization failed')
+    call check_first_call_at_zero(reference, quadrature)
+    call check_mutated_sample(reference, quadrature)
 
     call provider%get_components(reference, H0_REFERENCE, JPERP_REFERENCE, &
         components, status)
@@ -559,6 +586,101 @@ program test_gc_cylindrical_transport_provider
 
 contains
 
+    subroutine check_first_call_at_zero(local_reference, local_quadrature)
+        type(gc_nonlocal_transport_reference_t), intent(in) :: local_reference
+        type(gc_nonlocal_transport_quadrature_t), intent(in) :: local_quadrature
+        type(gc_cylindrical_transport_provider_t) :: local_provider
+        type(gc_nonlocal_orbit_sample_t) :: local_sample
+        type(transport_test_state_t), target :: local_state
+        integer :: local_status
+
+        local_state = transport_test_state_t()
+        call initialize_gc_cylindrical_transport_provider(local_provider, &
+            local_quadrature, local_reference, 1, -2, 2, transport_node_factory, &
+            transport_outer_factor, status=local_status, user_data=local_state, &
+            section_reference_id='cut-R')
+        call require(local_status == GC_CYL_TRANSPORT_SUCCESS, &
+            'zero-node regression provider initialization failed')
+        call local_provider%evaluate_orbit(local_reference, 0.0_dp, 0.0_dp, &
+            0.0_dp, 1, 1, local_sample, local_status)
+        call require(local_state%factory_calls == 1, &
+            'first zero node reused an uninitialized cache node')
+        call require(local_status /= GC_CYL_TRANSPORT_SUCCESS, &
+            'invalid first zero node was accepted')
+    end subroutine check_first_call_at_zero
+
+    subroutine check_mutated_sample(local_reference, local_quadrature)
+        type(gc_nonlocal_transport_reference_t), intent(in) :: local_reference
+        type(gc_nonlocal_transport_quadrature_t), intent(in) :: local_quadrature
+        type(gc_cylindrical_transport_provider_t) :: local_provider
+        type(gc_nonlocal_orbit_sample_t) :: local_sample
+        type(transport_test_state_t), target :: local_state
+        integer :: local_status
+
+        local_state = transport_test_state_t()
+        call initialize_gc_cylindrical_transport_provider(local_provider, &
+            local_quadrature, local_reference, 1, -2, 2, transport_node_factory, &
+            transport_outer_factor, status=local_status, user_data=local_state, &
+            section_reference_id='cut-R')
+        call require(local_status == GC_CYL_TRANSPORT_SUCCESS, &
+            'mutation regression provider initialization failed')
+
+        call local_provider%evaluate_orbit(local_reference, H0_REFERENCE, &
+            JPERP_REFERENCE, 0.0_dp, 1, 1, local_sample, local_status)
+        call require(local_status == GC_CYL_TRANSPORT_SUCCESS, &
+            'class-kind mutation setup failed')
+        local_sample%class_kind = local_sample%class_kind + 1
+        call require_outer_mismatch(local_provider, local_reference, &
+            local_sample, 'class_kind mutation was accepted')
+
+        call local_provider%evaluate_orbit(local_reference, H0_REFERENCE, &
+            JPERP_REFERENCE, 0.0_dp, 1, 1, local_sample, local_status)
+        call require(local_status == GC_CYL_TRANSPORT_SUCCESS, &
+            'nforce mutation setup failed')
+        local_sample%nforce = 1
+        call require_outer_mismatch(local_provider, local_reference, &
+            local_sample, 'nforce mutation was accepted')
+
+        call local_provider%evaluate_orbit(local_reference, H0_REFERENCE, &
+            JPERP_REFERENCE, 0.0_dp, 1, 1, local_sample, local_status)
+        call require(local_status == GC_CYL_TRANSPORT_SUCCESS, &
+            'force mutation setup failed')
+        local_sample%thermodynamic_force(1) = 1.0_dp
+        call require_outer_mismatch(local_provider, local_reference, &
+            local_sample, 'force mutation was accepted')
+
+        call local_provider%evaluate_orbit(local_reference, H0_REFERENCE, &
+            JPERP_REFERENCE, 0.0_dp, 1, 1, local_sample, local_status)
+        call require(local_status == GC_CYL_TRANSPORT_SUCCESS, &
+            'derivative mutation setup failed')
+        local_sample%derivatives_available = .false.
+        call require_outer_mismatch(local_provider, local_reference, &
+            local_sample, 'derivative-availability mutation was accepted')
+
+        call local_provider%evaluate_orbit(local_reference, H0_REFERENCE, &
+            JPERP_REFERENCE, 0.0_dp, 1, 1, local_sample, local_status)
+        call require(local_status == GC_CYL_TRANSPORT_SUCCESS, &
+            'class-behavior mutation setup failed')
+        local_sample%class_behavior_certified = .true.
+        call require_outer_mismatch(local_provider, local_reference, &
+            local_sample, 'class-behavior mutation was accepted')
+    end subroutine check_mutated_sample
+
+    subroutine require_outer_mismatch(local_provider, local_reference, sample, &
+            message)
+        type(gc_cylindrical_transport_provider_t), intent(inout) :: local_provider
+        type(gc_nonlocal_transport_reference_t), intent(in) :: local_reference
+        type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
+        character(*), intent(in) :: message
+        real(dp) :: local_outer_factor
+        integer :: local_status
+
+        call local_provider%evaluate_outer_measure_factor(local_reference, &
+            H0_REFERENCE, JPERP_REFERENCE, 0.0_dp, 1, 1, sample, &
+            local_outer_factor, local_status)
+        call require(local_status == GC_CYL_TRANSPORT_NODE_MISMATCH, message)
+    end subroutine require_outer_mismatch
+
     real(dp) function analytic_root_contribution(h0, jperp, sigma, slot)
         real(dp), intent(in) :: h0, jperp
         integer, intent(in) :: sigma, slot
@@ -584,11 +706,29 @@ contains
         real(dp), intent(in) :: local_jperp_nodes(:), local_jperp_weights(:)
         type(transport_test_state_t), target, intent(inout) :: local_state
         type(gc_cylindrical_transport_provider_t) :: missing_provider
+        type(gc_nonlocal_transport_quadrature_t) :: local_quadrature
         integer :: local_status
 
+        local_quadrature = gc_nonlocal_transport_quadrature_t()
+        allocate(local_quadrature%h0(4), local_quadrature%j_k(4), &
+            local_quadrature%weight(4), local_quadrature%j_k_upper_bound(4))
+        local_quadrature%h0 = [local_h0_nodes(1), local_h0_nodes(1), &
+            local_h0_nodes(size(local_h0_nodes)), local_h0_nodes(size(local_h0_nodes))]
+        local_quadrature%j_k = [local_jperp_nodes(1), &
+            local_jperp_nodes(size(local_jperp_nodes)), local_jperp_nodes(1), &
+            local_jperp_nodes(size(local_jperp_nodes))]
+        local_quadrature%weight = 0.25_dp
+        local_quadrature%j_k_upper_bound = maxval(local_jperp_nodes) + 1.0_dp
+        local_quadrature%h0_order = 2
+        local_quadrature%jk_order = 2
+        local_quadrature%n_nodes = 4
+        local_quadrature%paired_domain = .true.
+        local_quadrature%domain_certified = .true.
+        local_quadrature%converged = .true.
+        local_quadrature%h0_min = 0.0_dp
+        local_quadrature%h0_scale = 1.0_dp
         call initialize_gc_cylindrical_transport_provider(missing_provider, &
-            local_h0_nodes, local_h0_weights, local_jperp_nodes, &
-            local_jperp_weights, local_reference, 1, -2, 2, &
+            local_quadrature, local_reference, 1, -2, 2, &
             status=local_status, user_data=local_state, &
             section_reference_id='cut-R')
         call require(local_status == GC_CYL_TRANSPORT_UNAVAILABLE, &

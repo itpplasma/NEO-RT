@@ -98,6 +98,11 @@ add_test(NAME test_input_switches_reject_full_nonlin
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(test_input_switches_reject_full_nonlin PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_input_switches_reject_model1
+    COMMAND ${CMAKE_BINARY_DIR}/test_input_switches.x reject_model1
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_input_switches_reject_model1 PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME test_wall_polygon_io
     COMMAND ${CMAKE_BINARY_DIR}/test_wall_polygon_io.x
@@ -123,6 +128,11 @@ add_test(NAME test_wall_config_rejects_namelist_missing
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(test_wall_config_rejects_namelist_missing PROPERTIES WILL_FAIL TRUE)
+add_test(NAME test_wall_config_rejects_model1
+    COMMAND ${CMAKE_BINARY_DIR}/test_wall_config.x model1
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_wall_config_rejects_model1 PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME test_nonlinear_contract
     COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
@@ -176,15 +186,6 @@ set_tests_properties(test_gc_full_orbit_frequency PROPERTIES
     TIMEOUT 180
 )
 
-add_test(NAME test_gc_frequency_spline_path
-    COMMAND ${CMAKE_BINARY_DIR}/test_gc_frequency_spline_path.x
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-set_tests_properties(test_gc_frequency_spline_path PROPERTIES
-    ENVIRONMENT
-        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
-    TIMEOUT 180
-)
 set_tests_properties(test_gc_eqdsk_frequency PROPERTIES
     ENVIRONMENT
         "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
@@ -306,6 +307,54 @@ add_test(NAME test_gc_full_fow_runtime_metadata
 )
 add_test(NAME test_gc_full_fow_runtime_delivery
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_runtime_delivery.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_full_fow_symbolic_kernel
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_symbolic_kernel.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_full_fow_scales_boundary_cut
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_scales_boundary_cut.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_cylindrical_littlejohn_generated
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_littlejohn_generated.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_cylindrical_independent_behavior
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_independent_behavior.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_generated_geometry_interp_endpoints
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_geometry_interp_endpoints.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_generated_profile_potential_segment
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_profile_potential_segment.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_generated_resonance_eq17_seams
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_resonance_eq17_seams.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_full_fow_normalization_runtime
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_normalization_runtime.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_generated_invariant_conversions
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_invariant_conversions.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_sign_symmetry_behavior
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_sign_symmetry_behavior.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_certified_interval_roots
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_certified_interval_roots.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_poincare_cut_atlas
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_poincare_cut_atlas.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_gc_transport_status

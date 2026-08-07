@@ -2,6 +2,7 @@ module potato_input_mod
     use field_sub, only: read_field_input
     use input_files, only: convexfile
     use iso_fortran_env, only: output_unit
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use wall_loss_mod, only: load_wall
     implicit none
 
@@ -49,6 +50,13 @@ module potato_input_mod
     double precision :: eps_sampling = 1d-2
     integer :: itermax_sampling = 5
     logical :: clip_resonance_classes = .true.
+    ! Certified outer-topology partition controls.  The first value is the
+    ! active production tolerance; the refined value is recorded for a
+    ! separate convergence lane and is not silently substituted.
+    double precision :: topology_partition_tol = 1d-8
+    double precision :: topology_partition_tol_refined = 1d-10
+    logical :: topology_refinement_lane = .false.
+    logical :: require_topology_contribution_bound = .true.
 
     ! Orbit plotting
     double precision :: toten_plot = 1d0
@@ -108,7 +116,9 @@ module potato_input_mod
         m_min, m_max, n_tor, &
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
-        itermax_sampling, clip_resonance_classes, &
+        itermax_sampling, clip_resonance_classes, topology_partition_tol, &
+        topology_partition_tol_refined, topology_refinement_lane, &
+        require_topology_contribution_bound, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
@@ -148,6 +158,15 @@ contains
 
         close(iunit)
 
+        if(.not.ieee_is_finite(topology_partition_tol) .or. &
+           topology_partition_tol.le.0.d0) then
+            error stop 'topology_partition_tol must be finite and positive'
+        endif
+        if(.not.ieee_is_finite(topology_partition_tol_refined) .or. &
+           topology_partition_tol_refined.le.0.d0) then
+            error stop 'topology_partition_tol_refined must be finite and positive'
+        endif
+
         inquire(file='field_divB0.inp', exist=field_input_exists)
         if (field_input_exists) then
             call read_field_input('field_divB0.inp')
@@ -185,6 +204,12 @@ contains
         write(iunit, '(A,ES12.5)') '  eps_sampling     = ', eps_sampling
         write(iunit, '(A,I0)') '  itermax_sampling = ', itermax_sampling
         write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
+        write(iunit, '(A,ES12.5)') '  topology_partition_tol = ', topology_partition_tol
+        write(iunit, '(A,ES12.5)') '  topology_partition_tol_refined = ', &
+            topology_partition_tol_refined
+        write(iunit, '(A,L1)') '  topology_refinement_lane = ', topology_refinement_lane
+        write(iunit, '(A,L1)') '  require_topology_contribution_bound = ', &
+            require_topology_contribution_bound
         write(iunit, '(A,ES12.5)') '  toten_plot       = ', toten_plot
         write(iunit, '(A,ES12.5)') '  perpinv_plot     = ', perpinv_plot
         write(iunit, '(A,ES12.5)') '  enkin_over_temp  = ', enkin_over_temp

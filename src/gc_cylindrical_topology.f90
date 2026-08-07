@@ -21,6 +21,10 @@ module neort_gc_cylindrical_topology
         real(dp), allocatable :: root_canonical(:)
         type(gc_cylindrical_allowed_component_t), allocatable :: components(:)
         real(dp) :: total_canonical_measure = 0.0_dp
+        !! The adaptive sampler below is diagnostic only.  It is not an
+        !! interval/root-isolation proof and must never be consumed as one.
+        logical :: topology_certified = .false.
+        character(len=64) :: certificate_method = ''
     end type gc_cylindrical_allowed_region_set_t
 
     public :: find_gc_cylindrical_allowed_regions
@@ -66,6 +70,13 @@ contains
         regions%ncomponents = ncomponents
         call copy_root_data(roots, root_psi, nroots, regions)
         call sum_component_measure(regions)
+        ! A finite sample set can miss an even root, a stationary canonical
+        ! momentum X point, or a separatrix between samples.  Keep the scan
+        ! available as a diagnostic decomposition, but do not promote it to
+        ! a physical topology certificate.  A future Fortsym interval/root
+        ! isolation provider must set this flag and its method explicitly.
+        regions%topology_certified = .false.
+        regions%certificate_method = 'unresolved-finite-scan'
     end subroutine find_gc_cylindrical_allowed_regions
 
     subroutine adaptive_sample_allowed_function(evaluate, x_min, x_max, scan_points, &

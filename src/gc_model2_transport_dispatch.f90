@@ -11,6 +11,10 @@ module neort_gc_model2_transport_dispatch
     use neort_gc_full_fow_runtime_delivery, only: &
         emit_gc_full_fow_runtime_surface_record
     use neort_gc_full_fow_runtime_metadata, only: &
+        GC_FULL_FOW_CONJUGATE_POLICY, GC_FULL_FOW_PREFACTOR_CONVENTION, &
+        GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION, &
+        GC_FULL_FOW_ACTION_CONVENTION, GC_FULL_FOW_BOUND_METHOD, &
+        format_gc_full_fow_frequency_convention, &
         gc_full_fow_runtime_backend_state_t
     use neort_gc_nonlocal_resonance_types, only: &
         GC_NONLOCAL_SUCCESS, gc_nonlocal_resonance_options_t
@@ -18,6 +22,7 @@ module neort_gc_model2_transport_dispatch
         integrate_gc_nonlocal_transport
     use neort_gc_nonlocal_transport_types, only: &
         GC_NONLOCAL_MAX_FORCE_VALUES, gc_nonlocal_transport_options_t, &
+        gc_nonlocal_transport_observed_evidence_t, &
         gc_nonlocal_transport_provider_t, gc_nonlocal_transport_result_t
 
     implicit none
@@ -42,6 +47,8 @@ module neort_gc_model2_transport_dispatch
             gc_nonlocal_transport_options_t()
         type(gc_model2_force_layout_t) :: force_layout = &
             gc_model2_force_layout_t()
+        integer, allocatable :: poloidal_harmonics(:)
+        integer :: toroidal_harmonic = 0
     end type gc_model2_transport_options_t
 
     type, public :: gc_model2_backend_evidence_t
@@ -58,20 +65,66 @@ module neort_gc_model2_transport_dispatch
         logical :: wall_certified = .false.
         logical :: canonical_measure_certified = .false.
         logical :: component_identity_certified = .false.
+        character(len=64) :: perturbation_amplitude_convention = ''
+        character(len=1024) :: perturbation_input_path = ''
+        logical :: perturbation_provenance_certified = .false.
+        character(len=64) :: phase_space_bound_method = ''
+        logical :: orbit_step_refinement_certified = .false.
+        real(dp) :: orbit_base_step = 0.0_dp
+        real(dp) :: orbit_refined_step = 0.0_dp
+        real(dp) :: orbit_period_refinement_error = 0.0_dp
+        real(dp) :: orbit_delta_phi_refinement_error = 0.0_dp
+        real(dp) :: orbit_omega_b_refinement_error = 0.0_dp
+        real(dp) :: orbit_omega_phi_refinement_error = 0.0_dp
+        real(dp) :: orbit_h_m_refinement_error = 0.0_dp
+        real(dp) :: orbit_shell_refinement_error = 0.0_dp
         integer :: legacy_backend_entries = 0
         integer :: chart_fallback_entries = 0
     end type gc_model2_backend_evidence_t
 
+    type, public :: gc_model2_observed_evidence_t
+        !! Counters copied from the physical provider after this execution.
+        !! The dispatcher never infers these categories from node status.
+        integer :: physical_return_attempts = 0
+        integer :: invariant_successes = 0
+        integer :: invariant_failures = 0
+        integer :: return_successes = 0
+        integer :: return_no_return = 0
+        integer :: return_radial_domain = 0
+        integer :: return_wall_loss = 0
+        integer :: return_errors = 0
+        integer :: wall_not_hit = 0
+        integer :: wall_loss = 0
+        integer :: wall_errors = 0
+        integer :: topology_certification_attempts = 0
+        integer :: topology_certification_successes = 0
+        logical :: return_accounting_complete = .false.
+    end type gc_model2_observed_evidence_t
+
+    type, public :: gc_model2_harmonic_execution_t
+        integer :: poloidal_harmonic = 0
+        type(gc_nonlocal_transport_result_t) :: integral
+        real(dp) :: d11(3) = 0.0_dp
+        real(dp) :: d12(3) = 0.0_dp
+        real(dp) :: torque(3) = 0.0_dp
+    end type gc_model2_harmonic_execution_t
+
     type, public :: gc_model2_transport_execution_t
         type(gc_nonlocal_transport_result_t) :: integral
+        type(gc_model2_harmonic_execution_t), allocatable :: harmonics(:)
+        type(gc_model2_observed_evidence_t) :: observed
         type(gc_full_fow_runtime_backend_state_t) :: runtime
         real(dp) :: d11 = 0.0_dp
         real(dp) :: d12 = 0.0_dp
         real(dp) :: torque = 0.0_dp
+        real(dp) :: d11_class(3) = 0.0_dp
+        real(dp) :: d12_class(3) = 0.0_dp
+        real(dp) :: torque_class(3) = 0.0_dp
         integer :: integral_status = GC_NONLOCAL_SUCCESS
         integer :: attempted_nodes = 0
         integer :: certified_nodes = 0
         integer :: unresolved_nodes = 0
+        logical :: force_slots_accepted = .false.
         logical :: certified = .false.
         character(len=256) :: invariant_status_coverage = ''
         character(len=256) :: return_status_coverage = ''
@@ -80,6 +133,7 @@ module neort_gc_model2_transport_dispatch
 
     public :: emit_gc_model2_runtime_record
     public :: execute_gc_model2_transport
+    public :: finalize_gc_model2_transport_execution
     public :: gc_model2_dispatch_required
 
 contains
@@ -99,11 +153,14 @@ contains
         type(gc_model2_transport_execution_t), intent(out) :: execution
         integer, intent(out) :: status
 
-        integer :: local_status
+        type(gc_nonlocal_transport_result_t) :: harmonic_result
+        type(gc_nonlocal_transport_observed_evidence_t) :: provider_evidence
+        integer, allocatable :: poloidal_harmonics(:)
+        integer :: local_status, harmonic_index, harmonic_count, active_n
 
         execution = gc_model2_transport_execution_t()
         status = GC_MODEL2_DISPATCH_BACKEND_UNCERTIFIED
-        local_status = validate_backend(backend)
+        local_status = validate_backend(backend, .false.)
         if (local_status /= GC_MODEL2_DISPATCH_SUCCESS) then
             status = local_status
             return
@@ -113,34 +170,158 @@ contains
             status = local_status
             return
         end if
-        call integrate_gc_nonlocal_transport(provider, harmonic_m, harmonic_n, &
-            options%integral, execution%integral, local_status)
-        execution%integral_status = local_status
-        call record_observed_execution(execution, backend)
+        active_n = harmonic_n
+        if (options%toroidal_harmonic /= 0) active_n = options%toroidal_harmonic
+        if (active_n == 0) then
+            status = GC_MODEL2_DISPATCH_FORCE_LAYOUT_INVALID
+            return
+        end if
+        if (allocated(options%poloidal_harmonics)) then
+            harmonic_count = size(options%poloidal_harmonics)
+            allocate(poloidal_harmonics(harmonic_count))
+            poloidal_harmonics = options%poloidal_harmonics
+        else
+            ! The direct perturbation representation does not authorize an
+            ! implicit harmonic range.  The executable must pass the exact
+            ! runtime-selected set derived from its input/configuration.
+            status = GC_MODEL2_DISPATCH_FORCE_LAYOUT_INVALID
+            return
+        end if
+        if (harmonic_count < 1) then
+            status = GC_MODEL2_DISPATCH_FORCE_LAYOUT_INVALID
+            return
+        end if
+        call provider%begin_execution(local_status)
         if (local_status /= GC_NONLOCAL_SUCCESS) then
-            status = GC_MODEL2_DISPATCH_INTEGRAL_FAILED
+            status = GC_MODEL2_DISPATCH_BACKEND_UNCERTIFIED
             return
         end if
-        if (.not. execution%integral%certified) then
-            status = GC_MODEL2_DISPATCH_INTEGRAL_FAILED
+        allocate(execution%harmonics(harmonic_count))
+        execution%integral = gc_nonlocal_transport_result_t()
+        do harmonic_index = 1, harmonic_count
+            call integrate_gc_nonlocal_transport(provider, poloidal_harmonics(harmonic_index), &
+                active_n, options%integral, harmonic_result, local_status)
+            execution%integral_status = local_status
+            execution%harmonics(harmonic_index)%poloidal_harmonic = &
+                poloidal_harmonics(harmonic_index)
+            execution%harmonics(harmonic_index)%integral = harmonic_result
+            if (local_status /= GC_NONLOCAL_SUCCESS .or. &
+                    .not. harmonic_result%certified) then
+                execution%integral = harmonic_result
+                call record_observed_execution(execution, backend, options, &
+                    poloidal_harmonics, active_n)
+                status = GC_MODEL2_DISPATCH_INTEGRAL_FAILED
+                return
+            end if
+            if (harmonic_index == 1) then
+                execution%integral = harmonic_result
+            else
+                call add_integral_result(execution%integral, harmonic_result, &
+                    local_status)
+                if (local_status /= GC_NONLOCAL_SUCCESS) then
+                    status = GC_MODEL2_DISPATCH_INTEGRAL_FAILED
+                    return
+                end if
+            end if
+            call accept_harmonic_slots(execution%harmonics(harmonic_index), &
+                options%force_layout, local_status)
+            if (local_status /= GC_MODEL2_DISPATCH_SUCCESS) then
+                status = local_status
+                return
+            end if
+            execution%d11_class = execution%d11_class + &
+                execution%harmonics(harmonic_index)%d11
+            execution%d12_class = execution%d12_class + &
+                execution%harmonics(harmonic_index)%d12
+            execution%torque_class = execution%torque_class + &
+                execution%harmonics(harmonic_index)%torque
+        end do
+        execution%d11 = sum(execution%d11_class)
+        execution%d12 = sum(execution%d12_class)
+        execution%torque = sum(execution%torque_class)
+        call provider%get_execution_evidence(provider_evidence, local_status)
+        if (local_status /= GC_NONLOCAL_SUCCESS) then
+            status = GC_MODEL2_DISPATCH_BACKEND_UNCERTIFIED
             return
         end if
+        execution%observed%physical_return_attempts = &
+            provider_evidence%physical_return_attempts
+        execution%observed%invariant_successes = provider_evidence%invariant_successes
+        execution%observed%invariant_failures = provider_evidence%invariant_failures
+        execution%observed%return_successes = provider_evidence%return_successes
+        execution%observed%return_no_return = provider_evidence%return_no_return
+        execution%observed%return_radial_domain = provider_evidence%return_radial_domain
+        execution%observed%return_wall_loss = provider_evidence%return_wall_loss
+        execution%observed%return_errors = provider_evidence%return_errors
+        execution%observed%wall_not_hit = provider_evidence%wall_not_hit
+        execution%observed%wall_loss = provider_evidence%wall_loss
+        execution%observed%wall_errors = provider_evidence%wall_errors
+        execution%observed%topology_certification_attempts = &
+            provider_evidence%topology_certification_attempts
+        execution%observed%topology_certification_successes = &
+            provider_evidence%topology_certification_successes
+        execution%observed%return_accounting_complete = &
+            provider_evidence%return_accounting_complete
+        call record_observed_execution(execution, backend, options, &
+            poloidal_harmonics, active_n)
         if (execution%certified_nodes /= execution%attempted_nodes .or. &
             execution%unresolved_nodes /= 0) then
             status = GC_MODEL2_DISPATCH_INTEGRAL_FAILED
             return
         end if
-        call accept_force_slots(execution, options%force_layout, status)
+        execution%force_slots_accepted = .true.
+        status = GC_MODEL2_DISPATCH_SUCCESS
     end subroutine execute_gc_model2_transport
 
-    subroutine record_observed_execution(execution, backend)
+    subroutine add_integral_result(total, addend, status)
+        type(gc_nonlocal_transport_result_t), intent(inout) :: total
+        type(gc_nonlocal_transport_result_t), intent(in) :: addend
+        integer, intent(out) :: status
+
+        status = GC_MODEL2_DISPATCH_INTEGRAL_FAILED
+        if (.not. addend%certified) return
+        if (total%nforce /= addend%nforce) return
+        if (size(total%contribution) /= size(addend%contribution)) return
+        total%contribution = total%contribution + addend%contribution
+        total%class_contribution = total%class_contribution + &
+            addend%class_contribution
+        total%weighted_nodes = total%weighted_nodes + addend%weighted_nodes
+        total%certified_nodes = total%certified_nodes + addend%certified_nodes
+        total%ncomponents = total%ncomponents + addend%ncomponents
+        total%nroots = total%nroots + addend%nroots
+        status = GC_NONLOCAL_SUCCESS
+    end subroutine add_integral_result
+
+    subroutine accept_harmonic_slots(harmonic, layout, status)
+        type(gc_model2_harmonic_execution_t), intent(inout) :: harmonic
+        type(gc_model2_force_layout_t), intent(in) :: layout
+        integer, intent(out) :: status
+
+        integer :: i
+        status = GC_MODEL2_DISPATCH_FORCE_LAYOUT_INVALID
+        do i = 1, 3
+            harmonic%d11(i) = harmonic%integral%class_contribution(i, layout%d11_slot)
+            harmonic%d12(i) = harmonic%integral%class_contribution(i, layout%d12_slot)
+            harmonic%torque(i) = harmonic%integral%class_contribution(i, layout%torque_slot)
+        end do
+        if (.not. all(ieee_is_finite([harmonic%d11, harmonic%d12, &
+            harmonic%torque]))) then
+            status = GC_MODEL2_DISPATCH_NONFINITE
+            return
+        end if
+        status = GC_MODEL2_DISPATCH_SUCCESS
+    end subroutine accept_harmonic_slots
+
+    subroutine record_observed_execution(execution, backend, options, &
+            poloidal_harmonics, active_n)
         type(gc_model2_transport_execution_t), intent(inout) :: execution
         type(gc_model2_backend_evidence_t), intent(in) :: backend
+        type(gc_model2_transport_options_t), intent(in) :: options
+        integer, intent(in) :: poloidal_harmonics(:), active_n
 
         execution%attempted_nodes = execution%integral%weighted_nodes
         execution%certified_nodes = execution%integral%certified_nodes
         execution%unresolved_nodes = execution%integral%unresolved_nodes
-        call build_coverage(execution)
         execution%runtime%backend = backend%backend
         execution%runtime%coordinates = backend%coordinates
         execution%runtime%model = 2
@@ -148,19 +329,106 @@ contains
         execution%runtime%wall_actual_path = backend%wall_actual_path
         execution%runtime%wall_units = backend%wall_units
         execution%runtime%wall_sha256 = backend%wall_sha256
-        execution%runtime%runtime_execution_complete = .true.
-        execution%runtime%orbit_backend_certified = &
-            backend%field_certified .and. backend%topology_certified
+        execution%runtime%runtime_execution_complete = .false.
+        execution%runtime%orbit_backend_certified = .false.
         execution%runtime%wall_certified = backend%wall_certified
-        execution%runtime%canonical_measure_certified = &
-            backend%canonical_measure_certified
-        execution%runtime%component_identity_certified = &
-            backend%component_identity_certified
+        execution%runtime%canonical_measure_certified = .false.
+        execution%runtime%component_identity_certified = .false.
         execution%runtime%cylindrical_backend_entries = &
             execution%attempted_nodes
         execution%runtime%legacy_backend_entries = backend%legacy_backend_entries
         execution%runtime%chart_fallback_entries = backend%chart_fallback_entries
+        execution%runtime%real_field_amplitude_convention = &
+            backend%perturbation_amplitude_convention
+        if (len_trim(execution%runtime%real_field_amplitude_convention) == 0) &
+            execution%runtime%real_field_amplitude_convention = &
+                GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION
+        execution%runtime%conjugate_policy = GC_FULL_FOW_CONJUGATE_POLICY
+        execution%runtime%prefactor_convention = GC_FULL_FOW_PREFACTOR_CONVENTION
+        execution%runtime%action_convention = GC_FULL_FOW_ACTION_CONVENTION
+        execution%runtime%phase_space_bound_method = backend%phase_space_bound_method
+        execution%runtime%orbit_step_refinement_certified = &
+            backend%orbit_step_refinement_certified
+        execution%runtime%orbit_base_step = backend%orbit_base_step
+        execution%runtime%orbit_refined_step = backend%orbit_refined_step
+        execution%runtime%orbit_period_refinement_error = &
+            backend%orbit_period_refinement_error
+        execution%runtime%orbit_delta_phi_refinement_error = &
+            backend%orbit_delta_phi_refinement_error
+        execution%runtime%orbit_omega_b_refinement_error = &
+            backend%orbit_omega_b_refinement_error
+        execution%runtime%orbit_omega_phi_refinement_error = &
+            backend%orbit_omega_phi_refinement_error
+        execution%runtime%orbit_h_m_refinement_error = backend%orbit_h_m_refinement_error
+        execution%runtime%orbit_shell_refinement_error = backend%orbit_shell_refinement_error
+        execution%runtime%perturbation_input_path = backend%perturbation_input_path
+        execution%runtime%perturbation_provenance_certified = &
+            backend%perturbation_provenance_certified
+        execution%runtime%quadrature_base_h0_order = options%integral%h0_order
+        execution%runtime%quadrature_base_jk_order = options%integral%jk_order
+        execution%runtime%quadrature_refined_h0_order = &
+            2*options%integral%h0_order
+        execution%runtime%quadrature_refined_jk_order = &
+            2*options%integral%jk_order
+        execution%runtime%quadrature_relative_tolerance = &
+            options%integral%quadrature_relative_tolerance
+        execution%runtime%quadrature_absolute_tolerance = &
+            options%integral%quadrature_absolute_tolerance
+        execution%runtime%poloidal_harmonic_min = minval(poloidal_harmonics)
+        execution%runtime%poloidal_harmonic_max = maxval(poloidal_harmonics)
+        execution%runtime%poloidal_harmonic_count = size(poloidal_harmonics)
+        execution%runtime%executed_harmonic_count = size(execution%harmonics)
+        execution%runtime%toroidal_harmonic = active_n
+        call format_gc_full_fow_frequency_convention(active_n, &
+            execution%runtime%frequency_convention)
+        execution%runtime%quadrature_convergence_certified = &
+            execution%integral%quadrature%converged
+        execution%runtime%harmonic_batch_certified = &
+            valid_requested_harmonic_batch(poloidal_harmonics, execution%harmonics)
+        execution%runtime%class_reconstruction_certified = &
+            class_reconstruction_matches(execution%integral, options%force_layout)
     end subroutine record_observed_execution
+
+    logical function valid_requested_harmonic_batch(requested, executed)
+        integer, intent(in) :: requested(:)
+        type(gc_model2_harmonic_execution_t), intent(in) :: executed(:)
+        integer :: i, j
+
+        valid_requested_harmonic_batch = size(requested) > 0 .and. &
+            size(executed) == size(requested)
+        if (.not. valid_requested_harmonic_batch) return
+        do i = 1, size(requested)
+            if (count(requested == requested(i)) /= 1) then
+                valid_requested_harmonic_batch = .false.
+                return
+            end if
+            j = 1
+            do while (j <= size(executed))
+                if (executed(j)%poloidal_harmonic == requested(i)) exit
+                j = j + 1
+            end do
+            if (j > size(executed)) then
+                valid_requested_harmonic_batch = .false.
+                return
+            end if
+        end do
+    end function valid_requested_harmonic_batch
+
+    logical function class_reconstruction_matches(integral, layout)
+        type(gc_nonlocal_transport_result_t), intent(in) :: integral
+        type(gc_model2_force_layout_t), intent(in) :: layout
+        real(dp) :: difference(GC_NONLOCAL_MAX_FORCE_VALUES), scale
+
+        class_reconstruction_matches = .false.
+        difference = sum(integral%class_contribution, dim=1) - &
+            integral%contribution
+        scale = maxval(abs([sum(integral%class_contribution, dim=1), &
+            integral%contribution]))
+        if (maxval(abs(difference)) > 2.0e-11_dp*max(tiny(1.0_dp), scale)) return
+        if (layout%d11_slot < 1 .or. layout%d12_slot < 1 .or. &
+                layout%torque_slot < 1) return
+        class_reconstruction_matches = .true.
+    end function class_reconstruction_matches
 
     subroutine accept_force_slots(execution, layout, status)
         type(gc_model2_transport_execution_t), intent(inout) :: execution
@@ -173,36 +441,100 @@ contains
         if (.not. all(ieee_is_finite([execution%d11, execution%d12, &
             execution%torque]))) then
             execution%runtime%nonlocal_transport_certified = .false.
+            execution%force_slots_accepted = .false.
             status = GC_MODEL2_DISPATCH_NONFINITE
             return
         end if
-        execution%certified = .true.
-        execution%runtime%nonlocal_transport_certified = .true.
+        execution%force_slots_accepted = .true.
         status = GC_MODEL2_DISPATCH_SUCCESS
     end subroutine accept_force_slots
 
-    subroutine build_coverage(execution)
+    subroutine finalize_gc_model2_transport_execution(execution, backend, observed, &
+            status)
         type(gc_model2_transport_execution_t), intent(inout) :: execution
-
-        integer :: success_count, failure_count
-
-        success_count = 0
-        if (allocated(execution%integral%node_status)) then
-            success_count = count(execution%integral%node_status == &
-                GC_NONLOCAL_SUCCESS)
-        end if
-        failure_count = max(0, execution%attempted_nodes - success_count)
-        write (execution%invariant_status_coverage, '("success:",I0,",failure:",I0)') &
-            success_count, failure_count
-        write (execution%return_status_coverage, &
-            '("success:",I0,",no_return:0,radial_domain:0,wall_loss:0,error:",I0)') &
-            success_count, failure_count
-        write (execution%wall_status_coverage, &
-            '("not_hit:",I0,",wall_loss:0,error:",I0)') success_count, failure_count
-    end subroutine build_coverage
-
-    integer function validate_backend(backend) result(status)
         type(gc_model2_backend_evidence_t), intent(in) :: backend
+        type(gc_model2_observed_evidence_t), intent(in) :: observed
+        integer, intent(out) :: status
+
+        integer :: local_status
+
+        status = GC_MODEL2_DISPATCH_NOT_CERTIFIED
+        local_status = validate_backend(backend, .true.)
+        if (local_status /= GC_MODEL2_DISPATCH_SUCCESS) then
+            status = local_status
+            return
+        end if
+        if (execution%integral_status /= GC_NONLOCAL_SUCCESS) return
+        if (.not. execution%integral%certified) return
+        if (.not. execution%force_slots_accepted) return
+        if (execution%certified_nodes /= execution%attempted_nodes) return
+        if (execution%unresolved_nodes /= 0) return
+        if (.not. valid_observed_evidence(observed)) return
+
+        call build_observed_coverage(execution, observed)
+        execution%runtime%runtime_execution_complete = .true.
+        execution%runtime%orbit_backend_certified = &
+            backend%field_certified .and. backend%profile_certified .and. &
+            backend%perturbation_certified .and. backend%topology_certified
+        execution%runtime%wall_certified = backend%wall_certified
+        execution%runtime%canonical_measure_certified = &
+            backend%canonical_measure_certified
+        execution%runtime%component_identity_certified = &
+            backend%component_identity_certified
+        execution%runtime%nonlocal_transport_certified = .true.
+        execution%certified = .true.
+        status = GC_MODEL2_DISPATCH_SUCCESS
+    end subroutine finalize_gc_model2_transport_execution
+
+    logical function valid_observed_evidence(observed)
+        type(gc_model2_observed_evidence_t), intent(in) :: observed
+        integer :: return_total, invariant_total, wall_total
+
+        valid_observed_evidence = .false.
+        if (.not. observed%return_accounting_complete) return
+        if (observed%physical_return_attempts <= 0) return
+        if (observed%topology_certification_attempts <= 0) return
+        if (observed%topology_certification_successes /= &
+            observed%topology_certification_attempts) return
+        if (any([observed%invariant_successes, observed%invariant_failures, &
+            observed%return_successes, observed%return_no_return, &
+            observed%return_radial_domain, observed%return_wall_loss, &
+            observed%return_errors, observed%wall_not_hit, observed%wall_loss, &
+            observed%wall_errors, observed%topology_certification_attempts, &
+            observed%topology_certification_successes] < 0)) return
+        invariant_total = observed%invariant_successes + &
+            observed%invariant_failures
+        return_total = observed%return_successes + observed%return_no_return + &
+            observed%return_radial_domain + observed%return_wall_loss + &
+            observed%return_errors
+        wall_total = observed%wall_not_hit + observed%wall_loss + &
+            observed%wall_errors
+        if (invariant_total /= observed%physical_return_attempts) return
+        if (return_total /= observed%physical_return_attempts) return
+        if (wall_total /= observed%physical_return_attempts) return
+        valid_observed_evidence = .true.
+    end function valid_observed_evidence
+
+    subroutine build_observed_coverage(execution, observed)
+        type(gc_model2_transport_execution_t), intent(inout) :: execution
+        type(gc_model2_observed_evidence_t), intent(in) :: observed
+
+        write (execution%invariant_status_coverage, '(A,I0,A,I0)') &
+            'success:', observed%invariant_successes, ',failure:', &
+            observed%invariant_failures
+        write (execution%return_status_coverage, &
+            '(A,I0,A,I0,A,I0,A,I0,A,I0)') 'success:', observed%return_successes, &
+            ',no_return:', observed%return_no_return, ',radial_domain:', &
+            observed%return_radial_domain, ',wall_loss:', observed%return_wall_loss, &
+            ',error:', observed%return_errors
+        write (execution%wall_status_coverage, '(A,I0,A,I0,A,I0)') 'not_hit:', &
+            observed%wall_not_hit, ',wall_loss:', observed%wall_loss, ',error:', &
+            observed%wall_errors
+    end subroutine build_observed_coverage
+
+    integer function validate_backend(backend, require_execution_certificates) result(status)
+        type(gc_model2_backend_evidence_t), intent(in) :: backend
+        logical, intent(in) :: require_execution_certificates
         logical :: wall_exists
         integer :: io_status
 
@@ -216,10 +548,17 @@ contains
         if (.not. backend%field_certified) return
         if (.not. backend%profile_certified) return
         if (.not. backend%perturbation_certified) return
-        if (.not. backend%topology_certified) return
+        if (.not. backend%perturbation_provenance_certified) return
+        if (trim(backend%perturbation_amplitude_convention) /= &
+                GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION) return
+        if (len_trim(backend%perturbation_input_path) == 0) return
+        if (trim(backend%phase_space_bound_method) /= GC_FULL_FOW_BOUND_METHOD) return
         if (.not. backend%wall_certified) return
-        if (.not. backend%canonical_measure_certified) return
-        if (.not. backend%component_identity_certified) return
+        if (require_execution_certificates) then
+            if (.not. backend%topology_certified) return
+            if (.not. backend%canonical_measure_certified) return
+            if (.not. backend%component_identity_certified) return
+        end if
         if (backend%legacy_backend_entries /= 0) return
         if (backend%chart_fallback_entries /= 0) return
         if (len_trim(backend%wall_actual_path) == 0) return

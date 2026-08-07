@@ -8,9 +8,8 @@ module neort_transport
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
-    use neort_freq, only: Om_th, Om_ph
+    use neort_freq, only: Om_th
     use neort_gc_frequency_splines, only: &
-        evaluate_gc_phase_average_surface, gc_spline_q, &
         evaluate_gc_full_orbit_frequency_surface, &
         evaluate_gc_full_orbit_phase_average_surface
     use neort_gc_frequency_provider, only: gc_full_orbit_frequency_result_t, &
@@ -32,7 +31,7 @@ module neort_transport
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
         sign_vpar_htheta, sign_vpar, frequency_model, &
-        FREQUENCY_MODEL_GC_THIN, FREQUENCY_MODEL_GC_FULL
+        FREQUENCY_MODEL_BOOZER_THIN, FREQUENCY_MODEL_GC_THIN, FREQUENCY_MODEL_GC_FULL
 
     implicit none
 
@@ -185,6 +184,13 @@ contains
             * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
     end function Tphi_int
 
+    pure logical function legacy_eta_transport_selected(selected_frequency_model)
+        integer, intent(in) :: selected_frequency_model
+
+        legacy_eta_transport_selected = selected_frequency_model == &
+            FREQUENCY_MODEL_BOOZER_THIN
+    end function legacy_eta_transport_selected
+
     subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
@@ -193,8 +199,7 @@ contains
         real(dp) :: D_plateau, dsdreff ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
         real(dp) :: ux, du, dD11, dD12, dT, v, eta
         real(dp) :: eta_res(2)
-        real(dp) :: taub, bounceavg(nvar), Omph, dOmphdv, dOmphdeta
-        real(dp) :: q_fieldline
+        real(dp) :: taub, bounceavg(nvar), Omph
         integer :: istate_dv
         integer :: direct_status, orbit_class
         type(gc_orbit_average_t) :: direct_average
@@ -206,6 +211,12 @@ contains
         type(gc_transport_failure_t) :: full_failures
         real(dp) :: resonance_scan_min, resonance_scan_max
 
+        if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+            error stop 'frequency_model=2 requires the direct nonlocal dispatcher'
+        end if
+        if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
+            error stop 'frequency_model=1 real-space thin transport was removed'
+        end if
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         D = 0.0_dp
@@ -281,25 +292,6 @@ contains
                     if (direct_status /= GC_FREQUENCY_SUCCESS) then
                         call record_phase_outcome(full_failures, direct_average%status)
                         cycle
-                    end if
-                    bounceavg = 0.0_dp
-                    bounceavg(3) = real(direct_average%perturbation_average)
-                    bounceavg(4) = aimag(direct_average%perturbation_average)
-                    bounceavg(5) = direct_average%inverse_b_average
-                    bounceavg(6) = direct_average%b_average
-                    istate_dv = 2
-                else if (frequency_model == FREQUENCY_MODEL_GC_THIN) then
-                    orbit_class = merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
-                        eta > etatp)
-                    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-                    q_fieldline = gc_spline_q()
-                    call evaluate_gc_phase_average_surface(v, eta, &
-                        int(sign_vpar), orbit_class, taub, Omth, Omph, &
-                        q_fieldline, mth, mph, evaluate_direct_perturbation, &
-                        direct_average, direct_status)
-                    if (direct_status /= GC_FREQUENCY_SUCCESS) then
-                        call error(fmt_dbg('direct GC orbit average failed: mth=', &
-                            dble(mth), ' eta=', eta))
                     end if
                     bounceavg = 0.0_dp
                     bounceavg(3) = real(direct_average%perturbation_average)

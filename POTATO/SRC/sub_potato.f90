@@ -93,6 +93,7 @@
     logical             :: clip_resonance_classes=.true.
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
+    logical             :: orbit_wall_loss=.false.
 ! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
 ! it integrates.  next is the extra-integral count: in the parallel resonance
 ! mode loop pertham writes it (next=0 then next=3 for its two find_bounce calls)
@@ -101,7 +102,7 @@
 ! The grid-build regions never write next; they copyin the master value to keep
 ! the prior shared semantics.  numbasef is set before any parallel region and
 ! read only, so it stays shared.
-    !$omp threadprivate(write_orb,Rorb_max,next)
+    !$omp threadprivate(write_orb,Rorb_max,next,orbit_wall_loss)
   end module orbit_dim_mod
 !
 !------------------------------------------------------
@@ -118,6 +119,40 @@
 ! energy slice; they are not immutable global input once the torque loop starts.
     !$omp threadprivate(relerror,relmargin,iclass)
   end module get_matrix_mod
+!
+!------------------------------------------------------
+!
+  module potato_boundary_scan_mod
+! State used only by the bounded one-dimensional callbacks below.  A topology
+! certificate is built independently in each energy-slice thread; these
+! controls must therefore not be shared between concurrent scans.
+    integer :: fixedpoint_scan_sigma=1,fixedpoint_scan_branch=1
+    double precision :: fixedpoint_scan_left=0.d0,fixedpoint_scan_right=0.d0
+    integer, parameter :: jperpmax_success=0
+    integer, parameter :: jperpmax_unresolved=1
+    integer, parameter :: jperpmax_invalid_domain=2
+    integer :: jperpmax_status=jperpmax_unresolved
+    logical :: jperpmax_certified=.false.
+    double precision :: jperpmax_witness=0.d0,jperpmax_upper_bound=huge(1.d0)
+    !$omp threadprivate(fixedpoint_scan_sigma,fixedpoint_scan_branch, &
+    !$omp&                fixedpoint_scan_left,fixedpoint_scan_right)
+    !$omp threadprivate(jperpmax_status,jperpmax_certified, &
+    !$omp&                jperpmax_witness,jperpmax_upper_bound)
+  end module potato_boundary_scan_mod
+!
+!------------------------------------------------------
+!
+  module potato_limit_status_mod
+! A type-3/4 class has a homoclinic/X-point limiting contribution.  The
+! local saddle Hessian and cut-map coefficients are not exposed by the current
+! magfie/elefie seam, so such a class must fail closed until that provider is
+! supplied.  Type 1 remains the regular finite boundary and is represented by
+! the generated regular limit map.
+    integer, parameter :: limit_provider_available=0
+    integer, parameter :: limit_provider_missing_hessian=1
+    integer :: limit_provider_status=limit_provider_available
+    !$omp threadprivate(limit_provider_status)
+  end module potato_limit_status_mod
 !
 !------------------------------------------------------
 !
@@ -162,7 +197,7 @@
 ! extraset(next) - extra integrals along the orbit (inout)
 ! ierr           - error flag, 0 = success, 1 = orbit left domain (output)
 !
-  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
+  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,orbit_wall_loss
   use field_eq_mod, only : ierrfield
 !
   implicit none
@@ -175,6 +210,7 @@
 !
 ! maximum number of Newton iterations for closing the orbit:
   integer, parameter :: niter=20
+  integer, parameter :: max_primary_steps=100000
 !
 ! relative error of orbit integrator:
   double precision, parameter :: relerr=1d-10 !8
@@ -186,8 +222,8 @@
   double precision, intent(out) :: taub, delphi
   integer, intent(out) :: ierr
 
-  logical :: firstpass
-  integer :: ndim, iter
+  logical :: firstpass,primary_closed,newton_converged
+  integer :: ndim, iter,primary_steps
   double precision :: dtau
   double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
@@ -198,6 +234,11 @@
 !
   ndim = neqm+next
   ierr = 0
+  primary_closed=.false.
+  newton_converged=.false.
+  primary_steps=0
+  orbit_wall_loss=.false.
+  ierrfield=0
 !
   z(1:neqm)=z_eqm
   if(next.gt.0) then
@@ -213,10 +254,22 @@
   z_start=z
 !
   call velo_ext(dtau,z,vz)
+  if(ierrfield.ne.0) then
+    ierr = 1
+    return
+  endif
 !
 ! unit 2D vector in the direction of the guiding center velocity in RZ-plane:
 !
   vel_pol=sqrt(vz(1)**2+vz(3)**2)
+  if(vel_pol.ne.vel_pol) then
+    ierr=2
+    return
+  endif
+  if(vel_pol.le.0.d0) then
+    ierr=2
+    return
+  endif
   RNorm=vz(1)/vel_pol
   ZNorm=vz(3)/vel_pol
 !
@@ -254,6 +307,11 @@
   endif
 !
   do
+    primary_steps=primary_steps+1
+    if(primary_steps.gt.max_primary_steps) then
+      ierr=2
+      return
+    endif
     r_prev=z(1)
     z_prev=z(3)
 !
@@ -269,7 +327,10 @@
 ! sqrt(2) of the poloidal length of the step:
       dL2_pol=2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2)
       dL2_pol_start=(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
-      if(dL2_pol_start.lt.dL2_pol) exit
+      if(dL2_pol_start.lt.dL2_pol) then
+        primary_closed=.true.
+        exit
+      endif
     else
 ! check if Poincare cut has been crossed
 !
@@ -280,8 +341,9 @@
 ! first crossing (continue integration)
           firstpass=.false.
           sign_delZ=-sign_delZ
-        else
+      else
 ! second crossing (stop integration)
+          primary_closed=.true.
           exit
         endif
       endif
@@ -298,6 +360,10 @@
 !
 ! End primary search
 !
+  if(.not.primary_closed) then
+    ierr=2
+    return
+  endif
 ! Newton adjustment
 !
   do iter=1,niter
@@ -306,8 +372,19 @@
 !
     vnorm=vz(1)*RNorm+vz(3)*ZNorm
     dnorm=(z_start(1)-z(1))*RNorm+(z_start(3)-z(3))*ZNorm
-    if(dnorm**2.lt.dL2_pol*relerr) exit
+    if(dnorm**2.lt.dL2_pol*relerr) then
+      newton_converged=.true.
+      exit
+    endif
+    if(vnorm.ne.vnorm .or. abs(vnorm).le.64.d0*epsilon(1.d0)) then
+      ierr=2
+      return
+    endif
     dtau_newt=dnorm/vnorm
+    if(dtau_newt.ne.dtau_newt .or. abs(dtau_newt).gt.huge(dtau_newt)) then
+      ierr=2
+      return
+    endif
 !
     call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
     if(ierrfield.ne.0) then
@@ -317,6 +394,11 @@
 !
     taub=taub+dtau_newt
   enddo
+
+  if(.not.newton_converged) then
+    ierr=2
+    return
+  endif
 !
   if(next.gt.0) then
     extraset=z(neqm+1:ndim)
@@ -472,9 +554,10 @@
 ! for given coordinates z(1:3), total energy "toten",
 ! perpendicular invariant "perpinv" and velocity sign "sigma".
 ! Error code "ierr": 0 - OK, 1 - negative kinetic energy,
-! 2 - negative parallel kinetic energy
+! 2 - invalid perpendicular action or negative parallel kinetic energy
 !
   use pitch_boundary_mod, only : resolve_pitch_squared
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 !
   implicit none
 !
@@ -485,6 +568,14 @@
 !
   ierr=0
   z(4:5)=0.d0
+
+! J_perp is a positive action.  The generated positive-part expression is
+! reserved for the outer domain envelope; it must never turn a negative
+! physical sample into a class/orbit by clamping it to zero.
+  if(.not.ieee_is_finite(perpinv) .or. perpinv.lt.0.d0) then
+    ierr=2
+    return
+  endif
 !
   call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
 !
@@ -2257,10 +2348,11 @@
 !
   subroutine form_classes_doublecount(regions,classes_talk,ierr)
 !
-! Here "class" means segments coming from splitting by X-points of the domains of allowed motion
-! for particles starting at the Poincare with a given parallel velocity sign. The routine
-! determines these segments and their boundary types (usual boundary, vpar2=0 boundary
-! or separatrix crossing). Types are used for determination of class parameterization.
+! Here "class" means one connected allowed interval on the Poincare cut, with
+! its two boundary/homoclinic-pair records and the parallel-velocity sign.  It
+! is not a trapped/passing/winding label.  The routine determines these
+! connected segments and their boundary types (usual boundary, vpar2=0
+! boundary or separatrix crossing); types only select the parameterization.
 !
   use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class,  &
                                            R_class_beg,R_class_end
@@ -2439,10 +2531,20 @@
 !
 ! Sets the boundaries over class parameter x for
 !
+  use potato_limit_status_mod, only : limit_provider_status, &
+                                      limit_provider_missing_hessian
   implicit none
 !
   integer :: ifuntype
   double precision :: relmargin,widthclass,xbeg,xend
+!
+  limit_provider_status=0
+  if(ifuntype/10.ge.3 .or. mod(ifuntype,10).ge.3) then
+    limit_provider_status=limit_provider_missing_hessian
+    xbeg=0.d0
+    xend=0.d0
+    return
+  endif
 !
   select case(ifuntype)
   case(11)
@@ -2453,14 +2555,6 @@
 ! left- rho_pol boundary, right - inner boundary, 0<x<1
     xbeg=0.d0
     xend=1.d0-relmargin
-  case(13)
-! left- rho_pol boundary, right - X-point, 0<x<inf
-    xbeg=0.d0
-    xend=-0.5d0*log(relmargin/widthclass)
-  case(14)
-! left- rho_pol boundary, right - X-point, 0<x<inf
-    xbeg=0.d0
-    xend=-0.5d0*log(relmargin/widthclass)*0.5d0
   case(21)
 ! left- inner boundary, right - rho_pol boundary, 0<x<1
     xbeg=relmargin
@@ -2469,46 +2563,12 @@
 ! two inner boundaries, 0<x<1
     xbeg=relmargin
     xend=1.d0-relmargin
-  case(23)
-! left- inner boundary, right - X-point, 0<x<inf
-    xbeg=relmargin
-    xend=-0.5d0*log(relmargin/widthclass)
-  case(24)
-! left- inner boundary, right - X-point, 0<x<inf
-    xbeg=relmargin
-    xend=-0.25d0*log(relmargin/widthclass)
-  case(31)
-! left- X-point, right - rho_pol boundary, -inf<x<0
-    xbeg=0.5d0*log(relmargin/widthclass)
+  case default
+! Types containing a separatrix/X-point require the generated limiting map and
+! local Hamiltonian Hessian.  classbounds has already set the missing-provider
+! status and returned above; keep this branch closed if a new type is added.
+    xbeg=0.d0
     xend=0.d0
-  case(32)
-! left- X-point, right - inner boundary, -inf<x<0
-    xbeg=0.5d0*log(relmargin/widthclass)
-    xend=-relmargin
-  case(33)
-! two X-points, -inf<x<inf
-    xbeg=0.5d0*log(relmargin/widthclass)
-    xend=-xbeg
-  case(34)
-! two X-points, -inf<x<inf
-    xbeg=0.5d0*log(relmargin/widthclass)
-    xend=-xbeg*0.5d0
-  case(41)
-! left- X-point, right - rho_pol boundary, -inf<x<0
-    xbeg=0.25d0*log(relmargin/widthclass)
-    xend=0.d0
-  case(42)
-! left- X-point, right - inner boundary, -inf<x<0
-    xbeg=0.25d0*log(relmargin/widthclass)
-    xend=-relmargin
-  case(43)
-! two X-points, -inf<x<inf
-    xend=-0.5d0*log(relmargin/widthclass)
-    xbeg=-xend*0.5d0
-  case(44)
-! two X-points, -inf<x<inf
-    xbeg=0.25d0*log(relmargin/widthclass)
-    xend=-xbeg
   end select
 !
   end subroutine classbounds
@@ -2521,11 +2581,17 @@
 ! toroidal displacement per bounce time and bounce integrals as functions
 ! of class parameter x for adaptive refinement of interpolation grid over x
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
-  use orbit_dim_mod,     only : neqm,next
+  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+                                matrix_eval_error,matrix_eval_success, &
+                                matrix_eval_starter_failure, &
+                                matrix_eval_orbit_failure,matrix_eval_wall_loss, &
+                                matrix_eval_nonfinite, &
+                                matrix_boundary_missing_limit,matrix_boundary_error
+  use orbit_dim_mod,     only : neqm,next,orbit_wall_loss
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
+  use potato_limit_status_mod, only : limit_provider_status
 !
   implicit none
 !
@@ -2537,11 +2603,25 @@
   double precision, dimension(next) :: extraset
 !
   external :: velo,velo_pphint
+
+  matrix_eval_valid=.true.
+  matrix_eval_error=matrix_eval_success
 !
   sigma=sigma_class(iclass)
   delta_R=R_class_end(iclass)-R_class_beg(iclass)
 !
   call xi_func(ifuntype(iclass),x,xi,dxi_dx)
+!
+  if(limit_provider_status.ne.0 .or. ifuntype(iclass)/10.ge.3 .or. &
+     mod(ifuntype(iclass),10).ge.3) then
+    matrix_eval_valid=.false.
+    matrix_eval_error=matrix_boundary_missing_limit
+    matrix_boundary_error=matrix_boundary_missing_limit
+    print *,'get_matrix_doublecount: missing local Hamiltonian Hessian/cut-map ', &
+        'provider for homoclinic limit; class type = ',ifuntype(iclass), &
+        ' status = ',limit_provider_status
+    return
+  endif
 !
   Rst=R_class_beg(iclass)+delta_R*xi
 !
@@ -2549,7 +2629,13 @@
                            psiast,dpsiast_dRst,z,ierr)
 !
   if(ierr.ne.0) then
-    print *,'get_matrix: error in starter'
+    matrix_eval_valid=.false.
+    if(orbit_wall_loss) then
+      matrix_eval_error=matrix_eval_wall_loss
+    else
+      matrix_eval_error=matrix_eval_starter_failure
+    endif
+    print *,'get_matrix_doublecount: starter failure ierr = ',ierr
     return
   endif
 !
@@ -2560,12 +2646,30 @@
     if(fullbounce) then
 !
       call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-      if(ierr.ne.0) return
+      if(ierr.ne.0) then
+        matrix_eval_valid=.false.
+        if(orbit_wall_loss) then
+          matrix_eval_error=matrix_eval_wall_loss
+        else
+          matrix_eval_error=matrix_eval_orbit_failure
+        endif
+        return
+      endif
 !
     else
 !
       call first_return_map(sigma,Rst,sigma,Rst,taub,delphi,ierr)
+      if(ierr.ne.0) then
+        matrix_eval_valid=.false.
+        matrix_eval_error=matrix_eval_orbit_failure
+        return
+      endif
       call first_return_map(sigma,Rst,sigma,Rst,tau_fr,dphi_fr,ierr)
+      if(ierr.ne.0) then
+        matrix_eval_valid=.false.
+        matrix_eval_error=matrix_eval_orbit_failure
+        return
+      endif
 !
       taub=taub+tau_fr
       delphi=delphi+dphi_fr
@@ -2574,7 +2678,15 @@
     extraset=0.d0
 !
     call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) return
+    if(ierr.ne.0) then
+      matrix_eval_valid=.false.
+      if(orbit_wall_loss) then
+        matrix_eval_error=matrix_eval_wall_loss
+      else
+        matrix_eval_error=matrix_eval_orbit_failure
+      endif
+      return
+    endif
 !
   endif
 !
@@ -2584,6 +2696,17 @@
 !
   if(next.gt.0) then
     amat(4:3+next,1)=extraset
+  endif
+
+  if(any(amat.ne.amat)) then
+    matrix_eval_valid=.false.
+    matrix_eval_error=matrix_eval_nonfinite
+    return
+  endif
+  if(any(abs(amat).gt.huge(amat))) then
+    matrix_eval_valid=.false.
+    matrix_eval_error=matrix_eval_nonfinite
+    return
   endif
 !
   end subroutine get_matrix_doublecount
@@ -2597,11 +2720,13 @@
 ! toroidal displacement per bounce time and bounce integrals
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
-                                npoi,xarr,amat_arr
+                                npoi,xarr,amat_arr,matrix_boundary_error, &
+                                matrix_eval_success,matrix_boundary_missing_limit
   use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relerror,relmargin,iclass,delphi_max
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
+  use potato_limit_status_mod, only : limit_provider_status
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
 !
@@ -2622,6 +2747,7 @@
   n2=1
 !
   ierr=0
+  matrix_boundary_error=matrix_eval_success
 !
   widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
 !
@@ -2633,9 +2759,25 @@
 !
   call classbounds(ifuntype(iclass),relmargin,widthclass,xbeg,xend)
 !
+  if(limit_provider_status.ne.0) then
+    matrix_boundary_error=matrix_boundary_missing_limit
+    print *,'sample_class_doublecount: no Hessian/cut-map limit provider for ', &
+        'connected class type = ',ifuntype(iclass)
+    ierr=matrix_boundary_error
+    return
+  endif
+!
   if(delphi_max.gt.0.d0) call bound_class_delphi(ifuntype(iclass),xbeg,xend)
+  if(matrix_boundary_error.ne.matrix_eval_success) then
+    ierr=matrix_boundary_error
+    return
+  endif
 !
   call bound_class_wall(xbeg,xend)
+  if(matrix_boundary_error.ne.matrix_eval_success) then
+    ierr=matrix_boundary_error
+    return
+  endif
 !
   eps=relerror
 !
@@ -2665,8 +2807,13 @@
 ! the root search with non-physical dense roots.  The endpoint is located by
 ! bisection on |delphi_b(x)| using get_matrix_doublecount as the orbit evaluator.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+                                matrix_eval_error,matrix_eval_success, &
+                                matrix_eval_wall_loss,matrix_eval_nonfinite, &
+                                matrix_boundary_error
   use get_matrix_mod,    only : delphi_max
+  use resonance_mode_bounds_mod, only : resonance_no_root_for_any, &
+                                        harmonic_guard_success
 !
   implicit none
 !
@@ -2700,16 +2847,40 @@
 !
   subroutine trim_endpoint(xsafe,xdiv)
   double precision :: xsafe,xdiv,xlo,xhi,xm
-  integer :: it
-!
-  if(abs(eval_delphi(xdiv)).le.delphi_max) return
-  if(abs(eval_delphi(xsafe)).ge.delphi_max) return
+  double precision :: delphi_safe,delphi_div,delphi_mid
+  integer :: it,guard_ierr
+  logical :: no_root
+  !
+  delphi_div=eval_delphi(xdiv)
+  if(matrix_boundary_error.ne.matrix_eval_success) return
+  call resonance_no_root_for_any(delphi_div,no_root,guard_ierr)
+  if(guard_ierr.ne.harmonic_guard_success) then
+    matrix_boundary_error=matrix_eval_nonfinite
+    return
+  endif
+  if(.not.no_root) return
+
+  delphi_safe=eval_delphi(xsafe)
+  if(matrix_boundary_error.ne.matrix_eval_success) return
+  call resonance_no_root_for_any(delphi_safe,no_root,guard_ierr)
+  if(guard_ierr.ne.harmonic_guard_success) then
+    matrix_boundary_error=matrix_eval_nonfinite
+    return
+  endif
+  if(no_root) return
 !
   xlo=xsafe
   xhi=xdiv
   do it=1,40
     xm=0.5d0*(xlo+xhi)
-    if(abs(eval_delphi(xm)).lt.delphi_max) then
+    delphi_mid=eval_delphi(xm)
+    if(matrix_boundary_error.ne.matrix_eval_success) return
+    call resonance_no_root_for_any(delphi_mid,no_root,guard_ierr)
+    if(guard_ierr.ne.harmonic_guard_success) then
+      matrix_boundary_error=matrix_eval_nonfinite
+      return
+    endif
+    if(no_root) then
       xlo=xm
     else
       xhi=xm
@@ -2721,12 +2892,20 @@
 !
   double precision function eval_delphi(xval)
   double precision :: xval
-! huge sentinel: get_matrix_doublecount leaves amat untouched on orbit failure,
-! so a failed evaluation reads as "beyond delphi_max" and pulls the search in.
-  amat(3,1)=huge(1.d0)
+  matrix_eval_valid=.true.
+  matrix_eval_error=matrix_eval_success
+  matrix_boundary_error=matrix_eval_success
   x=xval
   call get_matrix_doublecount
-  eval_delphi=amat(3,1)
+  if(matrix_eval_error.eq.matrix_eval_wall_loss) then
+    ! Wall loss is the one expected invalid endpoint for this trim.
+    eval_delphi=sign(huge(1.d0),1.d0)
+  elseif(matrix_eval_error.ne.matrix_eval_success) then
+    matrix_boundary_error=matrix_eval_error
+    eval_delphi=0.d0
+  else
+    eval_delphi=amat(3,1)
+  endif
   end function eval_delphi
 !
   end subroutine bound_class_delphi
@@ -2742,7 +2921,9 @@
 ! lost orbits.  Trims both endpoints by bisection on orbit validity, so the
 ! inside-wall part of the class is still sampled and its resonances kept.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+                                matrix_eval_error,matrix_eval_success, &
+                                matrix_eval_wall_loss,matrix_boundary_error
   use wall_loss_mod,     only : wall_loaded
 !
   implicit none
@@ -2789,12 +2970,16 @@
 !
   logical function orbit_lost(xval)
   double precision :: xval
-! huge sentinel: get_matrix_doublecount leaves amat untouched when the orbit
-! fails (e.g. crosses the wall), so an untouched entry reads as a lost orbit.
-  amat(3,1)=huge(1.d0)
+  matrix_eval_valid=.true.
+  matrix_eval_error=matrix_eval_success
   x=xval
   call get_matrix_doublecount
-  orbit_lost = (amat(3,1).eq.huge(1.d0))
+  orbit_lost=(matrix_eval_error.eq.matrix_eval_wall_loss)
+  if(matrix_eval_error.ne.matrix_eval_success .and. &
+     matrix_eval_error.ne.matrix_eval_wall_loss) then
+    matrix_boundary_error=matrix_eval_error
+    orbit_lost=.false.
+  endif
   end function orbit_lost
 !
   end subroutine bound_class_wall
@@ -3295,48 +3480,1655 @@
 !
   subroutine find_Jperpmax(perpinv_max)
 !
-! Finds maximum possible value of the normalized perpendicular invariant
-! on the Poincare cut for given total energy. Needed for the upper limit
-! of integration over perpendicular invariant
+! A sampled maximum is only a witness.  A narrow or tangent maximum can lie
+! between cut samples, so this routine refuses to turn the witness into a
+! production domain endpoint until the field provider supplies interval
+! enclosures for every cut cell.
 !
-  use poicut_mod,        only : Rbou_hfs,Rbou_lfs
+  use find_all_roots_mod, only : nroots,nsearch_min,relerr_allroots,root_success
+  use potato_boundary_scan_mod, only : jperpmax_success, &
+      jperpmax_unresolved,jperpmax_invalid_domain,jperpmax_status, &
+      jperpmax_certified,jperpmax_witness,jperpmax_upper_bound
+  use poicut_mod, only : npc,rpc_arr
+  use global_invariants, only : toten
 !
   implicit none
 !
-  double precision :: perpinv_max
+  integer :: i,ierr,nsearch_save
+  double precision :: perpinv_max,value,range,relerr_save,tolerance
+  logical :: ok
 !
-  call find_minmax_bsc(.false.,Jperponcut,Rbou_hfs,Rbou_lfs,perpinv_max)
+  perpinv_max=0.d0
+  jperpmax_status=jperpmax_unresolved
+  jperpmax_certified=.false.
+  jperpmax_witness=0.d0
+  jperpmax_upper_bound=huge(1.d0)
+  if(npc.lt.1) then
+    jperpmax_status=jperpmax_invalid_domain
+    return
+  endif
+  range=rpc_arr(npc)-rpc_arr(0)
+  if(range.lt.0.d0) then
+    jperpmax_status=jperpmax_invalid_domain
+    return
+  endif
+  tolerance=128.d0*epsilon(1.d0)*max(1.d0,abs(rpc_arr(0)),abs(rpc_arr(npc)))
+!
+! Check all supplied cut nodes for a finite, strictly positive B.  This is a
+! domain sanity check, not an interior positivity certificate.
+  do i=0,npc
+    call evaluate_jperp(rpc_arr(i),value,ok)
+    if(.not.ok) then
+      jperpmax_status=jperpmax_invalid_domain
+      return
+    endif
+    jperpmax_witness=max(jperpmax_witness,value)
+  enddo
+  if(range.le.tolerance) then
+    perpinv_max=jperpmax_witness
+    jperpmax_upper_bound=jperpmax_witness
+    jperpmax_status=jperpmax_success
+    jperpmax_certified=.true.
+    return
+  endif
+!
+! A second, independently refined derivative scan improves the witness.  Its
+! result is deliberately not promoted to an upper bound: without interval
+! bounds on B and Phi an unresolved narrow/tangent extremum remains a hard
+! production failure.
+  nsearch_save=nsearch_min
+  relerr_save=relerr_allroots
+  nsearch_min=max(nsearch_min,2*npc)
+  relerr_allroots=1.d-11
+  call find_all_roots_bracketed(jperp_stationary_probe, &
+                                rpc_arr(0),rpc_arr(npc),ierr)
+  nsearch_min=nsearch_save
+  relerr_allroots=relerr_save
+  if(ierr.ne.root_success) then
+    jperpmax_status=jperpmax_unresolved
+    return
+  endif
+  do i=1,nroots
+    call evaluate_jperp(roots(i),value,ok)
+    if(.not.ok) then
+      jperpmax_status=jperpmax_invalid_domain
+      return
+    endif
+    jperpmax_witness=max(jperpmax_witness,value)
+  enddo
+  if(jperpmax_witness.gt.0.d0) perpinv_max=jperpmax_witness
+  if(jperpmax_witness.le.tolerance) then
+    ! A zero witness is not a zero-width certificate unless the domain itself
+    ! collapsed; a hidden positive island is otherwise still possible.
+    jperpmax_status=jperpmax_unresolved
+    return
+  endif
+  jperpmax_status=jperpmax_unresolved
 !
 !------------
   contains
 !------------
 !
-  subroutine Jperponcut(R,perpinv)
-!
-! Computes maximum possible value of the normalized perpendicular invariant
-! for given total energy and value of cut parameter R_c
+  subroutine evaluate_jperp(R,perpinv,ok_value)
 !
   use global_invariants, only : toten
+  use potato_symbolic_kernel_mod, only : potato_jperp_kernel
 !
   implicit none
 !
-  double precision :: R,phi_elec,Z,dZ_dR,bmod,perpinv
-  double precision,dimension(3) :: x
+  double precision, intent(in) :: R
+  double precision, intent(out) :: perpinv
+  logical, intent(out) :: ok_value
+  double precision :: phi_elec,Z,dZ_dR,bmod,sqrtg
+  double precision :: qPhi_prime,magnetic_field_B_prime
+  double precision :: candidate,envelope_bound,derivative
+  double precision,dimension(3) :: x,bder,hcovar,hctrvr,hcurl,derphi
 !
   call get_poicut(R,Z,dZ_dR)
-!
   x(1)=R
   x(2)=0.d0
   x(3)=Z
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
+  call elefie(x,phi_elec,derphi)
+  ok_value=(bmod.gt.0.d0 .and. bmod.eq.bmod .and. abs(bmod).lt.huge(bmod))
+  if(.not.ok_value) then
+    perpinv=0.d0
+    return
+  endif
+  qPhi_prime=derphi(1)+derphi(3)*dZ_dR
+  magnetic_field_B_prime=bmod*(bder(1)+bder(3)*dZ_dR)
+  call potato_jperp_kernel(toten,phi_elec,bmod,qPhi_prime, &
+                           magnetic_field_B_prime, &
+                           candidate,envelope_bound,derivative)
+! Only the generated positive part is used here, as an upper-bound helper for
+! max_D[(H-qPhi)/B]_+.  No physical class is built from this clamped value.
+  ok_value=(envelope_bound.eq.envelope_bound .and. &
+            abs(envelope_bound).lt.huge(envelope_bound))
+  if(ok_value) then
+    perpinv=envelope_bound
+  else
+    perpinv=0.d0
+  endif
+  end subroutine evaluate_jperp
 !
-  call get_bmod_and_Phi(x,bmod,phi_elec)
-!
-  perpinv=(toten-phi_elec)/bmod
-!
-  end subroutine Jperponcut
+  subroutine jperp_stationary_probe(R,stationary,dstationary)
+    use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                   root_invalid_domain
+    double precision, intent(in) :: R
+    double precision, intent(out) :: stationary,dstationary
+    double precision :: h,vm,vp,value
+    logical :: okm,okp,ok
+
+    root_eval_valid=.true.
+    root_eval_error=root_success
+    h=max(1.d-8*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+    h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
+    if(h.le.0.d0) then
+      stationary=0.d0
+      dstationary=0.d0
+      return
+    endif
+    call evaluate_jperp(R-h,vm,okm)
+    call evaluate_jperp(R+h,vp,okp)
+    call evaluate_jperp(R,value,ok)
+    if(.not.okm .or. .not.okp .or. .not.ok) then
+      root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      stationary=0.d0
+      dstationary=0.d0
+      return
+    endif
+    stationary=(vp-vm)/(2.d0*h)
+    dstationary=(vp-2.d0*value+vm)/(h*h)
+  end subroutine jperp_stationary_probe
 !
 !------------
 !
   end subroutine find_Jperpmax
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine find_jperp_topology_boundaries(candidates,nmax,ncandidates,ierr)
+!
+! Return the certified outer-J_perp topology candidates for one total energy.
+! On the Poincare cut
+!
+!   v_parallel^2 = H - Phi(R) - J_perp B(R)
+!                 = B(R) [ q(R;H) - J_perp ],
+!   q(R;H) = [H-Phi(R)]/B(R).
+!
+! The allowed-region root set can change only at a cut endpoint or at a
+! stationary root of q.  The class/fixpoint root set has two additional
+! one-dimensional discriminants: a fixed point can be born or die when the
+! fixed-point branch J_perp(R_c) is stationary, and a fixed point can enter or
+! leave the rho_pol-clipped cut at a clipping endpoint.  All of these roots
+! are found from the equations used by find_bounds_fixpoints; the outer
+! sampler must not infer them from finite midpoint signatures.
+!
+  use find_all_roots_mod, only : nroots,roots,nsearch_min,relerr_allroots, &
+                                 root_success,root_unresolved_separation
+  use global_invariants, only : toten
+  use poicut_mod, only : npc,rpc_arr,Rbou_hfs,Rbou_lfs
+  use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
+                                       fixedpoint_scan_branch, &
+                                       fixedpoint_scan_left, fixedpoint_scan_right
+  implicit none
+!
+  integer, intent(in) :: nmax
+  integer, intent(out) :: ncandidates,ierr
+  double precision, intent(out) :: candidates(nmax)
+  integer, parameter :: max_scan_roots=4096
+  integer :: ierr_roots,nsearch_save,i,j,k,nq,ndisc,npart,nsigma,branch
+  integer :: npart_initial,nfp_segments,nbd_segments,ierr_local
+  integer :: collision_segment_left,collision_segment_right,collision_boundary_segment
+  integer :: boundary_stage
+  double precision :: relerr_save,q,range,midpoint,jvalue,pstar
+  double precision :: collision_jlo,collision_jhi
+  double precision :: boundary_stage_r,boundary_stage_j
+  double precision, allocatable :: qroots(:),disc_roots(:),rpartition(:)
+  integer, allocatable :: fp_sigma(:),fp_branch(:)
+  double precision, allocatable :: fp_rlo(:),fp_rhi(:),fp_jlo(:),fp_jhi(:), &
+                                   fp_plo(:),fp_phi(:)
+  integer, allocatable :: bd_type(:),bd_sigma(:)
+  double precision, allocatable :: bd_rlo(:),bd_rhi(:),bd_jlo(:),bd_jhi(:)
+  logical :: ok
+  external :: find_all_roots_bracketed,fixedpoint_discriminant, &
+              fixedpoint_branch_stationary,fixedpoint_roots_at_R, &
+              fixedpoint_branch_value
+!
+  ncandidates=0
+  ierr=root_success
+  candidates=0.d0
+  boundary_stage=0
+  boundary_stage_r=0.d0
+  boundary_stage_j=0.d0
+  nfp_segments=0
+  nbd_segments=0
+  npart=0
+  if(nmax.le.0 .or. npc.le.0) then
+    ierr=3
+    return
+  endif
+  range=rpc_arr(npc)-rpc_arr(0)
+  if(range.le.0.d0) then
+    ierr=3
+    return
+  endif
+!
+! Endpoint roots are boundary candidates even when they are not stationary.
+  call jperp_value(rpc_arr(0),q,ok)
+  if(.not.ok) then
+    ierr=2
+    return
+  endif
+  call add_candidate(q)
+  if(ierr.ne.0) return
+  call jperp_value(rpc_arr(npc),q,ok)
+  if(.not.ok) then
+    ierr=2
+    return
+  endif
+  call add_candidate(q)
+  if(ierr.ne.0) return
+  if(Rbou_hfs.gt.rpc_arr(0) .and. Rbou_hfs.lt.rpc_arr(npc)) then
+    call jperp_value(Rbou_hfs,q,ok)
+    if(.not.ok) then
+      ierr=2
+      return
+    endif
+    call add_candidate(q)
+    if(ierr.ne.0) return
+  endif
+  if(Rbou_lfs.gt.rpc_arr(0) .and. Rbou_lfs.lt.rpc_arr(npc)) then
+    call jperp_value(Rbou_lfs,q,ok)
+    if(.not.ok) then
+      ierr=2
+      return
+    endif
+    call add_candidate(q)
+    if(ierr.ne.0) return
+  endif
+!
+! Find every stationary q root on a deliberately fine bounded scan.  The
+! callback has a two-sided finite-difference derivative only in the open cut;
+! endpoint values were already added explicitly above.
+  nsearch_save=nsearch_min
+  relerr_save=relerr_allroots
+  nsearch_min=max(nsearch_min,4096)
+  relerr_allroots=1.d-11
+  boundary_stage=10
+  call find_all_roots_bracketed(jperp_stationary,rpc_arr(0),rpc_arr(npc),ierr_roots)
+  if(ierr_roots.ne.root_success) then
+    call fail_boundary(ierr_roots)
+    return
+  endif
+  nq=nroots
+  allocate(qroots(max(1,nq)))
+  if(nq.gt.0) qroots(1:nq)=roots(1:nq)
+!
+  do i=1,nq
+    call jperp_value(qroots(i),q,ok)
+    if(.not.ok) then
+      call fail_boundary(2)
+      return
+    endif
+    call add_candidate(q)
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+  enddo
+!
+! The discriminant of the exact fixed-point equation is a second physical
+! boundary set.  With u=p_parallel (signed), psi*=psi+rho0*h_phi*u and
+! u^2=A-J_perp*B, the stationary condition d(psi*)/dR_c=0 is
+!
+!   a(R) u^2 + b(R) u + c(R) = 0 .
+!
+! Its discriminant partitions the cut into intervals on which each fixed-point
+! branch is a single-valued function J_perp(R_c).  We then root-find
+! dJ_perp/dR_c on every such interval, rather than sampling J_perp midpoints.
+  boundary_stage=20
+  call find_all_roots_bracketed(fixedpoint_discriminant, &
+                                rpc_arr(0),rpc_arr(npc),ierr_roots)
+  if(ierr_roots.ne.root_success) then
+    call fail_boundary(ierr_roots)
+    return
+  endif
+  ndisc=nroots
+  allocate(disc_roots(max(1,ndisc)))
+  if(ndisc.gt.0) disc_roots(1:ndisc)=roots(1:ndisc)
+  do i=1,ndisc
+    call add_fixedpoint_candidates(disc_roots(i))
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+  enddo
+  boundary_stage=25
+  call add_fixedpoint_candidates(rpc_arr(0))
+  if(ierr.ne.0) then
+    call fail_boundary(ierr)
+    return
+  endif
+  call add_fixedpoint_candidates(rpc_arr(npc))
+  if(ierr.ne.0) then
+    call fail_boundary(ierr)
+    return
+  endif
+!
+! Split the R_c scan at every allowed-region and fixed-point branch endpoint.
+  allocate(rpartition(max_scan_roots))
+  npart=0
+  call add_rpartition(rpc_arr(0))
+  call add_rpartition(rpc_arr(npc))
+  do i=1,nq
+    call add_rpartition(qroots(i))
+  enddo
+  do i=1,ndisc
+    call add_rpartition(disc_roots(i))
+  enddo
+  if(Rbou_hfs.gt.rpc_arr(0) .and. Rbou_hfs.lt.rpc_arr(npc)) &
+      call add_rpartition(Rbou_hfs)
+  if(Rbou_lfs.gt.rpc_arr(0) .and. Rbou_lfs.lt.rpc_arr(npc)) &
+      call add_rpartition(Rbou_lfs)
+  if(ierr.ne.0) then
+    call fail_boundary(ierr)
+    return
+  endif
+  call sort_rpartition
+!
+! Add the projection discriminants of both signed fixed-point branches.
+  npart_initial=npart
+  do nsigma=-1,1,2
+    fixedpoint_scan_sigma=nsigma
+    do branch=1,2
+      fixedpoint_scan_branch=branch
+      do i=1,npart_initial-1
+        boundary_stage=30
+        boundary_stage_r=0.5d0*(rpartition(i)+rpartition(i+1))
+        midpoint=0.5d0*(rpartition(i)+rpartition(i+1))
+        call fixedpoint_branch_value(midpoint,nsigma,branch,jvalue,pstar,ok)
+        if(.not.ok) cycle
+        fixedpoint_scan_left=rpartition(i)
+        fixedpoint_scan_right=rpartition(i+1)
+        call find_all_roots_bracketed(fixedpoint_branch_stationary, &
+                                      rpartition(i),rpartition(i+1),ierr_local)
+        if(ierr_local.ne.root_success) then
+          call fail_boundary(ierr_local)
+          return
+        endif
+        do j=1,nroots
+          call fixedpoint_branch_value(roots(j),nsigma,branch,jvalue,pstar,ok)
+          if(.not.ok) then
+            call fail_boundary(2)
+            return
+          endif
+          call add_candidate(jvalue)
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+          call add_rpartition(roots(j))
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+        enddo
+      enddo
+    enddo
+  enddo
+  call sort_rpartition
+!
+! The separatrix root set also changes when two distinct fixed points have the
+! same (J_perp,psi^*) value.  This critical-value collision is not a
+! fixed-point birth/death: it is where a moving cut curve becomes tangent to
+! another fixed-point level.  The branch projection is monotone on every
+! R interval below, so each collision is reduced to a bounded root problem in
+! J_perp; no midpoint topology inference is used.
+  allocate(fp_sigma(max_scan_roots),fp_branch(max_scan_roots), &
+      fp_rlo(max_scan_roots),fp_rhi(max_scan_roots), &
+      fp_jlo(max_scan_roots),fp_jhi(max_scan_roots), &
+      fp_plo(max_scan_roots),fp_phi(max_scan_roots))
+  boundary_stage=40
+  call collect_fixedpoint_segments
+  if(ierr.ne.0) then
+    call fail_boundary(ierr)
+    return
+  endif
+  do i=1,nfp_segments-1
+    do j=i+1,nfp_segments
+      boundary_stage=50
+      boundary_stage_r=0.5d0*(fp_rlo(i)+fp_rhi(i))
+      collision_segment_left=i
+      collision_segment_right=j
+      collision_boundary_segment=0
+      collision_jlo=max(0.d0,max(min(fp_jlo(i),fp_jhi(i)), &
+                                 min(fp_jlo(j),fp_jhi(j))))
+      collision_jhi=min(max(fp_jlo(i),fp_jhi(i)), &
+                        max(fp_jlo(j),fp_jhi(j)))
+      if(collision_jhi.lt.collision_jlo) cycle
+      if(collision_jhi-collision_jlo.le.256.d0*epsilon(1.d0)* &
+         max(1.d0,abs(collision_jlo),abs(collision_jhi))) then
+        midpoint=0.5d0*(collision_jlo+collision_jhi)
+        call fixedpoint_collision_value(midpoint,jvalue,ok)
+        if(.not.ok) then
+          call fail_boundary(2)
+          return
+        endif
+        if(abs(jvalue).le.1.d-10*max(1.d0,abs(jvalue))) then
+          call add_candidate(midpoint)
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+        endif
+      else
+        call find_all_roots_bracketed(fixedpoint_collision, &
+                                      collision_jlo,collision_jhi,ierr_local)
+        if(ierr_local.ne.root_success) then
+          call fail_boundary(ierr_local)
+          return
+        endif
+        do k=1,nroots
+          call add_candidate(roots(k))
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+        enddo
+      endif
+    enddo
+  enddo
+  allocate(bd_type(max_scan_roots),bd_sigma(max_scan_roots), &
+      bd_rlo(max_scan_roots),bd_rhi(max_scan_roots), &
+      bd_jlo(max_scan_roots),bd_jhi(max_scan_roots))
+  boundary_stage=60
+  call collect_boundary_segments
+  if(ierr.ne.0) then
+    call fail_boundary(ierr)
+    return
+  endif
+  do i=1,nfp_segments
+    do j=1,nbd_segments
+      boundary_stage=70
+      boundary_stage_r=0.5d0*(fp_rlo(i)+fp_rhi(i))
+      collision_segment_left=i
+      collision_segment_right=0
+      collision_boundary_segment=j
+      collision_jlo=max(0.d0,max(min(fp_jlo(i),fp_jhi(i)), &
+                                 min(bd_jlo(j),bd_jhi(j))))
+      collision_jhi=min(max(fp_jlo(i),fp_jhi(i)), &
+                        max(bd_jlo(j),bd_jhi(j)))
+      if(collision_jhi.lt.collision_jlo) cycle
+      if(collision_jhi-collision_jlo.le.256.d0*epsilon(1.d0)* &
+         max(1.d0,abs(collision_jlo),abs(collision_jhi))) then
+        midpoint=0.5d0*(collision_jlo+collision_jhi)
+        call fixedpoint_collision_value(midpoint,jvalue,ok)
+        if(.not.ok) then
+          call fail_boundary(2)
+          return
+        endif
+        if(abs(jvalue).le.1.d-10*max(1.d0,abs(jvalue))) then
+          call add_candidate(midpoint)
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+        endif
+      else
+        call find_all_roots_bracketed(fixedpoint_collision, &
+                                      collision_jlo,collision_jhi,ierr_local)
+        if(ierr_local.ne.root_success) then
+          call fail_boundary(ierr_local)
+          return
+        endif
+        do k=1,nroots
+          call add_candidate(roots(k))
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+        enddo
+      endif
+    enddo
+  enddo
+!
+! A fixed point crossing the rho_pol clipping boundary changes the class set
+! even when v_parallel^2 remains positive there.  The quadratic above gives
+! those candidates directly at each clipping endpoint.
+  if(Rbou_hfs.gt.rpc_arr(0) .and. Rbou_hfs.lt.rpc_arr(npc)) then
+    boundary_stage=80
+    call add_fixedpoint_candidates(Rbou_hfs)
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+  endif
+  if(Rbou_lfs.gt.rpc_arr(0) .and. Rbou_lfs.lt.rpc_arr(npc)) then
+    boundary_stage=81
+    call add_fixedpoint_candidates(Rbou_lfs)
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+  endif
+!
+  call restore_scan_state
+  deallocate(qroots,disc_roots,rpartition,fp_sigma,fp_branch,fp_rlo,fp_rhi, &
+      fp_jlo,fp_jhi,fp_plo,fp_phi,bd_type,bd_sigma,bd_rlo,bd_rhi,bd_jlo,bd_jhi)
+  return
+!
+contains
+
+  subroutine fail_boundary(status)
+    integer, intent(in) :: status
+
+    print *,'find_jperp_topology_boundaries: failure stage,H,R,J,npart,nfp,nbd,ierr = ', &
+        boundary_stage,toten,boundary_stage_r,boundary_stage_j,npart, &
+        nfp_segments,nbd_segments,status
+    if(boundary_stage.eq.50 .and. allocated(fp_sigma)) then
+      print *,'fixedpoint collision segments i,j,sigma,branch,rlo,rhi,jlo,jhi = ', &
+          collision_segment_left,collision_segment_right, &
+          fp_sigma(collision_segment_left),fp_branch(collision_segment_left), &
+          fp_rlo(collision_segment_left),fp_rhi(collision_segment_left), &
+          fp_jlo(collision_segment_left),fp_jhi(collision_segment_left), &
+          fp_sigma(collision_segment_right),fp_branch(collision_segment_right), &
+          fp_rlo(collision_segment_right),fp_rhi(collision_segment_right), &
+          fp_jlo(collision_segment_right),fp_jhi(collision_segment_right)
+    elseif(boundary_stage.eq.70 .and. allocated(fp_sigma) .and. allocated(bd_type)) then
+      print *,'fixedpoint-boundary segments i,j,sigma,branch,rlo,rhi,jlo,jhi,type,bsigma,brlo,brhi,bjlo,bjhi = ', &
+          collision_segment_left,collision_boundary_segment, &
+          fp_sigma(collision_segment_left),fp_branch(collision_segment_left), &
+          fp_rlo(collision_segment_left),fp_rhi(collision_segment_left), &
+          fp_jlo(collision_segment_left),fp_jhi(collision_segment_left), &
+          bd_type(collision_boundary_segment),bd_sigma(collision_boundary_segment), &
+          bd_rlo(collision_boundary_segment),bd_rhi(collision_boundary_segment), &
+          bd_jlo(collision_boundary_segment),bd_jhi(collision_boundary_segment)
+    endif
+    ierr=status
+    call restore_scan_state
+    if(allocated(qroots)) deallocate(qroots)
+    if(allocated(disc_roots)) deallocate(disc_roots)
+    if(allocated(rpartition)) deallocate(rpartition)
+    if(allocated(fp_sigma)) deallocate(fp_sigma,fp_branch,fp_rlo,fp_rhi, &
+        fp_jlo,fp_jhi,fp_plo,fp_phi)
+    if(allocated(bd_type)) deallocate(bd_type,bd_sigma,bd_rlo,bd_rhi,bd_jlo,bd_jhi)
+  end subroutine fail_boundary
+
+  subroutine restore_scan_state
+    nsearch_min=nsearch_save
+    relerr_allroots=relerr_save
+    fixedpoint_scan_sigma=1
+    fixedpoint_scan_branch=1
+    fixedpoint_scan_left=0.d0
+    fixedpoint_scan_right=0.d0
+    collision_segment_left=0
+    collision_segment_right=0
+    collision_boundary_segment=0
+  end subroutine restore_scan_state
+
+  subroutine add_candidate(value)
+    double precision, intent(in) :: value
+
+    if(value.ne.value .or. abs(value).gt.huge(value)) then
+      ierr=2
+      return
+    endif
+    if(ncandidates.ge.nmax) then
+      ierr=3
+      return
+    endif
+    ncandidates=ncandidates+1
+    candidates(ncandidates)=value
+  end subroutine add_candidate
+
+  subroutine add_fixedpoint_candidates(R)
+    double precision, intent(in) :: R
+    integer :: local_sigma,local_branch,nfixed
+    double precision :: local_u(2),local_j(2),local_p(2)
+    logical :: local_ok
+
+    do local_sigma=-1,1,2
+      call fixedpoint_roots_at_R(R,local_sigma,local_u,local_j,local_p, &
+                                 nfixed,local_ok)
+      if(.not.local_ok) then
+        ierr=2
+        return
+      endif
+      do local_branch=1,nfixed
+        call add_candidate(local_j(local_branch))
+        if(ierr.ne.0) return
+      enddo
+    enddo
+  end subroutine add_fixedpoint_candidates
+
+  subroutine add_rpartition(value)
+    double precision, intent(in) :: value
+    integer :: local_i
+    double precision :: tolerance,scale
+
+    if(value.ne.value .or. abs(value).gt.huge(value)) then
+      ierr=2
+      return
+    endif
+    if(value.lt.rpc_arr(0) .or. value.gt.rpc_arr(npc)) return
+    scale=max(1.d0,abs(value))
+    tolerance=128.d0*epsilon(1.d0)*scale
+    do local_i=1,npart
+      if(rpartition(local_i).eq.value) return
+      if(abs(rpartition(local_i)-value).le.tolerance) then
+        ! Distinct boundary equations that collapse at floating-point scale
+        ! cannot be certified as one transition.  Merging them would omit a
+        ! possible narrow topology interval.
+        ierr=root_unresolved_separation
+        return
+      endif
+    enddo
+    if(npart.ge.max_scan_roots) then
+      ierr=3
+      return
+    endif
+    npart=npart+1
+    rpartition(npart)=value
+  end subroutine add_rpartition
+
+  subroutine sort_rpartition
+    integer :: local_i,local_j
+    double precision :: local_key
+
+    do local_i=2,npart
+      local_key=rpartition(local_i)
+      local_j=local_i-1
+      do while(local_j.ge.1 .and. rpartition(local_j).gt.local_key)
+        rpartition(local_j+1)=rpartition(local_j)
+        local_j=local_j-1
+      enddo
+      rpartition(local_j+1)=local_key
+    enddo
+  end subroutine sort_rpartition
+
+  subroutine collect_fixedpoint_segments
+! On each final R interval the quadratic branch is single-valued and its
+! projection J_perp(R) has no stationary root.  Store its bounded endpoint
+! values for the pairwise critical-value collision scan.
+    integer :: local_sigma,local_branch,local_i
+    double precision :: local_mid,local_j,local_p,local_jl,local_jr, &
+                        local_pl,local_pr,local_jq1,local_jq2, &
+                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width
+    logical :: local_ok,local_okl,local_okr,local_okq1,local_okq2
+
+    nfp_segments=0
+    do local_sigma=-1,1,2
+      do local_branch=1,2
+        do local_i=1,npart-1
+          width=rpartition(local_i+1)-rpartition(local_i)
+          if(width.le.0.d0) then
+            ierr=3
+            return
+          endif
+          local_mid=0.5d0*(rpartition(local_i)+rpartition(local_i+1))
+          boundary_stage_r=local_mid
+          call fixedpoint_branch_value(local_mid,local_sigma,local_branch, &
+                                       local_j,local_p,local_ok)
+          if(.not.local_ok) cycle
+          boundary_stage=41
+          boundary_stage_j=local_j
+          call fixedpoint_branch_endpoint(rpartition(local_i), &
+              rpartition(local_i),rpartition(local_i+1),1.d0,local_sigma, &
+              local_branch,local_jl,local_pl,local_rlo,local_okl)
+          call fixedpoint_branch_endpoint(rpartition(local_i+1), &
+              rpartition(local_i),rpartition(local_i+1),-1.d0,local_sigma, &
+              local_branch,local_jr,local_pr,local_rhi,local_okr)
+          if(.not.local_okl .or. .not.local_okr) then
+            boundary_stage=42
+            ierr=2
+            return
+          endif
+          call fixedpoint_branch_value(rpartition(local_i)+0.25d0*width, &
+              local_sigma,local_branch,local_jq1,local_pq1,local_okq1)
+          call fixedpoint_branch_value(rpartition(local_i)+0.75d0*width, &
+              local_sigma,local_branch,local_jq2,local_pq2,local_okq2)
+          if(.not.local_okq1 .or. .not.local_okq2) then
+            boundary_stage=43
+            ierr=2
+            return
+          endif
+! Branches with no non-negative physical J_perp value do not belong to
+! the outer integration domain.  Discard them before applying the strict
+! monotonicity check; otherwise an entirely negative branch can be rejected
+! for a harmless projection shape outside the certified physical domain.
+          if(max(local_jl,local_jr,local_jq1,local_jq2).le.0.d0) cycle
+          tolerance=1.d-10*max(1.d0,abs(local_jl),abs(local_jr), &
+                                abs(local_jq1),abs(local_jq2))
+          if(local_jq1.lt.min(local_jl,local_jr)-tolerance .or. &
+             local_jq1.gt.max(local_jl,local_jr)+tolerance .or. &
+             local_jq2.lt.min(local_jl,local_jr)-tolerance .or. &
+             local_jq2.gt.max(local_jl,local_jr)+tolerance) then
+            boundary_stage=44
+            ierr=2
+            return
+          endif
+          if(abs(local_jr-local_jl).le.256.d0*epsilon(1.d0)* &
+             max(1.d0,abs(local_jl),abs(local_jr))) then
+            boundary_stage=45
+            ierr=2
+            return
+          endif
+          if(nfp_segments.ge.max_scan_roots) then
+            ierr=3
+            return
+          endif
+          nfp_segments=nfp_segments+1
+          fp_sigma(nfp_segments)=local_sigma
+          fp_branch(nfp_segments)=local_branch
+! The stored R interval is the certified open branch interval, not the
+! physical endpoint at which a quadratic root may coalesce.  The exact
+! physical endpoint remains in rpartition/candidate data above.  Using the
+! contracted positions here prevents the inverse collision map from probing
+! through an invalid endpoint during its bounded bisection.
+          fp_rlo(nfp_segments)=local_rlo
+          fp_rhi(nfp_segments)=local_rhi
+          fp_jlo(nfp_segments)=local_jl
+          fp_jhi(nfp_segments)=local_jr
+          fp_plo(nfp_segments)=local_pl
+          fp_phi(nfp_segments)=local_pr
+        enddo
+      enddo
+    enddo
+  end subroutine collect_fixedpoint_segments
+
+  subroutine collect_boundary_segments
+! Separatrix intersections can also be born at a physical boundary when an
+! X-point level reaches that boundary value.  Include both kinds of boundary
+! level curves used by find_bounds_fixpoints: v_parallel=0 turning roots and
+! fixed cut/rho_pol endpoints.  The q(R) projection is monotone on the same
+! final R partition, so its inverse is bounded just like a fixed-point branch.
+    integer :: local_i
+    double precision :: local_width,local_q0,local_q1,local_q25,local_q75, &
+                        local_p,local_tolerance
+    logical :: local_ok0,local_ok1,local_ok25,local_ok75
+
+    nbd_segments=0
+    do local_i=1,npart-1
+      local_width=rpartition(local_i+1)-rpartition(local_i)
+      if(local_width.le.0.d0) then
+        ierr=3
+        return
+      endif
+      call jperp_value(rpartition(local_i),local_q0,local_ok0)
+      call jperp_value(rpartition(local_i+1),local_q1,local_ok1)
+      call jperp_value(rpartition(local_i)+0.25d0*local_width, &
+                       local_q25,local_ok25)
+      call jperp_value(rpartition(local_i)+0.75d0*local_width, &
+                       local_q75,local_ok75)
+      if(.not.local_ok0 .or. .not.local_ok1 .or. .not.local_ok25 .or. &
+         .not.local_ok75) then
+        ierr=2
+        return
+      endif
+      local_tolerance=1.d-10*max(1.d0,abs(local_q0),abs(local_q1), &
+                                  abs(local_q25),abs(local_q75))
+      if(local_q25.lt.min(local_q0,local_q1)-local_tolerance .or. &
+         local_q25.gt.max(local_q0,local_q1)+local_tolerance .or. &
+         local_q75.lt.min(local_q0,local_q1)-local_tolerance .or. &
+         local_q75.gt.max(local_q0,local_q1)+local_tolerance) then
+        ierr=2
+        return
+      endif
+      if(max(local_q0,local_q1).gt.0.d0) then
+        call add_boundary_segment(1,0,rpartition(local_i), &
+            rpartition(local_i+1),local_q0,local_q1)
+        if(ierr.ne.0) return
+      endif
+    enddo
+    call add_fixed_boundary_segment(rpc_arr(0))
+    call add_fixed_boundary_segment(rpc_arr(npc))
+    if(Rbou_hfs.gt.rpc_arr(0) .and. Rbou_hfs.lt.rpc_arr(npc)) &
+        call add_fixed_boundary_segment(Rbou_hfs)
+    if(Rbou_lfs.gt.rpc_arr(0) .and. Rbou_lfs.lt.rpc_arr(npc)) &
+        call add_fixed_boundary_segment(Rbou_lfs)
+  end subroutine collect_boundary_segments
+
+  subroutine add_boundary_segment(local_type,local_sigma,local_rlo,local_rhi, &
+                                  local_jlo,local_jhi)
+    integer, intent(in) :: local_type,local_sigma
+    double precision, intent(in) :: local_rlo,local_rhi,local_jlo,local_jhi
+
+    if(nbd_segments.ge.max_scan_roots) then
+      ierr=3
+      return
+    endif
+    nbd_segments=nbd_segments+1
+    bd_type(nbd_segments)=local_type
+    bd_sigma(nbd_segments)=local_sigma
+    bd_rlo(nbd_segments)=local_rlo
+    bd_rhi(nbd_segments)=local_rhi
+    bd_jlo(nbd_segments)=local_jlo
+    bd_jhi(nbd_segments)=local_jhi
+  end subroutine add_boundary_segment
+
+  subroutine add_fixed_boundary_segment(local_r)
+    double precision, intent(in) :: local_r
+    double precision :: local_j
+    integer :: local_sigma
+    logical :: local_ok
+
+    call jperp_value(local_r,local_j,local_ok)
+    if(.not.local_ok) then
+      ierr=2
+      return
+    endif
+    if(local_j.le.0.d0) return
+    do local_sigma=-1,1,2
+      call add_boundary_segment(2,local_sigma,local_r,local_r,0.d0,local_j)
+      if(ierr.ne.0) return
+    enddo
+  end subroutine add_fixed_boundary_segment
+
+  subroutine fixedpoint_branch_endpoint(endpoint,rlo,rhi,direction, &
+                                         local_sigma,local_branch, &
+                                         local_j,local_p,local_r,local_ok)
+! A branch can coalesce at a discriminant endpoint, where the branch index
+! deliberately has no exact two-root representation.  Contract only this
+! certified endpoint inward; failure to find the branch is a certificate
+! failure, not permission to drop a collision interval.
+    double precision, intent(in) :: endpoint,rlo,rhi,direction
+    integer, intent(in) :: local_sigma,local_branch
+    double precision, intent(out) :: local_j,local_p,local_r
+    logical, intent(out) :: local_ok
+    integer :: local_k
+    double precision :: distance,max_distance,probe,scale
+
+    call fixedpoint_branch_value(endpoint,local_sigma,local_branch, &
+                                 local_j,local_p,local_ok)
+    local_r=endpoint
+    if(local_ok) return
+    local_ok=.false.
+    local_j=0.d0
+    local_p=0.d0
+    scale=max(1.d0,abs(endpoint),abs(rlo),abs(rhi))
+    max_distance=0.49d0*(rhi-rlo)
+    distance=max(1.d-8*(rhi-rlo),256.d0*epsilon(1.d0)*scale)
+    do local_k=1,32
+      if(distance.gt.max_distance) distance=max_distance
+      probe=endpoint+direction*distance
+      if(probe.le.rlo .or. probe.ge.rhi) exit
+      call fixedpoint_branch_value(probe,local_sigma,local_branch, &
+                                   local_j,local_p,local_ok)
+      if(local_ok) then
+        local_r=probe
+        return
+      endif
+      if(distance.ge.max_distance) exit
+      distance=min(2.d0*distance,max_distance)
+    enddo
+  end subroutine fixedpoint_branch_endpoint
+
+  subroutine fixedpoint_collision(jtest,difference,ddifference_dj)
+! Difference of two critical values after bounded inversion of their monotone
+! J_perp(R) projections.  The derivative is only a local diagnostic for the
+! all-roots scanner; all function evaluations remain inside certified branch
+! intervals.
+    use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                   root_invalid_domain
+    double precision, intent(in) :: jtest
+    double precision, intent(out) :: difference,ddifference_dj
+    double precision :: h,dm,dp,scale
+    logical :: ok0,okm,okp
+
+    root_eval_valid=.true.
+    root_eval_error=0
+    call fixedpoint_collision_value(jtest,difference,ok0)
+    boundary_stage_j=jtest
+    if(.not.ok0) then
+      root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      difference=0.d0
+      ddifference_dj=0.d0
+      return
+    endif
+    scale=max(1.d0,abs(jtest),abs(collision_jlo),abs(collision_jhi))
+! The overlap can be much narrower than the absolute J scale.  A nominal
+! relative step then collapses to the roundoff floor even though a bounded
+! two-sided quarter-interval is perfectly resolved.  Raise the provisional
+! step above roundoff before clipping it to the certified overlap.
+    h=max(1.d-7*(collision_jhi-collision_jlo),4096.d0*epsilon(1.d0)*scale)
+    if(jtest.le.collision_jlo+ h) then
+      h=min(h,0.25d0*(collision_jhi-collision_jlo))
+      if(h.le.256.d0*epsilon(1.d0)*scale) then
+        root_eval_valid=.false.
+        root_eval_error=root_invalid_domain
+        ddifference_dj=0.d0
+        return
+      endif
+      call fixedpoint_collision_value(jtest+h,dp,okp)
+      if(.not.okp) then
+        root_eval_valid=.false.
+        root_eval_error=root_invalid_domain
+        difference=0.d0
+        ddifference_dj=0.d0
+        return
+      endif
+      ddifference_dj=(dp-difference)/h
+      root_eval_valid=.true.
+      root_eval_error=0
+      return
+    elseif(jtest.ge.collision_jhi-h) then
+      h=min(h,0.25d0*(collision_jhi-collision_jlo))
+      if(h.le.256.d0*epsilon(1.d0)*scale) then
+        root_eval_valid=.false.
+        root_eval_error=root_invalid_domain
+        ddifference_dj=0.d0
+        return
+      endif
+      call fixedpoint_collision_value(jtest-h,dm,okm)
+      if(.not.okm) then
+        root_eval_valid=.false.
+        root_eval_error=root_invalid_domain
+        difference=0.d0
+        ddifference_dj=0.d0
+        return
+      endif
+      ddifference_dj=(difference-dm)/h
+      root_eval_valid=.true.
+      root_eval_error=0
+      return
+    endif
+    h=min(h,0.25d0*(jtest-collision_jlo),0.25d0*(collision_jhi-jtest))
+    if(h.le.256.d0*epsilon(1.d0)*scale) then
+      root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      ddifference_dj=0.d0
+      return
+    endif
+    call fixedpoint_collision_value(jtest-h,dm,okm)
+    call fixedpoint_collision_value(jtest+h,dp,okp)
+    if(.not.okm .or. .not.okp) then
+        root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      difference=0.d0
+      ddifference_dj=0.d0
+      return
+    endif
+    ddifference_dj=(dp-dm)/(2.d0*h)
+    root_eval_valid=.true.
+    root_eval_error=0
+  end subroutine fixedpoint_collision
+
+  subroutine fixedpoint_collision_value(jtest,difference,ok_value)
+    double precision, intent(in) :: jtest
+    double precision, intent(out) :: difference
+    logical, intent(out) :: ok_value
+    double precision :: rleft,rright,pleft,pright
+    logical :: okleft,okright
+
+    call invert_fixedpoint_branch(collision_segment_left,jtest,rleft,pleft,okleft)
+    if(collision_boundary_segment.eq.0) then
+      call invert_fixedpoint_branch(collision_segment_right,jtest,rright,pright,okright)
+    else
+      call invert_boundary_segment(collision_boundary_segment,jtest,rright,pright,okright)
+    endif
+    ok_value=okleft .and. okright
+    if(ok_value) then
+      difference=pleft-pright
+    else
+      difference=0.d0
+    endif
+  end subroutine fixedpoint_collision_value
+
+  subroutine invert_fixedpoint_branch(segment,jtarget,rvalue,pvalue,ok_value)
+    integer, intent(in) :: segment
+    double precision, intent(in) :: jtarget
+    double precision, intent(out) :: rvalue,pvalue
+    logical, intent(out) :: ok_value
+    integer :: local_it
+    double precision :: rlo_local,rhi_local,jlo_local,jhi_local,rmid, &
+                        jmid,pmid,tolerance
+    logical :: okmid,increasing
+
+    rvalue=0.d0
+    pvalue=0.d0
+    ok_value=.false.
+    jlo_local=fp_jlo(segment)
+    jhi_local=fp_jhi(segment)
+    tolerance=1.d-10*max(1.d0,abs(jtarget),abs(jlo_local),abs(jhi_local))
+    if(jtarget.lt.min(jlo_local,jhi_local)-tolerance .or. &
+       jtarget.gt.max(jlo_local,jhi_local)+tolerance) return
+    if(abs(jtarget-jlo_local).le.tolerance) then
+      rvalue=fp_rlo(segment)
+      pvalue=fp_plo(segment)
+      ok_value=.true.
+      return
+    endif
+    if(abs(jtarget-jhi_local).le.tolerance) then
+      rvalue=fp_rhi(segment)
+      pvalue=fp_phi(segment)
+      ok_value=.true.
+      return
+    endif
+    rlo_local=fp_rlo(segment)
+    rhi_local=fp_rhi(segment)
+    increasing=jhi_local.gt.jlo_local
+    do local_it=1,100
+      rmid=0.5d0*(rlo_local+rhi_local)
+      call fixedpoint_branch_value(rmid,fp_sigma(segment),fp_branch(segment), &
+                                   jmid,pmid,okmid)
+      if(.not.okmid) return
+      if(abs(jmid-jtarget).le.tolerance) then
+        rvalue=rmid
+        pvalue=pmid
+        ok_value=.true.
+        return
+      endif
+      if(increasing) then
+        if(jmid.lt.jtarget) then
+          rlo_local=rmid
+        else
+          rhi_local=rmid
+        endif
+      else
+        if(jmid.gt.jtarget) then
+          rlo_local=rmid
+        else
+          rhi_local=rmid
+        endif
+      endif
+    enddo
+    rvalue=rmid
+    pvalue=pmid
+    ok_value=abs(jmid-jtarget).le.10.d0*tolerance
+  end subroutine invert_fixedpoint_branch
+
+  subroutine invert_boundary_segment(segment,jtarget,rvalue,pvalue,ok_value)
+    integer, intent(in) :: segment
+    double precision, intent(in) :: jtarget
+    double precision, intent(out) :: rvalue,pvalue
+    logical, intent(out) :: ok_value
+    integer :: local_it
+    double precision :: rlo_local,rhi_local,jlo_local,jhi_local,rmid, &
+                        jmid,pmid,tolerance
+    logical :: okmid,increasing
+
+    rvalue=0.d0
+    pvalue=0.d0
+    ok_value=.false.
+    jlo_local=bd_jlo(segment)
+    jhi_local=bd_jhi(segment)
+    tolerance=1.d-10*max(1.d0,abs(jtarget),abs(jlo_local),abs(jhi_local))
+    if(jtarget.lt.min(jlo_local,jhi_local)-tolerance .or. &
+       jtarget.gt.max(jlo_local,jhi_local)+tolerance) return
+    if(bd_type(segment).eq.2) then
+      call fixed_boundary_level(bd_rlo(segment),jtarget,bd_sigma(segment), &
+                                pvalue,ok_value)
+      rvalue=bd_rlo(segment)
+      return
+    endif
+    if(abs(jtarget-jlo_local).le.tolerance) then
+      rvalue=bd_rlo(segment)
+      call turning_boundary_level(rvalue,pvalue,ok_value)
+      return
+    endif
+    if(abs(jtarget-jhi_local).le.tolerance) then
+      rvalue=bd_rhi(segment)
+      call turning_boundary_level(rvalue,pvalue,ok_value)
+      return
+    endif
+    rlo_local=bd_rlo(segment)
+    rhi_local=bd_rhi(segment)
+    increasing=jhi_local.gt.jlo_local
+    do local_it=1,100
+      rmid=0.5d0*(rlo_local+rhi_local)
+      call jperp_value(rmid,jmid,okmid)
+      if(.not.okmid) return
+      if(abs(jmid-jtarget).le.tolerance) then
+        rvalue=rmid
+        call turning_boundary_level(rvalue,pvalue,ok_value)
+        return
+      endif
+      if(increasing) then
+        if(jmid.lt.jtarget) then
+          rlo_local=rmid
+        else
+          rhi_local=rmid
+        endif
+      else
+        if(jmid.gt.jtarget) then
+          rlo_local=rmid
+        else
+          rhi_local=rmid
+        endif
+      endif
+    enddo
+    rvalue=rmid
+    call turning_boundary_level(rvalue,pvalue,ok_value)
+    ok_value=ok_value .and. abs(jmid-jtarget).le.10.d0*tolerance
+  end subroutine invert_boundary_segment
+
+  subroutine turning_boundary_level(local_r,local_p,local_ok)
+    use field_sub, only : psif
+    double precision, intent(in) :: local_r
+    double precision, intent(out) :: local_p
+    logical, intent(out) :: local_ok
+    double precision :: local_z,local_dz,local_bmod,local_phi
+    double precision, dimension(3) :: local_x
+
+    call get_poicut(local_r,local_z,local_dz)
+    local_x(1)=local_r
+    local_x(2)=0.d0
+    local_x(3)=local_z
+    call get_bmod_and_Phi(local_x,local_bmod,local_phi)
+    local_p=psif
+    local_ok=(local_p.eq.local_p .and. abs(local_p).lt.huge(local_p))
+  end subroutine turning_boundary_level
+
+  subroutine fixed_boundary_level(local_r,local_j,local_sigma,local_p,local_ok)
+    use parmot_mod, only : ro0
+    double precision, intent(in) :: local_r,local_j
+    integer, intent(in) :: local_sigma
+    double precision, intent(out) :: local_p
+    logical, intent(out) :: local_ok
+    double precision :: local_a,local_b,local_ap,local_bp,local_ps,local_psp, &
+                        local_h,local_hp,local_u2,tolerance
+
+    call fixedpoint_geometry(local_r,local_a,local_b,local_ap,local_bp, &
+                             local_ps,local_psp,local_h,local_hp,local_ok)
+    if(.not.local_ok) then
+      local_p=0.d0
+      return
+    endif
+    local_u2=local_a-local_j*local_b
+    tolerance=1.d-11*max(1.d0,abs(local_a),abs(local_j*local_b))
+    if(local_u2.lt.-tolerance) then
+      local_ok=.false.
+      local_p=0.d0
+      return
+    endif
+    local_p=local_ps+ro0*local_h*dble(local_sigma)*sqrt(max(0.d0,local_u2))
+  end subroutine fixed_boundary_level
+
+  subroutine jperp_value(R,value,ok_value)
+    use potato_symbolic_kernel_mod, only : potato_jperp_kernel
+    double precision, intent(in) :: R
+    double precision, intent(out) :: value
+    logical, intent(out) :: ok_value
+    double precision :: Z,dZ_dR,bmod,sqrtg,phi_elec
+    double precision :: qPhi_prime,magnetic_field_B_prime
+    double precision :: candidate,positive,derivative
+    double precision, dimension(3) :: xx,bder,hcovar,hctrvr,hcurl,derphi
+
+    call get_poicut(R,Z,dZ_dR)
+    xx(1)=R
+    xx(2)=0.d0
+    xx(3)=Z
+    call magfie(xx,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
+    call elefie(xx,phi_elec,derphi)
+    ok_value=(bmod.gt.0.d0 .and. bmod.eq.bmod .and. abs(bmod).lt.huge(bmod))
+    if(.not.ok_value) then
+      value=0.d0
+      return
+    endif
+    qPhi_prime=derphi(1)+derphi(3)*dZ_dR
+    magnetic_field_B_prime=bmod*(bder(1)+bder(3)*dZ_dR)
+    call potato_jperp_kernel(toten,phi_elec,bmod,qPhi_prime, &
+                             magnetic_field_B_prime, &
+                             candidate,positive,derivative)
+    ok_value=(candidate.eq.candidate .and. abs(candidate).lt.huge(candidate))
+    if(ok_value) then
+      value=candidate
+    else
+      value=0.d0
+    endif
+  end subroutine jperp_value
+
+  subroutine jperp_value_and_derivative(R,value,dvalue,ok_value)
+    use global_invariants, only : toten
+    use potato_symbolic_kernel_mod, only : potato_jperp_kernel
+    double precision, intent(in) :: R
+    double precision, intent(out) :: value,dvalue
+    logical, intent(out) :: ok_value
+    double precision :: Z,dZ_dR,bmod,sqrtg,phi_elec
+    double precision :: qPhi_prime,magnetic_field_B_prime
+    double precision :: candidate,positive,derivative
+    double precision, dimension(3) :: xx,bder,hcovar,hctrvr,hcurl,derphi
+
+    call get_poicut(R,Z,dZ_dR)
+    xx(1)=R
+    xx(2)=0.d0
+    xx(3)=Z
+    call magfie(xx,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
+    call elefie(xx,phi_elec,derphi)
+    ok_value=(bmod.gt.0.d0 .and. bmod.eq.bmod .and. abs(bmod).lt.huge(bmod))
+    if(.not.ok_value) then
+      value=0.d0
+      dvalue=0.d0
+      return
+    endif
+    qPhi_prime=derphi(1)+derphi(3)*dZ_dR
+    magnetic_field_B_prime=bmod*(bder(1)+bder(3)*dZ_dR)
+    call potato_jperp_kernel(toten,phi_elec,bmod,qPhi_prime, &
+                             magnetic_field_B_prime, &
+                             candidate,positive,derivative)
+    if(candidate.ne.candidate .or. abs(candidate).gt.huge(candidate) .or. &
+       derivative.ne.derivative .or. abs(derivative).gt.huge(derivative)) then
+      ok_value=.false.
+      value=0.d0
+      dvalue=0.d0
+      return
+    endif
+    value=candidate
+    dvalue=derivative
+  end subroutine jperp_value_and_derivative
+
+  subroutine jperp_stationary(R,stationary,dstationary)
+    use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                   root_invalid_domain
+    double precision, intent(in) :: R
+    double precision, intent(out) :: stationary,dstationary
+    double precision :: value,dvalue,value_m,dvalue_m,value_p,dvalue_p,h
+    logical :: ok_m,ok_p,ok
+
+    root_eval_valid=.true.
+    root_eval_error=0
+    call jperp_value_and_derivative(R,value,stationary,ok)
+    if(.not.ok) then
+      root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      stationary=0.d0
+      dstationary=0.d0
+      return
+    endif
+    h=max(1.d-8*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+    h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
+    if(h.le.0.d0) then
+      dstationary=0.d0
+      return
+    endif
+    call jperp_value_and_derivative(R-h,value_m,dvalue_m,ok_m)
+    call jperp_value_and_derivative(R+h,value_p,dvalue_p,ok_p)
+    if(.not.ok_m .or. .not.ok_p) then
+      root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      stationary=0.d0
+      dstationary=0.d0
+      return
+    endif
+    dstationary=(dvalue_p-dvalue_m)/(2.d0*h)
+  end subroutine jperp_stationary
+
+  end subroutine find_jperp_topology_boundaries
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+  subroutine fixedpoint_geometry(R,A,B,Aprime,Bprime,psistar,psiprime, &
+                                 hphi,hphiprime,ok)
+!
+! Geometry of the exact cut representation
+!
+!   psi^*(R_c;H,J,sigma) = psi(R_c) + rho0*h_phi(R_c)*u,
+!   u^2 = A(R_c)-J*B(R_c),  A=H-Phi.
+!
+! The derivative of h_phi is evaluated on the bounded cut.  At a cut endpoint
+! the one-sided geometric derivative is used only to evaluate a boundary
+! equation; fixed-point classification itself still requires a strict
+! two-sided neighbourhood in determine_fixpoint_type.
+!
+  use field_sub, only : psif,dpsidr,dpsidz
+  use global_invariants, only : toten
+  use poicut_mod, only : npc,rpc_arr
+  implicit none
+!
+  double precision, intent(in) :: R
+  double precision, intent(out) :: A,B,Aprime,Bprime,psistar,psiprime, &
+                                   hphi,hphiprime
+  logical, intent(out) :: ok
+  double precision :: Z,dZ_dR,bmod,sqrtg,phi_elec,hminus,hplus,hstep
+  double precision :: scale,range
+  double precision, dimension(3) :: xx,bder,hcovar,hctrvr,hcurl,derphi
+  logical :: ok_minus,ok_plus
+
+  ok=.false.
+  A=0.d0
+  B=0.d0
+  Aprime=0.d0
+  Bprime=0.d0
+  psistar=0.d0
+  psiprime=0.d0
+  hphi=0.d0
+  hphiprime=0.d0
+  if(npc.le.0 .or. R.lt.rpc_arr(0) .or. R.gt.rpc_arr(npc)) return
+  range=rpc_arr(npc)-rpc_arr(0)
+  if(range.le.0.d0) return
+
+  call get_poicut(R,Z,dZ_dR)
+  xx(1)=R
+  xx(2)=0.d0
+  xx(3)=Z
+  call magfie(xx,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
+  call elefie(xx,phi_elec,derphi)
+  if(bmod.le.0.d0) return
+
+  A=toten-phi_elec
+  B=bmod
+  Aprime=-derphi(1)-derphi(3)*dZ_dR
+  Bprime=bmod*(bder(1)+bder(3)*dZ_dR)
+  psistar=psif
+  psiprime=dpsidr+dpsidz*dZ_dR
+  hphi=hcovar(2)
+
+  scale=max(1.d0,abs(R),abs(rpc_arr(0)),abs(rpc_arr(npc)))
+  hstep=max(1.d-7*range,256.d0*epsilon(1.d0)*scale)
+  if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
+    hstep=min(hstep,0.25d0*(R-rpc_arr(0)), &
+                    0.25d0*(rpc_arr(npc)-R))
+  else
+    hstep=min(hstep,0.25d0*range)
+  endif
+  if(hstep.le.0.d0) return
+  ok_minus=.false.
+  ok_plus=.false.
+  if(R.gt.rpc_arr(0)) then
+    call fixedpoint_hphi(R-hstep,hminus,ok_minus)
+  endif
+  if(R.lt.rpc_arr(npc)) then
+    call fixedpoint_hphi(R+hstep,hplus,ok_plus)
+  endif
+  if(ok_minus .and. ok_plus) then
+    hphiprime=(hplus-hminus)/(2.d0*hstep)
+  elseif(ok_plus) then
+    hphiprime=(hplus-hphi)/hstep
+  elseif(ok_minus) then
+    hphiprime=(hphi-hminus)/hstep
+  else
+    return
+  endif
+  ok=.true.
+
+contains
+
+  subroutine fixedpoint_hphi(Rin,hout,okout)
+    double precision, intent(in) :: Rin
+    double precision, intent(out) :: hout
+    logical, intent(out) :: okout
+    double precision :: Zin,dZin,bmodin,sqrtgin,phiin
+    double precision, dimension(3) :: xin,bderin,hcovarin,hctrvrin,hcurlin,derphiin
+
+    okout=.false.
+    hout=0.d0
+    if(Rin.lt.rpc_arr(0) .or. Rin.gt.rpc_arr(npc)) return
+    call get_poicut(Rin,Zin,dZin)
+    xin(1)=Rin
+    xin(2)=0.d0
+    xin(3)=Zin
+    call magfie(xin,bmodin,sqrtgin,bderin,hcovarin,hctrvrin,hcurlin)
+    call elefie(xin,phiin,derphiin)
+    if(bmodin.le.0.d0) return
+    hout=hcovarin(2)
+    okout=.true.
+  end subroutine fixedpoint_hphi
+
+  end subroutine fixedpoint_geometry
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+  subroutine fixedpoint_coefficients(R,acoef,bcoef,ccoef,energy_a,bfield, &
+                                    psistar,hphi,ok)
+!
+! For u=sigma*sqrt(A-J*B), d psi^*/d R_c=0 reduces exactly to
+!
+!   a u^2+b u+c=0,
+!
+! with no square-root extrapolation across a reflecting boundary.
+!
+  use parmot_mod, only : ro0
+  implicit none
+  double precision, intent(in) :: R
+  double precision, intent(out) :: acoef,bcoef,ccoef,energy_a,bfield, &
+                                   psistar,hphi
+  logical, intent(out) :: ok
+  double precision :: Aprime,Bprime,psiprime,hprime
+
+  call fixedpoint_geometry(R,energy_a,bfield,Aprime,Bprime,psistar,psiprime, &
+                           hphi,hprime,ok)
+  if(.not.ok) then
+    acoef=0.d0
+    bcoef=0.d0
+    ccoef=0.d0
+    hphi=0.d0
+    return
+  endif
+  acoef=ro0*(2.d0*hprime*bfield+hphi*Bprime)
+  bcoef=2.d0*bfield*psiprime
+  ccoef=ro0*hphi*(Aprime*bfield-energy_a*Bprime)
+  end subroutine fixedpoint_coefficients
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+  subroutine fixedpoint_roots_at_R(R,sigma_value,uroots,jroots,proots, &
+                                   nfixed,ok)
+  use parmot_mod, only : ro0
+  use potato_topology_mod, only : solve_fixedpoint_quadratic
+  implicit none
+  double precision, intent(in) :: R
+  integer, intent(in) :: sigma_value
+  double precision, intent(out) :: uroots(2),jroots(2),proots(2)
+  integer, intent(out) :: nfixed
+  logical, intent(out) :: ok
+  double precision :: acoef,bcoef,ccoef,energy_a,bfield,psistar,hphi
+  double precision :: u_tol
+  double precision, dimension(2) :: all_u
+  integer :: nall,i
+  logical :: coeff_ok,quadratic_ok
+
+  nfixed=0
+  uroots=0.d0
+  jroots=0.d0
+  proots=0.d0
+  call fixedpoint_coefficients(R,acoef,bcoef,ccoef,energy_a,bfield, &
+                               psistar,hphi,coeff_ok)
+  ok=coeff_ok
+  if(.not.ok .or. bfield.le.0.d0) return
+  call solve_fixedpoint_quadratic(acoef,bcoef,ccoef,all_u,nall,quadratic_ok)
+  if(.not.quadratic_ok) then
+    ok=.false.
+    return
+  endif
+  u_tol=128.d0*epsilon(1.d0)*max(1.d0,sqrt(abs(energy_a)))
+  do i=1,nall
+    if(dble(sigma_value)*all_u(i).le.u_tol) cycle
+    if(nfixed.gt.0) then
+      if(abs(all_u(i)-uroots(nfixed)).le.128.d0*epsilon(1.d0)* &
+         max(1.d0,abs(all_u(i)))) cycle
+    endif
+    nfixed=nfixed+1
+    uroots(nfixed)=all_u(i)
+    jroots(nfixed)=(energy_a-all_u(i)**2)/bfield
+    proots(nfixed)=psistar+ro0*hphi*all_u(i)
+  enddo
+  end subroutine fixedpoint_roots_at_R
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+  subroutine fixedpoint_branch_value(R,sigma_value,branch,jvalue,pstar,ok)
+  implicit none
+  double precision, intent(in) :: R
+  integer, intent(in) :: sigma_value
+  integer, intent(in) :: branch
+  double precision, intent(out) :: jvalue,pstar
+  logical, intent(out) :: ok
+  double precision :: u(2),j(2),p(2)
+  integer :: nfixed
+
+  call fixedpoint_roots_at_R(R,sigma_value,u,j,p,nfixed,ok)
+  if(.not.ok .or. branch.lt.1 .or. branch.gt.nfixed) then
+    ok=.false.
+    jvalue=0.d0
+    pstar=0.d0
+    return
+  endif
+  jvalue=j(branch)
+  pstar=p(branch)
+  ok=.true.
+  end subroutine fixedpoint_branch_value
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+  subroutine fixedpoint_discriminant(R,discriminant,ddiscriminant_dR)
+  use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                 root_invalid_domain
+  use poicut_mod, only : npc,rpc_arr
+  implicit none
+  double precision, intent(in) :: R
+  double precision, intent(out) :: discriminant,ddiscriminant_dR
+  double precision :: dcenter,dminus,dplus,h,range
+  logical :: ok,ok_m,ok_p
+
+  root_eval_valid=.true.
+  root_eval_error=0
+  call fixedpoint_discriminant_value(R,dcenter,ok)
+  if(.not.ok) then
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    discriminant=0.d0
+    ddiscriminant_dR=0.d0
+    return
+  endif
+  range=rpc_arr(npc)-rpc_arr(0)
+  h=max(1.d-7*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+  if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
+    h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
+  else
+    h=min(h,0.25d0*range)
+  endif
+  ok_m=.false.
+  ok_p=.false.
+  if(R.gt.rpc_arr(0)) then
+    call fixedpoint_discriminant_value(R-h,dminus,ok_m)
+  endif
+  if(R.lt.rpc_arr(npc)) then
+    call fixedpoint_discriminant_value(R+h,dplus,ok_p)
+  endif
+  if(ok_m .and. ok_p) then
+    ddiscriminant_dR=(dplus-dminus)/(2.d0*h)
+  elseif(ok_p) then
+    ddiscriminant_dR=(dplus-dcenter)/h
+  elseif(ok_m) then
+    ddiscriminant_dR=(dcenter-dminus)/h
+  else
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    discriminant=0.d0
+    ddiscriminant_dR=0.d0
+  endif
+  discriminant=dcenter
+  end subroutine fixedpoint_discriminant
+
+  subroutine fixedpoint_discriminant_value(R,discriminant,ok)
+  implicit none
+  double precision, intent(in) :: R
+  double precision, intent(out) :: discriminant
+  logical, intent(out) :: ok
+  double precision :: acoef,bcoef,ccoef,energy_a,bfield,psistar,hphi
+
+  call fixedpoint_coefficients(R,acoef,bcoef,ccoef,energy_a,bfield, &
+                               psistar,hphi,ok)
+  if(ok) then
+    discriminant=bcoef*bcoef-4.d0*acoef*ccoef
+  else
+    discriminant=0.d0
+  endif
+  end subroutine fixedpoint_discriminant_value
+
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+  subroutine fixedpoint_branch_stationary(R,stationary,dstationary)
+    use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                 root_invalid_domain,root_left_endpoint_contracted, &
+                                 root_right_endpoint_contracted,root_search_left, &
+                                 root_search_right
+  use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
+                                       fixedpoint_scan_branch, &
+                                       fixedpoint_scan_left, fixedpoint_scan_right
+  use poicut_mod, only : npc,rpc_arr
+  implicit none
+  double precision, intent(in) :: R
+  double precision, intent(out) :: stationary,dstationary
+  double precision :: j0,jm,jp,j2,h,range,left,right
+  logical :: ok0,okm,okp,ok2
+
+  root_eval_valid=.true.
+  root_eval_error=0
+  left=fixedpoint_scan_left
+  right=fixedpoint_scan_right
+  if(right.le.left) then
+    left=rpc_arr(0)
+    right=rpc_arr(npc)
+  endif
+! find_all_roots may have contracted an invalid physical endpoint.  The
+! finite-difference classifier must use that certified open endpoint during
+! subsequent refinement; probing against the original forbidden boundary
+! would manufacture a second, spurious invalid-domain failure.
+  if(root_left_endpoint_contracted) left=max(left,root_search_left)
+  if(root_right_endpoint_contracted) right=min(right,root_search_right)
+  if(right.le.left) then
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    stationary=0.d0
+    dstationary=0.d0
+    return
+  endif
+  range=right-left
+  call fixedpoint_branch_value(R,fixedpoint_scan_sigma,fixedpoint_scan_branch, &
+                               j0,stationary,ok0)
+  if(.not.ok0) then
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    stationary=0.d0
+    dstationary=0.d0
+    return
+  endif
+  h=max(1.d-7*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+  h=min(h,0.25d0*range)
+  okm=.false.
+  okp=.false.
+  if(R.gt.left) then
+    h=min(h,0.25d0*(R-left))
+    call fixedpoint_branch_value(R-h,fixedpoint_scan_sigma, &
+                                 fixedpoint_scan_branch,jm,stationary,okm)
+  endif
+  if(R.lt.right) then
+    h=min(h,0.25d0*(right-R))
+    call fixedpoint_branch_value(R+h,fixedpoint_scan_sigma, &
+                                 fixedpoint_scan_branch,jp,stationary,okp)
+  endif
+  if(okm .and. okp) then
+    stationary=(jp-jm)/(2.d0*h)
+    dstationary=(jp-2.d0*j0+jm)/(h*h)
+    return
+  endif
+  if(okp) then
+    call fixedpoint_branch_value(R+2.d0*h,fixedpoint_scan_sigma, &
+                                 fixedpoint_scan_branch,j2,stationary,ok2)
+    if(ok2) then
+      stationary=(jp-j0)/h
+      dstationary=(j2-2.d0*jp+j0)/(h*h)
+      return
+    endif
+  endif
+  if(okm) then
+    call fixedpoint_branch_value(R-2.d0*h,fixedpoint_scan_sigma, &
+                                 fixedpoint_scan_branch,j2,stationary,ok2)
+    if(ok2) then
+      stationary=(j0-jm)/h
+      dstationary=(j0-2.d0*jm+j2)/(h*h)
+      return
+    endif
+  endif
+  root_eval_valid=.false.
+  root_eval_error=root_invalid_domain
+  stationary=0.d0
+  dstationary=0.d0
+  end subroutine fixedpoint_branch_stationary
+
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

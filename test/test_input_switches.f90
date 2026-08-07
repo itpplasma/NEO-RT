@@ -3,8 +3,8 @@ program test_input_switches
         perturbation_chart_is_compatible, frequency_model_requires_direct_eqdsk
     use do_magfie_mod, only: axisymmetric_switch => inp_swi
     use do_magfie_pert_mod, only: perturbation_switch => inp_swi_pert
-    use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
-        FREQUENCY_MODEL_GC_FULL, configured_frequency_model => frequency_model
+    use driftorbit, only: FREQUENCY_MODEL_BOOZER_THIN, FREQUENCY_MODEL_GC_FULL, &
+        configured_frequency_model => frequency_model
 
     implicit none
 
@@ -40,6 +40,11 @@ program test_input_switches
         call set_config(config)
         stop
     end if
+    if (trim(mode) == "reject_model1") then
+        config%frequency_model = 1
+        call set_config(config)
+        stop
+    end if
 
     if (config%inp_swi_pert /= -1) error stop "perturbation switch default changed"
     if (perturbation_chart_is_compatible(11, 9)) then
@@ -51,11 +56,11 @@ program test_input_switches
     if (.not. perturbation_chart_is_compatible(10, 9)) then
         error stop "Boozer chartmap rejected a Boozer perturbation"
     end if
-    if (frequency_model_requires_direct_eqdsk(FREQUENCY_MODEL_LEGACY)) then
-        error stop "legacy frequency model unexpectedly requires direct GEQDSK"
+    if (frequency_model_requires_direct_eqdsk(FREQUENCY_MODEL_BOOZER_THIN)) then
+        error stop "Boozer thin frequency model unexpectedly requires direct GEQDSK"
     end if
-    if (.not. frequency_model_requires_direct_eqdsk(FREQUENCY_MODEL_GC_THIN)) then
-        error stop "GC thin frequency model lost its direct-GEQDSK gate"
+    if (frequency_model_requires_direct_eqdsk(1)) then
+        error stop "removed frequency model unexpectedly requires direct GEQDSK"
     end if
     if (.not. frequency_model_requires_direct_eqdsk(FREQUENCY_MODEL_GC_FULL)) then
         error stop "GC full frequency model lacks its direct-GEQDSK gate"

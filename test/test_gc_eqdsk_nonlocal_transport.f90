@@ -21,14 +21,18 @@ program test_gc_eqdsk_nonlocal_transport
         gc_eqdsk_nonlocal_options_t, &
         gc_eqdsk_nonlocal_species_t, &
         gc_eqdsk_profile_potential_t, gc_eqdsk_nonlocal_status_message, &
+        GC_EQDSK_PROFILE_A1STAR, GC_EQDSK_PROFILE_A2STAR, &
+        GC_EQDSK_PROFILE_DENSITY, GC_EQDSK_PROFILE_PHI, &
+        GC_EQDSK_PROFILE_TEMPERATURE, GC_EQDSK_PROFILE_OMEGA_E, &
+        evaluate_gc_eqdsk_native_profile, &
         get_gc_eqdsk_nonlocal_diagnostics, &
         initialize_gc_eqdsk_nonlocal_transport, poincare_cut_value_position
     use neort_gc_nonlocal_resonance_types, only: &
         GC_NONLOCAL_SAMPLE_UNRESOLVED, GC_NONLOCAL_SAMPLE_VALID, &
         GC_NONLOCAL_SAMPLE_WALL, gc_nonlocal_component_t, &
         gc_nonlocal_orbit_sample_t
-    use neort_gc_nonlocal_transport_types, only: &
-        gc_nonlocal_transport_reference_t
+        use neort_gc_nonlocal_transport_types, only: &
+            gc_nonlocal_transport_options_t, gc_nonlocal_transport_reference_t
     use neort_gc_perpendicular_invariant, only: &
         gc_buchholz_jk_from_mu_phys, gc_mu_phys_from_buchholz_jk
     use neort_thin_orbit_limit, only: THIN_LIMIT_SUCCESS, estimate_thin_limit, &
@@ -38,6 +42,7 @@ program test_gc_eqdsk_nonlocal_transport
     implicit none
 
     call test_factory_fails_closed()
+    call test_profile_index_oracle()
     call test_production_factory()
     call test_circular_poincare_cut()
     call test_profile_potential_units()
@@ -46,10 +51,41 @@ program test_gc_eqdsk_nonlocal_transport
 
 contains
 
+    subroutine test_profile_index_oracle()
+        type(gc_eqdsk_nonlocal_factory_t) :: factory
+        real(dp) :: density, temperature, potential, a1_star, a2_star
+        integer :: status
+
+        ! Distinct sentinels make a density/temperature/Phi or force-slot
+        ! transposition observable without relying on a production profile.
+        allocate(factory%profile_psi(2), factory%profile_values(2, 6))
+        factory%profile_psi = [0.0_dp, 1.0_dp]
+        factory%profile_values(1, :) = [11.0_dp, 22.0_dp, 33.0_dp, &
+            44.0_dp, 55.0_dp, 66.0_dp]
+        factory%profile_values(2, :) = [111.0_dp, 122.0_dp, 133.0_dp, &
+            144.0_dp, 155.0_dp, 166.0_dp]
+        factory%profile_ready = .true.
+        call evaluate_gc_eqdsk_native_profile(factory, 0.5_dp, density, &
+            temperature, potential, a1_star, a2_star, status)
+        call require(status == GC_EQDSK_NONLOCAL_SUCCESS, &
+            'sentinel native profile interpolation failed')
+        call require_close(61.0_dp, density, 'profile density slot', 1.0e-14_dp)
+        call require_close(72.0_dp, temperature, 'profile temperature slot', &
+            1.0e-14_dp)
+        call require_close(83.0_dp, potential, 'profile Phi slot', 1.0e-14_dp)
+        call require_close(94.0_dp, a1_star, 'profile A1 slot', 1.0e-14_dp)
+        call require_close(105.0_dp, a2_star, 'profile A2 slot', 1.0e-14_dp)
+        call require(GC_EQDSK_PROFILE_DENSITY /= GC_EQDSK_PROFILE_PHI .and. &
+            GC_EQDSK_PROFILE_TEMPERATURE /= GC_EQDSK_PROFILE_PHI .and. &
+            GC_EQDSK_PROFILE_A1STAR /= GC_EQDSK_PROFILE_A2STAR, &
+            'profile slot constants alias unexpectedly')
+    end subroutine test_profile_index_oracle
+
     subroutine test_production_factory()
         type(gc_eqdsk_nonlocal_factory_t), target :: factory
         type(gc_eqdsk_nonlocal_species_t) :: species
         type(gc_eqdsk_nonlocal_options_t) :: options
+        type(gc_nonlocal_transport_options_t) :: transport_options
         type(gc_nonlocal_transport_reference_t) :: reference
         type(gc_nonlocal_component_t), allocatable :: components(:)
         type(gc_nonlocal_orbit_sample_t) :: sample, minus_sample, plus_sample
@@ -89,14 +125,20 @@ contains
         options%orbit_options%maximum_time = 1.0e-3_dp
         options%topology_probe_count = 3
         options%topology_probe_fraction = 0.20_dp
+        transport_options = gc_nonlocal_transport_options_t()
+        transport_options%h0_order = 2
+        transport_options%jk_order = 2
+        transport_options%max_h0_nodes = 2
+        transport_options%max_jperp_nodes = 2
+        transport_options%max_total_nodes = 4
         h0_nodes = [species%reference_energy_erg]
         h0_weights = [1.0_dp]
         jk_nodes = [0.0_dp]
         jk_weights = [1.0_dp]
         call initialize_gc_eqdsk_nonlocal_transport(trim(paths(1)), &
             trim(paths(2)), 'cm', trim(paths(3)), trim(paths(4)), &
-            trim(paths(5)), species, h0_nodes, h0_weights, jk_nodes, &
-            jk_weights, 1, 3, factory, status, options)
+            trim(paths(5)), species, 3, factory, status, options, &
+            transport_options)
         if (status /= GC_EQDSK_NONLOCAL_SUCCESS) then
             write (*, '(a,i0,2a)') 'factory status=', status, ' ', &
                 trim(gc_eqdsk_nonlocal_status_message(status))
@@ -119,9 +161,10 @@ contains
         v_parallel = 5.0e7_dp
         v_perp = 1.0e6_dp
         mu_phys = species%mass_g*v_perp**2/(2.0_dp*field%bmod)
-        j_k = gc_buchholz_jk_from_mu_phys(mu_phys, species%charge_esu, c)
+        j_k = gc_buchholz_jk_from_mu_phys(mu_phys, species%mass_g, &
+            species%charge_esu, c)
         call require_close(gc_mu_phys_from_buchholz_jk(j_k, &
-            -species%charge_esu, c), mu_phys, &
+            species%mass_g, -species%charge_esu, c), mu_phys, &
             'charge reversal changed J_K to mu conversion', 1.0e-13_dp)
         h0 = 0.5_dp*species%mass_g*v_parallel**2 &
             +mu_phys*field%bmod+species%charge_esu*potential
@@ -195,7 +238,7 @@ contains
         reversed_state%Z = factory%section_position(2)
         reversed_state%phi = factory%section_position(3)
         reversed_state%p_parallel = species%mass_g*v_parallel
-        reversed_state%mu = gc_mu_phys_from_buchholz_jk(j_k, &
+        reversed_state%mu = gc_mu_phys_from_buchholz_jk(j_k, species%mass_g, &
             -species%charge_esu, c)
         call invariants_from_cylindrical_state(reversed_state, field, potential, &
             species%mass_g, -species%charge_esu, c, reversed_invariants, status)
@@ -365,7 +408,6 @@ contains
     subroutine test_factory_fails_closed()
         type(gc_eqdsk_nonlocal_factory_t) :: factory
         type(gc_eqdsk_nonlocal_species_t) :: species
-        real(dp) :: h0(1), wh0(1), jperp(1), wjperp(1)
         integer :: status
 
         species%name = 'D+'
@@ -373,17 +415,12 @@ contains
         species%charge_esu = qe
         species%reference_energy_erg = 1.0e-8_dp
         species%reference_velocity_cm_s = 1.0e7_dp
-        h0 = [1.0e-8_dp]
-        wh0 = [1.0_dp]
-        jperp = [1.0e-16_dp]
-        wjperp = [1.0_dp]
         call initialize_gc_eqdsk_nonlocal_transport( &
             '/definitely/missing/direct.eqdsk', &
             '/definitely/missing/wall.dat', 'cm', &
             '/definitely/missing/perturbation.bin', &
             '/definitely/missing/plasma.in', &
-            '/definitely/missing/rotation.in', species, h0, wh0, jperp, &
-            wjperp, 1, 3, factory, status)
+            '/definitely/missing/rotation.in', species, 3, factory, status)
         call require(status == GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE, &
             'factory did not fail closed on missing EQDSK')
     end subroutine test_factory_fails_closed

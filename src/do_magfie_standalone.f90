@@ -27,9 +27,6 @@ module do_magfie_mod
 
     real(dp), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
 
-    ! Work arrays for booz_to_cyl (size=nmode)
-    real(dp), private, allocatable :: rmnc(:), rmns(:), zmnc(:), zmns(:)
-
     real(dp), parameter :: current_to_covar = 2.0e-1_dp
     real(dp) :: ItoB = -current_to_covar ! Covariant B (cgs) from I (SI)
     ! Bcov=mu0/2pi*I,mu0->4pi/c,I->10^(-1)*c*I
@@ -51,7 +48,6 @@ module do_magfie_mod
     !$omp threadprivate (magfie_arrays_initialized, magfie_thread_init_state)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
     !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
-    !$omp threadprivate (rmnc, rmns, zmnc, zmns)
 
     ! Flux-surface dependent quantities (computed per-thread for each s)
     !$omp threadprivate (s, Bthcov, Bphcov, dBthcovds, dBphcovds)
@@ -165,12 +161,6 @@ contains
                 if (allocated(costerm)) deallocate(costerm)
                 if (allocated(sinterm)) deallocate(sinterm)
                 allocate(costerm(nmode), sinterm(nmode))
-
-                if (allocated(rmnc)) deallocate(rmnc)
-                if (allocated(rmns)) deallocate(rmns)
-                if (allocated(zmnc)) deallocate(zmnc)
-                if (allocated(zmns)) deallocate(zmns)
-                allocate(rmnc(nmode), rmns(nmode), zmnc(nmode), zmns(nmode))
 
                 if (allocated(spl_val_c)) deallocate(spl_val_c)
                 if (allocated(spl_val_s)) deallocate(spl_val_s)
@@ -714,37 +704,6 @@ contains
         error stop trim(message)
     end subroutine fail_inconsistent_handedness
 
-    subroutine booz_to_cyl(x, r)
-
-        real(dp), intent(in) :: x(3) ! Boozer coordinates (s, ph, th)
-        real(dp), intent(out) :: r(3) ! Cylindrical coordinates (R, phi, Z)
-
-        real(dp) :: spl_val(3), x1
-
-        integer :: j
-
-        if (inp_swi /= 9) error stop ! Only implemented for ASDEX-U type of data
-
-        x1 = max(params0(1, 1), x(1))
-        x1 = min(params0(nflux, 1), x1)
-
-        do j = 1, nmode
-            spl_val = spline_val_0(spl_coeff2(:, :, 1, j), x1)
-            rmnc(j) = 1.0e2_dp * spl_val(1)
-            spl_val = spline_val_0(spl_coeff2(:, :, 2, j), x1)
-            rmns(j) = 1.0e2_dp * spl_val(1)
-            spl_val = spline_val_0(spl_coeff2(:, :, 3, j), x1)
-            zmnc(j) = 1.0e2_dp * spl_val(1)
-            spl_val = spline_val_0(spl_coeff2(:, :, 4, j), x1)
-            zmns(j) = 1.0e2_dp * spl_val(1)
-        end do
-
-        r(1) = sum(rmnc * cos(modes0(1, :, 1) * x(3)) + rmns * sin(modes0(1, :, 1) * x(3)))
-        r(2) = 0.0_dp ! TODO: phi
-        r(3) = sum(zmnc * cos(modes0(1, :, 1) * x(3)) + zmns * sin(modes0(1, :, 1) * x(3)))
-
-    end subroutine booz_to_cyl
-
     subroutine fast_sin_cos(m, x, sinterm_, costerm_)
         ! Fast sine and cosine that assumes equally spaced ascending mode numbers
         real(dp), intent(in) :: m(:), x
@@ -770,10 +729,13 @@ contains
 end module do_magfie_mod
 
 module do_magfie_pert_mod
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use iso_fortran_env, only: dp => real64
     use util
     use spline
     use do_magfie_mod, only: s, bfac
+    use neort_cylindrical_bilinear_complex_symbolic, only: &
+        evaluate_neort_cylindrical_bilinear_complex
 
     implicit none
 
@@ -806,6 +768,10 @@ module do_magfie_pert_mod
     ! Magic sentinel for auto-initializing threadprivate state in worker threads
     integer, parameter :: MAGFIE_PERT_INIT_SENTINEL = 271828182
     integer, save :: magfie_pert_thread_init_state = 0
+
+    integer, parameter, public :: MAGFIE_PERT_OK = 0
+    integer, parameter, public :: MAGFIE_PERT_INVALID = 1
+    integer, parameter, public :: MAGFIE_PERT_OUT_OF_GRID = 2
 
     ! Working buffers (per-thread cache and temporary arrays)
     !$omp threadprivate (magfie_pert_arrays_initialized, magfie_pert_thread_init_state)
@@ -994,6 +960,54 @@ contains
         s_prev = x1
     end subroutine do_magfie_pert_amp
 
+    subroutine do_magfie_pert_amp_cylindrical(position, bamp, status)
+        !! Direct R-Z grid amplitude interface for real-space full-FOW orbits.
+        !!
+        !! position is (R,Z,phi).  The R-Z grid stores the complex amplitude
+        !! A; phi is deliberately not used in the interpolation.  The
+        !! caller's exp(i*n*phi) reconstruction therefore has one and only
+        !! one toroidal phase.  Unlike the legacy no-status callback this
+        !! interface never clamps or error-stops on an out-of-grid point.
+        real(dp), intent(in) :: position(:)
+        complex(dp), intent(out) :: bamp
+        integer, intent(out) :: status
+
+        real(dp) :: interpolation(9)
+        integer :: ir, iz
+
+        bamp = (0.0_dp, 0.0_dp)
+        status = MAGFIE_PERT_INVALID
+        if (size(position) < 3) return
+        if (.not. all(ieee_is_finite(position(1:3)))) return
+        if (.not. allocated(rz_rad) .or. .not. allocated(rz_zet) .or. &
+                .not. allocated(rz_bamp)) return
+        if (rz_nrad < 2 .or. rz_nzet < 2) return
+        if (.not. all(ieee_is_finite(rz_rad)) .or. &
+                .not. all(ieee_is_finite(rz_zet))) return
+        if (position(1) < rz_rad(1) .or. position(1) > rz_rad(rz_nrad) .or. &
+                position(2) < rz_zet(1) .or. position(2) > rz_zet(rz_nzet)) then
+            status = MAGFIE_PERT_OUT_OF_GRID
+            return
+        end if
+        ir = bracket_index(rz_rad, position(1))
+        iz = bracket_index(rz_zet, position(2))
+        call evaluate_neort_cylindrical_bilinear_complex(position(1), &
+            position(2), rz_rad(ir), rz_rad(ir+1), rz_zet(iz), rz_zet(iz+1), &
+            bfac, real(rz_bamp(ir, iz), dp), aimag(rz_bamp(ir, iz)), &
+            real(rz_bamp(ir+1, iz), dp), aimag(rz_bamp(ir+1, iz)), &
+            real(rz_bamp(ir, iz+1), dp), aimag(rz_bamp(ir, iz+1)), &
+            real(rz_bamp(ir+1, iz+1), dp), aimag(rz_bamp(ir+1, iz+1)), &
+            interpolation(1), interpolation(2), interpolation(3), &
+            interpolation(4), interpolation(5), interpolation(6), &
+            interpolation(7), interpolation(8), interpolation(9))
+        if (.not. all(ieee_is_finite(interpolation))) return
+        if (interpolation(1) < 0.0_dp .or. interpolation(1) > 1.0_dp) return
+        if (interpolation(2) < 0.0_dp .or. interpolation(2) > 1.0_dp) return
+        if (abs(interpolation(9)) > 2.0e-12_dp) return
+        bamp = cmplx(interpolation(7), interpolation(8), kind=dp)
+        status = MAGFIE_PERT_OK
+    end subroutine do_magfie_pert_amp_cylindrical
+
     subroutine read_rz_pert_file(path)
         character(len=*), intent(in) :: path
         real(dp), allocatable :: bamp_re(:, :), bamp_im(:, :)
@@ -1028,13 +1042,11 @@ contains
 
         xgeo = [x(1), x(3), x(2)]
         call geoflux_to_cyl(xgeo, xcyl)
-        ! Returning zero here would be indistinguishable from a perturbation
-        ! that genuinely vanishes, so an orbit leaving the tabulated box would
-        ! quietly contribute nothing to the resonant integral instead of
-        ! reporting that its field is missing.  The grid is built with a margin
-        ! beyond the analysed surfaces precisely so this cannot happen.
+        ! Preserve the legacy path exactly: a missing R-Z sample is a fatal
+        ! coverage error.  The new full-FOW interface below is the separate
+        ! status-returning seam and never routes through this callback.
         if (xcyl(1) < rz_rad(1) .or. xcyl(1) > rz_rad(rz_nrad) .or. &
-            xcyl(3) < rz_zet(1) .or. xcyl(3) > rz_zet(rz_nzet)) then
+                xcyl(3) < rz_zet(1) .or. xcyl(3) > rz_zet(rz_nzet)) then
             write (*, *) 'rz_pert_amp: orbit left the tabulated R-Z box at ', &
                 'R=', xcyl(1), ' Z=', xcyl(3), ' s=', x(1)
             write (*, *) 'rz_pert_amp: box R=[', rz_rad(1), rz_rad(rz_nrad), &
@@ -1047,9 +1059,9 @@ contains
         wr = (xcyl(1) - rz_rad(ir))/(rz_rad(ir + 1) - rz_rad(ir))
         wz = (xcyl(3) - rz_zet(iz))/(rz_zet(iz + 1) - rz_zet(iz))
         bamp = bfac*((1.0_dp - wr)*(1.0_dp - wz)*rz_bamp(ir, iz) &
-            + wr*(1.0_dp - wz)*rz_bamp(ir + 1, iz) &
-            + (1.0_dp - wr)*wz*rz_bamp(ir, iz + 1) &
-            + wr*wz*rz_bamp(ir + 1, iz + 1))
+            +wr*(1.0_dp - wz)*rz_bamp(ir + 1, iz) &
+            +(1.0_dp - wr)*wz*rz_bamp(ir, iz + 1) &
+            +wr*wz*rz_bamp(ir + 1, iz + 1))
     end subroutine rz_pert_amp
 
     logical function hybrid_angle_map_active()

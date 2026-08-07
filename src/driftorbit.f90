@@ -22,12 +22,12 @@ module driftorbit
     integer :: m0 = 1                 ! Boozer poloidal perturbation mode
     integer :: mth = 1                ! canonical poloidal mode
     logical :: magdrift = .true.      ! consider magnetic drift
-    integer, parameter :: FREQUENCY_MODEL_LEGACY = 0
+    integer, parameter :: FREQUENCY_MODEL_BOOZER_THIN = 0
+    integer, parameter :: FREQUENCY_MODEL_LEGACY = FREQUENCY_MODEL_BOOZER_THIN
+    ! Retained for internal callers; the configuration boundary rejects 1.
     integer, parameter :: FREQUENCY_MODEL_GC_THIN = 1
     integer, parameter :: FREQUENCY_MODEL_GC_FULL = 2
-    ! Opt-in canonical real-space thin-orbit limit.  Zero preserves every
-    ! historical bounce/drift spline and its regression records.
-    integer :: frequency_model = FREQUENCY_MODEL_LEGACY
+    integer :: frequency_model = FREQUENCY_MODEL_BOOZER_THIN
     !> Passing magnetic drift; defaults to magdrift through the config layer.
     integer :: magdrift_passing = -1
     logical :: nopassing = .false.    ! neglect passing particles

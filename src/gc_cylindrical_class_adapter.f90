@@ -4,11 +4,11 @@ module neort_gc_cylindrical_class_adapter
     !! The class coordinate is the physical cut parameter Rc.  H0 and the
     !! compatibility field named jperp are the action variables of Buchholz
     !! et al. (2022).  In this adapter jperp means J_K, with
-    !! J_K=c*mu_phys/abs(q); it is not the repository's magnetic-moment
+    !! J_K=m*c*mu_phys/abs(q); it is not the repository's magnetic-moment
     !! storage convention and it is not POTATO's normalized invariant.
     !! The adapter evaluates
     !!
-    !!   mu_phys = abs(q) J_K / c,
+    !!   mu_phys = abs(q) J_K / (m c),
     !!   v_parallel^2 = 2 (H0 - mu_phys B - q Phi) / m
     !!                = 2 (H0 - J_K omega_c - q Phi) / m,
     !!   psi_star = psi + (m c/q) v_parallel (R B_phi/B),
@@ -51,7 +51,7 @@ module neort_gc_cylindrical_class_adapter
         'psi_star=(c/q)*p_phi'
     character(len=*), parameter, public :: GC_CYL_CLASS_H0_UNITS = 'energy'
     character(len=*), parameter, public :: GC_CYL_CLASS_JK_UNITS = &
-        'J_K=c*mu_phys/abs(charge)'
+        'J_K=mass*c*mu_phys/abs(charge)'
     ! Keep the historical public name for source compatibility.  Its value
     ! is explicitly Buchholz J_K, never 2*m*mu_phys and never POTATO J_perp.
     character(len=*), parameter, public :: GC_CYL_CLASS_JPERP_UNITS = &
@@ -81,6 +81,10 @@ module neort_gc_cylindrical_class_adapter
         logical :: allowed_interval = .true.
         logical :: topology_certified = .false.
         logical :: orbit_return_certified = .false.
+        logical :: root_isolation_certified = .false.
+        character(len=24) :: lower_boundary_kind = 'unresolved'
+        character(len=24) :: upper_boundary_kind = 'unresolved'
+        character(len=32) :: limiting_chart = 'unresolved'
     end type gc_cylindrical_class_interval_t
 
     type, public :: gc_cylindrical_class_point_t
@@ -354,7 +358,7 @@ contains
             /(adapter%mass*adapter%c_light)
         point%domega_c_drc = abs(adapter%charge)*dbmod_drc &
             /(adapter%mass*adapter%c_light)
-        mu_phys = gc_mu_phys_from_buchholz_jk(adapter%jperp, &
+        mu_phys = gc_mu_phys_from_buchholz_jk(adapter%jperp, adapter%mass, &
             adapter%charge, adapter%c_light)
         kinetic_energy = adapter%h0 - mu_phys*point%field%bmod &
             -adapter%charge*point%potential
@@ -478,6 +482,15 @@ contains
                 sigma, regions, local_status)
             if (local_status /= GC_CYL_SUCCESS) then
                 status = GC_CYL_CLASS_INTERIOR_INVALID
+                result%status = status
+                return
+            end if
+            if (.not. regions%topology_certified) then
+                ! The sampler returns useful diagnostics, but finite values
+                ! and finite-difference slopes cannot exclude a missed even
+                ! root, an X point, or a separatrix.  Only a generated
+                ! interval/root-isolation certificate may cross this gate.
+                status = GC_CYL_CLASS_SPLITTER_FAILURE
                 result%status = status
                 return
             end if
@@ -670,7 +683,7 @@ contains
         launch%state%Z = point%position(2)
         launch%state%phi = point%position(3)
         launch%state%p_parallel = adapter%mass*point%vparallel
-        mu_phys = gc_mu_phys_from_buchholz_jk(adapter%jperp, &
+        mu_phys = gc_mu_phys_from_buchholz_jk(adapter%jperp, adapter%mass, &
             adapter%charge, adapter%c_light)
         launch%state%mu = mu_phys
         energy = launch%state%p_parallel**2/(2.0_dp*adapter%mass) &
@@ -680,7 +693,7 @@ contains
             launch%state, point%field, adapter%charge, adapter%c_light)
         launch%energy_residual = energy - adapter%h0
         launch%jperp_residual = gc_buchholz_jk_from_mu_phys(mu_phys, &
-            adapter%charge, adapter%c_light) - adapter%jperp
+            adapter%mass, adapter%charge, adapter%c_light) - adapter%jperp
         launch%canonical_residual = canonical_momentum - launch%p_phi
         if (.not. all(ieee_is_finite([launch%energy_residual, &
             launch%jperp_residual, launch%canonical_residual]))) then
@@ -761,7 +774,14 @@ contains
         interval%canonical_measure = component%canonical_measure
         interval%lower_root = component%lower_root
         interval%upper_root = component%upper_root
-        interval%topology_certified = .true.
+        ! Never infer certification from the presence of sampled endpoints.
+        ! The interval must originate from the generated interval/root
+        ! isolation contract; this legacy finite-scan path is diagnostic only.
+        interval%topology_certified = .false.
+        interval%root_isolation_certified = .false.
+        interval%lower_boundary_kind = 'unresolved'
+        interval%upper_boundary_kind = 'unresolved'
+        interval%limiting_chart = 'unresolved'
         scale = max(1.0_dp, abs(2.0_dp*adapter%h0/adapter%mass))
         call evaluate_gc_cylindrical_class_point(adapter, interval%rc_min, &
             interval%sigma, lower_point, lower_status)
@@ -785,7 +805,7 @@ contains
             interval%upper_tangent = abs(upper_point%dvparallel_squared_drc) &
                 <= adapter%options%tangency_tolerance*scale
         end if
-        status = GC_CYL_CLASS_SUCCESS
+        status = GC_CYL_CLASS_SPLITTER_FAILURE
     end subroutine interval_from_topology
 
     subroutine validate_split(adapter, candidate, split, certified, status)

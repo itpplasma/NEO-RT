@@ -5,7 +5,8 @@ module gc_model2_transport_dispatch_test_support
         gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t
     use neort_gc_nonlocal_transport_types, only: &
         GC_NONLOCAL_COMPLETE_CYCLE_FREQUENCIES, GC_NONLOCAL_SUCCESS, &
-        gc_nonlocal_transport_provider_t, gc_nonlocal_transport_reference_t
+        gc_nonlocal_transport_provider_t, gc_nonlocal_transport_quadrature_t, &
+        gc_nonlocal_transport_reference_t
 
     implicit none
     private
@@ -45,19 +46,29 @@ contains
         status = GC_NONLOCAL_SUCCESS
     end subroutine mock_get_section_reference
 
-    subroutine mock_get_quadrature(provider, h0_nodes, h0_weights, jperp_nodes, &
-            jperp_weights, status)
+    subroutine mock_get_quadrature(provider, h0_order, jk_order, quadrature, status)
         class(mock_model2_provider_t), intent(inout) :: provider
-        real(dp), allocatable, intent(out) :: h0_nodes(:), h0_weights(:)
-        real(dp), allocatable, intent(out) :: jperp_nodes(:), jperp_weights(:)
+        integer, intent(in) :: h0_order, jk_order
+        type(gc_nonlocal_transport_quadrature_t), intent(out) :: quadrature
         integer, intent(out) :: status
 
         provider%callback_count = provider%callback_count + 1
-        allocate(h0_nodes(1), h0_weights(1), jperp_nodes(1), jperp_weights(1))
-        h0_nodes = 1.0_dp
-        h0_weights = 1.0_dp
-        jperp_nodes = 0.0_dp
-        jperp_weights = 1.0_dp
+        quadrature = gc_nonlocal_transport_quadrature_t()
+        allocate(quadrature%h0(h0_order*jk_order), quadrature%j_k(h0_order*jk_order), &
+            quadrature%weight(h0_order*jk_order), &
+            quadrature%j_k_upper_bound(h0_order*jk_order))
+        quadrature%h0 = 1.0_dp
+        quadrature%j_k = 0.5_dp
+        quadrature%weight = 1.0_dp/real(h0_order*jk_order, dp)
+        quadrature%j_k_upper_bound = 1.0_dp
+        quadrature%h0_order = h0_order
+        quadrature%jk_order = jk_order
+        quadrature%n_nodes = h0_order*jk_order
+        quadrature%h0_min = 0.0_dp
+        quadrature%h0_scale = 1.0_dp
+        quadrature%paired_domain = .true.
+        quadrature%domain_certified = .true.
+        quadrature%converged = .true.
         status = GC_NONLOCAL_SUCCESS
     end subroutine mock_get_quadrature
 
@@ -161,13 +172,20 @@ program test_gc_model2_transport_dispatch
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use gc_model2_transport_dispatch_test_support, only: &
         mock_model2_provider_t
+    use neort_main, only: propagate_model2_integral_options
     use neort_gc_model2_transport_dispatch, only: &
         GC_MODEL2_DISPATCH_FACTORY_UNAVAILABLE, &
         GC_MODEL2_DISPATCH_NOT_CERTIFIED, GC_MODEL2_DISPATCH_SUCCESS, &
         gc_model2_backend_evidence_t, gc_model2_force_layout_t, &
         gc_model2_transport_execution_t, gc_model2_transport_options_t, &
         emit_gc_model2_runtime_record, execute_gc_model2_transport, &
-        gc_model2_dispatch_required
+        finalize_gc_model2_transport_execution, gc_model2_dispatch_required, &
+        gc_model2_observed_evidence_t
+    use neort_transport, only: legacy_eta_transport_selected
+    use neort_gc_nonlocal_transport_types, only: &
+        gc_nonlocal_transport_options_t
+    use driftorbit, only: FREQUENCY_MODEL_GC_FULL, FREQUENCY_MODEL_GC_THIN, &
+        FREQUENCY_MODEL_LEGACY
     implicit none
 
     interface
@@ -183,6 +201,7 @@ program test_gc_model2_transport_dispatch
     type(gc_model2_backend_evidence_t) :: backend
     type(gc_model2_transport_options_t) :: options
     type(gc_model2_transport_execution_t) :: execution
+    type(gc_model2_observed_evidence_t) :: observed
     character(len=4096) :: base_path, wall_path, output_path
     character(len=256) :: message
     integer(int64) :: clock_count
@@ -195,30 +214,53 @@ program test_gc_model2_transport_dispatch
         'model 1 was routed to model-2 dispatch')
     call require(gc_model2_dispatch_required(2), &
         'model 2 was not selected for full-FOW dispatch')
+    call require(legacy_eta_transport_selected(FREQUENCY_MODEL_LEGACY), &
+        'model 0 did not retain the legacy eta transport loop')
+    call require(.not. legacy_eta_transport_selected(FREQUENCY_MODEL_GC_THIN), &
+        'model 1 still selected the removed real-space thin transport loop')
+    call require(.not. legacy_eta_transport_selected(FREQUENCY_MODEL_GC_FULL), &
+        'model 2 still selected the legacy eta transport loop')
+
+    call test_nondefault_options_propagation()
 
     call configure_options(options)
     call configure_backend(backend, base_path, wall_path)
     call execute_gc_model2_transport(provider, 1, 1, backend, options, execution, &
         status)
     call require(status == GC_MODEL2_DISPATCH_SUCCESS, &
-        'certified mock transport did not complete')
-    call require(execution%certified, 'successful transport was not certified')
+        'mock transport aggregation did not complete')
+    call require(.not. execution%certified, &
+        'transport was certified before provider evidence was finalized')
     call require(abs(execution%d11 - 4.0_dp) < 1.0e-12_dp, &
         'D11 force slot was altered')
     call require(abs(execution%d12 + 6.0_dp) < 1.0e-12_dp, &
         'D12 force slot was altered')
     call require(abs(execution%torque - 10.0_dp) < 1.0e-12_dp, &
         'torque force slot was altered')
-    call require(execution%integral%weighted_nodes == 1 .and. &
-        execution%integral%certified_nodes == 1 .and. &
+    call require(execution%integral%weighted_nodes == 4 .and. &
+        execution%integral%certified_nodes == 4 .and. &
         execution%integral%unresolved_nodes == 0, &
         'dispatch did not expose actual node counters')
-    call require(execution%runtime%nonlocal_transport_certified, &
-        'runtime state claimed no certified nonlocal transport')
+    call require(execution%force_slots_accepted, &
+        'signed force slots were not accepted')
+    call require(.not. execution%runtime%nonlocal_transport_certified, &
+        'runtime state was certified before provider evidence was finalized')
     call require(execution%runtime%cylindrical_backend_entries == 1, &
         'runtime state did not report the attempted physical node')
+    call configure_observed_evidence(observed)
+    call finalize_gc_model2_transport_execution(execution, backend, observed, status)
+    call require(status == GC_MODEL2_DISPATCH_SUCCESS .and. execution%certified, &
+        'provider-observed evidence did not certify the aggregate')
+    call require(execution%runtime%nonlocal_transport_certified, &
+        'runtime state lost certified nonlocal transport')
     call require(index(execution%invariant_status_coverage, 'success:1') > 0, &
-        'invariant coverage omitted the successful node')
+        'invariant coverage omitted the observed successful node')
+    call require(trim(execution%return_status_coverage) == &
+        'success:1,no_return:0,radial_domain:0,wall_loss:0,error:0', &
+        'return coverage was not provider-observed')
+    call require(trim(execution%wall_status_coverage) == &
+        'not_hit:1,wall_loss:0,error:0', &
+        'wall coverage was not conserved')
 
     call setenv_value('NEORT_FULL_FOW_LANE_KIND', 'torque', status)
     call require(status == 0, 'could not set torque delivery lane')
@@ -234,6 +276,28 @@ program test_gc_model2_transport_dispatch
         '1', 'runtime record lost actual backend count')
     inquire (file=trim(output_path), exist=exists, iostat=io_status)
     call require(io_status == 0 .and. exists, 'runtime record is missing')
+
+    call configure_backend(backend, base_path, wall_path)
+    backend%canonical_measure_certified = .false.
+    call execute_gc_model2_transport(provider, 1, 1, backend, options, execution, &
+        status)
+    call require(status == GC_MODEL2_DISPATCH_SUCCESS, &
+        'static backend check rejected pre-execution configuration')
+    call configure_observed_evidence(observed)
+    call finalize_gc_model2_transport_execution(execution, backend, observed, status)
+    call require(status /= GC_MODEL2_DISPATCH_SUCCESS .and. &
+        .not. execution%certified, &
+        'missing canonical certificate was promoted by finalization')
+
+    call configure_backend(backend, base_path, wall_path)
+    call execute_gc_model2_transport(provider, 1, 1, backend, options, execution, &
+        status)
+    call require(status == GC_MODEL2_DISPATCH_SUCCESS, &
+        'second aggregate execution did not complete')
+    observed = gc_model2_observed_evidence_t()
+    call finalize_gc_model2_transport_execution(execution, backend, observed, status)
+    call require(status /= GC_MODEL2_DISPATCH_SUCCESS .and. &
+        .not. execution%certified, 'empty evidence was accepted')
 
     provider = mock_model2_provider_t()
     backend%factory_available = .false.
@@ -262,6 +326,31 @@ program test_gc_model2_transport_dispatch
 
 contains
 
+    subroutine test_nondefault_options_propagation()
+        type(gc_nonlocal_transport_options_t) :: transport_options
+        type(gc_model2_transport_options_t) :: dispatch_options
+
+        transport_options = gc_nonlocal_transport_options_t()
+        transport_options%h0_order = 7
+        transport_options%jk_order = 11
+        transport_options%max_h0_nodes = 23
+        transport_options%max_jperp_nodes = 29
+        transport_options%max_total_nodes = 667
+        transport_options%quadrature_relative_tolerance = 3.0e-8_dp
+        transport_options%quadrature_absolute_tolerance = 4.0e-13_dp
+        dispatch_options = gc_model2_transport_options_t()
+        call propagate_model2_integral_options(transport_options, dispatch_options)
+        call require(dispatch_options%integral%h0_order == 7 .and. &
+            dispatch_options%integral%jk_order == 11 .and. &
+            dispatch_options%integral%max_total_nodes == 667, &
+            'non-default quadrature orders/capacity did not propagate')
+        call require(abs(dispatch_options%integral%quadrature_relative_tolerance - &
+            3.0e-8_dp) < 1.0e-20_dp .and. &
+            abs(dispatch_options%integral%quadrature_absolute_tolerance - &
+            4.0e-13_dp) < 1.0e-25_dp, &
+            'non-default quadrature tolerances did not propagate')
+    end subroutine test_nondefault_options_propagation
+
     subroutine configure_options(local_options)
         type(gc_model2_transport_options_t), intent(out) :: local_options
 
@@ -270,11 +359,27 @@ contains
         local_options%integral%max_h0_nodes = 2
         local_options%integral%max_jperp_nodes = 2
         local_options%integral%max_total_nodes = 4
+        local_options%integral%h0_order = 2
+        local_options%integral%jk_order = 2
+        local_options%integral%require_converged = .false.
         local_options%integral%resonance_options%scan_intervals = 16
         local_options%integral%resonance_options%max_root_iterations = 64
         local_options%integral%resonance_options%max_roots = 4
         local_options%integral%resonance_options%force_count = 3
     end subroutine configure_options
+
+    subroutine configure_observed_evidence(local_observed)
+        type(gc_model2_observed_evidence_t), intent(out) :: local_observed
+
+        local_observed = gc_model2_observed_evidence_t()
+        local_observed%physical_return_attempts = 1
+        local_observed%invariant_successes = 1
+        local_observed%return_successes = 1
+        local_observed%wall_not_hit = 1
+        local_observed%topology_certification_attempts = 1
+        local_observed%topology_certification_successes = 1
+        local_observed%return_accounting_complete = .true.
+    end subroutine configure_observed_evidence
 
     subroutine configure_backend(local_backend, local_base, local_wall)
         type(gc_model2_backend_evidence_t), intent(out) :: local_backend

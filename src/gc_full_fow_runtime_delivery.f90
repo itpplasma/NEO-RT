@@ -8,13 +8,18 @@ module neort_gc_full_fow_runtime_delivery
     !! existing record can never be replaced.
     use, intrinsic :: iso_c_binding, only: c_char, c_int, c_null_char
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use neort_gc_full_fow_runtime_metadata, only: &
-        gc_full_fow_runtime_backend_state_t
+        GC_FULL_FOW_CONJUGATE_POLICY, &
+        GC_FULL_FOW_ACTION_CONVENTION, GC_FULL_FOW_BOUND_METHOD, &
+        GC_FULL_FOW_PREFACTOR_CONVENTION, &
+        GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION, &
+        format_gc_full_fow_frequency_convention, gc_full_fow_runtime_backend_state_t
     implicit none
     private
 
     character(len=*), parameter, public :: &
-        GC_FULL_FOW_DELIVERY_SCHEMA = 'neort-full-fow-runtime-metadata-v1'
+        GC_FULL_FOW_DELIVERY_SCHEMA = 'neort-full-fow-runtime-metadata-v2'
     character(len=*), parameter, public :: &
         GC_FULL_FOW_DELIVERY_SUCCESS = 'surface record emitted'
 
@@ -174,14 +179,59 @@ contains
             state%legacy_backend_entries, io_status)
         if (io_status == 0) call write_integer_pair(unit, 'chart_fallback_entries', &
             state%chart_fallback_entries, io_status)
+        if (io_status == 0) call write_pair(unit, 'real_field_amplitude_convention', &
+            trim(state%real_field_amplitude_convention), io_status)
+        if (io_status == 0) call write_pair(unit, 'conjugate_policy', &
+            trim(state%conjugate_policy), io_status)
+        if (io_status == 0) call write_pair(unit, 'prefactor_convention', &
+            trim(state%prefactor_convention), io_status)
+        if (io_status == 0) call write_pair(unit, 'action_convention', &
+            trim(state%action_convention), io_status)
+        if (io_status == 0) call write_pair(unit, 'phase_space_bound_method', &
+            trim(state%phase_space_bound_method), io_status)
+        if (io_status == 0) call write_pair(unit, 'frequency_convention', &
+            trim(state%frequency_convention), io_status)
+        if (io_status == 0) call write_pair(unit, 'perturbation_input_path', &
+            trim(state%perturbation_input_path), io_status)
+        if (io_status == 0) call write_logical_pair(unit, &
+            'perturbation_provenance_certified', &
+            state%perturbation_provenance_certified, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'quadrature_base_h0_order', &
+            state%quadrature_base_h0_order, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'quadrature_base_jk_order', &
+            state%quadrature_base_jk_order, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'quadrature_refined_h0_order', &
+            state%quadrature_refined_h0_order, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'quadrature_refined_jk_order', &
+            state%quadrature_refined_jk_order, io_status)
+        if (io_status == 0) call write_real_pair(unit, 'quadrature_relative_tolerance', &
+            state%quadrature_relative_tolerance, io_status)
+        if (io_status == 0) call write_real_pair(unit, 'quadrature_absolute_tolerance', &
+            state%quadrature_absolute_tolerance, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'poloidal_harmonic_min', &
+            state%poloidal_harmonic_min, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'poloidal_harmonic_max', &
+            state%poloidal_harmonic_max, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'poloidal_harmonic_count', &
+            state%poloidal_harmonic_count, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'executed_harmonic_count', &
+            state%executed_harmonic_count, io_status)
+        if (io_status == 0) call write_integer_pair(unit, 'toroidal_harmonic', &
+            state%toroidal_harmonic, io_status)
+        if (io_status == 0) call write_logical_pair(unit, &
+            'quadrature_convergence_certified', &
+            state%quadrature_convergence_certified, io_status)
+        if (io_status == 0) call write_logical_pair(unit, 'harmonic_batch_certified', &
+            state%harmonic_batch_certified, io_status)
+        if (io_status == 0) call write_logical_pair(unit, &
+            'class_reconstruction_certified', state%class_reconstruction_certified, &
+            io_status)
         if (io_status == 0) call write_pair(unit, 'invariant_status_coverage', &
             trim(invariant_normalized), io_status)
         if (io_status == 0) call write_pair(unit, 'return_status_coverage', &
             trim(return_normalized), io_status)
         if (io_status == 0) call write_pair(unit, 'wall_status_coverage', &
             trim(wall_normalized), io_status)
-        if (io_status == 0) call write_pair(unit, 'frequency_convention', &
-            'm*omega_b+3*omega_phi', io_status)
 
         flush_status = 0
         if (io_status == 0) flush (unit, iostat=flush_status)
@@ -234,8 +284,11 @@ contains
         character(len=*), intent(out) :: message
         logical :: wall_exists
         integer :: io_status
+        character(len=64) :: expected_frequency
 
         call set_result(status, message, GC_FULL_FOW_DELIVERY_OK, 'ok')
+        call format_gc_full_fow_frequency_convention(state%toroidal_harmonic, &
+            expected_frequency)
         if (trim(phase) /= 'phiI000' .and. trim(phase) /= 'phiI010') then
             call set_result(status, message, GC_FULL_FOW_DELIVERY_INVALID_INPUT, &
                 'surface record phase is not an ITER phase')
@@ -296,6 +349,55 @@ contains
                 .not. state%component_identity_certified) then
             call set_result(status, message, GC_FULL_FOW_DELIVERY_CERTIFICATION_REQUIRED, &
                 'surface record canonical/component certificates are incomplete')
+            return
+        end if
+        if (trim(state%real_field_amplitude_convention) /= &
+                GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION .or. &
+                trim(state%conjugate_policy) /= GC_FULL_FOW_CONJUGATE_POLICY .or. &
+                trim(state%prefactor_convention) /= GC_FULL_FOW_PREFACTOR_CONVENTION .or. &
+                trim(state%action_convention) /= GC_FULL_FOW_ACTION_CONVENTION .or. &
+                trim(state%phase_space_bound_method) /= GC_FULL_FOW_BOUND_METHOD .or. &
+                trim(state%frequency_convention) /= trim(expected_frequency) .or. &
+                len_trim(state%perturbation_input_path) == 0 .or. &
+                .not. state%perturbation_provenance_certified .or. &
+                state%quadrature_base_h0_order < 2 .or. &
+                state%quadrature_base_jk_order < 2 .or. &
+                state%quadrature_refined_h0_order /= &
+                2*state%quadrature_base_h0_order .or. &
+                state%quadrature_refined_jk_order /= &
+                2*state%quadrature_base_jk_order .or. &
+                .not. ieee_is_finite(state%quadrature_relative_tolerance) .or. &
+                .not. ieee_is_finite(state%quadrature_absolute_tolerance) .or. &
+                state%quadrature_relative_tolerance <= 0.0_dp .or. &
+                state%quadrature_absolute_tolerance <= 0.0_dp .or. &
+                state%poloidal_harmonic_count <= 0 .or. &
+                state%executed_harmonic_count /= state%poloidal_harmonic_count .or. &
+                state%poloidal_harmonic_min > state%poloidal_harmonic_max .or. &
+                state%toroidal_harmonic == 0 .or. &
+                .not. state%quadrature_convergence_certified .or. &
+                .not. state%harmonic_batch_certified .or. &
+                .not. state%class_reconstruction_certified .or. &
+                .not. state%orbit_step_refinement_certified .or. &
+                .not. ieee_is_finite(state%orbit_base_step) .or. &
+                .not. ieee_is_finite(state%orbit_refined_step) .or. &
+                state%orbit_base_step <= 0.0_dp .or. &
+                state%orbit_refined_step <= 0.0_dp .or. &
+                state%orbit_refined_step >= state%orbit_base_step .or. &
+                .not. all(ieee_is_finite([state%orbit_period_refinement_error, &
+                    state%orbit_delta_phi_refinement_error, &
+                    state%orbit_omega_b_refinement_error, &
+                    state%orbit_omega_phi_refinement_error, &
+                    state%orbit_h_m_refinement_error, &
+                    state%orbit_shell_refinement_error])) .or. &
+                any([state%orbit_period_refinement_error, &
+                    state%orbit_delta_phi_refinement_error, &
+                    state%orbit_omega_b_refinement_error, &
+                    state%orbit_omega_phi_refinement_error, &
+                    state%orbit_h_m_refinement_error, &
+                    state%orbit_shell_refinement_error] < 0.0_dp)) then
+            call set_result(status, message, &
+                GC_FULL_FOW_DELIVERY_CERTIFICATION_REQUIRED, &
+                'surface transport provenance is incomplete or not exact')
         end if
     end subroutine validate_record_identity
 

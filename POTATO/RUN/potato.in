@@ -40,6 +40,10 @@
   nlagr_sampling = 3   ! Lagrange polynomial order
   eps_sampling = 1d-2  ! Sampling tolerance
   itermax_sampling = 5 ! Max refinement iterations
+  topology_partition_tol = 1d-8
+  topology_partition_tol_refined = 1d-10
+  topology_refinement_lane = .false.
+  require_topology_contribution_bound = .true.
 
 ! Orbit plotting (itest_type=1)
   toten_plot = 1d0        ! Total energy for orbit plot

@@ -44,28 +44,24 @@ program test_gc_transport_orbit
         gc_invariants_t, gc_zero_potential_t, invariants_from_state
     use neort_gc_orbit_integrator, only: GC_ORBIT_PASSING, &
         GC_ORBIT_SUCCESS, GC_ORBIT_NO_RETURN, gc_orbit_average_t, &
-        gc_orbit_options_t, compute_gc_orbit_average, &
+        gc_orbit_options_t, &
         compute_gc_full_orbit_average, normalized_full_hamiltonian_factor
 
     implicit none
 
     type(uniform_field_t) :: field
     type(gc_zero_potential_t) :: potential
-    type(gc_invariants_t) :: invariants
     type(gc_invariants_t) :: full_invariants
     type(gc_orbit_average_t) :: result
     type(gc_orbit_options_t) :: options
     type(gc_field_sample_t) :: sample_from_state
     real(dp) :: reference_position(3)
-    real(dp) :: expected_hamiltonian, expected_period
+    real(dp) :: expected_period
     complex(dp) :: expected_full_average
     integer :: status
 
     reference_position = [0.5_dp, 0.0_dp, 0.0_dp]
     call field%evaluate(reference_position, sample_from_state, status)
-    call invariants_from_state(sample_from_state, 0.0_dp, 1.0_dp, 0.0_dp, &
-        1.0_dp, 0.8_dp, invariants, status)
-    if (status /= GC_MODEL_SUCCESS) error stop "uniform invariant setup failed"
     call invariants_from_state(sample_from_state, 0.0_dp, 1.0_dp, 1.0_dp, &
         1.0_dp, 0.8_dp, full_invariants, status)
     if (status /= GC_MODEL_SUCCESS) error stop "full invariant setup failed"
@@ -79,25 +75,6 @@ program test_gc_transport_orbit
         1.0_dp, 0.8_dp, full_invariants, status)
 
     expected_period = 2.0_dp*acos(-1.0_dp)/0.8_dp
-    call compute_gc_orbit_average(field, potential, invariants, &
-        reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
-        expected_period, 0.8_dp, 0.4_dp, 0.5_dp, 1, 1, &
-        unit_poloidal_perturbation, options, result)
-    if (result%status /= GC_ORBIT_SUCCESS) error stop "uniform orbit failed"
-    expected_hamiltonian = 2.0_dp - 0.36_dp
-    if (abs(result%period - expected_period) > 1.0e-8_dp) then
-        error stop "uniform orbit period mismatch"
-    end if
-    if (abs(result%perturbation_average - &
-        cmplx(expected_hamiltonian, 0.0_dp, dp)) > 1.0e-8_dp) then
-        error stop "uniform orbit phase average mismatch"
-    end if
-    if (abs(result%inverse_b_average - 1.0_dp) > 1.0e-10_dp) then
-        error stop "uniform inverse-B average mismatch"
-    end if
-    if (abs(result%b_average - 1.0_dp) > 1.0e-10_dp) then
-        error stop "uniform B average mismatch"
-    end if
 
     call compute_gc_full_orbit_average(field, potential, full_invariants, &
         reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
@@ -127,16 +104,6 @@ program test_gc_transport_orbit
     write (*, '(A)') 'test_gc_transport_orbit OK'
 
 contains
-
-    subroutine unit_poloidal_perturbation(position, bmod, amplitude, local_status)
-        real(dp), intent(in) :: position(3), bmod
-        complex(dp), intent(out) :: amplitude
-        integer, intent(out) :: local_status
-
-        amplitude = cmplx(cos(position(3)), sin(position(3)), dp)
-        local_status = 0
-        if (bmod <= 0.0_dp) local_status = 1
-    end subroutine unit_poloidal_perturbation
 
     subroutine constant_perturbation(position, bmod, amplitude, local_status)
         real(dp), intent(in) :: position(3), bmod

@@ -6,6 +6,16 @@ module neort_gc_cylindrical_model
     !! the CGS units already used by the direct GEQDSK/libneo path.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_cylindrical_geometry_symbolic, only: &
+        evaluate_neort_cylindrical_geometry
+    use neort_cylindrical_canonical_symbolic, only: &
+        evaluate_neort_cylindrical_canonical
+    use neort_cylindrical_hamiltonian_symbolic, only: &
+        evaluate_neort_cylindrical_hamiltonian
+    use neort_cylindrical_launch_symbolic, only: &
+        evaluate_neort_cylindrical_launch
+    use neort_cylindrical_vparallel_symbolic, only: &
+        evaluate_neort_cylindrical_vparallel
     use neort_gc_perpendicular_invariant, only: &
         gc_buchholz_jk_from_mu_phys, gc_potato_jperp_from_mu_phys
 
@@ -88,6 +98,7 @@ module neort_gc_cylindrical_model
         ! explicit so a caller cannot silently use an opposite crossing or a
         ! synthetic t=0 root as a full field-line return.
         integer :: return_crossings = 1
+        integer :: required_return_crossings = 1
         integer :: frequency_winding = 1
         real(dp) :: fieldline_q = 0.0_dp
     end type gc_cylindrical_section_t
@@ -189,8 +200,7 @@ contains
         type(gc_cylindrical_field_sample_t), intent(out) :: sample
         integer, intent(out) :: status
 
-        real(dp) :: dbhat_dq(3, 3), curl_bhat(3)
-        integer :: i, j
+        real(dp) :: dbhat_dq(3, 3)
 
         sample = gc_cylindrical_field_sample_t()
         status = GC_CYL_INVALID_INPUT
@@ -198,22 +208,19 @@ contains
         if (.not. all(ieee_is_finite([radius, b, db_dq, psi, grad_psi]))) return
         sample%radius = radius
         sample%b = b
-        sample%bmod = sqrt(dot_product(b, b))
-        if (sample%bmod <= tiny(sample%bmod)) return
-        sample%bhat = b/sample%bmod
         sample%db_dq = db_dq
-        do j = 1, 3
-            sample%grad_b(j) = dot_product(sample%bhat, db_dq(:, j))
-            do i = 1, 3
-                dbhat_dq(i, j) = (db_dq(i, j) &
-                    -sample%bhat(i)*sample%grad_b(j))/sample%bmod
-            end do
-        end do
-        curl_bhat(1) = dbhat_dq(3, 2) - dbhat_dq(2, 3)
-        curl_bhat(2) = dbhat_dq(1, 3) - dbhat_dq(3, 1)
-        curl_bhat(3) = dbhat_dq(2, 1) + sample%bhat(2)/radius &
-            -dbhat_dq(1, 2)
-        sample%curl_bhat = curl_bhat
+        call evaluate_neort_cylindrical_geometry(radius, b(1), b(2), b(3), &
+            db_dq(1,1), db_dq(2,1), db_dq(3,1), db_dq(1,2), db_dq(2,2), &
+            db_dq(3,2), db_dq(1,3), db_dq(2,3), db_dq(3,3), sample%bmod, &
+            sample%bhat(1), sample%bhat(2), sample%bhat(3), sample%grad_b(1), &
+            sample%grad_b(2), sample%grad_b(3), dbhat_dq(1,1), &
+            dbhat_dq(2,1), dbhat_dq(3,1), dbhat_dq(1,2), dbhat_dq(2,2), &
+            dbhat_dq(3,2), dbhat_dq(1,3), dbhat_dq(2,3), dbhat_dq(3,3), &
+            sample%curl_bhat(1), sample%curl_bhat(2), &
+            sample%curl_bhat(3))
+        if (.not. all(ieee_is_finite([sample%bmod, sample%bhat, &
+                sample%grad_b, dbhat_dq, sample%curl_bhat]))) return
+        if (sample%bmod <= tiny(sample%bmod)) return
         sample%psi = psi
         sample%grad_psi = grad_psi
         status = GC_CYL_SUCCESS
@@ -268,14 +275,18 @@ contains
         type(gc_cylindrical_invariants_t), intent(out) :: invariants
         integer, intent(out) :: status
 
+        real(dp) :: unused_psi_star
+
         invariants = gc_cylindrical_invariants_t()
         status = GC_CYL_INVALID_INPUT
         if (mass <= 0.0_dp .or. charge == 0.0_dp .or. c_light <= 0.0_dp) return
         if (state%mu < 0.0_dp .or. field%bmod <= 0.0_dp) return
-        invariants%energy = energy_from_state(state, field, potential, charge, mass)
+        call evaluate_neort_cylindrical_hamiltonian(mass, charge, state%mu, &
+            field%bmod, potential, state%p_parallel, invariants%energy)
         invariants%magnetic_moment = state%mu
-        invariants%canonical_toroidal_momentum = &
-            canonical_toroidal_momentum_from_state(state, field, charge, c_light)
+        call evaluate_neort_cylindrical_canonical(charge, c_light, state%R, &
+            state%p_parallel, field%psi, field%bhat(2), &
+            invariants%canonical_toroidal_momentum, unused_psi_star)
         if (.not. all(ieee_is_finite([invariants%energy, &
             invariants%magnetic_moment, invariants%canonical_toroidal_momentum]))) return
         status = GC_CYL_SUCCESS
@@ -292,18 +303,23 @@ contains
         real(dp), intent(out) :: canonical_momentum_residual
         integer, intent(out) :: status
 
+        real(dp) :: current_energy, current_p_phi, unused_psi_star
+
         energy_residual = 0.0_dp
         magnetic_moment_residual = 0.0_dp
         canonical_momentum_residual = 0.0_dp
         status = GC_CYL_INVALID_INPUT
         if (mass <= 0.0_dp .or. charge == 0.0_dp .or. c_light <= 0.0_dp) return
         if (field%bmod <= 0.0_dp .or. state%mu < 0.0_dp) return
-        energy_residual = energy_from_state(state, field, potential, charge, mass) &
-            -invariants%energy
+        call evaluate_neort_cylindrical_hamiltonian(mass, charge, state%mu, &
+            field%bmod, potential, state%p_parallel, current_energy)
+        call evaluate_neort_cylindrical_canonical(charge, c_light, state%R, &
+            state%p_parallel, field%psi, field%bhat(2), current_p_phi, &
+            unused_psi_star)
+        energy_residual = current_energy-invariants%energy
         magnetic_moment_residual = state%mu - invariants%magnetic_moment
-        canonical_momentum_residual = &
-            canonical_toroidal_momentum_from_state(state, field, charge, c_light) &
-            -invariants%canonical_toroidal_momentum
+        canonical_momentum_residual = current_p_phi - &
+            invariants%canonical_toroidal_momentum
         if (.not. all(ieee_is_finite([energy_residual, magnetic_moment_residual, &
             canonical_momentum_residual]))) return
         status = GC_CYL_SUCCESS
@@ -319,7 +335,8 @@ contains
         type(gc_cylindrical_state_t), intent(out) :: state
         integer, intent(out) :: status
 
-        real(dp) :: denominator, p_parallel, kinetic, p2_expected, mismatch
+        real(dp) :: p_parallel, vparallel_squared, launch_residual
+        real(dp) :: mismatch_scale
 
         state = gc_cylindrical_state_t()
         state%R = position(1)
@@ -329,22 +346,23 @@ contains
         if (parallel_sign == 0) return
         if (mass <= 0.0_dp .or. charge == 0.0_dp .or. c_light <= 0.0_dp) return
         if (field%bmod <= 0.0_dp .or. invariants%magnetic_moment < 0.0_dp) return
-        denominator = state%R*field%bhat(2)
-        if (abs(denominator) <= tiny(denominator)) return
-        p_parallel = (invariants%canonical_toroidal_momentum &
-            -charge*field%psi/c_light)/denominator
+        if (abs(state%R*field%bhat(2)) <= tiny(1.0_dp)) return
+        call evaluate_neort_cylindrical_launch(mass, charge, c_light, &
+            invariants%magnetic_moment, field%bmod, potential, state%R, &
+            field%psi, field%bhat(2), invariants%energy, &
+            invariants%canonical_toroidal_momentum, vparallel_squared, &
+            p_parallel, launch_residual)
+        if (.not. all(ieee_is_finite([vparallel_squared, p_parallel, &
+                launch_residual]))) return
         ! A turning point is a valid launch.  Its sign is inherited from the
         ! requested branch only when the momentum is nonzero; rejecting zero
         ! here made the fixed-invariant return map unable to start at a
         ! p_parallel=0 turning point.
         if (p_parallel*real(parallel_sign, dp) < 0.0_dp) return
-        kinetic = invariants%energy - invariants%magnetic_moment*field%bmod &
-            -charge*potential
-        if (kinetic < 0.0_dp) return
-        p2_expected = 2.0_dp*mass*kinetic
-        mismatch = abs(p_parallel**2 - p2_expected)
-        if (mismatch > 1.0e-9_dp*max(abs(p2_expected), &
-            tiny(p2_expected))) return
+        if (vparallel_squared < 0.0_dp) return
+        mismatch_scale = max(abs(p_parallel)**2, &
+            mass**2*abs(vparallel_squared), tiny(1.0_dp))
+        if (abs(launch_residual) > 1.0e-9_dp*mismatch_scale) return
         state%p_parallel = p_parallel
         state%mu = invariants%magnetic_moment
         status = GC_CYL_SUCCESS
@@ -357,8 +375,11 @@ contains
         real(dp), intent(in) :: charge, c_light
         real(dp) :: value
 
-        value = charge*field%psi/c_light &
-            +state%p_parallel*state%R*field%bhat(2)
+        real(dp) :: unused_psi_star
+
+        call evaluate_neort_cylindrical_canonical(charge, c_light, state%R, &
+            state%p_parallel, field%psi, field%bhat(2), value, &
+            unused_psi_star)
     end function canonical_toroidal_momentum_from_state
 
     pure function canonical_flux_from_state(state, field, charge, c_light) &
@@ -369,17 +390,19 @@ contains
         real(dp), intent(in) :: charge, c_light
         real(dp) :: value
 
-        value = field%psi + c_light/charge*state%p_parallel*state%R &
-            *field%bhat(2)
+        real(dp) :: unused_p_phi
+
+        call evaluate_neort_cylindrical_canonical(charge, c_light, state%R, &
+            state%p_parallel, field%psi, field%bhat(2), unused_p_phi, value)
     end function canonical_flux_from_state
 
-    pure function gc_buchholz_jk_from_state(state, charge, c_light) result(value)
+    pure function gc_buchholz_jk_from_state(state, mass, charge, c_light) result(value)
         !! Convert the canonical state magnetic moment to Buchholz J_K.
         type(gc_cylindrical_state_t), intent(in) :: state
-        real(dp), intent(in) :: charge, c_light
+        real(dp), intent(in) :: mass, charge, c_light
         real(dp) :: value
 
-        value = gc_buchholz_jk_from_mu_phys(state%mu, charge, c_light)
+        value = gc_buchholz_jk_from_mu_phys(state%mu, mass, charge, c_light)
     end function gc_buchholz_jk_from_state
 
     pure function gc_potato_jperp_from_state(state, mass, bmod, v0) &
@@ -399,8 +422,8 @@ contains
         real(dp), intent(in) :: potential, charge, mass
         real(dp) :: value
 
-        value = state%p_parallel**2/(2.0_dp*mass) &
-            +state%mu*field%bmod + charge*potential
+        call evaluate_neort_cylindrical_hamiltonian(mass, charge, state%mu, &
+            field%bmod, potential, state%p_parallel, value)
     end function energy_from_state
 
     pure function gc_cylindrical_vparallel_squared(energy, magnetic_moment, &
@@ -409,7 +432,8 @@ contains
         real(dp), intent(in) :: mass, charge
         real(dp) :: value
 
-        value = 2.0_dp*(energy - magnetic_moment*bmod - charge*potential)/mass
+        call evaluate_neort_cylindrical_vparallel(energy, magnetic_moment, &
+            bmod, potential, mass, charge, value)
     end function gc_cylindrical_vparallel_squared
 
     pure subroutine evaluate_zero_potential(self, position, field, potential, &

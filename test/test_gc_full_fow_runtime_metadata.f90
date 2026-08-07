@@ -1,6 +1,6 @@
 program test_gc_full_fow_runtime_metadata
     use, intrinsic :: iso_c_binding, only: c_char, c_int, c_null_char
-    use, intrinsic :: iso_fortran_env, only: int64
+    use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use neort_gc_full_fow_runtime_metadata, only: &
         GC_FULL_FOW_METADATA_BACKEND_MISMATCH, &
         GC_FULL_FOW_METADATA_CERTIFICATION_MISMATCH, &
@@ -61,6 +61,22 @@ program test_gc_full_fow_runtime_metadata
     state%cylindrical_backend_entries = 2
     state%legacy_backend_entries = 0
     state%chart_fallback_entries = 0
+    state%real_field_amplitude_convention = &
+        'real_field_amplitude_one_signed_n'
+    state%conjugate_policy = 'conjugate_implicit'
+    state%prefactor_convention = 'eq17_pi32_over_4_real_field'
+    state%quadrature_base_h0_order = 2
+    state%quadrature_base_jk_order = 2
+    state%quadrature_refined_h0_order = 4
+    state%quadrature_refined_jk_order = 4
+    state%quadrature_relative_tolerance = 1.0e-7_dp
+    state%quadrature_absolute_tolerance = 1.0e-12_dp
+    state%poloidal_harmonic_min = -8
+    state%poloidal_harmonic_max = 8
+    state%toroidal_harmonic = 3
+    state%quadrature_convergence_certified = .true.
+    state%harmonic_batch_certified = .true.
+    state%class_reconstruction_certified = .true.
 
     call emit(state, output_path, status, message)
     call require(status == GC_FULL_FOW_METADATA_SUCCESS, &
@@ -78,6 +94,19 @@ program test_gc_full_fow_runtime_metadata
     ! A frequency lane does not need a nonlocal transport certificate.
     call require(metadata_value(output_path, 'lane_kind') == 'frequency', &
         'valid frequency lane was mislabeled')
+    call require(metadata_value(output_path, 'real_field_amplitude_convention') == &
+        'real_field_amplitude_one_signed_n', &
+        'amplitude convention was not emitted exactly')
+    call require(metadata_value(output_path, 'conjugate_policy') == &
+        'conjugate_implicit', 'conjugate policy was not emitted exactly')
+    call require(metadata_value(output_path, 'prefactor_convention') == &
+        'eq17_pi32_over_4_real_field', &
+        'Eq. 17 prefactor convention was not emitted exactly')
+    call require(metadata_value(output_path, 'quadrature_refined_h0_order') == '4', &
+        'refined H0 order was not emitted')
+    call require(metadata_value(output_path, 'poloidal_harmonic_min') == '-8' .and. &
+        metadata_value(output_path, 'poloidal_harmonic_max') == '8', &
+        'harmonic range was not emitted')
 
     ! Publication is no-replace: a second emission cannot overwrite accepted
     ! runtime evidence.

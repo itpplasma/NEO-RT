@@ -197,12 +197,14 @@ contains
             result%root_residual_derivative(options%max_roots), &
             result%root_component_id(options%max_roots), &
             result%root_sigma(options%max_roots), &
+            result%root_class_kind(options%max_roots), &
             result%root_force_contribution(result%nforce, options%max_roots))
         result%component_contribution = 0.0_dp
         result%root_x = 0.0_dp
         result%root_residual_derivative = 0.0_dp
         result%root_component_id = 0
         result%root_sigma = 0
+        result%root_class_kind = 0
         result%root_force_contribution = 0.0_dp
         do i = 1, result%ncomponents
             result%component_id(i) = components(i)%component_id
@@ -792,51 +794,20 @@ contains
         real(dp), intent(out) :: contribution(:)
         integer, intent(out) :: status
 
-        real(dp) :: hamiltonian_square, weight
-
         contribution = 0.0_dp
-        status = GC_NONLOCAL_INVALID_INPUT
-        if (force_count < 1 .or. force_count > GC_NONLOCAL_MAX_FORCE_VALUES) return
-        if (size(contribution) < force_count) return
-        if (sample%status /= GC_NONLOCAL_SAMPLE_VALID) return
-        if (sample%nforce /= force_count) then
-            status = GC_NONLOCAL_FORCE_CONTRACT
-            return
-        end if
-        if (.not. sample%derivatives_available) then
-            status = GC_NONLOCAL_DERIVATIVE_MISSING
-            return
-        end if
-        if (.not. finite_sample(sample, force_count)) then
-            status = GC_NONLOCAL_NONFINITE
-            return
-        end if
-        if (.not. ieee_is_finite(residual_derivative)) then
-            status = GC_NONLOCAL_NONFINITE
-            return
-        end if
-        if (abs(residual_derivative) <= derivative_tolerance) then
-            status = GC_NONLOCAL_SINGULAR_RESONANCE
-            return
-        end if
-        hamiltonian_square = real(sample%h_m*conjg(sample%h_m), dp)
-        if (.not. ieee_is_finite(hamiltonian_square)) then
-            status = GC_NONLOCAL_NONFINITE
-            return
-        end if
-        weight = abs(sample%dpsi_star_dx)*hamiltonian_square*sample%tau_b &
-            /abs(residual_derivative)
-        if (.not. ieee_is_finite(weight)) then
-            status = GC_NONLOCAL_NONFINITE
-            return
-        end if
-        contribution(1:force_count) = weight*sample%thermodynamic_force(1:force_count)
-        if (.not. all(ieee_is_finite(contribution(1:force_count)))) then
-            status = GC_NONLOCAL_NONFINITE
-            contribution = 0.0_dp
-            return
-        end if
-        status = GC_NONLOCAL_SUCCESS
+        status = GC_NONLOCAL_CALLBACK_FAILURE
+        associate (unused_sample => sample, &
+                unused_residual_derivative => residual_derivative, &
+                unused_force_count => force_count, &
+                unused_derivative_tolerance => derivative_tolerance)
+        end associate
+        ! The frequency/phase root weight is a generated Fortsym contract.
+        ! It must be supplied by
+        ! neort_full_fow_frequency_contribution_symbolic/
+        ! evaluate_neort_frequency_root_contribution; the old hand-written
+        ! |dpsi_star/dx|*|H_m|**2*tau/|F'| expression is deliberately not a
+        ! fallback.  The generated runtime module is absent from this
+        ! checkout, so accepting a root here would violate the physics gate.
     end subroutine evaluate_gc_nonlocal_root_contribution
 
     pure logical function is_recoverable_status(status)

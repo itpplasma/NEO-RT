@@ -6,7 +6,8 @@ module test_gc_nonlocal_transport_fixture
         GC_NONLOCAL_INVALID_INPUT, GC_NONLOCAL_SAMPLE_VALID, &
         GC_NONLOCAL_SAMPLE_WALL, GC_NONLOCAL_SUCCESS, &
         gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t, &
-        gc_nonlocal_transport_provider_t, gc_nonlocal_transport_reference_t
+        gc_nonlocal_transport_provider_t, gc_nonlocal_transport_quadrature_t, &
+        gc_nonlocal_transport_reference_t
     implicit none
     private
 
@@ -56,24 +57,43 @@ contains
         status = GC_NONLOCAL_SUCCESS
     end subroutine manufactured_get_reference
 
-    subroutine manufactured_get_quadrature(provider, h0_nodes, h0_weights, &
-            jperp_nodes, jperp_weights, status)
+    subroutine manufactured_get_quadrature(provider, h0_order, jk_order, &
+            quadrature, status)
         class(manufactured_provider_t), intent(inout) :: provider
-        real(dp), allocatable, intent(out) :: h0_nodes(:), h0_weights(:)
-        real(dp), allocatable, intent(out) :: jperp_nodes(:), jperp_weights(:)
+        integer, intent(in) :: h0_order, jk_order
+        type(gc_nonlocal_transport_quadrature_t), intent(out) :: quadrature
         integer, intent(out) :: status
 
-        real(dp) :: inverse_root_three
+        integer :: i, j, node, n_nodes
 
         provider%quadrature_calls = provider%quadrature_calls + 1
-        inverse_root_three = 1.0_dp/sqrt(3.0_dp)
-        allocate(h0_nodes(2), h0_weights(2), jperp_nodes(2), jperp_weights(2))
-        h0_nodes = 0.5_dp*[1.0_dp - inverse_root_three, &
-            1.0_dp + inverse_root_three]
-        h0_weights = 0.5_dp
-        jperp_nodes = [1.0_dp - inverse_root_three, &
-            1.0_dp + inverse_root_three]
-        jperp_weights = 1.0_dp
+        if (h0_order < 2 .or. jk_order < 2) then
+            status = GC_NONLOCAL_INVALID_INPUT
+            return
+        end if
+        quadrature = gc_nonlocal_transport_quadrature_t()
+        n_nodes = h0_order*jk_order
+        allocate(quadrature%h0(n_nodes), quadrature%j_k(n_nodes), &
+            quadrature%weight(n_nodes), quadrature%j_k_upper_bound(n_nodes))
+        node = 0
+        do i = 1, h0_order
+            do j = 1, jk_order
+                node = node + 1
+                quadrature%h0(node) = real(i, dp)/real(h0_order+1, dp)
+                quadrature%j_k(node) = 2.0_dp*real(j, dp)/ &
+                    real(jk_order+1, dp)
+                quadrature%weight(node) = 0.5_dp
+                quadrature%j_k_upper_bound(node) = 2.0_dp
+            end do
+        end do
+        quadrature%h0_order = h0_order
+        quadrature%jk_order = jk_order
+        quadrature%n_nodes = n_nodes
+        quadrature%paired_domain = .true.
+        quadrature%domain_certified = .true.
+        quadrature%converged = .true.
+        quadrature%h0_min = 0.0_dp
+        quadrature%h0_scale = 1.0_dp
         status = GC_NONLOCAL_SUCCESS
     end subroutine manufactured_get_quadrature
 
@@ -237,6 +257,9 @@ program test_gc_nonlocal_transport_integral
     options%max_h0_nodes = 4
     options%max_jperp_nodes = 4
     options%max_total_nodes = 16
+    options%h0_order = 2
+    options%jk_order = 2
+    options%require_converged = .false.
     options%resonance_options = gc_nonlocal_resonance_options_t()
     options%resonance_options%scan_intervals = 16
     options%resonance_options%max_root_iterations = 128

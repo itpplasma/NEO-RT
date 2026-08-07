@@ -1,7 +1,6 @@
 module neort_config
     use iso_fortran_env, only: dp => real64
-    use driftorbit, only: FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_THIN, &
-        FREQUENCY_MODEL_GC_FULL
+    use driftorbit, only: FREQUENCY_MODEL_BOOZER_THIN, FREQUENCY_MODEL_GC_FULL
     use neort_gc_wall_context, only: configured_wall_file, configured_wall_units
     use neort_wall_io, only: require_readable_wall_polygon
 
@@ -19,9 +18,8 @@ module neort_config
         logical :: comptorque = .false.  ! compute torque
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: magdrift = .false.  ! consider magnetic drift
-        ! 0: historical local bounce/drift; 1: GC thin-orbit limit;
-        ! 2: finite-width full-orbit frequency seam.
-        integer :: frequency_model = 0
+        ! 0: Boozer thin frequency model; 2: finite-width full-orbit seam.
+        integer :: frequency_model = FREQUENCY_MODEL_BOOZER_THIN
         character(len=1024) :: wall_file = ''
         character(len=16) :: wall_units = 'm' ! wall_file input units: m or cm
         ! Negative means "follow magdrift", preserving every existing deck.
@@ -71,13 +69,11 @@ contains
     end function perturbation_chart_is_compatible
 
     pure logical function frequency_model_requires_direct_eqdsk(model)
-        !! The finite-width GC models are available only through the
-        !! standalone direct-GEQDSK magnetic-field adapter.
+        !! The finite-width model is available only through the standalone
+        !! direct-GEQDSK magnetic-field adapter.
         integer, intent(in) :: model
 
-        frequency_model_requires_direct_eqdsk = &
-            model == FREQUENCY_MODEL_GC_THIN .or. &
-            model == FREQUENCY_MODEL_GC_FULL
+        frequency_model_requires_direct_eqdsk = model == FREQUENCY_MODEL_GC_FULL
     end function frequency_model_requires_direct_eqdsk
 
     subroutine validate_frequency_model(model, axis_switch, has_direct_eqdsk, &
@@ -92,22 +88,21 @@ contains
         use_nonlinear = .false.
         if (present(nonlinear)) use_nonlinear = nonlinear
 
-        if (model < FREQUENCY_MODEL_LEGACY .or. &
-                model > FREQUENCY_MODEL_GC_FULL) then
-            error stop "frequency_model must be 0 (legacy), 1 (GC thin limit), or 2 (GC full orbit)"
-        end if
-        if (.not. frequency_model_requires_direct_eqdsk(model)) return
+        select case (model)
+        case (FREQUENCY_MODEL_BOOZER_THIN)
+            return
+        case (1)
+            error stop "frequency_model=1 is unavailable"
+        case (FREQUENCY_MODEL_GC_FULL)
+            continue
+        case default
+            error stop "frequency_model must be 0 (Boozer thin) or 2 (GC full)"
+        end select
 
         if (axis_switch /= 11) then
-            if (model == FREQUENCY_MODEL_GC_THIN) then
-                error stop "frequency_model=1 requires direct GEQDSK input (inp_swi=11)"
-            end if
             error stop "frequency_model=2 requires direct GEQDSK input (inp_swi=11)"
         end if
         if (.not. has_direct_eqdsk) then
-            if (model == FREQUENCY_MODEL_GC_THIN) then
-                error stop "frequency_model=1 requires the standalone direct-GEQDSK build"
-            end if
             error stop "frequency_model=2 requires the standalone direct-GEQDSK build"
         end if
         if (model == FREQUENCY_MODEL_GC_FULL) then
@@ -120,9 +115,6 @@ contains
             call require_readable_wall_polygon(wall_path, wall_units)
         end if
         if (superbanana) then
-            if (model == FREQUENCY_MODEL_GC_THIN) then
-                error stop "frequency_model=1 and supban are mutually exclusive"
-            end if
             error stop "frequency_model=2 and supban are mutually exclusive"
         end if
         if (model == FREQUENCY_MODEL_GC_FULL .and. use_nonlinear) then
@@ -221,14 +213,15 @@ contains
         character(len=16) :: wall_units
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
-            magdrift, magdrift_passing, frequency_model, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
+            magdrift, magdrift_passing, frequency_model, nopassing, noshear, pertfile, &
+            nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, &
             log_level, pert_angle_map, wall_file, wall_units
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
-        frequency_model = 0
+        frequency_model = FREQUENCY_MODEL_BOOZER_THIN
         pert_angle_map = ''
         wall_file = ''
         wall_units = 'm'

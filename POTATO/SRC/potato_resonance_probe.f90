@@ -12,8 +12,7 @@ program potato_resonance_probe
     use potato_input_mod, only : read_potato_input, E_alpha, A_alpha, Z_alpha, &
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, Rmax_orbit, &
         ntimstep, npoicut, profile_file, edge_extension, probe_rho_pol, &
-        probe_ux, probe_eta, probe_m, probe_n, &
-        input_clip_resonance_classes => clip_resonance_classes
+        probe_ux, probe_eta, probe_m, probe_n
     use field_eq_mod, only : allow_sol, psi_axis, psi_sep
     implicit none
 
@@ -29,7 +28,10 @@ program potato_resonance_probe
     double precision :: enkin, v0, bmod_ref
 
     call read_potato_input("potato.in")
-    orbit_clip_resonance_classes = input_clip_resonance_classes
+    ! The probe is topology/frequency evidence, not the torque root search.
+    ! Never truncate its connected class inventory with the optional torque
+    ! delphi clip, regardless of the namelist default.
+    orbit_clip_resonance_classes = .false.
     allow_sol = edge_extension
     E_alpha = E_alpha/scalfac_energy
     rmu = 1.d30
@@ -58,6 +60,7 @@ program potato_resonance_probe
         status="replace", action="write")
     write(unit_out, '(A)') &
         "# target rho ux eta toten perpinv enkin nclasses ierr"
+    write(unit_out, '(A)') '# class_clip_disabled_for_evidence = T'
 
     if (ierr /= 0) then
         write(unit_out, '(7ES18.9,I8,I8)') probe_rho_pol, probe_ux, probe_eta, &

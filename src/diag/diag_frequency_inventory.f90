@@ -1,7 +1,8 @@
 module diag_frequency_inventory
     !! Surface frequency and resonance inventory for the configured NEO-RT model.
-    !! Model 0 is evaluated through native Boozer canonical frequencies; model
-    !! 2 is evaluated through the direct real-space return map.
+    !! Model 0 is evaluated through Boozer thin canonical frequencies; model
+    !! 2 is evaluated through the direct full-FOW return map.  POTATO is an
+    !! external comparison label and is not a NEO-RT frequency-model branch.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan, &
         ieee_is_finite
@@ -10,7 +11,7 @@ module diag_frequency_inventory
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_profiles, only: vth, Om_tE, mi, qi
     use driftorbit, only: etatp, sign_vpar, frequency_model, mph, &
-        FREQUENCY_MODEL_LEGACY, FREQUENCY_MODEL_GC_FULL
+        FREQUENCY_MODEL_BOOZER_THIN, FREQUENCY_MODEL_GC_FULL
     use do_magfie_mod, only: s, bfac, q
     use neort, only: mth_max_abs, harmonic_bounds, set_to_passing_region, &
         set_to_trapped_region
@@ -73,7 +74,7 @@ contains
         call reset_gc_frequency_runtime_metadata()
         call neort_init(config_file, 'in_file', 'in_file_pert')
         model = frequency_model
-        if (model /= FREQUENCY_MODEL_LEGACY .and. &
+        if (model /= FREQUENCY_MODEL_BOOZER_THIN .and. &
             model /= FREQUENCY_MODEL_GC_FULL) then
             error stop 'frequency_inventory supports frequency_model=0 or 2'
         end if
@@ -88,9 +89,13 @@ contains
             status='replace', action='write', form='formatted')
         write (unit_frequency, '(A)') '# frequency_inventory_v1'
         write (unit_frequency, '(A)') &
-            '# columns model class sign eta etatp eta_over_etatp omega_b omega_phi omega_magnetic omega_electric status orbit_status'
+            '# columns model class sign eta etatp eta_over_etatp omega_b omega_phi omega_magnetic omega_electric status '// &
+            'orbit_status'
         write (unit_frequency, '(A)') &
-            '# real2 component columns omega_magnetic and omega_electric are NaN: direct provider returns canonical frequencies only'
+            '# full FOW component columns omega_magnetic and omega_electric are NaN: '// &
+            'direct provider returns canonical frequencies only'
+        write (unit_frequency, '(A)') &
+            '# model_labels 0=Boozer thin; 2=full FOW; external comparison=POTATO'
         write (unit_frequency, '(A)') '# status=0 success; nonzero rows retain invalid frequencies'
         write (unit_resonance, '(A)') '# resonance_inventory_v1'
         write (unit_resonance, '(A)') &
@@ -102,12 +107,15 @@ contains
         write (unit_resonance, '(A)') '# status=0 success; 3 partial scan; nonzero rows retain status'
 
         setup_status = GC_FREQUENCY_SUCCESS
-        if (model == FREQUENCY_MODEL_GC_FULL) then
+        select case (model)
+        case (FREQUENCY_MODEL_GC_FULL)
             call reset_runtime_status_counters()
             call write_full_inventory(s, unit_frequency, unit_resonance, setup_status)
-        else
-            call write_legacy_inventory(unit_frequency, unit_resonance, setup_status)
-        end if
+        case (FREQUENCY_MODEL_BOOZER_THIN)
+            call write_boozer_thin_inventory(unit_frequency, unit_resonance, setup_status)
+        case default
+            error stop 'frequency_inventory supports frequency_model=0 or 2'
+        end select
         call get_gc_frequency_runtime_metadata(metadata)
         metadata_status = GC_FULL_FOW_METADATA_INVALID_INPUT
         metadata_message = 'metadata is not applicable to this frequency model'
@@ -136,7 +144,7 @@ contains
         end if
     end subroutine run_frequency_inventory_diag
 
-    subroutine write_legacy_inventory(unit_frequency, unit_resonance, setup_status)
+    subroutine write_boozer_thin_inventory(unit_frequency, unit_resonance, setup_status)
         integer, intent(in) :: unit_frequency, unit_resonance
         integer, intent(out) :: setup_status
         integer :: sign_index, orbit_class, k, mth_min, mth_max, status, nroots
@@ -153,21 +161,21 @@ contains
                 do k = 0, inventory_points
                     eta = eta_lo + (eta_hi - eta_lo)*real(k, dp) &
                         /real(inventory_points, dp)
-                    call legacy_frequency(eta, orbit_class, omega_b, omega_phi, &
+                    call boozer_thin_frequency(eta, orbit_class, omega_b, omega_phi, &
                         omega_magnetic, omega_electric, status)
                     if (status /= GC_FREQUENCY_SUCCESS .and. &
                         setup_status == GC_FREQUENCY_SUCCESS) then
                         setup_status = status
                     end if
                     ratio = eta/etatp
-                    call write_frequency_row(unit_frequency, FREQUENCY_MODEL_LEGACY, &
+                    call write_frequency_row(unit_frequency, FREQUENCY_MODEL_BOOZER_THIN, &
                         orbit_class, sign_index, eta, etatp, ratio, omega_b, &
                         omega_phi, omega_magnetic, omega_electric, status, 0)
                 end do
                 do k = mth_min, mth_max
                     call find_inventory_roots(eta_lo, eta_hi, orbit_class, sign_index, &
                         k, roots, derivatives, nroots, status)
-                    call write_roots(unit_resonance, FREQUENCY_MODEL_LEGACY, &
+                    call write_roots(unit_resonance, FREQUENCY_MODEL_BOOZER_THIN, &
                         orbit_class, sign_index, k, roots, derivatives, nroots, status)
                     if (status /= 0 .and. setup_status == GC_FREQUENCY_SUCCESS) then
                         setup_status = status
@@ -175,7 +183,7 @@ contains
                 end do
             end do
         end do
-    end subroutine write_legacy_inventory
+    end subroutine write_boozer_thin_inventory
 
     subroutine write_full_inventory(surface, unit_frequency, unit_resonance, setup_status)
         real(dp), intent(in) :: surface
@@ -259,7 +267,7 @@ contains
         end if
     end subroutine region_bounds
 
-    subroutine legacy_frequency(eta, orbit_class, omega_b, omega_phi, &
+    subroutine boozer_thin_frequency(eta, orbit_class, omega_b, omega_phi, &
             omega_magnetic, omega_electric, status)
         real(dp), intent(in) :: eta
         integer, intent(in) :: orbit_class
@@ -285,7 +293,7 @@ contains
         if (orbit_class /= merge(GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, eta > etatp)) then
             status = 1
         end if
-    end subroutine legacy_frequency
+    end subroutine boozer_thin_frequency
 
     subroutine full_frequency(context, eta, orbit_class, sign_index, result, status)
         type(gc_frequency_context_t), intent(in) :: context
@@ -311,7 +319,9 @@ contains
         real(dp), intent(in) :: eta, etatp_value, ratio, omega_b, omega_phi
         real(dp), intent(in) :: omega_magnetic, omega_electric
 
-        write (unit, '(I0,1X,A,1X,I0,1X,ES24.16E3,1X,ES24.16E3,1X,ES24.16E3,1X,ES24.16E3,1X,ES24.16E3,1X,ES24.16E3,1X,ES24.16E3,1X,I0,1X,I0)') &
+        write (unit, '(I0,1X,A,1X,I0,1X,ES24.16E3,1X,ES24.16E3,1X,'// &
+            'ES24.16E3,1X,ES24.16E3,1X,ES24.16E3,1X,ES24.16E3,'// &
+            '1X,ES24.16E3,1X,I0,1X,I0)') &
             model, frequency_inventory_class_label(orbit_class), sign_index, eta, &
             etatp_value, ratio, omega_b, omega_phi, omega_magnetic, omega_electric, &
             status, orbit_status
@@ -332,7 +342,8 @@ contains
         do k = 1, nroots
             orbit_status = 0
             row_status = search_status
-            if (model == FREQUENCY_MODEL_GC_FULL) then
+            select case (model)
+            case (FREQUENCY_MODEL_GC_FULL)
                 call full_frequency(context, roots(k), orbit_class, sign_index, result, status)
                 orbit_status = result%orbit_status
                 if (status == GC_FREQUENCY_SUCCESS) then
@@ -341,15 +352,17 @@ contains
                 else
                     residual = nan_value()
                 end if
-            else
-                call legacy_frequency(roots(k), orbit_class, omega_b, omega_phi, d1, d2, status)
+            case (FREQUENCY_MODEL_BOOZER_THIN)
+                call boozer_thin_frequency(roots(k), orbit_class, omega_b, omega_phi, d1, d2, status)
                 if (status == 0) then
                     residual = real(mth_value, dp)*omega_b &
                         + real(mph, dp)*omega_phi
                 else
                     residual = nan_value()
                 end if
-            end if
+            case default
+                error stop 'frequency_inventory resonance received unsupported model'
+            end select
             if (status /= 0) row_status = status
             call write_resonance_row(unit, model, orbit_class, sign_index, mth_value, &
                 roots(k), etatp, roots(k)/etatp, residual, row_status, orbit_status, &
@@ -406,13 +419,16 @@ contains
             real(dp) :: omega_b, omega_phi, d1, d2
             type(gc_full_orbit_frequency_result_t) :: value
 
-            if (frequency_model == FREQUENCY_MODEL_GC_FULL) then
+            select case (frequency_model)
+            case (FREQUENCY_MODEL_GC_FULL)
                 call full_frequency(context, eta_value, orbit_class, sign_index, value, status)
                 omega_b = value%omega_b
                 omega_phi = value%omega_phi
-            else
-                call legacy_frequency(eta_value, orbit_class, omega_b, omega_phi, d1, d2, status)
-            end if
+            case (FREQUENCY_MODEL_BOOZER_THIN)
+                call boozer_thin_frequency(eta_value, orbit_class, omega_b, omega_phi, d1, d2, status)
+            case default
+                error stop 'frequency_inventory root scan received unsupported model'
+            end select
             residual = real(mth_value, dp)*omega_b + real(mph, dp)*omega_phi
         end subroutine residual_at
     end subroutine find_inventory_roots
@@ -546,13 +562,13 @@ contains
 
     pure function frequency_inventory_model_label(model) result(label)
         integer, intent(in) :: model
-        character(len=8) :: label
+        character(len=16) :: label
 
         select case (model)
-        case (FREQUENCY_MODEL_LEGACY)
-            label = 'boozer0'
+        case (FREQUENCY_MODEL_BOOZER_THIN)
+            label = 'Boozer thin'
         case (FREQUENCY_MODEL_GC_FULL)
-            label = 'real2'
+            label = 'full FOW'
         case default
             label = 'unknown'
         end select

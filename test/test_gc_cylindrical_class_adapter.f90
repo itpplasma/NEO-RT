@@ -82,7 +82,7 @@ contains
         status = GC_CYL_CLASS_INVALID_INPUT
         if (position(1) <= 0.0_dp) return
         mu_phys = self%profile_jperp*abs(self%profile_charge) &
-            /self%profile_c
+            /(self%profile_mass*self%profile_c)
         kinetic = 0.5_dp*self%profile_mass &
             *target_vparallel_squared(position(1))
         derivative = 0.5_dp*self%profile_mass &
@@ -308,7 +308,7 @@ program test_gc_cylindrical_class_adapter
     call require_close(launch_plus%state%p_parallel, MASS*expected_v, &
         'launch p_parallel is not m*v_parallel', 1.0e-12_dp)
     call require_close(launch_plus%state%mu, &
-        JPERP_REFERENCE*abs(CHARGE)/C_LIGHT, &
+        MASS*JPERP_REFERENCE*abs(CHARGE)/C_LIGHT, &
         'launch magnetic moment/action conversion', 1.0e-12_dp)
     call launch_gc_cylindrical_class(split_adapter, RC_MIN, 1, tangent_id, &
         launch_tangent, status)
@@ -318,7 +318,7 @@ program test_gc_cylindrical_class_adapter
         'endpoint tangency was not retained in launch metadata')
 
     thin_speed = 1.0e-5_dp
-    thin_h0 = JPERP_REFERENCE*abs(CHARGE)/C_LIGHT*point_plus%field%bmod &
+    thin_h0 = MASS*JPERP_REFERENCE*abs(CHARGE)/C_LIGHT*point_plus%field%bmod &
         +CHARGE*point_plus%potential + 0.5_dp*MASS*thin_speed**2
     call initialize_gc_cylindrical_class_adapter(field, potential, thin_h0, &
         JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &

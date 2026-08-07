@@ -4,9 +4,11 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
 module resint_mod
+    use resonance_status_mod, only : resonance_status_success
     !
     type respoints_fix_jperp_mode_class
     integer :: nrespoi
+    integer :: scan_status=resonance_status_success
     double precision :: toten_res,perpinv_res
     double precision, dimension(:),   allocatable :: w_res
     double precision, dimension(:,:), allocatable :: z_res
@@ -34,6 +36,8 @@ double precision :: twopim2,rm3,taub_new,delphi_new
 ! the loop be parallelized without making toten,perpinv threadprivate.
 double precision :: toten_orb,perpinv_orb
 !$omp threadprivate(toten_orb,perpinv_orb)
+integer :: perturbation_status=0
+!$omp threadprivate(perturbation_status)
 ! By-products of the resonance condition get_rescond ($\psi^\ast$, bounce time,
 ! toroidal shift), recovered for the orbit weight.  get_rescond is an internal
 ! procedure of integrate_class_resonances that is also passed as the dummy root
@@ -51,12 +55,20 @@ type(respoints_fix_jperp),            dimension(:),   allocatable :: respoints_a
 type(respoint_single),                dimension(:),   allocatable :: respoint
 integer :: resline_unit=31415,resline_diag_unit=31416
 logical :: resline_unit_is_private=.false.,resline_diag_unit_is_private=.false.
+! Per-energy conservation ledger.  A searched-zero harmonic is counted
+! separately from a failed search; neither is reconstructed from nrespoi alone.
+integer :: ledger_class_evaluations=0,ledger_harmonic_scans=0
+integer :: ledger_searched_zero=0,ledger_root_count=0,ledger_failure_count=0
+integer :: ledger_jperp_samples=0
 ! Per-energy-slice resonance bookkeeping.  The energy loop may run slices in
 ! parallel; each slice owns its J_perp grid, extracted resonant points, and
 ! temporary resonance-line unit.  nmodes,marr,narr are read-only after setup.
 !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all, &
 !$omp               respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
 !$omp               resline_unit_is_private,resline_diag_unit_is_private)
+!$omp threadprivate(ledger_class_evaluations,ledger_harmonic_scans, &
+!$omp               ledger_searched_zero,ledger_root_count,ledger_failure_count, &
+!$omp               ledger_jperp_samples)
 
 end module resint_mod
 !
@@ -70,39 +82,56 @@ subroutine velo_res(dtau,z,vz)
     ! of the perturbed Hamiltonian $\hat H_\bm$, Eq.(102) (former Eq.(93))
     !
     use orbit_dim_mod,     only : neqm,next,numbasef
-    use resint_mod,        only : twopim2,rm3,taub_new,delphi_new,toten_orb,perpinv_orb
+    use resint_mod,        only : twopim2,rm3,taub_new,delphi_new,toten_orb,perpinv_orb, &
+                                  perturbation_status
+    use bmod_pert_mod,     only : bmod_pert_success
+    use potato_symbolic_kernel_mod, only : potato_hm_kernel
     !
     implicit none
     !
-    complex(8), parameter :: imun=(0.d0,1.d0)
-    !
-    double precision :: dtau,bmod,phi_elec
+    double precision :: dtau,bmod,phi_elec,mode_phase
+    double precision :: hm_real,hm_imag,hm_squared,hamiltonian_coefficient
+    integer :: perturbation_ierr
     double precision, dimension(neqm+next) :: z,vz
-    complex(8) :: bmod_n,comfac
+    complex(8) :: bmod_n
+    external :: bmod_pert_status
     !
     call velo(dtau,z(1:neqm),vz(1:neqm))
     call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
-    call bmod_pert(z(1),z(3),bmod_n)
+    call bmod_pert_status(z(1),z(3),bmod_n,perturbation_ierr)
+    if(perturbation_ierr.ne.bmod_pert_success) then
+        perturbation_status=perturbation_ierr
+        vz(7)=0.d0
+        vz(8)=0.d0
+        return
+    endif
     !
-    comfac=(2.d0*(toten_orb-phi_elec)/bmod-perpinv_orb)*bmod_n &
-        *exp(imun*(rm3*z(2)-(twopim2+delphi_new*rm3)*z(6)/taub_new))
+    mode_phase=rm3*z(2)-(twopim2+delphi_new*rm3)*z(6)/taub_new
+    call potato_hm_kernel(toten_orb,phi_elec,bmod,perpinv_orb, &
+        real(bmod_n),aimag(bmod_n),mode_phase,hm_real,hm_imag,hm_squared, &
+        hamiltonian_coefficient)
     !
     vz(6)=1.d0
-    vz(7)=real(comfac)
-    vz(8)=aimag(comfac)
+    vz(7)=hm_real
+    vz(8)=hm_imag
     !
 end subroutine velo_res
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine pertham(z,absHn2)
+subroutine pertham(z,absHn2,ierr_status)
     !
     ! Computes modulus squared of the Fourier amplitude of the normalized perturbed
     ! Hamiltoninan, $|\hat H_\bm|^2$, with $\hat H_\bm$ defined by Eq.(102) (former Eq.(93)).
     !
     use orbit_dim_mod,     only : neqm,next     ,write_orb,iunit1
     use global_invariants, only : dtau
-    use resint_mod,        only : taub_new,delphi_new,toten_orb,perpinv_orb
+    use resint_mod,        only : taub_new,delphi_new,toten_orb,perpinv_orb, &
+                                  perturbation_status
+    use bmod_pert_mod,      only : bmod_pert_success
+    use resonance_status_mod, only : resonance_status_success, &
+        resonance_status_bounce_failure,resonance_status_perturbation_failure, &
+        resonance_is_finite
     !
     !
     implicit none
@@ -110,12 +139,15 @@ subroutine pertham(z,absHn2)
     complex(8), parameter :: imun=(0.d0,1.d0)
     !
     integer :: ierr
+    integer, intent(out) :: ierr_status
     double precision :: absHn2,bmod,phi_elec,taub,delphi
     double precision, dimension(neqm) :: z
     double precision, dimension(:), allocatable :: extraset
     !
     external :: velo,velo_res
     !
+    ierr_status=resonance_status_success
+    absHn2=0.d0
     call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
     !
     toten_orb=z(4)**2+phi_elec
@@ -126,7 +158,13 @@ subroutine pertham(z,absHn2)
     !
     call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
     if(ierr.ne.0) then
-        absHn2 = 0.d0
+        ierr_status=resonance_status_bounce_failure
+        deallocate(extraset)
+        return
+    endif
+    if(.not.resonance_is_finite(taub) .or. taub.le.0.d0 .or. &
+       .not.resonance_is_finite(delphi)) then
+        ierr_status=resonance_status_bounce_failure
         deallocate(extraset)
         return
     endif
@@ -138,15 +176,32 @@ subroutine pertham(z,absHn2)
     next=3
     allocate(extraset(next))
     extraset=0.d0
+    perturbation_status=bmod_pert_success
     !
     call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset,ierr)
+    if(perturbation_status.ne.bmod_pert_success) then
+        ierr_status=resonance_status_perturbation_failure
+        deallocate(extraset)
+        return
+    endif
     if(ierr.ne.0) then
-        absHn2 = 0.d0
+        ierr_status=resonance_status_bounce_failure
+        deallocate(extraset)
+        return
+    endif
+    if(.not.resonance_is_finite(taub) .or. taub.le.0.d0 .or. &
+       .not.resonance_is_finite(delphi)) then
+        ierr_status=resonance_status_bounce_failure
         deallocate(extraset)
         return
     endif
     !
     absHn2=(extraset(2)/taub)**2+(extraset(3)/taub)**2
+    if(.not.resonance_is_finite(absHn2) .or. absHn2.lt.0.d0) then
+        ierr_status=resonance_status_bounce_failure
+        deallocate(extraset)
+        return
+    endif
     !
     deallocate(extraset)
     !
@@ -154,7 +209,7 @@ end subroutine pertham
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine integrate_class_resonances
+subroutine integrate_class_resonances(ierr_out)
     !
     ! Computes sum over resonances $x=x^{res}_{(\bm,k)}$ in Eq.(104) for a given class $k$
     !
@@ -164,7 +219,8 @@ subroutine integrate_class_resonances
     use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
     use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
         psiast_res,taub_res,delphi_res,resline_unit, &
-        resline_unit_is_private,resline_diag_unit
+        resline_unit_is_private,resline_diag_unit,ledger_harmonic_scans, &
+        ledger_searched_zero,ledger_root_count,ledger_failure_count
     use orbit_dim_mod,      only : neqm
     use global_invariants,  only : dtau,toten,perpinv,cE_ref,Phi_eff
     use sample_matrix_mod,  only : npoi,xarr
@@ -173,22 +229,32 @@ subroutine integrate_class_resonances
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_axis,psi_sep
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
+    use potato_limit_status_mod, only : limit_provider_status
+    use resonance_status_mod, only : resonance_status_success, &
+        resonance_status_starter_failure,resonance_status_from_root_error, &
+        resonance_status_nonfinite_weight,classify_resonance_root, &
+        resonance_is_finite,resonance_status_missing_limit
+    use potato_symbolic_kernel_mod, only : potato_resonance_torque_kernel
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
     implicit none
     !
-    double precision, parameter :: pi=3.14159265358979d0, twopi=2.d0*pi, &
-        pi32_over4m=-0.25d0*pi**1.5d0
+    double precision, parameter :: pi=3.14159265358979d0, twopi=2.d0*pi
     !
-    integer          :: mode,iroot,ierr
+    integer          :: mode,iroot,ierr,ierr_pertham,status_weight
+    integer, intent(out) :: ierr_out
     double precision :: relmargin_loc,widthclass,xbeg,xend
     double precision :: rescond,dresconddx,dpsiastdx
     double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
+    double precision :: root_factor
     double precision :: bmod_st,phi_elec_st
-    double precision :: fmaxw,A1ast,A2ast
+    double precision :: fmaxw,A1ast,A2ast,thermodynamic_force
+    double precision :: delta_root_weight
     double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
     double precision, dimension(neqm) :: z
+    logical :: wall_zero
     !
+    ierr_out=resonance_status_success
     sigma=sigma_class(iclass)
     delta_R=R_class_end(iclass)-R_class_beg(iclass)
     !old=>  relmargin_loc=1.d-8
@@ -197,14 +263,21 @@ subroutine integrate_class_resonances
     widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0) !<=new
     !
     call classbounds(ifuntype(iclass),relmargin_loc,widthclass,xbeg,xend)
+    if(limit_provider_status.ne.0) then
+        ierr_out=resonance_status_missing_limit
+        call tee_message( &
+            'integrate_class_resonances: missing generated homoclinic limit provider')
+        return
+    endif
     !
     customgrid=.true.
     ncustom=npoi
     allocate(xcustom(ncustom))
     xcustom=xarr
     !
-    ! Mode loop. It stays inactive as a nested OpenMP region because respoints_jp and
-    ! delint_mode are slice-private; outer energy parallelism owns the concurrency.
+    ! Mode loop.  The outer energy loop owns the concurrency; this per-class
+    ! scan is deliberately serial so a failed harmonic can abort the class
+    ! without an OpenMP worksharing loop hiding the status.
     ! Each iteration runs its own find_all_roots and per-root starter+pertham state.
     ! toten,perpinv and the root-search grid are copied into each worker as read-only
     ! class invariants. The threadprivate form-class bounds it reads
@@ -214,18 +287,15 @@ subroutine integrate_class_resonances
     ! trampoline for that call does not honor a host-local private.  reslines
     ! write(31415) and tee_message go in a critical section.  Each thread resets its
     ! interp cache at entry so it drops the previous class's grid before reusing it.
-    !$omp parallel if(.false.) default(shared) &
-    !$omp   private(mode,iroot,ierr,rescond,dresconddx,dpsiastdx) &
-    !$omp   private(one_res,Rst,xi,dxi_dx,dpsiast_dRst,absHn2,fmaxw,A1ast,A2ast) &
-    !$omp   private(dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi,z) &
-    !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,dtau,toten,perpinv, &
-    !$omp          customgrid,ncustom,niter,relerr_allroots,xcustom)
     call interp_cache_reset
-    !$omp do schedule(dynamic)
+    ledger_harmonic_scans=ledger_harmonic_scans+nmodes
     do mode=1,nmodes
+        if(ierr_out.ne.resonance_status_success) exit
         twopim2=twopi*dble(marr(mode))
         rm3=dble(narr(mode))
         delint_mode(mode)=0.d0
+        respoints_jp(mode,iclass)%nrespoi=0
+        respoints_jp(mode,iclass)%scan_status=resonance_status_success
         !
         call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
         !
@@ -234,16 +304,22 @@ subroutine integrate_class_resonances
             call tee_message( &
                 'integrate_class_resonances: error in find_all_roots')
             !$omp end critical (reslines_log)
-            respoints_jp(mode,iclass)%nrespoi=0
+            ierr_out=resonance_status_from_root_error(ierr)
+            ledger_failure_count=ledger_failure_count+1
+            respoints_jp(mode,iclass)%scan_status=ierr_out
             respoints_jp(mode,iclass)%toten_res=toten
             respoints_jp(mode,iclass)%perpinv_res=perpinv
-            cycle
+            exit
         endif
         !
         respoints_jp(mode,iclass)%nrespoi=nroots
         respoints_jp(mode,iclass)%toten_res=toten
         respoints_jp(mode,iclass)%perpinv_res=perpinv
-        if(nroots.eq.0) cycle
+        if(nroots.eq.0) then
+            ledger_searched_zero=ledger_searched_zero+1
+            cycle
+        endif
+        ledger_root_count=ledger_root_count+nroots
         allocate(respoints_jp(mode,iclass)%w_res(nroots), &
             respoints_jp(mode,iclass)%z_res(5,nroots), &
             respoints_jp(mode,iclass)%taub(nroots))
@@ -263,7 +339,15 @@ subroutine integrate_class_resonances
                 call tee_message( &
                     'integrate_class_resonances: error in starter_doublecount')
                 !$omp end critical (reslines_log)
-                cycle
+                ierr_out=resonance_status_starter_failure
+                ledger_failure_count=ledger_failure_count+1
+                respoints_jp(mode,iclass)%scan_status=ierr_out
+                if(allocated(respoints_jp(mode,iclass)%w_res)) then
+                    deallocate(respoints_jp(mode,iclass)%w_res, &
+                               respoints_jp(mode,iclass)%z_res, &
+                               respoints_jp(mode,iclass)%taub)
+                endif
+                exit
             endif
             !
             if(.true.) then
@@ -288,54 +372,93 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            if(canonical_flux_outside_lcfs(psiast_res,psi_axis,psi_sep)) then
-                ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
-                ! so pertham/find_bounce cannot close it and would only grind to
-                ! the integrator cap before returning zero.  It is also outside
-                ! the comparison domain, so weight it zero without the integration.
+            wall_zero=canonical_flux_outside_lcfs(psiast_res,psi_axis,psi_sep)
+            if(wall_zero) then
+                ! The wall/SOL exclusion is a certified zero only after the
+                ! resonance root factor has been checked below.  It must not
+                ! mask a tangent root or an invalid derivative.
                 absHn2=0.d0
             else
-                call pertham(z,absHn2)
+                call pertham(z,absHn2,ierr_pertham)
+                if(ierr_pertham.ne.0) then
+                    !$omp critical (reslines_log)
+                    call tee_message( &
+                        'integrate_class_resonances: find_bounce/pertham failed')
+                    !$omp end critical (reslines_log)
+                    ierr_out=ierr_pertham
+                    ledger_failure_count=ledger_failure_count+1
+                    respoints_jp(mode,iclass)%scan_status=ierr_out
+                    deallocate(respoints_jp(mode,iclass)%w_res, &
+                               respoints_jp(mode,iclass)%z_res, &
+                               respoints_jp(mode,iclass)%taub)
+                    exit
+                endif
             endif
-            call equilmaxw(psiast_res,fmaxw)
-            call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
-            call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
-            !
-            ! toten,perpinv are never written in this loop (pertham writes toten_orb,
-            ! perpinv_orb instead), so they still hold the class invariants set on entry --
-            ! no save/restore needed.
-            !
-            ! Non-local thermodynamic forces Eq.(95) (former Eq.(87)):
-            A2ast=dtemp/temp
-            A1ast=ddens/dens+dPhi_dpsi/temp-1.5d0*A2ast
-            !
-            ! Expression under summation signs except the last line in Eq.(104) (former Eq.(94)):
-            one_res=abs(dpsiastdx/dresconddx)*absHn2*fmaxw            &
-            !ERROR, SEE in RED=>             *(Phi_eff*taub_res*(A1ast+A2ast*(toten-phi_elec)/temp)+delphi_res/temp)
-            *Phi_eff*taub_res*(A1ast+A2ast*(toten-phi_elec)/temp) !<=ERROR CORRECTED
-            !
-            ! emulator of box average (Heaviside function replaced with one in (104) - result is integral torque in
-            ! the whole volume normalized by the reference energy $\cE_{ref}$):
-            one_res=one_res*taub_res
-            ! end emulator of box average
-            !
-            ! multiply expression under summation over modes with toroidal mode number, with factor $-\pi^{3/2}/4$
-            ! and with reference energy:
-            one_res=one_res*rm3*pi32_over4m*cE_ref
-            !
-            ! A near-tangent root (dresconddx -> 0) gives an infinite
-            ! dpsiastdx/dresconddx; for a wall-crossing resonance absHn2=0, so the
-            ! product is Inf*0 = NaN.  Such a degenerate resonance carries no
-            ! physical weight -- zero it so one bad root cannot poison the torque.
-            if (.not. ieee_is_finite(one_res)) one_res=0.d0
+            call classify_resonance_root(dresconddx,dpsiastdx,absHn2, &
+                wall_zero,root_factor,status_weight)
+            if(.not.resonance_is_finite(rescond) .or. &
+               .not.resonance_is_finite(taub_res)) then
+                status_weight=resonance_status_nonfinite_weight
+            endif
+            if(status_weight.ne.0) then
+                !$omp critical (reslines_log)
+                call tee_message( &
+                    'integrate_class_resonances: unresolved resonance root weight')
+                !$omp end critical (reslines_log)
+                print *,'integrate_class_resonances: resonance status = ',status_weight
+                ierr_out=status_weight
+                ledger_failure_count=ledger_failure_count+1
+                respoints_jp(mode,iclass)%scan_status=ierr_out
+                deallocate(respoints_jp(mode,iclass)%w_res, &
+                           respoints_jp(mode,iclass)%z_res, &
+                           respoints_jp(mode,iclass)%taub)
+                exit
+            endif
+            if(wall_zero) then
+                ! Exact wall-zero: the finite delta/root factor was certified,
+                ! so the excluded residence/perturbation contributes exactly 0.
+                one_res=0.d0
+            else
+                call equilmaxw(psiast_res,fmaxw)
+                call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
+                call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
+                !
+                ! toten,perpinv are never written in this loop (pertham writes toten_orb,
+                ! perpinv_orb instead), so they still hold the class invariants set on entry --
+                ! no save/restore needed.
+                !
+                ! Non-local thermodynamic forces Eq.(95) (former Eq.(87)):
+                A2ast=dtemp/temp
+                A1ast=ddens/dens+dPhi_dpsi/temp-1.5d0*A2ast
+                !
+                thermodynamic_force=A1ast+A2ast*(toten-phi_elec)/temp
+                ! Eq. (17) delta reduction, the leading -pi^(3/2)/4, and the
+                ! two bounce-time factors are generated together.  The mode
+                ! number enters as abs(n), so a conjugate representation does
+                ! not reverse the torque.
+                call potato_resonance_torque_kernel(dpsiastdx,dresconddx,rm3,absHn2, &
+                    fmaxw,Phi_eff,taub_res,thermodynamic_force,cE_ref, &
+                    delta_root_weight,one_res)
+                if(.not.ieee_is_finite(one_res)) then
+                    !$omp critical (reslines_log)
+                    call tee_message( &
+                        'integrate_class_resonances: nonfinite resonance weight')
+                    !$omp end critical (reslines_log)
+                    ierr_out=resonance_status_nonfinite_weight
+                    ledger_failure_count=ledger_failure_count+1
+                    respoints_jp(mode,iclass)%scan_status=ierr_out
+                    deallocate(respoints_jp(mode,iclass)%w_res, &
+                               respoints_jp(mode,iclass)%z_res, &
+                               respoints_jp(mode,iclass)%taub)
+                    exit
+                endif
+            endif
             !
             respoints_jp(mode,iclass)%w_res(iroot)=one_res
             respoints_jp(mode,iclass)%taub(iroot)=taub_res
             delint_mode(mode)=delint_mode(mode)+one_res
         enddo
     enddo
-    !$omp end do
-    !$omp end parallel
     !
     customgrid=.false.
     deallocate(xcustom)
@@ -383,7 +506,7 @@ subroutine get_matrix_res
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
     use get_matrix_mod,               only : iclass
     use resint_mod,                   only : nmodes,nperp_max,respoints_jp, &
-        respoints_all,respoints_all_tmp
+        respoints_all,respoints_all_tmp,ledger_class_evaluations
     use cc_mod,                       only : wrbounds,dowrite
     use orbit_dim_mod,                only : write_orb
     use logging_mod,                  only : tee_message
@@ -391,7 +514,7 @@ subroutine get_matrix_res
     !
     logical :: classes_talk
     !
-    integer :: ierr,mode
+    integer :: ierr,mode,ierr_resonance
     character(len=256) :: msg
     type(region_set_t) :: regions
     !
@@ -402,7 +525,10 @@ subroutine get_matrix_res
     topology_signature=0
     topology_error=0
     topology_context_h=toten
-    amat=0.d0
+    ! Topology probes run before sample_matrix_out allocates its matrix
+    ! workspace; they need only the class signature.  The production callback
+    ! owns an allocated amat and initializes it below.
+    if(.not.topology_probe_only) amat=0.d0
     !
     perpinv=x
     !
@@ -432,6 +558,7 @@ subroutine get_matrix_res
     endif
     topology_signature=topology_signature_of_classes(nclasses,ifuntype,sigma_class)
     if(topology_probe_only) return
+    ledger_class_evaluations=ledger_class_evaluations+nclasses
     !
     allocate(respoints_jp(nmodes,nclasses))
     amat=0.d0
@@ -442,7 +569,15 @@ subroutine get_matrix_res
         !
         if(ierr.eq.0) then
             !
-            call integrate_class_resonances
+            call integrate_class_resonances(ierr_resonance)
+            if(ierr_resonance.ne.0) then
+                write(msg, '(A,I0)') &
+                    'get_matrix_res: unresolved resonance status ',ierr_resonance
+                call tee_message(trim(msg))
+                topology_error=ierr_resonance
+                deallocate(respoints_jp)
+                return
+            endif
             !
             do mode=1,nmodes
                 ! amat(:,1) - sum over classes and resonances within each class:
@@ -486,27 +621,76 @@ end subroutine get_matrix_res
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
+subroutine get_matrix_res_topology_boundaries(nmax,ncandidates,candidates,ierr)
+    use global_invariants, only : toten
+    use sample_matrix_out_mod, only : topology_context_h
+    integer, intent(in) :: nmax
+    integer, intent(out) :: ncandidates,ierr
+    double precision, intent(out) :: candidates(nmax)
+    external :: find_jperp_topology_boundaries
+
+    topology_context_h=toten
+    call find_jperp_topology_boundaries(candidates,nmax,ncandidates,ierr)
+end subroutine get_matrix_res_topology_boundaries
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+subroutine get_matrix_res_contribution_envelope(gap_lo,gap_hi,envelope,ierr)
+    use sample_matrix_out_mod, only : sample_matrix_contribution_unresolved
+    use logging_mod, only : tee_message
+    implicit none
+
+    double precision, intent(in) :: gap_lo,gap_hi
+    double precision, intent(out) :: envelope
+    integer, intent(out) :: ierr
+
+! No certified envelope provider is exposed by the present POTATO matrix
+! interface.  A sampled endpoint maximum would be a heuristic, especially
+! near a separatrix, so keep the production path explicitly fail-closed until
+! the physical limiting/envelope seam is supplied.
+    envelope=0.d0
+    ierr=sample_matrix_contribution_unresolved
+    call tee_message('POTATO: missing certified J_perp contribution envelope')
+end subroutine get_matrix_res_contribution_envelope
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
 subroutine resonant_torque
     !
     !
     use field_sub, only : psif
     use field_eq_mod, only : nrad,nzet,rad,zet,psi_sep
     use poicut_mod,        only : rmagaxis,zmagaxis,psimagaxis,psi_bou,rhopol_bou
-    use global_invariants, only : dtau,toten,perpinv
+    use global_invariants, only : dtau,toten,perpinv,sigma
     use poicut_mod,        only : Rbou_lfs,Zbou_lfs
-    use get_matrix_mod,    only : iclass,delphi_max
+    use get_matrix_mod,    only : iclass,delphi_max,relerror,relmargin
     use form_classes_doublecount_mod, only : nclasses
-    use orbit_dim_mod,     only : numbasef
-    use resonance_mode_bounds_mod, only : resonant_delphi_bound
+    use orbit_dim_mod,     only : numbasef,write_orb,next,orbit_wall_loss, &
+        clip_resonance_classes
+    use cc_mod,             only : dowrite,wrbounds
+    use find_all_roots_mod, only : customgrid,ncustom,niter,nsearch_min, &
+        relerr_allroots,root_eval_valid,root_eval_error
+    use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
+        fixedpoint_scan_branch,fixedpoint_scan_left,fixedpoint_scan_right
+    use resonance_mode_bounds_mod, only : set_resonance_harmonic_guard, &
+        write_resonance_harmonic_set, harmonic_guard_success
+    use potato_boundary_scan_mod, only : jperpmax_success,jperpmax_status, &
+        jperpmax_certified,jperpmax_witness,jperpmax_upper_bound
     use resint_mod,        only : nmodes,marr,narr,delint_mode,respoints_jp,respoints_all,nperp_max, &
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
-        resline_unit_is_private,resline_diag_unit_is_private
+        resline_unit_is_private,resline_diag_unit_is_private, &
+        ledger_class_evaluations,ledger_harmonic_scans,ledger_searched_zero, &
+        ledger_root_count,ledger_failure_count,ledger_jperp_samples
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
-        ind_hist,xarr,amat_arr,topology_arr,topology_error
+        ind_hist,xarr,amat_arr,topology_arr,topology_error,topology_partition_tol, &
+        topology_gap_measure,topology_gap_geometric_bound, &
+        topology_contribution_error_bound,topology_contribution_error_certified
     use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
-        adaptive_jperp, npoi_init, nlagr_sampling, &
-        eps_sampling, itermax_sampling
+        eps_sampling, itermax_sampling, &
+        topology_partition_tol_input => topology_partition_tol, &
+        topology_partition_tol_refined, topology_refinement_lane, &
+        require_topology_contribution_bound
     use logging_mod,       only : tee_message
     !$ use omp_lib, only : omp_set_max_active_levels, omp_set_num_threads
 
@@ -534,23 +718,35 @@ subroutine resonant_torque
     double precision, dimension(:), allocatable :: torque_int_energy
     double precision, dimension(:,:), allocatable :: torque_int_modes_energy
     double precision, dimension(:,:), allocatable :: torquebox_energy
+    integer, dimension(:), allocatable :: ledger_classes_energy,ledger_harmonics_energy, &
+        ledger_searched_zero_energy,ledger_roots_energy,ledger_failures_energy, &
+        ledger_jperp_samples_energy,ledger_jperpmax_status_energy
+    double precision, dimension(:), allocatable :: ledger_gap_energy,ledger_gap_bound_energy, &
+        ledger_contribution_bound_energy,ledger_jperp_witness_energy, &
+        ledger_jperp_upper_energy
+    logical, dimension(:), allocatable :: ledger_contribution_certified_energy
     ! Per-resonance-point box times, filled by the parallel time_in_box pass and
     ! consumed by the serial accumulate/write pass below.
     double precision, dimension(:,:), allocatable :: taubox_all
     !
-    external :: get_matrix_res,sample_matrix_out_partitioned
+    external :: get_matrix_res,get_matrix_res_topology_boundaries, &
+        get_matrix_res_contribution_envelope, sample_matrix_out_partitioned_certified
     !
     allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
     !
     numbasef=0 !no extra integrals sampled, pure orbit integration
     call linspace(1d0/nbox, 1d0, nbox, sbox)
     !
-    ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
-    ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin
-    ! keeps the extreme-m root safely inside the trimmed domain.
-    delphi_max=resonant_delphi_bound(marr,narr)
+    ! Bound only the optional torque root search with the exact finite supplied
+    ! harmonic set.  The signed m/n remains in g=Delta_phi+2*pi*m/n; the
+    ! generated guard uses |m/n| only for the symmetric search extent.
+    call set_resonance_harmonic_guard(marr,narr,delphi_max,ierr)
+    if(ierr.ne.harmonic_guard_success) then
+        call tee_message('resonant_torque: invalid harmonic guard/set')
+        error stop 2
+    endif
     write(msg, '(A,ES14.6)') &
-        'class root search bounded to |delphi_b| <= ', delphi_max
+        'torque root search bounded to |delphi_b| <= ', delphi_max
     call tee_message(trim(msg))
     !
     ! Find minimum and maximum values of electrostatic potential in the computation domain:
@@ -591,9 +787,29 @@ subroutine resonant_torque
     torque_int_modes=0.d0
     allocate(torque_int_energy(nenerg),torque_int_modes_energy(nmodes,nenerg), &
         torquebox_energy(nbox,nenerg))
+    allocate(ledger_classes_energy(nenerg),ledger_harmonics_energy(nenerg), &
+        ledger_searched_zero_energy(nenerg),ledger_roots_energy(nenerg), &
+        ledger_failures_energy(nenerg),ledger_jperp_samples_energy(nenerg), &
+        ledger_jperpmax_status_energy(nenerg),ledger_gap_energy(nenerg), &
+        ledger_gap_bound_energy(nenerg),ledger_contribution_bound_energy(nenerg), &
+        ledger_jperp_witness_energy(nenerg),ledger_jperp_upper_energy(nenerg), &
+        ledger_contribution_certified_energy(nenerg))
     torque_int_energy=0.d0
     torque_int_modes_energy=0.d0
     torquebox_energy=0.d0
+    ledger_classes_energy=0
+    ledger_harmonics_energy=0
+    ledger_searched_zero_energy=0
+    ledger_roots_energy=0
+    ledger_failures_energy=0
+    ledger_jperp_samples_energy=0
+    ledger_jperpmax_status_energy=0
+    ledger_gap_energy=0.d0
+    ledger_gap_bound_energy=0.d0
+    ledger_contribution_bound_energy=huge(1.d0)
+    ledger_jperp_witness_energy=0.d0
+    ledger_jperp_upper_energy=huge(1.d0)
+    ledger_contribution_certified_energy=.false.
     !
     torquebox=0.d0
     !
@@ -609,17 +825,35 @@ subroutine resonant_torque
     !$omp   private(xenerg,perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
-    !$omp   copyin(dtau)
+    !$omp   copyin(dtau,toten,perpinv,sigma,relerror,relmargin,delphi_max,iclass, &
+    !$omp         write_orb,next,orbit_wall_loss,dowrite,wrbounds, &
+    !$omp         customgrid,ncustom,niter,nsearch_min,relerr_allroots, &
+    !$omp         root_eval_valid,root_eval_error,fixedpoint_scan_sigma, &
+    !$omp         fixedpoint_scan_branch,fixedpoint_scan_left,fixedpoint_scan_right, &
+    !$omp         topology_partition_tol,topology_error,topology_signature, &
+    !$omp         topology_context_h,topology_probe_only, &
+    !$omp         sample_matrix_preserve_history,topology_candidate_count, &
+    !$omp         topology_transition_count,topology_gap_measure, &
+    !$omp         topology_gap_geometric_bound,topology_gap_bound, &
+    !$omp         topology_contribution_error_bound, &
+    !$omp         topology_contribution_error_certified)
     do ienerg=ienerg_begin,nenerg
         xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
         toten=toten_min+toten_range*xenerg
         ! size of result matrix in get_matrix_res:
         n1=nmodes
         n2=1
+        ledger_class_evaluations=0
+        ledger_harmonic_scans=0
+        ledger_searched_zero=0
+        ledger_root_count=0
+        ledger_failure_count=0
+        ledger_jperp_samples=0
         ! Set adaptive sampling parameters from input:
         nlagr=nlagr_sampling
         eps=eps_sampling
         itermax=itermax_sampling
+        topology_partition_tol=topology_partition_tol_input
         if(allocated(delint_mode)) deallocate(delint_mode)
         allocate(delint_mode(nmodes))
         allocate(torque_int_modes_loc(nmodes),torquebox_loc(nbox))
@@ -637,6 +871,15 @@ subroutine resonant_torque
         ! find maximum possible value of J_perp for given total energy:
         !
         call find_Jperpmax(perpinv_max)
+        if(jperpmax_status.ne.jperpmax_success .or. &
+           .not.jperpmax_certified) then
+            write(msg, '(A,I0,A,ES22.14,A,ES22.14)') &
+                'resonant_torque: J_perp domain enclosure uncertified status = ', &
+                jperpmax_status, ' witness = ', jperpmax_witness, &
+                ' upper_bound = ', jperpmax_upper_bound
+            call tee_message(trim(msg))
+            error stop 2
+        endif
         !
         if(adaptive_jperp) then
             !
@@ -651,7 +894,9 @@ subroutine resonant_torque
             !
             ! Generate J_perp grid with function values:
             !
-            call sample_matrix_out_partitioned(get_matrix_res,ierr)
+            call sample_matrix_out_partitioned_certified( &
+                get_matrix_res,get_matrix_res_topology_boundaries,ierr, &
+                get_matrix_res_contribution_envelope)
             if(ierr.ne.0) then
                 write(msg, '(A,I0,A,ES22.14)') &
                     'resonant_torque: adaptive J_perp sampling failed ierr = ', &
@@ -662,6 +907,24 @@ subroutine resonant_torque
                 ! this failure look like a completed physics run.
                 error stop 2
             endif
+            if(require_topology_contribution_bound .and. &
+               .not.topology_contribution_error_certified) then
+                write(msg, '(A,ES22.14,A,ES22.14,A,ES22.14)') &
+                    'resonant_torque: geometric topology gap has no certified contribution bound at H = ', &
+                    toten, ' gap = ', topology_gap_measure, &
+                    ' geometric_bound = ', topology_gap_geometric_bound
+                call tee_message(trim(msg))
+                error stop 2
+            endif
+            ledger_jperp_samples= npoi
+            ledger_gap_energy(ienerg)=topology_gap_measure
+            ledger_gap_bound_energy(ienerg)=topology_gap_geometric_bound
+            ledger_contribution_bound_energy(ienerg)=topology_contribution_error_bound
+            ledger_contribution_certified_energy(ienerg)= &
+                topology_contribution_error_certified
+            ledger_jperpmax_status_energy(ienerg)=jperpmax_status
+            ledger_jperp_witness_energy(ienerg)=jperpmax_witness
+            ledger_jperp_upper_energy(ienerg)=jperpmax_upper_bound
             !
             allocate(respoints_all_tmp(npoi))
             !
@@ -841,6 +1104,14 @@ subroutine resonant_torque
             torque_int_modes_energy(:,ienerg)=torque_int_modes_loc
         endif
         !
+        ledger_classes_energy(ienerg)=ledger_class_evaluations
+        ledger_harmonics_energy(ienerg)=ledger_harmonic_scans
+        ledger_searched_zero_energy(ienerg)=ledger_searched_zero
+        ledger_roots_energy(ienerg)=ledger_root_count
+        ledger_failures_energy(ienerg)=ledger_failure_count
+        ledger_jperp_samples_energy(ienerg)=ledger_jperp_samples
+        call write_energy_ledger(ienerg,toten,torque_int_energy(ienerg), &
+            torque_int_loc)
         call cpu_time(time_end)
         write(msg, '(A,I0,A,I0,A,F10.2,A)') &
             ' toten:', ienerg, '/', nenerg, &
@@ -868,6 +1139,8 @@ subroutine resonant_torque
     call merge_energy_files('fort.31415.energy.', 'fort.31415', nenerg)
     call merge_energy_files('fort.31415.diagnostics.energy.', &
         'fort.31415.diagnostics', nenerg)
+    call merge_energy_files('potato_topology_ledger.energy.', &
+        'potato_topology_ledger.dat', nenerg)
     if(adaptive_jperp) then
         call merge_energy_files('subint_ofH0int_104_vsJperp_fromresp.dat.energy.', &
             'subint_ofH0int_104_vsJperp_fromresp.dat', nenerg)
@@ -885,6 +1158,7 @@ subroutine resonant_torque
     open(1,file='integral_torque.dat')
     write(1,*) torque_int
     close(1)
+    call write_run_manifest
     !
     !Write box-counted integral torque:
     if(adaptive_jperp) then
@@ -909,6 +1183,75 @@ contains
         write(path,'(A,I6.6)') trim(prefix), idx
         !
     end subroutine energy_path
+    !
+    subroutine write_energy_ledger(idx,energy,method1,method2)
+        implicit none
+        integer, intent(in) :: idx
+        double precision, intent(in) :: energy,method1,method2
+        integer :: ledger_unit,io
+        character(len=256) :: path
+
+        call energy_path('potato_topology_ledger.energy.',idx,path)
+        open(newunit=ledger_unit,file=trim(path),status='replace',action='write', &
+            iostat=io)
+        if(io.ne.0) return
+        write(ledger_unit,'(A)') &
+            '# ienerg nenerg H class_evaluations harmonic_scans searched_zero roots failures '// &
+            'jperp_samples jperpmax_status jperp_witness jperp_upper_bound '// &
+            'geometric_gap geometric_bound contribution_error_bound contribution_certified '// &
+            'torque_method1 torque_method2 active_tol refined_tol refinement_lane'
+        write(ledger_unit,*) idx,nenerg,energy,ledger_classes_energy(idx), &
+            ledger_harmonics_energy(idx),ledger_searched_zero_energy(idx), &
+            ledger_roots_energy(idx),ledger_failures_energy(idx), &
+            ledger_jperp_samples_energy(idx),ledger_jperpmax_status_energy(idx), &
+            ledger_jperp_witness_energy(idx),ledger_jperp_upper_energy(idx), &
+            ledger_gap_energy(idx),ledger_gap_bound_energy(idx), &
+            ledger_contribution_bound_energy(idx), &
+            ledger_contribution_certified_energy(idx),method1,method2, &
+            topology_partition_tol_input,topology_partition_tol_refined, &
+            topology_refinement_lane
+        close(ledger_unit)
+    end subroutine write_energy_ledger
+    !
+    subroutine write_run_manifest
+        implicit none
+        integer :: manifest_unit,io,harmonic_ierr
+
+        open(newunit=manifest_unit,file='potato_run_manifest.dat', &
+            status='replace',action='write',iostat=io)
+        if(io.ne.0) return
+        write(manifest_unit,'(A)') '# POTATO topology/conservation manifest v1'
+        write(manifest_unit,'(A,I0)') 'nenerg = ',nenerg
+        write(manifest_unit,'(A,ES24.16)') 'topology_partition_tol = ', &
+            topology_partition_tol_input
+        write(manifest_unit,'(A,ES24.16)') 'topology_partition_tol_refined = ', &
+            topology_partition_tol_refined
+        write(manifest_unit,'(A,L1)') 'topology_refinement_lane = ', &
+            topology_refinement_lane
+        write(manifest_unit,'(A,L1)') 'require_topology_contribution_bound = ', &
+            require_topology_contribution_bound
+        write(manifest_unit,'(A,L1)') 'clip_resonance_classes = ', &
+            clip_resonance_classes
+        call write_resonance_harmonic_set(manifest_unit,harmonic_ierr)
+        write(manifest_unit,'(A,I0)') 'harmonic_guard_status = ',harmonic_ierr
+        write(manifest_unit,'(A,ES24.16)') 'max_geometric_gap = ', &
+            maxval(ledger_gap_energy)
+        write(manifest_unit,'(A,ES24.16)') 'max_geometric_gap_bound = ', &
+            maxval(ledger_gap_bound_energy)
+        write(manifest_unit,'(A,ES24.16)') 'max_contribution_error_bound = ', &
+            maxval(ledger_contribution_bound_energy)
+        write(manifest_unit,'(A,L1)') 'all_contribution_bounds_certified = ', &
+            all(ledger_contribution_certified_energy)
+        write(manifest_unit,'(A,I0)') 'total_class_evaluations = ', &
+            sum(ledger_classes_energy)
+        write(manifest_unit,'(A,I0)') 'total_harmonic_scans = ', &
+            sum(ledger_harmonics_energy)
+        write(manifest_unit,'(A,I0)') 'total_searched_zero_harmonics = ', &
+            sum(ledger_searched_zero_energy)
+        write(manifest_unit,'(A,I0)') 'total_roots = ',sum(ledger_roots_energy)
+        write(manifest_unit,'(A,I0)') 'total_failures = ',sum(ledger_failures_energy)
+        close(manifest_unit)
+    end subroutine write_run_manifest
     !
     subroutine open_energy_outputs(idx, adaptive, unit_fromresp, unit_jperp)
         !

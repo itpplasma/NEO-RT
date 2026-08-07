@@ -59,6 +59,22 @@ program test_gc_full_fow_runtime_delivery
     state%cylindrical_backend_entries = 1
     state%legacy_backend_entries = 0
     state%chart_fallback_entries = 0
+    state%real_field_amplitude_convention = &
+        'real_field_amplitude_one_signed_n'
+    state%conjugate_policy = 'conjugate_implicit'
+    state%prefactor_convention = 'eq17_pi32_over_4_real_field'
+    state%quadrature_base_h0_order = 2
+    state%quadrature_base_jk_order = 2
+    state%quadrature_refined_h0_order = 4
+    state%quadrature_refined_jk_order = 4
+    state%quadrature_relative_tolerance = 1.0e-7_dp
+    state%quadrature_absolute_tolerance = 1.0e-12_dp
+    state%poloidal_harmonic_min = -8
+    state%poloidal_harmonic_max = 8
+    state%toroidal_harmonic = 3
+    state%quadrature_convergence_certified = .true.
+    state%harmonic_batch_certified = .true.
+    state%class_reconstruction_certified = .true.
 
     statuses = -1
     messages = ''
@@ -91,6 +107,9 @@ program test_gc_full_fow_runtime_delivery
             'surface record key is wrong')
         call require(metadata_value(output_path, 'lane_kind') == 'torque', &
             'surface record lane is wrong')
+        call require(metadata_value(output_path, 'prefactor_convention') == &
+            'eq17_pi32_over_4_real_field', &
+            'surface record lost the prefactor convention')
     end do
 
     write (surface_key, '("s",I3.3)') 1

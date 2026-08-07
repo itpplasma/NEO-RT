@@ -24,13 +24,12 @@ module neort_gc_frequency_provider
     use neort_gc_orbit_integrator, only: GC_ORBIT_FIELD_ERROR, &
         GC_ORBIT_INTEGRATOR_ERROR, GC_ORBIT_NO_RETURN, &
         GC_ORBIT_PASSING, GC_ORBIT_PERTURBATION_ERROR, GC_ORBIT_RADIAL_DOMAIN, &
-        GC_ORBIT_START_ROOT_ERROR, GC_ORBIT_STATE_ERROR, GC_ORBIT_SUCCESS, &
+        GC_ORBIT_STATE_ERROR, GC_ORBIT_SUCCESS, &
         GC_ORBIT_TRAPPED, GC_ORBIT_WALL_LOSS, &
         gc_orbit_options_t, gc_orbit_average_t, gc_orbit_perturbation_i, &
-        compute_return_map, compute_thin_precession, compute_gc_orbit_average, &
+        compute_return_map, &
         compute_gc_full_orbit_average, compute_zero_width_passing_cycle
-    use neort_thin_orbit_limit, only: THIN_LIMIT_SUCCESS, orbit_return_t, &
-        thin_limit_result_t
+    use neort_thin_orbit_limit, only: orbit_return_t
     use util, only: pi, c
 
     implicit none
@@ -39,7 +38,6 @@ module neort_gc_frequency_provider
     integer, parameter, public :: GC_FREQUENCY_SUCCESS = 0
     integer, parameter, public :: GC_FREQUENCY_INVALID_INPUT = 1
     integer, parameter, public :: GC_FREQUENCY_FIELD_ERROR = 2
-    integer, parameter, public :: GC_FREQUENCY_LIMIT_ERROR = 3
     integer, parameter, public :: GC_FREQUENCY_ORBIT_ERROR = 4
     integer, parameter, public :: GC_FREQUENCY_WALL_ERROR = 5
     integer, parameter, public :: GC_FREQUENCY_BACKEND_LEGACY = 1
@@ -63,26 +61,10 @@ module neort_gc_frequency_provider
         logical :: initialized = .false.
     end type gc_frequency_context_t
 
-    type, public :: gc_frequency_result_t
-        real(dp) :: omega_b = 0.0_dp
-        real(dp) :: omega_magnetic = 0.0_dp
-        real(dp) :: omega_electric = 0.0_dp
-        real(dp) :: q_fieldline = 0.0_dp
-        real(dp) :: magnetic_error = 0.0_dp
-        real(dp) :: electric_error = 0.0_dp
-        real(dp) :: magnetic_order = 0.0_dp
-        real(dp) :: total_order = 0.0_dp
-        real(dp) :: baseline_residual = 0.0_dp
-        real(dp) :: lambda_used(4) = 0.0_dp
-        integer :: maximum_refinements = 0
-        integer :: magnetic_limit_status = 0
-        integer :: total_limit_status = 0
-    end type gc_frequency_result_t
-
     type, public :: gc_full_orbit_frequency_result_t
-        !! Native finite-width canonical frequencies.  Unlike the thin-limit
-        !! result, Omega_phi includes field-line transit, magnetic drift, and
-        !! electric drift exactly once through the full return map.
+        !! Native finite-width canonical frequencies.  Omega_phi includes
+        !! field-line transit, magnetic drift, and electric drift exactly once
+        !! through the full return map.
         real(dp) :: omega_b = 0.0_dp
         real(dp) :: omega_phi = 0.0_dp
         real(dp) :: period = 0.0_dp
@@ -117,9 +99,8 @@ module neort_gc_frequency_provider
     character(len=16), save :: runtime_wall_units = ''
     character(len=16), save :: runtime_wall_backend_units = ''
 
-    public :: initialize_gc_frequency_context, evaluate_gc_frequency
+    public :: initialize_gc_frequency_context
     public :: evaluate_gc_full_orbit_frequency
-    public :: evaluate_gc_phase_average
     public :: evaluate_gc_full_orbit_phase_average
     public :: reset_gc_frequency_runtime_metadata
     public :: get_gc_frequency_runtime_metadata
@@ -173,8 +154,8 @@ contains
     subroutine evaluate_gc_full_orbit_frequency(context, eta, &
             parallel_direction, orbit_class, period_estimate, result, status, velocity)
         !! Evaluate one physical-width guiding-center return at fixed
-        !! (H, mu, P_phi).  There is deliberately no pitch spline or thin-
-        !! orbit velocity scaling here: callers must retain non-return status.
+        !! (H, mu, P_phi).  There is deliberately no pitch spline or
+        !! velocity scaling here: callers must retain non-return status.
         type(gc_frequency_context_t), intent(in) :: context
         real(dp), intent(in) :: eta, period_estimate
         integer, intent(in) :: parallel_direction, orbit_class
@@ -359,8 +340,8 @@ contains
             context%reference_sample%hcon(3) > 0.0_dp)
 
         ! q(s*) is the full-cycle field-line winding, Delta_phi/(2*pi),
-        ! evaluated by the independent lambda=0 expression used by the
-        ! passing thin-limit base.  This keeps finite-width precession and
+        ! evaluated by the independent zero-width passing reference.  This
+        ! keeps finite-width precession and
         ! the literature definitions omega_b=2*pi/tau and
         ! omega_phi=Delta_phi/tau on one Poincare section.
         call invariants_from_state(context%reference_sample, 0.0_dp, 0.0_dp, &
@@ -415,143 +396,12 @@ contains
         status = GC_FREQUENCY_SUCCESS
     end subroutine initialize_gc_frequency_context
 
-    subroutine evaluate_gc_frequency(context, eta, parallel_direction, &
-            orbit_class, period_estimate, result, status)
-        type(gc_frequency_context_t), intent(in) :: context
-        real(dp), intent(in) :: eta, period_estimate
-        integer, intent(in) :: parallel_direction, orbit_class
-        type(gc_frequency_result_t), intent(out) :: result
-        integer, intent(out) :: status
-
-        type(gc_invariants_t) :: invariants
-        type(thin_limit_result_t) :: magnetic, total
-        type(orbit_return_t) :: base
-        real(dp) :: xi_squared
-        integer :: invariant_status, parallel_sign, winding
-
-        result = gc_frequency_result_t()
-        status = GC_FREQUENCY_INVALID_INPUT
-        if (.not. context%initialized .or. eta <= 0.0_dp &
-            .or. period_estimate <= 0.0_dp) return
-        if (abs(parallel_direction) /= 1) return
-        if (orbit_class /= GC_ORBIT_TRAPPED &
-            .and. orbit_class /= GC_ORBIT_PASSING) return
-
-        xi_squared = 1.0_dp - eta*context%reference_sample%bmod
-        if (xi_squared <= 0.0_dp) return
-        parallel_sign = parallel_direction*context%htheta_sign
-        winding = merge(parallel_direction, 0, orbit_class == GC_ORBIT_PASSING)
-        call invariants_from_state(context%reference_sample, 0.0_dp, &
-            context%rho0, 0.0_dp, 1.0_dp, &
-            real(parallel_sign, dp)*sqrt(xi_squared), invariants, &
-            invariant_status)
-        if (invariant_status /= GC_MODEL_SUCCESS) return
-
-        call compute_thin_precession(context%field, context%zero_potential, &
-            invariants, context%reference_position, parallel_sign, &
-            context%rho0, context%reference_velocity, context%q_fieldline, &
-            orbit_class, winding, period_estimate, context%orbit_options, &
-            magnetic, base)
-        call compute_thin_precession(context%field, context%electric_potential, &
-            invariants, context%reference_position, parallel_sign, &
-            context%rho0, context%reference_velocity, context%q_fieldline, &
-            orbit_class, winding, period_estimate, context%orbit_options, total)
-
-        result%magnetic_limit_status = magnetic%status
-        result%total_limit_status = total%status
-        result%q_fieldline = context%q_fieldline
-        if (orbit_class == GC_ORBIT_PASSING) then
-            result%q_fieldline = base%delta_phi &
-                /(2.0_dp*pi*real(winding, dp))
-        end if
-        result%baseline_residual = magnetic%baseline_residual
-        result%magnetic_error = magnetic%error_estimate
-        if (magnetic%status == THIN_LIMIT_SUCCESS &
-            .and. total%status == THIN_LIMIT_SUCCESS) then
-            result%electric_error = magnetic%error_estimate &
-                + total%error_estimate
-        else
-            ! Keep failed-limit diagnostics finite; adding two huge error
-            ! sentinels can overflow before the caller applies its boundary
-            ! separatrix policy.
-            result%electric_error = huge(1.0_dp)
-        end if
-        result%magnetic_order = magnetic%observed_order
-        result%total_order = total%observed_order
-        result%lambda_used(1:2) = [minval(magnetic%lambda_used), &
-            maxval(magnetic%lambda_used)]
-        result%lambda_used(3:4) = [minval(total%lambda_used), &
-            maxval(total%lambda_used)]
-        result%maximum_refinements = max(magnetic%refinement_count, &
-            total%refinement_count)
-        if (magnetic%status /= THIN_LIMIT_SUCCESS &
-            .or. total%status /= THIN_LIMIT_SUCCESS) then
-            status = GC_FREQUENCY_LIMIT_ERROR
-            return
-        end if
-
-        result%omega_b = 2.0_dp*pi/base%period
-        if (orbit_class == GC_ORBIT_PASSING) then
-            result%omega_b = real(parallel_direction, dp)*result%omega_b
-        end if
-        result%omega_magnetic = magnetic%omega
-        result%omega_electric = total%omega - magnetic%omega
-        status = GC_FREQUENCY_SUCCESS
-    end subroutine evaluate_gc_frequency
-
-    subroutine evaluate_gc_phase_average(context, velocity, eta, &
-            parallel_direction, orbit_class, period_estimate, omega_b, omega_phi, &
-            q_fieldline, mth, mph, &
-            perturbation, result, status)
-        !! Evaluate the perturbation Hamiltonian on the direct real-space
-        !! zero-width orbit.  The caller supplies the native perturbation
-        !! evaluator; this layer supplies the same field, potential, invariant,
-        !! and sign conventions as the direct frequency provider.
-        type(gc_frequency_context_t), intent(in) :: context
-        real(dp), intent(in) :: velocity, eta, period_estimate, omega_b
-        real(dp), intent(in) :: omega_phi, q_fieldline
-        integer, intent(in) :: parallel_direction, orbit_class, mth, mph
-        procedure(gc_orbit_perturbation_i) :: perturbation
-        type(gc_orbit_average_t), intent(out) :: result
-        integer, intent(out) :: status
-
-        type(gc_invariants_t) :: invariants
-        real(dp) :: speed_ratio, xi_squared, rho0
-        integer :: invariant_status, parallel_sign, winding
-
-        result = gc_orbit_average_t()
-        status = GC_FREQUENCY_INVALID_INPUT
-        if (.not. context%initialized .or. velocity <= 0.0_dp &
-            .or. eta <= 0.0_dp .or. period_estimate <= 0.0_dp) return
-        if (abs(parallel_direction) /= 1) return
-        if (orbit_class /= GC_ORBIT_TRAPPED &
-            .and. orbit_class /= GC_ORBIT_PASSING) return
-
-        speed_ratio = velocity/context%reference_velocity
-        rho0 = context%rho0*speed_ratio
-        xi_squared = 1.0_dp - eta*context%reference_sample%bmod
-        if (xi_squared <= 0.0_dp) return
-        parallel_sign = parallel_direction*context%htheta_sign
-        winding = merge(parallel_direction, 0, orbit_class == GC_ORBIT_PASSING)
-        call invariants_from_state(context%reference_sample, 0.0_dp, rho0, &
-            0.0_dp, speed_ratio, real(parallel_sign, dp)*sqrt(xi_squared), &
-            invariants, invariant_status)
-        if (invariant_status /= GC_MODEL_SUCCESS) return
-
-        call compute_gc_orbit_average(context%field, context%electric_potential, &
-            invariants, context%reference_position, parallel_sign, rho0, &
-            context%reference_velocity, eta, orbit_class, winding, &
-            period_estimate, omega_b, omega_phi, q_fieldline, mth, mph, perturbation, &
-            context%orbit_options, result)
-        status = result%status
-    end subroutine evaluate_gc_phase_average
-
     subroutine evaluate_gc_full_orbit_phase_average(context, eta, &
             parallel_direction, orbit_class, period_estimate, omega_b, omega_phi, mth, mph, &
             perturbation, result, status, velocity)
-        !! Full-width counterpart of evaluate_gc_phase_average.  It shares the
-        !! fixed-H, mu, P_phi construction and physical return-map convention
-        !! of evaluate_gc_full_orbit_frequency. The bounce harmonic is the
+        !! Full-width phase average.  It shares the fixed-H, mu, P_phi
+        !! construction and physical return-map convention of
+        !! evaluate_gc_full_orbit_frequency. The bounce harmonic is the
         !! temporal canonical phase, with no Boozer-angle reduction.
         type(gc_frequency_context_t), intent(in) :: context
         real(dp), intent(in) :: eta, period_estimate, omega_b, omega_phi

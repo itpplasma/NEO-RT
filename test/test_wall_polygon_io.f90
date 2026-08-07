@@ -1,12 +1,13 @@
 program test_wall_polygon_io
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_config, only: config_t, configured_wall_file, read_and_set_config, &
-        set_config, validate_frequency_model
+        set_config
     use neort_wall_io, only: WALL_IO_INVALID_UNITS, WALL_IO_MALFORMED_ROW, &
         WALL_IO_MISSING_FILE, WALL_IO_NONFINITE, WALL_IO_NONPOSITIVE_RADIUS, &
         WALL_IO_OK, WALL_IO_SELF_INTERSECTION, WALL_IO_TOO_FEW_VERTICES, &
         WALL_IO_TOO_LONG_RECORD, WALL_IO_ZERO_AREA, &
         load_wall_polygon, wall_polygon_t
+    use driftorbit, only: FREQUENCY_MODEL_BOOZER_THIN, FREQUENCY_MODEL_GC_FULL
 
     implicit none
 
@@ -113,12 +114,9 @@ program test_wall_polygon_io
     if (status /= WALL_IO_TOO_LONG_RECORD) error stop 'overlong wall row was accepted'
 
     config = config_t()
-    config%frequency_model = 0
+    config%frequency_model = FREQUENCY_MODEL_BOOZER_THIN
     config%wall_file = 'wall_file_that_does_not_exist.dat'
     call set_config(config)
-
-    call validate_frequency_model(1, 11, .true., .false., .false., &
-        'wall_file_that_does_not_exist.dat')
 
     call write_file('wall_config.in', '&params'//new_line('a')// &
         '    frequency_model = 0'//new_line('a')// &
@@ -129,7 +127,7 @@ program test_wall_polygon_io
     end if
 
     config = config_t()
-    config%frequency_model = 2
+    config%frequency_model = FREQUENCY_MODEL_GC_FULL
     config%inp_swi = 11
     config%wall_file = 'wall_valid.dat'
     config%wall_units = 'm'
