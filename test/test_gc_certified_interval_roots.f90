@@ -260,11 +260,13 @@ contains
             case (1, 12, 13)
                 value%f = point_interval(x*x + 1.0_dp)
             case (2)
-                value%f = point_interval((x - 1.0_dp)*(x + 2.0_dp))
+                value%f = point_hull((x - 1.0_dp)*(x + 2.0_dp), &
+                    x*x + x - 2.0_dp)
             case (3, 10, 14)
                 value%f = point_interval((x - 0.3_dp)**2)
             case (4)
-                value%f = point_interval((x - 0.2_dp)*(x - 0.21_dp))
+                value%f = point_hull((x - 0.2_dp)*(x - 0.21_dp), &
+                    x*x - 0.41_dp*x + 0.2_dp*0.21_dp)
             case (16)
                 value%f = point_interval(x)
             case (17)
@@ -473,6 +475,19 @@ contains
             value = gc_interval_t(down(number), up(number))
         end if
     end function point_interval
+
+    function point_hull(first, second) result(value)
+        !! Enclose both independently evaluated forms of the manufactured
+        !! polynomial. Floating-point distributivity is not assumed.
+        real(dp), intent(in) :: first, second
+        type(gc_interval_t) :: value
+        if (first == 0.0_dp .and. second == 0.0_dp) then
+            value = gc_interval_t(0.0_dp, 0.0_dp)
+        else
+            value = gc_interval_t(down(min(first, second)), &
+                up(max(first, second)))
+        end if
+    end function point_hull
 
     real(dp) function down(number)
         real(dp), intent(in) :: number

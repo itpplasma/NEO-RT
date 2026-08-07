@@ -394,8 +394,9 @@ contains
         type(gc_model2_harmonic_execution_t), intent(in) :: executed(:)
         integer :: i, j
 
-        valid_requested_harmonic_batch = size(requested) > 0 .and. &
-            size(executed) == size(requested)
+        valid_requested_harmonic_batch = size(requested) > 0
+        if (.not. valid_requested_harmonic_batch) return
+        valid_requested_harmonic_batch = size(executed) == size(requested)
         if (.not. valid_requested_harmonic_batch) return
         do i = 1, size(requested)
             if (count(requested == requested(i)) /= 1) then
@@ -420,6 +421,7 @@ contains
         real(dp) :: difference(GC_NONLOCAL_MAX_FORCE_VALUES), scale
 
         class_reconstruction_matches = .false.
+        if (.not. integral%certified) return
         difference = sum(integral%class_contribution, dim=1) - &
             integral%contribution
         scale = maxval(abs([sum(integral%class_contribution, dim=1), &
