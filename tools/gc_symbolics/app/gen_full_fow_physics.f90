@@ -757,12 +757,10 @@ program gen_full_fow_physics
     ! Axisymmetric invariant and launch algebra.  The signed charge remains
     ! in q*Phi and psi_star; only J_K conversion above uses abs(q).
     invariant_h = p_parallel**2/(2*mass) + mu*bmod + q_phi_energy
-    invariant_pphi = charge/c_light*psi + &
-        p_parallel*radius*cylindrical_bhat_phi
+    invariant_pphi = charge/c_light*psi + p_parallel*radius*bhat2
     invariant_psistar = c_light/charge*invariant_pphi
     invariant_vparallel_squared = 2*(h-mu*bmod-q_phi_energy)/mass
-    invariant_ppar_from_pphi = (p_phi-charge*psi/c_light)/ &
-        (radius*cylindrical_bhat_phi)
+    invariant_ppar_from_pphi = (p_phi-charge*psi/c_light)/(radius*bhat2)
     invariant_ppar_squared = mass**2*invariant_vparallel_squared
     invariant_launch_residual = invariant_ppar_from_pphi**2 - &
         invariant_ppar_squared
@@ -1234,7 +1232,7 @@ program gen_full_fow_physics
     phi_dot_symbol = sym(arena, "phi_dot")
     canonical_p_phi = charge/c_light*psi + p_parallel*b_phi_cov
     canonical_p_phi_cylindrical = charge/c_light*psi + &
-        p_parallel*radius*cylindrical_bhat_phi
+        p_parallel*radius*bhat2
     phase_space_lagrangian = canonical_p_phi*phi_dot_symbol - h
     d_lagrangian_d_phi = diff(phase_space_lagrangian, phi_coordinate)
     d_lagrangian_d_phi_dot = diff(phase_space_lagrangian, phi_dot_symbol)
@@ -1708,10 +1706,14 @@ program gen_full_fow_physics
         vperp_squared_from_jpotato]
     potato_mu_roots = [jpotato_from_mu, mu_from_jpotato]
     cylindrical_hamiltonian_roots = [invariant_h]
-    cylindrical_canonical_roots = [invariant_pphi, invariant_psistar]
+    cylindrical_canonical_roots = [ &
+        subs(invariant_pphi, bhat2, cylindrical_bhat_phi), &
+        subs(invariant_psistar, bhat2, cylindrical_bhat_phi)]
     cylindrical_vparallel_roots = [invariant_vparallel_squared]
-    cylindrical_launch_roots = [invariant_vparallel_squared, &
-        invariant_ppar_from_pphi, invariant_launch_residual]
+    cylindrical_launch_roots = [ &
+        subs(invariant_vparallel_squared, bhat2, cylindrical_bhat_phi), &
+        subs(invariant_ppar_from_pphi, bhat2, cylindrical_bhat_phi), &
+        subs(invariant_launch_residual, bhat2, cylindrical_bhat_phi)]
 
     do k = 1, size(roots)
         simplified = simplify_engine%simplify(roots(k))
