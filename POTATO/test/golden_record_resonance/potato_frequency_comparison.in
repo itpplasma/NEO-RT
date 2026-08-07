@@ -14,7 +14,7 @@
   m_min = -3
   m_max = 3
   n_tor = 2
-  nenergy = 3
+  nenerg = 3
   thermen_max = 3d0
   nbox = 50
   adaptive_jperp = .true.
