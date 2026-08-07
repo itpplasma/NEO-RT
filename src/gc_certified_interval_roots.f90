@@ -872,7 +872,7 @@ contains
 
     subroutine split_box(queue, head, tail)
         type(work_box_t), intent(inout) :: queue(:)
-        integer, intent(in) :: head
+        integer, intent(inout) :: head
         integer, intent(inout) :: tail
         real(dp) :: mid
 
@@ -886,6 +886,7 @@ contains
         queue(tail + 1)%depth = queue(head)%depth + 1
         queue(tail + 2)%depth = queue(head)%depth + 1
         tail = tail + 2
+        head = head + 1
     end subroutine split_box
 
     subroutine append_candidate(candidates, n, root, options, ok)
