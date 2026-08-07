@@ -85,7 +85,8 @@ contains
         end associate
         provider%callback_count = provider%callback_count + 1
         allocate(components(1))
-        components(1) = gc_nonlocal_component_t(1, 1, 0.1_dp, 0.9_dp)
+        components(1) = gc_nonlocal_component_t(component_id=1, sigma=1, &
+            x_min=0.1_dp, x_max=0.9_dp)
         status = GC_NONLOCAL_SUCCESS
     end subroutine mock_get_components
 
