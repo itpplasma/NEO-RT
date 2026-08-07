@@ -568,8 +568,8 @@ contains
             status = GC_CYL_POTENTIAL_ERROR
             return
         end if
-        call gc_cylindrical_rhs(field, gradient, mass, charge, c_light, state, &
-            derivative, dynamics_status)
+        call gc_cylindrical_rhs(field, potential, gradient, mass, charge, &
+            c_light, state, derivative, dynamics_status)
         status = dynamics_status
     end subroutine evaluate_rhs
 

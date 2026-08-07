@@ -22,6 +22,7 @@ program test_gc_cylindrical_dynamics
     type(gc_cylindrical_linear_flux_potential_t) :: electric_potential
     real(dp) :: b(3), db(3, 3), grad_psi(3), gradient(3)
     real(dp) :: derivative(5), potential, reconstructed_potential
+    real(dp) :: hamiltonian_value
     real(dp) :: expected, thin_derivative, full_derivative
     real(dp) :: energy_residual, mu_residual, pphi_residual
     real(dp) :: b_star(3), b_parallel_star, cylindrical_measure, flux_density
@@ -55,7 +56,7 @@ contains
         state%p_parallel = 1.2_dp
         state%mu = 0.7_dp
         gradient = 0.0_dp
-        call gc_cylindrical_rhs(field, gradient, 1.0_dp, 1.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, gradient, 1.0_dp, 1.0_dp, c_light, &
             state, derivative, status)
         if (status /= GC_CYL_SUCCESS) error stop 'grad-B RHS failed'
         expected = state%mu*db(3, 1)/(field%bmod*state%R)
@@ -64,7 +65,7 @@ contains
 
         state%mu = 0.0_dp
         gradient = [0.6_dp, 0.0_dp, 0.0_dp]
-        call gc_cylindrical_rhs(field, gradient, 1.0_dp, 2.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, gradient, 1.0_dp, 2.0_dp, c_light, &
             state, derivative, status)
         expected = c_light*gradient(1)/(field%bmod*state%R)
         call require_close('axial electric phi rate', derivative(3), expected, &
@@ -82,13 +83,13 @@ contains
         state%R = 2.0_dp
         state%p_parallel = 1.0_dp
         gradient = 0.0_dp
-        call gc_cylindrical_rhs(field, gradient, 1.0_dp, 1.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, gradient, 1.0_dp, 1.0_dp, c_light, &
             state, derivative, status)
         if (status /= GC_CYL_SUCCESS) error stop 'curvature RHS failed'
         call require_close('curvature phi rate', derivative(3), 0.5_dp, 1.0e-13_dp)
         call require_close('curvature Z drift', derivative(2), 1.0_dp/6.0_dp, 1.0e-13_dp)
         state%mu = 0.2_dp
-        call gc_cylindrical_rhs(field, gradient, 1.0_dp, 1.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, gradient, 1.0_dp, 1.0_dp, c_light, &
             state, derivative, status)
         call require_close('toroidal grad-B Z drift', derivative(2), &
             1.0_dp/6.0_dp + 0.2_dp/2.0_dp, 1.0e-13_dp)
@@ -105,13 +106,13 @@ contains
         state = gc_cylindrical_state_t()
         state%R = 4.0_dp
         gradient = [0.6_dp, 0.0_dp, 0.0_dp]
-        call gc_cylindrical_rhs(field, gradient, 1.0_dp, 2.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, gradient, 1.0_dp, 2.0_dp, c_light, &
             state, positive_charge, status)
-        call gc_cylindrical_rhs(field, gradient, 1.0_dp, -2.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, gradient, 1.0_dp, -2.0_dp, c_light, &
             state, negative_charge, status)
-        call gc_cylindrical_rhs(field, -gradient, 1.0_dp, -2.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, -gradient, 1.0_dp, -2.0_dp, c_light, &
             state, normalized_reversal, status)
-        call gc_cylindrical_rhs(field, -gradient, 1.0_dp, 2.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, -gradient, 1.0_dp, 2.0_dp, c_light, &
             state, reversed_field, status)
         call require_close('E cross B charge reversal', positive_charge(3), &
             negative_charge(3), 1.0e-13_dp)
@@ -138,19 +139,22 @@ contains
         if (status /= GC_CYL_SUCCESS) error stop 'electric-only field sample failed'
         electric_potential = gc_cylindrical_linear_flux_potential_t()
         electric_potential%coefficient = omega_e/c_light
-        electric_potential%psi_reference = field%psi
+        electric_potential%psi_reference = 0.0_dp
         call electric_potential%evaluate([radius, 0.0_dp, 0.0_dp], field, &
             evaluated_potential, evaluated_gradient, status)
         if (status /= GC_CYL_SUCCESS) error stop 'electric-only potential failed'
         state = gc_cylindrical_state_t()
         state%R = radius
-        call gc_cylindrical_rhs(field, evaluated_gradient, 1.0_dp, 1.0_dp, &
-            c_light, state, derivative, status)
+        call gc_cylindrical_rhs(field, evaluated_potential, evaluated_gradient, &
+            1.0_dp, 1.0_dp, c_light, state, derivative, status, &
+            hamiltonian_value)
         if (status /= GC_CYL_SUCCESS) error stop 'electric-only RHS failed'
         call require_close('exact electric-only angular drift', derivative(3), &
             omega_e, 1.0e-13_dp)
         call require_close('exact electric-only radial drift', derivative(1), &
             0.0_dp, 1.0e-13_dp)
+        call require_close('generated Hamiltonian uses actual Phi', &
+            hamiltonian_value, evaluated_potential, 1.0e-13_dp)
     end subroutine check_exact_electric_only_drift
 
     subroutine check_pitch_invariant_jacobian()
@@ -246,10 +250,11 @@ contains
             radius*expected_bparallel, 1.0e-13_dp)
         section = gc_cylindrical_section_t()
         section%kind = GC_CYL_SECTION_PHI
-        call gc_cylindrical_rhs(field, [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, &
-            c_light, state, derivative, status)
+        call gc_cylindrical_rhs(field, 0.0_dp, &
+            [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, c_light, state, &
+            derivative, status)
         call gc_cylindrical_section_flux_density(field, state, &
-            [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, c_light, section, &
+            0.0_dp, [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, c_light, section, &
             flux_density, status)
         if (status /= GC_CYL_SUCCESS) error stop 'section flux evaluation failed'
         expected_flux = cylindrical_measure*abs(derivative(3))
@@ -271,8 +276,8 @@ contains
             state = gc_cylindrical_state_t()
             state%R = radius
             state%p_parallel = 0.5_dp
-            call gc_cylindrical_rhs(field, [0.0_dp, 0.0_dp, 0.0_dp], &
-                1.0_dp, 1.0_dp, c_light, &
+            call gc_cylindrical_rhs(field, 0.0_dp, &
+                [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, c_light, &
                 state, derivative, status)
             if (status /= GC_CYL_SUCCESS) error stop 'magnetic-axis RHS failed'
             if (any(derivative /= derivative)) error stop 'axis RHS is non-finite'
@@ -288,8 +293,9 @@ contains
         state = gc_cylindrical_state_t()
         state%R = 3.0_dp
         state%mu = -0.1_dp
-        call gc_cylindrical_rhs(field, [0.0_dp, 0.0_dp, 0.0_dp], &
-            1.0_dp, 1.0_dp, c_light, state, derivative, status)
+        call gc_cylindrical_rhs(field, 0.0_dp, &
+            [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, c_light, state, &
+            derivative, status)
         if (status /= GC_CYL_INVALID_INPUT) then
             error stop 'negative physical magnetic moment was accepted'
         end if
@@ -304,13 +310,13 @@ contains
         state = gc_cylindrical_state_t()
         state%R = 3.0_dp
         state%mu = 0.7_dp
-        call gc_cylindrical_rhs(field, [0.0_dp, 0.0_dp, 0.0_dp], &
-            1.0_dp, 1.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, &
+            [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, c_light, &
             state, derivative, status)
         full_derivative = derivative(3)
         state%mu = 0.0_dp
-        call gc_cylindrical_rhs(field, [0.0_dp, 0.0_dp, 0.0_dp], &
-            1.0_dp, 1.0_dp, c_light, &
+        call gc_cylindrical_rhs(field, 0.0_dp, &
+            [0.0_dp, 0.0_dp, 0.0_dp], 1.0_dp, 1.0_dp, c_light, &
             state, derivative, status)
         thin_derivative = derivative(3)
         call require_close('strict thin magnetic-drift limit', thin_derivative, &

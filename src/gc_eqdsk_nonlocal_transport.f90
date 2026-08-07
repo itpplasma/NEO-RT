@@ -2917,7 +2917,7 @@ contains
                 status = GC_CYL_POTENTIAL_ERROR
                 return
             end if
-            call gc_cylindrical_rhs(field, potential_gradient, &
+            call gc_cylindrical_rhs(field, potential, potential_gradient, &
                 factory%species%mass_g, factory%species%charge_esu, c, state, &
                 derivative, dynamics_status)
             if (dynamics_status /= GC_CYL_SUCCESS) then
@@ -3157,9 +3157,9 @@ contains
                 callback_status = potential_status
                 return
             end if
-            call gc_cylindrical_rhs(field, gradient, factory%species%mass_g, &
-                factory%species%charge_esu, c, state, derivative(1:5), &
-                dynamics_status)
+            call gc_cylindrical_rhs(field, potential, gradient, &
+                factory%species%mass_g, factory%species%charge_esu, c, state, &
+                derivative(1:5), dynamics_status)
             if (dynamics_status /= GC_CYL_SUCCESS) then
                 callback_status = dynamics_status
                 return

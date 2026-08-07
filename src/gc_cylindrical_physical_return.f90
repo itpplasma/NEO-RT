@@ -611,8 +611,9 @@ contains
                 call note_callback_failure(GC_CYL_POTENTIAL_ERROR)
                 return
             end if
-            call gc_cylindrical_rhs(local_field, gradient, mass, charge, c_light, &
-                local_state, derivative_array(1:5), dynamics_status)
+            call gc_cylindrical_rhs(local_field, potential, gradient, mass, &
+                charge, c_light, local_state, derivative_array(1:5), &
+                dynamics_status)
             if (dynamics_status /= GC_CYL_SUCCESS) then
                 call note_callback_failure(dynamics_status)
                 return
@@ -681,8 +682,8 @@ contains
                 call note_callback_failure(GC_CYL_POTENTIAL_ERROR)
                 return
             end if
-            call gc_cylindrical_rhs(local_field, gradient, mass, charge, c_light, &
-                state, derivative_array, dynamics_status)
+            call gc_cylindrical_rhs(local_field, potential, gradient, mass, &
+                charge, c_light, state, derivative_array, dynamics_status)
             if (dynamics_status /= GC_CYL_SUCCESS) then
                 call note_callback_failure(dynamics_status)
                 return

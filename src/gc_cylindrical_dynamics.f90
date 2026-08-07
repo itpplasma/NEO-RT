@@ -55,21 +55,25 @@ contains
         status = GC_CYL_SUCCESS
     end subroutine gc_cylindrical_bstar_quantities
 
-    pure subroutine gc_cylindrical_rhs(field, potential_gradient, mass, charge, &
-            c_light, state, derivative, status)
+    pure subroutine gc_cylindrical_rhs(field, potential, potential_gradient, &
+            mass, charge, c_light, state, derivative, status, &
+            hamiltonian_value)
         type(gc_cylindrical_field_sample_t), intent(in) :: field
-        real(dp), intent(in) :: potential_gradient(3), mass, charge, c_light
+        real(dp), intent(in) :: potential, potential_gradient(3)
+        real(dp), intent(in) :: mass, charge, c_light
         type(gc_cylindrical_state_t), intent(in) :: state
         real(dp), intent(out) :: derivative(5)
         integer, intent(out) :: status
+        real(dp), intent(out), optional :: hamiltonian_value
 
         real(dp) :: b_star(3), force(3), cross_force(3), velocity(3)
         real(dp) :: b_parallel_star, cylindrical_measure
         real(dp) :: d_hamiltonian_dt, hamiltonian, canonical_p_phi
 
         derivative = 0.0_dp
+        if (present(hamiltonian_value)) hamiltonian_value = 0.0_dp
         status = GC_CYL_INVALID_INPUT
-        if (.not. all(ieee_is_finite([potential_gradient, mass, charge, &
+        if (.not. all(ieee_is_finite([potential, potential_gradient, mass, charge, &
                 c_light, state%R, state%Z, state%phi, state%p_parallel, &
                 state%mu, field%bmod, field%psi, field%b, field%bhat, &
                 field%curl_bhat, field%grad_b]))) return
@@ -77,7 +81,7 @@ contains
         if (state%mu < 0.0_dp) return
         if (state%R <= 0.0_dp .or. field%bmod <= 0.0_dp) return
         call evaluate_neort_cylindrical_littlejohn(mass, charge, c_light, &
-            state%mu, field%bmod, 0.0_dp, state%R, state%p_parallel, &
+            state%mu, field%bmod, potential, state%R, state%p_parallel, &
             field%psi, field%b(1), field%b(2), field%b(3), field%bhat(1), &
             field%bhat(2), field%bhat(3), field%curl_bhat(1), &
             field%curl_bhat(2), field%curl_bhat(3), field%grad_b(1), &
@@ -100,14 +104,16 @@ contains
             status = GC_CYL_SINGULAR_BSTAR
             return
         end if
+        if (present(hamiltonian_value)) hamiltonian_value = hamiltonian
         status = GC_CYL_SUCCESS
     end subroutine gc_cylindrical_rhs
 
     pure subroutine gc_cylindrical_section_flux_density(field, state, &
-            potential_gradient, mass, charge, c_light, section, flux_density, status)
+            potential, potential_gradient, mass, charge, c_light, section, &
+            flux_density, status)
         type(gc_cylindrical_field_sample_t), intent(in) :: field
         type(gc_cylindrical_state_t), intent(in) :: state
-        real(dp), intent(in) :: potential_gradient(3)
+        real(dp), intent(in) :: potential, potential_gradient(3)
         real(dp), intent(in) :: mass, charge, c_light
         type(gc_cylindrical_section_t), intent(in) :: section
         real(dp), intent(out) :: flux_density
@@ -120,8 +126,8 @@ contains
         integer :: rhs_status, star_status
 
         flux_density = 0.0_dp
-        call gc_cylindrical_rhs(field, potential_gradient, mass, charge, &
-            c_light, state, derivative, rhs_status)
+        call gc_cylindrical_rhs(field, potential, potential_gradient, mass, &
+            charge, c_light, state, derivative, rhs_status)
         if (rhs_status /= GC_CYL_SUCCESS) then
             status = rhs_status
             return
