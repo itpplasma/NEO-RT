@@ -308,7 +308,7 @@ program test_gc_cylindrical_class_adapter
     call require_close(launch_plus%state%p_parallel, MASS*expected_v, &
         'launch p_parallel is not m*v_parallel', 1.0e-12_dp)
     call require_close(launch_plus%state%mu, &
-        MASS*JPERP_REFERENCE*abs(CHARGE)/C_LIGHT, &
+        JPERP_REFERENCE*abs(CHARGE)/(MASS*C_LIGHT), &
         'launch magnetic moment/action conversion', 1.0e-12_dp)
     call launch_gc_cylindrical_class(split_adapter, RC_MIN, 1, tangent_id, &
         launch_tangent, status)
