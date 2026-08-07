@@ -32,6 +32,9 @@ program test_gc_eqdsk_cut_graph_atlas
         zet(nzet), options, status)
     if (status /= EQDSK_CUT_ATLAS_SUCCESS) then
         write (*, '(a,1x,i0)') 'full circular atlas status', status
+        write (*, '(a,2(1x,i0),2(1x,es24.16))') &
+            'failure cell/depth/R', atlas%failure_cell_R, &
+            atlas%failure_r_depth, atlas%failure_r_lo, atlas%failure_r_hi
     end if
     call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
         'full circular cut graph was not certified')

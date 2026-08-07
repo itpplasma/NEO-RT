@@ -67,6 +67,10 @@ module neort_gc_eqdsk_cut_graph_atlas
         type(eqdsk_cut_graph_atlas_strip_t), allocatable :: strips(:)
         integer :: certificate_id = 0
         logical :: global_completeness_certified = .false.
+        integer :: failure_cell_R = 0
+        integer :: failure_r_depth = 0
+        real(dp) :: failure_r_lo = 0.0_dp
+        real(dp) :: failure_r_hi = 0.0_dp
     end type eqdsk_cut_graph_atlas_t
 
     public :: build_eqdsk_cut_graph_atlas
@@ -126,7 +130,7 @@ contains
             call certify_r_slab(atlas, cell_R, slab_lo, slab_hi, 0, &
                 local_status)
             if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
-                call clear_eqdsk_cut_graph_atlas(atlas)
+                call invalidate_eqdsk_cut_graph_atlas(atlas)
                 status = local_status
                 return
             end if
@@ -157,6 +161,10 @@ contains
         atlas%options = eqdsk_cut_graph_atlas_options_t()
         atlas%certificate_id = 0
         atlas%global_completeness_certified = .false.
+        atlas%failure_cell_R = 0
+        atlas%failure_r_depth = 0
+        atlas%failure_r_lo = 0.0_dp
+        atlas%failure_r_hi = 0.0_dp
     end subroutine clear_eqdsk_cut_graph_atlas
 
     subroutine validate_eqdsk_cut_graph_atlas(atlas, status)
@@ -294,6 +302,10 @@ contains
         end if
         if (depth >= atlas%options%max_r_depth .or. &
                 r_hi-r_lo <= atlas%options%minimum_r_width) then
+            atlas%failure_cell_R = cell_R
+            atlas%failure_r_depth = depth
+            atlas%failure_r_lo = r_lo
+            atlas%failure_r_hi = r_hi
             if (outcome == Z_COVER_MULTIPLE) then
                 status = EQDSK_CUT_ATLAS_MULTIPLE_BANDS
             else
@@ -653,6 +665,14 @@ contains
         extended(count+1) = strip
         call move_alloc(extended, atlas%strips)
     end subroutine append_strip
+
+    subroutine invalidate_eqdsk_cut_graph_atlas(atlas)
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
+
+        if (allocated(atlas%strips)) deallocate(atlas%strips)
+        atlas%certificate_id = 0
+        atlas%global_completeness_certified = .false.
+    end subroutine invalidate_eqdsk_cut_graph_atlas
 
     integer function validate_grid()
         integer :: i
