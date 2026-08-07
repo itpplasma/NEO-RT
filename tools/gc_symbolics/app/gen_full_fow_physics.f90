@@ -217,7 +217,7 @@ program gen_full_fow_physics
     type(expr_t) :: mu_from_jpotato
     type(expr_t) :: invariant_h, invariant_pphi, invariant_psistar
     type(expr_t) :: invariant_vparallel_squared, invariant_ppar_from_pphi
-    type(expr_t) :: invariant_launch_residual
+    type(expr_t) :: invariant_ppar_squared, invariant_launch_residual
     type(engine_result_t) :: simplified
     type(engine_result_t) :: resonance_series
     character(2048) :: output_path
@@ -425,8 +425,9 @@ program gen_full_fow_physics
     invariant_psistar = c_light/charge*invariant_pphi
     invariant_vparallel_squared = 2*(h-mu*bmod-q_phi_energy)/mass
     invariant_ppar_from_pphi = (p_phi-charge*psi/c_light)/(radius*bhat2)
+    invariant_ppar_squared = mass**2*invariant_vparallel_squared
     invariant_launch_residual = invariant_ppar_from_pphi**2 - &
-        invariant_vparallel_squared
+        invariant_ppar_squared
 
     ! ------------------------------------------------------------------
     ! Central cylindrical Littlejohn kernel.  Components use (R,phi,Z)
@@ -931,6 +932,9 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "axisymmetric invariant canonical flux definition", &
         invariant_psistar-c_light/charge*invariant_pphi)
+    call check_identity(proofs, proof_engine, &
+        "fixed-H launch compares parallel momentum squared", &
+        invariant_ppar_squared-2*mass*(h-mu*bmod-q_phi_energy))
     call check_identity(proofs, proof_engine, "force dot b cross force", &
         force1*cross1 + force2*cross2 + force3*cross3)
     call check_identity(proofs, proof_engine, "B-star cancellation in dH/dt", &
