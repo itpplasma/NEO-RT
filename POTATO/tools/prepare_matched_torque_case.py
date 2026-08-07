@@ -73,6 +73,7 @@ def main() -> None:
     write_relative_field(args.output / "bmod_n.dat", r, z)
     (args.output / "profile_poly_torque.in").write_text(
         "% density, dummy, temperature, zero potential; descending powers of s_pol\n"
+        "% matched linear thermodynamic profiles; no radial electric field\n"
         "0 0 0 0 0 0 0 0 -2.5e13 5.0e13\n"
         "0 0 0 0 0 0 0 0 0 0\n"
         "0 0 0 0 0 0 0 0 -1.4e3 2.0e3\n"
