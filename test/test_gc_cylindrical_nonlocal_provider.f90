@@ -491,6 +491,8 @@ contains
         orbit%section%reference = state%expected_reference
         orbit%section%reference_id = 'manufactured-section'
         orbit%section%locked = .true.
+        orbit%section%required_return_crossings = 2
+        orbit%section%return_crossings = 2
         if (state%bad_identity) orbit%component_id = component_id + 100
         if (state%bad_reference) orbit%section%reference(1) = &
             orbit%section%reference(1) + 0.01_dp
