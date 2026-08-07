@@ -278,6 +278,14 @@ contains
         nullify(adapter%cut_map)
         nullify(adapter%splitter)
         nullify(adapter%user_data)
+        adapter%h0 = 0.0_dp
+        adapter%jperp = 0.0_dp
+        adapter%mass = 0.0_dp
+        adapter%charge = 0.0_dp
+        adapter%c_light = 0.0_dp
+        adapter%rc_min = 0.0_dp
+        adapter%rc_max = 0.0_dp
+        adapter%options = gc_cylindrical_class_options_t()
         adapter%initialized = .false.
         adapter%classes_enumerated = .false.
         adapter%class_complete = .false.
