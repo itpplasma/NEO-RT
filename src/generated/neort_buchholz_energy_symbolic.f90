@@ -9,23 +9,18 @@ module neort_buchholz_energy_symbolic
     public :: evaluate_neort_buchholz_energy
 contains
 
-    pure subroutine evaluate_neort_buchholz_energy(J_K                                                             , mass                                                            , charge                                                          , c_light                                                         , bmod                                                            , omega_c                                                         , v_perp_squared_from_J_K                                         , specific_energy_from_J_K                                        )
+    pure subroutine evaluate_neort_buchholz_energy(J_K, mass, charge, c_light, bmod, omega_c, &
+            v_perp_squared_from_J_K, specific_energy_from_J_K)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: J_K                                                             , &
-            mass                                                            , &
-            charge                                                          , &
-            c_light                                                         , &
-            bmod                                                            
-        real(dp), intent(out) :: omega_c                                                         , &
-            v_perp_squared_from_J_K                                         , &
-            specific_energy_from_J_K                                        
+        real(dp), intent(in) :: J_K, mass, charge, c_light, bmod
+        real(dp), intent(out) :: omega_c, v_perp_squared_from_J_K, specific_energy_from_J_K
         real(dp) :: t1
 
         t1 = abs(charge)
-        omega_c                                                          = bmod*t1/c_light/mass
-        v_perp_squared_from_J_K                                          = J_K*bmod*t1*2/c_light/mass**2
-        specific_energy_from_J_K                                         = J_K*bmod*t1/c_light/mass**2
+        omega_c = bmod*t1/c_light/mass
+        v_perp_squared_from_J_K = J_K*bmod*t1*2/c_light/mass**2
+        specific_energy_from_J_K = J_K*bmod*t1/c_light/mass**2
 
     end subroutine evaluate_neort_buchholz_energy
 

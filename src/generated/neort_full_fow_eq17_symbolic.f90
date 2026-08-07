@@ -9,22 +9,15 @@ module neort_full_fow_eq17_symbolic
     public :: evaluate_neort_eq17_force
 contains
 
-    pure subroutine evaluate_neort_eq17_force(h                                                               , charge                                                          , electrostatic_potential                                         , temperature                                                     , a1                                                              , a2                                                              , q_phi_energy                                                    , force_bracket                                                   )
+    pure subroutine evaluate_neort_eq17_force(h, charge, electrostatic_potential, temperature, a1, a2, &
+            q_phi_energy, force_bracket)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: h                                                               , &
-            charge                                                          , &
-            electrostatic_potential                                         , &
-            temperature                                                     , &
-            a1                                                              , &
-            a2                                                              
-        real(dp), intent(out) :: q_phi_energy                                                    , &
-            force_bracket                                                   
+        real(dp), intent(in) :: h, charge, electrostatic_potential, temperature, a1, a2
+        real(dp), intent(out) :: q_phi_energy, force_bracket
 
-        q_phi_energy                                                     = charge* &
-            electrostatic_potential
-        force_bracket                                                    = a1 + a2*(h - charge* &
-            electrostatic_potential)/temperature
+        q_phi_energy = charge*electrostatic_potential
+        force_bracket = a1 + a2*(h - charge*electrostatic_potential)/temperature
 
     end subroutine evaluate_neort_eq17_force
 

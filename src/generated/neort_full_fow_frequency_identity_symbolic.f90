@@ -9,23 +9,17 @@ module neort_full_fow_frequency_identity_symbolic
     public :: evaluate_neort_frequency_phase_identity
 contains
 
-    pure subroutine evaluate_neort_frequency_phase_identity(dpsi_star_dx                                                    , abs_Hm_squared                                                  , tau_b                                                           , n_mode                                                          , g_prime                                                         , n_squared_frequency_contribution                                , phase_contribution_identity                                     )
+    pure subroutine evaluate_neort_frequency_phase_identity(dpsi_star_dx, abs_Hm_squared, tau_b, n_mode, &
+            g_prime, n_squared_frequency_contribution, phase_contribution_identity)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: dpsi_star_dx                                                    , &
-            abs_Hm_squared                                                  , &
-            tau_b                                                           , &
-            n_mode                                                          , &
-            g_prime                                                         
-        real(dp), intent(out) :: n_squared_frequency_contribution                                , &
-            phase_contribution_identity                                     
+        real(dp), intent(in) :: dpsi_star_dx, abs_Hm_squared, tau_b, n_mode, g_prime
+        real(dp), intent(out) :: n_squared_frequency_contribution, phase_contribution_identity
         real(dp) :: t1
 
         t1 = abs(dpsi_star_dx)
-        n_squared_frequency_contribution                                 = abs_Hm_squared*tau_b*t1* &
-            n_mode**2/abs(g_prime*n_mode/tau_b)
-        phase_contribution_identity                                      = abs_Hm_squared*t1*abs(n_mode) &
-            *tau_b**2/abs(g_prime)
+        n_squared_frequency_contribution = abs_Hm_squared*tau_b*t1*n_mode**2/abs(g_prime*n_mode/tau_b)
+        phase_contribution_identity = abs_Hm_squared*t1*abs(n_mode)*tau_b**2/abs(g_prime)
 
     end subroutine evaluate_neort_frequency_phase_identity
 

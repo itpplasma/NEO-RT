@@ -9,21 +9,17 @@ module neort_physical_mu_symbolic
     public :: evaluate_neort_physical_mu
 contains
 
-    pure subroutine evaluate_neort_physical_mu(v_perp                                                          , mass                                                            , bmod                                                            , mu_phys                                                         , mu_phys_from_v_perp                                             , v_perp_squared_from_mu_phys                                     , specific_energy_from_mu_phys                                    )
+    pure subroutine evaluate_neort_physical_mu(v_perp, mass, bmod, mu_phys, mu_phys_from_v_perp, &
+            v_perp_squared_from_mu_phys, specific_energy_from_mu_phys)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: v_perp                                                          , &
-            mass                                                            , &
-            bmod                                                            , &
-            mu_phys                                                         
-        real(dp), intent(out) :: mu_phys_from_v_perp                                             , &
-            v_perp_squared_from_mu_phys                                     , &
-            specific_energy_from_mu_phys                                    
+        real(dp), intent(in) :: v_perp, mass, bmod, mu_phys
+        real(dp), intent(out) :: mu_phys_from_v_perp, v_perp_squared_from_mu_phys, &
+            specific_energy_from_mu_phys
 
-        mu_phys_from_v_perp                                              = mass*v_perp**2*1.0_dp/2.0_dp/ &
-            bmod
-        v_perp_squared_from_mu_phys                                      = bmod*mu_phys*2/mass
-        specific_energy_from_mu_phys                                     = bmod*mu_phys/mass
+        mu_phys_from_v_perp = mass*v_perp**2*1.0_dp/2.0_dp/bmod
+        v_perp_squared_from_mu_phys = bmod*mu_phys*2/mass
+        specific_energy_from_mu_phys = bmod*mu_phys/mass
 
     end subroutine evaluate_neort_physical_mu
 

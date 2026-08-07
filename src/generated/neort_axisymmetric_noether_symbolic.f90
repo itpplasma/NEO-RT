@@ -9,27 +9,21 @@ module neort_axisymmetric_noether_symbolic
     public :: evaluate_neort_axisymmetric_noether
 contains
 
-    pure subroutine evaluate_neort_axisymmetric_noether(charge                                                          , c_light                                                         , psi                                                             , b_phi_cov                                                       , p_parallel                                                      , h                                                               , phi_dot                                                         , canonical_p_phi                                                 , d_canonical_p_phi_dt_from_noether                               , d_lagrangian_d_phi_dot                                          , canonical_p_phi_residual                                        )
+    pure subroutine evaluate_neort_axisymmetric_noether(charge, c_light, psi, b_phi_cov, p_parallel, h, &
+            phi_dot, canonical_p_phi, d_canonical_p_phi_dt_from_noether, d_lagrangian_d_phi_dot, &
+            canonical_p_phi_residual)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: charge                                                          , &
-            c_light                                                         , &
-            psi                                                             , &
-            b_phi_cov                                                       , &
-            p_parallel                                                      , &
-            h                                                               , &
-            phi_dot                                                         
-        real(dp), intent(out) :: canonical_p_phi                                                 , &
-            d_canonical_p_phi_dt_from_noether                               , &
-            d_lagrangian_d_phi_dot                                          , &
-            canonical_p_phi_residual                                        
+        real(dp), intent(in) :: charge, c_light, psi, b_phi_cov, p_parallel, h, phi_dot
+        real(dp), intent(out) :: canonical_p_phi, d_canonical_p_phi_dt_from_noether, &
+            d_lagrangian_d_phi_dot, canonical_p_phi_residual
         real(dp) :: t1
 
         t1 = b_phi_cov*p_parallel + charge*psi/c_light
-        canonical_p_phi                                                  = t1
-        d_canonical_p_phi_dt_from_noether                                = 0
-        d_lagrangian_d_phi_dot                                           = t1
-        canonical_p_phi_residual                                         = 0
+        canonical_p_phi = t1
+        d_canonical_p_phi_dt_from_noether = 0
+        d_lagrangian_d_phi_dot = t1
+        canonical_p_phi_residual = 0
 
     end subroutine evaluate_neort_axisymmetric_noether
 

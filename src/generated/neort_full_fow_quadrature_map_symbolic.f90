@@ -9,46 +9,30 @@ module neort_full_fow_quadrature_map_symbolic
     public :: evaluate_neort_full_fow_quadrature_map
 contains
 
-    pure subroutine evaluate_neort_full_fow_quadrature_map(mass                                                            , charge                                                          , c_light                                                         , Eref                                                            , energy_unit_node                                                , energy_unit_weight                                              , action_unit_node                                                , action_unit_weight                                              , qPhi_min                                                        , J_K_max_physical                                                , H_hat                                                           , H_physical                                                      , energy_normalized_weight                                        , J_K_hat_max                                                     , J_K_hat                                                         , J_K_physical                                                    , action_normalized_weight                                        , paired_weight                                                   )
+    pure subroutine evaluate_neort_full_fow_quadrature_map(mass, charge, c_light, Eref, &
+            energy_unit_node, energy_unit_weight, action_unit_node, action_unit_weight, qPhi_min, &
+            J_K_max_physical, H_hat, H_physical, energy_normalized_weight, J_K_hat_max, J_K_hat, J_K_physical, &
+            action_normalized_weight, paired_weight)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mass                                                            , &
-            charge                                                          , &
-            c_light                                                         , &
-            Eref                                                            , &
-            energy_unit_node                                                , &
-            energy_unit_weight                                              , &
-            action_unit_node                                                , &
-            action_unit_weight                                              , &
-            qPhi_min                                                        , &
-            J_K_max_physical                                                
-        real(dp), intent(out) :: H_hat                                                           , &
-            H_physical                                                      , &
-            energy_normalized_weight                                        , &
-            J_K_hat_max                                                     , &
-            J_K_hat                                                         , &
-            J_K_physical                                                    , &
-            action_normalized_weight                                        , &
-            paired_weight                                                   
+        real(dp), intent(in) :: mass, charge, c_light, Eref, energy_unit_node, energy_unit_weight, &
+            action_unit_node, action_unit_weight, qPhi_min, J_K_max_physical
+        real(dp), intent(out) :: H_hat, H_physical, energy_normalized_weight, J_K_hat_max, J_K_hat, &
+            J_K_physical, action_normalized_weight, paired_weight
         real(dp) :: t1, t2, t3, t4
 
         t1 = -energy_unit_node + 1
         t2 = energy_unit_node/t1 + qPhi_min/Eref
         t3 = t1**(-1) + energy_unit_node/t1**2
         t4 = abs(charge)
-        H_hat                                                            = t2
-        H_physical                                                       = Eref*t2
-        energy_normalized_weight                                         = energy_unit_weight*t3
-        J_K_hat_max                                                      = J_K_max_physical*t4/Eref/ &
-            c_light/mass
-        J_K_hat                                                          = J_K_max_physical* &
-            action_unit_node*t4/Eref/c_light/mass
-        J_K_physical                                                     = J_K_max_physical* &
-            action_unit_node
-        action_normalized_weight                                         = J_K_max_physical* &
-            action_unit_weight*t4/Eref/c_light/mass
-        paired_weight                                                    = J_K_max_physical* &
-            action_unit_weight*energy_unit_weight*t4*t3/Eref/c_light/mass
+        H_hat = t2
+        H_physical = Eref*t2
+        energy_normalized_weight = energy_unit_weight*t3
+        J_K_hat_max = J_K_max_physical*t4/Eref/c_light/mass
+        J_K_hat = J_K_max_physical*action_unit_node*t4/Eref/c_light/mass
+        J_K_physical = J_K_max_physical*action_unit_node
+        action_normalized_weight = J_K_max_physical*action_unit_weight*t4/Eref/c_light/mass
+        paired_weight = J_K_max_physical*action_unit_weight*energy_unit_weight*t4*t3/Eref/c_light/mass
 
     end subroutine evaluate_neort_full_fow_quadrature_map
 

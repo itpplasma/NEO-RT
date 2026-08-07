@@ -9,29 +9,16 @@ module neort_axisymmetric_pphi_symbolic
     public :: evaluate_neort_axisymmetric_p_phi
 contains
 
-    pure subroutine evaluate_neort_axisymmetric_p_phi(mass                                                            , charge                                                          , c_light                                                         , mu                                                              , radius                                                          , p_parallel                                                      , psi_axis                                                        , Bmod_axis                                                       , bhat_R_axis                                                     , bhat_phi_axis                                                   , bhat_Z_axis                                                     , curl_bhat_phi_axis                                              , d_bhat_phi_d_R_axis                                             , d_bhat_phi_d_Z_axis                                             , grad_b_R_axis                                                   , grad_b_Z_axis                                                   , Phi_psi_axis                                                    , canonical_p_phi                                                 , d_canonical_p_phi_dt                                            , p_phi_dot_minus_zero                                            )
+    pure subroutine evaluate_neort_axisymmetric_p_phi(mass, charge, c_light, mu, radius, p_parallel, &
+            psi_axis, Bmod_axis, bhat_R_axis, bhat_phi_axis, bhat_Z_axis, curl_bhat_phi_axis, &
+            d_bhat_phi_d_R_axis, d_bhat_phi_d_Z_axis, grad_b_R_axis, grad_b_Z_axis, Phi_psi_axis, &
+            canonical_p_phi, d_canonical_p_phi_dt, p_phi_dot_minus_zero)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mass                                                            , &
-            charge                                                          , &
-            c_light                                                         , &
-            mu                                                              , &
-            radius                                                          , &
-            p_parallel                                                      , &
-            psi_axis                                                        , &
-            Bmod_axis                                                       , &
-            bhat_R_axis                                                     , &
-            bhat_phi_axis                                                   , &
-            bhat_Z_axis                                                     , &
-            curl_bhat_phi_axis                                              , &
-            d_bhat_phi_d_R_axis                                             , &
-            d_bhat_phi_d_Z_axis                                             , &
-            grad_b_R_axis                                                   , &
-            grad_b_Z_axis                                                   , &
-            Phi_psi_axis                                                    
-        real(dp), intent(out) :: canonical_p_phi                                                 , &
-            d_canonical_p_phi_dt                                            , &
-            p_phi_dot_minus_zero                                            
+        real(dp), intent(in) :: mass, charge, c_light, mu, radius, p_parallel, psi_axis, Bmod_axis, &
+            bhat_R_axis, bhat_phi_axis, bhat_Z_axis, curl_bhat_phi_axis, d_bhat_phi_d_R_axis, &
+            d_bhat_phi_d_Z_axis, grad_b_R_axis, grad_b_Z_axis, Phi_psi_axis
+        real(dp), intent(out) :: canonical_p_phi, d_canonical_p_phi_dt, p_phi_dot_minus_zero
         real(dp) :: t1, t2, t3, t4, t5, t6, t7
 
         t1 = Bmod_axis*bhat_R_axis - c_light*d_bhat_phi_d_Z_axis*p_parallel/charge
@@ -50,10 +37,9 @@ contains
             bhat_phi_axis*(Bmod_axis*bhat_phi_axis + c_light*curl_bhat_phi_axis*p_parallel/charge)) + &
             p_parallel*(bhat_phi_axis + d_bhat_phi_d_R_axis*radius)*t6/(bhat_R_axis*t1 + bhat_Z_axis*t2 + &
             bhat_phi_axis*(Bmod_axis*bhat_phi_axis + c_light*curl_bhat_phi_axis*p_parallel/charge))
-        canonical_p_phi                                                  = bhat_phi_axis*p_parallel* &
-            radius + charge*psi_axis/c_light
-        d_canonical_p_phi_dt                                             = t7
-        p_phi_dot_minus_zero                                             = t7
+        canonical_p_phi = bhat_phi_axis*p_parallel*radius + charge*psi_axis/c_light
+        d_canonical_p_phi_dt = t7
+        p_phi_dot_minus_zero = t7
 
     end subroutine evaluate_neort_axisymmetric_p_phi
 

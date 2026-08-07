@@ -9,22 +9,17 @@ module neort_full_fow_eq17_outer_symbolic
     public :: evaluate_neort_eq17_outer_factor
 contains
 
-    pure subroutine evaluate_neort_eq17_outer_factor(Eref                                                            , Phi_eff                                                         , n0                                                              , temperature                                                     , charge                                                          , electrostatic_potential                                         , h                                                               , residence                                                       , eq17_outer_factor                                               )
+    pure subroutine evaluate_neort_eq17_outer_factor(Eref, Phi_eff, n0, temperature, charge, &
+            electrostatic_potential, h, residence, eq17_outer_factor)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: Eref                                                            , &
-            Phi_eff                                                         , &
-            n0                                                              , &
-            temperature                                                     , &
-            charge                                                          , &
-            electrostatic_potential                                         , &
-            h                                                               , &
-            residence                                                       
-        real(dp), intent(out) :: eq17_outer_factor                                               
+        real(dp), intent(in) :: Eref, Phi_eff, n0, temperature, charge, electrostatic_potential, h, &
+            residence
+        real(dp), intent(out) :: eq17_outer_factor
 
-        eq17_outer_factor                                                = -Eref*n0*phi_eff*residence* &
-            exp((charge*electrostatic_potential - h)/temperature)*3.1415926535897931E+000_dp**(3.0_dp/2.0_dp)* &
-            1.0_dp/4.0_dp/(temperature/Eref)**(3.0_dp/2.0_dp)
+        eq17_outer_factor = -Eref*n0*phi_eff*residence*exp((charge*electrostatic_potential - h)/ &
+            temperature)*3.1415926535897931E+000_dp**(3.0_dp/2.0_dp)*1.0_dp/4.0_dp/(temperature/Eref)**(3.0_dp/ &
+            2.0_dp)
 
     end subroutine evaluate_neort_eq17_outer_factor
 

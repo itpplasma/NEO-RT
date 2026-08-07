@@ -9,21 +9,17 @@ module neort_buchholz_action_symbolic
     public :: evaluate_neort_buchholz_action
 contains
 
-    pure subroutine evaluate_neort_buchholz_action(mu_phys                                                         , J_K                                                             , mass                                                            , charge                                                          , c_light                                                         , J_K_from_mu_phys                                                , mu_phys_from_J_K                                                )
+    pure subroutine evaluate_neort_buchholz_action(mu_phys, J_K, mass, charge, c_light, &
+            J_K_from_mu_phys, mu_phys_from_J_K)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mu_phys                                                         , &
-            J_K                                                             , &
-            mass                                                            , &
-            charge                                                          , &
-            c_light                                                         
-        real(dp), intent(out) :: J_K_from_mu_phys                                                , &
-            mu_phys_from_J_K                                                
+        real(dp), intent(in) :: mu_phys, J_K, mass, charge, c_light
+        real(dp), intent(out) :: J_K_from_mu_phys, mu_phys_from_J_K
         real(dp) :: t1
 
         t1 = abs(charge)
-        J_K_from_mu_phys                                                 = c_light*mass*mu_phys/t1
-        mu_phys_from_J_K                                                 = J_K*t1/c_light/mass
+        J_K_from_mu_phys = c_light*mass*mu_phys/t1
+        mu_phys_from_J_K = J_K*t1/c_light/mass
 
     end subroutine evaluate_neort_buchholz_action
 

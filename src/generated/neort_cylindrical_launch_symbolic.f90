@@ -9,31 +9,21 @@ module neort_cylindrical_launch_symbolic
     public :: evaluate_neort_cylindrical_launch
 contains
 
-    pure subroutine evaluate_neort_cylindrical_launch(mass                                                            , charge                                                          , c_light                                                         , mu                                                              , bmod                                                            , electrostatic_potential                                         , radius                                                          , psi                                                             , bhat_phi                                                        , h                                                               , p_phi                                                           , v_parallel_squared                                              , p_parallel_from_p_phi                                           , launch_energy_residual                                          )
+    pure subroutine evaluate_neort_cylindrical_launch(mass, charge, c_light, mu, bmod, &
+            electrostatic_potential, radius, psi, bhat_phi, h, p_phi, v_parallel_squared, p_parallel_from_p_phi, &
+            launch_energy_residual)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mass                                                            , &
-            charge                                                          , &
-            c_light                                                         , &
-            mu                                                              , &
-            bmod                                                            , &
-            electrostatic_potential                                         , &
-            radius                                                          , &
-            psi                                                             , &
-            bhat_phi                                                        , &
-            h                                                               , &
-            p_phi                                                           
-        real(dp), intent(out) :: v_parallel_squared                                              , &
-            p_parallel_from_p_phi                                           , &
-            launch_energy_residual                                          
+        real(dp), intent(in) :: mass, charge, c_light, mu, bmod, electrostatic_potential, radius, psi, &
+            bhat_phi, h, p_phi
+        real(dp), intent(out) :: v_parallel_squared, p_parallel_from_p_phi, launch_energy_residual
         real(dp) :: t1, t2
 
         t1 = h - bmod*mu - charge*electrostatic_potential
         t2 = p_phi - charge*psi/c_light
-        v_parallel_squared                                               = t1*2/mass
-        p_parallel_from_p_phi                                            = t2/bhat2/radius
-        launch_energy_residual                                           = -mass*t1*2 + t2**2/bhat2**2/ &
-            radius**2
+        v_parallel_squared = t1*2/mass
+        p_parallel_from_p_phi = t2/bhat2/radius
+        launch_energy_residual = -mass*t1*2 + t2**2/bhat2**2/radius**2
 
     end subroutine evaluate_neort_cylindrical_launch
 

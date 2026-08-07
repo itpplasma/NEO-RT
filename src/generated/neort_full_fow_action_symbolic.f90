@@ -9,45 +9,33 @@ module neort_full_fow_action_symbolic
     public :: evaluate_neort_action_normalization
 contains
 
-    pure subroutine evaluate_neort_action_normalization(mass                                                            , charge                                                          , c_light                                                         , mu                                                              , bmod                                                            , h                                                               , electrostatic_potential                                         , p_phi                                                           , omega_c_value                                                   , j_k                                                             , omega_c                                                         , j_k_omega_c                                                     , j_k_candidate                                                   , j_k_max                                                         , d_j_k_candidate_d_h                                             , d_j_k_candidate_d_potential                                     , d_j_k_candidate_d_omega_c                                       , eq4_coefficient                                                 , psi_star                                                        , d_psi_star_d_p_phi                                              )
+    pure subroutine evaluate_neort_action_normalization(mass, charge, c_light, mu, bmod, h, &
+            electrostatic_potential, p_phi, omega_c_value, j_k, omega_c, j_k_omega_c, j_k_candidate, j_k_max, &
+            d_j_k_candidate_d_h, d_j_k_candidate_d_potential, d_j_k_candidate_d_omega_c, eq4_coefficient, &
+            psi_star, d_psi_star_d_p_phi)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mass                                                            , &
-            charge                                                          , &
-            c_light                                                         , &
-            mu                                                              , &
-            bmod                                                            , &
-            h                                                               , &
-            electrostatic_potential                                         , &
-            p_phi                                                           , &
-            omega_c_value                                                   
-        real(dp), intent(out) :: j_k                                                             , &
-            omega_c                                                         , &
-            j_k_omega_c                                                     , &
-            j_k_candidate                                                   , &
-            j_k_max                                                         , &
-            d_j_k_candidate_d_h                                             , &
-            d_j_k_candidate_d_potential                                     , &
-            d_j_k_candidate_d_omega_c                                       , &
-            eq4_coefficient                                                 , &
-            psi_star                                                        , &
-            d_psi_star_d_p_phi                                              
+        real(dp), intent(in) :: mass, charge, c_light, mu, bmod, h, electrostatic_potential, p_phi, &
+            omega_c_value
+        real(dp), intent(out) :: j_k, omega_c, j_k_omega_c, j_k_candidate, j_k_max, d_j_k_candidate_d_h, &
+            d_j_k_candidate_d_potential, d_j_k_candidate_d_omega_c, eq4_coefficient, psi_star, &
+            d_psi_star_d_p_phi
         real(dp) :: t1, t2, t3
 
         t1 = abs(charge)
         t2 = h - charge*electrostatic_potential
         t3 = c_light*mass*t2/bmod/t1
-        j_k                                                              = c_light*mass*mu/t1
-        omega_c                                                          = bmod*t1/c_light/mass
-        j_k_omega_c                                                      = bmod*mu
-        j_k_candidate                                                    = t3
-        j_k_max                                                          = max(0, t3)
-        d_j_k_candidate_d_h                                              = c_light*mass/bmod/t1
-        d_j_k_candidate_d_potential                                      = -c_light*charge*mass/bmod/t1
-        d_j_k_candidate_d_omega_c                                        = -t2/omega_c_value**2
-        eq4_coefficient                                                  = -bmod*mu + t2*2
-        psi_star                                                         = c_light*p_phi/charge
-        d_psi_star_d_p_phi                                               = c_light/charge
+        j_k = c_light*mass*mu/t1
+        omega_c = bmod*t1/c_light/mass
+        j_k_omega_c = bmod*mu
+        j_k_candidate = t3
+        j_k_max = max(0, t3)
+        d_j_k_candidate_d_h = c_light*mass/bmod/t1
+        d_j_k_candidate_d_potential = -c_light*charge*mass/bmod/t1
+        d_j_k_candidate_d_omega_c = -t2/omega_c_value**2
+        eq4_coefficient = -bmod*mu + t2*2
+        psi_star = c_light*p_phi/charge
+        d_psi_star_d_p_phi = c_light/charge
 
     end subroutine evaluate_neort_action_normalization
 

@@ -9,55 +9,20 @@ module neort_cylindrical_littlejohn_symbolic
     public :: evaluate_neort_cylindrical_littlejohn
 contains
 
-    pure subroutine evaluate_neort_cylindrical_littlejohn(mass                                                            , charge                                                          , c_light                                                         , mu                                                              , bmod                                                            , electrostatic_potential                                         , radius                                                          , p_parallel                                                      , psi                                                             , b1                                                              , b2                                                              , b3                                                              , bhat1                                                           , bhat2                                                           , bhat3                                                           , curl_bhat1                                                      , curl_bhat2                                                      , curl_bhat3                                                      , grad_b1                                                         , grad_b2                                                         , grad_b3                                                         , grad_phi1                                                       , grad_phi2                                                       , grad_phi3                                                       , b_star_1                                                        , b_star_2                                                        , b_star_3                                                        , b_parallel_star                                                 , force_1                                                         , force_2                                                         , force_3                                                         , cross_1                                                         , cross_2                                                         , cross_3                                                         , v_r                                                             , v_phi                                                           , v_z                                                             , dot_r                                                           , dot_z                                                           , dot_phi                                                         , dot_p_parallel                                                  , dot_mu                                                          , cylindrical_measure                                             , d_hamiltonian_dt                                                , hamiltonian                                                     , canonical_p_phi                                                 )
+    pure subroutine evaluate_neort_cylindrical_littlejohn(mass, charge, c_light, mu, bmod, &
+            electrostatic_potential, radius, p_parallel, psi, b1, b2, b3, bhat1, bhat2, bhat3, curl_bhat1, &
+            curl_bhat2, curl_bhat3, grad_b1, grad_b2, grad_b3, grad_phi1, grad_phi2, grad_phi3, b_star_1, &
+            b_star_2, b_star_3, b_parallel_star, force_1, force_2, force_3, cross_1, cross_2, cross_3, v_r, &
+            v_phi, v_z, dot_r, dot_z, dot_phi, dot_p_parallel, dot_mu, cylindrical_measure, d_hamiltonian_dt, &
+            hamiltonian, canonical_p_phi)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mass                                                            , &
-            charge                                                          , &
-            c_light                                                         , &
-            mu                                                              , &
-            bmod                                                            , &
-            electrostatic_potential                                         , &
-            radius                                                          , &
-            p_parallel                                                      , &
-            psi                                                             , &
-            b1                                                              , &
-            b2                                                              , &
-            b3                                                              , &
-            bhat1                                                           , &
-            bhat2                                                           , &
-            bhat3                                                           , &
-            curl_bhat1                                                      , &
-            curl_bhat2                                                      , &
-            curl_bhat3                                                      , &
-            grad_b1                                                         , &
-            grad_b2                                                         , &
-            grad_b3                                                         , &
-            grad_phi1                                                       , &
-            grad_phi2                                                       , &
-            grad_phi3                                                       
-        real(dp), intent(out) :: b_star_1                                                        , &
-            b_star_2                                                        , &
-            b_star_3                                                        , &
-            b_parallel_star                                                 , &
-            force_1                                                         , &
-            force_2                                                         , &
-            force_3                                                         , &
-            cross_1                                                         , &
-            cross_2                                                         , &
-            cross_3                                                         , &
-            v_r                                                             , &
-            v_phi                                                           , &
-            v_z                                                             , &
-            dot_r                                                           , &
-            dot_z                                                           , &
-            dot_phi                                                         , &
-            dot_p_parallel                                                  , &
-            dot_mu                                                          , &
-            cylindrical_measure                                             , &
-            d_hamiltonian_dt                                                , &
-            hamiltonian                                                     , &
-            canonical_p_phi                                                 
+        real(dp), intent(in) :: mass, charge, c_light, mu, bmod, electrostatic_potential, radius, &
+            p_parallel, psi, b1, b2, b3, bhat1, bhat2, bhat3, curl_bhat1, curl_bhat2, curl_bhat3, grad_b1, &
+            grad_b2, grad_b3, grad_phi1, grad_phi2, grad_phi3
+        real(dp), intent(out) :: b_star_1, b_star_2, b_star_3, b_parallel_star, force_1, force_2, &
+            force_3, cross_1, cross_2, cross_3, v_r, v_phi, v_z, dot_r, dot_z, dot_phi, dot_p_parallel, dot_mu, &
+            cylindrical_measure, d_hamiltonian_dt, hamiltonian, canonical_p_phi
         real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16
 
         t1 = b1 + c_light*curl_bhat1*p_parallel/charge
@@ -76,31 +41,28 @@ contains
         t14 = c_light*t10/charge + p_parallel*t3/mass
         t15 = t14/t4
         t16 = t1*t5 + t2*t6 + t3*t7
-        b_star_1                                                         = t1
-        b_star_2                                                         = t2
-        b_star_3                                                         = t3
-        b_parallel_star                                                  = t4
-        force_1                                                          = t5
-        force_2                                                          = t6
-        force_3                                                          = t7
-        cross_1                                                          = t8
-        cross_2                                                          = t9
-        cross_3                                                          = t10
-        v_r                                                              = t12
-        v_phi                                                            = t13/t4
-        v_z                                                              = t15
-        dot_r                                                            = t12
-        dot_z                                                            = t15
-        dot_phi                                                          = t13/radius/t4
-        dot_p_parallel                                                   = -t16/t4
-        dot_mu                                                           = 0
-        cylindrical_measure                                              = radius*t4
-        d_hamiltonian_dt                                                 = -p_parallel*t16/mass/t4 + &
-            t14*t7/t4 + t13*t6/t4 + t11*t5/t4
-        hamiltonian                                                      = bmod*mu + charge* &
-            electrostatic_potential + p_parallel**2*1.0_dp/2.0_dp/mass
-        canonical_p_phi                                                  = bhat2*p_parallel*radius + &
-            charge*psi/c_light
+        b_star_1 = t1
+        b_star_2 = t2
+        b_star_3 = t3
+        b_parallel_star = t4
+        force_1 = t5
+        force_2 = t6
+        force_3 = t7
+        cross_1 = t8
+        cross_2 = t9
+        cross_3 = t10
+        v_r = t12
+        v_phi = t13/t4
+        v_z = t15
+        dot_r = t12
+        dot_z = t15
+        dot_phi = t13/radius/t4
+        dot_p_parallel = -t16/t4
+        dot_mu = 0
+        cylindrical_measure = radius*t4
+        d_hamiltonian_dt = -p_parallel*t16/mass/t4 + t14*t7/t4 + t13*t6/t4 + t11*t5/t4
+        hamiltonian = bmod*mu + charge*electrostatic_potential + p_parallel**2*1.0_dp/2.0_dp/mass
+        canonical_p_phi = bhat2*p_parallel*radius + charge*psi/c_light
 
     end subroutine evaluate_neort_cylindrical_littlejohn
 

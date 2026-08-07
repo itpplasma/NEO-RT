@@ -9,23 +9,14 @@ module neort_buchholz_cut_symbolic
     public :: evaluate_neort_buchholz_cut
 contains
 
-    pure subroutine evaluate_neort_buchholz_cut(grad_b1                                                         , grad_b2                                                         , grad_b3                                                         , grad_psi1                                                       , grad_psi2                                                       , grad_psi3                                                       , grad_phi_coordinate1                                            , grad_phi_coordinate2                                            , grad_phi_coordinate3                                            , cut_cross_1                                                     , cut_cross_2                                                     , cut_cross_3                                                     , cut_C                                                           , cut_identity_residual                                           )
+    pure subroutine evaluate_neort_buchholz_cut(grad_b1, grad_b2, grad_b3, grad_psi1, grad_psi2, &
+            grad_psi3, grad_phi_coordinate1, grad_phi_coordinate2, grad_phi_coordinate3, cut_cross_1, &
+            cut_cross_2, cut_cross_3, cut_C, cut_identity_residual)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: grad_b1                                                         , &
-            grad_b2                                                         , &
-            grad_b3                                                         , &
-            grad_psi1                                                       , &
-            grad_psi2                                                       , &
-            grad_psi3                                                       , &
-            grad_phi_coordinate1                                            , &
-            grad_phi_coordinate2                                            , &
-            grad_phi_coordinate3                                            
-        real(dp), intent(out) :: cut_cross_1                                                     , &
-            cut_cross_2                                                     , &
-            cut_cross_3                                                     , &
-            cut_C                                                           , &
-            cut_identity_residual                                           
+        real(dp), intent(in) :: grad_b1, grad_b2, grad_b3, grad_psi1, grad_psi2, grad_psi3, &
+            grad_phi_coordinate1, grad_phi_coordinate2, grad_phi_coordinate3
+        real(dp), intent(out) :: cut_cross_1, cut_cross_2, cut_cross_3, cut_C, cut_identity_residual
         real(dp) :: t1, t2, t3, t4, t5, t6, t7
 
         t1 = grad_b2*grad_psi3 - grad_b3*grad_psi2
@@ -35,11 +26,11 @@ contains
         t5 = grad_phi_coordinate2*t2
         t6 = grad_phi_coordinate3*t3
         t7 = t4 + t5 + t6
-        cut_cross_1                                                      = t1
-        cut_cross_2                                                      = t2
-        cut_cross_3                                                      = t3
-        cut_C                                                            = t7
-        cut_identity_residual                                            = t4 + t5 + t6 - t7
+        cut_cross_1 = t1
+        cut_cross_2 = t2
+        cut_cross_3 = t3
+        cut_C = t7
+        cut_identity_residual = t4 + t5 + t6 - t7
 
     end subroutine evaluate_neort_buchholz_cut
 

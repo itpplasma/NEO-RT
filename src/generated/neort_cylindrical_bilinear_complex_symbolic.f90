@@ -9,43 +9,42 @@ module neort_cylindrical_bilinear_complex_symbolic
     public :: evaluate_neort_cylindrical_bilinear_complex
 contains
 
-    pure subroutine evaluate_neort_cylindrical_bilinear_complex(u                                                               , v                                                               , value_real_00                                                   , value_imag_00                                                   , value_real_10                                                   , value_imag_10                                                   , value_real_01                                                   , value_imag_01                                                   , value_real_11                                                   , value_imag_11                                                   , weight_00                                                       , weight_10                                                       , weight_01                                                       , weight_11                                                       , value_real                                                      , value_imag                                                      , partition_of_unity_residual                                     )
+    pure subroutine evaluate_neort_cylindrical_bilinear_complex(coordinate_R, coordinate_Z, cell_R0, &
+            cell_R1, cell_Z0, cell_Z1, amplitude_scale, value_real_00, value_imag_00, value_real_10, &
+            value_imag_10, value_real_01, value_imag_01, value_real_11, value_imag_11, unit_R, unit_Z, &
+            weight_00, weight_10, weight_01, weight_11, value_real, value_imag, partition_of_unity_residual)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: u                                                               , &
-            v                                                               , &
-            value_real_00                                                   , &
-            value_imag_00                                                   , &
-            value_real_10                                                   , &
-            value_imag_10                                                   , &
-            value_real_01                                                   , &
-            value_imag_01                                                   , &
-            value_real_11                                                   , &
-            value_imag_11                                                   
-        real(dp), intent(out) :: weight_00                                                       , &
-            weight_10                                                       , &
-            weight_01                                                       , &
-            weight_11                                                       , &
-            value_real                                                      , &
-            value_imag                                                      , &
-            partition_of_unity_residual                                     
-        real(dp) :: t1, t2, t3, t4, t5, t6
+        real(dp), intent(in) :: coordinate_R, coordinate_Z, cell_R0, cell_R1, cell_Z0, cell_Z1, &
+            amplitude_scale, value_real_00, value_imag_00, value_real_10, value_imag_10, value_real_01, &
+            value_imag_01, value_real_11, value_imag_11
+        real(dp), intent(out) :: unit_R, unit_Z, weight_00, weight_10, weight_01, weight_11, value_real, &
+            value_imag, partition_of_unity_residual
+        real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10
 
-        t1 = -u + 1
-        t2 = -v + 1
-        t3 = t1*t2
-        t4 = u*t2
-        t5 = v*t1
-        t6 = u*v
-        weight_00                                                        = t3
-        weight_10                                                        = t4
-        weight_01                                                        = t5
-        weight_11                                                        = t6
-        value_real                                                       = u*v*value_real_11 + u* &
-            value_real_10*t2 + v*value_real_01*t1 + value_real_00*t1*t2
-        value_imag                                                       = u*v*value_imag_11 + u* &
-            value_imag_10*t2 + v*value_imag_01*t1 + value_imag_00*t1*t2
-        partition_of_unity_residual                                      = t6 + t4 + t5 + t3 - 1
+        t1 = -cell_R0
+        t2 = coordinate_R - cell_R0
+        t3 = -cell_Z0
+        t4 = coordinate_Z - cell_Z0
+        t5 = -t2/(cell_R1 - cell_R0) + 1
+        t6 = -t4/(cell_Z1 - cell_Z0) + 1
+        t7 = t5*t6
+        t8 = t2*t6/(cell_R1 - cell_R0)
+        t9 = t4*t5/(cell_Z1 - cell_Z0)
+        t10 = t2*t4/(cell_R1 - cell_R0)/(cell_Z1 - cell_Z0)
+        unit_R = t2/(cell_R1 - cell_R0)
+        unit_Z = t4/(cell_Z1 - cell_Z0)
+        weight_00 = t7
+        weight_10 = t8
+        weight_01 = t9
+        weight_11 = t10
+        value_real = amplitude_scale*(value_real_00*t5*t6 + value_real_01*t4*t5/(cell_Z1 - cell_Z0) + &
+            value_real_10*t2*t6/(cell_R1 - cell_R0) + value_real_11*t2*t4/(cell_R1 - cell_R0)/(cell_Z1 - &
+            cell_Z0))
+        value_imag = amplitude_scale*(value_imag_00*t5*t6 + value_imag_01*t4*t5/(cell_Z1 - cell_Z0) + &
+            value_imag_10*t2*t6/(cell_R1 - cell_R0) + value_imag_11*t2*t4/(cell_R1 - cell_R0)/(cell_Z1 - &
+            cell_Z0))
+        partition_of_unity_residual = t10 + t8 + t9 + t7 - 1
 
     end subroutine evaluate_neort_cylindrical_bilinear_complex
 

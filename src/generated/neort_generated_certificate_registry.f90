@@ -15,7 +15,7 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eq13_cdot:3:fortsym-58a0e06', &
         'neort-cert-v1:boundary_limits:13:fortsym-58a0e06', &
         'neort-cert-v1:root_enclosures:3:fortsym-58a0e06', &
-        'neort-cert-v1:interpolation:7:fortsym-58a0e06', &
+        'neort-cert-v1:interpolation:9:fortsym-58a0e06', &
         'neort-cert-v1:profile_endpoints:8:fortsym-58a0e06', &
         'neort-cert-v1:refinement:14:fortsym-58a0e06' ]
     ! Fingerprints are provenance/arity manifests, not algebraic proofs.

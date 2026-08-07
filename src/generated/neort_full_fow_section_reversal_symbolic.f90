@@ -9,38 +9,30 @@ module neort_full_fow_section_reversal_symbolic
     public :: evaluate_neort_section_reversal
 contains
 
-    pure subroutine evaluate_neort_section_reversal(dpsi_star_dx                                                    , F_prime                                                         , Cdot                                                            , signed_R_Bparallel_star                                         , period                                                          , frequency                                                       , dpsi_star_dx_reversed                                           , F_prime_reversed                                                , Cdot_reversed                                                   , absolute_root_weight                                            , absolute_root_weight_reversed                                   , positive_crossing_density                                       , positive_crossing_density_reversed                              , period_reversed                                                 , frequency_reversed                                              )
+    pure subroutine evaluate_neort_section_reversal(dpsi_star_dx, F_prime, Cdot, &
+            signed_R_Bparallel_star, period, frequency, dpsi_star_dx_reversed, F_prime_reversed, Cdot_reversed, &
+            absolute_root_weight, absolute_root_weight_reversed, positive_crossing_density, &
+            positive_crossing_density_reversed, period_reversed, frequency_reversed)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: dpsi_star_dx                                                    , &
-            F_prime                                                         , &
-            Cdot                                                            , &
-            signed_R_Bparallel_star                                         , &
-            period                                                          , &
-            frequency                                                       
-        real(dp), intent(out) :: dpsi_star_dx_reversed                                           , &
-            F_prime_reversed                                                , &
-            Cdot_reversed                                                   , &
-            absolute_root_weight                                            , &
-            absolute_root_weight_reversed                                   , &
-            positive_crossing_density                                       , &
-            positive_crossing_density_reversed                              , &
-            period_reversed                                                 , &
-            frequency_reversed                                              
+        real(dp), intent(in) :: dpsi_star_dx, F_prime, Cdot, signed_R_Bparallel_star, period, frequency
+        real(dp), intent(out) :: dpsi_star_dx_reversed, F_prime_reversed, Cdot_reversed, &
+            absolute_root_weight, absolute_root_weight_reversed, positive_crossing_density, &
+            positive_crossing_density_reversed, period_reversed, frequency_reversed
         real(dp) :: t1, t2, t3
 
         t1 = -Cdot
         t2 = abs(dpsi_star_dx/F_prime)
         t3 = abs(signed_R_Bparallel_star)
-        dpsi_star_dx_reversed                                            = -dpsi_star_dx
-        F_prime_reversed                                                 = -F_prime
-        Cdot_reversed                                                    = t1
-        absolute_root_weight                                             = t2
-        absolute_root_weight_reversed                                    = t2
-        positive_crossing_density                                        = abs(Cdot)*t3
-        positive_crossing_density_reversed                               = t3*abs(t1)
-        period_reversed                                                  = period
-        frequency_reversed                                               = frequency
+        dpsi_star_dx_reversed = -dpsi_star_dx
+        F_prime_reversed = -F_prime
+        Cdot_reversed = t1
+        absolute_root_weight = t2
+        absolute_root_weight_reversed = t2
+        positive_crossing_density = abs(Cdot)*t3
+        positive_crossing_density_reversed = t3*abs(t1)
+        period_reversed = period
+        frequency_reversed = frequency
 
     end subroutine evaluate_neort_section_reversal
 

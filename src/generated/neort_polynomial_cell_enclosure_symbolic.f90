@@ -9,19 +9,14 @@ module neort_polynomial_cell_enclosure_symbolic
     public :: evaluate_neort_polynomial_cell_enclosure
 contains
 
-    pure subroutine evaluate_neort_polynomial_cell_enclosure(coefficient_0                                                   , coefficient_1                                                   , coefficient_2                                                   , coefficient_3                                                   , coefficient_4                                                   , coefficient_5                                                   , cell_width                                                      , tail_absolute_bound                                             , polynomial_lower_bound                                          , polynomial_upper_bound                                          )
+    pure subroutine evaluate_neort_polynomial_cell_enclosure(coefficient_0, coefficient_1, &
+            coefficient_2, coefficient_3, coefficient_4, coefficient_5, cell_width, tail_absolute_bound, &
+            polynomial_lower_bound, polynomial_upper_bound)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: coefficient_0                                                   , &
-            coefficient_1                                                   , &
-            coefficient_2                                                   , &
-            coefficient_3                                                   , &
-            coefficient_4                                                   , &
-            coefficient_5                                                   , &
-            cell_width                                                      
-        real(dp), intent(out) :: tail_absolute_bound                                             , &
-            polynomial_lower_bound                                          , &
-            polynomial_upper_bound                                          
+        real(dp), intent(in) :: coefficient_0, coefficient_1, coefficient_2, coefficient_3, &
+            coefficient_4, coefficient_5, cell_width
+        real(dp), intent(out) :: tail_absolute_bound, polynomial_lower_bound, polynomial_upper_bound
         real(dp) :: t1, t2, t3, t4, t5, t6
 
         t1 = cell_width*abs(coefficient_1)
@@ -30,10 +25,9 @@ contains
         t4 = abs(coefficient_4)*cell_width**4
         t5 = abs(coefficient_5)*cell_width**5
         t6 = t1 + t2 + t3 + t4 + t5
-        tail_absolute_bound                                              = t6
-        polynomial_lower_bound                                           = coefficient_0 - t6
-        polynomial_upper_bound                                           = coefficient_0 + t1 + t2 + &
-            t3 + t4 + t5
+        tail_absolute_bound = t6
+        polynomial_lower_bound = coefficient_0 - t6
+        polynomial_upper_bound = coefficient_0 + t1 + t2 + t3 + t4 + t5
 
     end subroutine evaluate_neort_polynomial_cell_enclosure
 

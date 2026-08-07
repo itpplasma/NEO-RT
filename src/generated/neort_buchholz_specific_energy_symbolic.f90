@@ -9,15 +9,14 @@ module neort_buchholz_specific_energy_symbolic
     public :: evaluate_neort_buchholz_specific_energy
 contains
 
-    pure subroutine evaluate_neort_buchholz_specific_energy(J_K                                                             , omega_c_value                                                   , mass                                                            , specific_energy_from_J_K                                        )
+    pure subroutine evaluate_neort_buchholz_specific_energy(J_K, omega_c_value, mass, &
+            specific_energy_from_J_K)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: J_K                                                             , &
-            omega_c_value                                                   , &
-            mass                                                            
-        real(dp), intent(out) :: specific_energy_from_J_K                                        
+        real(dp), intent(in) :: J_K, omega_c_value, mass
+        real(dp), intent(out) :: specific_energy_from_J_K
 
-        specific_energy_from_J_K                                         = J_K*omega_c_value/mass
+        specific_energy_from_J_K = J_K*omega_c_value/mass
 
     end subroutine evaluate_neort_buchholz_specific_energy
 

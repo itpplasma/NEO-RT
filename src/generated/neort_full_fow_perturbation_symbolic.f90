@@ -9,36 +9,26 @@ module neort_full_fow_perturbation_symbolic
     public :: evaluate_neort_perturbation_coefficient
 contains
 
-    pure subroutine evaluate_neort_perturbation_coefficient(mass                                                            , charge                                                          , mu                                                              , bmod                                                            , h                                                               , electrostatic_potential                                         , p_parallel                                                      , temperature                                                     , q_phi_energy                                                    , e_on_shell                                                      , c_on_shell                                                      , eta_on_shell                                                    , perturbation_ratio                                              , boozer_ratio                                                    )
+    pure subroutine evaluate_neort_perturbation_coefficient(mass, charge, mu, bmod, h, &
+            electrostatic_potential, p_parallel, temperature, q_phi_energy, e_on_shell, c_on_shell, &
+            eta_on_shell, perturbation_ratio, boozer_ratio)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mass                                                            , &
-            charge                                                          , &
-            mu                                                              , &
-            bmod                                                            , &
-            h                                                               , &
-            electrostatic_potential                                         , &
-            p_parallel                                                      , &
-            temperature                                                     
-        real(dp), intent(out) :: q_phi_energy                                                    , &
-            e_on_shell                                                      , &
-            c_on_shell                                                      , &
-            eta_on_shell                                                    , &
-            perturbation_ratio                                              , &
-            boozer_ratio                                                    
+        real(dp), intent(in) :: mass, charge, mu, bmod, h, electrostatic_potential, p_parallel, &
+            temperature
+        real(dp), intent(out) :: q_phi_energy, e_on_shell, c_on_shell, eta_on_shell, perturbation_ratio, &
+            boozer_ratio
         real(dp) :: t1, t2, t3
 
         t1 = p_parallel**2
         t2 = bmod*mu + t1*1.0_dp/2.0_dp/mass
         t3 = -bmod*mu + t2*2
-        q_phi_energy                                                     = charge* &
-            electrostatic_potential
-        e_on_shell                                                       = t2
-        c_on_shell                                                       = t3
-        eta_on_shell                                                     = mu*2/(bmod*mu*2 + t1/mass)
-        perturbation_ratio                                               = t3*2/(bmod*mu*2 + t1/mass)
-        boozer_ratio                                                     = -bmod*mu*2/(bmod*mu*2 + t1/ &
-            mass) + 2
+        q_phi_energy = charge*electrostatic_potential
+        e_on_shell = t2
+        c_on_shell = t3
+        eta_on_shell = mu*2/(bmod*mu*2 + t1/mass)
+        perturbation_ratio = t3*2/(bmod*mu*2 + t1/mass)
+        boozer_ratio = -bmod*mu*2/(bmod*mu*2 + t1/mass) + 2
 
     end subroutine evaluate_neort_perturbation_coefficient
 

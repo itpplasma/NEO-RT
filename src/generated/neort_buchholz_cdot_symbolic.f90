@@ -9,24 +9,19 @@ module neort_buchholz_cdot_symbolic
     public :: evaluate_neort_buchholz_cdot
 contains
 
-    pure subroutine evaluate_neort_buchholz_cdot(d_cut_C_d_R                                                     , d_cut_C_d_arc_phi                                               , d_cut_C_d_Z                                                     , dot_cut_R                                                       , dot_cut_arc_phi                                                 , dot_cut_Z                                                       , cut_Cdot                                                        , transversality_scalar                                           , orientation_scalar                                              )
+    pure subroutine evaluate_neort_buchholz_cdot(d_cut_C_d_R, d_cut_C_d_arc_phi, d_cut_C_d_Z, dot_cut_R, &
+            dot_cut_arc_phi, dot_cut_Z, cut_Cdot, transversality_scalar, orientation_scalar)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: d_cut_C_d_R                                                     , &
-            d_cut_C_d_arc_phi                                               , &
-            d_cut_C_d_Z                                                     , &
-            dot_cut_R                                                       , &
-            dot_cut_arc_phi                                                 , &
-            dot_cut_Z                                                       
-        real(dp), intent(out) :: cut_Cdot                                                        , &
-            transversality_scalar                                           , &
-            orientation_scalar                                              
+        real(dp), intent(in) :: d_cut_C_d_R, d_cut_C_d_arc_phi, d_cut_C_d_Z, dot_cut_R, dot_cut_arc_phi, &
+            dot_cut_Z
+        real(dp), intent(out) :: cut_Cdot, transversality_scalar, orientation_scalar
         real(dp) :: t1
 
         t1 = d_cut_C_d_R*dot_cut_R + d_cut_C_d_Z*dot_cut_Z + d_cut_C_d_arc_phi*dot_cut_arc_phi
-        cut_Cdot                                                         = t1
-        transversality_scalar                                            = abs(t1)
-        orientation_scalar                                               = t1
+        cut_Cdot = t1
+        transversality_scalar = abs(t1)
+        orientation_scalar = t1
 
     end subroutine evaluate_neort_buchholz_cdot
 

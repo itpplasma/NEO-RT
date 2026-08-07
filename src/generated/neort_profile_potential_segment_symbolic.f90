@@ -9,26 +9,19 @@ module neort_profile_potential_segment_symbolic
     public :: evaluate_neort_profile_potential_segment
 contains
 
-    pure subroutine evaluate_neort_profile_potential_segment(psi0                                                            , psi1                                                            , Omega_E0                                                        , Omega_E1                                                        , Omega_E_constant                                                , c_light                                                         , delta_Phi                                                       , delta_Phi_reversed                                              , delta_Phi_constant_limit                                        )
+    pure subroutine evaluate_neort_profile_potential_segment(psi0, psi1, Omega_E0, Omega_E1, &
+            Omega_E_constant, c_light, delta_Phi, delta_Phi_reversed, delta_Phi_constant_limit)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: psi0                                                            , &
-            psi1                                                            , &
-            Omega_E0                                                        , &
-            Omega_E1                                                        , &
-            Omega_E_constant                                                , &
-            c_light                                                         
-        real(dp), intent(out) :: delta_Phi                                                       , &
-            delta_Phi_reversed                                              , &
-            delta_Phi_constant_limit                                        
+        real(dp), intent(in) :: psi0, psi1, Omega_E0, Omega_E1, Omega_E_constant, c_light
+        real(dp), intent(out) :: delta_Phi, delta_Phi_reversed, delta_Phi_constant_limit
         real(dp) :: t1, t2
 
         t1 = Omega_E0 + Omega_E1
         t2 = psi1 - psi0
-        delta_Phi                                                        = t1*t2*1.0_dp/2.0_dp/c_light
-        delta_Phi_reversed                                               = t1*(psi0 - psi1)*1.0_dp/ &
-            2.0_dp/c_light
-        delta_Phi_constant_limit                                         = Omega_E_constant*t2/c_light
+        delta_Phi = t1*t2*1.0_dp/2.0_dp/c_light
+        delta_Phi_reversed = t1*(psi0 - psi1)*1.0_dp/2.0_dp/c_light
+        delta_Phi_constant_limit = Omega_E_constant*t2/c_light
 
     end subroutine evaluate_neort_profile_potential_segment
 

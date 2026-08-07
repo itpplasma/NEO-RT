@@ -9,19 +9,14 @@ module neort_cylindrical_vparallel_symbolic
     public :: evaluate_neort_cylindrical_vparallel
 contains
 
-    pure subroutine evaluate_neort_cylindrical_vparallel(h                                                               , mu                                                              , bmod                                                            , electrostatic_potential                                         , mass                                                            , charge                                                          , v_parallel_squared                                              )
+    pure subroutine evaluate_neort_cylindrical_vparallel(h, mu, bmod, electrostatic_potential, mass, &
+            charge, v_parallel_squared)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: h                                                               , &
-            mu                                                              , &
-            bmod                                                            , &
-            electrostatic_potential                                         , &
-            mass                                                            , &
-            charge                                                          
-        real(dp), intent(out) :: v_parallel_squared                                              
+        real(dp), intent(in) :: h, mu, bmod, electrostatic_potential, mass, charge
+        real(dp), intent(out) :: v_parallel_squared
 
-        v_parallel_squared                                               = (h - bmod*mu - charge* &
-            electrostatic_potential)*2/mass
+        v_parallel_squared = (h - bmod*mu - charge*electrostatic_potential)*2/mass
 
     end subroutine evaluate_neort_cylindrical_vparallel
 

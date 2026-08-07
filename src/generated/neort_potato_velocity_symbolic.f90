@@ -9,20 +9,15 @@ module neort_potato_velocity_symbolic
     public :: evaluate_neort_potato_velocity
 contains
 
-    pure subroutine evaluate_neort_potato_velocity(v_perp                                                          , J_potato                                                        , reference_velocity                                              , bmod                                                            , J_potato_from_v_perp                                            , v_perp_squared_from_J_potato                                    )
+    pure subroutine evaluate_neort_potato_velocity(v_perp, J_potato, reference_velocity, bmod, &
+            J_potato_from_v_perp, v_perp_squared_from_J_potato)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: v_perp                                                          , &
-            J_potato                                                        , &
-            reference_velocity                                              , &
-            bmod                                                            
-        real(dp), intent(out) :: J_potato_from_v_perp                                            , &
-            v_perp_squared_from_J_potato                                    
+        real(dp), intent(in) :: v_perp, J_potato, reference_velocity, bmod
+        real(dp), intent(out) :: J_potato_from_v_perp, v_perp_squared_from_J_potato
 
-        J_potato_from_v_perp                                             = v_perp**2/bmod/ &
-            reference_velocity**2
-        v_perp_squared_from_J_potato                                     = J_potato*bmod* &
-            reference_velocity**2
+        J_potato_from_v_perp = v_perp**2/bmod/reference_velocity**2
+        v_perp_squared_from_J_potato = J_potato*bmod*reference_velocity**2
 
     end subroutine evaluate_neort_potato_velocity
 

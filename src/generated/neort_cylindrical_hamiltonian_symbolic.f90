@@ -9,19 +9,14 @@ module neort_cylindrical_hamiltonian_symbolic
     public :: evaluate_neort_cylindrical_hamiltonian
 contains
 
-    pure subroutine evaluate_neort_cylindrical_hamiltonian(mass                                                            , charge                                                          , mu                                                              , bmod                                                            , electrostatic_potential                                         , p_parallel                                                      , hamiltonian                                                     )
+    pure subroutine evaluate_neort_cylindrical_hamiltonian(mass, charge, mu, bmod, &
+            electrostatic_potential, p_parallel, hamiltonian)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: mass                                                            , &
-            charge                                                          , &
-            mu                                                              , &
-            bmod                                                            , &
-            electrostatic_potential                                         , &
-            p_parallel                                                      
-        real(dp), intent(out) :: hamiltonian                                                     
+        real(dp), intent(in) :: mass, charge, mu, bmod, electrostatic_potential, p_parallel
+        real(dp), intent(out) :: hamiltonian
 
-        hamiltonian                                                      = bmod*mu + charge* &
-            electrostatic_potential + p_parallel**2*1.0_dp/2.0_dp/mass
+        hamiltonian = bmod*mu + charge*electrostatic_potential + p_parallel**2*1.0_dp/2.0_dp/mass
 
     end subroutine evaluate_neort_cylindrical_hamiltonian
 

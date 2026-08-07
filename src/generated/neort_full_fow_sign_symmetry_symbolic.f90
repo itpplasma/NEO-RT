@@ -9,45 +9,28 @@ module neort_full_fow_sign_symmetry_symbolic
     public :: evaluate_neort_sign_symmetry_ledger
 contains
 
-    pure subroutine evaluate_neort_sign_symmetry_ledger(a_real                                                          , a_imag                                                          , m_mode                                                          , n_mode                                                          , theta                                                           , phi                                                             , amplitude_phase                                                 , dpsi_star_dx                                                    , F_prime                                                         , Cdot                                                            , signed_R_Bparallel_star                                         , h                                                               , charge                                                          , electrostatic_potential                                         , temperature                                                     , a1                                                              , a2                                                              , gauge_C                                                         , sign_omega_b                                                    , sign_omega_phi                                                  , sign_torque_phi                                                 , sign_rotation_phi                                               , amplitude_sign_squared_residual                                 , amplitude_phase_squared_residual                                , real_field_pair_residual                                        , fixed_mode_conjugation_field_difference                         , fixed_mode_conjugation_modulus_residual                         , section_root_weight_residual                                    , cut_crossing_density_residual                                   , gauge_force_residual                                            , gauge_outer_residual                                            , toroidal_resonance_relabel_residual                             , toroidal_power_relabel_residual                                 , toroidal_torque_component_difference                            , charge_reversal_potential_energy_difference                     , potential_sign_reversal_energy_difference                       )
+    pure subroutine evaluate_neort_sign_symmetry_ledger(a_real, a_imag, m_mode, n_mode, theta, phi, &
+            amplitude_phase, dpsi_star_dx, F_prime, Cdot, signed_R_Bparallel_star, h, charge, &
+            electrostatic_potential, temperature, a1, a2, gauge_C, sign_omega_b, sign_omega_phi, &
+            sign_torque_phi, sign_rotation_phi, amplitude_sign_squared_residual, &
+            amplitude_phase_squared_residual, real_field_pair_residual, fixed_mode_conjugation_field_difference, &
+            fixed_mode_conjugation_modulus_residual, section_root_weight_residual, &
+            cut_crossing_density_residual, gauge_force_residual, gauge_outer_residual, &
+            toroidal_resonance_relabel_residual, toroidal_power_relabel_residual, &
+            toroidal_torque_component_difference, charge_reversal_potential_energy_difference, &
+            potential_sign_reversal_energy_difference)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: a_real                                                          , &
-            a_imag                                                          , &
-            m_mode                                                          , &
-            n_mode                                                          , &
-            theta                                                           , &
-            phi                                                             , &
-            amplitude_phase                                                 , &
-            dpsi_star_dx                                                    , &
-            F_prime                                                         , &
-            Cdot                                                            , &
-            signed_R_Bparallel_star                                         , &
-            h                                                               , &
-            charge                                                          , &
-            electrostatic_potential                                         , &
-            temperature                                                     , &
-            a1                                                              , &
-            a2                                                              , &
-            gauge_C                                                         , &
-            sign_omega_b                                                    , &
-            sign_omega_phi                                                  , &
-            sign_torque_phi                                                 , &
-            sign_rotation_phi                                               
-        real(dp), intent(out) :: amplitude_sign_squared_residual                                 , &
-            amplitude_phase_squared_residual                                , &
-            real_field_pair_residual                                        , &
-            fixed_mode_conjugation_field_difference                         , &
-            fixed_mode_conjugation_modulus_residual                         , &
-            section_root_weight_residual                                    , &
-            cut_crossing_density_residual                                   , &
-            gauge_force_residual                                            , &
-            gauge_outer_residual                                            , &
-            toroidal_resonance_relabel_residual                             , &
-            toroidal_power_relabel_residual                                 , &
-            toroidal_torque_component_difference                            , &
-            charge_reversal_potential_energy_difference                     , &
-            potential_sign_reversal_energy_difference                       
+        real(dp), intent(in) :: a_real, a_imag, m_mode, n_mode, theta, phi, amplitude_phase, &
+            dpsi_star_dx, F_prime, Cdot, signed_R_Bparallel_star, h, charge, electrostatic_potential, &
+            temperature, a1, a2, gauge_C, sign_omega_b, sign_omega_phi, sign_torque_phi, sign_rotation_phi
+        real(dp), intent(out) :: amplitude_sign_squared_residual, amplitude_phase_squared_residual, &
+            real_field_pair_residual, fixed_mode_conjugation_field_difference, &
+            fixed_mode_conjugation_modulus_residual, section_root_weight_residual, &
+            cut_crossing_density_residual, gauge_force_residual, gauge_outer_residual, &
+            toroidal_resonance_relabel_residual, toroidal_power_relabel_residual, &
+            toroidal_torque_component_difference, charge_reversal_potential_energy_difference, &
+            potential_sign_reversal_energy_difference
         real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18
 
         t1 = a_imag**2
@@ -68,28 +51,24 @@ contains
         t16 = m_mode*sign_omega_b
         t17 = n_mode*sign_omega_phi
         t18 = -charge*electrostatic_potential*2
-        amplitude_sign_squared_residual                                  = t4
-        amplitude_phase_squared_residual                                 = (a_imag*t5 + a_real*t6)**2 + &
-            (-a_imag*t6 + a_real*t5)**2 - (t1 + t2)
-        real_field_pair_residual                                         = a_imag*sin(t8) + a_real* &
-            cos(t8) - (-a_imag*t9 + t10)
-        fixed_mode_conjugation_field_difference                          = a_imag*t9 + t10 - (-a_imag* &
-            t9 + t10)
-        fixed_mode_conjugation_modulus_residual                          = t4
-        section_root_weight_residual                                     = 0
-        cut_crossing_density_residual                                    = -abs(Cdot)*t12 + t12*abs(- &
-            Cdot)
-        gauge_force_residual                                             = a1 + a2*(h + t13 - charge* &
-            t14)/temperature - (a1 + a2*(h - charge*electrostatic_potential)/temperature)
-        gauge_outer_residual                                             = Eref*n0*phi_eff*residence* &
-            exp((charge*electrostatic_potential - h)/temperature)*t15*1.0_dp/4.0_dp/(temperature/Eref)**(3.0_dp/ &
-            2.0_dp) - Eref*n0*phi_eff*residence*exp((charge*t14 - (h + t13))/temperature)*t15*1.0_dp/4.0_dp/ &
-            (temperature/Eref)**(3.0_dp/2.0_dp)
-        toroidal_resonance_relabel_residual                              = t16 + t17 - (t16 + t17)
-        toroidal_power_relabel_residual                                  = 0
-        toroidal_torque_component_difference                             = -sign_torque_phi*2
-        charge_reversal_potential_energy_difference                      = t18
-        potential_sign_reversal_energy_difference                        = t18
+        amplitude_sign_squared_residual = t4
+        amplitude_phase_squared_residual = (a_imag*t5 + a_real*t6)**2 + (-a_imag*t6 + a_real*t5)**2 - &
+            (t1 + t2)
+        real_field_pair_residual = a_imag*sin(t8) + a_real*cos(t8) - (-a_imag*t9 + t10)
+        fixed_mode_conjugation_field_difference = a_imag*t9 + t10 - (-a_imag*t9 + t10)
+        fixed_mode_conjugation_modulus_residual = t4
+        section_root_weight_residual = 0
+        cut_crossing_density_residual = -abs(Cdot)*t12 + t12*abs(-Cdot)
+        gauge_force_residual = a1 + a2*(h + t13 - charge*t14)/temperature - (a1 + a2*(h - charge* &
+            electrostatic_potential)/temperature)
+        gauge_outer_residual = Eref*n0*phi_eff*residence*exp((charge*electrostatic_potential - h)/ &
+            temperature)*t15*1.0_dp/4.0_dp/(temperature/Eref)**(3.0_dp/2.0_dp) - Eref*n0*phi_eff*residence* &
+            exp((charge*t14 - (h + t13))/temperature)*t15*1.0_dp/4.0_dp/(temperature/Eref)**(3.0_dp/2.0_dp)
+        toroidal_resonance_relabel_residual = t16 + t17 - (t16 + t17)
+        toroidal_power_relabel_residual = 0
+        toroidal_torque_component_difference = -sign_torque_phi*2
+        charge_reversal_potential_energy_difference = t18
+        potential_sign_reversal_energy_difference = t18
 
     end subroutine evaluate_neort_sign_symmetry_ledger
 

@@ -9,25 +9,23 @@ module neort_cylindrical_crossing_symbolic
     public :: evaluate_neort_cylindrical_crossing_density
 contains
 
-    pure subroutine evaluate_neort_cylindrical_crossing_density(R_Bparallel_star                                                , Cdot                                                            , signed_R_Bparallel_star                                         , signed_crossing_density                                         , absolute_R_Bparallel_star                                       , absolute_Cdot                                                   , positive_phase_space_crossing_density                           )
+    pure subroutine evaluate_neort_cylindrical_crossing_density(R_Bparallel_star, Cdot, &
+            signed_R_Bparallel_star, signed_crossing_density, absolute_R_Bparallel_star, absolute_Cdot, &
+            positive_phase_space_crossing_density)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: R_Bparallel_star                                                , &
-            Cdot                                                            
-        real(dp), intent(out) :: signed_R_Bparallel_star                                         , &
-            signed_crossing_density                                         , &
-            absolute_R_Bparallel_star                                       , &
-            absolute_Cdot                                                   , &
-            positive_phase_space_crossing_density                           
+        real(dp), intent(in) :: R_Bparallel_star, Cdot
+        real(dp), intent(out) :: signed_R_Bparallel_star, signed_crossing_density, &
+            absolute_R_Bparallel_star, absolute_Cdot, positive_phase_space_crossing_density
         real(dp) :: t1, t2
 
         t1 = abs(R_Bparallel_star)
         t2 = abs(Cdot)
-        signed_R_Bparallel_star                                          = R_Bparallel_star
-        signed_crossing_density                                          = Cdot*R_Bparallel_star
-        absolute_R_Bparallel_star                                        = t1
-        absolute_Cdot                                                    = t2
-        positive_phase_space_crossing_density                            = t2*t1
+        signed_R_Bparallel_star = R_Bparallel_star
+        signed_crossing_density = Cdot*R_Bparallel_star
+        absolute_R_Bparallel_star = t1
+        absolute_Cdot = t2
+        positive_phase_space_crossing_density = t2*t1
 
     end subroutine evaluate_neort_cylindrical_crossing_density
 

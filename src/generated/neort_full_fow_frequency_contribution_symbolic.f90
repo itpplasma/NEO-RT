@@ -9,23 +9,17 @@ module neort_full_fow_frequency_contribution_symbolic
     public :: evaluate_neort_frequency_root_contribution
 contains
 
-    pure subroutine evaluate_neort_frequency_root_contribution(dpsi_star_dx                                                    , abs_Hm_squared                                                  , tau_b                                                           , n_mode                                                          , g_prime                                                         , frequency_root_contribution                                     , phase_root_contribution                                         )
+    pure subroutine evaluate_neort_frequency_root_contribution(dpsi_star_dx, abs_Hm_squared, tau_b, &
+            n_mode, g_prime, frequency_root_contribution, phase_root_contribution)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: dpsi_star_dx                                                    , &
-            abs_Hm_squared                                                  , &
-            tau_b                                                           , &
-            n_mode                                                          , &
-            g_prime                                                         
-        real(dp), intent(out) :: frequency_root_contribution                                     , &
-            phase_root_contribution                                         
+        real(dp), intent(in) :: dpsi_star_dx, abs_Hm_squared, tau_b, n_mode, g_prime
+        real(dp), intent(out) :: frequency_root_contribution, phase_root_contribution
         real(dp) :: t1
 
         t1 = abs(dpsi_star_dx)
-        frequency_root_contribution                                      = abs_Hm_squared*tau_b*t1/ &
-            abs(g_prime*n_mode/tau_b)
-        phase_root_contribution                                          = abs_Hm_squared*t1*abs(n_mode) &
-            *tau_b**2/abs(g_prime)
+        frequency_root_contribution = abs_Hm_squared*tau_b*t1/abs(g_prime*n_mode/tau_b)
+        phase_root_contribution = abs_Hm_squared*t1*abs(n_mode)*tau_b**2/abs(g_prime)
 
     end subroutine evaluate_neort_frequency_root_contribution
 

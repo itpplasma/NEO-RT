@@ -9,22 +9,18 @@ module neort_full_fow_resonance_symbolic
     public :: evaluate_neort_resonance_weights
 contains
 
-    pure subroutine evaluate_neort_resonance_weights(n_mode                                                          , tau                                                             , g_prime                                                         , frequency_phase_derivative                                      , frequency_root_weight                                           , phase_root_weight                                               )
+    pure subroutine evaluate_neort_resonance_weights(n_mode, tau, g_prime, frequency_phase_derivative, &
+            frequency_root_weight, phase_root_weight)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: n_mode                                                          , &
-            tau                                                             , &
-            g_prime                                                         
-        real(dp), intent(out) :: frequency_phase_derivative                                      , &
-            frequency_root_weight                                           , &
-            phase_root_weight                                               
+        real(dp), intent(in) :: n_mode, tau, g_prime
+        real(dp), intent(out) :: frequency_phase_derivative, frequency_root_weight, phase_root_weight
         real(dp) :: t1
 
         t1 = g_prime_at_xr*n_mode/tau
-        frequency_phase_derivative                                       = t1
-        frequency_root_weight                                            = tau*n_mode**2/abs(t1)
-        phase_root_weight                                                = abs(n_mode)*tau**2/ &
-            abs(g_prime)
+        frequency_phase_derivative = t1
+        frequency_root_weight = tau*n_mode**2/abs(t1)
+        phase_root_weight = abs(n_mode)*tau**2/abs(g_prime)
 
     end subroutine evaluate_neort_resonance_weights
 
