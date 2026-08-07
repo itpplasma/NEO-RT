@@ -24,10 +24,12 @@ program test_eqdsk_axis
     real(dp) :: q_adapter, dqds_adapter, psi_adapter, dpsi_adapter
     real(dp) :: psi_edge_adapter, h_radial
     real(dp) :: legacy_state(7)
-    real(dp) :: dVds_inner, dVds_outer
+    real(dp) :: dVds_inner, dVds_outer, dVds_expected
     real(dp) :: dVds_scan(151), dVds_curvature, dVds_max_curvature
-    real(dp), parameter :: s_inner = (0.001_dp/64.0_dp)**2
-    real(dp), parameter :: s_outer = (0.002_dp/64.0_dp)**2
+    real(dp), parameter :: fixture_rmajor_cm = 160.0_dp
+    real(dp), parameter :: fixture_aminor_cm = 50.0_dp
+    real(dp), parameter :: s_inner = (0.001_dp/fixture_aminor_cm)**2
+    real(dp), parameter :: s_outer = (0.002_dp/fixture_aminor_cm)**2
     complex(dp) :: bamp
     type(eqdsk_gc_field_t) :: gc_field
     type(gc_field_sample_t) :: gc_sample, gc_sample_minus, gc_sample_plus
@@ -43,6 +45,9 @@ program test_eqdsk_axis
     inp_swi = 11
     call read_boozer_file(trim(eqdsk_file))
 
+    ! The fixture generator prescribes s_tor = r**2/a**2 on concentric
+    ! circular surfaces, so geometry independently gives this normalization.
+    dVds_expected = 2.0_dp*pi**2*fixture_rmajor_cm*fixture_aminor_cm**2
     call set_s(s_inner)
     call init_magfie_at_s()
     call init_flux_surface_average(s_inner)
@@ -51,9 +56,10 @@ program test_eqdsk_axis
     call init_magfie_at_s()
     call init_flux_surface_average(s_outer)
     dVds_outer = dVds
-    if (abs(dVds_outer/dVds_inner - 1.0_dp) > 1.0e-2_dp) then
-        write(*,*) 'Circular-axis dV/ds must have a finite constant limit:', &
-            dVds_inner, dVds_outer
+    if (abs(dVds_inner/dVds_expected - 1.0_dp) > 1.0e-2_dp .or. &
+        abs(dVds_outer/dVds_expected - 1.0_dp) > 1.0e-2_dp) then
+        write(*,*) 'Circular-axis dV/ds_tor normalization failed:', &
+            dVds_inner, dVds_outer, dVds_expected
         error stop "GEQDSK near-axis volume derivative failed"
     end if
 
@@ -66,11 +72,11 @@ program test_eqdsk_axis
     dVds_max_curvature = 0.0_dp
     do k = 2, size(dVds_scan) - 1
         dVds_curvature = abs(dVds_scan(k + 1) - 2.0_dp*dVds_scan(k) &
-            + dVds_scan(k - 1))/(sum(dVds_scan)/real(size(dVds_scan), dp))
+            + dVds_scan(k - 1))/dVds_expected
         dVds_max_curvature = max(dVds_max_curvature, dVds_curvature)
     end do
     if (dVds_max_curvature > 8.0e-4_dp) then
-        write(*,*) 'Circular-equilibrium dV/ds radial metric rings: ', &
+        write(*,*) 'Circular-equilibrium dV/ds_tor radial metric rings: ', &
             dVds_max_curvature
         error stop "GEQDSK radial metric rings between grid cells"
     end if
