@@ -192,12 +192,9 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_psi_rrr, eqcut_psi_rrz
     type(expr_t) :: eqcut_psi_rzz, eqcut_psi_zzz
     type(expr_t) :: eqcut_f0, eqcut_f_hat_first, eqcut_f_hat_second
-    type(expr_t) :: eqcut_psi_sep, eqcut_dr, eqcut_darc_phi, eqcut_dz
-    type(expr_t) :: eqcut_local_radius, eqcut_local_psi, eqcut_delta_psi
-    type(expr_t) :: eqcut_local_f, eqcut_b_r, eqcut_b_phi, eqcut_b_z
-    type(expr_t) :: eqcut_bmod, eqcut_grad_b_r, eqcut_grad_b_z
+    type(expr_t) :: eqcut_psi_sep, eqcut_grad_b_r, eqcut_grad_b_z
     type(expr_t) :: eqcut_grad_psi_r, eqcut_grad_psi_z
-    type(expr_t) :: eqcut_local_c, eqcut_c, eqcut_dc_dr
+    type(expr_t) :: eqcut_direct_c, eqcut_c, eqcut_dc_dr
     type(expr_t) :: eqcut_dc_darc_phi, eqcut_dc_dz
     type(expr_t) :: eqcut_dot_r, eqcut_dot_arc_phi, eqcut_dot_z
     type(expr_t) :: eqcut_cdot, eqcut_abs_cdot, eqcut_orientation_scalar
@@ -412,67 +409,49 @@ program gen_full_fow_physics
     ! orthonormal arc velocity R*dot_phi inside the generated contract.
     eqcut_dot_arc_phi = eqcut_radius*sym(arena, "dot_phi")
     eqcut_dot_z = sym(arena, "dot_Z")
-    eqcut_dr = sym(arena, "local_delta_R")
-    eqcut_darc_phi = sym(arena, "local_delta_arc_phi")
-    eqcut_dz = sym(arena, "local_delta_Z")
-    eqcut_local_radius = eqcut_radius+eqcut_dr
-    eqcut_local_psi = eqcut_psi0 + eqcut_psi_r*eqcut_dr + &
-        eqcut_psi_z*eqcut_dz + &
-        (eqcut_psi_rr*eqcut_dr**2 + &
-        2*eqcut_psi_rz*eqcut_dr*eqcut_dz + &
-        eqcut_psi_zz*eqcut_dz**2)/2 + &
-        (eqcut_psi_rrr*eqcut_dr**3 + &
-        3*eqcut_psi_rrz*eqcut_dr**2*eqcut_dz + &
-        3*eqcut_psi_rzz*eqcut_dr*eqcut_dz**2 + &
-        eqcut_psi_zzz*eqcut_dz**3)/6
-    eqcut_delta_psi = eqcut_local_psi-eqcut_psi0
-    eqcut_local_f = eqcut_f0 + &
-        eqcut_f_hat_first/eqcut_psi_sep*eqcut_delta_psi + &
-        eqcut_f_hat_second/(2*eqcut_psi_sep**2)*eqcut_delta_psi**2
-    eqcut_b_r = -diff(eqcut_local_psi, eqcut_dz)/eqcut_local_radius
-    eqcut_b_phi = eqcut_local_f/eqcut_local_radius
-    eqcut_b_z = diff(eqcut_local_psi, eqcut_dr)/eqcut_local_radius
-    eqcut_bmod = eqcut_field_scale*sqrt(eqcut_b_r**2 + &
-        eqcut_b_phi**2 + eqcut_b_z**2)
-    eqcut_grad_b_r = diff(eqcut_bmod, eqcut_dr)
-    eqcut_grad_b_z = diff(eqcut_bmod, eqcut_dz)
-    eqcut_grad_psi_r = eqcut_field_scale* &
-        diff(eqcut_local_psi, eqcut_dr)
-    eqcut_grad_psi_z = eqcut_field_scale* &
-        diff(eqcut_local_psi, eqcut_dz)
-    eqcut_local_c = eqcut_orientation* &
-        (eqcut_grad_b_z*eqcut_grad_psi_r - &
-        eqcut_grad_b_r*eqcut_grad_psi_z)/eqcut_local_radius
-    eqcut_c = subs(subs(eqcut_local_c, eqcut_dr, zero), eqcut_dz, zero)
     eqcut_g = eqcut_psi_r**2+eqcut_psi_z**2+eqcut_f0**2
-    eqcut_s = sqrt(eqcut_g/eqcut_radius**2)
+    eqcut_s = sqrt(eqcut_g)
+    eqcut_grad_b_r = eqcut_field_scale*((eqcut_psi_r*eqcut_psi_rr &
+        +eqcut_psi_z*eqcut_psi_rz &
+        +eqcut_f0*eqcut_f_hat_first*eqcut_psi_r/eqcut_psi_sep) &
+        /(eqcut_radius*eqcut_s)-eqcut_s/eqcut_radius**2)
+    eqcut_grad_b_z = eqcut_field_scale*(eqcut_psi_r*eqcut_psi_rz &
+        +eqcut_psi_z*eqcut_psi_zz &
+        +eqcut_f0*eqcut_f_hat_first*eqcut_psi_z/eqcut_psi_sep) &
+        /(eqcut_radius*eqcut_s)
+    eqcut_grad_psi_r = eqcut_field_scale*eqcut_psi_r
+    eqcut_grad_psi_z = eqcut_field_scale*eqcut_psi_z
+    eqcut_direct_c = eqcut_orientation* &
+        (eqcut_grad_b_z*eqcut_grad_psi_r - &
+        eqcut_grad_b_r*eqcut_grad_psi_z)/eqcut_radius
     eqcut_k = (eqcut_psi_r**2-eqcut_psi_z**2)*eqcut_psi_rz + &
         eqcut_psi_r*eqcut_psi_z*(eqcut_psi_zz-eqcut_psi_rr)
-    eqcut_compact_c = eqcut_orientation*eqcut_field_scale**2* &
-        (eqcut_k/(eqcut_radius**3*eqcut_s) + &
-        eqcut_psi_z*eqcut_s/eqcut_radius**2)
-    eqcut_compact_residual = eqcut_c-eqcut_compact_c
+    eqcut_compact_c = eqcut_orientation*eqcut_field_scale**2 &
+        *(eqcut_k/(eqcut_radius**2*eqcut_s) &
+        +eqcut_psi_z*eqcut_s/eqcut_radius**3)
+    eqcut_c = eqcut_compact_c
+    eqcut_compact_residual = eqcut_direct_c-eqcut_c
     eqcut_f1_c_residual = diff(eqcut_c, eqcut_f_hat_first)
-    eqcut_dc_dr = subs(subs(diff(eqcut_local_c, eqcut_dr), &
-        eqcut_dr, zero), eqcut_dz, zero)
-    eqcut_dc_darc_phi = subs(subs(subs(diff(eqcut_local_c, &
-        eqcut_darc_phi), eqcut_dr, zero), eqcut_darc_phi, zero), &
-        eqcut_dz, zero)
-    eqcut_dc_dz = subs(subs(diff(eqcut_local_c, eqcut_dz), &
-        eqcut_dr, zero), eqcut_dz, zero)
+    eqcut_dc_dr = diff(eqcut_c, eqcut_radius) &
+        +diff(eqcut_c, eqcut_psi_r)*eqcut_psi_rr &
+        +diff(eqcut_c, eqcut_psi_z)*eqcut_psi_rz &
+        +diff(eqcut_c, eqcut_psi_rr)*eqcut_psi_rrr &
+        +diff(eqcut_c, eqcut_psi_rz)*eqcut_psi_rrz &
+        +diff(eqcut_c, eqcut_psi_zz)*eqcut_psi_rzz &
+        +diff(eqcut_c, eqcut_f0)*eqcut_f_hat_first*eqcut_psi_r &
+        /eqcut_psi_sep
+    eqcut_dc_darc_phi = zero
+    eqcut_dc_dz = diff(eqcut_c, eqcut_psi_r)*eqcut_psi_rz &
+        +diff(eqcut_c, eqcut_psi_z)*eqcut_psi_zz &
+        +diff(eqcut_c, eqcut_psi_rr)*eqcut_psi_rrz &
+        +diff(eqcut_c, eqcut_psi_rz)*eqcut_psi_rzz &
+        +diff(eqcut_c, eqcut_psi_zz)*eqcut_psi_zzz &
+        +diff(eqcut_c, eqcut_f0)*eqcut_f_hat_first*eqcut_psi_z &
+        /eqcut_psi_sep
     eqcut_cdot = eqcut_dc_dr*eqcut_dot_r + &
         eqcut_dc_darc_phi*eqcut_dot_arc_phi + eqcut_dc_dz*eqcut_dot_z
     eqcut_f2_c_residual = diff(eqcut_c, eqcut_f_hat_second)
     eqcut_f2_cdot_residual = diff(eqcut_cdot, eqcut_f_hat_second)
-    ! The exact proofs below certify these residuals as zero.  Remove the
-    ! mathematically irrelevant symbol explicitly so the runtime interface is
-    ! minimal even if a backend simplifier retains a cancelled subexpression.
-    eqcut_c = subs(eqcut_c, eqcut_f_hat_second, zero)
-    eqcut_dc_dr = subs(eqcut_dc_dr, eqcut_f_hat_second, zero)
-    eqcut_dc_darc_phi = subs(eqcut_dc_darc_phi, eqcut_f_hat_second, zero)
-    eqcut_dc_dz = subs(eqcut_dc_dz, eqcut_f_hat_second, zero)
-    eqcut_cdot = eqcut_dc_dr*eqcut_dot_r + &
-        eqcut_dc_darc_phi*eqcut_dot_arc_phi + eqcut_dc_dz*eqcut_dot_z
     eqcut_abs_cdot = abs(eqcut_cdot)
     eqcut_orientation_scalar = eqcut_cdot
     eqcut_reversed = subs(eqcut_c, eqcut_orientation, -eqcut_orientation)
