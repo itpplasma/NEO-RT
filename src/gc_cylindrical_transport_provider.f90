@@ -140,7 +140,7 @@ module neort_gc_cylindrical_transport_provider
             reset_callback => null()
         procedure(gc_cylindrical_transport_evidence_i), pointer, nopass :: &
             evidence_callback => null()
-        class(*), pointer :: user_data => null()
+        class(*), pointer :: user_data
         logical :: initialized = .false.
         logical :: node_ready = .false.
         real(dp) :: node_h0 = 0.0_dp
