@@ -4,6 +4,8 @@ program test_gc_eqdsk_cut_chart_symbolic
         evaluate_neort_eqdsk_cut_numerator
     use neort_eqdsk_cut_r_chart_symbolic, only: &
         evaluate_neort_eqdsk_cut_r_chart
+    use neort_eqdsk_cut_r_flux_chart_symbolic, only: &
+        evaluate_neort_eqdsk_cut_r_flux_chart
     use neort_eqdsk_cut_z_chart_symbolic, only: &
         evaluate_neort_eqdsk_cut_z_chart
     use util_for_test, only: pass_test
@@ -12,6 +14,7 @@ program test_gc_eqdsk_cut_chart_symbolic
     real(dp) :: radius, z_position, b0, f0, psi_sep
     real(dp) :: numerator(3), numerator_repeat(3), expected(3)
     real(dp) :: r_chart(2), z_chart(2)
+    real(dp) :: r_flux_chart(2)
     real(dp) :: expected_r_chart(2), expected_z_chart(2)
     real(dp) :: oriented_plus, oriented_minus
 
@@ -35,6 +38,9 @@ program test_gc_eqdsk_cut_chart_symbolic
         r_chart(1), r_chart(2))
     call evaluate_neort_eqdsk_cut_z_chart(numerator(2), numerator(3), &
         z_chart(1), z_chart(2))
+    call evaluate_neort_eqdsk_cut_r_flux_chart(numerator(2), numerator(3), &
+        b0*radius, b0*z_position, psi_sep, r_flux_chart(1), &
+        r_flux_chart(2))
     expected_r_chart = [-expected(2)/expected(3), &
         sqrt(1.0_dp+(expected(2)/expected(3))**2)]
     expected_z_chart = [-expected(3)/expected(2), &
@@ -47,6 +53,10 @@ program test_gc_eqdsk_cut_chart_symbolic
         expected(2)+expected(3)*r_chart(1), 0.0_dp)
     call require_close('Z-chart tangent orthogonality', &
         expected(2)*z_chart(1)+expected(3), 0.0_dp)
+    call require_close('flux R-chart slope', r_flux_chart(1), &
+        expected_r_chart(1))
+    call require_close('flux derivative along R chart', r_flux_chart(2), &
+        b0*(radius+z_position*expected_r_chart(1))/psi_sep)
 
     call evaluate_numerator(radius, z_position, b0, f0, psi_sep, numerator_repeat)
     call require_close('N is orientation independent', numerator_repeat(1), &

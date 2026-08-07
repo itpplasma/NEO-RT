@@ -1,11 +1,13 @@
 program test_gc_eqdsk_cut_interval_runtime
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use field_eq_mod, only: nrad, nzet, rad, zet
+    use field_eq_mod, only: nrad, nzet, psi_sep, rad, zet
     use neort_gc_eqdsk_cut_interval, only: &
         EQDSK_CUT_INTERVAL_CELL_MISMATCH, EQDSK_CUT_INTERVAL_SUCCESS, &
         eqdsk_cut_interval_result_t, evaluate_eqdsk_cut_interval_box
     use neort_gc_eqdsk_cut_jet, only: EQDSK_CUT_JET_SUCCESS, &
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
+    use neort_eqdsk_cut_r_flux_chart_symbolic, only: &
+        evaluate_neort_eqdsk_cut_r_flux_chart
     use neort_gc_eqdsk_cylindrical_adapter, only: &
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
     implicit none
@@ -15,6 +17,7 @@ program test_gc_eqdsk_cut_interval_runtime
     type(eqdsk_cut_jet_t) :: point
     character(len=1024) :: path
     real(dp) :: R_value, Z_value, position(3), denominator
+    real(dp) :: point_dZ_dR, point_dpsihat_dR
     integer :: status, point_status, cell_R, cell_Z, zero_Z
 
     call get_environment_variable('EQDSK_FILE', path)
@@ -62,6 +65,16 @@ program test_gc_eqdsk_cut_interval_runtime
         'point vertical numerator derivative is outside interval result')
     call require(encloses(box%positive_denominator, denominator), &
         'point positive denominator is outside interval result')
+    call require(box%r_chart_certified, &
+        'regular point did not produce an interval R chart')
+    call evaluate_neort_eqdsk_cut_r_flux_chart( &
+        point%d_cut_numerator_d_R, point%d_cut_numerator_d_Z, &
+        point%psi_jet(2), point%psi_jet(3), &
+        psi_sep, point_dZ_dR, point_dpsihat_dR)
+    call require(encloses(box%dZ_dR, point_dZ_dR), &
+        'point cut slope is outside interval chart result')
+    call require(encloses(box%dpsihat_dR, point_dpsihat_dR), &
+        'point flux derivative is outside interval chart result')
 
     call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, rad(cell_R), &
         rad(cell_R+2), zet(cell_Z), zet(cell_Z+1), box, status)

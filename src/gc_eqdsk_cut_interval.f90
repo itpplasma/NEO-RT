@@ -11,6 +11,8 @@ module neort_gc_eqdsk_cut_interval
         psi_sep, rtf, splfpol, splpsi, use_fpol
     use neort_eqdsk_cut_numerator_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_numerator_interval
+    use neort_eqdsk_cut_r_flux_chart_interval_symbolic, only: &
+        evaluate_neort_eqdsk_cut_r_flux_chart_interval
     use neort_eqdsk_quintic_cell_jet_interval_symbolic, only: &
         evaluate_neort_eqdsk_quintic_cell_jet_interval
     use neort_eqdsk_quintic_profile_jet_interval_symbolic, only: &
@@ -38,7 +40,10 @@ module neort_gc_eqdsk_cut_interval
         type(gc_outward_interval_t) :: numerator_R
         type(gc_outward_interval_t) :: numerator_Z
         type(gc_outward_interval_t) :: positive_denominator
+        type(gc_outward_interval_t) :: dZ_dR
+        type(gc_outward_interval_t) :: dpsihat_dR
         logical :: denominator_positive_certified = .false.
+        logical :: r_chart_certified = .false.
         integer :: profile_cells_covered = 0
         logical :: vacuum_branch_covered = .false.
     end type eqdsk_cut_interval_result_t
@@ -124,6 +129,19 @@ contains
         end if
         result%denominator_positive_certified = &
             result%positive_denominator%lo > 0.0_dp
+        if (result%numerator_Z%lo > 0.0_dp .or. &
+                result%numerator_Z%hi < 0.0_dp) then
+            call evaluate_neort_eqdsk_cut_r_flux_chart_interval( &
+                result%numerator_R, result%numerator_Z, jet(2), jet(3), &
+                separatrix, result%dZ_dR, result%dpsihat_dR)
+            if (.not. valid_intervals([result%dZ_dR, &
+                    result%dpsihat_dR])) then
+                result = eqdsk_cut_interval_result_t()
+                status = EQDSK_CUT_INTERVAL_NONFINITE
+                return
+            end if
+            result%r_chart_certified = .true.
+        end if
         status = EQDSK_CUT_INTERVAL_SUCCESS
     end subroutine evaluate_eqdsk_cut_interval_box
 
