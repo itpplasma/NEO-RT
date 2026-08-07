@@ -25,6 +25,7 @@ program gen_full_fow_physics
     use fortsym_expr, only: pi_expr
     use fortsym_kernel, only: emit_kernel, kernel_spec_t, KERNEL_SUBROUTINE
     use fortsym_string, only: chars, str, str_t
+    use fortsym_subs, only: subs
     implicit none
 
     character(*), parameter :: DEFAULT_OUTPUT = "../../src/generated"
@@ -238,7 +239,8 @@ program gen_full_fow_physics
     type(expr_t) :: vperp_squared_from_jpotato, jpotato_from_mu
     type(expr_t) :: mu_from_jpotato
     type(expr_t) :: invariant_h, invariant_pphi, invariant_psistar
-    type(expr_t) :: invariant_bhat_phi
+    type(expr_t) :: invariant_bhat_phi, invariant_interface_pphi
+    type(expr_t) :: invariant_interface_psistar
     type(expr_t) :: invariant_vparallel_squared, invariant_ppar_from_pphi
     type(expr_t) :: invariant_ppar_squared, invariant_launch_residual
     type(engine_result_t) :: simplified
@@ -455,9 +457,10 @@ program gen_full_fow_physics
     ! Axisymmetric invariant and launch algebra.  The signed charge remains
     ! in q*Phi and psi_star; only J_K conversion above uses abs(q).
     invariant_h = p_parallel**2/(2*mass) + mu*bmod + q_phi_energy
-    invariant_pphi = charge/c_light*psi + &
-        p_parallel*radius*invariant_bhat_phi
+    invariant_pphi = charge/c_light*psi + p_parallel*radius*bhat2
     invariant_psistar = c_light/charge*invariant_pphi
+    invariant_interface_pphi = subs(invariant_pphi, bhat2, invariant_bhat_phi)
+    invariant_interface_psistar = c_light/charge*invariant_interface_pphi
     invariant_vparallel_squared = 2*(h-mu*bmod-q_phi_energy)/mass
     invariant_ppar_from_pphi = &
         (p_phi-charge*psi/c_light)/(radius*invariant_bhat_phi)
@@ -1044,6 +1047,9 @@ program gen_full_fow_physics
         "axisymmetric invariant canonical flux definition", &
         invariant_psistar-c_light/charge*invariant_pphi)
     call check_identity(proofs, proof_engine, &
+        "standalone canonical interface is a symbol relabelling", &
+        invariant_interface_pphi-subs(invariant_pphi, bhat2, invariant_bhat_phi))
+    call check_identity(proofs, proof_engine, &
         "fixed-H launch compares parallel momentum squared", &
         invariant_ppar_squared-2*mass*(h-mu*bmod-q_phi_energy))
     call check_identity(proofs, proof_engine, "force dot b cross force", &
@@ -1325,7 +1331,8 @@ program gen_full_fow_physics
         vperp_squared_from_jpotato]
     potato_mu_roots = [jpotato_from_mu, mu_from_jpotato]
     cylindrical_hamiltonian_roots = [invariant_h]
-    cylindrical_canonical_roots = [invariant_pphi, invariant_psistar]
+    cylindrical_canonical_roots = &
+        [invariant_interface_pphi, invariant_interface_psistar]
     cylindrical_vparallel_roots = [invariant_vparallel_squared]
     cylindrical_launch_roots = [invariant_vparallel_squared, &
         invariant_ppar_from_pphi, invariant_launch_residual]
