@@ -31,6 +31,24 @@ program gen_full_fow_physics
     character(*), parameter :: DEFAULT_OUTPUT = "../../src/generated"
     character(*), parameter :: FORTSYM_REVISION = &
         "fortsym@545788453a204d58705f735b519c3863c2f734c8"
+    character(len=64), parameter :: EQDSK_CELL_COEFFICIENT_NAMES(36) = &
+        [character(len=64) :: &
+        "coefficient_0_0", "coefficient_0_1", "coefficient_0_2", &
+        "coefficient_0_3", "coefficient_0_4", "coefficient_0_5", &
+        "coefficient_1_0", "coefficient_1_1", "coefficient_1_2", &
+        "coefficient_1_3", "coefficient_1_4", "coefficient_1_5", &
+        "coefficient_2_0", "coefficient_2_1", "coefficient_2_2", &
+        "coefficient_2_3", "coefficient_2_4", "coefficient_2_5", &
+        "coefficient_3_0", "coefficient_3_1", "coefficient_3_2", &
+        "coefficient_3_3", "coefficient_3_4", "coefficient_3_5", &
+        "coefficient_4_0", "coefficient_4_1", "coefficient_4_2", &
+        "coefficient_4_3", "coefficient_4_4", "coefficient_4_5", &
+        "coefficient_5_0", "coefficient_5_1", "coefficient_5_2", &
+        "coefficient_5_3", "coefficient_5_4", "coefficient_5_5"]
+    character(len=64), parameter :: EQDSK_PROFILE_COEFFICIENT_NAMES(6) = &
+        [character(len=64) :: "coefficient_0", "coefficient_1", &
+        "coefficient_2", "coefficient_3", "coefficient_4", &
+        "coefficient_5"]
 
     type(arena_t), target :: arena
     type(symengine_engine_t) :: proof_engine
@@ -354,8 +372,8 @@ program gen_full_fow_physics
     do i = 1, 6
         do j = 1, 6
             k = 2+(i-1)*6+j
-            write (eqdsk_cell_arg_names(k), "(a,i0,a,i0)") &
-                "coefficient_", i-1, "_", j-1
+            eqdsk_cell_arg_names(k) = &
+                EQDSK_CELL_COEFFICIENT_NAMES((i-1)*6+j)
             cell_coefficient(i,j) = &
                 sym(arena, trim(eqdsk_cell_arg_names(k)))
             cell_psi = cell_psi + cell_coefficient(i,j)* &
@@ -377,7 +395,7 @@ program gen_full_fow_physics
     eqdsk_profile_arg_names(1) = "profile_delta"
     profile_value = zero
     do i = 0, 5
-        write (eqdsk_profile_arg_names(i+2), "(a,i0)") "coefficient_", i
+        eqdsk_profile_arg_names(i+2) = EQDSK_PROFILE_COEFFICIENT_NAMES(i+1)
         profile_coefficient(i) = &
             sym(arena, trim(eqdsk_profile_arg_names(i+2)))
         profile_value = profile_value + &
