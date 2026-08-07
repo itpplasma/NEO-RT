@@ -18,3 +18,13 @@ source-form = "free"
 name = "gen_manufactured_torus"
 source-dir = "app"
 main = "gen_manufactured_torus.f90"
+
+[[executable]]
+name = "gen_potato_kernels"
+source-dir = "app"
+main = "gen_potato_kernels.f90"
+
+[[executable]]
+name = "gen_full_fow_physics"
+source-dir = "app"
+main = "gen_full_fow_physics.f90"
