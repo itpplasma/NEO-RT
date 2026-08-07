@@ -162,7 +162,7 @@ contains
             result%status = THIN_LIMIT_CONVERGENCE_ERROR
         end if
         if (options%use_variational_fallback &
-                .and. result%status /= THIN_LIMIT_SUCCESS) then
+            .and. result%status /= THIN_LIMIT_SUCCESS) then
             block
                 type(thin_limit_result_t) :: finite_width_result
 
@@ -224,17 +224,17 @@ contains
         base%orbit_class = orbit_class
         base%winding = winding
         if (reference_velocity <= 0.0_dp .or. period_estimate <= 0.0_dp &
-                .or. rho0 == 0.0_dp .or. parallel_sign == 0) then
+            .or. rho0 == 0.0_dp .or. parallel_sign == 0) then
             result%status = THIN_LIMIT_RETURN_ERROR
             return
         end if
         if (orbit_class /= GC_ORBIT_TRAPPED &
-                .and. orbit_class /= GC_ORBIT_PASSING) then
+            .and. orbit_class /= GC_ORBIT_PASSING) then
             result%status = THIN_LIMIT_RETURN_ERROR
             return
         end if
         if ((orbit_class == GC_ORBIT_TRAPPED .and. winding /= 0) &
-                .or. (orbit_class == GC_ORBIT_PASSING .and. abs(winding) /= 1)) then
+            .or. (orbit_class == GC_ORBIT_PASSING .and. abs(winding) /= 1)) then
             result%status = THIN_LIMIT_RETURN_ERROR
             return
         end if
@@ -300,7 +300,7 @@ contains
             event_tol=event_time_tolerance, t_root=return_time, &
             root_found=found)
         if (rhs_status /= GC_ORBIT_SUCCESS &
-                .or. integration_status%code /= FORTNUM_OK .or. .not. found) then
+            .or. integration_status%code /= FORTNUM_OK .or. .not. found) then
             result%status = THIN_LIMIT_RETURN_ERROR
             return
         end if
@@ -317,7 +317,7 @@ contains
         base%status = GC_ORBIT_SUCCESS
         topology = 2.0_dp*pi*real(winding, dp)*q_reference
         if (options%topology_from_zero_width_return &
-                .and. orbit_class == GC_ORBIT_PASSING) then
+            .and. orbit_class == GC_ORBIT_PASSING) then
             topology = base%delta_phi
         end if
         result%baseline_residual = base%delta_phi - topology
@@ -603,7 +603,8 @@ contains
 
     subroutine compute_gc_orbit_average(field_model, potential_model, invariants, &
             reference_position, parallel_sign, rho0, reference_velocity, eta, &
-            orbit_class, winding, period_estimate, omega_b, mth, mph, &
+            orbit_class, winding, period_estimate, omega_b, omega_phi, &
+            q_fieldline, mth, mph, &
             perturbation, options, result)
         !! Average a native real-space perturbation along the zero-width
         !! guiding-center trajectory.  The trajectory is the same coordinate-
@@ -618,7 +619,7 @@ contains
         integer, intent(in) :: parallel_sign
         real(dp), intent(in) :: rho0, reference_velocity, eta
         integer, intent(in) :: orbit_class, winding, mth, mph
-        real(dp), intent(in) :: period_estimate, omega_b
+        real(dp), intent(in) :: period_estimate, omega_b, omega_phi, q_fieldline
         procedure(gc_orbit_perturbation_i) :: perturbation
         type(gc_orbit_options_t), intent(in) :: options
         type(gc_orbit_average_t), intent(out) :: result
@@ -629,17 +630,23 @@ contains
         real(dp) :: initial_augmented(9), atol(9)
         real(dp), allocatable :: final_state(:)
         real(dp) :: maximum_time, return_time, event_time_tolerance
+        real(dp) :: delta_omega_phi
         integer :: start_status, rhs_status, event_direction
         logical :: found
 
         result = gc_orbit_average_t()
         if (reference_velocity <= 0.0_dp .or. period_estimate <= 0.0_dp &
-                .or. rho0 == 0.0_dp .or. parallel_sign == 0) return
+            .or. rho0 == 0.0_dp .or. parallel_sign == 0) return
         if (orbit_class /= GC_ORBIT_TRAPPED &
-                .and. orbit_class /= GC_ORBIT_PASSING) return
+            .and. orbit_class /= GC_ORBIT_PASSING) return
         if ((orbit_class == GC_ORBIT_TRAPPED .and. winding /= 0) &
-                .or. (orbit_class == GC_ORBIT_PASSING &
-                .and. abs(winding) /= 1)) return
+            .or. (orbit_class == GC_ORBIT_PASSING &
+            .and. abs(winding) /= 1)) return
+        if (orbit_class == GC_ORBIT_PASSING) then
+            delta_omega_phi = omega_phi - q_fieldline*omega_b
+        else
+            delta_omega_phi = omega_phi
+        end if
 
         call initialize_fixed_invariants(field_model, potential_model, &
             invariants, reference_position, parallel_sign, rho0, 0.0_dp, &
@@ -766,8 +773,16 @@ contains
                 rhs_status = GC_ORBIT_PERTURBATION_ERROR
                 return
             end if
-            phase_argument = real(mph, dp)*state(2) &
-                -real(mth, dp)*omega_b*time/reference_velocity
+            if (orbit_class == GC_ORBIT_PASSING) then
+                phase_argument = real(mph, dp) &
+                    *(state(2) + delta_omega_phi*time/reference_velocity) &
+                    -(real(mth, dp) + real(mph, dp)*q_fieldline) &
+                    *omega_b*time/reference_velocity
+            else
+                phase_argument = real(mph, dp) &
+                    *(state(2) + delta_omega_phi*time/reference_velocity) &
+                    -real(mth, dp)*omega_b*time/reference_velocity
+            end if
             phase = cmplx(cos(phase_argument), sin(phase_argument), dp)
             hamiltonian = (2.0_dp - eta*sample%bmod)*amplitude*phase
             derivative(1:5) = base_derivative

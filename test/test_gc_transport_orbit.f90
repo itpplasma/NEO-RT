@@ -67,15 +67,15 @@ program test_gc_transport_orbit
     expected_period = 2.0_dp*acos(-1.0_dp)/0.8_dp
     call compute_gc_orbit_average(field, potential, invariants, &
         reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
-        expected_period, 0.8_dp, 1, 0, unit_poloidal_perturbation, options, &
-        result)
+        expected_period, 0.8_dp, 0.4_dp, 0.5_dp, 1, 1, &
+        unit_poloidal_perturbation, options, result)
     if (result%status /= GC_ORBIT_SUCCESS) error stop "uniform orbit failed"
     expected_hamiltonian = 2.0_dp - 0.36_dp
     if (abs(result%period - expected_period) > 1.0e-8_dp) then
         error stop "uniform orbit period mismatch"
     end if
     if (abs(result%perturbation_average - &
-            cmplx(expected_hamiltonian, 0.0_dp, dp)) > 1.0e-8_dp) then
+        cmplx(expected_hamiltonian, 0.0_dp, dp)) > 1.0e-8_dp) then
         error stop "uniform orbit phase average mismatch"
     end if
     if (abs(result%inverse_b_average - 1.0_dp) > 1.0e-10_dp) then
