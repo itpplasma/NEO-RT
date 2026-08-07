@@ -3,6 +3,25 @@
 ! Modules:
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
+  module potato_topology_mod
+! A stationary root on a physical allowed-region boundary is a boundary
+! marker, not an extremum of the open interval used for fixed-point typing.
+    contains
+      pure logical function root_is_open_interval(root,rlo,rhi)
+        double precision, intent(in) :: root,rlo,rhi
+
+        root_is_open_interval=(rlo.lt.rhi .and. root.gt.rlo .and. root.lt.rhi)
+      end function root_is_open_interval
+
+      pure logical function root_has_two_sided_neighborhood(root,rlo,rhi,hstep)
+        double precision, intent(in) :: root,rlo,rhi,hstep
+
+        root_has_two_sided_neighborhood=(root_is_open_interval(root,rlo,rhi) .and. &
+                                         hstep.gt.0.d0 .and. root-hstep.gt.rlo .and. &
+                                         root+hstep.lt.rhi)
+      end function root_has_two_sided_neighborhood
+  end module potato_topology_mod
+!
   module phielec_of_psi_mod
     integer, parameter :: npolyphi=9
     double precision, dimension(0:npolyphi) :: polyphi
@@ -1845,6 +1864,7 @@
 ! and opoint_extr (logical array with .true. for O-points and .false. for X-points), respectively.
 ! Dimension of the arrays is nroots.
 !
+  use potato_topology_mod, only : root_has_two_sided_neighborhood,root_is_open_interval
   implicit none
 !
   integer, intent(out) :: ierr_classify
@@ -1942,7 +1962,7 @@
 ! Keep the exact boundary in all_regions; do not pass it to the two-sided
 ! fixed-point classifier, whose finite differences would necessarily probe
 ! the forbidden side and report a false topology failure.
-      if(R.le.R_b_in .or. R.ge.R_e_in) then
+      if(.not.root_is_open_interval(R,R_b_in,R_e_in)) then
         call get_poicut(R,Z,dZ_dR)
         print *,'classify_extrema: endpoint stationary root H,J,sigma,Rlo,Rhi,R,Z = ', &
                 toten,perpinv,sigma,R_b_in,R_e_in,R,Z
@@ -2102,6 +2122,7 @@
 ! opoint = .true.   - O-point
 ! opoint = .false.  - X-point
 !
+  use potato_topology_mod, only : root_has_two_sided_neighborhood
   implicit none
 !
   double precision, parameter :: dtau=0.d0, hdiff=1.d-6
@@ -2122,7 +2143,9 @@
     return
   endif
   hstep=hdiff*R_in
-  if(hstep.le.0.d0) then
+  if(.not.root_has_two_sided_neighborhood(R_in,R_lo,R_hi,hstep)) then
+    print *,'determine_fixpoint_type: root lacks strict two-sided neighborhood H,J,sigma,Rlo,Rhi,R,Z,h,ierr = ', &
+            toten,perpinv,sigma,R_lo,R_hi,R_in,Z_in,hstep,2
     ierr_out=2
     return
   endif
