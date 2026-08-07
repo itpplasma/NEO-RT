@@ -10,14 +10,14 @@ module neort_eqdsk_cut_numerator_interval_symbolic
 contains
 
     pure subroutine evaluate_neort_eqdsk_cut_numerator_interval(radius, psi_R, psi_Z, psi_RR, psi_RZ, &
-            psi_ZZ, psi_RRR, psi_RRZ, psi_RZZ, psi_ZZZ, F, dF_dpsihat, psi_sep, N, N_R, N_Z)
+            psi_ZZ, psi_RRR, psi_RRZ, psi_RZZ, psi_ZZZ, F, dF_dpsihat, psi_sep, N, N_R, N_Z, Q)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
             operator(+), operator(-), operator(*), operator(/), operator(**)
         implicit none
         type(gc_outward_interval_t), intent(in) :: radius, psi_R, psi_Z, psi_RR, psi_RZ, psi_ZZ, psi_RRR, psi_RRZ, psi_RZZ, &
             psi_ZZZ, F, dF_dpsihat, psi_sep
-        type(gc_outward_interval_t), intent(out) :: N, N_R, N_Z
+        type(gc_outward_interval_t), intent(out) :: N, N_R, N_Z, Q
         type(gc_outward_interval_t) :: t1, t2, t3, t4, t5, t6, t7, t8, t9
 
         t1 = psi_R**2
@@ -36,6 +36,7 @@ contains
         N_Z = psi_Z*(F*dF_dpsihat*psi_Z*2/psi_sep + t9 + psi_Z*psi_ZZ*2) + psi_ZZ*t3 + radius*(psi_R* &
             psi_Z*(psi_ZZZ - psi_RRZ) + psi_R*psi_ZZ*t4 + psi_RZ*psi_Z*t4 + psi_RZ*(t9 - psi_Z*psi_ZZ*2) + &
             psi_RZZ*t6)
+        Q = t3
 
     end subroutine evaluate_neort_eqdsk_cut_numerator_interval
 
