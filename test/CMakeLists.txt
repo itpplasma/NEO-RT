@@ -68,6 +68,7 @@ add_test(NAME test_eqdsk_axis
     COMMAND ${CMAKE_BINARY_DIR}/test_eqdsk_axis.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+target_sources(test_eqdsk_axis.x PRIVATE generated_circular_torus_volume.f90)
 
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x

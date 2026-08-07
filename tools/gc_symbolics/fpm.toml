@@ -20,6 +20,11 @@ source-dir = "app"
 main = "gen_manufactured_torus.f90"
 
 [[executable]]
+name = "gen_circular_torus_volume"
+source-dir = "app"
+main = "gen_circular_torus_volume.f90"
+
+[[executable]]
 name = "gen_potato_kernels"
 source-dir = "app"
 main = "gen_potato_kernels.f90"
