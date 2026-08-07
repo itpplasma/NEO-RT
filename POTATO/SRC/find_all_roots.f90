@@ -32,7 +32,7 @@
 !
   implicit none
 !
-  integer :: i,iter,nsearch,ierr,ndummy,kx,kxc,k
+  integer :: i,iter,nsearch,ierr,ndummy,kx,kxc,k,kxc_first,kxc_last,ncustom_inside
   double precision :: x,x1in,x2in,f,df,hx,dx,errdist,xb,xe,dfb,dfe,xxtr,fxtr
   double precision :: x1,x2
   double precision, dimension(:), allocatable :: xarr,farr,dfarr,dummy1d
@@ -56,21 +56,36 @@
 ! Merge the equidistant grid with externally provided custom (generally non-equidistand) grid:
 !
   if(customgrid) then
-    ndummy=nsearch+ncustom
+    kxc_first=1
+    do while(kxc_first.le.ncustom)
+      if(xcustom(kxc_first).ge.x1in) exit
+      kxc_first=kxc_first+1
+    enddo
+    kxc_last=ncustom
+    do while(kxc_last.ge.kxc_first)
+      if(xcustom(kxc_last).le.x2in) exit
+      kxc_last=kxc_last-1
+    enddo
+    ncustom_inside=max(0,kxc_last-kxc_first+1)
+    ndummy=nsearch+ncustom_inside
     allocate(dummy1d(0:ndummy))
-    if(xarr(0).lt.xcustom(1)) then
+    if(ncustom_inside.eq.0) then
       dummy1d(0)=xarr(0)
       kx=1
-      kxc=1
+      kxc=kxc_first
+    elseif(xarr(0).lt.xcustom(kxc_first)) then
+      dummy1d(0)=xarr(0)
+      kx=1
+      kxc=kxc_first
     else
-      dummy1d(0)=xcustom(1)
+      dummy1d(0)=xcustom(kxc_first)
       kx=0
-      kxc=2
+      kxc=kxc_first+1
     endif
 !
     k=0
 !
-    do while(kx.le.nsearch .and. kxc.le.ncustom)
+    do while(kx.le.nsearch .and. kxc.le.kxc_last)
       if(xarr(kx).lt.xcustom(kxc)) then
         k=k+1
         dummy1d(k)=xarr(kx)
@@ -88,7 +103,7 @@
       kx=kx+1
     enddo
 !
-    do while(kxc.le.ncustom)
+    do while(kxc.le.kxc_last)
       k=k+1
       dummy1d(k)=xcustom(kxc)
       kxc=kxc+1
@@ -100,7 +115,10 @@
     xarr=dummy1d
 !
 ! eliminate small intervals:
-    hx=0.5d0*min(hx,minval(xcustom(2:ncustom)-xcustom(1:ncustom-1)))
+    if(ncustom_inside.gt.1) then
+      hx=0.5d0*min(hx,minval(xcustom(kxc_first+1:kxc_last) &
+                             -xcustom(kxc_first:kxc_last-1)))
+    endif
     nsearch=0
 !
     do k=1,ndummy
@@ -248,7 +266,7 @@
 !
   implicit none
 !
-  integer :: i,iter,nsearch,ierr,ndummy,kx,kxc,k
+  integer :: i,iter,nsearch,ierr,ndummy,kx,kxc,k,kxc_first,kxc_last,ncustom_inside
   double precision :: x,x1in,x2in,df,hx,errdist,xb,xe
   double precision :: dfb,fm,dfm,xext,fext
   double precision :: rootdist
@@ -267,21 +285,36 @@
   enddo
 !
   if(customgrid) then
-    ndummy=nsearch+ncustom
+    kxc_first=1
+    do while(kxc_first.le.ncustom)
+      if(xcustom(kxc_first).ge.x1in) exit
+      kxc_first=kxc_first+1
+    enddo
+    kxc_last=ncustom
+    do while(kxc_last.ge.kxc_first)
+      if(xcustom(kxc_last).le.x2in) exit
+      kxc_last=kxc_last-1
+    enddo
+    ncustom_inside=max(0,kxc_last-kxc_first+1)
+    ndummy=nsearch+ncustom_inside
     allocate(dummy1d(0:ndummy))
-    if(xarr(0).lt.xcustom(1)) then
+    if(ncustom_inside.eq.0) then
       dummy1d(0)=xarr(0)
       kx=1
-      kxc=1
+      kxc=kxc_first
+    elseif(xarr(0).lt.xcustom(kxc_first)) then
+      dummy1d(0)=xarr(0)
+      kx=1
+      kxc=kxc_first
     else
-      dummy1d(0)=xcustom(1)
+      dummy1d(0)=xcustom(kxc_first)
       kx=0
-      kxc=2
+      kxc=kxc_first+1
     endif
 !
     k=0
 !
-    do while(kx.le.nsearch .and. kxc.le.ncustom)
+    do while(kx.le.nsearch .and. kxc.le.kxc_last)
       if(xarr(kx).lt.xcustom(kxc)) then
         k=k+1
         dummy1d(k)=xarr(kx)
@@ -299,7 +332,7 @@
       kx=kx+1
     enddo
 !
-    do while(kxc.le.ncustom)
+    do while(kxc.le.kxc_last)
       k=k+1
       dummy1d(k)=xcustom(kxc)
       kxc=kxc+1
@@ -310,7 +343,10 @@
     allocate(xarr(0:nsearch))
     xarr=dummy1d
 !
-    hx=0.5d0*min(hx,minval(xcustom(2:ncustom)-xcustom(1:ncustom-1)))
+    if(ncustom_inside.gt.1) then
+      hx=0.5d0*min(hx,minval(xcustom(kxc_first+1:kxc_last) &
+                             -xcustom(kxc_first:kxc_last-1)))
+    endif
     nsearch=0
 !
     do k=1,ndummy
