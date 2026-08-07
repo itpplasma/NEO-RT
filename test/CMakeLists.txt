@@ -292,3 +292,7 @@ add_test(NAME test_gc_transport_status
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_transport_status.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_model2_transport_dispatch
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_model2_transport_dispatch.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
