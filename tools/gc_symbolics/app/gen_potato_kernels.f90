@@ -19,7 +19,7 @@ program gen_potato_kernels
         operator(-), operator(*), operator(/), operator(**), pi_expr, rat, &
         sin, sqrt, sym
     use fortsym_kernel, only: emit_kernel, kernel_spec_t, KERNEL_SUBROUTINE
-    use fortsym_string, only: chars, str
+    use fortsym_string, only: chars, str, str_t
     implicit none
 
     character(*), parameter :: FORTSYM_REVISION = &
