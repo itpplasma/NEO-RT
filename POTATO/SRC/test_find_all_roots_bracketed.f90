@@ -23,7 +23,7 @@ program test_find_all_roots_bracketed
   call require(abs(roots(1)-0.5d0).lt.1.d-10,'tangent_root root')
 
   allocate(xcustom(4))
-  xcustom=[-2.d0,0.25d0,0.75d0,3.d0]
+  xcustom=[-2.d0,0.2d0,0.8d0,3.d0]
   ncustom=size(xcustom)
   customgrid=.true.
   evaluated_outside_bounds=.false.
