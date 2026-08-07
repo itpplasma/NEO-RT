@@ -51,7 +51,7 @@ contains
         dbhat_Z_dZ = (d_b_Z_d_Z - b_Z*t4/t1)/t1
         curl_bhat_R = t8 - t10/t1
         curl_bhat_phi = t9 - t6/t1
-        curl_bhat_Z = b_phi/geometry_radius/t1 - t7/t1 + t5
+        curl_bhat_Z = b_phi/radius/t1 - t7/t1 + t5
 
     end subroutine evaluate_neort_cylindrical_geometry
 
