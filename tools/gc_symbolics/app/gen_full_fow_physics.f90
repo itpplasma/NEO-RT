@@ -29,7 +29,7 @@ program gen_full_fow_physics
 
     character(*), parameter :: DEFAULT_OUTPUT = "../../src/generated"
     character(*), parameter :: FORTSYM_REVISION = &
-        "fortsym@545788453a204d58705f735b519c3863c2f734c8"
+        "fortsym@3cc3bb564b803088269318cd4005f4dde51bd488"
 
     type(arena_t), target :: arena
     type(symengine_engine_t) :: proof_engine
@@ -238,6 +238,7 @@ program gen_full_fow_physics
     type(expr_t) :: vperp_squared_from_jpotato, jpotato_from_mu
     type(expr_t) :: mu_from_jpotato
     type(expr_t) :: invariant_h, invariant_pphi, invariant_psistar
+    type(expr_t) :: invariant_bhat_phi
     type(expr_t) :: invariant_vparallel_squared, invariant_ppar_from_pphi
     type(expr_t) :: invariant_ppar_squared, invariant_launch_residual
     type(engine_result_t) :: simplified
@@ -266,6 +267,7 @@ program gen_full_fow_physics
     electrostatic_potential = sym(arena, "electrostatic_potential")
     p_phi = sym(arena, "p_phi")
     psi = sym(arena, "psi")
+    invariant_bhat_phi = sym(arena, "bhat_phi")
     b1 = sym(arena, "b1")
     b2 = sym(arena, "b2")
     b3 = sym(arena, "b3")
@@ -453,10 +455,12 @@ program gen_full_fow_physics
     ! Axisymmetric invariant and launch algebra.  The signed charge remains
     ! in q*Phi and psi_star; only J_K conversion above uses abs(q).
     invariant_h = p_parallel**2/(2*mass) + mu*bmod + q_phi_energy
-    invariant_pphi = charge/c_light*psi + p_parallel*radius*bhat2
+    invariant_pphi = charge/c_light*psi + &
+        p_parallel*radius*invariant_bhat_phi
     invariant_psistar = c_light/charge*invariant_pphi
     invariant_vparallel_squared = 2*(h-mu*bmod-q_phi_energy)/mass
-    invariant_ppar_from_pphi = (p_phi-charge*psi/c_light)/(radius*bhat2)
+    invariant_ppar_from_pphi = &
+        (p_phi-charge*psi/c_light)/(radius*invariant_bhat_phi)
     invariant_ppar_squared = mass**2*invariant_vparallel_squared
     invariant_launch_residual = invariant_ppar_from_pphi**2 - &
         invariant_ppar_squared
@@ -1830,7 +1834,7 @@ contains
         write (unit, "(a)") "module neort_generated_certificate_registry"
         write (unit, "(a)") "    implicit none"
         write (unit, "(a)") "    character(*), parameter :: fortsym_revision = &"
-        write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
+        write (unit, "(a)") "        'fortsym@3cc3bb564b803088269318cd4005f4dde51bd488'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
         write (unit, "(a)") "    integer, parameter :: certificate_count = 10"
@@ -1839,16 +1843,16 @@ contains
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
         write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
-        write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eq13_cdot:3:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:boundary_limits:13:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:root_enclosures:3:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:interpolation:9:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:harmonic_integrand:8:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-5457884' ]"
+        write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:eq13_cdot:3:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:boundary_limits:13:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:root_enclosures:3:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:interpolation:9:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:harmonic_integrand:8:fortsym-3cc3bb5', &"
+        write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-3cc3bb5' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"
