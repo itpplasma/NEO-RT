@@ -18,7 +18,7 @@ program test_gc_eqdsk_cut_interval_runtime
     character(len=1024) :: path
     real(dp) :: R_value, Z_value, position(3), denominator
     real(dp) :: point_dZ_dR, point_dpsihat_dR
-    integer :: status, point_status, cell_R, cell_Z, zero_Z
+    integer :: status, point_status, cell_R, cell_Z, zero_Z, i, j
 
     call get_environment_variable('EQDSK_FILE', path)
     call require(len_trim(path) > 0, 'EQDSK_FILE is required')
@@ -44,6 +44,24 @@ program test_gc_eqdsk_cut_interval_runtime
         'exact symmetric midplane was excluded from Eq.13')
     call require(box%denominator_positive_certified, &
         'positive Eq.13 denominator was not certified')
+
+    call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, rad(cell_R), &
+        rad(cell_R+1), zet(cell_Z), zet(cell_Z+1), box, status)
+    call require(status == EQDSK_CUT_INTERVAL_SUCCESS, &
+        'nondegenerate interval evaluation failed')
+    do i = 0, 2
+        R_value = rad(cell_R)+real(i,dp)*(rad(cell_R+1)-rad(cell_R))/2.0_dp
+        do j = 0, 2
+            Z_value = zet(cell_Z)+real(j,dp)*(zet(cell_Z+1)-zet(cell_Z))/2.0_dp
+            position = [R_value, Z_value, 0.0_dp]
+            call evaluate_eqdsk_cut_jet(position, 1.0_dp, 1, &
+                [0.0_dp,0.0_dp,0.0_dp], point, point_status)
+            call require(point_status == EQDSK_CUT_JET_SUCCESS, &
+                'sampled scalar cut evaluation failed')
+            call require(encloses(box%numerator, point%cut_numerator), &
+                'sampled numerator is outside tightened interval result')
+        end do
+    end do
 
     Z_value = 0.5_dp*(zet(cell_Z)+zet(cell_Z+1))
     R_value = 0.5_dp*(rad(cell_R)+rad(cell_R+1))

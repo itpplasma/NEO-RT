@@ -151,6 +151,7 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_cut_z_chart_symbolic.f90
     src/generated/neort_eqdsk_cut_r_flux_chart_symbolic.f90
     src/generated/neort_eqdsk_cut_r_flux_chart_interval_symbolic.f90
+    src/generated/neort_eqdsk_cut_mean_value_interval_symbolic.f90
     src/generated/neort_cylindrical_hamiltonian_symbolic.f90
     src/generated/neort_cylindrical_canonical_symbolic.f90
     src/generated/neort_cylindrical_vparallel_symbolic.f90

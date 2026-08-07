@@ -11,6 +11,8 @@ module neort_gc_eqdsk_cut_interval
         psi_sep, rtf, splfpol, splpsi, use_fpol
     use neort_eqdsk_cut_numerator_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_numerator_interval
+    use neort_eqdsk_cut_mean_value_interval_symbolic, only: &
+        evaluate_neort_eqdsk_cut_mean_value_interval
     use neort_eqdsk_cut_r_flux_chart_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_r_flux_chart_interval
     use neort_eqdsk_quintic_cell_jet_interval_symbolic, only: &
@@ -60,9 +62,18 @@ contains
         integer, intent(out) :: status
 
         type(gc_outward_interval_t) :: coefficient(6,6), jet(10)
+        type(gc_outward_interval_t) :: midpoint_jet(10)
         type(gc_outward_interval_t) :: radius, delta_R, delta_Z, separatrix
-        type(gc_outward_interval_t) :: profile(4)
-        integer :: cell_pointer, i, j
+        type(gc_outward_interval_t) :: midpoint_profile(4), profile(4)
+        type(gc_outward_interval_t) :: midpoint_numerator
+        type(gc_outward_interval_t) :: midpoint_numerator_R
+        type(gc_outward_interval_t) :: midpoint_numerator_Z
+        type(gc_outward_interval_t) :: midpoint_denominator
+        type(gc_outward_interval_t) :: mean_value_numerator
+        type(gc_outward_interval_t) :: centered_R, centered_Z
+        real(dp) :: R_mid, Z_mid
+        integer :: cell_pointer, i, j, midpoint_cells, midpoint_status
+        logical :: midpoint_vacuum
 
         result = eqdsk_cut_interval_result_t()
         status = EQDSK_CUT_INTERVAL_INVALID_INPUT
@@ -123,6 +134,53 @@ contains
             result%positive_denominator)
         if (.not. valid_intervals([result%numerator, result%numerator_R, &
                 result%numerator_Z, result%positive_denominator])) then
+            result = eqdsk_cut_interval_result_t()
+            status = EQDSK_CUT_INTERVAL_NONFINITE
+            return
+        end if
+
+        ! Tighten the direct natural interval with the Fortsym-generated
+        ! mean-value enclosure.  The midpoint value and the full-box partial
+        ! derivative enclosures are independently outward-rounded; their
+        ! intersection therefore remains a certified enclosure of N(R,Z).
+        R_mid = R_lo+0.5_dp*(R_hi-R_lo)
+        Z_mid = Z_lo+0.5_dp*(Z_hi-Z_lo)
+        call evaluate_cell_jet(point(R_mid-rad(cell_R)), &
+            point(Z_mid-zet(cell_Z)), coefficient, midpoint_jet)
+        if (.not. valid_intervals(midpoint_jet)) then
+            result = eqdsk_cut_interval_result_t()
+            status = EQDSK_CUT_INTERVAL_NONFINITE
+            return
+        end if
+        call evaluate_profile_hull(midpoint_jet(1)/separatrix, &
+            midpoint_profile, midpoint_cells, midpoint_vacuum, midpoint_status)
+        if (midpoint_status /= EQDSK_CUT_INTERVAL_SUCCESS) then
+            result = eqdsk_cut_interval_result_t()
+            status = midpoint_status
+            return
+        end if
+        call evaluate_neort_eqdsk_cut_numerator_interval(point(R_mid), &
+            midpoint_jet(2), midpoint_jet(3), midpoint_jet(4), &
+            midpoint_jet(5), midpoint_jet(6), midpoint_jet(7), &
+            midpoint_jet(8), midpoint_jet(9), midpoint_jet(10), &
+            midpoint_profile(1), midpoint_profile(2), separatrix, &
+            midpoint_numerator, midpoint_numerator_R, midpoint_numerator_Z, &
+            midpoint_denominator)
+        centered_R = radius-point(R_mid)
+        centered_Z = gc_outward_interval(Z_lo, Z_hi)-point(Z_mid)
+        call evaluate_neort_eqdsk_cut_mean_value_interval(midpoint_numerator, &
+            result%numerator_R, result%numerator_Z, centered_R, centered_Z, &
+            mean_value_numerator)
+        if (.not. valid_intervals([midpoint_numerator, &
+                midpoint_numerator_R, midpoint_numerator_Z, &
+                midpoint_denominator, mean_value_numerator])) then
+            result = eqdsk_cut_interval_result_t()
+            status = EQDSK_CUT_INTERVAL_NONFINITE
+            return
+        end if
+        result%numerator%lo = max(result%numerator%lo, mean_value_numerator%lo)
+        result%numerator%hi = min(result%numerator%hi, mean_value_numerator%hi)
+        if (.not. gc_outward_interval_is_valid(result%numerator)) then
             result = eqdsk_cut_interval_result_t()
             status = EQDSK_CUT_INTERVAL_NONFINITE
             return
