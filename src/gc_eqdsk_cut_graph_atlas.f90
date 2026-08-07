@@ -68,9 +68,14 @@ module neort_gc_eqdsk_cut_graph_atlas
         integer :: certificate_id = 0
         logical :: global_completeness_certified = .false.
         integer :: failure_cell_R = 0
+        integer :: failure_cell_Z = 0
         integer :: failure_r_depth = 0
+        integer :: failure_z_depth = 0
+        integer :: failure_stage = 0
         real(dp) :: failure_r_lo = 0.0_dp
         real(dp) :: failure_r_hi = 0.0_dp
+        real(dp) :: failure_z_lo = 0.0_dp
+        real(dp) :: failure_z_hi = 0.0_dp
     end type eqdsk_cut_graph_atlas_t
 
     public :: build_eqdsk_cut_graph_atlas
@@ -162,13 +167,18 @@ contains
         atlas%certificate_id = 0
         atlas%global_completeness_certified = .false.
         atlas%failure_cell_R = 0
+        atlas%failure_cell_Z = 0
         atlas%failure_r_depth = 0
+        atlas%failure_z_depth = 0
+        atlas%failure_stage = 0
         atlas%failure_r_lo = 0.0_dp
         atlas%failure_r_hi = 0.0_dp
+        atlas%failure_z_lo = 0.0_dp
+        atlas%failure_z_hi = 0.0_dp
     end subroutine clear_eqdsk_cut_graph_atlas
 
     subroutine validate_eqdsk_cut_graph_atlas(atlas, status)
-        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
         integer, intent(out) :: status
 
         status = validate_atlas_structure(atlas, .true.)
@@ -325,7 +335,7 @@ contains
 
     subroutine certify_slab_contents(atlas, cell_R, r_lo, r_hi, outcome, &
             strip, status)
-        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
         integer, intent(in) :: cell_R
         real(dp), intent(in) :: r_lo, r_hi
         integer, intent(out) :: outcome
@@ -358,6 +368,7 @@ contains
             end if
         end do
         if (n_candidates <= 0) then
+            atlas%failure_stage = 2
             outcome = Z_COVER_UNRESOLVED
             return
         end if
@@ -368,7 +379,7 @@ contains
 
     recursive subroutine cover_z_box(atlas, cell_R, cell_Z, r_lo, r_hi, z_lo, &
             z_hi, depth, candidates, n_candidates, outcome, status)
-        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
         integer, intent(in) :: cell_R, cell_Z, depth
         real(dp), intent(in) :: r_lo, r_hi, z_lo, z_hi
         type(candidate_leaf_t), allocatable, intent(inout) :: candidates(:)
@@ -403,6 +414,11 @@ contains
         end if
         if (depth >= atlas%options%max_z_depth .or. &
                 z_hi-z_lo <= atlas%options%minimum_z_width) then
+            atlas%failure_cell_Z = cell_Z
+            atlas%failure_z_depth = depth
+            atlas%failure_stage = 1
+            atlas%failure_z_lo = z_lo
+            atlas%failure_z_hi = z_hi
             outcome = Z_COVER_UNRESOLVED
             return
         end if
@@ -420,7 +436,7 @@ contains
 
     subroutine assemble_candidate_band(atlas, cell_R, r_lo, r_hi, candidates, &
             n_candidates, strip, outcome, status)
-        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
         integer, intent(in) :: cell_R, n_candidates
         real(dp), intent(in) :: r_lo, r_hi
         type(candidate_leaf_t), intent(in) :: candidates(:)
@@ -438,6 +454,7 @@ contains
         band_hi = candidates(n_candidates)%z_hi
         do i = 2, n_candidates
             if (candidates(i)%z_lo /= candidates(i-1)%z_hi) then
+                atlas%failure_stage = 3
                 outcome = Z_COVER_MULTIPLE
                 return
             end if
@@ -447,6 +464,7 @@ contains
         else if (candidates(1)%interval%numerator_Z%hi < 0.0_dp) then
             normal_sign = -1
         else
+            atlas%failure_stage = 4
             outcome = Z_COVER_UNRESOLVED
             return
         end if
@@ -457,11 +475,13 @@ contains
             end if
             if (normal_sign > 0) then
                 if (candidates(i)%interval%numerator_Z%lo <= 0.0_dp) then
+                    atlas%failure_stage = 4
                     outcome = Z_COVER_UNRESOLVED
                     return
                 end if
             else
                 if (candidates(i)%interval%numerator_Z%hi >= 0.0_dp) then
+                    atlas%failure_stage = 4
                     outcome = Z_COVER_UNRESOLVED
                     return
                 end if
@@ -495,6 +515,9 @@ contains
         end if
         if (.not. opposite_face_signs(normal_sign, lower_face%numerator, &
                 upper_face%numerator)) then
+            atlas%failure_stage = 5
+            atlas%failure_z_lo = band_lo
+            atlas%failure_z_hi = band_hi
             outcome = Z_COVER_UNRESOLVED
             return
         end if
