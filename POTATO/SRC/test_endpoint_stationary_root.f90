@@ -1,14 +1,20 @@
 program test_endpoint_stationary_root
   use find_all_roots_mod, only : nroots,roots
   use pitch_boundary_mod, only : pitch_boundary_success,resolve_pitch_squared
+  use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,xbeg,xend,eps, &
+                                    icount,topology_context_h, &
+                                    sample_matrix_topology_transition, &
+                                    topology_stencil_is_compatible
   use potato_topology_mod, only : choose_two_sided_step, &
                                   root_has_two_sided_neighborhood,root_is_open_interval
   implicit none
 
   integer :: ierr,i,nopen
+  integer :: signatures(4)
   logical :: resolved_step
   double precision :: pitch_squared_zero,pitch_squared_plus
   double precision :: root,h_fixed,h_adaptive,qminus,qzero,qplus,curvature
+  external :: sample_matrix_out
 
   call find_all_roots_bracketed(manufactured_stationary_roots,0.d0,1.d0,ierr)
   call require(ierr.eq.0,'manufactured stationary-root scan ierr')
@@ -26,6 +32,18 @@ program test_endpoint_stationary_root
   call require(.not.root_is_open_interval(roots(3),0.d0,1.d0), &
                'right stationary boundary classified as an open-interval extremum')
   call require(nopen.eq.1,'wrong number of open-interval stationary roots')
+
+! A sampler may converge numerically on each smooth branch, but the two
+! branches are not one interpolation problem.  This is the independent
+! convergence oracle for the outer J_perp topology gate.
+  signatures=(/7,7,9,9/)
+  call require(topology_stencil_is_compatible(signatures,1,2), &
+               'same-topology interpolation stencil was rejected')
+  call require(.not.topology_stencil_is_compatible(signatures,2,3), &
+               'cross-topology interpolation stencil was admitted')
+  call require(topology_stencil_is_compatible(signatures,3,4), &
+               'second same-topology interpolation stencil was rejected')
+  call test_topology_gate
 
   call require(.not.root_has_two_sided_neighborhood(0.d0,0.d0,1.d0,1.d-6), &
                'left endpoint admitted by two-sided classifier')
@@ -90,5 +108,36 @@ contains
     f=x*(x-0.5d0)*(x-1.d0)
     df=3.d0*x*x-3.d0*x+0.5d0
   end subroutine manufactured_stationary_roots
+
+  subroutine test_topology_gate
+    integer :: local_ierr
+
+    nlagr=3
+    n1=1
+    n2=1
+    npoi=6
+    itermax=4
+    xbeg=0.d0
+    xend=1.d0
+    eps=1.d-6
+    icount=0
+    topology_context_h=42.d0
+    call sample_matrix_out(manufactured_topology_matrix,local_ierr)
+    call require(local_ierr.eq.sample_matrix_topology_transition, &
+                 'cross-topology sampler did not fail closed')
+  end subroutine test_topology_gate
+
+  subroutine manufactured_topology_matrix
+    use sample_matrix_out_mod, only : x,amat,topology_signature,topology_error
+
+    topology_error=0
+    if(x.lt.0.5d0) then
+      topology_signature=7
+      amat(1,1)=x*x
+    else
+      topology_signature=9
+      amat(1,1)=x*x+1.d0
+    endif
+  end subroutine manufactured_topology_matrix
 
 end program test_endpoint_stationary_root

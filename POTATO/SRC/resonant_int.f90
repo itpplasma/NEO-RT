@@ -376,15 +376,17 @@ end subroutine integrate_class_resonances
 !
 subroutine get_matrix_res
     !
-    use sample_matrix_out_mod,        only : n1,n2,x,amat,icount
+    use sample_matrix_out_mod,        only : n1,n2,x,amat,icount, &
+        topology_signature,topology_error,topology_context_h, &
+        topology_signature_of_classes
     use global_invariants,            only : toten,perpinv
-    use form_classes_doublecount_mod, only : nclasses
+    use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
     use get_matrix_mod,               only : iclass
     use resint_mod,                   only : nmodes,nperp_max,respoints_jp, &
         respoints_all,respoints_all_tmp
     use cc_mod,                       only : wrbounds,dowrite
     use orbit_dim_mod,                only : write_orb
-    use logging_mod,                  only : tee_message, close_logging
+    use logging_mod,                  only : tee_message
     use bounds_fixpoints_mod,         only : region_set_t
     !
     logical :: classes_talk
@@ -397,6 +399,10 @@ subroutine get_matrix_res
     dowrite=.false.
     write_orb=.false.
     classes_talk=.false.
+    topology_signature=0
+    topology_error=0
+    topology_context_h=toten
+    amat=0.d0
     !
     perpinv=x
     !
@@ -406,8 +412,8 @@ subroutine get_matrix_res
         write(msg, '(A,I0)') &
             'get_matrix_res: find_bounds_fixpoints ierr = ', ierr
         call tee_message(trim(msg))
-        call close_logging()
-        stop
+        topology_error=ierr
+        return
     endif
     !
     call form_classes_doublecount(regions,classes_talk,ierr)
@@ -416,9 +422,15 @@ subroutine get_matrix_res
         write(msg, '(A,I0)') &
             'get_matrix_res: form_classes ierr = ', ierr
         call tee_message(trim(msg))
-        call close_logging()
-        stop
+        topology_error=ierr
+        return
     endif
+    if(nclasses.le.0) then
+        call tee_message('get_matrix_res: no certified resonance classes')
+        topology_error=2
+        return
+    endif
+    topology_signature=topology_signature_of_classes(nclasses,ifuntype,sigma_class)
     !
     allocate(respoints_jp(nmodes,nclasses))
     amat=0.d0
@@ -441,11 +453,9 @@ subroutine get_matrix_res
             write(msg, '(A,I0)') &
                 'get_matrix_res: sample_class_doublecount error ', ierr
             call tee_message(trim(msg))
-            do mode=1,nmodes
-                respoints_jp(mode,iclass)%nrespoi=0
-                respoints_jp(mode,iclass)%toten_res=toten
-                respoints_jp(mode,iclass)%perpinv_res=perpinv
-            enddo
+            topology_error=ierr
+            deallocate(respoints_jp)
+            return
         endif
     enddo
     !
@@ -491,7 +501,7 @@ subroutine resonant_torque
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
         resline_unit_is_private,resline_diag_unit_is_private
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
-        ind_hist,xarr,amat_arr
+        ind_hist,xarr,amat_arr,topology_error
     use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
@@ -640,6 +650,16 @@ subroutine resonant_torque
             ! Generate J_perp grid with function values:
             !
             call sample_matrix_out(get_matrix_res,ierr)
+            if(ierr.ne.0) then
+                write(msg, '(A,I0,A,ES22.14)') &
+                    'resonant_torque: adaptive J_perp sampling failed ierr = ', &
+                    ierr, ' at H = ', toten
+                call tee_message(trim(msg))
+                ! Do not reorder or integrate a truncated/non-certified grid.
+                ! A bare STOP exits successfully with gfortran and used to make
+                ! this failure look like a completed physics run.
+                error stop 2
+            endif
             !
             allocate(respoints_all_tmp(npoi))
             !
@@ -792,6 +812,13 @@ subroutine resonant_torque
                 x=perpinv_max*(1.d0-xjperp**2)
                 !
                 call get_matrix_res
+                if(topology_error.ne.0) then
+                    write(msg, '(A,I0,A,ES22.14,A,ES22.14)') &
+                        'resonant_torque: fixed J_perp sampling failed ierr = ', &
+                        topology_error, ' at H = ', toten, ' J = ', x
+                    call tee_message(trim(msg))
+                    error stop 2
+                endif
                 !
                 torque_int_loc=torque_int_loc &
                     +perpinv_max*trapez_fac*sum(amat(:,1))*step_energ

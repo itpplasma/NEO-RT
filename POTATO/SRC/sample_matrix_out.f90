@@ -1,14 +1,57 @@
   module sample_matrix_out_mod
+    integer, parameter :: sample_matrix_success=0
+    integer, parameter :: sample_matrix_nonconverged=2
+    integer, parameter :: sample_matrix_topology_transition=3
     integer :: nlagr,n1,n2,npoi=0,itermax=0,icount
     double precision :: x,xbeg,xend,eps
+    integer :: topology_signature=0,topology_error=0
+    double precision :: topology_context_h=0.d0
     integer,          dimension(:),     allocatable :: ind_hist
+    integer,          dimension(:),     allocatable :: topology_arr
     double precision, dimension(:),     allocatable :: xarr
     double precision, dimension(:,:),   allocatable :: amat
     double precision, dimension(:,:,:), allocatable :: amat_arr
 ! The adaptive J_perp grid is per-energy-slice scratch.  Energy slices may run
 ! concurrently, so each worker keeps its own grid and interpolation workspace.
     !$omp threadprivate(nlagr,n1,n2,npoi,itermax,icount,x,xbeg,xend,eps, &
-    !$omp               ind_hist,xarr,amat,amat_arr)
+    !$omp               topology_signature,topology_error,topology_context_h, &
+    !$omp               ind_hist,topology_arr,xarr,amat,amat_arr)
+
+  contains
+
+    pure logical function topology_stencil_is_compatible(signatures,ibeg,iend)
+      integer, intent(in) :: signatures(:),ibeg,iend
+
+      topology_stencil_is_compatible=.false.
+      if(ibeg.lt.1) return
+      if(iend.gt.size(signatures)) return
+      if(ibeg.gt.iend) return
+      if(signatures(ibeg).eq.0) return
+      topology_stencil_is_compatible=all(signatures(ibeg:iend).eq.signatures(ibeg))
+    end function topology_stencil_is_compatible
+
+    integer function topology_signature_of_classes(nclasses,ifuntype,sigma_class)
+      integer, intent(in) :: nclasses
+      integer, intent(in) :: ifuntype(:)
+      double precision, intent(in) :: sigma_class(:)
+
+      integer :: i,sign_code
+
+      topology_signature_of_classes=17+nclasses
+      do i=1,nclasses
+        sign_code=1
+        if(sigma_class(i).lt.0.d0) sign_code=-1
+        ! Keep the rolling value small before multiplication so the default
+        ! integer kind cannot overflow.  The signature intentionally ignores
+        ! continuously moving class bounds; it identifies the discrete class
+        ! topology (count, endpoint types, and passing sign).
+        topology_signature_of_classes=mod( &
+            31*mod(topology_signature_of_classes,1000000)+7*ifuntype(i)+ &
+            sign_code+13*i,1000000007)
+      enddo
+      if(topology_signature_of_classes.eq.0) topology_signature_of_classes=1
+    end function topology_signature_of_classes
+
   end module sample_matrix_out_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -23,7 +66,7 @@
 !
 !  Formal input/output:
 ! get_matrix (in)  - external subroutine for computation of matrix function
-! ierr       (out) - error code: 0 - normal work, 2 - maximum number of the refinements cylces is exceeded
+! ierr       (out) - error code: 0 - normal work, 2 - maximum number of the refinements cycles is exceeded, 3 - topology transition
 !
 !  Module input/output (via module "sample_matrix_out_mod"):
 ! nlagr                (in)    - order of Lagrange polynomial for sampling
@@ -45,7 +88,7 @@
   INTEGER, PARAMETER :: nder=0
   DOUBLE PRECISION, PARAMETER :: symm_break=0.01d0
   INTEGER :: i,j,iter,npoi_old,iold,inew,ibeg,iend,nshift,npoilag,ierr
-  INTEGER,          DIMENSION(:),     ALLOCATABLE :: isplit,ind_hist_old
+  INTEGER,          DIMENSION(:),     ALLOCATABLE :: isplit,ind_hist_old,topology_old
 !
   DOUBLE PRECISION :: h,hh
   DOUBLE PRECISION, DIMENSION(:),     ALLOCATABLE :: xold
@@ -67,23 +110,28 @@
   hh=symm_break*h/dble(npoi-1)
 !
   if(allocated(amat)) then
-    DEALLOCATE(amat,xarr,amat_arr,ind_hist)
+    DEALLOCATE(amat,xarr,amat_arr,ind_hist,topology_arr)
   endif
-!
-  ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi),ind_hist(npoi))
+  !
+  ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi),ind_hist(npoi), &
+      topology_arr(npoi))
   icount=0
-!
+  !
   x=xbeg
-  CALL get_matrix
+  CALL evaluate_matrix_checked(ierr)
+  IF(ierr.NE.0) RETURN
   xarr(1)=x
   amat_arr(:,:,1)=amat
   ind_hist(1)=icount
-!
+  topology_arr(1)=topology_signature
+  !
   x=xend
-  CALL get_matrix
+  CALL evaluate_matrix_checked(ierr)
+  IF(ierr.NE.0) RETURN
   xarr(npoi)=x
   amat_arr(:,:,npoi)=amat
   ind_hist(npoi)=icount
+  topology_arr(npoi)=topology_signature
 !
   DO i=2,npoi-1
     x=xbeg+h*(i-1)+hh*(i-1)**2
@@ -91,9 +139,11 @@
   ENDDO
   DO i=2,npoi-1
     x=xarr(i)
-    CALL get_matrix
+    CALL evaluate_matrix_checked(ierr)
+    IF(ierr.NE.0) RETURN
     amat_arr(:,:,i)=amat
     ind_hist(i)=icount
+    topology_arr(i)=topology_signature
   ENDDO
 !
   ALLOCATE(amat1(n1,n2),amat2(n1,n2),amat_maxmod(n1,n2))
@@ -102,9 +152,19 @@
   ALLOCATE(isplit(npoi))
   isplit=0
   DO inew=1,npoi-1
+    IF(topology_arr(inew).NE.topology_arr(inew+1)) THEN
+      CALL report_topology_transition(inew,inew+1)
+      ierr=sample_matrix_topology_transition
+      RETURN
+    ENDIF
     x=0.5d0*(xarr(inew)+xarr(inew+1))
     ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
     iend=ibeg+nlagr
+    IF(.NOT.topology_stencil_is_compatible(topology_arr,ibeg,iend)) THEN
+      CALL report_topology_transition(ibeg,iend)
+      ierr=sample_matrix_topology_transition
+      RETURN
+    ENDIF
     CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
     DO i=1,n1
       amat1(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -114,6 +174,11 @@
     ENDDO
     ibeg=MAX(2,MIN(npoi-nlagr,inew-nshift+1))
     iend=ibeg+nlagr
+    IF(.NOT.topology_stencil_is_compatible(topology_arr,ibeg,iend)) THEN
+      CALL report_topology_transition(ibeg,iend)
+      ierr=sample_matrix_topology_transition
+      RETURN
+    ENDIF
     CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
     DO i=1,n1
       amat2(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -129,10 +194,11 @@
   ENDDO
   IF(MAXVAL(isplit).GT.0) THEN
     npoi_old=npoi
-    ALLOCATE(xold(npoi),amat_old(n1,n2,npoi),ind_hist_old(npoi))
+    ALLOCATE(xold(npoi),amat_old(n1,n2,npoi),ind_hist_old(npoi),topology_old(npoi))
     xold=xarr
     amat_old=amat_arr
     ind_hist_old=ind_hist
+    topology_old=topology_arr
   ELSE
     RETURN
   ENDIF
@@ -141,8 +207,10 @@
   DO
     iter=iter+1
     IF(iter.GT.itermax) THEN
-      ierr=2
+      ierr=sample_matrix_nonconverged
       PRINT *,'sample_matrix_out : maximum number of iterations exceeded'
+      PRINT *,'sample_matrix_out : H, J probe, J domain, npoi, ierr = ', &
+          topology_context_h,x,xarr(1),xarr(npoi),npoi,ierr
       RETURN
     ENDIF
 !
@@ -153,7 +221,7 @@
     IF(ALLOCATED(xarr)) THEN
       DEALLOCATE(xarr,amat_arr,ind_hist)
     ENDIF
-    ALLOCATE(xarr(npoi),amat_arr(n1,n2,npoi),ind_hist(npoi))
+    ALLOCATE(xarr(npoi),amat_arr(n1,n2,npoi),ind_hist(npoi),topology_arr(npoi))
 !
 ! fill new arrays:
     inew=0
@@ -162,28 +230,42 @@
       xarr(inew)=xold(iold)
       amat_arr(:,:,inew)=amat_old(:,:,iold)
       ind_hist(inew)=ind_hist_old(iold)
+      topology_arr(inew)=topology_old(iold)
       IF(isplit(iold).EQ.1) THEN
         inew=inew+1
         x=0.5d0*(xold(iold)+xold(iold+1))
-        CALL get_matrix
+        CALL evaluate_matrix_checked(ierr)
+        IF(ierr.NE.0) RETURN
         xarr(inew)=x
         amat_arr(:,:,inew)=amat
         ind_hist(inew)=icount
+        topology_arr(inew)=topology_signature
       ENDIF
     ENDDO
     inew=inew+1
     xarr(inew)=xold(npoi_old)
     amat_arr(:,:,inew)=amat_old(:,:,npoi_old)
     ind_hist(inew)=ind_hist_old(npoi_old)
+    topology_arr(inew)=topology_old(npoi_old)
     DEALLOCATE(isplit)
 !
 ! check which intervals should be splitted
     ALLOCATE(isplit(npoi))
     isplit=0
     DO inew=1,npoi-1
+      IF(topology_arr(inew).NE.topology_arr(inew+1)) THEN
+        CALL report_topology_transition(inew,inew+1)
+        ierr=sample_matrix_topology_transition
+        RETURN
+      ENDIF
       x=0.5d0*(xarr(inew)+xarr(inew+1))
       ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
       iend=ibeg+nlagr
+      IF(.NOT.topology_stencil_is_compatible(topology_arr,ibeg,iend)) THEN
+        CALL report_topology_transition(ibeg,iend)
+        ierr=sample_matrix_topology_transition
+        RETURN
+      ENDIF
       CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
       DO i=1,n1
         amat1(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -193,6 +275,11 @@
       ENDDO
       ibeg=MAX(2,MIN(npoi-nlagr,inew-nshift+1))
       iend=ibeg+nlagr
+      IF(.NOT.topology_stencil_is_compatible(topology_arr,ibeg,iend)) THEN
+        CALL report_topology_transition(ibeg,iend)
+        ierr=sample_matrix_topology_transition
+        RETURN
+      ENDIF
       CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
       DO i=1,n1
         amat2(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -208,16 +295,47 @@
     ENDDO
     IF(MAXVAL(isplit).GT.0) THEN
       npoi_old=npoi
-      DEALLOCATE(xold,amat_old,ind_hist_old)
-      ALLOCATE(xold(npoi),amat_old(n1,n2,npoi),ind_hist_old(npoi))
+      DEALLOCATE(xold,amat_old,ind_hist_old,topology_old)
+      ALLOCATE(xold(npoi),amat_old(n1,n2,npoi),ind_hist_old(npoi),topology_old(npoi))
       xold=xarr
       amat_old=amat_arr
       ind_hist_old=ind_hist
+      topology_old=topology_arr
     ELSE
       EXIT
     ENDIF
   ENDDO
-!
+  !
+contains
+
+  subroutine evaluate_matrix_checked(ierr_eval)
+    integer, intent(out) :: ierr_eval
+
+    topology_signature=0
+    topology_error=0
+    CALL get_matrix
+    IF(topology_error.NE.0) THEN
+      ierr_eval=topology_error
+    ELSEIF(topology_signature.EQ.0) THEN
+      ierr_eval=sample_matrix_topology_transition
+    ELSE
+      ierr_eval=sample_matrix_success
+    ENDIF
+    IF(ierr_eval.NE.0) THEN
+      PRINT *,'sample_matrix_out : callback failed at H, J, topology, ierr = ', &
+          topology_context_h,x,topology_signature,ierr_eval
+    ENDIF
+  end subroutine evaluate_matrix_checked
+
+  subroutine report_topology_transition(ibeg_report,iend_report)
+    integer, intent(in) :: ibeg_report,iend_report
+
+    PRINT *,'sample_matrix_out : topology transition blocks interpolation'
+    PRINT *,'sample_matrix_out : H, Jlo, Jhi, topology_lo, topology_hi = ', &
+        topology_context_h,xarr(ibeg_report),xarr(iend_report), &
+        topology_arr(ibeg_report),topology_arr(iend_report)
+  end subroutine report_topology_transition
+
   END SUBROUTINE sample_matrix_out
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
