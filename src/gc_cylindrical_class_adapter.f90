@@ -189,7 +189,7 @@ module neort_gc_cylindrical_class_adapter
             cut_map => null()
         procedure(gc_cylindrical_class_splitter_i), pointer, nopass :: &
             splitter => null()
-        class(*), pointer :: user_data => null()
+        class(*), pointer :: user_data
         logical :: initialized = .false.
         logical :: classes_enumerated = .false.
         logical :: class_complete = .false.

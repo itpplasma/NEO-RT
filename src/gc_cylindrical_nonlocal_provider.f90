@@ -218,7 +218,7 @@ module neort_gc_cylindrical_nonlocal_provider
         type(gc_cylindrical_nonlocal_section_t) :: section
         logical :: initialized = .false.
         logical :: components_enumerated = .false.
-        class(*), pointer :: user_data => null()
+        class(*), pointer :: user_data
         procedure(gc_cylindrical_nonlocal_component_provider_i), pointer, nopass :: &
             component_provider => null()
         procedure(gc_cylindrical_nonlocal_orbit_provider_i), pointer, nopass :: &
