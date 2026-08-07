@@ -69,6 +69,8 @@ module neort_gc_eqdsk_cut_graph_atlas
         type(eqdsk_cut_graph_atlas_strip_t), allocatable :: strips(:)
         integer :: certificate_id = 0
         logical :: global_completeness_certified = .false.
+        integer :: flux_monotonicity_sign = 0
+        logical :: flux_monotonicity_certified = .false.
         integer :: failure_cell_R = 0
         integer :: failure_cell_Z = 0
         integer :: failure_r_depth = 0
@@ -153,6 +155,7 @@ contains
             call clear_eqdsk_cut_graph_atlas(atlas)
             return
         end if
+        call certify_flux_monotonicity(atlas)
         atlas%global_completeness_certified = .true.
         atlas%certificate_id = EQDSK_CUT_GRAPH_CERTIFICATE_ID
         status = validate_atlas_structure(atlas, .true.)
@@ -175,6 +178,8 @@ contains
         atlas%options = eqdsk_cut_graph_atlas_options_t()
         atlas%certificate_id = 0
         atlas%global_completeness_certified = .false.
+        atlas%flux_monotonicity_sign = 0
+        atlas%flux_monotonicity_certified = .false.
         atlas%failure_cell_R = 0
         atlas%failure_cell_Z = 0
         atlas%failure_r_depth = 0
@@ -714,7 +719,36 @@ contains
         if (allocated(atlas%strips)) deallocate(atlas%strips)
         atlas%certificate_id = 0
         atlas%global_completeness_certified = .false.
+        atlas%flux_monotonicity_sign = 0
+        atlas%flux_monotonicity_certified = .false.
     end subroutine invalidate_eqdsk_cut_graph_atlas
+
+    subroutine certify_flux_monotonicity(atlas)
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
+
+        logical :: all_negative, all_positive
+        integer :: i
+
+        atlas%flux_monotonicity_sign = 0
+        atlas%flux_monotonicity_certified = .false.
+        if (.not. allocated(atlas%strips)) return
+        if (size(atlas%strips) < 1) return
+        all_negative = .true.
+        all_positive = .true.
+        do i = 1, size(atlas%strips)
+            all_negative = all_negative .and. &
+                atlas%strips(i)%dpsihat_dR_hi < 0.0_dp
+            all_positive = all_positive .and. &
+                atlas%strips(i)%dpsihat_dR_lo > 0.0_dp
+        end do
+        if (all_negative) then
+            atlas%flux_monotonicity_sign = -1
+            atlas%flux_monotonicity_certified = .true.
+        else if (all_positive) then
+            atlas%flux_monotonicity_sign = 1
+            atlas%flux_monotonicity_certified = .true.
+        end if
+    end subroutine certify_flux_monotonicity
 
     integer function validate_grid()
         integer :: i
@@ -781,11 +815,22 @@ contains
         end if
         if (require_global .and. &
                 atlas%certificate_id /= EQDSK_CUT_GRAPH_CERTIFICATE_ID) return
+        if (atlas%flux_monotonicity_certified) then
+            if (abs(atlas%flux_monotonicity_sign) /= 1) return
+        else
+            if (atlas%flux_monotonicity_sign /= 0) return
+        end if
         if (.not. allocated(atlas%strips)) return
         if (size(atlas%strips) < 1) return
         previous_r = atlas%requested_r_lo
         do i = 1, size(atlas%strips)
             if (.not. valid_strip(atlas%strips(i))) return
+            if (atlas%flux_monotonicity_certified) then
+                if (atlas%flux_monotonicity_sign < 0 .and. &
+                        atlas%strips(i)%dpsihat_dR_hi >= 0.0_dp) return
+                if (atlas%flux_monotonicity_sign > 0 .and. &
+                        atlas%strips(i)%dpsihat_dR_lo <= 0.0_dp) return
+            end if
             if (atlas%strips(i)%r_lo /= previous_r) return
             previous_r = atlas%strips(i)%r_hi
         end do

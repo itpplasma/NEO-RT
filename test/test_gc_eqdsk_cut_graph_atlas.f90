@@ -40,11 +40,17 @@ program test_gc_eqdsk_cut_graph_atlas
         -10.0_dp, 10.0_dp, 0.0_dp, 1.0_dp, options, status)
     call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
         'regular inboard circular cut branch was not certified')
+    call require(inboard_atlas%flux_monotonicity_certified .and. &
+        inboard_atlas%flux_monotonicity_sign == -1, &
+        'inboard cut flux was not certified strictly decreasing')
     call check_regular_branch(inboard_atlas, inboard_lo, inboard_hi)
     call build_eqdsk_cut_graph_atlas(outboard_atlas, outboard_lo, &
         outboard_hi, -10.0_dp, 10.0_dp, 0.0_dp, 1.0_dp, options, status)
     call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
         'regular outboard circular cut branch was not certified')
+    call require(outboard_atlas%flux_monotonicity_certified .and. &
+        outboard_atlas%flux_monotonicity_sign == 1, &
+        'outboard cut flux was not certified strictly increasing')
     call check_regular_branch(outboard_atlas, outboard_lo, outboard_hi)
 
     ! The public POTATO fixture clamps psi outside the LCFS before applying a
