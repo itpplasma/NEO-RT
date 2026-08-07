@@ -102,7 +102,7 @@ add_executable(test_pitch_boundary.x
    SRC/test_pitch_boundary.f90
 )
 target_link_libraries(test_pitch_boundary.x
-   potato_base
+   pitch_boundary
 )
 add_test(NAME test_pitch_boundary
    COMMAND test_pitch_boundary.x

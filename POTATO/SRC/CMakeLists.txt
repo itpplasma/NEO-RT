@@ -1,3 +1,7 @@
+add_library(pitch_boundary
+  pitch_boundary_mod.f90
+)
+
 add_library(potato_base
   ${LIBNEO_SOURCE_DIR}/src/util/libneo_kinds.f90
   logging_mod.f90
@@ -56,6 +60,7 @@ endif()
 # the permissive legacy standard rather than POTATO's f2018.
 target_compile_options(vode PRIVATE -std=legacy)
 target_link_libraries(potato_base PUBLIC
+pitch_boundary
 vode
 BLAS::BLAS
 LAPACK::LAPACK
