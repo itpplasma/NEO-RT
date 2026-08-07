@@ -1,5 +1,6 @@
 module gc_cylindrical_class_adapter_test_support
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_quiet_nan, &
+        ieee_value
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: &
@@ -46,8 +47,10 @@ module gc_cylindrical_class_adapter_test_support
 
     public :: manufactured_cut_map
     public :: identity_splitter
+    public :: adversarial_splitter
     public :: manufactured_allowed_region_provider
     public :: manufactured_allowed_region_verifier
+    public :: permissive_allowed_region_verifier
     public :: target_vparallel_squared
     public :: target_dvparallel_squared
 
@@ -199,6 +202,11 @@ contains
                     regions%components(2)%x_end = 4.25_dp
                 case (6)
                     regions%certificate_method = 'unresolved-finite-scan'
+                case (9)
+                    regions%components(1)%canonical_begin = &
+                        ieee_value(0.0_dp, ieee_quiet_nan)
+                case (10)
+                    regions%root_canonical(1) = 99.0_dp
                 case default
                     continue
             end select
@@ -297,6 +305,83 @@ contains
         status = GC_CYL_CLASS_SUCCESS
     end subroutine manufactured_allowed_region_verifier
 
+    subroutine permissive_allowed_region_verifier(h0, jperp, sigma, rc_min, &
+            rc_max, regions, user_data, certificate_id, status)
+        real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        integer, intent(out) :: certificate_id
+        integer, intent(out) :: status
+
+        associate (unused_h0 => h0, unused_jperp => jperp, unused_sigma => sigma, &
+                unused_rc_min => rc_min, unused_rc_max => rc_max, &
+                unused_regions => regions, unused_user_data => user_data)
+        end associate
+        certificate_id = MANUFACTURED_CERTIFICATE_ID
+        status = GC_CYL_CLASS_SUCCESS
+    end subroutine permissive_allowed_region_verifier
+
+    subroutine adversarial_splitter(h0, jperp, sigma, candidate, user_data, &
+            split_classes, certified, status)
+        real(dp), intent(in) :: h0, jperp
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_class_interval_t), intent(in) :: candidate
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
+            split_classes(:)
+        logical, intent(out) :: certified
+        integer, intent(out) :: status
+
+        type(manufactured_region_state_t), pointer :: state
+        real(dp) :: midpoint, first_measure
+
+        associate (unused_h0 => h0, unused_jperp => jperp, unused_sigma => sigma)
+        end associate
+        certified = .false.
+        status = GC_CYL_CLASS_INVALID_INPUT
+        if (.not. associated(user_data)) return
+        select type (user_data)
+            type is (manufactured_region_state_t)
+                state => user_data
+            class default
+                return
+        end select
+        allocate(split_classes(1))
+        split_classes(1) = candidate
+        select case (state%mode)
+            case (11)
+                split_classes(1)%psi_star_min = &
+                    ieee_value(0.0_dp, ieee_quiet_nan)
+            case (12)
+                split_classes(1)%canonical_measure = 0.0_dp
+            case (13)
+                deallocate(split_classes)
+                allocate(split_classes(2))
+                midpoint = 0.5_dp*(candidate%rc_min + candidate%rc_max)
+                first_measure = 0.5_dp*candidate%canonical_measure
+                split_classes(1) = candidate
+                split_classes(2) = candidate
+                split_classes(1)%rc_max = midpoint
+                split_classes(2)%rc_min = midpoint
+                split_classes(1)%psi_star_max = &
+                    0.5_dp*(candidate%psi_star_min + candidate%psi_star_max)
+                split_classes(2)%psi_star_min = &
+                    split_classes(1)%psi_star_max + 1.0_dp
+                split_classes(1)%canonical_measure = first_measure
+                split_classes(2)%canonical_measure = &
+                    candidate%canonical_measure - first_measure
+            case (14)
+                split_classes(1)%lower_root = .not. candidate%lower_root
+            case (15)
+                split_classes(1)%allowed_interval = .false.
+            case default
+                continue
+        end select
+        status = GC_CYL_CLASS_SUCCESS
+        certified = .true.
+    end subroutine adversarial_splitter
+
     pure real(dp) function verifier_polynomial_value(radius)
         real(dp), intent(in) :: radius
 
@@ -334,9 +419,10 @@ program test_gc_cylindrical_class_adapter
     use gc_cylindrical_class_adapter_test_support, only: &
         C_LIGHT, CHARGE, H0_REFERENCE, JPERP_REFERENCE, MASS, &
         MANUFACTURED_CERTIFICATE_ID, &
+        adversarial_splitter, &
         manufactured_cut_map, manufactured_field_t, manufactured_potential_t, &
         manufactured_allowed_region_provider, manufactured_allowed_region_verifier, &
-        manufactured_region_state_t, &
+        manufactured_region_state_t, permissive_allowed_region_verifier, &
         identity_splitter, target_dvparallel_squared, &
         target_vparallel_squared
     use neort_gc_cylindrical_class_adapter, only: &
@@ -586,6 +672,14 @@ program test_gc_cylindrical_class_adapter
     call check_rejected_region_provider(7)
     call check_rejected_region_provider(8)
     call check_provider_verifier_contract()
+    do i = 1, 5
+        call check_permissive_region_gate(i)
+    end do
+    call check_permissive_region_gate(9)
+    call check_permissive_region_gate(10)
+    do i = 11, 15
+        call check_adversarial_splitter(i)
+    end do
     call clear_gc_cylindrical_class_adapter(split_adapter)
     call require(.not. associated(split_adapter%allowed_region_provider), &
         'allowed-region callback pointer was not cleared')
@@ -667,6 +761,52 @@ contains
             'nonpositive expected certificate ID was accepted')
         call clear_gc_cylindrical_class_adapter(malformed_adapter)
     end subroutine check_provider_verifier_contract
+
+    subroutine check_permissive_region_gate(mode)
+        integer, intent(in) :: mode
+
+        region_state%mode = mode
+        call initialize_gc_cylindrical_class_adapter(field, potential, &
+            H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+            manufactured_cut_map, malformed_adapter, status, options=options, &
+            user_data=region_state, &
+            allowed_region_provider=manufactured_allowed_region_provider, &
+            allowed_region_verifier=permissive_allowed_region_verifier, &
+            allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+        call require(status == GC_CYL_CLASS_SUCCESS, &
+            'permissive verifier adapter initialization failed')
+        call enumerate_gc_cylindrical_classes(malformed_adapter, &
+            malformed_result, status)
+        call require(status == GC_CYL_CLASS_SPLITTER_FAILURE, &
+            'adapter structural gate accepted malformed provider data')
+        call require(.not. malformed_result%class_complete, &
+            'malformed provider data claimed complete classes')
+        call clear_gc_cylindrical_class_adapter(malformed_adapter)
+        region_state%mode = 0
+    end subroutine check_permissive_region_gate
+
+    subroutine check_adversarial_splitter(mode)
+        integer, intent(in) :: mode
+
+        region_state%mode = mode
+        call initialize_gc_cylindrical_class_adapter(field, potential, &
+            H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+            manufactured_cut_map, malformed_adapter, status, options=options, &
+            splitter=adversarial_splitter, user_data=region_state, &
+            allowed_region_provider=manufactured_allowed_region_provider, &
+            allowed_region_verifier=manufactured_allowed_region_verifier, &
+            allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+        call require(status == GC_CYL_CLASS_SUCCESS, &
+            'adversarial splitter adapter initialization failed')
+        call enumerate_gc_cylindrical_classes(malformed_adapter, &
+            malformed_result, status)
+        call require(status == GC_CYL_CLASS_SPLITTER_FAILURE, &
+            'malformed splitter output was certified')
+        call require(.not. malformed_result%class_complete, &
+            'malformed splitter output claimed complete classes')
+        call clear_gc_cylindrical_class_adapter(malformed_adapter)
+        region_state%mode = 0
+    end subroutine check_adversarial_splitter
 
     subroutine uncertified_splitter(h0, jperp, sigma, candidate, user_data, &
             split_classes, certified, status)

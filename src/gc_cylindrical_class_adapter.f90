@@ -219,6 +219,9 @@ module neort_gc_cylindrical_class_adapter
         procedure(gc_cylindrical_allowed_region_verifier_i), pointer, nopass :: &
             allowed_region_verifier => null()
         integer :: allowed_region_certificate_id = 0
+        ! Borrowed procedure associations.  The provider and verifier targets
+        ! must remain valid until this adapter is cleared; they are never
+        ! copied into owned executable state.
         ! Borrowed target; the caller must keep it alive until this adapter is
         ! cleared and must not copy the adapter past that target's lifetime.
         class(gc_callback_context_t), pointer :: user_data => null()
@@ -262,6 +265,10 @@ contains
         procedure(gc_cylindrical_allowed_region_verifier_i), optional :: &
             allowed_region_verifier
         integer, intent(in), optional :: allowed_region_certificate_id
+
+        ! Optional callback procedures and user_data are borrowed for the
+        ! lifetime of adapter.  Callers must clear the adapter before any of
+        ! those associations or their defining scopes cease to exist.
 
         adapter%h0 = 0.0_dp
         adapter%jperp = 0.0_dp
@@ -541,6 +548,9 @@ contains
 
         nraw = 0
         do sigma = -1, 1, 2
+            regions = gc_cylindrical_allowed_region_set_t()
+            local_status = GC_CYL_CLASS_INTERIOR_INVALID
+            certificate_id = 0
             if (associated(adapter%allowed_region_provider)) then
                 call adapter%allowed_region_provider(adapter%h0, adapter%jperp, &
                     sigma, adapter%user_data, regions, local_status)
@@ -549,6 +559,8 @@ contains
                     result%status = status
                     return
                 end if
+                local_status = GC_CYL_CLASS_SPLITTER_FAILURE
+                certificate_id = 0
                 call adapter%allowed_region_verifier(adapter%h0, adapter%jperp, &
                     sigma, adapter%rc_min, adapter%rc_max, regions, &
                     adapter%user_data, certificate_id, local_status)
@@ -707,8 +719,10 @@ contains
 
         integer :: i, j
         real(dp) :: bound_tolerance, measure_sum, measure_tolerance
+        real(dp) :: canonical_scale, canonical_tolerance
         real(dp) :: previous_end
         logical :: root_found
+        integer :: root_index, root_matches
 
         status = GC_CYL_CLASS_SPLITTER_FAILURE
         ! topology_certified and certificate_method are provider metadata, not
@@ -721,6 +735,7 @@ contains
 
         bound_tolerance = 100.0_dp*adapter%options%allowed_tolerance*max(1.0_dp, &
             max(abs(adapter%rc_min), abs(adapter%rc_max)))
+        if (.not. ieee_is_finite(bound_tolerance)) return
 
         if (regions%nroots > 0) then
             if (.not. allocated(regions%roots)) return
@@ -759,8 +774,13 @@ contains
             return
         end if
 
-        previous_end = adapter%rc_min
-        measure_sum = 0.0_dp
+        canonical_scale = max(1.0_dp, abs(regions%total_canonical_measure))
+        if (regions%nroots > 0) then
+            do i = 1, regions%nroots
+                canonical_scale = max(canonical_scale, &
+                    abs(regions%root_canonical(i)))
+            end do
+        end if
         do i = 1, regions%ncomponents
             if (regions%components(i)%component_id <= 0) return
             if (regions%components(i)%sigma /= sigma) return
@@ -769,45 +789,91 @@ contains
                 regions%components(i)%canonical_begin, &
                 regions%components(i)%canonical_end, &
                 regions%components(i)%canonical_measure]))) return
-            if (regions%components(i)%x_begin < adapter%rc_min - &
-                bound_tolerance) return
-            if (regions%components(i)%x_end > adapter%rc_max + &
-                bound_tolerance) return
             if (regions%components(i)%x_end <= regions%components(i)%x_begin) return
-            if (regions%components(i)%x_begin < previous_end - bound_tolerance) return
             if (regions%components(i)%canonical_measure <= 0.0_dp) return
+            canonical_scale = max(canonical_scale, &
+                abs(regions%components(i)%canonical_begin))
+            canonical_scale = max(canonical_scale, &
+                abs(regions%components(i)%canonical_end))
+            canonical_scale = max(canonical_scale, &
+                abs(regions%components(i)%canonical_measure))
             do j = 1, i - 1
                 if (regions%components(j)%component_id == &
                     regions%components(i)%component_id) return
             end do
+        end do
+        canonical_tolerance = 100.0_dp*adapter%options%allowed_tolerance &
+            *max(1.0_dp, canonical_scale)
+        if (.not. ieee_is_finite(canonical_tolerance)) return
+
+        previous_end = adapter%rc_min
+        measure_sum = 0.0_dp
+        do i = 1, regions%ncomponents
+            if (regions%components(i)%x_begin < adapter%rc_min - &
+                bound_tolerance) return
+            if (regions%components(i)%x_end > adapter%rc_max + &
+                bound_tolerance) return
+            if (i == 1) then
+                if (regions%components(i)%x_begin > adapter%rc_min + &
+                        bound_tolerance) then
+                    if (.not. regions%components(i)%lower_root) return
+                end if
+            else
+                if (regions%components(i)%x_begin < previous_end - &
+                        bound_tolerance) return
+                if (regions%components(i)%x_begin > previous_end + &
+                        bound_tolerance) then
+                    if (.not. regions%components(i - 1)%upper_root) return
+                    if (.not. regions%components(i)%lower_root) return
+                end if
+            end if
             if (regions%components(i)%lower_root) then
                 root_found = .false.
+                root_index = 0
+                root_matches = 0
                 do j = 1, regions%nroots
                     if (abs(regions%roots(j) - regions%components(i)%x_begin) &
                         <= bound_tolerance) then
                         root_found = .true.
-                        exit
+                        root_matches = root_matches + 1
+                        root_index = j
                     end if
                 end do
                 if (.not. root_found) return
+                if (root_matches /= 1) return
+                if (abs(regions%root_canonical(root_index) - &
+                        regions%components(i)%canonical_begin) > &
+                    canonical_tolerance) return
             end if
             if (regions%components(i)%upper_root) then
                 root_found = .false.
+                root_index = 0
+                root_matches = 0
                 do j = 1, regions%nroots
                     if (abs(regions%roots(j) - regions%components(i)%x_end) &
                         <= bound_tolerance) then
                         root_found = .true.
-                        exit
+                        root_matches = root_matches + 1
+                        root_index = j
                     end if
                 end do
                 if (.not. root_found) return
+                if (root_matches /= 1) return
+                if (abs(regions%root_canonical(root_index) - &
+                        regions%components(i)%canonical_end) > &
+                    canonical_tolerance) return
             end if
             measure_sum = measure_sum + regions%components(i)%canonical_measure
             previous_end = regions%components(i)%x_end
         end do
+        if (previous_end < adapter%rc_max - bound_tolerance) then
+            if (.not. regions%components(regions%ncomponents)%upper_root) return
+        end if
+        if (previous_end > adapter%rc_max + bound_tolerance) return
         if (measure_sum <= 0.0_dp) return
         measure_tolerance = 1000.0_dp*epsilon(measure_sum)*max(1.0_dp, &
             max(abs(measure_sum), abs(regions%total_canonical_measure)))
+        if (.not. ieee_is_finite(measure_tolerance)) return
         if (abs(measure_sum - regions%total_canonical_measure) > &
             measure_tolerance) return
         status = GC_CYL_CLASS_SUCCESS
@@ -1051,16 +1117,46 @@ contains
         integer, intent(out) :: status
 
         type(gc_cylindrical_class_point_t) :: point
-        real(dp) :: tolerance, previous_end
+        real(dp) :: tolerance, canonical_tolerance, measure_tolerance
+        real(dp) :: canonical_scale, previous_end, measure_sum
         integer :: i, point_status, j
 
         status = GC_CYL_CLASS_SPLITTER_FAILURE
         if (.not. certified) return
         if (.not. allocated(split)) return
         if (size(split) < 1) return
+        if (candidate%component_id <= 0) return
+        if (abs(candidate%sigma) /= 1) return
+        if (.not. candidate%allowed_interval) return
+        if (.not. all(ieee_is_finite([candidate%rc_min, candidate%rc_max, &
+            candidate%psi_star_min, candidate%psi_star_max, &
+            candidate%canonical_measure]))) return
+        if (candidate%rc_max <= candidate%rc_min) return
+        if (candidate%canonical_measure <= 0.0_dp) return
         tolerance = 100.0_dp*adapter%options%allowed_tolerance &
             *max(1.0_dp, max(abs(candidate%rc_min), abs(candidate%rc_max)))
+        if (.not. ieee_is_finite(tolerance)) return
+        canonical_scale = max(1.0_dp, abs(candidate%psi_star_min))
+        canonical_scale = max(canonical_scale, abs(candidate%psi_star_max))
+        canonical_scale = max(canonical_scale, abs(candidate%canonical_measure))
+        do i = 1, size(split)
+            if (.not. all(ieee_is_finite([split(i)%rc_min, split(i)%rc_max, &
+                split(i)%psi_star_min, split(i)%psi_star_max, &
+                split(i)%canonical_measure]))) return
+            if (.not. split(i)%allowed_interval) return
+            if (split(i)%canonical_measure <= 0.0_dp) return
+            canonical_scale = max(canonical_scale, &
+                abs(split(i)%psi_star_min))
+            canonical_scale = max(canonical_scale, &
+                abs(split(i)%psi_star_max))
+            canonical_scale = max(canonical_scale, &
+                abs(split(i)%canonical_measure))
+        end do
+        canonical_tolerance = 100.0_dp*adapter%options%allowed_tolerance &
+            *max(1.0_dp, canonical_scale)
+        if (.not. ieee_is_finite(canonical_tolerance)) return
         previous_end = candidate%rc_min
+        measure_sum = 0.0_dp
         do i = 1, size(split)
             if (split(i)%sigma /= candidate%sigma) return
             if (split(i)%component_id <= 0) return
@@ -1071,6 +1167,8 @@ contains
                 if (abs(split(i)%rc_min - candidate%rc_min) > tolerance) return
             else
                 if (abs(split(i)%rc_min - previous_end) > tolerance) return
+                if (abs(split(i)%psi_star_min - split(i - 1)%psi_star_max) &
+                        > canonical_tolerance) return
             end if
             call evaluate_gc_cylindrical_class_point(adapter, split(i)%rc_min, &
                 split(i)%sigma, point, point_status)
@@ -1081,13 +1179,29 @@ contains
             if (point_status /= GC_CYL_CLASS_SUCCESS) return
             if (.not. point%allowed) return
             previous_end = split(i)%rc_max
+            measure_sum = measure_sum + split(i)%canonical_measure
             do j = 1, i - 1
                 if (split(j)%component_id == split(i)%component_id) return
             end do
+        end do
+        if (abs(split(1)%psi_star_min - candidate%psi_star_min) > &
+                canonical_tolerance) return
+        if (abs(split(size(split))%psi_star_max - candidate%psi_star_max) &
+                > canonical_tolerance) return
+        if (abs(previous_end - candidate%rc_max) > tolerance) return
+        if (.not. ieee_is_finite(measure_sum)) return
+        measure_tolerance = 100.0_dp*adapter%options%allowed_tolerance &
+            *max(1.0_dp, max(abs(candidate%canonical_measure), &
+            abs(measure_sum)))
+        if (.not. ieee_is_finite(measure_tolerance)) return
+        if (abs(measure_sum - candidate%canonical_measure) > measure_tolerance) return
+        if (split(1)%lower_root .neqv. candidate%lower_root) return
+        if (split(size(split))%upper_root .neqv. candidate%upper_root) return
+        do i = 1, size(split)
             split(i)%topology_certified = .true.
+            split(i)%root_isolation_certified = candidate%root_isolation_certified
             split(i)%orbit_return_certified = .true.
         end do
-        if (abs(previous_end - candidate%rc_max) > tolerance) return
         status = GC_CYL_CLASS_SUCCESS
     end subroutine validate_split
 
