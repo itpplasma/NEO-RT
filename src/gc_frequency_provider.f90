@@ -28,7 +28,7 @@ module neort_gc_frequency_provider
         GC_ORBIT_TRAPPED, GC_ORBIT_WALL_LOSS, &
         gc_orbit_options_t, gc_orbit_average_t, gc_orbit_perturbation_i, &
         compute_return_map, compute_thin_precession, compute_gc_orbit_average, &
-        compute_gc_full_orbit_average
+        compute_gc_full_orbit_average, compute_zero_width_passing_cycle
     use neort_thin_orbit_limit, only: THIN_LIMIT_SUCCESS, orbit_return_t, &
         thin_limit_result_t
     use util, only: pi, c
@@ -275,6 +275,10 @@ contains
             result%omega_b = real(parallel_direction, dp)*result%omega_b
         end if
         result%omega_phi = orbit_return%delta_phi/orbit_return%period
+        ! The precession part is defined against the same full-cycle field-line
+        ! winding as the return map: omega_prec = omega_phi - q*omega_b.
+        result%omega_prec = result%omega_phi &
+            - context%q_fieldline*result%omega_b
         status = GC_FREQUENCY_SUCCESS
     end subroutine evaluate_gc_full_orbit_frequency
 
@@ -289,10 +293,9 @@ contains
         integer, intent(in), optional :: selected_frequency_model
         character(len=*), intent(in), optional :: wall_file, wall_units
 
-        integer, parameter :: ntheta = 2048
-        type(gc_field_sample_t) :: sample
-        real(dp) :: theta, dtheta
-        integer :: k, field_status
+        type(gc_invariants_t) :: q_invariants
+        type(orbit_return_t) :: q_return
+        integer :: field_status, q_invariant_status
 #ifdef NEO_RT_USE_STANDALONE
         integer :: cylindrical_status
 #endif
@@ -355,22 +358,25 @@ contains
         context%htheta_sign = merge(1, -1, &
             context%reference_sample%hcon(3) > 0.0_dp)
 
-        ! q(s*) is defined by the same zero-width field-line return used in
-        ! the limiting expression, not by a separately interpolated profile.
-        dtheta = 2.0_dp*pi/real(ntheta, dp)
-        context%q_fieldline = 0.0_dp
-        do k = 1, ntheta
-            theta = -pi + (real(k, dp) - 0.5_dp)*dtheta
-            call context%field%evaluate([surface, 0.0_dp, theta], sample, &
-                field_status)
-            if (field_status /= GC_MODEL_SUCCESS &
-                .or. abs(sample%hcon(3)) <= tiny(sample%hcon(3))) then
-                status = GC_FREQUENCY_FIELD_ERROR
-                return
-            end if
-            context%q_fieldline = context%q_fieldline &
-                + sample%hcon(2)/sample%hcon(3)*dtheta/(2.0_dp*pi)
-        end do
+        ! q(s*) is the full-cycle field-line winding, Delta_phi/(2*pi),
+        ! evaluated by the independent lambda=0 expression used by the
+        ! passing thin-limit base.  This keeps finite-width precession and
+        ! the literature definitions omega_b=2*pi/tau and
+        ! omega_phi=Delta_phi/tau on one Poincare section.
+        call invariants_from_state(context%reference_sample, 0.0_dp, 0.0_dp, &
+            0.0_dp, 1.0_dp, 1.0_dp, q_invariants, q_invariant_status)
+        if (q_invariant_status /= GC_MODEL_SUCCESS) then
+            status = GC_FREQUENCY_FIELD_ERROR
+            return
+        end if
+        call compute_zero_width_passing_cycle(context%field, context%zero_potential, &
+            q_invariants, context%reference_position, context%htheta_sign, &
+            context%reference_velocity, 1, q_return)
+        if (q_return%status /= GC_ORBIT_SUCCESS) then
+            status = GC_FREQUENCY_FIELD_ERROR
+            return
+        end if
+        context%q_fieldline = q_return%delta_phi/(2.0_dp*pi)
         if (abs(context%q_fieldline) <= tiny(context%q_fieldline)) then
             status = GC_FREQUENCY_FIELD_ERROR
             return

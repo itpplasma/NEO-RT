@@ -21,6 +21,8 @@ program test_gc_full_orbit_frequency
     real(dp), parameter :: speed = 6.92e7_dp
     real(dp) :: eta, period_estimate
     real(dp) :: residual_full, residual_narrow, residual_tiny
+    real(dp) :: scaled_full, scaled_narrow, scaled_tiny
+    real(dp) :: extrapolated_coarse, extrapolated_fine
     integer :: status
 
     call get_environment_variable('EQDSK_FILE', eqdsk_file)
@@ -46,6 +48,10 @@ program test_gc_full_orbit_frequency
     call require(abs(full%omega_phi/full%omega_b &
         - full%delta_phi/(2.0_dp*pi)) < 2.0e-12_dp, &
         'canonical return-map identity')
+    call require(abs(full%omega_prec &
+        - (full%omega_phi - context%q_fieldline*full%omega_b)) &
+        < 2.0e-12_dp*max(1.0_dp, abs(full%omega_phi)), &
+        'full-cycle precession identity')
     call evaluate_gc_full_orbit_frequency(context, eta, -1, &
         GC_ORBIT_PASSING, period_estimate, reverse, status)
     call require(status == GC_FREQUENCY_SUCCESS, 'reverse physical-width return')
@@ -54,9 +60,12 @@ program test_gc_full_orbit_frequency
         - reverse%delta_phi/(-2.0_dp*pi)) < 2.0e-12_dp, &
         'reverse canonical return-map identity')
 
-    ! Limiting expression for the physical launch family: the local surface
+    ! Limiting expression for the physical launch family.  The local surface
     ! and pitch stay fixed while rho0, and therefore the launch P_phi shift,
-    ! shrink together.  Successive residual/rho0 values must converge.
+    ! shrink together.  At fixed (H, mu, P_phi) for each orbit, smoothness of
+    ! the return map gives F(a)=a*C0+O(a**2), where
+    ! F=Omega_phi-q*Omega_b.  Richardson extrapolation of F(a)/a therefore
+    ! supplies a one-sided independent limit oracle.
     narrow_context = context
     narrow_context%rho0 = 0.1_dp*context%rho0
     call evaluate_gc_full_orbit_frequency(narrow_context, eta, 1, &
@@ -67,14 +76,16 @@ program test_gc_full_orbit_frequency
     call evaluate_gc_full_orbit_frequency(tiny_context, eta, 1, &
         GC_ORBIT_PASSING, period_estimate, tiny_orbit, status)
     call require(status == GC_FREQUENCY_SUCCESS, 'tiny-width return')
-    residual_full = full%omega_phi &
-        - context%q_fieldline*full%omega_b
-    residual_narrow = narrow%omega_phi &
-        - narrow_context%q_fieldline*narrow%omega_b
-    residual_tiny = tiny_orbit%omega_phi &
-        - tiny_context%q_fieldline*tiny_orbit%omega_b
-    call require(abs(residual_tiny/0.01_dp - residual_narrow/0.1_dp) &
-        < abs(residual_narrow/0.1_dp - residual_full), &
+    residual_full = full%omega_prec
+    residual_narrow = narrow%omega_prec
+    residual_tiny = tiny_orbit%omega_prec
+    scaled_full = residual_full
+    scaled_narrow = residual_narrow/0.1_dp
+    scaled_tiny = residual_tiny/0.01_dp
+    extrapolated_coarse = (10.0_dp*scaled_narrow - scaled_full)/9.0_dp
+    extrapolated_fine = (10.0_dp*scaled_tiny - scaled_narrow)/9.0_dp
+    call require(abs(extrapolated_fine - scaled_tiny) &
+        < abs(extrapolated_coarse - scaled_narrow), &
         'finite-width limiting expression')
 
     ! A physical orbit that cannot return is data, not a zero-frequency row.

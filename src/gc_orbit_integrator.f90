@@ -89,6 +89,7 @@ module neort_gc_orbit_integrator
     end interface
 
     public :: compute_return_map, compute_thin_precession
+    public :: compute_zero_width_passing_cycle
     public :: compute_gc_orbit_average
     public :: compute_gc_full_orbit_average
     public :: normalized_full_hamiltonian_factor
@@ -169,6 +170,10 @@ contains
         integer :: attempt, k
         logical :: converged
 
+        base = orbit_return_t()
+        base%orbit_class = orbit_class
+        base%winding = winding
+        base%status = GC_ORBIT_INTEGRATOR_ERROR
         if (options%use_variational_limit) then
             call compute_variational_precession(field_model, potential_model, &
                 invariants, reference_position, parallel_sign, rho0, &
@@ -182,10 +187,30 @@ contains
             end if
         end if
 
-        call compute_return_map(field_model, potential_model, invariants, &
-            reference_position, parallel_sign, rho0, 0.0_dp, &
-            reference_velocity, orbit_class, winding, period_estimate, &
-            options, base)
+        base = orbit_return_t()
+        if (orbit_class == GC_ORBIT_PASSING &
+            .and. options%topology_from_zero_width_return) then
+            ! The direct-EQDSK chart has a closed zero-width field-line
+            ! section.  Evaluate its full-cycle period from the limiting
+            ! expression independently of the finite-width return solver:
+            !
+            !   tau = (1/v_ref) integral dtheta/(p*xi*h^theta),
+            !   Delta_phi = integral (h^phi/h^theta) dtheta,
+            !   omega_b = 2*pi/tau, omega_phi = Delta_phi/tau.
+            !
+            ! This prevents the lambda=0 frequency from inheriting the
+            ! event/interpolant error of the centered finite-width ladder.
+            call compute_zero_width_passing_cycle(field_model, potential_model, &
+                invariants, reference_position, parallel_sign, reference_velocity, &
+                winding, base)
+        end if
+        if (orbit_class /= GC_ORBIT_PASSING &
+            .or. base%status /= GC_ORBIT_SUCCESS) then
+            call compute_return_map(field_model, potential_model, invariants, &
+                reference_position, parallel_sign, rho0, 0.0_dp, &
+                reference_velocity, orbit_class, winding, period_estimate, &
+                options, base)
+        end if
         topological_delta = 2.0_dp*pi*real(winding, dp)*q_reference
         if (options%topology_from_zero_width_return &
             .and. orbit_class == GC_ORBIT_PASSING) then
@@ -504,6 +529,127 @@ contains
         end function return_event
 
     end subroutine compute_variational_precession
+
+    subroutine compute_zero_width_passing_cycle(field_model, potential_model, &
+            invariants, reference_position, parallel_sign, reference_velocity, &
+            winding, result)
+        !! Independent lambda=0 full-cycle oracle for a direct flux-surface
+        !! section.  The theta quadrature is deliberately separate from the
+        !! VODE event return map used by the finite-width ladder.
+        class(gc_field_t), intent(in) :: field_model
+        class(gc_potential_t), intent(in) :: potential_model
+        type(gc_invariants_t), intent(in) :: invariants
+        real(dp), intent(in) :: reference_position(3), reference_velocity
+        integer, intent(in) :: parallel_sign, winding
+        type(orbit_return_t), intent(out) :: result
+
+        integer, parameter :: initial_panels = 64
+        integer, parameter :: maximum_refinement = 9
+        real(dp), parameter :: quadrature_tolerance = 2.0e-12_dp
+        real(dp) :: previous_period_u, previous_delta_phi
+        real(dp) :: period_u, delta_phi
+        integer :: refinement, n_panels, local_status
+        logical :: converged
+
+        result = orbit_return_t()
+        result%orbit_class = GC_ORBIT_PASSING
+        result%winding = winding
+        if (reference_velocity <= 0.0_dp .or. parallel_sign == 0 &
+            .or. abs(winding) /= 1) then
+            result%status = GC_ORBIT_STATE_ERROR
+            return
+        end if
+
+        previous_period_u = 0.0_dp
+        previous_delta_phi = 0.0_dp
+        converged = .false.
+        do refinement = 0, maximum_refinement
+            n_panels = initial_panels*2**refinement
+            call integrate_cycle(n_panels, period_u, delta_phi, local_status)
+            if (local_status /= GC_ORBIT_SUCCESS) then
+                result%status = local_status
+                return
+            end if
+            if (refinement > 0) then
+                converged = abs(period_u - previous_period_u) &
+                    <= quadrature_tolerance*max(1.0_dp, abs(period_u)) &
+                    .and. abs(delta_phi - previous_delta_phi) &
+                    <= quadrature_tolerance*max(1.0_dp, abs(delta_phi))
+                if (converged) exit
+            end if
+            previous_period_u = period_u
+            previous_delta_phi = delta_phi
+        end do
+        if (.not. converged) then
+            result%status = GC_ORBIT_INTEGRATOR_ERROR
+            return
+        end if
+
+        result%period = period_u/reference_velocity
+        result%delta_phi = delta_phi
+        result%status = GC_ORBIT_SUCCESS
+
+    contains
+
+        subroutine integrate_cycle(n, period_value, delta_phi_value, status)
+            integer, intent(in) :: n
+            real(dp), intent(out) :: period_value, delta_phi_value
+            integer, intent(out) :: status
+
+            type(gc_field_sample_t) :: sample
+            real(dp) :: dtheta, theta, p, xi, potential, gradient(3)
+            real(dp) :: time_integrand, phi_integrand, time_sum, phi_sum
+            real(dp) :: scale
+            integer :: j, field_status, potential_status, state_status
+            integer :: weight
+
+            period_value = 0.0_dp
+            delta_phi_value = 0.0_dp
+            status = GC_ORBIT_SUCCESS
+            dtheta = 2.0_dp*pi*real(winding, dp)/real(n, dp)
+            time_sum = 0.0_dp
+            phi_sum = 0.0_dp
+            do j = 0, n
+                theta = reference_position(3) + real(j, dp)*dtheta
+                call field_model%evaluate([reference_position(1), &
+                    reference_position(2), theta], sample, field_status)
+                if (field_status /= GC_MODEL_SUCCESS) then
+                    status = GC_ORBIT_FIELD_ERROR
+                    return
+                end if
+                scale = max(1.0_dp, max(abs(sample%hcon(2)), &
+                    abs(sample%hcon(3))))
+                if (abs(sample%hcon(1)) > 100.0_dp*epsilon(scale)*scale) then
+                    status = GC_ORBIT_STATE_ERROR
+                    return
+                end if
+                call potential_model%evaluate([reference_position(1), &
+                    reference_position(2), theta], sample, potential, gradient, &
+                    potential_status)
+                if (potential_status /= GC_MODEL_SUCCESS) then
+                    status = GC_ORBIT_FIELD_ERROR
+                    return
+                end if
+                call state_from_invariants(sample, potential, invariants, &
+                    parallel_sign, p, xi, state_status)
+                if (state_status /= GC_MODEL_SUCCESS &
+                    .or. abs(xi*sample%hcon(3)) <= tiny(xi)) then
+                    status = GC_ORBIT_STATE_ERROR
+                    return
+                end if
+                time_integrand = 1.0_dp/(p*xi*sample%hcon(3))
+                phi_integrand = sample%hcon(2)/sample%hcon(3)
+                weight = merge(4, 2, mod(j, 2) == 1)
+                if (j == 0 .or. j == n) weight = 1
+                time_sum = time_sum + real(weight, dp)*time_integrand
+                phi_sum = phi_sum + real(weight, dp)*phi_integrand
+            end do
+            period_value = abs(dtheta*time_sum/3.0_dp)
+            delta_phi_value = dtheta*phi_sum/3.0_dp
+            if (period_value <= 0.0_dp) status = GC_ORBIT_STATE_ERROR
+        end subroutine integrate_cycle
+
+    end subroutine compute_zero_width_passing_cycle
 
     subroutine compute_return_map(field_model, potential_model, invariants, &
             reference_position, parallel_sign, rho0, orbit_width_scale, &

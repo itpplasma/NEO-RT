@@ -30,6 +30,8 @@ program test_gc_frequency_spline_path
     real(dp) :: omega_phi_dv_2, omega_phi_deta_2
     real(dp) :: omega_bmag_1, omega_bmag_2, omega_bmag_dv
     real(dp) :: omega_bmag_deta, electric_1, electric_2, q_gc
+    real(dp) :: omega_b_boundary, domega_b_boundary_dv
+    real(dp) :: domega_b_boundary_deta
 
     call get_environment_variable('EQDSK_FILE', eqdsk_file)
     if (len_trim(eqdsk_file) == 0) then
@@ -63,6 +65,16 @@ program test_gc_frequency_spline_path
     electric_1 = omega_phi_1 - omega_bmag_1
     call require_relative('trapped electric frequency', electric_1, &
         electric_frequency, 6.0e-3_dp)
+
+    ! The full-cycle separatrix limit is logarithmic in eta-etatp.  This
+    ! point lies below the first numerical trapped knot and therefore checks
+    ! the analytic continuation rather than a finite-width return.
+    call Om_th(reference_velocity, etatp*(1.0_dp + 0.5e-6_dp), &
+        omega_b_boundary, domega_b_boundary_dv, domega_b_boundary_deta)
+    if (omega_b_boundary <= 0.0_dp .or. omega_b_boundary >= omega_b_1 &
+        .or. domega_b_boundary_deta <= 0.0_dp) then
+        error stop 'trapped full-cycle separatrix limit is not monotone'
+    end if
 
     call evaluate_all(speed_ratio*reference_velocity, eta_trapped, omega_b_2, &
         omega_phi_2, omega_bmag_2, omega_b_dv_2, omega_b_deta_2, &

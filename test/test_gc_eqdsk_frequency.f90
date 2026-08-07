@@ -29,6 +29,7 @@ program test_gc_eqdsk_frequency
     character(len=1024) :: eqdsk_file
     real(dp) :: eta_trapped, eta_passing, epsilon
     real(dp) :: period_estimate, legacy_period, legacy_frequency
+    real(dp) :: quadrature_period, quadrature_frequency
     integer :: status
 
     call get_environment_variable('EQDSK_FILE', eqdsk_file)
@@ -81,6 +82,15 @@ program test_gc_eqdsk_frequency
     call require_frequency('passing', passing, status)
     legacy_period = bounce_time(velocity, eta_passing)
     legacy_frequency = 2.0_dp*pi/legacy_period
+    quadrature_period = zero_width_passing_period(positive, eta_passing, velocity)
+    quadrature_frequency = 2.0_dp*pi/quadrature_period
+    ! Independent full-cycle expression: omega_b=2*pi/tau, with
+    ! tau=(1/v)*integral[dtheta/(xi*h^theta)] on the passing section.
+    if (abs(passing%omega_b/quadrature_frequency - 1.0_dp) > 2.0e-6_dp) then
+        write(*,*) 'passing GC/analytic quadrature:', passing%omega_b, &
+            quadrature_frequency
+        error stop 'GC passing full-cycle limit disagrees with analytic expression'
+    end if
     if (abs(passing%omega_b/legacy_frequency - 1.0_dp) > 3.0e-4_dp) then
         write(*,*) 'passing GC/legacy transit:', passing%omega_b, legacy_frequency
         error stop 'GC passing zero-width period disagrees with independent solver'
@@ -159,5 +169,29 @@ contains
             error stop 'GEQDSK electric precession has wrong sign or magnitude'
         end if
     end subroutine require_electric
+
+    function zero_width_passing_period(context, eta, velocity) result(period)
+        type(gc_frequency_context_t), intent(in) :: context
+        real(dp), intent(in) :: eta, velocity
+        real(dp) :: period
+        integer, parameter :: ntheta = 32768
+        type(gc_field_sample_t) :: sample
+        real(dp) :: dtheta, theta, xi_squared
+        integer :: k, local_status
+
+        period = 0.0_dp
+        dtheta = 2.0_dp*pi/real(ntheta, dp)
+        do k = 1, ntheta
+            theta = context%reference_position(3) &
+                + (real(k, dp) - 0.5_dp)*dtheta
+            call context%field%evaluate([context%reference_position(1), &
+                context%reference_position(2), theta], sample, local_status)
+            if (local_status /= GC_MODEL_SUCCESS) error stop 'quadrature field failed'
+            xi_squared = 1.0_dp - eta*sample%bmod
+            if (xi_squared <= 0.0_dp) error stop 'quadrature entered trapped region'
+            period = period + dtheta/(velocity*sqrt(xi_squared) &
+                *abs(sample%hcon(3)))
+        end do
+    end function zero_width_passing_period
 
 end program test_gc_eqdsk_frequency
