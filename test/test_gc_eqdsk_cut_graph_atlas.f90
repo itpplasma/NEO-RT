@@ -30,6 +30,9 @@ program test_gc_eqdsk_cut_graph_atlas
     options%map_relative_tolerance = 1.0e-13_dp
     call build_eqdsk_cut_graph_atlas(atlas, rad(1), rad(nrad), zet(1), &
         zet(nzet), options, status)
+    if (status /= EQDSK_CUT_ATLAS_SUCCESS) then
+        write (*, '(a,1x,i0)') 'full circular atlas status', status
+    end if
     call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
         'full circular cut graph was not certified')
     call require(atlas%global_completeness_certified, &
