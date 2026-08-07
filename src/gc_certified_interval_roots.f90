@@ -300,6 +300,9 @@ contains
                 cycle
             end if
             call split_box(queue, head, tail)
+            !! The parent has been replaced by its two queued children.  Move
+            !! past it or the FIFO revisits the same parent indefinitely.
+            head = head + 1
         end do
 
         if (result%unresolved_boxes > 0) then
