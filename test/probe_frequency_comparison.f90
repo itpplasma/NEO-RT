@@ -59,6 +59,8 @@ program probe_frequency_comparison
     call init_flux_surface_average(boozer_surface)
     call init_canon_freq_trapped_spline()
     call init_canon_freq_passing_spline()
+    write(unit, '(a,es20.12)') '# boozer_surface_s_tor ', boozer_surface
+    write(unit, '(a,es20.12)') '# boozer_eta_tp ', etatp
     do class_index = 1, 2
         class_name = merge('passing ', 'trapped ', class_index == 1)
         do k = 1, npoints
@@ -80,6 +82,8 @@ program probe_frequency_comparison
     call initialize_gc_frequency_context(direct_surface, th0, 1.0_dp, 0.0_dp, &
         mass, qe, speed, context, status)
     if (status /= GC_FREQUENCY_SUCCESS) error stop 'full-orbit context failed'
+    write(unit, '(a,es20.12)') '# direct_surface_s_pol ', direct_surface
+    write(unit, '(a,es20.12)') '# direct_eta_tp ', etatp
     do class_index = 1, 2
         class_name = merge('passing ', 'trapped ', class_index == 1)
         orbit_class = merge(GC_ORBIT_PASSING, GC_ORBIT_TRAPPED, class_index == 1)
