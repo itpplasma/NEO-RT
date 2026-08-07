@@ -14,7 +14,9 @@ program test_gc_full_fow_runtime_metadata
         GC_FULL_FOW_METADATA_SUCCESS, &
         GC_FULL_FOW_METADATA_TARGET_EXISTS, &
         GC_FULL_FOW_METADATA_WALL_MISMATCH, &
+        GC_FULL_FOW_ACTION_CONVENTION, GC_FULL_FOW_BOUND_METHOD, &
         emit_gc_full_fow_runtime_metadata, &
+        format_gc_full_fow_frequency_convention, &
         gc_full_fow_runtime_backend_state_t
     implicit none
 
@@ -30,6 +32,7 @@ program test_gc_full_fow_runtime_metadata
 
     type(gc_full_fow_runtime_backend_state_t) :: state
     character(len=4096) :: base_path, wall_path, output_path
+    character(len=64) :: expected_frequency
     character(len=256) :: message
     integer :: status, parse_status
     integer(int64) :: clock_count
@@ -65,6 +68,10 @@ program test_gc_full_fow_runtime_metadata
         'real_field_amplitude_one_signed_n'
     state%conjugate_policy = 'conjugate_implicit'
     state%prefactor_convention = 'eq17_pi32_over_4_real_field'
+    state%action_convention = GC_FULL_FOW_ACTION_CONVENTION
+    state%phase_space_bound_method = GC_FULL_FOW_BOUND_METHOD
+    state%perturbation_input_path = 'inputs/perturbation.dat'
+    state%perturbation_provenance_certified = .true.
     state%quadrature_base_h0_order = 2
     state%quadrature_base_jk_order = 2
     state%quadrature_refined_h0_order = 4
@@ -74,9 +81,17 @@ program test_gc_full_fow_runtime_metadata
     state%poloidal_harmonic_min = -8
     state%poloidal_harmonic_max = 8
     state%toroidal_harmonic = 3
+    state%poloidal_harmonic_count = 17
+    state%executed_harmonic_count = 17
+    call format_gc_full_fow_frequency_convention(state%toroidal_harmonic, &
+        expected_frequency)
+    state%frequency_convention = expected_frequency
     state%quadrature_convergence_certified = .true.
     state%harmonic_batch_certified = .true.
     state%class_reconstruction_certified = .true.
+    state%orbit_step_refinement_certified = .true.
+    state%orbit_base_step = 2.0e-3_dp
+    state%orbit_refined_step = 1.0e-3_dp
 
     call emit(state, output_path, status, message)
     call require(status == GC_FULL_FOW_METADATA_SUCCESS, &
@@ -318,9 +333,9 @@ contains
         character(len=*), intent(in) :: path
         integer, intent(out) :: local_status
         character(len=4096) :: line, key, value
-        character(len=40) :: required(25)
-        character(len=256) :: values(25)
-        logical :: seen(25)
+        character(len=40) :: required(55)
+        character(len=256) :: values(55)
+        logical :: seen(55)
         integer :: unit, io_status, equal_position, nkeys, key_index
         logical :: found, duplicate
 
@@ -343,13 +358,43 @@ contains
         required(16) = 'cylindrical_backend_entries'
         required(17) = 'legacy_backend_entries'
         required(18) = 'chart_fallback_entries'
-        required(19) = 'invariant_status_coverage'
-        required(20) = 'return_status_coverage'
-        required(21) = 'wall_status_coverage'
-        required(22) = 'frequency_convention'
-        required(23) = 'frequency_phase_policy'
-        required(24) = 'diagnostic_count'
-        required(25) = 'phase_independent_evidence'
+        required(19) = 'real_field_amplitude_convention'
+        required(20) = 'conjugate_policy'
+        required(21) = 'prefactor_convention'
+        required(22) = 'action_convention'
+        required(23) = 'phase_space_bound_method'
+        required(24) = 'frequency_convention'
+        required(25) = 'perturbation_input_path'
+        required(26) = 'perturbation_provenance_certified'
+        required(27) = 'quadrature_base_h0_order'
+        required(28) = 'quadrature_base_jk_order'
+        required(29) = 'quadrature_refined_h0_order'
+        required(30) = 'quadrature_refined_jk_order'
+        required(31) = 'quadrature_relative_tolerance'
+        required(32) = 'quadrature_absolute_tolerance'
+        required(33) = 'poloidal_harmonic_min'
+        required(34) = 'poloidal_harmonic_max'
+        required(35) = 'poloidal_harmonic_count'
+        required(36) = 'executed_harmonic_count'
+        required(37) = 'toroidal_harmonic'
+        required(38) = 'quadrature_convergence_certified'
+        required(39) = 'harmonic_batch_certified'
+        required(40) = 'class_reconstruction_certified'
+        required(41) = 'orbit_step_refinement_certified'
+        required(42) = 'orbit_base_step'
+        required(43) = 'orbit_refined_step'
+        required(44) = 'orbit_period_refinement_error'
+        required(45) = 'orbit_delta_phi_refinement_error'
+        required(46) = 'orbit_omega_b_refinement_error'
+        required(47) = 'orbit_omega_phi_refinement_error'
+        required(48) = 'orbit_h_m_refinement_error'
+        required(49) = 'orbit_shell_refinement_error'
+        required(50) = 'invariant_status_coverage'
+        required(51) = 'return_status_coverage'
+        required(52) = 'wall_status_coverage'
+        required(53) = 'frequency_phase_policy'
+        required(54) = 'diagnostic_count'
+        required(55) = 'phase_independent_evidence'
         values = ''
         seen = .false.
         nkeys = 0

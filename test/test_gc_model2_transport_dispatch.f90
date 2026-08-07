@@ -85,7 +85,8 @@ contains
         end associate
         provider%callback_count = provider%callback_count + 1
         allocate(components(1))
-        components(1) = gc_nonlocal_component_t(1, 1, 0.1_dp, 0.9_dp)
+        components(1) = gc_nonlocal_component_t(component_id=1, sigma=1, &
+            x_min=0.1_dp, x_max=0.9_dp)
         status = GC_NONLOCAL_SUCCESS
     end subroutine mock_get_components
 
@@ -181,6 +182,9 @@ program test_gc_model2_transport_dispatch
         emit_gc_model2_runtime_record, execute_gc_model2_transport, &
         finalize_gc_model2_transport_execution, gc_model2_dispatch_required, &
         gc_model2_observed_evidence_t
+    use neort_gc_full_fow_runtime_metadata, only: &
+        GC_FULL_FOW_BOUND_METHOD, &
+        GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION
     use neort_transport, only: legacy_eta_transport_selected
     use neort_gc_nonlocal_transport_types, only: &
         gc_nonlocal_transport_options_t
@@ -410,6 +414,14 @@ contains
         local_backend%wall_certified = .true.
         local_backend%canonical_measure_certified = .true.
         local_backend%component_identity_certified = .true.
+        local_backend%perturbation_amplitude_convention = &
+            GC_FULL_FOW_REAL_FIELD_AMPLITUDE_CONVENTION
+        local_backend%perturbation_input_path = 'inputs/perturbation.dat'
+        local_backend%perturbation_provenance_certified = .true.
+        local_backend%phase_space_bound_method = GC_FULL_FOW_BOUND_METHOD
+        local_backend%orbit_step_refinement_certified = .true.
+        local_backend%orbit_base_step = 2.0e-3_dp
+        local_backend%orbit_refined_step = 1.0e-3_dp
         local_backend%wall_actual_path = trim(local_wall)
         local_backend%wall_units = 'm'
         local_backend%wall_sha256 = repeat('a', 64)

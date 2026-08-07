@@ -7,6 +7,8 @@ program test_gc_full_fow_runtime_delivery
         GC_FULL_FOW_DELIVERY_TARGET_EXISTS, &
         emit_gc_full_fow_runtime_surface_record
     use neort_gc_full_fow_runtime_metadata, only: &
+        GC_FULL_FOW_ACTION_CONVENTION, GC_FULL_FOW_BOUND_METHOD, &
+        format_gc_full_fow_frequency_convention, &
         gc_full_fow_runtime_backend_state_t
     implicit none
 
@@ -23,6 +25,7 @@ program test_gc_full_fow_runtime_delivery
     type(gc_full_fow_runtime_backend_state_t) :: state
     character(len=4096) :: base_path, wall_path, output_path
     character(len=64) :: surface_key
+    character(len=64) :: expected_frequency
     character(len=256) :: message
     character(len=256) :: messages(20)
     integer :: statuses(20), status, i, io_status
@@ -63,6 +66,10 @@ program test_gc_full_fow_runtime_delivery
         'real_field_amplitude_one_signed_n'
     state%conjugate_policy = 'conjugate_implicit'
     state%prefactor_convention = 'eq17_pi32_over_4_real_field'
+    state%action_convention = GC_FULL_FOW_ACTION_CONVENTION
+    state%phase_space_bound_method = GC_FULL_FOW_BOUND_METHOD
+    state%perturbation_input_path = 'inputs/perturbation.dat'
+    state%perturbation_provenance_certified = .true.
     state%quadrature_base_h0_order = 2
     state%quadrature_base_jk_order = 2
     state%quadrature_refined_h0_order = 4
@@ -72,9 +79,17 @@ program test_gc_full_fow_runtime_delivery
     state%poloidal_harmonic_min = -8
     state%poloidal_harmonic_max = 8
     state%toroidal_harmonic = 3
+    state%poloidal_harmonic_count = 17
+    state%executed_harmonic_count = 17
+    call format_gc_full_fow_frequency_convention(state%toroidal_harmonic, &
+        expected_frequency)
+    state%frequency_convention = expected_frequency
     state%quadrature_convergence_certified = .true.
     state%harmonic_batch_certified = .true.
     state%class_reconstruction_certified = .true.
+    state%orbit_step_refinement_certified = .true.
+    state%orbit_base_step = 2.0e-3_dp
+    state%orbit_refined_step = 1.0e-3_dp
 
     statuses = -1
     messages = ''

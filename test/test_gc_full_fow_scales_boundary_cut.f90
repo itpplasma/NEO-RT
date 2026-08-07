@@ -18,8 +18,8 @@ program test_gc_full_fow_scales_boundary_cut
 
     call evaluate_neort_full_fow_refinement_scales(2.0_dp, -3.0_dp, 0.5_dp, &
         -0.8_dp, 0.7_dp, 4.0_dp, 1.2_dp, -0.4_dp, hm_real, hm_imag, 0.5_dp, &
-        -2.0_dp, 3.0_dp, 1.0_dp, 2.0_dp, 1.0_dp, 2.0_dp, 2.0_dp, 1.0_dp, &
-        1.0_dp, 2.0_dp, 2.0_dp, 0.5_dp, 2.0_dp, 3.0_dp, 2.0_dp, 3.0_dp, &
+        -2.0_dp, 3.0_dp, 1.0_dp, 2.0_dp, 1.0_dp, 2.0_dp, 1.0_dp, 2.0_dp, &
+        2.0_dp, 1.0_dp, 1.0_dp, 2.0_dp, 2.0_dp, 0.5_dp, 2.0_dp, 3.0_dp, &
         scales(1), scales(2), scales(3), scales(4), scales(5), scales(6), &
         scales(7), scales(8), scales(9), scales(10), scales(11), scales(12), &
         scales(13), scales(14))

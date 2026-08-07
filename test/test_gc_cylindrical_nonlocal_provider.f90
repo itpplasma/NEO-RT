@@ -328,9 +328,12 @@ contains
             state => user_data
             call record_invariants(state, h0, jperp)
             allocate(components(3))
-            components(1) = gc_nonlocal_component_t(11, 1, -1.0_dp, 1.0_dp)
-            components(2) = gc_nonlocal_component_t(22, -1, -1.0_dp, 1.0_dp)
-            components(3) = gc_nonlocal_component_t(33, 1, 2.0_dp, 3.0_dp)
+            components(1) = gc_nonlocal_component_t(component_id=11, &
+                sigma=1, x_min=-1.0_dp, x_max=1.0_dp)
+            components(2) = gc_nonlocal_component_t(component_id=22, &
+                sigma=-1, x_min=-1.0_dp, x_max=1.0_dp)
+            components(3) = gc_nonlocal_component_t(component_id=33, &
+                sigma=1, x_min=2.0_dp, x_max=3.0_dp)
             status = 0
         class default
             nullify(state)

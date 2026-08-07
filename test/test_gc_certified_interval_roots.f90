@@ -260,7 +260,13 @@ contains
             case (1, 12, 13)
                 value%f = point_interval(x*x + 1.0_dp)
             case (2)
-                value%f = point_interval((x - 1.0_dp)*(x + 2.0_dp))
+                !! Keep the point evaluator algebraically identical to the
+                !! independently checked quadratic enclosure.  The factored
+                !! form and x**2+x-2 are mathematically equal, but their
+                !! rounded point values need not lie within the same one-ULP
+                !! enclosure; rejecting that callback is a false certificate
+                !! failure, not a root-isolation result.
+                value%f = point_interval(x*x + x - 2.0_dp)
             case (3, 10, 14)
                 value%f = point_interval((x - 0.3_dp)**2)
             case (4)
