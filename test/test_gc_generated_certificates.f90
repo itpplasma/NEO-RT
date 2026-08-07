@@ -37,6 +37,12 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_cut_z_chart', &
             'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884')) error stop &
         'EQDSK Z-chart certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_axis_curvature', &
+            'neort-cert-v1:eqdsk_cut_axis_curvature:1:fortsym-5457884')) &
+        error stop 'EQDSK axis-curvature certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_axis_limit', &
+            'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884')) &
+        error stop 'EQDSK axis-limit certificate registry mismatch'
     if (index(fortsym_revision, '545788453a204d58705f735b519c3863c2f734c8') == 0) &
         error stop 'Fortsym revision provenance missing'
     if (index(regenerate_command, 'gen_full_fow_physics') == 0) &

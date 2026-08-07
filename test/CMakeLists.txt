@@ -186,6 +186,11 @@ add_test(NAME test_gc_eqdsk_cut_interval_symbolic
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_eqdsk_cut_axis_limit
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_axis_limit.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_gc_eqdsk_cut_interval_runtime
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_interval_runtime.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
