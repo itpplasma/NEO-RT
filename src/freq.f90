@@ -309,6 +309,7 @@ contains
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
+        real(dp) :: OmtB, dOmtBdv, dOmtBdeta
         real(dp) :: deta, dv
 
         if (supban .and. (eta > etatp)) then
