@@ -276,8 +276,16 @@ add_test(NAME test_gc_cylindrical_class_adapter
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_class_adapter.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_cylindrical_transport_provider
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_transport_provider.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_full_fow_runtime_metadata
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_runtime_metadata.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_full_fow_runtime_delivery
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_runtime_delivery.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_gc_transport_status
