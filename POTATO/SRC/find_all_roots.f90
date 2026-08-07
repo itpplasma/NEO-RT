@@ -33,6 +33,25 @@
     !$omp&                root_scan_last_valid)
   end module find_all_roots_mod
 !
+  module potato_topology_mod
+! A stationary root on a physical allowed-region boundary is a boundary
+! marker, not an extremum of the open interval used for fixed-point typing.
+    contains
+      pure logical function root_is_open_interval(root,rlo,rhi)
+        double precision, intent(in) :: root,rlo,rhi
+
+        root_is_open_interval=(rlo.lt.rhi .and. root.gt.rlo .and. root.lt.rhi)
+      end function root_is_open_interval
+
+      pure logical function root_has_two_sided_neighborhood(root,rlo,rhi,hstep)
+        double precision, intent(in) :: root,rlo,rhi,hstep
+
+        root_has_two_sided_neighborhood=(root_is_open_interval(root,rlo,rhi) .and. &
+                                         hstep.gt.0.d0 .and. root-hstep.gt.rlo .and. &
+                                         root+hstep.lt.rhi)
+      end function root_has_two_sided_neighborhood
+  end module potato_topology_mod
+!
 ! The two public entry points intentionally share one bounded implementation.
 ! A Newton extrapolation is not a root certificate when the derivative is flat
 ! or when the physical function is undefined on part of the requested interval.

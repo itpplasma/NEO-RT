@@ -88,6 +88,16 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_endpoint_stationary_root.x
+   SRC/test_endpoint_stationary_root.f90
+)
+target_link_libraries(test_endpoint_stationary_root.x
+   potato_base
+)
+add_test(NAME test_endpoint_stationary_root
+   COMMAND test_endpoint_stationary_root.x
+)
+
 add_executable(test_signed_toroidal_bound.x
    SRC/test_signed_toroidal_bound.f90
 )
