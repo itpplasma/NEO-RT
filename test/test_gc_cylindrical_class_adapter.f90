@@ -75,20 +75,20 @@ contains
         real(dp), intent(out) :: potential, gradient(3)
         integer, intent(out) :: status
 
-        real(dp) :: omega, kinetic, derivative
+        real(dp) :: mu_phys, kinetic, derivative
 
         potential = 0.0_dp
         gradient = 0.0_dp
         status = GC_CYL_CLASS_INVALID_INPUT
         if (position(1) <= 0.0_dp) return
-        omega = abs(self%profile_charge)*field%bmod &
-            /(self%profile_mass*self%profile_c)
+        mu_phys = self%profile_jperp*abs(self%profile_charge) &
+            /self%profile_c
         kinetic = 0.5_dp*self%profile_mass &
             *target_vparallel_squared(position(1))
         derivative = 0.5_dp*self%profile_mass &
             *target_dvparallel_squared(position(1))
-        potential = (self%profile_h0 - self%profile_jperp*omega &
-            -kinetic)/self%profile_charge
+        potential = (self%profile_h0 - mu_phys*field%bmod - kinetic) &
+            /self%profile_charge
         gradient(1) = -derivative/self%profile_charge
         status = GC_CYL_SUCCESS
     end subroutine evaluate_manufactured_potential
@@ -154,6 +154,7 @@ program test_gc_cylindrical_class_adapter
         identity_splitter, target_dvparallel_squared, &
         target_vparallel_squared
     use neort_gc_cylindrical_class_adapter, only: &
+        GC_CYL_CLASS_JK_UNITS, &
         GC_CYL_CLASS_INTERIOR_INVALID, GC_CYL_CLASS_SPLITTER_UNAVAILABLE, &
         GC_CYL_CLASS_NOT_ENUMERATED, GC_CYL_CLASS_SPLITTER_FAILURE, &
         GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
@@ -302,10 +303,12 @@ program test_gc_cylindrical_class_adapter
         'canonical p_phi was not preserved by launch', 1.0e-11_dp)
     call require(trim(launch_plus%psi_star_units) == 'psi_star=(c/q)*p_phi', &
         'launch units did not record psi_star normalization')
+    call require(trim(launch_plus%jperp_units) == trim(GC_CYL_CLASS_JK_UNITS), &
+        'launch units did not record J_K normalization')
     call require_close(launch_plus%state%p_parallel, MASS*expected_v, &
         'launch p_parallel is not m*v_parallel', 1.0e-12_dp)
     call require_close(launch_plus%state%mu, &
-        JPERP_REFERENCE*abs(CHARGE)/(MASS*C_LIGHT), &
+        JPERP_REFERENCE*abs(CHARGE)/C_LIGHT, &
         'launch magnetic moment/action conversion', 1.0e-12_dp)
     call launch_gc_cylindrical_class(split_adapter, RC_MIN, 1, tangent_id, &
         launch_tangent, status)
@@ -315,7 +318,7 @@ program test_gc_cylindrical_class_adapter
         'endpoint tangency was not retained in launch metadata')
 
     thin_speed = 1.0e-5_dp
-    thin_h0 = JPERP_REFERENCE*point_plus%omega_c &
+    thin_h0 = JPERP_REFERENCE*abs(CHARGE)/C_LIGHT*point_plus%field%bmod &
         +CHARGE*point_plus%potential + 0.5_dp*MASS*thin_speed**2
     call initialize_gc_cylindrical_class_adapter(field, potential, thin_h0, &
         JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &

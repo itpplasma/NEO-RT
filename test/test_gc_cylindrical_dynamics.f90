@@ -7,7 +7,7 @@ program test_gc_cylindrical_dynamics
         gc_cylindrical_state_t, make_gc_cylindrical_field_sample, &
         gc_cylindrical_invariant_residuals, invariants_from_cylindrical_state, &
         canonical_flux_from_state, canonical_toroidal_momentum_from_state, &
-        jperp_from_state, state_from_cylindrical_invariants
+        gc_buchholz_jk_from_state, state_from_cylindrical_invariants
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_bstar_quantities, &
         gc_cylindrical_rhs, gc_cylindrical_section_flux_density
     use util_for_test, only: pass_test
@@ -154,22 +154,24 @@ contains
     subroutine check_pitch_invariant_jacobian()
         real(dp), parameter :: mass_value = 3.7_dp, speed_value = 1.2_dp
         real(dp), parameter :: eta_value = 0.31_dp, delta_eta = 1.0e-3_dp
-        real(dp) :: mu_plus, mu_minus, jperp_plus, jperp_minus
+        real(dp) :: mu_plus, mu_minus, j_k_plus, j_k_minus
         real(dp) :: dmu_deta, djperp_deta
+        real(dp), parameter :: charge_value = -2.3_dp, c_value = 4.1_dp
 
         ! The cylindrical state stores physical mu.  The caller's eta is
-        ! therefore related by mu=1/2*m*v^2*eta; J_perp=2*m*mu is a
-        ! different invariant and must not be substituted silently.
+        ! therefore related by mu=1/2*m*v^2*eta.  The class adapter's
+        ! compatibility name J_perp denotes Buchholz J_K=c*mu/abs(q).
         mu_plus = 0.5_dp*mass_value*speed_value**2*(eta_value + delta_eta)
         mu_minus = 0.5_dp*mass_value*speed_value**2*(eta_value - delta_eta)
-        jperp_plus = 2.0_dp*mass_value*mu_plus
-        jperp_minus = 2.0_dp*mass_value*mu_minus
+        j_k_plus = c_value*mu_plus/abs(charge_value)
+        j_k_minus = c_value*mu_minus/abs(charge_value)
         dmu_deta = (mu_plus - mu_minus)/(2.0_dp*delta_eta)
-        djperp_deta = (jperp_plus - jperp_minus)/(2.0_dp*delta_eta)
+        djperp_deta = (j_k_plus - j_k_minus)/(2.0_dp*delta_eta)
         call require_close('dmu/deta physical invariant', dmu_deta, &
             0.5_dp*mass_value*speed_value**2, 1.0e-11_dp)
         call require_close('dJperp/deta normalization', djperp_deta, &
-            mass_value**2*speed_value**2, 1.0e-11_dp)
+            c_value*0.5_dp*mass_value*speed_value**2/abs(charge_value), &
+            1.0e-11_dp)
     end subroutine check_pitch_invariant_jacobian
 
     subroutine check_invariant_launch()
@@ -213,8 +215,9 @@ contains
         call require_close('H invariant residual', energy_residual, 0.0_dp, 1.0e-13_dp)
         call require_close('mu invariant residual', mu_residual, 0.0_dp, 1.0e-13_dp)
         call require_close('P_phi invariant residual', pphi_residual, 0.0_dp, 1.0e-13_dp)
-        call require_close('Jperp normalization', jperp_from_state(state, 1.0_dp), &
-            2.0_dp*state%mu, 1.0e-13_dp)
+        call require_close('Buchholz J_K normalization', &
+            gc_buchholz_jk_from_state(state, 1.0_dp, c_light), &
+            c_light*state%mu, 1.0e-13_dp)
     end subroutine check_invariant_launch
 
     subroutine check_bstar_measure_and_section_flux()

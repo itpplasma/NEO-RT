@@ -6,6 +6,8 @@ module neort_gc_cylindrical_model
     !! the CGS units already used by the direct GEQDSK/libneo path.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_perpendicular_invariant, only: &
+        gc_buchholz_jk_from_mu_phys, gc_potato_jperp_from_mu_phys
 
     implicit none
     private
@@ -34,6 +36,8 @@ module neort_gc_cylindrical_model
     integer, parameter, public :: GC_CYL_SECTION_PHI = 4
 
     type, public :: gc_cylindrical_state_t
+        !! mu is the canonical physical magnetic moment mu_phys.  It is not
+        !! Buchholz J_K and is not POTATO's normalized p^2(1-xi^2)/B.
         real(dp) :: R = 0.0_dp
         real(dp) :: Z = 0.0_dp
         real(dp) :: phi = 0.0_dp
@@ -54,6 +58,7 @@ module neort_gc_cylindrical_model
     end type gc_cylindrical_field_sample_t
 
     type, public :: gc_cylindrical_invariants_t
+        !! magnetic_moment is mu_phys in the same units as state%mu.
         real(dp) :: energy = 0.0_dp
         real(dp) :: magnetic_moment = 0.0_dp
         real(dp) :: canonical_toroidal_momentum = 0.0_dp
@@ -172,7 +177,8 @@ module neort_gc_cylindrical_model
     public :: canonical_toroidal_momentum_from_state
     public :: canonical_flux_from_state
     public :: energy_from_state
-    public :: jperp_from_state
+    public :: gc_buchholz_jk_from_state
+    public :: gc_potato_jperp_from_state
     public :: gc_cylindrical_allowed_value_i
 
 contains
@@ -338,7 +344,7 @@ contains
         p2_expected = 2.0_dp*mass*kinetic
         mismatch = abs(p_parallel**2 - p2_expected)
         if (mismatch > 1.0e-9_dp*max(abs(p2_expected), &
-                tiny(p2_expected))) return
+            tiny(p2_expected))) return
         state%p_parallel = p_parallel
         state%mu = invariants%magnetic_moment
         status = GC_CYL_SUCCESS
@@ -367,14 +373,25 @@ contains
             *field%bhat(2)
     end function canonical_flux_from_state
 
-    pure function jperp_from_state(state, mass) result(value)
-        !! POTATO's normalized perpendicular invariant is J_perp = 2 m mu.
+    pure function gc_buchholz_jk_from_state(state, charge, c_light) result(value)
+        !! Convert the canonical state magnetic moment to Buchholz J_K.
         type(gc_cylindrical_state_t), intent(in) :: state
-        real(dp), intent(in) :: mass
+        real(dp), intent(in) :: charge, c_light
         real(dp) :: value
 
-        value = 2.0_dp*mass*state%mu
-    end function jperp_from_state
+        value = gc_buchholz_jk_from_mu_phys(state%mu, charge, c_light)
+    end function gc_buchholz_jk_from_state
+
+    pure function gc_potato_jperp_from_state(state, mass, bmod, v0) &
+            result(value)
+        !! Convert the canonical state magnetic moment to POTATO's
+        !! normalized p^2(1-xi^2)/B.  v0 and bmod are explicit by design.
+        type(gc_cylindrical_state_t), intent(in) :: state
+        real(dp), intent(in) :: mass, bmod, v0
+        real(dp) :: value
+
+        value = gc_potato_jperp_from_mu_phys(state%mu, mass, bmod, v0)
+    end function gc_potato_jperp_from_state
 
     pure function energy_from_state(state, field, potential, charge, mass) result(value)
         type(gc_cylindrical_state_t), intent(in) :: state
@@ -404,7 +421,7 @@ contains
         integer, intent(out) :: status
 
         associate (unused_self => self, unused_position => position, &
-            unused_field => field)
+                unused_field => field)
         end associate
         potential = 0.0_dp
         gradient = 0.0_dp

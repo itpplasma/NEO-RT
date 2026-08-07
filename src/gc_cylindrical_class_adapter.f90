@@ -1,12 +1,16 @@
 module neort_gc_cylindrical_class_adapter
-    !! Fixed-(H0,J_perp) Poincare-cut class and launch adapter.
+    !! Fixed-(H0,J_K) Poincare-cut class and launch adapter.
     !!
-    !! The class coordinate is the physical cut parameter Rc.  H0 and
-    !! J_perp are the action variables of Buchholz et al. (2022), not the
-    !! local eta or the repository's magnetic-moment storage convention.
+    !! The class coordinate is the physical cut parameter Rc.  H0 and the
+    !! compatibility field named jperp are the action variables of Buchholz
+    !! et al. (2022).  In this adapter jperp means J_K, with
+    !! J_K=c*mu_phys/abs(q); it is not the repository's magnetic-moment
+    !! storage convention and it is not POTATO's normalized invariant.
     !! The adapter evaluates
     !!
-    !!   v_parallel^2 = 2 (H0 - J_perp omega_c - q Phi) / m,
+    !!   mu_phys = abs(q) J_K / c,
+    !!   v_parallel^2 = 2 (H0 - mu_phys B - q Phi) / m
+    !!                = 2 (H0 - J_K omega_c - q Phi) / m,
     !!   psi_star = psi + (m c/q) v_parallel (R B_phi/B),
     !!
     !! where B_phi in the second expression is the covariant cylindrical
@@ -20,6 +24,8 @@ module neort_gc_cylindrical_class_adapter
         gc_cylindrical_field_t, gc_cylindrical_potential_t, &
         gc_cylindrical_state_t, gc_cylindrical_allowed_component_t, &
         canonical_toroidal_momentum_from_state
+    use neort_gc_perpendicular_invariant, only: &
+        gc_buchholz_jk_from_mu_phys, gc_mu_phys_from_buchholz_jk
     use neort_gc_cylindrical_topology, only: &
         find_gc_cylindrical_allowed_regions, &
         gc_cylindrical_allowed_region_set_t
@@ -44,8 +50,12 @@ module neort_gc_cylindrical_class_adapter
     character(len=*), parameter, public :: GC_CYL_CLASS_PSI_STAR_UNITS = &
         'psi_star=(c/q)*p_phi'
     character(len=*), parameter, public :: GC_CYL_CLASS_H0_UNITS = 'energy'
+    character(len=*), parameter, public :: GC_CYL_CLASS_JK_UNITS = &
+        'J_K=c*mu_phys/abs(charge)'
+    ! Keep the historical public name for source compatibility.  Its value
+    ! is explicitly Buchholz J_K, never 2*m*mu_phys and never POTATO J_perp.
     character(len=*), parameter, public :: GC_CYL_CLASS_JPERP_UNITS = &
-        'energy*time'
+        GC_CYL_CLASS_JK_UNITS
     character(len=*), parameter, public :: GC_CYL_CLASS_RC_UNITS = 'cut-coordinate'
     character(len=*), parameter, public :: GC_CYL_CLASS_VPARALLEL_UNITS = 'velocity'
 
@@ -117,7 +127,7 @@ module neort_gc_cylindrical_class_adapter
         logical :: endpoint_tangent = .false.
         logical :: derivative_available = .false.
         character(len=32) :: h0_units = GC_CYL_CLASS_H0_UNITS
-        character(len=32) :: jperp_units = GC_CYL_CLASS_JPERP_UNITS
+        character(len=64) :: jperp_units = GC_CYL_CLASS_JPERP_UNITS
         character(len=32) :: rc_units = GC_CYL_CLASS_RC_UNITS
         character(len=32) :: vparallel_units = GC_CYL_CLASS_VPARALLEL_UNITS
         character(len=32) :: psi_star_units = GC_CYL_CLASS_PSI_STAR_UNITS
@@ -161,6 +171,7 @@ module neort_gc_cylindrical_class_adapter
 
     type, public :: gc_cylindrical_class_adapter_t
         real(dp) :: h0 = 0.0_dp
+        ! Compatibility component name: this value is Buchholz J_K.
         real(dp) :: jperp = 0.0_dp
         real(dp) :: mass = 0.0_dp
         real(dp) :: charge = 0.0_dp
@@ -226,6 +237,7 @@ contains
         if (.not. all(ieee_is_finite([h0, jperp, mass, charge, c_light, &
             rc_min, rc_max]))) return
         if (mass <= 0.0_dp) return
+        if (jperp < 0.0_dp) return
         if (abs(charge) <= tiny(charge)) return
         if (c_light <= 0.0_dp) return
         if (rc_max <= rc_min) return
@@ -277,7 +289,7 @@ contains
 
         real(dp) :: tangent_physical(3), db_drc(3), bphi_covariant
         real(dp) :: dbphi_covariant_drc, dbmod_drc, ratio, dratio_drc
-        real(dp) :: kinetic_energy, v2_scale, velocity_scale
+        real(dp) :: kinetic_energy, v2_scale, velocity_scale, mu_phys
         real(dp) :: charge_magnitude, coefficient
         integer :: local_status
 
@@ -342,11 +354,13 @@ contains
             /(adapter%mass*adapter%c_light)
         point%domega_c_drc = abs(adapter%charge)*dbmod_drc &
             /(adapter%mass*adapter%c_light)
-        kinetic_energy = adapter%h0 - adapter%jperp*point%omega_c &
+        mu_phys = gc_mu_phys_from_buchholz_jk(adapter%jperp, &
+            adapter%charge, adapter%c_light)
+        kinetic_energy = adapter%h0 - mu_phys*point%field%bmod &
             -adapter%charge*point%potential
         point%vparallel_squared = 2.0_dp*kinetic_energy/adapter%mass
         point%dvparallel_squared_drc = -2.0_dp/adapter%mass &
-            *(adapter%jperp*point%domega_c_drc &
+            *(mu_phys*dbmod_drc &
             +adapter%charge*dot_product(point%potential_gradient, &
             tangent_physical))
         v2_scale = max(1.0_dp, abs(2.0_dp*adapter%h0/adapter%mass))
@@ -588,7 +602,7 @@ contains
         type(gc_cylindrical_class_point_t) :: point
         integer :: i, point_status
         logical :: found
-        real(dp) :: tolerance, mu, energy, canonical_momentum
+        real(dp) :: tolerance, mu_phys, energy, canonical_momentum
 
         launch = gc_cylindrical_class_launch_t()
         launch%rc = rc
@@ -656,17 +670,17 @@ contains
         launch%state%Z = point%position(2)
         launch%state%phi = point%position(3)
         launch%state%p_parallel = adapter%mass*point%vparallel
-        launch%state%mu = adapter%jperp*abs(adapter%charge) &
-            /(adapter%mass*adapter%c_light)
-        mu = launch%state%mu
+        mu_phys = gc_mu_phys_from_buchholz_jk(adapter%jperp, &
+            adapter%charge, adapter%c_light)
+        launch%state%mu = mu_phys
         energy = launch%state%p_parallel**2/(2.0_dp*adapter%mass) &
-            +mu*point%field%bmod + adapter%charge*point%potential
+            +mu_phys*point%field%bmod + adapter%charge*point%potential
         launch%p_phi = adapter%charge/adapter%c_light*point%psi_star
         canonical_momentum = canonical_toroidal_momentum_from_state( &
             launch%state, point%field, adapter%charge, adapter%c_light)
         launch%energy_residual = energy - adapter%h0
-        launch%jperp_residual = mu*adapter%mass*adapter%c_light/ &
-            abs(adapter%charge) - adapter%jperp
+        launch%jperp_residual = gc_buchholz_jk_from_mu_phys(mu_phys, &
+            adapter%charge, adapter%c_light) - adapter%jperp
         launch%canonical_residual = canonical_momentum - launch%p_phi
         if (.not. all(ieee_is_finite([launch%energy_residual, &
             launch%jperp_residual, launch%canonical_residual]))) then
@@ -691,6 +705,7 @@ contains
             adapter%charge, adapter%c_light, adapter%rc_min, &
             adapter%rc_max]))) return
         if (adapter%mass <= 0.0_dp) return
+        if (adapter%jperp < 0.0_dp) return
         if (abs(adapter%charge) <= tiny(adapter%charge)) return
         if (adapter%c_light <= 0.0_dp) return
         if (adapter%rc_max <= adapter%rc_min) return
