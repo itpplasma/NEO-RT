@@ -370,6 +370,8 @@ contains
         local_options%integral%resonance_options%max_root_iterations = 64
         local_options%integral%resonance_options%max_roots = 4
         local_options%integral%resonance_options%force_count = 3
+        local_options%poloidal_harmonics = [1]
+        local_options%toroidal_harmonic = 1
     end subroutine configure_options
 
     subroutine configure_observed_evidence(local_observed)

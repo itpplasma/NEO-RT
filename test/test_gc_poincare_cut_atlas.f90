@@ -76,6 +76,12 @@ contains
         character(len=256) :: message
         atlas = test_atlas(2)
         atlas%branches(2)%branch_id = 1
+        call require(size(atlas%branches) == 2, &
+            'duplicate-identity fixture did not contain two branches')
+        call require(atlas%branches(1)%branch_id == 1, &
+            'duplicate-identity fixture changed branch one')
+        call require(atlas%branches(2)%branch_id == 1, &
+            'duplicate-identity fixture did not change branch two')
         call validate_poincare_cut_atlas(atlas, evaluate_line, evaluate_cut, &
             certify_disjoint, provider_unavailable, token, status, message)
         call require(status == PCA_INVALID_CONTRACT, &
@@ -396,11 +402,16 @@ contains
     function test_atlas(n) result(atlas)
         integer, intent(in), optional :: n
         type(poincare_cut_atlas_t) :: atlas
-        integer :: count
+        integer :: count, i
         count = 1
         if (present(n)) count = n
         allocate(atlas%branches(count))
-        atlas%branches = test_branch()
+        !! Initialize each element explicitly.  This keeps the malformed
+        !! duplicate-identity fixture independent of compiler handling of
+        !! scalar expansion into an allocatable derived-type array.
+        do i = 1, count
+            atlas%branches(i) = test_branch()
+        end do
         atlas%expected_branch_count = count
         atlas%symmetric_midplane_specialization = count == 1
         if (count == 2) then

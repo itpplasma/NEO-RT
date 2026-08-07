@@ -268,7 +268,8 @@ contains
                 orbit_provider=manufactured_orbit, &
                 force_provider=manufactured_force, section_coordinate='R_c', &
                 section_reference=SECTION_REFERENCE, &
-                section_reference_id='manufactured-section', user_data=local_data)
+                section_reference_id='manufactured-section', &
+                required_return_crossings=2, user_data=local_data)
         else
             call initialize_gc_cylindrical_nonlocal_provider(H0_REFERENCE, &
                 JPERP_REFERENCE, local_context, local_status, &
@@ -278,7 +279,8 @@ contains
                 harmonic_provider=manufactured_harmonic, &
                 force_provider=manufactured_force, section_coordinate='R_c', &
                 section_reference=SECTION_REFERENCE, &
-                section_reference_id='manufactured-section', user_data=local_data)
+                section_reference_id='manufactured-section', &
+                required_return_crossings=2, user_data=local_data)
         end if
     end subroutine initialize_provider
 
@@ -295,7 +297,8 @@ contains
             force_provider=manufactured_force, &
             canonical_conversion_provider=manufactured_conversion, &
             section_coordinate='R_c', section_reference=SECTION_REFERENCE, &
-            section_reference_id='manufactured-section', user_data=local_data)
+            section_reference_id='manufactured-section', &
+            required_return_crossings=2, user_data=local_data)
     end subroutine initialize_conversion_provider
 
     subroutine initialize_missing_normalization(local_context, local_data, local_status)
@@ -310,7 +313,8 @@ contains
             harmonic_provider=manufactured_harmonic, &
             force_provider=manufactured_force, &
             section_coordinate='R_c', section_reference=SECTION_REFERENCE, &
-            section_reference_id='manufactured-section', user_data=local_data)
+            section_reference_id='manufactured-section', &
+            required_return_crossings=2, user_data=local_data)
     end subroutine initialize_missing_normalization
 
     subroutine manufactured_components(h0, jperp, user_data, components, status)
@@ -488,6 +492,8 @@ contains
         orbit%section%reference = state%expected_reference
         orbit%section%reference_id = 'manufactured-section'
         orbit%section%locked = .true.
+        orbit%section%required_return_crossings = 2
+        orbit%section%return_crossings = 2
         if (state%bad_identity) orbit%component_id = component_id + 100
         if (state%bad_reference) orbit%section%reference(1) = &
             orbit%section%reference(1) + 0.01_dp

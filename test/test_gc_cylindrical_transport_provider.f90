@@ -178,7 +178,7 @@ contains
             orbit_provider=transport_orbit, harmonic_provider=transport_harmonic, &
             force_provider=transport_force, section_coordinate='R_c', &
             section_reference=section_reference, section_reference_id='cut-R', &
-            user_data=state)
+            required_return_crossings=2, user_data=state)
     end subroutine transport_node_factory
 
     subroutine transport_components(h0, jperp, user_data, components, status)
@@ -265,6 +265,8 @@ contains
         orbit%section%reference = [2.0_dp, 0.0_dp, 0.0_dp]
         orbit%section%reference_id = 'cut-R'
         orbit%section%locked = .true.
+        orbit%section%required_return_crossings = 2
+        orbit%section%return_crossings = 2
         orbit%p_phi = p_phi
         orbit%dp_phi_dx = dp_phi_dx
         orbit%tau_b = tau_b

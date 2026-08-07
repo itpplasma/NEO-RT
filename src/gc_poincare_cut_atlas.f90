@@ -326,10 +326,29 @@ contains
             return
         end if
 
+        !! Establish the identity domain and uniqueness before validating any
+        !! branch content.  The array position is the canonical branch
+        !! identity; neither a caller label nor a provider callback may
+        !! substitute for it.
         do i = 1, branch_count
+            if (atlas%branches(i)%branch_id < 1 .or. &
+                    atlas%branches(i)%branch_id > branch_count) then
+                status = PCA_INVALID_CONTRACT
+                message = 'branch identity is outside the atlas domain'
+                return
+            end if
+        end do
+        do i = 1, branch_count
+            do j = 1, i - 1
+                if (atlas%branches(i)%branch_id == atlas%branches(j)%branch_id) then
+                    status = PCA_INVALID_CONTRACT
+                    message = 'branch identity is duplicated'
+                    return
+                end if
+            end do
             if (atlas%branches(i)%branch_id /= i) then
                 status = PCA_INVALID_CONTRACT
-                message = 'branch identity has a gap or duplicate'
+                message = 'branch identity is not the canonical array position'
                 return
             end if
             if (atlas%branches(i)%component_identity_seed <= 0) then
