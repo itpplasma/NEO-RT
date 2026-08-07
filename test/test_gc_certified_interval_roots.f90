@@ -209,9 +209,14 @@ contains
         case (4)
             a = 0.2_dp
             b = 0.21_dp
-            value%f = quadratic_interval(lo, hi, 1.0_dp, -(a + b), a*b)
-            value%df = gc_interval_t(down(2.0_dp*lo - (a + b)), &
-                up(2.0_dp*hi - (a + b)))
+            value%f = interval_hull( &
+                quadratic_interval(lo, hi, 1.0_dp, -(a + b), a*b), &
+                quadratic_interval(lo, hi, 1.0_dp, -0.41_dp, a*b))
+            value%df = interval_hull( &
+                gc_interval_t(down(2.0_dp*lo - (a + b)), &
+                    up(2.0_dp*hi - (a + b))), &
+                gc_interval_t(down(2.0_dp*lo - 0.41_dp), &
+                    up(2.0_dp*hi - 0.41_dp)))
             value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
         case (5)
             value%f = gc_interval_t(0.0_dp, 0.0_dp)
@@ -475,6 +480,26 @@ contains
             value = gc_interval_t(down(number), up(number))
         end if
     end function point_interval
+
+    function point_hull(first, second) result(value)
+        !! Enclose both independently evaluated forms of the manufactured
+        !! polynomial. Floating-point distributivity is not assumed.
+        real(dp), intent(in) :: first, second
+        type(gc_interval_t) :: value
+        if (first == 0.0_dp .and. second == 0.0_dp) then
+            value = gc_interval_t(0.0_dp, 0.0_dp)
+        else
+            value = gc_interval_t(down(min(first, second)), &
+                up(max(first, second)))
+        end if
+    end function point_hull
+
+    function interval_hull(first, second) result(value)
+        type(gc_interval_t), intent(in) :: first, second
+        type(gc_interval_t) :: value
+        value = gc_interval_t(min(first%lo, second%lo), &
+            max(first%hi, second%hi))
+    end function interval_hull
 
     real(dp) function down(number)
         real(dp), intent(in) :: number
