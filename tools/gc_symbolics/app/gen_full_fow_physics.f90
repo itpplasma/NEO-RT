@@ -180,6 +180,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cut_r_chart_roots(2), eqdsk_cut_z_chart_roots(2)
     type(expr_t) :: eqdsk_cut_r_flux_chart_roots(2)
     type(expr_t) :: eqdsk_cut_mean_value_roots(1)
+    type(expr_t) :: eqdsk_cut_axis_curvature_roots(1)
+    type(expr_t) :: eqdsk_cut_axis_limit_roots(3)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
     type(expr_t) :: frequency_contribution_roots(2)
@@ -255,6 +257,14 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_mean_n_mid, eqcut_mean_n_r, eqcut_mean_n_z
     type(expr_t) :: eqcut_mean_delta_r, eqcut_mean_delta_z
     type(expr_t) :: eqcut_mean_enclosure, eqcut_mean_center_residual
+    type(expr_t) :: eqcut_axis_slope, eqcut_axis_psi_rr
+    type(expr_t) :: eqcut_axis_psi_rz, eqcut_axis_psi_zz
+    type(expr_t) :: eqcut_axis_psi_sep, eqcut_axis_curvature
+    type(expr_t) :: eqcut_axis_delta_psihat
+    type(expr_t) :: eqcut_axis_branch_sign, eqcut_axis_abs_dpsihat
+    type(expr_t) :: eqcut_axis_inverse_delta_r
+    type(expr_t) :: eqcut_axis_derivative_limit_residual
+    type(expr_t) :: eqcut_axis_inverse_limit_residual
     character(len=64) :: eqdsk_cell_arg_names(38)
     character(len=64) :: eqdsk_profile_arg_names(9)
     type(expr_t) :: axis_b_r, axis_b_phi, axis_b_z, axis_bhat_r
@@ -633,6 +643,32 @@ program gen_full_fow_physics
     eqcut_mean_center_residual = subs(subs(eqcut_mean_enclosure, &
         eqcut_mean_delta_r, zero), eqcut_mean_delta_z, zero) - &
         eqcut_mean_n_mid
+
+    ! Nondegenerate magnetic-axis limit along the certified R-chart.  At the
+    ! stationary flux point grad(psi)=0, the graph curvature term containing
+    ! d2Z/dR2 vanishes, leaving the Hessian contraction below.  The inverse
+    ! square-root map is the explicit limiting coordinate required when the
+    ! two monotone cut branches meet at the axis.
+    eqcut_axis_slope = sym(arena, "dZ_dR")
+    eqcut_axis_psi_rr = sym(arena, "psi_RR")
+    eqcut_axis_psi_rz = sym(arena, "psi_RZ")
+    eqcut_axis_psi_zz = sym(arena, "psi_ZZ")
+    eqcut_axis_psi_sep = sym(arena, "psi_sep")
+    eqcut_axis_delta_psihat = sym(arena, "delta_psihat")
+    eqcut_axis_branch_sign = sym(arena, "branch_sign")
+    eqcut_axis_curvature = (eqcut_axis_psi_rr + &
+        2*eqcut_axis_psi_rz*eqcut_axis_slope + &
+        eqcut_axis_psi_zz*eqcut_axis_slope**2)/eqcut_axis_psi_sep
+    eqcut_axis_abs_dpsihat = sqrt(2*eqcut_axis_curvature &
+        *eqcut_axis_delta_psihat)
+    eqcut_axis_inverse_delta_r = eqcut_axis_branch_sign &
+        *sqrt(2*eqcut_axis_delta_psihat/eqcut_axis_curvature)
+    eqcut_axis_derivative_limit_residual = &
+        eqcut_axis_abs_dpsihat**2 &
+        - 2*eqcut_axis_curvature*eqcut_axis_delta_psihat
+    eqcut_axis_inverse_limit_residual = &
+        eqcut_axis_curvature*eqcut_axis_inverse_delta_r**2/2 &
+        - eqcut_axis_branch_sign**2*eqcut_axis_delta_psihat
 
     ! ------------------------------------------------------------------
     ! Positive action, cyclotron frequency, and exact phase-space candidate.
@@ -1561,6 +1597,12 @@ program gen_full_fow_physics
         "EQDSK mean-value enclosure reproduces its center", &
         eqcut_mean_center_residual)
     call check_identity(proofs, proof_engine, &
+        "EQDSK axis derivative has square-root limiting form", &
+        eqcut_axis_derivative_limit_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK axis inverse has square-root limiting form", &
+        eqcut_axis_inverse_limit_residual)
+    call check_identity(proofs, proof_engine, &
         "section reversal flips dpsi_star/dx", &
         dpsi_dx_reversed + dpsi_dx_section)
     call check_identity(proofs, proof_engine, &
@@ -1710,6 +1752,9 @@ program gen_full_fow_physics
     eqdsk_cut_r_flux_chart_roots = [eqcut_r_chart_slope, &
         eqcut_r_chart_dpsihat]
     eqdsk_cut_mean_value_roots = [eqcut_mean_enclosure]
+    eqdsk_cut_axis_curvature_roots = [eqcut_axis_curvature]
+    eqdsk_cut_axis_limit_roots = [eqcut_axis_curvature, &
+        eqcut_axis_abs_dpsihat, eqcut_axis_inverse_delta_r]
     eq17_outer_roots = [eq17_outer_factor]
     frequency_contribution_roots = [frequency_contribution, phase_contribution]
     frequency_identity_roots = [n_squared_frequency_contribution, &
@@ -1785,6 +1830,8 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eqdsk_cut_r_flux_chart_roots)
     call simplify_array(eqdsk_cut_mean_value_roots)
+    call simplify_array(eqdsk_cut_axis_curvature_roots)
+    call simplify_array(eqdsk_cut_axis_limit_roots)
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
@@ -2225,6 +2272,22 @@ program gen_full_fow_physics
         [character(len=64) :: "N_mid", "N_R_box", "N_Z_box", &
         "delta_R", "delta_Z"], eqdsk_cut_mean_value_roots, &
         [character(len=64) :: "N_mean_value"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_axis_curvature_interval_symbolic.f90", &
+        "neort_eqdsk_cut_axis_curvature_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_axis_curvature_interval", &
+        [character(len=64) :: "dZ_dR", "psi_RR", "psi_RZ", "psi_ZZ", &
+        "psi_sep"], eqdsk_cut_axis_curvature_roots, &
+        [character(len=64) :: "axis_flux_curvature"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_axis_limit_symbolic.f90", &
+        "neort_eqdsk_cut_axis_limit_symbolic", &
+        "evaluate_neort_eqdsk_cut_axis_limit", &
+        [character(len=64) :: "dZ_dR", "psi_RR", "psi_RZ", "psi_ZZ", &
+        "psi_sep", "delta_psihat", "branch_sign"], &
+        eqdsk_cut_axis_limit_roots, &
+        [character(len=64) :: "axis_flux_curvature", &
+        "absolute_dpsihat_dR_limit", "delta_R_limit"])
     call emit_certificate_registry(trim(output_path)// &
         "/neort_generated_certificate_registry.f90")
 
@@ -2456,7 +2519,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 18"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 20"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -2464,7 +2527,8 @@ contains
         write (unit, "(a)") "        'eqdsk_cell_jet', 'eqdsk_profile_jet', 'eqdsk_cut_jet', &"
         write (unit, "(a)") "        'eqdsk_cut_numerator_jet', 'eqdsk_cut_r_chart', &"
         write (unit, "(a)") "        'eqdsk_cut_z_chart', 'eqdsk_cut_r_flux_chart', &"
-        write (unit, "(a)") "        'eqdsk_cut_mean_value' ]"
+        write (unit, "(a)") "        'eqdsk_cut_mean_value', 'eqdsk_cut_axis_curvature', &"
+        write (unit, "(a)") "        'eqdsk_cut_axis_limit' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -2483,7 +2547,9 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_chart:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_flux_chart:2:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_mean_value:1:fortsym-5457884' ]"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_mean_value:1:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_curvature:1:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"
