@@ -108,6 +108,7 @@ set(NEO_RT_SOURCES
     src/gc_cylindrical_model.f90
     src/gc_cylindrical_dynamics.f90
     src/gc_cylindrical_topology.f90
+    src/gc_cylindrical_class_adapter.f90
     src/gc_cylindrical_orbit.f90
     src/gc_eqdsk_adapter.f90
     src/gc_frequency_provider.f90
@@ -117,6 +118,7 @@ set(NEO_RT_SOURCES
     src/gc_cylindrical_nonlocal_provider.f90
     src/gc_nonlocal_transport_types.f90
     src/gc_nonlocal_transport_integral.f90
+    src/gc_full_fow_runtime_metadata.f90
     src/gc_frequency_splines.f90
     src/gc_models.f90
     src/gc_orbit_integrator.f90
