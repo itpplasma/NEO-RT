@@ -812,7 +812,8 @@ contains
     end subroutine compute_gc_orbit_average
 
     subroutine compute_gc_full_orbit_average(field_model, potential_model, invariants, &
-            reference_position, parallel_sign, rho0, reference_velocity, eta, &
+            reference_position, parallel_sign, rho0, orbit_width_scale, &
+            reference_velocity, eta, &
             orbit_class, winding, period_estimate, omega_b, omega_phi, mth, mph, perturbation, &
             options, result)
         !! Average a perturbation and field moments on the physical finite-width
@@ -824,7 +825,7 @@ contains
         type(gc_invariants_t), intent(in) :: invariants
         real(dp), intent(in) :: reference_position(3)
         integer, intent(in) :: parallel_sign
-        real(dp), intent(in) :: rho0, reference_velocity, eta, period_estimate
+        real(dp), intent(in) :: rho0, orbit_width_scale, reference_velocity, eta, period_estimate
         real(dp), intent(in) :: omega_b, omega_phi
         integer, intent(in) :: orbit_class, winding, mth, mph
         procedure(gc_orbit_perturbation_i) :: perturbation
@@ -848,7 +849,7 @@ contains
         if (orbit_class == GC_ORBIT_PASSING .and. abs(winding) /= 1) return
 
         call initialize_fixed_invariants(field_model, potential_model, &
-            invariants, reference_position, parallel_sign, rho0, 1.0_dp, &
+            invariants, reference_position, parallel_sign, rho0, orbit_width_scale, &
             options, initial_state, start_status)
         if (start_status /= GC_ORBIT_SUCCESS) then
             result%status = start_status
@@ -930,7 +931,7 @@ contains
                 local_status = GC_ORBIT_FIELD_ERROR
                 return
             end if
-            call gc_rhs(sample, grad_potential, rho0, 1.0_dp, state(4), &
+            call gc_rhs(sample, grad_potential, rho0, orbit_width_scale, state(4), &
                 state(5), xdot, pdot, xidot, dynamics_status)
             if (dynamics_status /= GC_SUCCESS) then
                 local_status = GC_ORBIT_STATE_ERROR

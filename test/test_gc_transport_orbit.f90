@@ -92,7 +92,7 @@ program test_gc_transport_orbit
     end if
 
     call compute_gc_full_orbit_average(field, potential, full_invariants, &
-        reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
+        reference_position, 1, 1.0_dp, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
         expected_period, 0.8_dp, 0.4_dp, 0, 1, constant_perturbation, options, result)
     if (result%status /= GC_ORBIT_SUCCESS) error stop "full uniform orbit failed"
     expected_full_average = cmplx(2.0_dp - 0.36_dp, 0.0_dp, dp)
@@ -111,7 +111,7 @@ program test_gc_transport_orbit
 
     options%max_periods = 1.0e-6_dp
     call compute_gc_full_orbit_average(field, potential, full_invariants, &
-        reference_position, 1, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
+        reference_position, 1, 1.0_dp, 1.0_dp, 1.0_dp, 0.36_dp, GC_ORBIT_PASSING, 1, &
         expected_period, 0.8_dp, 0.4_dp, 0, 1, constant_perturbation, options, result)
     if (result%status /= GC_ORBIT_NO_RETURN) then
         error stop "full no-return status was not preserved"

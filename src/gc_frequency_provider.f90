@@ -40,6 +40,11 @@ module neort_gc_frequency_provider
         logical :: initialized = .false.
     end type gc_frequency_context_t
 
+    ! Multiplier of the physical guiding-centre width used only by the
+    ! finite-width model.  One is production physics; zero is the exact
+    ! real-space thin-orbit limiting oracle.
+    real(dp), public :: gc_full_orbit_width_scale = 1.0_dp
+
     type, public :: gc_frequency_result_t
         real(dp) :: omega_b = 0.0_dp
         real(dp) :: omega_magnetic = 0.0_dp
@@ -115,14 +120,14 @@ contains
             return
         end if
         call invariants_from_state(context%reference_sample, potential, &
-            context%rho0, 1.0_dp, speed_ratio, &
+            context%rho0, gc_full_orbit_width_scale, speed_ratio, &
             real(parallel_sign, dp)*sqrt(xi_squared), invariants, &
             invariant_status)
         if (invariant_status /= GC_MODEL_SUCCESS) return
 
         call compute_return_map(context%field, context%electric_potential, &
             invariants, context%reference_position, parallel_sign, &
-            context%rho0, 1.0_dp, context%reference_velocity, orbit_class, &
+            context%rho0, gc_full_orbit_width_scale, context%reference_velocity, orbit_class, &
             winding, period_estimate, context%orbit_options, orbit_return)
         result%orbit_status = orbit_return%status
         if (orbit_return%status /= GC_ORBIT_SUCCESS) then
@@ -394,7 +399,7 @@ contains
             return
         end if
         call invariants_from_state(context%reference_sample, potential, &
-            context%rho0, 1.0_dp, speed_ratio, &
+            context%rho0, gc_full_orbit_width_scale, speed_ratio, &
             real(parallel_sign, dp)*sqrt(xi_squared), invariants, &
             invariant_status)
         if (invariant_status /= GC_MODEL_SUCCESS) then
@@ -404,7 +409,8 @@ contains
 
         call compute_gc_full_orbit_average(context%field, &
             context%electric_potential, invariants, context%reference_position, &
-            parallel_sign, context%rho0, context%reference_velocity, eta, &
+            parallel_sign, context%rho0, gc_full_orbit_width_scale, &
+            context%reference_velocity, eta, &
             orbit_class, winding, period_estimate, omega_b, omega_phi, mth, mph, perturbation, &
             context%orbit_options, result)
         status = result%status
