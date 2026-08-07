@@ -39,6 +39,7 @@ module neort_gc_eqdsk_nonlocal_transport
         gc_cylindrical_class_interval_t, gc_cylindrical_class_options_t, &
         gc_cylindrical_class_launch_t, gc_cylindrical_class_point_t, &
         gc_cylindrical_class_result_t, &
+        clear_gc_cylindrical_class_adapter, &
         enumerate_gc_cylindrical_classes, &
         evaluate_gc_cylindrical_class_point, &
         initialize_gc_cylindrical_class_adapter, &
@@ -59,6 +60,7 @@ module neort_gc_eqdsk_nonlocal_transport
         GC_CYL_NONLOCAL_ORBIT_WALL, GC_CYL_NONLOCAL_SUCCESS, &
         GC_CYL_NONLOCAL_WALL_CLEAR, GC_CYL_NONLOCAL_WALL_HIT, &
         gc_cylindrical_nonlocal_context_t, gc_cylindrical_nonlocal_orbit_t, &
+        clear_gc_cylindrical_nonlocal_provider, &
         initialize_gc_cylindrical_nonlocal_provider
     use neort_gc_cylindrical_orbit, only: gc_cylindrical_orbit_options_t
     use neort_gc_cylindrical_physical_return, only: &
@@ -1739,8 +1741,8 @@ contains
 
         integer :: local_status
 
-        adapter = gc_cylindrical_class_adapter_t()
-        context = gc_cylindrical_nonlocal_context_t()
+        call clear_gc_cylindrical_class_adapter(adapter)
+        call clear_gc_cylindrical_nonlocal_provider(context)
         status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
         if (.not. associated(user_data)) return
         select type (factory => user_data)
