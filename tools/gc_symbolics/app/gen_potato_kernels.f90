@@ -23,7 +23,7 @@ program gen_potato_kernels
     implicit none
 
     character(*), parameter :: FORTSYM_REVISION = &
-        'fortsym@3cc3bb564b803088269318cd4005f4dde51bd488'
+        'fortsym@a2b9bb353816b03445282fc71d0584b34a787549'
     character(*), parameter :: REGENERATE_COMMAND = &
         'cd tools/gc_symbolics && fo exec gen_potato_kernels ../../POTATO/SRC/generated'
 
