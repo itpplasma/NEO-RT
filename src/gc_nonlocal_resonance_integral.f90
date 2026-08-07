@@ -3,9 +3,15 @@ module neort_gc_nonlocal_resonance_integral
     !!
     !! For every disconnected class c and sigma this module evaluates
     !!
-    !!   I_c = integral dx |d psi_star/dx| |H_m|^2 tau_b^2 A_*(psi_star)
+    !!   I_c = integral dx |d psi_star/dx| |H_m|^2 tau_b A_*(psi_star)
     !!             delta(m omega_b + n omega_phi).
     !!
+    !! This is the frequency-residual form of Buchholz et al. Eq. 17.  Their
+    !! phase residual g = delta_phi_b + 2*pi*m/n obeys
+    !! m*omega_b+n*omega_phi = n*g/tau_b.  Consequently their tau_b**2
+    !! phase-residual weight is tau_b in this frequency-residual kernel; the
+    !! torque layer owns the remaining n**2 prefactor from Eq. 10.  Keeping
+    !! tau_b**2 here would count the delta-function change of variables twice.
     !! The delta distribution is evaluated at simple roots.  H0 and J_perp
     !! are explicit arguments, so an outer quadrature can apply the phase
     !! space measure from Eq. 14 without hiding a local eta callback here.
@@ -664,7 +670,7 @@ contains
             status = GC_NONLOCAL_NONFINITE
             return
         end if
-        weight = abs(sample%dpsi_star_dx)*hamiltonian_square*sample%tau_b**2 &
+        weight = abs(sample%dpsi_star_dx)*hamiltonian_square*sample%tau_b &
             /abs(residual_derivative)
         if (.not. ieee_is_finite(weight)) then
             status = GC_NONLOCAL_NONFINITE

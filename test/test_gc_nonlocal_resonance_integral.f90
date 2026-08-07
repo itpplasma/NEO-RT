@@ -40,14 +40,16 @@ program test_gc_nonlocal_resonance_integral
         'root component identity was not retained')
     call require(result%root_sigma(1) == 1 .and. result%root_sigma(2) == -1, &
         'native sigma labels were not retained')
-    call require_close(result%contribution(1), 11.25_dp, &
+    call require_close(result%contribution(1), 0.0_dp, &
         'native signed first force', 2.0e-10_dp)
-    call require_close(result%contribution(2), -51.25_dp, &
+    call require_close(result%contribution(2), -12.5_dp, &
         'native signed second force', 2.0e-10_dp)
-    call require_close(result%component_contribution(1, 1), -3.75_dp, &
+    call require_close(result%component_contribution(1, 1), -7.5_dp, &
         'first component first force', 2.0e-10_dp)
-    call require_close(result%component_contribution(1, 2), 15.0_dp, &
+    call require_close(result%component_contribution(1, 2), 7.5_dp, &
         'second component first force', 2.0e-10_dp)
+
+    call check_phase_frequency_delta_equivalence()
 
     call integrate_gc_nonlocal_resonance(coincident_orbit, 7.0_dp, 11.0_dp, &
         1, 0, coincident_components, options, result, status)
@@ -183,6 +185,22 @@ contains
         call require(status == GC_NONLOCAL_INVALID_INPUT, &
             'unbounded scan option was accepted')
     end subroutine check_fail_closed_contract
+
+    subroutine check_phase_frequency_delta_equivalence()
+        !! For r=n*g/tau at a resonance, n**2*tau/|dr/dx|
+        !! equals |n|*tau**2/|dg/dx|.  This is the normalization seam between
+        !! Eq. 10's frequency delta and Eq. 17's phase delta.
+        real(dp), parameter :: tau = 2.75_dp
+        real(dp), parameter :: dg_dx = -1.6_dp
+        integer, parameter :: n = -3
+        real(dp) :: dr_dx, frequency_weight, phase_weight
+
+        dr_dx = real(n, dp)*dg_dx/tau
+        frequency_weight = real(n*n, dp)*tau/abs(dr_dx)
+        phase_weight = real(abs(n), dp)*tau**2/abs(dg_dx)
+        call require_close(frequency_weight, phase_weight, &
+            'phase/frequency delta normalization', 1.0e-13_dp)
+    end subroutine check_phase_frequency_delta_equivalence
 
     subroutine require(condition, message)
         logical, intent(in) :: condition
