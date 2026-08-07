@@ -170,6 +170,7 @@ contains
         real(dp), intent(in) :: radius_in, field_scale_in, r_position
         real(dp), intent(in) :: z_position_in, b0_in, f0_in, psi_sep_in
         real(dp), intent(in) :: dot_r_in, dot_phi_in, dot_z_in
+        integer, intent(in) :: orientation_in
         real(dp), intent(out) :: result(7)
         real(dp) :: psi, psi_r, psi_z, psi_rr, psi_rz, psi_zz
         real(dp) :: psi_rrr, psi_rrz, psi_rzz, psi_zzz
