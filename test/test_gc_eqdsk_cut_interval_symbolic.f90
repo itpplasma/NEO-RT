@@ -12,11 +12,11 @@ program test_gc_eqdsk_cut_interval_symbolic
 
     type(gc_outward_interval_t) :: coefficient(0:5,0:5)
     type(gc_outward_interval_t) :: profile_coefficient(0:5)
-    type(gc_outward_interval_t) :: jet(10), profile(4), numerator(3)
+    type(gc_outward_interval_t) :: jet(10), profile(4), numerator(4)
     type(gc_outward_interval_t) :: delta_r, delta_z, profile_delta
     type(gc_outward_interval_t) :: radius, psi_sep
     real(dp) :: coefficient_value(0:5,0:5), profile_value(0:5)
-    real(dp) :: point_jet(10), point_profile(3), point_numerator(3)
+    real(dp) :: point_jet(10), point_profile(3), point_numerator(4)
     real(dp) :: r_value, z_value, delta_value, radius_value
     integer :: i, j, ir, iz
 
@@ -43,7 +43,8 @@ program test_gc_eqdsk_cut_interval_symbolic
     call require(all_valid(profile), 'profile-jet interval is invalid')
     call evaluate_neort_eqdsk_cut_numerator_interval(radius, jet(2), jet(3), &
         jet(4), jet(5), jet(6), jet(7), jet(8), jet(9), jet(10), profile(1), &
-        profile(2), psi_sep, numerator(1), numerator(2), numerator(3))
+        profile(2), psi_sep, numerator(1), numerator(2), numerator(3), &
+        numerator(4))
     call require(all_valid(numerator), 'Eq.13 numerator interval is invalid')
 
     do ir = 0, 8
@@ -67,6 +68,8 @@ program test_gc_eqdsk_cut_interval_symbolic
                 call require(encloses(numerator(i), point_numerator(i)), &
                     'Eq.13 enclosure missed an independent point')
             end do
+            call require(encloses(numerator(4), point_numerator(4)), &
+                'positive denominator enclosure missed an independent point')
         end do
     end do
 
@@ -145,12 +148,13 @@ contains
 
     subroutine independent_cut_numerator(r, p, f, f_prime, separatrix, value)
         real(dp), intent(in) :: r, p(10), f, f_prime, separatrix
-        real(dp), intent(out) :: value(3)
+        real(dp), intent(out) :: value(4)
         real(dp) :: pr2, pz2, g, difference, mixed, square_difference
 
         pr2 = p(2)**2
         pz2 = p(3)**2
         g = f**2+pr2+pz2
+        value(4) = g
         difference = p(6)-p(4)
         mixed = p(2)*p(3)*difference
         square_difference = pr2-pz2

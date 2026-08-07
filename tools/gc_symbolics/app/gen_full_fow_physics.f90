@@ -176,6 +176,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
     type(expr_t) :: eqdsk_cut_jet_roots(7)
     type(expr_t) :: eqdsk_cut_numerator_roots(3)
+    type(expr_t) :: eqdsk_cut_interval_roots(4)
     type(expr_t) :: eqdsk_cut_r_chart_roots(2), eqdsk_cut_z_chart_roots(2)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
@@ -1665,6 +1666,7 @@ program gen_full_fow_physics
         eqcut_dc_dz, eqcut_cdot, eqcut_abs_cdot, &
         eqcut_orientation_scalar]
     eqdsk_cut_numerator_roots = [eqcut_n, eqcut_n_r, eqcut_n_z]
+    eqdsk_cut_interval_roots = [eqcut_n, eqcut_n_r, eqcut_n_z, eqcut_g]
     eqdsk_cut_r_chart_roots = [eqcut_r_chart_slope, eqcut_r_chart_ds]
     eqdsk_cut_z_chart_roots = [eqcut_z_chart_slope, eqcut_z_chart_ds]
     eq17_outer_roots = [eq17_outer_factor]
@@ -1737,6 +1739,7 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_profile_jet_roots)
     call simplify_array(eqdsk_cut_jet_roots)
     call simplify_array(eqdsk_cut_numerator_roots)
+    call simplify_array(eqdsk_cut_interval_roots)
     call simplify_array(eqdsk_cut_r_chart_roots)
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eq17_outer_roots)
@@ -2143,8 +2146,8 @@ program gen_full_fow_physics
         [character(len=64) :: "radius", "psi_R", "psi_Z", &
         "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
         "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", "psi_sep"], &
-        eqdsk_cut_numerator_roots, [character(len=64) :: "N", "N_R", &
-        "N_Z"], interval_kernel=.true.)
+        eqdsk_cut_interval_roots, [character(len=64) :: "N", "N_R", &
+        "N_Z", "Q"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_r_chart_symbolic.f90", &
         "neort_eqdsk_cut_r_chart_symbolic", &
