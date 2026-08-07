@@ -22,10 +22,9 @@ contains
         t1 = h - bmod*mu - charge*electrostatic_potential
         t2 = p_phi - charge*psi/c_light
         v_parallel_squared = t1*2/mass
-        p_parallel_from_p_phi = t2/bhat2/radius
-        launch_energy_residual = -mass*t1*2 + t2**2/bhat2**2/radius**2
+        p_parallel_from_p_phi = t2/bhat_phi/radius
+        launch_energy_residual = -mass*t1*2 + t2**2/bhat_phi**2/radius**2
 
     end subroutine evaluate_neort_cylindrical_launch
 
 end module neort_cylindrical_launch_symbolic
-

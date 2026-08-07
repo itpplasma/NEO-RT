@@ -17,11 +17,10 @@ contains
         real(dp), intent(out) :: canonical_p_phi, psi_star
         real(dp) :: t1
 
-        t1 = bhat2*p_parallel*radius + charge*psi/c_light
+        t1 = bhat_phi*p_parallel*radius + charge*psi/c_light
         canonical_p_phi = t1
         psi_star = c_light*t1/charge
 
     end subroutine evaluate_neort_cylindrical_canonical
 
 end module neort_cylindrical_canonical_symbolic
-
