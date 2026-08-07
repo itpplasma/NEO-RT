@@ -72,7 +72,7 @@ program gen_full_fow_physics
     type(expr_t) :: cross3, v1, v2, v3, dot_r, dot_z, dot_phi, dot_p
     type(expr_t) :: dot_mu, cylindrical_measure, hamiltonian_dot
     type(expr_t) :: energy_on_shell, eta_on_shell, c_on_shell
-    type(expr_t) :: perturbation_ratio, boozer_ratio, chi, chi_shifted
+    type(expr_t) :: perturbation_ratio, boozer_ratio, chi
     type(expr_t) :: harmonic_delta_b_real, harmonic_delta_b_imag
     type(expr_t) :: harmonic_phi, harmonic_phi_launch, harmonic_time
     type(expr_t) :: harmonic_omega_b, harmonic_omega_phi
@@ -85,6 +85,7 @@ program gen_full_fow_physics
     type(expr_t) :: field_original, field_phase_shifted, field_sign_sum
     type(expr_t) :: phase_cos, phase_sin, chi_cos, chi_sin
     type(expr_t) :: shifted_chi_cos, shifted_chi_sin
+    type(expr_t) :: phase_relabel_residual
     type(expr_t) :: field_reversal, field_fixed_conjugate
     type(expr_t) :: fixed_conjugation_difference
     type(expr_t) :: amp_square, amp_square_sign, amp_square_conj
@@ -580,7 +581,7 @@ program gen_full_fow_physics
         exp((q_phi_energy-h)/temperature)*residence
     eq17_outer_factor = phi_eff*eq17_outer_unit_phi
     gauge_constant = sym(arena, "gauge_C")
-    eq17_shifted_energy = exact_simplify( &
+    eq17_shifted_energy = exact_expand( &
         charge*(electrostatic_potential+gauge_constant) - &
         (h+charge*gauge_constant), "Eq17 gauge-shifted energy")
     eq17_outer_shift = -(pi_expr(arena)**rat(arena,3_int64,2_int64))/4* &
@@ -805,7 +806,6 @@ program gen_full_fow_physics
     ! ------------------------------------------------------------------
     ! Real-field phase, sign, conjugation, and simultaneous (m,n) reversal.
     chi = m_mode*theta + n_mode*phi
-    chi_shifted = chi - n_mode*phase_shift
     field_original = a_real*cos(chi) - a_imag*sin(chi)
     ! Expand the common phase rotation as the exact real 2x2 representation
     ! of complex multiplication.  This avoids asking the proof backend to
@@ -820,6 +820,9 @@ program gen_full_fow_physics
     field_phase_shifted = &
         (a_real*phase_cos-a_imag*phase_sin)*shifted_chi_cos - &
         (a_real*phase_sin+a_imag*phase_cos)*shifted_chi_sin
+    phase_relabel_residual = exact_expand( &
+        field_phase_shifted-field_original, &
+        "real-field phase relabelling residual")
     field_sign_sum = (-a_real)*cos(chi) - (-a_imag)*sin(chi) &
         + field_original
     field_reversal = a_real*cos(-chi) - (-a_imag)*sin(-chi)
@@ -1296,7 +1299,7 @@ program gen_full_fow_physics
         field_sign_sum)
     call check_identity(proofs, proof_engine, &
         "phase shift is a coordinate relabelling", &
-        field_phase_shifted - field_original)
+        phase_relabel_residual)
     call check_identity(proofs, proof_engine, &
         "conjugation plus (m,n) reversal preserves real field", &
         field_reversal - field_original)
@@ -2033,6 +2036,21 @@ contains
         end if
         value = result%value
     end function exact_derivative
+
+    function exact_expand(expression, context) result(value)
+        type(expr_t), intent(in) :: expression
+        character(*), intent(in) :: context
+        type(expr_t) :: value
+        type(engine_result_t) :: result
+
+        result = simplify_engine%expand(expression)
+        if (.not. result%ok) then
+            write (output_unit, "(a,1x,a)") &
+                "fortsym exact expansion failed:", trim(context)
+            error stop 1
+        end if
+        value = result%value
+    end function exact_expand
 
     subroutine build_cylindrical_geometry(b, d_b, radius_in, bmod_out, &
             bhat_out, grad_b_out, dbhat_out, curl_out)
