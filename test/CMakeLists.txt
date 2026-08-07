@@ -181,6 +181,11 @@ add_test(NAME test_gc_eqdsk_cut_chart_symbolic
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_eqdsk_cut_interval_symbolic
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_interval_symbolic.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_gc_full_orbit_frequency
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_orbit_frequency.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

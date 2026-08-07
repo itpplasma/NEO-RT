@@ -105,6 +105,7 @@ set(NEO_RT_SOURCES
     src/driftorbit.f90
     src/gc_wall_context.f90
     src/gc_perpendicular_invariant.f90
+    src/gc_outward_interval.f90
     src/generated/neort_generated_certificate_registry.f90
     src/generated/neort_cylindrical_geometry_symbolic.f90
     src/generated/neort_cylindrical_bstar_symbolic.f90
@@ -140,9 +141,12 @@ set(NEO_RT_SOURCES
     src/generated/neort_profile_endpoint_symbolic.f90
     src/generated/neort_profile_potential_segment_symbolic.f90
     src/generated/neort_eqdsk_quintic_cell_jet_symbolic.f90
+    src/generated/neort_eqdsk_quintic_cell_jet_interval_symbolic.f90
     src/generated/neort_eqdsk_quintic_profile_jet_symbolic.f90
+    src/generated/neort_eqdsk_quintic_profile_jet_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_jet_symbolic.f90
     src/generated/neort_eqdsk_cut_numerator_symbolic.f90
+    src/generated/neort_eqdsk_cut_numerator_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_r_chart_symbolic.f90
     src/generated/neort_eqdsk_cut_z_chart_symbolic.f90
     src/generated/neort_cylindrical_hamiltonian_symbolic.f90
