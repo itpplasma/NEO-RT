@@ -7,6 +7,7 @@ import argparse
 import concurrent.futures
 import csv
 import math
+import os
 import shutil
 import subprocess
 import time
@@ -119,6 +120,12 @@ def main() -> None:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            env={
+                **os.environ,
+                "OMP_NUM_THREADS": "1",
+                "OMP_DYNAMIC": "false",
+                "OMP_PROC_BIND": "false",
+            },
             check=False,
         )
         (work / "run.log").write_text(completed.stdout)
