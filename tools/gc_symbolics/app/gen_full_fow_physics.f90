@@ -83,6 +83,8 @@ program gen_full_fow_physics
     type(expr_t) :: harmonic_modulus_residual, harmonic_shell_residual
     type(expr_t) :: harmonic_shell_identity
     type(expr_t) :: field_original, field_phase_shifted, field_sign_sum
+    type(expr_t) :: phase_cos, phase_sin, chi_cos, chi_sin
+    type(expr_t) :: shifted_chi_cos, shifted_chi_sin
     type(expr_t) :: field_reversal, field_fixed_conjugate
     type(expr_t) :: fixed_conjugation_difference
     type(expr_t) :: amp_square, amp_square_sign, amp_square_conj
@@ -194,15 +196,19 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_f0, eqcut_f_hat_first, eqcut_f_hat_second
     type(expr_t) :: eqcut_psi_sep, eqcut_dr, eqcut_darc_phi, eqcut_dz
     type(expr_t) :: eqcut_local_radius, eqcut_local_psi, eqcut_delta_psi
-    type(expr_t) :: eqcut_local_f, eqcut_b_r, eqcut_b_phi, eqcut_b_z
-    type(expr_t) :: eqcut_bmod, eqcut_grad_b_r, eqcut_grad_b_z
-    type(expr_t) :: eqcut_grad_psi_r, eqcut_grad_psi_z
+    type(expr_t) :: eqcut_local_f, eqcut_local_psi_r, eqcut_local_psi_z
+    type(expr_t) :: eqcut_local_psi_rr, eqcut_local_psi_rz
+    type(expr_t) :: eqcut_local_psi_zz, eqcut_local_g, eqcut_local_s
+    type(expr_t) :: eqcut_local_k
+    type(expr_t) :: eqcut_direct_grad_b_r, eqcut_direct_grad_b_z
+    type(expr_t) :: eqcut_direct_c
     type(expr_t) :: eqcut_local_c, eqcut_c, eqcut_dc_dr
     type(expr_t) :: eqcut_dc_darc_phi, eqcut_dc_dz
     type(expr_t) :: eqcut_dot_r, eqcut_dot_arc_phi, eqcut_dot_z
     type(expr_t) :: eqcut_cdot, eqcut_abs_cdot, eqcut_orientation_scalar
     type(expr_t) :: eqcut_g, eqcut_s, eqcut_k, eqcut_compact_c
-    type(expr_t) :: eqcut_compact_residual, eqcut_f1_c_residual
+    type(expr_t) :: eqcut_compact_residual, eqcut_emitted_residual
+    type(expr_t) :: eqcut_f1_c_residual
     type(expr_t) :: eqcut_f2_c_residual, eqcut_f2_cdot_residual
     type(expr_t) :: eqcut_reversed, eqcut_cdot_reversed
     type(expr_t) :: eqcut_scale_multiplier, eqcut_scaled
@@ -236,6 +242,7 @@ program gen_full_fow_physics
     type(expr_t) :: e_ref, n0, residence, eq17_outer_factor
     type(expr_t) :: eq17_outer_unit_phi
     type(expr_t) :: gauge_constant, eq17_outer_shift, eq17_gauge_residual
+    type(expr_t) :: eq17_shifted_energy
     type(expr_t) :: gauge_outer_ledger_residual
     type(expr_t) :: gauge_force_shift, gauge_force_residual
     type(expr_t) :: section_root_residual, crossing_orientation_residual
@@ -382,11 +389,20 @@ program gen_full_fow_physics
         [character(len=64) :: "vacuum_Bphi_reference", &
         "vacuum_radius_reference"]
 
-    ! Exact axisymmetric Eq. 13 cut jet from a third-order local psi jet.  A
-    ! second-order F(psihat) expansion is introduced only so the proof suite
-    ! can establish that F'' cancels from C and grad(C); the emitted runtime
-    ! interface therefore needs F and F' only.  field_scale multiplies both B
-    ! and psi, so C has an explicitly proved field_scale**2 normalization.
+    ! Exact axisymmetric Eq. 13 cut jet from a third-order local psi jet.  For
+    ! R>0, write |B|=field_scale*sqrt(G)/R with
+    ! G=psi_R**2+psi_Z**2+F**2.  Reducing
+    ! (grad(B) cross grad(psi)).grad(phi) before differentiating gives
+    !
+    ! C = orientation*field_scale**2 *
+    !     (K/(R**2*sqrt(G)) + psi_Z*sqrt(G)/R**3),
+    ! K = (psi_R**2-psi_Z**2)*psi_RZ
+    !     + psi_R*psi_Z*(psi_ZZ-psi_RR).
+    !
+    ! The independent direct contraction below proves this reduction and the
+    ! cancellation of dF/dpsi from C.  Fortsym then differentiates the reduced
+    ! local expression to generate grad(C); d2F/dpsi2 is retained in the local
+    ! profile solely to prove that it cancels from the emitted first jet.
     eqcut_radius = sym(arena, "radius")
     eqcut_field_scale = sym(arena, "field_scale")
     eqcut_orientation = sym(arena, "cut_orientation")
@@ -426,37 +442,66 @@ program gen_full_fow_physics
     eqcut_local_f = eqcut_f0 + &
         eqcut_f_hat_first/eqcut_psi_sep*eqcut_delta_psi + &
         eqcut_f_hat_second/(2*eqcut_psi_sep**2)*eqcut_delta_psi**2
-    eqcut_b_r = -diff(eqcut_local_psi, eqcut_dz)/eqcut_local_radius
-    eqcut_b_phi = eqcut_local_f/eqcut_local_radius
-    eqcut_b_z = diff(eqcut_local_psi, eqcut_dr)/eqcut_local_radius
-    eqcut_bmod = eqcut_field_scale*sqrt(eqcut_b_r**2 + &
-        eqcut_b_phi**2 + eqcut_b_z**2)
-    eqcut_grad_b_r = diff(eqcut_bmod, eqcut_dr)
-    eqcut_grad_b_z = diff(eqcut_bmod, eqcut_dz)
-    eqcut_grad_psi_r = eqcut_field_scale* &
-        diff(eqcut_local_psi, eqcut_dr)
-    eqcut_grad_psi_z = eqcut_field_scale* &
-        diff(eqcut_local_psi, eqcut_dz)
-    eqcut_local_c = eqcut_orientation* &
-        (eqcut_grad_b_z*eqcut_grad_psi_r - &
-        eqcut_grad_b_r*eqcut_grad_psi_z)/eqcut_local_radius
-    eqcut_c = subs(subs(eqcut_local_c, eqcut_dr, zero), eqcut_dz, zero)
+    eqcut_local_psi_r = exact_derivative(eqcut_local_psi, eqcut_dr, &
+        "local EQDSK psi_R")
+    eqcut_local_psi_z = exact_derivative(eqcut_local_psi, eqcut_dz, &
+        "local EQDSK psi_Z")
+    eqcut_local_psi_rr = exact_derivative(eqcut_local_psi_r, eqcut_dr, &
+        "local EQDSK psi_RR")
+    eqcut_local_psi_rz = exact_derivative(eqcut_local_psi_r, eqcut_dz, &
+        "local EQDSK psi_RZ")
+    eqcut_local_psi_zz = exact_derivative(eqcut_local_psi_z, eqcut_dz, &
+        "local EQDSK psi_ZZ")
+    eqcut_local_g = eqcut_local_psi_r**2 + eqcut_local_psi_z**2 + &
+        eqcut_local_f**2
+    eqcut_local_s = sqrt(eqcut_local_g)
+    eqcut_local_k = &
+        (eqcut_local_psi_r**2-eqcut_local_psi_z**2)*eqcut_local_psi_rz + &
+        eqcut_local_psi_r*eqcut_local_psi_z* &
+        (eqcut_local_psi_zz-eqcut_local_psi_rr)
+    eqcut_local_c = eqcut_orientation*eqcut_field_scale**2* &
+        (eqcut_local_k/(eqcut_local_radius**2*eqcut_local_s) + &
+        eqcut_local_psi_z*eqcut_local_s/eqcut_local_radius**3)
+    eqcut_c = exact_simplify(subs(subs(eqcut_local_c, eqcut_dr, zero), &
+        eqcut_dz, zero), "EQDSK cut value")
     eqcut_g = eqcut_psi_r**2+eqcut_psi_z**2+eqcut_f0**2
-    eqcut_s = sqrt(eqcut_g/eqcut_radius**2)
+    eqcut_s = sqrt(eqcut_g)
     eqcut_k = (eqcut_psi_r**2-eqcut_psi_z**2)*eqcut_psi_rz + &
         eqcut_psi_r*eqcut_psi_z*(eqcut_psi_zz-eqcut_psi_rr)
     eqcut_compact_c = eqcut_orientation*eqcut_field_scale**2* &
-        (eqcut_k/(eqcut_radius**3*eqcut_s) + &
-        eqcut_psi_z*eqcut_s/eqcut_radius**2)
-    eqcut_compact_residual = eqcut_c-eqcut_compact_c
-    eqcut_f1_c_residual = diff(eqcut_c, eqcut_f_hat_first)
-    eqcut_dc_dr = subs(subs(diff(eqcut_local_c, eqcut_dr), &
-        eqcut_dr, zero), eqcut_dz, zero)
-    eqcut_dc_darc_phi = subs(subs(subs(diff(eqcut_local_c, &
-        eqcut_darc_phi), eqcut_dr, zero), eqcut_darc_phi, zero), &
-        eqcut_dz, zero)
-    eqcut_dc_dz = subs(subs(diff(eqcut_local_c, eqcut_dz), &
-        eqcut_dr, zero), eqcut_dz, zero)
+        (eqcut_k/(eqcut_radius**2*eqcut_s) + &
+        eqcut_psi_z*eqcut_s/eqcut_radius**3)
+    ! This is the unreduced definition with the axisymmetric field components
+    ! B_R=-psi_Z/R, B_phi=F/R, B_Z=psi_R/R already substituted.  Its F'
+    ! terms cancel only in the antisymmetric contraction; that cancellation is
+    ! therefore proved independently instead of assumed by the emitted form.
+    eqcut_direct_grad_b_r = eqcut_field_scale* &
+        ((eqcut_psi_r*eqcut_psi_rr + &
+        eqcut_psi_z*eqcut_psi_rz + &
+        eqcut_f0*eqcut_f_hat_first/eqcut_psi_sep*eqcut_psi_r)/ &
+        (eqcut_radius*eqcut_s) - eqcut_s/eqcut_radius**2)
+    eqcut_direct_grad_b_z = eqcut_field_scale* &
+        (eqcut_psi_r*eqcut_psi_rz + &
+        eqcut_psi_z*eqcut_psi_zz + &
+        eqcut_f0*eqcut_f_hat_first/eqcut_psi_sep*eqcut_psi_z)/ &
+        (eqcut_radius*eqcut_s)
+    eqcut_direct_c = eqcut_orientation* &
+        (eqcut_direct_grad_b_z*eqcut_field_scale*eqcut_psi_r - &
+        eqcut_direct_grad_b_r*eqcut_field_scale*eqcut_psi_z)/eqcut_radius
+    eqcut_compact_residual = eqcut_direct_c-eqcut_compact_c
+    eqcut_emitted_residual = eqcut_c-eqcut_compact_c
+    eqcut_f1_c_residual = diff(eqcut_direct_c, eqcut_f_hat_first)
+    eqcut_dc_dr = exact_simplify(subs(subs(exact_derivative( &
+        eqcut_local_c, eqcut_dr, "EQDSK cut radial derivative"), &
+        eqcut_dr, zero), eqcut_dz, zero), "EQDSK cut radial jet")
+    eqcut_dc_darc_phi = exact_simplify(subs(subs(subs( &
+        exact_derivative(eqcut_local_c, eqcut_darc_phi, &
+        "EQDSK cut toroidal derivative"), eqcut_dr, zero), &
+        eqcut_darc_phi, zero), eqcut_dz, zero), &
+        "EQDSK cut toroidal jet")
+    eqcut_dc_dz = exact_simplify(subs(subs(exact_derivative( &
+        eqcut_local_c, eqcut_dz, "EQDSK cut vertical derivative"), &
+        eqcut_dr, zero), eqcut_dz, zero), "EQDSK cut vertical jet")
     eqcut_cdot = eqcut_dc_dr*eqcut_dot_r + &
         eqcut_dc_darc_phi*eqcut_dot_arc_phi + eqcut_dc_dz*eqcut_dot_z
     eqcut_f2_c_residual = diff(eqcut_c, eqcut_f_hat_second)
@@ -535,10 +580,12 @@ program gen_full_fow_physics
         exp((q_phi_energy-h)/temperature)*residence
     eq17_outer_factor = phi_eff*eq17_outer_unit_phi
     gauge_constant = sym(arena, "gauge_C")
+    eq17_shifted_energy = exact_simplify( &
+        charge*(electrostatic_potential+gauge_constant) - &
+        (h+charge*gauge_constant), "Eq17 gauge-shifted energy")
     eq17_outer_shift = -(pi_expr(arena)**rat(arena,3_int64,2_int64))/4* &
         e_ref*phi_eff*n0/(temperature/e_ref)**rat(arena,3_int64,2_int64)* &
-        exp(((charge*(electrostatic_potential+gauge_constant)) - &
-        (h+charge*gauge_constant))/temperature)*residence
+        exp(eq17_shifted_energy/temperature)*residence
     eq17_gauge_residual = eq17_outer_shift - eq17_outer_factor
     ! The complete outer-factor equality is proved above.  The runtime ledger
     ! emits its defining gauge-invariant exponent identity so it has no hidden
@@ -760,11 +807,19 @@ program gen_full_fow_physics
     chi = m_mode*theta + n_mode*phi
     chi_shifted = chi - n_mode*phase_shift
     field_original = a_real*cos(chi) - a_imag*sin(chi)
+    ! Expand the common phase rotation as the exact real 2x2 representation
+    ! of complex multiplication.  This avoids asking the proof backend to
+    ! discover a nested trigonometric angle-addition identity while retaining
+    ! the same arbitrary phase and coordinate-origin transformation.
+    phase_cos = cos(n_mode*phase_shift)
+    phase_sin = sin(n_mode*phase_shift)
+    chi_cos = cos(chi)
+    chi_sin = sin(chi)
+    shifted_chi_cos = chi_cos*phase_cos + chi_sin*phase_sin
+    shifted_chi_sin = chi_sin*phase_cos - chi_cos*phase_sin
     field_phase_shifted = &
-        (a_real*cos(n_mode*phase_shift) - a_imag*sin(n_mode*phase_shift))* &
-        cos(chi_shifted) - &
-        (a_real*sin(n_mode*phase_shift) + a_imag*cos(n_mode*phase_shift))* &
-        sin(chi_shifted)
+        (a_real*phase_cos-a_imag*phase_sin)*shifted_chi_cos - &
+        (a_real*phase_sin+a_imag*phase_cos)*shifted_chi_sin
     field_sign_sum = (-a_real)*cos(chi) - (-a_imag)*sin(chi) &
         + field_original
     field_reversal = a_real*cos(-chi) - (-a_imag)*sin(-chi)
@@ -1336,6 +1391,9 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "EQDSK cut matches compact axisymmetric identity", &
         eqcut_compact_residual)
+    call check_identity(proofs, proof_engine, &
+        "emitted EQDSK cut matches compact axisymmetric identity", &
+        eqcut_emitted_residual)
     call check_identity(proofs, proof_engine, &
         "EQDSK cut value is independent of first F derivative", &
         eqcut_f1_c_residual)
@@ -1945,6 +2003,36 @@ program gen_full_fow_physics
         "/neort_generated_certificate_registry.f90")
 
 contains
+
+    function exact_simplify(expression, context) result(value)
+        type(expr_t), intent(in) :: expression
+        character(*), intent(in) :: context
+        type(expr_t) :: value
+        type(engine_result_t) :: result
+
+        result = simplify_engine%simplify(expression)
+        if (.not. result%ok) then
+            write (output_unit, "(a,1x,a)") &
+                "fortsym exact simplification failed:", trim(context)
+            error stop 1
+        end if
+        value = result%value
+    end function exact_simplify
+
+    function exact_derivative(expression, variable, context) result(value)
+        type(expr_t), intent(in) :: expression, variable
+        character(*), intent(in) :: context
+        type(expr_t) :: value
+        type(engine_result_t) :: result
+
+        result = simplify_engine%diff(expression, variable)
+        if (.not. result%ok) then
+            write (output_unit, "(a,1x,a)") &
+                "fortsym exact differentiation failed:", trim(context)
+            error stop 1
+        end if
+        value = result%value
+    end function exact_derivative
 
     subroutine build_cylindrical_geometry(b, d_b, radius_in, bmod_out, &
             bhat_out, grad_b_out, dbhat_out, curl_out)
