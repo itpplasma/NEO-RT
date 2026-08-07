@@ -528,7 +528,8 @@ program test_gc_cylindrical_class_adapter
         'endpoint tangency was not retained in launch metadata')
 
     thin_speed = 1.0e-5_dp
-    thin_h0 = MASS*JPERP_REFERENCE*abs(CHARGE)/C_LIGHT*point_plus%field%bmod &
+    thin_h0 = JPERP_REFERENCE*abs(CHARGE)/(MASS*C_LIGHT) &
+        *point_plus%field%bmod &
         +CHARGE*point_plus%potential + 0.5_dp*MASS*thin_speed**2
     call initialize_gc_cylindrical_class_adapter(field, potential, thin_h0, &
         JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
