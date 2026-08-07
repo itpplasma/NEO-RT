@@ -168,6 +168,7 @@ set(NEO_RT_SOURCES
     src/gc_eqdsk_adapter.f90
     src/gc_eqdsk_cut_jet.f90
     src/gc_eqdsk_cut_interval.f90
+    src/gc_eqdsk_cut_graph_atlas.f90
     src/gc_frequency_provider.f90
     src/gc_full_resonance.f90
     src/gc_nonlocal_resonance_types.f90

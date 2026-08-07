@@ -195,6 +195,16 @@ set_tests_properties(test_gc_eqdsk_cut_interval_runtime PROPERTIES
         "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
 )
 
+add_test(NAME test_gc_eqdsk_cut_graph_atlas
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_graph_atlas.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gc_eqdsk_cut_graph_atlas PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+    TIMEOUT 180
+)
+
 add_test(NAME test_gc_full_orbit_frequency
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_orbit_frequency.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
