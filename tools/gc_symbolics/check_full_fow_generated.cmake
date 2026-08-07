@@ -54,6 +54,9 @@ set(generated_files
     neort_cylindrical_bilinear_complex_symbolic.f90
     neort_profile_endpoint_symbolic.f90
     neort_profile_potential_segment_symbolic.f90
+    neort_eqdsk_quintic_cell_jet_symbolic.f90
+    neort_eqdsk_quintic_profile_jet_symbolic.f90
+    neort_eqdsk_cut_jet_symbolic.f90
     neort_cylindrical_hamiltonian_symbolic.f90
     neort_cylindrical_canonical_symbolic.f90
     neort_cylindrical_vparallel_symbolic.f90

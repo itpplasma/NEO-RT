@@ -150,6 +150,8 @@ program gen_full_fow_physics
     type(expr_t) :: geom_dbz_dz
     type(expr_t) :: interpolation_roots(9), endpoint_roots(8)
     type(expr_t) :: profile_potential_roots(3)
+    type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
+    type(expr_t) :: eqdsk_cut_jet_roots(7)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
     type(expr_t) :: frequency_contribution_roots(2)
@@ -177,6 +179,36 @@ program gen_full_fow_physics
     type(expr_t) :: potential_psi0, potential_psi1, potential_omega0
     type(expr_t) :: potential_omega1, potential_c, delta_phi_segment
     type(expr_t) :: delta_phi_reversed, omega_constant, delta_phi_constant
+    type(expr_t) :: cell_coefficient(6,6), cell_delta_r, cell_delta_z
+    type(expr_t) :: cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr
+    type(expr_t) :: cell_psi_rz, cell_psi_zz, cell_psi_rrr
+    type(expr_t) :: cell_psi_rrz, cell_psi_rzz, cell_psi_zzz
+    type(expr_t) :: profile_coefficient(0:5), profile_delta
+    type(expr_t) :: profile_value, profile_first, profile_second
+    type(expr_t) :: profile_btf, profile_rtf, profile_vacuum_f
+    type(expr_t) :: eqcut_radius, eqcut_field_scale, eqcut_orientation
+    type(expr_t) :: eqcut_psi0, eqcut_psi_r, eqcut_psi_z
+    type(expr_t) :: eqcut_psi_rr, eqcut_psi_rz, eqcut_psi_zz
+    type(expr_t) :: eqcut_psi_rrr, eqcut_psi_rrz
+    type(expr_t) :: eqcut_psi_rzz, eqcut_psi_zzz
+    type(expr_t) :: eqcut_f0, eqcut_f_hat_first, eqcut_f_hat_second
+    type(expr_t) :: eqcut_psi_sep, eqcut_dr, eqcut_darc_phi, eqcut_dz
+    type(expr_t) :: eqcut_local_radius, eqcut_local_psi, eqcut_delta_psi
+    type(expr_t) :: eqcut_local_f, eqcut_b_r, eqcut_b_phi, eqcut_b_z
+    type(expr_t) :: eqcut_bmod, eqcut_grad_b_r, eqcut_grad_b_z
+    type(expr_t) :: eqcut_grad_psi_r, eqcut_grad_psi_z
+    type(expr_t) :: eqcut_local_c, eqcut_c, eqcut_dc_dr
+    type(expr_t) :: eqcut_dc_darc_phi, eqcut_dc_dz
+    type(expr_t) :: eqcut_dot_r, eqcut_dot_arc_phi, eqcut_dot_z
+    type(expr_t) :: eqcut_cdot, eqcut_abs_cdot, eqcut_orientation_scalar
+    type(expr_t) :: eqcut_g, eqcut_s, eqcut_k, eqcut_compact_c
+    type(expr_t) :: eqcut_compact_residual, eqcut_f1_c_residual
+    type(expr_t) :: eqcut_f2_c_residual, eqcut_f2_cdot_residual
+    type(expr_t) :: eqcut_reversed, eqcut_cdot_reversed
+    type(expr_t) :: eqcut_scale_multiplier, eqcut_scaled
+    type(expr_t) :: eqcut_midplane
+    character(len=64) :: eqdsk_cell_arg_names(38)
+    character(len=64) :: eqdsk_profile_arg_names(9)
     type(expr_t) :: axis_b_r, axis_b_phi, axis_b_z, axis_bhat_r
     type(expr_t) :: axis_bmod
     type(expr_t) :: axis_psi
@@ -302,6 +334,155 @@ program gen_full_fow_physics
     phase_shift = sym(arena, "phase_shift")
     zero = num(arena, 0)
     one = num(arena, 1)
+
+    ! ------------------------------------------------------------------
+    ! Exact libneo tensor-quintic cell jet.  The runtime chooses the owning
+    ! cell and passes its 6x6 s2dcut coefficients; every interpolation and
+    ! derivative operation is generated here.  Powers correspond exactly to
+    ! spl(i,j)*delta_R**(i-1)*delta_Z**(j-1).
+    cell_delta_r = sym(arena, "delta_R")
+    cell_delta_z = sym(arena, "delta_Z")
+    eqdsk_cell_arg_names(1:2) = [character(len=64) :: "delta_R", "delta_Z"]
+    cell_psi = zero
+    do i = 1, 6
+        do j = 1, 6
+            k = 2+(i-1)*6+j
+            write (eqdsk_cell_arg_names(k), &
+                '("coefficient_",i0,"_",i0)') i-1, j-1
+            cell_coefficient(i,j) = &
+                sym(arena, trim(eqdsk_cell_arg_names(k)))
+            cell_psi = cell_psi + cell_coefficient(i,j)* &
+                cell_delta_r**(i-1)*cell_delta_z**(j-1)
+        end do
+    end do
+    cell_psi_r = diff(cell_psi, cell_delta_r)
+    cell_psi_z = diff(cell_psi, cell_delta_z)
+    cell_psi_rr = diff(cell_psi_r, cell_delta_r)
+    cell_psi_rz = diff(cell_psi_r, cell_delta_z)
+    cell_psi_zz = diff(cell_psi_z, cell_delta_z)
+    cell_psi_rrr = diff(cell_psi_rr, cell_delta_r)
+    cell_psi_rrz = diff(cell_psi_rr, cell_delta_z)
+    cell_psi_rzz = diff(cell_psi_rz, cell_delta_z)
+    cell_psi_zzz = diff(cell_psi_zz, cell_delta_z)
+
+    ! Exact quintic F(psihat) profile jet in the same coefficient convention.
+    profile_delta = sym(arena, "profile_delta")
+    eqdsk_profile_arg_names(1) = "profile_delta"
+    profile_value = zero
+    do i = 0, 5
+        write (eqdsk_profile_arg_names(i+2), '("coefficient_",i0)') i
+        profile_coefficient(i) = &
+            sym(arena, trim(eqdsk_profile_arg_names(i+2)))
+        profile_value = profile_value + &
+            profile_coefficient(i)*profile_delta**i
+    end do
+    profile_first = diff(profile_value, profile_delta)
+    profile_second = diff(profile_first, profile_delta)
+    profile_btf = sym(arena, "vacuum_Bphi_reference")
+    profile_rtf = sym(arena, "vacuum_radius_reference")
+    profile_vacuum_f = profile_btf*profile_rtf
+    eqdsk_profile_arg_names(8:9) = &
+        [character(len=64) :: "vacuum_Bphi_reference", &
+        "vacuum_radius_reference"]
+
+    ! Exact axisymmetric Eq. 13 cut jet from a third-order local psi jet.  A
+    ! second-order F(psihat) expansion is introduced only so the proof suite
+    ! can establish that F'' cancels from C and grad(C); the emitted runtime
+    ! interface therefore needs F and F' only.  field_scale multiplies both B
+    ! and psi, so C has an explicitly proved field_scale**2 normalization.
+    eqcut_radius = sym(arena, "radius")
+    eqcut_field_scale = sym(arena, "field_scale")
+    eqcut_orientation = sym(arena, "cut_orientation")
+    eqcut_psi0 = sym(arena, "psi")
+    eqcut_psi_r = sym(arena, "psi_R")
+    eqcut_psi_z = sym(arena, "psi_Z")
+    eqcut_psi_rr = sym(arena, "psi_RR")
+    eqcut_psi_rz = sym(arena, "psi_RZ")
+    eqcut_psi_zz = sym(arena, "psi_ZZ")
+    eqcut_psi_rrr = sym(arena, "psi_RRR")
+    eqcut_psi_rrz = sym(arena, "psi_RRZ")
+    eqcut_psi_rzz = sym(arena, "psi_RZZ")
+    eqcut_psi_zzz = sym(arena, "psi_ZZZ")
+    eqcut_f0 = sym(arena, "F")
+    eqcut_f_hat_first = sym(arena, "dF_dpsihat")
+    eqcut_f_hat_second = sym(arena, "d2F_dpsihat2")
+    eqcut_psi_sep = sym(arena, "psi_sep")
+    eqcut_dot_r = sym(arena, "dot_R")
+    ! The orbit state carries angular dot_phi.  Convert it to the physical
+    ! orthonormal arc velocity R*dot_phi inside the generated contract.
+    eqcut_dot_arc_phi = eqcut_radius*sym(arena, "dot_phi")
+    eqcut_dot_z = sym(arena, "dot_Z")
+    eqcut_dr = sym(arena, "local_delta_R")
+    eqcut_darc_phi = sym(arena, "local_delta_arc_phi")
+    eqcut_dz = sym(arena, "local_delta_Z")
+    eqcut_local_radius = eqcut_radius+eqcut_dr
+    eqcut_local_psi = eqcut_psi0 + eqcut_psi_r*eqcut_dr + &
+        eqcut_psi_z*eqcut_dz + &
+        (eqcut_psi_rr*eqcut_dr**2 + &
+        2*eqcut_psi_rz*eqcut_dr*eqcut_dz + &
+        eqcut_psi_zz*eqcut_dz**2)/2 + &
+        (eqcut_psi_rrr*eqcut_dr**3 + &
+        3*eqcut_psi_rrz*eqcut_dr**2*eqcut_dz + &
+        3*eqcut_psi_rzz*eqcut_dr*eqcut_dz**2 + &
+        eqcut_psi_zzz*eqcut_dz**3)/6
+    eqcut_delta_psi = eqcut_local_psi-eqcut_psi0
+    eqcut_local_f = eqcut_f0 + &
+        eqcut_f_hat_first/eqcut_psi_sep*eqcut_delta_psi + &
+        eqcut_f_hat_second/(2*eqcut_psi_sep**2)*eqcut_delta_psi**2
+    eqcut_b_r = -diff(eqcut_local_psi, eqcut_dz)/eqcut_local_radius
+    eqcut_b_phi = eqcut_local_f/eqcut_local_radius
+    eqcut_b_z = diff(eqcut_local_psi, eqcut_dr)/eqcut_local_radius
+    eqcut_bmod = eqcut_field_scale*sqrt(eqcut_b_r**2 + &
+        eqcut_b_phi**2 + eqcut_b_z**2)
+    eqcut_grad_b_r = diff(eqcut_bmod, eqcut_dr)
+    eqcut_grad_b_z = diff(eqcut_bmod, eqcut_dz)
+    eqcut_grad_psi_r = eqcut_field_scale* &
+        diff(eqcut_local_psi, eqcut_dr)
+    eqcut_grad_psi_z = eqcut_field_scale* &
+        diff(eqcut_local_psi, eqcut_dz)
+    eqcut_local_c = eqcut_orientation* &
+        (eqcut_grad_b_z*eqcut_grad_psi_r - &
+        eqcut_grad_b_r*eqcut_grad_psi_z)/eqcut_local_radius
+    eqcut_c = subs(subs(eqcut_local_c, eqcut_dr, zero), eqcut_dz, zero)
+    eqcut_g = eqcut_psi_r**2+eqcut_psi_z**2+eqcut_f0**2
+    eqcut_s = sqrt(eqcut_g/eqcut_radius**2)
+    eqcut_k = (eqcut_psi_r**2-eqcut_psi_z**2)*eqcut_psi_rz + &
+        eqcut_psi_r*eqcut_psi_z*(eqcut_psi_zz-eqcut_psi_rr)
+    eqcut_compact_c = eqcut_orientation*eqcut_field_scale**2* &
+        (eqcut_k/(eqcut_radius**3*eqcut_s) + &
+        eqcut_psi_z*eqcut_s/eqcut_radius**2)
+    eqcut_compact_residual = eqcut_c-eqcut_compact_c
+    eqcut_f1_c_residual = diff(eqcut_c, eqcut_f_hat_first)
+    eqcut_dc_dr = subs(subs(diff(eqcut_local_c, eqcut_dr), &
+        eqcut_dr, zero), eqcut_dz, zero)
+    eqcut_dc_darc_phi = subs(subs(subs(diff(eqcut_local_c, &
+        eqcut_darc_phi), eqcut_dr, zero), eqcut_darc_phi, zero), &
+        eqcut_dz, zero)
+    eqcut_dc_dz = subs(subs(diff(eqcut_local_c, eqcut_dz), &
+        eqcut_dr, zero), eqcut_dz, zero)
+    eqcut_cdot = eqcut_dc_dr*eqcut_dot_r + &
+        eqcut_dc_darc_phi*eqcut_dot_arc_phi + eqcut_dc_dz*eqcut_dot_z
+    eqcut_f2_c_residual = diff(eqcut_c, eqcut_f_hat_second)
+    eqcut_f2_cdot_residual = diff(eqcut_cdot, eqcut_f_hat_second)
+    ! The exact proofs below certify these residuals as zero.  Remove the
+    ! mathematically irrelevant symbol explicitly so the runtime interface is
+    ! minimal even if a backend simplifier retains a cancelled subexpression.
+    eqcut_c = subs(eqcut_c, eqcut_f_hat_second, zero)
+    eqcut_dc_dr = subs(eqcut_dc_dr, eqcut_f_hat_second, zero)
+    eqcut_dc_darc_phi = subs(eqcut_dc_darc_phi, eqcut_f_hat_second, zero)
+    eqcut_dc_dz = subs(eqcut_dc_dz, eqcut_f_hat_second, zero)
+    eqcut_cdot = eqcut_dc_dr*eqcut_dot_r + &
+        eqcut_dc_darc_phi*eqcut_dot_arc_phi + eqcut_dc_dz*eqcut_dot_z
+    eqcut_abs_cdot = abs(eqcut_cdot)
+    eqcut_orientation_scalar = eqcut_cdot
+    eqcut_reversed = subs(eqcut_c, eqcut_orientation, -eqcut_orientation)
+    eqcut_cdot_reversed = subs(eqcut_cdot, eqcut_orientation, &
+        -eqcut_orientation)
+    eqcut_scale_multiplier = sym(arena, "field_scale_multiplier")
+    eqcut_scaled = subs(eqcut_c, eqcut_field_scale, &
+        eqcut_scale_multiplier*eqcut_field_scale)
+    eqcut_midplane = subs(subs(eqcut_c, eqcut_psi_z, zero), &
+        eqcut_psi_rz, zero)
 
     ! ------------------------------------------------------------------
     ! Positive action, cyclotron frequency, and exact phase-space candidate.
@@ -1158,6 +1339,36 @@ program gen_full_fow_physics
         cut_cdot - (d_cut_c_d_r*dot_cut_r + d_cut_c_d_arc_phi*dot_cut_arc_phi + &
         d_cut_c_d_z*dot_cut_z))
     call check_identity(proofs, proof_engine, &
+        "EQDSK cut jet directional derivative", &
+        eqcut_cdot-(eqcut_dc_dr*eqcut_dot_r + &
+        eqcut_dc_darc_phi*eqcut_dot_arc_phi + eqcut_dc_dz*eqcut_dot_z))
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut matches compact axisymmetric identity", &
+        eqcut_compact_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut value is independent of first F derivative", &
+        eqcut_f1_c_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut orientation reversal flips C", &
+        eqcut_reversed+eqcut_c)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut orientation reversal flips Cdot", &
+        eqcut_cdot_reversed+eqcut_cdot)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut positive transversality ignores orientation", &
+        abs(eqcut_cdot_reversed)-eqcut_abs_cdot)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut has exact field-scale squared normalization", &
+        eqcut_scaled-eqcut_scale_multiplier**2*eqcut_c)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut does not require second F derivative", &
+        eqcut_f2_c_residual)
+    call check_identity(proofs, proof_engine, &
+        "EQDSK cut rate does not require second F derivative", &
+        eqcut_f2_cdot_residual)
+    call check_identity(proofs, proof_engine, &
+        "up-down symmetric midplane is an Eq13 cut", eqcut_midplane)
+    call check_identity(proofs, proof_engine, &
         "section reversal flips dpsi_star/dx", &
         dpsi_dx_reversed + dpsi_dx_section)
     call check_identity(proofs, proof_engine, &
@@ -1292,6 +1503,14 @@ program gen_full_fow_physics
         endpoint_intercept, endpoint_dfd_rho, endpoint_axis_residual]
     profile_potential_roots = [delta_phi_segment, delta_phi_reversed, &
         delta_phi_constant]
+    eqdsk_cell_jet_roots = [cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr, &
+        cell_psi_rz, cell_psi_zz, cell_psi_rrr, cell_psi_rrz, &
+        cell_psi_rzz, cell_psi_zzz]
+    eqdsk_profile_jet_roots = [profile_value, profile_first, profile_second, &
+        profile_vacuum_f]
+    eqdsk_cut_jet_roots = [eqcut_c, eqcut_dc_dr, eqcut_dc_darc_phi, &
+        eqcut_dc_dz, eqcut_cdot, eqcut_abs_cdot, &
+        eqcut_orientation_scalar]
     eq17_outer_roots = [eq17_outer_factor]
     frequency_contribution_roots = [frequency_contribution, phase_contribution]
     frequency_identity_roots = [n_squared_frequency_contribution, &
@@ -1355,6 +1574,9 @@ program gen_full_fow_physics
     call simplify_array(interpolation_roots)
     call simplify_array(endpoint_roots)
     call simplify_array(profile_potential_roots)
+    call simplify_array(eqdsk_cell_jet_roots)
+    call simplify_array(eqdsk_profile_jet_roots)
+    call simplify_array(eqdsk_cut_jet_roots)
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
@@ -1703,6 +1925,32 @@ program gen_full_fow_physics
         "Omega_E0", "Omega_E1", "Omega_E_constant", "c_light"], &
         profile_potential_roots, &
         [character(len=64) :: "delta_Phi", "delta_Phi_reversed", "delta_Phi_constant_limit"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_quintic_cell_jet_symbolic.f90", &
+        "neort_eqdsk_quintic_cell_jet_symbolic", &
+        "evaluate_neort_eqdsk_quintic_cell_jet", eqdsk_cell_arg_names, &
+        eqdsk_cell_jet_roots, [character(len=64) :: "psi", "psi_R", &
+        "psi_Z", "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", &
+        "psi_RRZ", "psi_RZZ", "psi_ZZZ"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_quintic_profile_jet_symbolic.f90", &
+        "neort_eqdsk_quintic_profile_jet_symbolic", &
+        "evaluate_neort_eqdsk_quintic_profile_jet", &
+        eqdsk_profile_arg_names, eqdsk_profile_jet_roots, &
+        [character(len=64) :: "profile_value", "profile_first", &
+        "profile_second", "vacuum_F"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_jet_symbolic.f90", &
+        "neort_eqdsk_cut_jet_symbolic", &
+        "evaluate_neort_eqdsk_cut_jet", &
+        [character(len=64) :: "radius", "field_scale", "cut_orientation", &
+        "psi", "psi_R", "psi_Z", "psi_RR", "psi_RZ", "psi_ZZ", &
+        "psi_RRR", "psi_RRZ", "psi_RZZ", "psi_ZZZ", "F", &
+        "dF_dpsihat", "psi_sep", "dot_R", &
+        "dot_phi", "dot_Z"], eqdsk_cut_jet_roots, &
+        [character(len=64) :: "cut_C", "d_cut_C_d_R", &
+        "d_cut_C_d_arc_phi", "d_cut_C_d_Z", "cut_Cdot", &
+        "absolute_cut_Cdot", "orientation_scalar"])
     call emit_certificate_registry(trim(output_path)// &
         "/neort_generated_certificate_registry.f90")
 
@@ -1844,11 +2092,12 @@ contains
         write (unit, "(a)") "        'fortsym@77b031204c76fa88872ddface3af6ac3a25fbb00'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 10"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 13"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
-        write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force' ]"
+        write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force', &"
+        write (unit, "(a)") "        'eqdsk_cell_jet', 'eqdsk_profile_jet', 'eqdsk_cut_jet' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-77b0312', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-77b0312', &"
@@ -1859,7 +2108,10 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:profile_endpoints:8:fortsym-77b0312', &"
         write (unit, "(a)") "        'neort-cert-v1:refinement:14:fortsym-77b0312', &"
         write (unit, "(a)") "        'neort-cert-v1:harmonic_integrand:8:fortsym-77b0312', &"
-        write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-77b0312' ]"
+        write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cell_jet:10:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_profile_jet:4:fortsym-77b0312', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_jet:7:fortsym-77b0312' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"
