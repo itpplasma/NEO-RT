@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import struct
 from pathlib import Path
@@ -24,7 +25,9 @@ def record(payload: bytes) -> bytes:
     return struct.pack("=i", size) + payload + struct.pack("=i", size)
 
 
-def write_relative_field(path: Path, r_m: np.ndarray, z_m: np.ndarray) -> None:
+def write_relative_field(
+    path: Path, r_m: np.ndarray, z_m: np.ndarray, epsilon: float
+) -> None:
     rr, zz = np.meshgrid(r_m, z_m, indexing="ij")
     radius = np.sqrt((rr - R0_M) ** 2 + zz**2)
     radius_clipped = np.minimum(radius, A_M)
@@ -33,7 +36,7 @@ def write_relative_field(path: Path, r_m: np.ndarray, z_m: np.ndarray) -> None:
     b_toroidal = R0_M * B0_T / rr
     b_poloidal = dpsi_dr / rr
     bmod_gauss = np.sqrt(b_toroidal**2 + b_poloidal**2) * 1.0e4
-    real_part = np.asarray(EPSILON * bmod_gauss, dtype=np.float64)
+    real_part = np.asarray(epsilon * bmod_gauss, dtype=np.float64)
     imaginary_part = np.zeros_like(real_part)
     r_cm = np.asarray(r_m * 100.0, dtype=np.float64)
     z_cm = np.asarray(z_m * 100.0, dtype=np.float64)
@@ -64,13 +67,16 @@ def main() -> None:
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--nenergy", type=int, default=24)
+    parser.add_argument("--epsilon", type=float, default=EPSILON)
     args = parser.parse_args()
+    if args.epsilon <= 0.0:
+        parser.error("--epsilon must be positive")
     args.output.mkdir(parents=True, exist_ok=False)
     for name in ("circ.eqdsk", "convexwall.dat", "field_divB0.inp"):
         shutil.copy2(args.fixture / name, args.output / name)
 
     r, z = read_grid(args.fixture / "circ.eqdsk")
-    write_relative_field(args.output / "bmod_n.dat", r, z)
+    write_relative_field(args.output / "bmod_n.dat", r, z, args.epsilon)
     (args.output / "profile_poly_torque.in").write_text(
         "% density, dummy, temperature, zero potential; descending powers of s_pol\n"
         "% matched linear thermodynamic profiles; no radial electric field\n"
@@ -107,6 +113,20 @@ def main() -> None:
   profile_file = 'profile_poly_torque.in'
 /
 """
+    )
+    (args.output / "case_provenance.json").write_text(
+        json.dumps(
+            {
+                "delta_b_over_b": args.epsilon,
+                "n_tor": 2,
+                "m_min": -3,
+                "m_max": 3,
+                "nenergy": args.nenergy,
+                "electric_field": 0.0,
+            },
+            indent=2,
+        )
+        + "\n"
     )
 
 
