@@ -2897,7 +2897,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: field
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: rate
         integer, intent(out) :: status
 
@@ -2943,7 +2943,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: field
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: value
         integer, intent(out) :: status
 
@@ -2987,7 +2987,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: field
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: margin
         integer, intent(out) :: status
 

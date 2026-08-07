@@ -225,6 +225,8 @@ module neort_gc_cylindrical_nonlocal_provider
         type(gc_cylindrical_nonlocal_section_t) :: section
         logical :: initialized = .false.
         logical :: components_enumerated = .false.
+        ! Borrowed target; the caller must keep it alive until this context is
+        ! cleared and must not copy the context past that target's lifetime.
         class(gc_callback_context_t), pointer :: user_data => null()
         procedure(gc_cylindrical_nonlocal_component_provider_i), pointer, nopass :: &
             component_provider => null()
@@ -277,6 +279,8 @@ contains
         character(len=*), intent(in), optional :: section_coordinate
         real(dp), intent(in), optional :: section_reference(3)
         character(len=*), intent(in), optional :: section_reference_id
+        ! Stored as a borrowed pointer; user_data must outlive context and all
+        ! callback use, and the context must be cleared before invalidation.
         class(gc_callback_context_t), target, intent(inout), optional :: user_data
         integer, intent(in), optional :: required_return_crossings
 

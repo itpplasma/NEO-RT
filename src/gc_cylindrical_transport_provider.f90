@@ -147,6 +147,8 @@ module neort_gc_cylindrical_transport_provider
             reset_callback => null()
         procedure(gc_cylindrical_transport_evidence_i), pointer, nopass :: &
             evidence_callback => null()
+        ! Borrowed target; the caller must keep it alive until this provider is
+        ! cleared and must not copy the provider past that target's lifetime.
         class(gc_callback_context_t), pointer :: user_data => null()
         logical :: initialized = .false.
         logical :: node_ready = .false.
@@ -212,6 +214,8 @@ contains
         procedure(gc_cylindrical_transport_evidence_i), optional :: &
             evidence_callback
         integer, intent(out) :: status
+        ! Stored as a borrowed pointer; user_data must outlive provider and all
+        ! nested callback use, and the provider must be cleared first.
         class(gc_callback_context_t), target, intent(inout), optional :: user_data
         character(len=*), intent(in), optional :: section_reference_id
 
@@ -293,6 +297,9 @@ contains
 
         if (allocated(provider%node_components)) &
             deallocate(provider%node_components)
+        provider%node_adapter = gc_cylindrical_class_adapter_t()
+        provider%node_context = gc_cylindrical_nonlocal_context_t()
+        provider%node_class_result = gc_cylindrical_class_result_t()
         nullify(provider%node_factory)
         nullify(provider%outer_factor_callback)
         nullify(provider%quadrature_builder)

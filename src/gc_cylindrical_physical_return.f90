@@ -22,6 +22,7 @@ module neort_gc_cylindrical_physical_return
     use fortnum_ode_vode, only: vode_init, vode_integrate_to, vode_state_t
     use fortnum_status, only: FORTNUM_OK, fortnum_status_t
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_FIELD_ERROR, &
         GC_CYL_INTEGRATOR_ERROR, GC_CYL_INVARIANT_ERROR, GC_CYL_INVALID_INPUT, &
@@ -100,11 +101,11 @@ module neort_gc_cylindrical_physical_return
         subroutine gc_cylindrical_physical_event_i(position, state, field, &
                 user_data, value, status)
             import :: dp, gc_cylindrical_field_sample_t, &
-                gc_cylindrical_state_t
+                gc_cylindrical_state_t, gc_callback_context_t
             real(dp), intent(in) :: position(3)
             type(gc_cylindrical_state_t), intent(in) :: state
             type(gc_cylindrical_field_sample_t), intent(in) :: field
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             real(dp), intent(out) :: value
             integer, intent(out) :: status
         end subroutine gc_cylindrical_physical_event_i
@@ -114,11 +115,11 @@ module neort_gc_cylindrical_physical_return
         subroutine gc_cylindrical_physical_event_rate_i(position, state, field, &
                 user_data, rate, status)
             import :: dp, gc_cylindrical_field_sample_t, &
-                gc_cylindrical_state_t
+                gc_cylindrical_state_t, gc_callback_context_t
             real(dp), intent(in) :: position(3)
             type(gc_cylindrical_state_t), intent(in) :: state
             type(gc_cylindrical_field_sample_t), intent(in) :: field
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             real(dp), intent(out) :: rate
             integer, intent(out) :: status
         end subroutine gc_cylindrical_physical_event_rate_i
@@ -128,11 +129,11 @@ module neort_gc_cylindrical_physical_return
         subroutine gc_cylindrical_radial_domain_i(position, state, field, &
                 user_data, margin, status)
             import :: dp, gc_cylindrical_field_sample_t, &
-                gc_cylindrical_state_t
+                gc_cylindrical_state_t, gc_callback_context_t
             real(dp), intent(in) :: position(3)
             type(gc_cylindrical_state_t), intent(in) :: state
             type(gc_cylindrical_field_sample_t), intent(in) :: field
-            class(*), pointer, intent(inout) :: user_data
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
             real(dp), intent(out) :: margin
             integer, intent(out) :: status
         end subroutine gc_cylindrical_radial_domain_i
@@ -159,7 +160,9 @@ contains
         type(gc_cylindrical_physical_return_t), intent(out) :: result
         class(gc_cylindrical_wall_t), intent(in), optional :: wall_model
         procedure(gc_cylindrical_radial_domain_i), optional :: radial_domain
-        class(*), target, intent(inout), optional :: user_data
+        ! Borrowed callback context: the caller-owned target must remain alive
+        ! for this call and every callback invocation it performs.
+        class(gc_callback_context_t), target, intent(inout), optional :: user_data
         procedure(gc_cylindrical_physical_event_rate_i), optional :: &
             return_event_rate
 
@@ -181,7 +184,7 @@ contains
         integer :: event_orientation, domain_kind, local_status
         logical :: found, have_domain, have_wall, have_radial, valid
         logical :: disarm_found, disarmed_event_valid
-        class(*), pointer :: callback_data
+        class(gc_callback_context_t), pointer :: callback_data
         procedure(gc_cylindrical_radial_domain_i), pointer :: radial_domain_proc
 
         result = gc_cylindrical_physical_return_t()

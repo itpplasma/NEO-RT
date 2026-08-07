@@ -191,6 +191,8 @@ module neort_gc_cylindrical_class_adapter
             cut_map => null()
         procedure(gc_cylindrical_class_splitter_i), pointer, nopass :: &
             splitter => null()
+        ! Borrowed target; the caller must keep it alive until this adapter is
+        ! cleared and must not copy the adapter past that target's lifetime.
         class(gc_callback_context_t), pointer :: user_data => null()
         logical :: initialized = .false.
         logical :: classes_enumerated = .false.
@@ -219,6 +221,8 @@ contains
         integer, intent(out) :: status
         type(gc_cylindrical_class_options_t), intent(in), optional :: options
         procedure(gc_cylindrical_class_splitter_i), optional :: splitter
+        ! Stored as a borrowed pointer; user_data must outlive adapter and all
+        ! callback use, and the adapter must be cleared before it is invalidated.
         class(gc_callback_context_t), target, intent(inout), optional :: user_data
 
         adapter%h0 = 0.0_dp

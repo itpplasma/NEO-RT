@@ -1,5 +1,6 @@
 module test_physical_return_models
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: GC_CYL_SUCCESS, &
         gc_cylindrical_field_sample_t, gc_cylindrical_field_t, &
         gc_cylindrical_wall_t, make_gc_cylindrical_field_sample
@@ -364,7 +365,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: sample
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: value
         integer, intent(out) :: status
 
@@ -379,7 +380,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: sample
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: rate
         integer, intent(out) :: status
 
@@ -396,7 +397,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: sample
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: value
         integer, intent(out) :: status
 
@@ -412,7 +413,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: sample
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: margin
         integer, intent(out) :: status
 

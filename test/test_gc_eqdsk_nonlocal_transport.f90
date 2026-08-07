@@ -3,6 +3,7 @@ program test_gc_eqdsk_nonlocal_transport
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: R0, a, psi_pr
+    use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: GC_CYL_SUCCESS, &
         gc_cylindrical_field_sample_t, gc_cylindrical_invariants_t, &
         gc_cylindrical_state_t, invariants_from_cylindrical_state
@@ -374,7 +375,7 @@ contains
         real(dp), intent(in) :: position(3)
         type(gc_cylindrical_state_t), intent(in) :: state
         type(gc_cylindrical_field_sample_t), intent(in) :: sample_field
-        class(*), pointer, intent(inout) :: user_data
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
         real(dp), intent(out) :: value
         integer, intent(out) :: event_status
 
