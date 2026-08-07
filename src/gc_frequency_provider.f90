@@ -9,8 +9,9 @@ module neort_gc_frequency_provider
         gc_zero_potential_t, gc_linear_flux_potential_t, &
         invariants_from_state, make_linear_flux_potential
     use neort_gc_orbit_integrator, only: GC_ORBIT_TRAPPED, GC_ORBIT_PASSING, &
+        GC_ORBIT_SUCCESS, &
         gc_orbit_options_t, gc_orbit_average_t, gc_orbit_perturbation_i, &
-        compute_thin_precession, compute_gc_orbit_average
+        compute_return_map, compute_thin_precession, compute_gc_orbit_average
     use neort_thin_orbit_limit, only: THIN_LIMIT_SUCCESS, orbit_return_t, &
         thin_limit_result_t
     use util, only: pi, c
@@ -22,6 +23,7 @@ module neort_gc_frequency_provider
     integer, parameter, public :: GC_FREQUENCY_INVALID_INPUT = 1
     integer, parameter, public :: GC_FREQUENCY_FIELD_ERROR = 2
     integer, parameter, public :: GC_FREQUENCY_LIMIT_ERROR = 3
+    integer, parameter, public :: GC_FREQUENCY_ORBIT_ERROR = 4
 
     type, public :: gc_frequency_context_t
         type(eqdsk_gc_field_t) :: field
@@ -53,10 +55,79 @@ module neort_gc_frequency_provider
         integer :: total_limit_status = 0
     end type gc_frequency_result_t
 
+    type, public :: gc_full_orbit_frequency_result_t
+        !! Native finite-width canonical frequencies.  Unlike the thin-limit
+        !! result, Omega_phi includes field-line transit, magnetic drift, and
+        !! electric drift exactly once through the full return map.
+        real(dp) :: omega_b = 0.0_dp
+        real(dp) :: omega_phi = 0.0_dp
+        real(dp) :: period = 0.0_dp
+        real(dp) :: delta_phi = 0.0_dp
+        integer :: orbit_status = 0
+    end type gc_full_orbit_frequency_result_t
+
     public :: initialize_gc_frequency_context, evaluate_gc_frequency
+    public :: evaluate_gc_full_orbit_frequency
     public :: evaluate_gc_phase_average
 
 contains
+
+    subroutine evaluate_gc_full_orbit_frequency(context, eta, &
+            parallel_direction, orbit_class, period_estimate, result, status)
+        !! Evaluate one physical-width guiding-center return at fixed
+        !! (H, mu, P_phi).  There is deliberately no pitch spline or thin-
+        !! orbit velocity scaling here: callers must retain non-return status.
+        type(gc_frequency_context_t), intent(in) :: context
+        real(dp), intent(in) :: eta, period_estimate
+        integer, intent(in) :: parallel_direction, orbit_class
+        type(gc_full_orbit_frequency_result_t), intent(out) :: result
+        integer, intent(out) :: status
+
+        type(gc_invariants_t) :: invariants
+        type(orbit_return_t) :: orbit_return
+        real(dp) :: xi_squared, potential, grad_potential(3)
+        integer :: invariant_status, parallel_sign, winding, potential_status
+
+        result = gc_full_orbit_frequency_result_t()
+        status = GC_FREQUENCY_INVALID_INPUT
+        if (.not. context%initialized .or. eta <= 0.0_dp &
+            .or. period_estimate <= 0.0_dp) return
+        if (abs(parallel_direction) /= 1) return
+        if (orbit_class /= GC_ORBIT_TRAPPED &
+            .and. orbit_class /= GC_ORBIT_PASSING) return
+
+        xi_squared = 1.0_dp - eta*context%reference_sample%bmod
+        if (xi_squared <= 0.0_dp) return
+        parallel_sign = parallel_direction*context%htheta_sign
+        winding = merge(parallel_direction, 0, orbit_class == GC_ORBIT_PASSING)
+        call context%electric_potential%evaluate(context%reference_position, &
+            context%reference_sample, potential, grad_potential, &
+            potential_status)
+        if (potential_status /= GC_MODEL_SUCCESS) then
+            status = GC_FREQUENCY_FIELD_ERROR
+            return
+        end if
+        call invariants_from_state(context%reference_sample, potential, &
+            context%rho0, 1.0_dp, 1.0_dp, &
+            real(parallel_sign, dp)*sqrt(xi_squared), invariants, &
+            invariant_status)
+        if (invariant_status /= GC_MODEL_SUCCESS) return
+
+        call compute_return_map(context%field, context%electric_potential, &
+            invariants, context%reference_position, parallel_sign, &
+            context%rho0, 1.0_dp, context%reference_velocity, orbit_class, &
+            winding, period_estimate, context%orbit_options, orbit_return)
+        result%orbit_status = orbit_return%status
+        if (orbit_return%status /= GC_ORBIT_SUCCESS) then
+            status = GC_FREQUENCY_ORBIT_ERROR
+            return
+        end if
+        result%period = orbit_return%period
+        result%delta_phi = orbit_return%delta_phi
+        result%omega_b = 2.0_dp*pi/orbit_return%period
+        result%omega_phi = orbit_return%delta_phi/orbit_return%period
+        status = GC_FREQUENCY_SUCCESS
+    end subroutine evaluate_gc_full_orbit_frequency
 
     subroutine initialize_gc_frequency_context(surface, reference_theta, &
             field_scale, omega_e, &

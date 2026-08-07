@@ -1,0 +1,85 @@
+program test_gc_full_orbit_frequency
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_frequency_provider, only: GC_FREQUENCY_SUCCESS, &
+        GC_FREQUENCY_ORBIT_ERROR, gc_frequency_context_t, &
+        gc_frequency_result_t, gc_full_orbit_frequency_result_t, &
+        initialize_gc_frequency_context, evaluate_gc_frequency, &
+        evaluate_gc_full_orbit_frequency
+    use neort_gc_orbit_integrator, only: GC_ORBIT_PASSING
+    use do_magfie_mod, only: inp_swi, read_boozer_file, set_s, &
+        init_magfie_at_s, R0
+    use neort_magfie, only: init_flux_surface_average
+    use util, only: pi, qe, mu
+
+    implicit none
+
+    type(gc_frequency_context_t) :: context, narrow_context
+    type(gc_frequency_result_t) :: thin
+    type(gc_full_orbit_frequency_result_t) :: full, narrow
+    character(len=1024) :: eqdsk_file
+    real(dp), parameter :: surface = 0.368_dp
+    real(dp), parameter :: theta0 = 0.0_dp
+    real(dp), parameter :: speed = 6.92e7_dp
+    real(dp) :: eta, period_estimate
+    real(dp) :: residual_full, residual_narrow, thin_residual
+    integer :: status
+
+    call get_environment_variable('EQDSK_FILE', eqdsk_file)
+    if (len_trim(eqdsk_file) == 0) error stop 'EQDSK_FILE is required'
+    inp_swi = 11
+    call read_boozer_file(trim(eqdsk_file))
+    call set_s(surface)
+    call init_magfie_at_s()
+    call init_flux_surface_average(surface)
+
+    call initialize_gc_frequency_context(surface, theta0, 1.0_dp, 0.0_dp, &
+        2.014_dp*mu, qe, speed, context, status)
+    call require(status == GC_FREQUENCY_SUCCESS, 'context initialization')
+    eta = (1.0_dp - 0.8_dp**2)/context%reference_sample%bmod
+    period_estimate = 12.0_dp*abs(context%q_fieldline)*R0/speed
+    call evaluate_gc_full_orbit_frequency(context, eta, 1, &
+        GC_ORBIT_PASSING, period_estimate, full, status)
+    call require(status == GC_FREQUENCY_SUCCESS, 'physical-width return')
+    call require(full%omega_b > 0.0_dp, 'positive bounce frequency')
+    call require(abs(full%omega_phi/full%omega_b &
+        - full%delta_phi/(2.0_dp*pi)) < 2.0e-12_dp, &
+        'canonical return-map identity')
+
+    ! Independent limiting expression: shrinking rho0 by ten must make the
+    ! finite-width residual converge linearly to the strict thin derivative.
+    call evaluate_gc_frequency(context, eta, 1, GC_ORBIT_PASSING, &
+        period_estimate, thin, status)
+    call require(status == GC_FREQUENCY_SUCCESS, 'thin limiting oracle')
+    narrow_context = context
+    narrow_context%rho0 = 0.1_dp*context%rho0
+    call evaluate_gc_full_orbit_frequency(narrow_context, eta, 1, &
+        GC_ORBIT_PASSING, period_estimate, narrow, status)
+    call require(status == GC_FREQUENCY_SUCCESS, 'narrow-width return')
+    residual_full = full%omega_phi &
+        - context%q_fieldline*full%omega_b
+    residual_narrow = narrow%omega_phi &
+        - narrow_context%q_fieldline*narrow%omega_b
+    thin_residual = thin%omega_magnetic
+    call require(abs(residual_narrow/0.1_dp - thin_residual) &
+        < abs(residual_full - thin_residual), 'finite-width limiting expression')
+
+    ! A physical orbit that cannot return is data, not a zero-frequency row.
+    narrow_context%orbit_options%max_periods = 1.0e-6_dp
+    call evaluate_gc_full_orbit_frequency(narrow_context, eta, 1, &
+        GC_ORBIT_PASSING, period_estimate, narrow, status)
+    call require(status == GC_FREQUENCY_ORBIT_ERROR, 'non-return status')
+    call require(narrow%omega_b == 0.0_dp .and. narrow%omega_phi == 0.0_dp, &
+        'non-return carries no fabricated frequency')
+
+contains
+
+    subroutine require(condition, label)
+        logical, intent(in) :: condition
+        character(*), intent(in) :: label
+        if (.not. condition) then
+            write(*, '(A)') 'FAIL: '//label
+            error stop 1
+        end if
+    end subroutine require
+
+end program test_gc_full_orbit_frequency
