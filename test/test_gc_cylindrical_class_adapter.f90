@@ -1,10 +1,14 @@
 module gc_cylindrical_class_adapter_test_support
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_SUCCESS, &
+        gc_cylindrical_allowed_component_t, &
         gc_cylindrical_field_sample_t, gc_cylindrical_field_t, &
         gc_cylindrical_potential_t, make_gc_cylindrical_field_sample
+    use neort_gc_cylindrical_topology, only: &
+        gc_cylindrical_allowed_region_set_t
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_INVALID_INPUT, GC_CYL_CLASS_SUCCESS, &
         gc_cylindrical_class_interval_t, &
@@ -18,6 +22,7 @@ module gc_cylindrical_class_adapter_test_support
     real(dp), parameter, public :: MASS = 3.0_dp
     real(dp), parameter, public :: CHARGE = 2.0_dp
     real(dp), parameter, public :: C_LIGHT = 10.0_dp
+    integer, parameter, public :: MANUFACTURED_CERTIFICATE_ID = 417
 
     type, extends(gc_cylindrical_field_t), public :: manufactured_field_t
         logical :: invalid_hole = .false.
@@ -35,8 +40,14 @@ module gc_cylindrical_class_adapter_test_support
         procedure :: evaluate => evaluate_manufactured_potential
     end type manufactured_potential_t
 
+    type, extends(gc_callback_context_t), public :: manufactured_region_state_t
+        integer :: mode = 0
+    end type manufactured_region_state_t
+
     public :: manufactured_cut_map
     public :: identity_splitter
+    public :: manufactured_allowed_region_provider
+    public :: manufactured_allowed_region_verifier
     public :: target_vparallel_squared
     public :: target_dvparallel_squared
 
@@ -129,6 +140,176 @@ contains
         status = GC_CYL_CLASS_SUCCESS
     end subroutine identity_splitter
 
+    subroutine manufactured_allowed_region_provider(h0, jperp, sigma, &
+            user_data, regions, status)
+        real(dp), intent(in) :: h0, jperp
+        integer, intent(in) :: sigma
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_allowed_region_set_t), intent(out) :: regions
+        integer, intent(out) :: status
+
+        type(manufactured_region_state_t), pointer :: state
+
+        regions = gc_cylindrical_allowed_region_set_t()
+        status = GC_CYL_CLASS_INVALID_INPUT
+        if (.not. ieee_is_finite(h0)) return
+        if (.not. ieee_is_finite(jperp)) return
+        if (abs(sigma) /= 1) return
+        state => null()
+        if (associated(user_data)) then
+            select type (user_data)
+                type is (manufactured_region_state_t)
+                    state => user_data
+                class default
+                    return
+            end select
+        end if
+
+        regions%nroots = 3
+        regions%ncomponents = 2
+        allocate(regions%roots(3), regions%root_canonical(3), &
+            regions%components(2))
+        regions%roots = [0.5_dp, 1.0_dp, 2.0_dp]
+        regions%root_canonical = [0.125_dp, 0.5_dp, 2.0_dp]
+        regions%components(1) = gc_cylindrical_allowed_component_t( &
+            component_id=1, sigma=sigma, x_begin=0.5_dp, x_end=1.0_dp, &
+            canonical_begin=0.125_dp, canonical_end=0.5_dp, &
+            canonical_measure=0.375_dp, lower_root=.true., upper_root=.true.)
+        regions%components(2) = gc_cylindrical_allowed_component_t( &
+            component_id=2, sigma=sigma, x_begin=2.0_dp, x_end=4.5_dp, &
+            canonical_begin=2.0_dp, canonical_end=10.125_dp, &
+            canonical_measure=8.125_dp, lower_root=.true., upper_root=.false.)
+        regions%total_canonical_measure = 8.5_dp
+        ! These fields are intentionally not a proof.  The verifier below
+        ! ignores them and recomputes the manufactured structure independently.
+        regions%topology_certified = .false.
+        regions%certificate_method = 'provider-metadata-is-not-proof'
+
+        if (associated(state)) then
+            select case (state%mode)
+                case (1)
+                    regions%roots = [0.5_dp, 2.0_dp, 1.0_dp]
+                case (2)
+                    regions%components(1)%x_begin = 0.25_dp
+                case (3)
+                    regions%components(1)%sigma = -sigma
+                case (4)
+                    regions%components(1)%canonical_measure = 0.0_dp
+                case (5)
+                    regions%components(2)%x_end = 4.25_dp
+                case (6)
+                    regions%certificate_method = 'unresolved-finite-scan'
+                case default
+                    continue
+            end select
+        end if
+        status = GC_CYL_SUCCESS
+    end subroutine manufactured_allowed_region_provider
+
+    subroutine manufactured_allowed_region_verifier(h0, jperp, sigma, rc_min, &
+            rc_max, regions, user_data, certificate_id, status)
+        real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        integer, intent(out) :: certificate_id
+        integer, intent(out) :: status
+
+        type(manufactured_region_state_t), pointer :: state
+        real(dp) :: expected_roots(3), expected_edges(5), midpoint
+        real(dp) :: expected_begin, expected_end, expected_measure
+        real(dp) :: measure_sum
+        integer :: i, k, expected_count
+
+        certificate_id = 0
+        status = GC_CYL_CLASS_INVALID_INPUT
+        if (.not. all(ieee_is_finite([h0, jperp, rc_min, rc_max]))) return
+        if (h0 /= H0_REFERENCE .or. jperp /= JPERP_REFERENCE) return
+        if (sigma /= 1 .and. sigma /= -1) return
+        if (rc_min /= 0.5_dp .or. rc_max /= 4.5_dp) return
+        state => null()
+        if (associated(user_data)) then
+            select type (user_data)
+                type is (manufactured_region_state_t)
+                    state => user_data
+                class default
+                    return
+            end select
+        end if
+        if (associated(state)) then
+            if (state%mode == 8) return
+        end if
+
+        expected_roots = [0.5_dp, 1.0_dp, 2.0_dp]
+        if (regions%nroots /= size(expected_roots)) return
+        if (.not. allocated(regions%roots)) return
+        if (.not. allocated(regions%root_canonical)) return
+        if (size(regions%roots) /= size(expected_roots)) return
+        if (size(regions%root_canonical) /= size(expected_roots)) return
+        if (regions%ncomponents /= 2) return
+        if (.not. allocated(regions%components)) return
+        if (size(regions%components) /= 2) return
+        do i = 1, size(expected_roots)
+            if (abs(regions%roots(i) - expected_roots(i)) > 1.0e-13_dp) return
+            if (abs(regions%root_canonical(i) - &
+                manufactured_canonical(expected_roots(i))) > 1.0e-13_dp) return
+        end do
+
+        expected_edges(1) = rc_min
+        expected_edges(2:4) = expected_roots
+        expected_edges(5) = rc_max
+        expected_count = 0
+        measure_sum = 0.0_dp
+        do k = 1, size(expected_edges) - 1
+            midpoint = 0.5_dp*(expected_edges(k) + expected_edges(k + 1))
+            if (verifier_polynomial_value(midpoint) <= 0.0_dp) cycle
+            expected_count = expected_count + 1
+            if (expected_count > regions%ncomponents) return
+            expected_begin = expected_edges(k)
+            expected_end = expected_edges(k + 1)
+            expected_measure = abs(manufactured_canonical(expected_end) &
+                -manufactured_canonical(expected_begin))
+            if (regions%components(expected_count)%component_id &
+                /= expected_count) return
+            if (regions%components(expected_count)%sigma /= sigma) return
+            if (abs(regions%components(expected_count)%x_begin &
+                    -expected_begin) > 1.0e-13_dp) return
+            if (abs(regions%components(expected_count)%x_end &
+                    -expected_end) > 1.0e-13_dp) return
+            if (abs(regions%components(expected_count)%canonical_begin &
+                    -manufactured_canonical(expected_begin)) > 1.0e-13_dp) return
+            if (abs(regions%components(expected_count)%canonical_end &
+                    -manufactured_canonical(expected_end)) > 1.0e-13_dp) return
+            if (abs(regions%components(expected_count)%canonical_measure &
+                    -expected_measure) > 1.0e-13_dp) return
+            if (regions%components(expected_count)%lower_root .neqv. (k > 1)) return
+            if (regions%components(expected_count)%upper_root .neqv. &
+                (k < size(expected_edges) - 1)) return
+            measure_sum = measure_sum + expected_measure
+        end do
+        if (expected_count /= regions%ncomponents) return
+        if (abs(regions%total_canonical_measure - measure_sum) > 1.0e-13_dp) return
+
+        certificate_id = MANUFACTURED_CERTIFICATE_ID
+        if (associated(state)) then
+            if (state%mode == 7) certificate_id = certificate_id + 1
+        end if
+        status = GC_CYL_CLASS_SUCCESS
+    end subroutine manufactured_allowed_region_verifier
+
+    pure real(dp) function verifier_polynomial_value(radius)
+        real(dp), intent(in) :: radius
+
+        verifier_polynomial_value = 0.1_dp*(radius - 1.0_dp) &
+            *(radius - 2.0_dp)*(radius - 0.5_dp)**2
+    end function verifier_polynomial_value
+
+    pure real(dp) function manufactured_canonical(radius)
+        real(dp), intent(in) :: radius
+
+        manufactured_canonical = 0.5_dp*radius**2
+    end function manufactured_canonical
+
     pure real(dp) function target_vparallel_squared(radius)
         real(dp), intent(in) :: radius
 
@@ -152,7 +333,10 @@ program test_gc_cylindrical_class_adapter
     use neort_gc_callback_context, only: gc_callback_context_t
     use gc_cylindrical_class_adapter_test_support, only: &
         C_LIGHT, CHARGE, H0_REFERENCE, JPERP_REFERENCE, MASS, &
+        MANUFACTURED_CERTIFICATE_ID, &
         manufactured_cut_map, manufactured_field_t, manufactured_potential_t, &
+        manufactured_allowed_region_provider, manufactured_allowed_region_verifier, &
+        manufactured_region_state_t, &
         identity_splitter, target_dvparallel_squared, &
         target_vparallel_squared
     use neort_gc_cylindrical_class_adapter, only: &
@@ -166,7 +350,7 @@ program test_gc_cylindrical_class_adapter
         enumerate_gc_cylindrical_classes, &
         evaluate_gc_cylindrical_class_point, &
         initialize_gc_cylindrical_class_adapter, &
-        launch_gc_cylindrical_class
+        launch_gc_cylindrical_class, clear_gc_cylindrical_class_adapter
 
     implicit none
 
@@ -191,6 +375,9 @@ program test_gc_cylindrical_class_adapter
     type(gc_cylindrical_class_options_t) :: options
     type(manufactured_field_t), target :: field
     type(manufactured_potential_t), target :: potential
+    type(manufactured_region_state_t), target :: region_state
+    type(gc_cylindrical_class_adapter_t) :: malformed_adapter
+    type(gc_cylindrical_class_result_t) :: malformed_result
     integer :: status, point_status, plus_id, minus_id, tangent_id
     real(dp) :: omega_c, expected_v2, expected_dv2, expected_v
     real(dp) :: expected_psi, expected_psi_star, expected_dpsi_star
@@ -207,6 +394,22 @@ program test_gc_cylindrical_class_adapter
     call require(status == GC_CYL_CLASS_SUCCESS, &
         'adapter initialization without splitter failed')
     call enumerate_gc_cylindrical_classes(adapter, result, status)
+    call require(status == GC_CYL_CLASS_SPLITTER_FAILURE, &
+        'unresolved finite scan was not failed closed')
+    call require(.not. result%class_complete, &
+        'allowed intervals were claimed to be complete classes')
+
+    region_state = manufactured_region_state_t()
+    call initialize_gc_cylindrical_class_adapter(field, potential, &
+        H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+        manufactured_cut_map, split_adapter, status, options=options, &
+        user_data=region_state, &
+        allowed_region_provider=manufactured_allowed_region_provider, &
+        allowed_region_verifier=manufactured_allowed_region_verifier, &
+        allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+    call require(status == GC_CYL_CLASS_SUCCESS, &
+        'certified-region adapter initialization failed')
+    call enumerate_gc_cylindrical_classes(split_adapter, result, status)
     call require(status == GC_CYL_CLASS_SPLITTER_UNAVAILABLE, &
         'missing orbit-return splitter was not reported unavailable')
     call require(.not. result%class_complete, &
@@ -219,16 +422,18 @@ program test_gc_cylindrical_class_adapter
         'each parallel branch did not retain both allowed regions')
     call require(has_tangent_lower_endpoint(result%allowed_intervals, 1), &
         'the endpoint tangency was not classified')
-    call launch_gc_cylindrical_class(adapter, 0.75_dp, 1, 1, launch_plus, &
+    call require(result%allowed_intervals(1)%root_isolation_certified, &
+        'provider root certificate was not retained')
+    call launch_gc_cylindrical_class(split_adapter, 0.75_dp, 1, 1, launch_plus, &
         status)
     call require(status == GC_CYL_CLASS_SPLITTER_UNAVAILABLE, &
         'uncertified allowed interval was launchable')
 
-    call evaluate_gc_cylindrical_class_point(adapter, 0.75_dp, 1, point_plus, &
+    call evaluate_gc_cylindrical_class_point(split_adapter, 0.75_dp, 1, point_plus, &
         point_status)
     call require(point_status == GC_CYL_CLASS_SUCCESS, &
         'positive-sigma manufactured point failed')
-    call evaluate_gc_cylindrical_class_point(adapter, 0.75_dp, -1, point_minus, &
+    call evaluate_gc_cylindrical_class_point(split_adapter, 0.75_dp, -1, point_minus, &
         point_status)
     call require(point_status == GC_CYL_CLASS_SUCCESS, &
         'negative-sigma manufactured point failed')
@@ -267,7 +472,10 @@ program test_gc_cylindrical_class_adapter
     call initialize_gc_cylindrical_class_adapter(field, potential, &
         H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
         manufactured_cut_map, split_adapter, status, options=options, &
-        splitter=identity_splitter)
+        splitter=identity_splitter, user_data=region_state, &
+        allowed_region_provider=manufactured_allowed_region_provider, &
+        allowed_region_verifier=manufactured_allowed_region_verifier, &
+        allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
     call require(status == GC_CYL_CLASS_SUCCESS, &
         'adapter initialization with splitter failed')
     call enumerate_gc_cylindrical_classes(split_adapter, split_result, status)
@@ -353,7 +561,10 @@ program test_gc_cylindrical_class_adapter
     call initialize_gc_cylindrical_class_adapter(field, potential, &
         H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
         manufactured_cut_map, uncertified_adapter, status, options=options, &
-        splitter=uncertified_splitter)
+        splitter=uncertified_splitter, user_data=region_state, &
+        allowed_region_provider=manufactured_allowed_region_provider, &
+        allowed_region_verifier=manufactured_allowed_region_verifier, &
+        allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
     call require(status == GC_CYL_CLASS_SUCCESS, &
         'uncertified-splitter adapter initialization failed')
     call enumerate_gc_cylindrical_classes(uncertified_adapter, &
@@ -367,9 +578,94 @@ program test_gc_cylindrical_class_adapter
     call require(status == GC_CYL_CLASS_NOT_ENUMERATED, &
         'failed splitter left stale classes launchable')
 
+    do i = 1, 5
+        call check_rejected_region_provider(i)
+    end do
+    call check_provider_metadata_is_not_proof()
+    call check_rejected_region_provider(7)
+    call check_rejected_region_provider(8)
+    call check_provider_verifier_contract()
+    call clear_gc_cylindrical_class_adapter(split_adapter)
+        call require(.not. associated(split_adapter%allowed_region_provider), &
+            'allowed-region callback pointer was not cleared')
+    call require(.not. associated(split_adapter%allowed_region_verifier), &
+        'allowed-region verifier pointer was not cleared')
+    call require(split_adapter%allowed_region_certificate_id == 0, &
+        'allowed-region certificate ID was not cleared')
+    call require(.not. associated(split_adapter%user_data), &
+        'borrowed callback context pointer was not cleared')
+
     write (*, '(A)') 'test_gc_cylindrical_class_adapter OK'
 
 contains
+
+    subroutine check_rejected_region_provider(mode)
+        integer, intent(in) :: mode
+
+        region_state%mode = mode
+        call initialize_gc_cylindrical_class_adapter(field, potential, &
+            H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+            manufactured_cut_map, malformed_adapter, status, options=options, &
+            user_data=region_state, &
+            allowed_region_provider=manufactured_allowed_region_provider, &
+            allowed_region_verifier=manufactured_allowed_region_verifier, &
+            allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+        call require(status == GC_CYL_CLASS_SUCCESS, &
+            'malformed provider adapter initialization failed')
+        call enumerate_gc_cylindrical_classes(malformed_adapter, &
+            malformed_result, status)
+        call require(status == GC_CYL_CLASS_SPLITTER_FAILURE, &
+            'malformed certified region data was accepted')
+        call require(.not. malformed_result%class_complete, &
+            'malformed certified region data claimed complete classes')
+        call clear_gc_cylindrical_class_adapter(malformed_adapter)
+        region_state%mode = 0
+    end subroutine check_rejected_region_provider
+
+    subroutine check_provider_metadata_is_not_proof()
+        region_state%mode = 6
+        call initialize_gc_cylindrical_class_adapter(field, potential, &
+            H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+            manufactured_cut_map, malformed_adapter, status, options=options, &
+            user_data=region_state, &
+            allowed_region_provider=manufactured_allowed_region_provider, &
+            allowed_region_verifier=manufactured_allowed_region_verifier, &
+            allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+        call require(status == GC_CYL_CLASS_SUCCESS, &
+            'metadata-only provider initialization failed')
+        call enumerate_gc_cylindrical_classes(malformed_adapter, &
+            malformed_result, status)
+        call require(status == GC_CYL_CLASS_SPLITTER_UNAVAILABLE, &
+            'verifier rejected harmless provider metadata')
+        call require(malformed_result%nallowed_intervals == 4, &
+            'verified metadata-only provider lost intervals')
+        call require(malformed_result%allowed_intervals(1)%topology_certified, &
+            'adapter did not retain verifier certification')
+        call clear_gc_cylindrical_class_adapter(malformed_adapter)
+        region_state%mode = 0
+    end subroutine check_provider_metadata_is_not_proof
+
+    subroutine check_provider_verifier_contract()
+        region_state%mode = 0
+        call initialize_gc_cylindrical_class_adapter(field, potential, &
+            H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+            manufactured_cut_map, malformed_adapter, status, options=options, &
+            user_data=region_state, &
+            allowed_region_provider=manufactured_allowed_region_provider)
+        call require(status /= GC_CYL_CLASS_SUCCESS, &
+            'provider without verifier was accepted')
+
+        call initialize_gc_cylindrical_class_adapter(field, potential, &
+            H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+            manufactured_cut_map, malformed_adapter, status, options=options, &
+            user_data=region_state, &
+            allowed_region_provider=manufactured_allowed_region_provider, &
+            allowed_region_verifier=manufactured_allowed_region_verifier, &
+            allowed_region_certificate_id=0)
+        call require(status /= GC_CYL_CLASS_SUCCESS, &
+            'nonpositive expected certificate ID was accepted')
+        call clear_gc_cylindrical_class_adapter(malformed_adapter)
+    end subroutine check_provider_verifier_contract
 
     subroutine uncertified_splitter(h0, jperp, sigma, candidate, user_data, &
             split_classes, certified, status)

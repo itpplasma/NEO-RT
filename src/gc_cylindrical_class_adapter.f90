@@ -150,6 +150,29 @@ module neort_gc_cylindrical_class_adapter
     end type gc_cylindrical_class_result_t
 
     abstract interface
+        subroutine gc_cylindrical_allowed_region_provider_i(h0, jperp, sigma, &
+                user_data, regions, status)
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_allowed_region_set_t
+            real(dp), intent(in) :: h0, jperp
+            integer, intent(in) :: sigma
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
+            type(gc_cylindrical_allowed_region_set_t), intent(out) :: regions
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_allowed_region_provider_i
+
+        subroutine gc_cylindrical_allowed_region_verifier_i(h0, jperp, sigma, &
+                rc_min, rc_max, regions, user_data, certificate_id, status)
+            import :: dp, gc_callback_context_t, &
+                gc_cylindrical_allowed_region_set_t
+            real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+            integer, intent(in) :: sigma
+            type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+            class(gc_callback_context_t), pointer, intent(inout) :: user_data
+            integer, intent(out) :: certificate_id
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_allowed_region_verifier_i
+
         subroutine gc_cylindrical_class_cut_map_i(rc, user_data, position, &
                 dposition_drc, status)
             import :: dp, gc_callback_context_t
@@ -191,9 +214,16 @@ module neort_gc_cylindrical_class_adapter
             cut_map => null()
         procedure(gc_cylindrical_class_splitter_i), pointer, nopass :: &
             splitter => null()
+        procedure(gc_cylindrical_allowed_region_provider_i), pointer, nopass :: &
+            allowed_region_provider => null()
+        procedure(gc_cylindrical_allowed_region_verifier_i), pointer, nopass :: &
+            allowed_region_verifier => null()
+        integer :: allowed_region_certificate_id = 0
         ! Borrowed target; the caller must keep it alive until this adapter is
         ! cleared and must not copy the adapter past that target's lifetime.
         class(gc_callback_context_t), pointer :: user_data => null()
+        ! Provider data is only input to the typed verifier; its flags and
+        ! labels are never treated as a topology proof.
         logical :: initialized = .false.
         logical :: classes_enumerated = .false.
         logical :: class_complete = .false.
@@ -202,6 +232,8 @@ module neort_gc_cylindrical_class_adapter
 
     public :: gc_cylindrical_class_cut_map_i
     public :: gc_cylindrical_class_splitter_i
+    public :: gc_cylindrical_allowed_region_provider_i
+    public :: gc_cylindrical_allowed_region_verifier_i
     public :: initialize_gc_cylindrical_class_adapter
     public :: clear_gc_cylindrical_class_adapter
     public :: evaluate_gc_cylindrical_class_point
@@ -212,7 +244,8 @@ contains
 
     subroutine initialize_gc_cylindrical_class_adapter(field_model, potential_model, &
             h0, jperp, mass, charge, c_light, rc_min, rc_max, cut_map, adapter, &
-            status, options, splitter, user_data)
+            status, options, splitter, user_data, allowed_region_provider, &
+            allowed_region_verifier, allowed_region_certificate_id)
         class(gc_cylindrical_field_t), target, intent(in) :: field_model
         class(gc_cylindrical_potential_t), target, intent(in) :: potential_model
         real(dp), intent(in) :: h0, jperp, mass, charge, c_light, rc_min, rc_max
@@ -224,6 +257,11 @@ contains
         ! Stored as a borrowed pointer; user_data must outlive adapter and all
         ! callback use, and the adapter must be cleared before it is invalidated.
         class(gc_callback_context_t), target, intent(inout), optional :: user_data
+        procedure(gc_cylindrical_allowed_region_provider_i), optional :: &
+            allowed_region_provider
+        procedure(gc_cylindrical_allowed_region_verifier_i), optional :: &
+            allowed_region_verifier
+        integer, intent(in), optional :: allowed_region_certificate_id
 
         adapter%h0 = 0.0_dp
         adapter%jperp = 0.0_dp
@@ -237,7 +275,10 @@ contains
         nullify(adapter%potential)
         nullify(adapter%cut_map)
         nullify(adapter%splitter)
+        nullify(adapter%allowed_region_provider)
+        nullify(adapter%allowed_region_verifier)
         nullify(adapter%user_data)
+        adapter%allowed_region_certificate_id = 0
         if (allocated(adapter%intervals)) deallocate(adapter%intervals)
         adapter%initialized = .false.
         adapter%classes_enumerated = .false.
@@ -251,6 +292,14 @@ contains
         if (abs(charge) <= tiny(charge)) return
         if (c_light <= 0.0_dp) return
         if (rc_max <= rc_min) return
+        if (present(allowed_region_provider)) then
+            if (.not. present(allowed_region_verifier)) return
+            if (.not. present(allowed_region_certificate_id)) return
+            if (allowed_region_certificate_id <= 0) return
+        else
+            if (present(allowed_region_verifier)) return
+            if (present(allowed_region_certificate_id)) return
+        end if
         if (present(options)) then
             if (options%scan_points < 2) return
             if (options%validation_points < 2) return
@@ -270,6 +319,11 @@ contains
         adapter%potential => potential_model
         adapter%cut_map => cut_map
         if (present(splitter)) adapter%splitter => splitter
+        if (present(allowed_region_provider)) then
+            adapter%allowed_region_provider => allowed_region_provider
+            adapter%allowed_region_verifier => allowed_region_verifier
+            adapter%allowed_region_certificate_id = allowed_region_certificate_id
+        end if
         if (present(user_data)) adapter%user_data => user_data
         adapter%initialized = .true.
         status = GC_CYL_CLASS_SUCCESS
@@ -283,7 +337,10 @@ contains
         nullify(adapter%potential)
         nullify(adapter%cut_map)
         nullify(adapter%splitter)
+        nullify(adapter%allowed_region_provider)
+        nullify(adapter%allowed_region_verifier)
         nullify(adapter%user_data)
+        adapter%allowed_region_certificate_id = 0
         adapter%initialized = .false.
         adapter%classes_enumerated = .false.
         adapter%class_complete = .false.
@@ -464,6 +521,7 @@ contains
         type(gc_cylindrical_class_interval_t) :: interval
         integer :: sigma, i, j, local_status, nraw, nclass
         logical :: certified
+        integer :: certificate_id
 
         result = gc_cylindrical_class_result_t()
         adapter%classes_enumerated = .false.
@@ -483,26 +541,57 @@ contains
 
         nraw = 0
         do sigma = -1, 1, 2
-            call find_gc_cylindrical_allowed_regions(evaluate_sigma, &
-                adapter%rc_min, adapter%rc_max, adapter%options%scan_points, &
-                sigma, regions, local_status)
-            if (local_status /= GC_CYL_SUCCESS) then
-                status = GC_CYL_CLASS_INTERIOR_INVALID
-                result%status = status
-                return
-            end if
-            if (.not. regions%topology_certified) then
-                ! The sampler returns useful diagnostics, but finite values
-                ! and finite-difference slopes cannot exclude a missed even
-                ! root, an X point, or a separatrix.  Only a generated
-                ! interval/root-isolation certificate may cross this gate.
-                status = GC_CYL_CLASS_SPLITTER_FAILURE
-                result%status = status
-                return
+            if (associated(adapter%allowed_region_provider)) then
+                call adapter%allowed_region_provider(adapter%h0, adapter%jperp, &
+                    sigma, adapter%user_data, regions, local_status)
+                if (local_status /= GC_CYL_SUCCESS) then
+                    status = GC_CYL_CLASS_INTERIOR_INVALID
+                    result%status = status
+                    return
+                end if
+                call adapter%allowed_region_verifier(adapter%h0, adapter%jperp, &
+                    sigma, adapter%rc_min, adapter%rc_max, regions, &
+                    adapter%user_data, certificate_id, local_status)
+                if (local_status /= GC_CYL_SUCCESS) then
+                    result%status = GC_CYL_CLASS_SPLITTER_FAILURE
+                    status = GC_CYL_CLASS_SPLITTER_FAILURE
+                    return
+                end if
+                if (certificate_id /= adapter%allowed_region_certificate_id) then
+                    result%status = GC_CYL_CLASS_SPLITTER_FAILURE
+                    status = GC_CYL_CLASS_SPLITTER_FAILURE
+                    return
+                end if
+                call validate_certified_regions(adapter, sigma, regions, &
+                    local_status)
+                if (local_status /= GC_CYL_CLASS_SUCCESS) then
+                    result%status = local_status
+                    status = local_status
+                    return
+                end if
+            else
+                call find_gc_cylindrical_allowed_regions(evaluate_sigma, &
+                    adapter%rc_min, adapter%rc_max, adapter%options%scan_points, &
+                    sigma, regions, local_status)
+                if (local_status /= GC_CYL_SUCCESS) then
+                    status = GC_CYL_CLASS_INTERIOR_INVALID
+                    result%status = status
+                    return
+                end if
+                if (.not. regions%topology_certified) then
+                    ! The sampler returns useful diagnostics, but finite values
+                    ! and finite-difference slopes cannot exclude a missed even
+                    ! root, an X point, or a separatrix.  Only a generated
+                    ! interval/root-isolation certificate may cross this gate.
+                    status = GC_CYL_CLASS_SPLITTER_FAILURE
+                    result%status = status
+                    return
+                end if
             end if
             do i = 1, regions%ncomponents
                 call interval_from_topology(adapter, regions%components(i), &
-                    interval, local_status)
+                    interval, local_status, &
+                    associated(adapter%allowed_region_provider))
                 if (local_status /= GC_CYL_CLASS_SUCCESS) then
                     result%status = local_status
                     status = local_status
@@ -609,6 +698,120 @@ contains
         end subroutine evaluate_sigma
 
     end subroutine enumerate_gc_cylindrical_classes
+
+    subroutine validate_certified_regions(adapter, sigma, regions, status)
+        type(gc_cylindrical_class_adapter_t), intent(in) :: adapter
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+        integer, intent(out) :: status
+
+        integer :: i, j
+        real(dp) :: bound_tolerance, measure_sum, measure_tolerance
+        real(dp) :: previous_end
+        logical :: root_found
+
+        status = GC_CYL_CLASS_SPLITTER_FAILURE
+        ! topology_certified and certificate_method are provider metadata, not
+        ! proofs.  The typed verifier and its adapter-owned certificate ID
+        ! have already established certification before this structural check.
+        if (regions%nroots < 0) return
+        if (regions%ncomponents < 0) return
+        if (.not. ieee_is_finite(regions%total_canonical_measure)) return
+        if (regions%total_canonical_measure < 0.0_dp) return
+
+        bound_tolerance = 100.0_dp*adapter%options%allowed_tolerance*max(1.0_dp, &
+            max(abs(adapter%rc_min), abs(adapter%rc_max)))
+
+        if (regions%nroots > 0) then
+            if (.not. allocated(regions%roots)) return
+            if (.not. allocated(regions%root_canonical)) return
+            if (size(regions%roots) /= regions%nroots) return
+            if (size(regions%root_canonical) /= regions%nroots) return
+        else
+            if (allocated(regions%roots)) then
+                if (size(regions%roots) /= 0) return
+            end if
+            if (allocated(regions%root_canonical)) then
+                if (size(regions%root_canonical) /= 0) return
+            end if
+        end if
+        if (regions%nroots > 0) then
+            if (.not. all(ieee_is_finite(regions%roots))) return
+            if (.not. all(ieee_is_finite(regions%root_canonical))) return
+            do i = 1, regions%nroots
+                if (regions%roots(i) < adapter%rc_min - bound_tolerance) return
+                if (regions%roots(i) > adapter%rc_max + bound_tolerance) return
+                if (i > 1) then
+                    if (regions%roots(i) <= regions%roots(i - 1)) return
+                end if
+            end do
+        end if
+
+        if (regions%ncomponents > 0) then
+            if (.not. allocated(regions%components)) return
+            if (size(regions%components) /= regions%ncomponents) return
+        else
+            if (allocated(regions%components)) then
+                if (size(regions%components) /= 0) return
+            end if
+            if (regions%total_canonical_measure > bound_tolerance) return
+            status = GC_CYL_CLASS_SUCCESS
+            return
+        end if
+
+        previous_end = adapter%rc_min
+        measure_sum = 0.0_dp
+        do i = 1, regions%ncomponents
+            if (regions%components(i)%component_id <= 0) return
+            if (regions%components(i)%sigma /= sigma) return
+            if (.not. all(ieee_is_finite([regions%components(i)%x_begin, &
+                regions%components(i)%x_end, &
+                regions%components(i)%canonical_begin, &
+                regions%components(i)%canonical_end, &
+                regions%components(i)%canonical_measure]))) return
+            if (regions%components(i)%x_begin < adapter%rc_min - &
+                bound_tolerance) return
+            if (regions%components(i)%x_end > adapter%rc_max + &
+                bound_tolerance) return
+            if (regions%components(i)%x_end <= regions%components(i)%x_begin) return
+            if (regions%components(i)%x_begin < previous_end - bound_tolerance) return
+            if (regions%components(i)%canonical_measure <= 0.0_dp) return
+            do j = 1, i - 1
+                if (regions%components(j)%component_id == &
+                    regions%components(i)%component_id) return
+            end do
+            if (regions%components(i)%lower_root) then
+                root_found = .false.
+                do j = 1, regions%nroots
+                    if (abs(regions%roots(j) - regions%components(i)%x_begin) &
+                        <= bound_tolerance) then
+                        root_found = .true.
+                        exit
+                    end if
+                end do
+                if (.not. root_found) return
+            end if
+            if (regions%components(i)%upper_root) then
+                root_found = .false.
+                do j = 1, regions%nroots
+                    if (abs(regions%roots(j) - regions%components(i)%x_end) &
+                        <= bound_tolerance) then
+                        root_found = .true.
+                        exit
+                    end if
+                end do
+                if (.not. root_found) return
+            end if
+            measure_sum = measure_sum + regions%components(i)%canonical_measure
+            previous_end = regions%components(i)%x_end
+        end do
+        if (measure_sum <= 0.0_dp) return
+        measure_tolerance = 1000.0_dp*epsilon(measure_sum)*max(1.0_dp, &
+            max(abs(measure_sum), abs(regions%total_canonical_measure)))
+        if (abs(measure_sum - regions%total_canonical_measure) > &
+            measure_tolerance) return
+        status = GC_CYL_CLASS_SUCCESS
+    end subroutine validate_certified_regions
 
     subroutine launch_gc_cylindrical_class(adapter, rc, sigma, component_id, &
             launch, status)
@@ -728,6 +931,13 @@ contains
         if (abs(adapter%charge) <= tiny(adapter%charge)) return
         if (adapter%c_light <= 0.0_dp) return
         if (adapter%rc_max <= adapter%rc_min) return
+        if (associated(adapter%allowed_region_provider)) then
+            if (.not. associated(adapter%allowed_region_verifier)) return
+            if (adapter%allowed_region_certificate_id <= 0) return
+        else
+            if (associated(adapter%allowed_region_verifier)) return
+            if (adapter%allowed_region_certificate_id /= 0) return
+        end if
         validate_adapter = GC_CYL_CLASS_SUCCESS
     end function validate_adapter
 
@@ -760,11 +970,13 @@ contains
         end do
     end subroutine validate_cut_samples
 
-    subroutine interval_from_topology(adapter, component, interval, status)
+    subroutine interval_from_topology(adapter, component, interval, status, &
+            certified)
         type(gc_cylindrical_class_adapter_t), intent(inout) :: adapter
         type(gc_cylindrical_allowed_component_t), intent(in) :: component
         type(gc_cylindrical_class_interval_t), intent(out) :: interval
         integer, intent(out) :: status
+        logical, intent(in) :: certified
 
         type(gc_cylindrical_class_point_t) :: lower_point, upper_point
         real(dp) :: scale
@@ -780,14 +992,27 @@ contains
         interval%canonical_measure = component%canonical_measure
         interval%lower_root = component%lower_root
         interval%upper_root = component%upper_root
-        ! Never infer certification from the presence of sampled endpoints.
-        ! The interval must originate from the generated interval/root
-        ! isolation contract; this legacy finite-scan path is diagnostic only.
-        interval%topology_certified = .false.
-        interval%root_isolation_certified = .false.
+        ! Certification reaches this helper only after the typed provider's
+        ! interval/root contract has passed validation.  The legacy finite scan
+        ! never reaches it because its topology certificate is false.
+        interval%topology_certified = certified
+        interval%root_isolation_certified = certified
         interval%lower_boundary_kind = 'unresolved'
         interval%upper_boundary_kind = 'unresolved'
         interval%limiting_chart = 'unresolved'
+        if (certified) then
+            if (component%lower_root) then
+                interval%lower_boundary_kind = 'certified-root'
+            else
+                interval%lower_boundary_kind = 'certified-bound'
+            end if
+            if (component%upper_root) then
+                interval%upper_boundary_kind = 'certified-root'
+            else
+                interval%upper_boundary_kind = 'certified-bound'
+            end if
+            interval%limiting_chart = 'certified-provider'
+        end if
         scale = max(1.0_dp, abs(2.0_dp*adapter%h0/adapter%mass))
         call evaluate_gc_cylindrical_class_point(adapter, interval%rc_min, &
             interval%sigma, lower_point, lower_status)
@@ -811,7 +1036,11 @@ contains
             interval%upper_tangent = abs(upper_point%dvparallel_squared_drc) &
                 <= adapter%options%tangency_tolerance*scale
         end if
-        status = GC_CYL_CLASS_SPLITTER_FAILURE
+        if (certified) then
+            status = GC_CYL_CLASS_SUCCESS
+        else
+            status = GC_CYL_CLASS_SPLITTER_FAILURE
+        end if
     end subroutine interval_from_topology
 
     subroutine validate_split(adapter, candidate, split, certified, status)

@@ -1,14 +1,19 @@
 module gc_cylindrical_transport_provider_test_support
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_callback_context, only: gc_callback_context_t
     use neort_gc_cylindrical_class_adapter, only: &
-        GC_CYL_CLASS_SUCCESS, gc_cylindrical_class_adapter_t, &
+        GC_CYL_CLASS_INVALID_INPUT, GC_CYL_CLASS_SUCCESS, &
+        gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_launch_t, &
         initialize_gc_cylindrical_class_adapter
     use neort_gc_cylindrical_model, only: &
         GC_CYL_SUCCESS, gc_cylindrical_field_sample_t, &
+        gc_cylindrical_allowed_component_t, &
         gc_cylindrical_field_t, gc_cylindrical_potential_t, &
         make_gc_cylindrical_field_sample
+    use neort_gc_cylindrical_topology, only: &
+        gc_cylindrical_allowed_region_set_t
     use neort_gc_cylindrical_nonlocal_provider, only: &
         GC_CYL_NONLOCAL_ORBIT_VALID, GC_CYL_NONLOCAL_ORBIT_WALL, &
         GC_CYL_NONLOCAL_SUCCESS, GC_CYL_NONLOCAL_WALL_CLEAR, &
@@ -28,6 +33,7 @@ module gc_cylindrical_transport_provider_test_support
     real(dp), parameter, public :: H0_REFERENCE = 4.0_dp
     real(dp), parameter, public :: JPERP_REFERENCE = 0.5_dp
     real(dp), parameter, public :: PI = 3.14159265358979323846264338328_dp
+    integer, parameter :: TRANSPORT_CERTIFICATE_ID = 271
 
     type, public, extends(gc_callback_context_t) :: transport_test_state_t
         real(dp) :: width = 1.0_dp
@@ -139,6 +145,98 @@ contains
         certified = .true.
     end subroutine transport_splitter
 
+    subroutine transport_allowed_region_provider(h0, jperp, sigma, user_data, &
+            regions, status)
+        real(dp), intent(in) :: h0, jperp
+        integer, intent(in) :: sigma
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_allowed_region_set_t), intent(out) :: regions
+        integer, intent(out) :: status
+
+        type(transport_test_state_t), pointer :: state
+
+        regions = gc_cylindrical_allowed_region_set_t()
+        status = GC_CYL_CLASS_INVALID_INPUT
+        if (h0 <= 0.0_dp .or. jperp < 0.0_dp) then
+            return
+        end if
+        if (abs(sigma) /= 1) then
+            return
+        end if
+        if (.not. associated(user_data)) then
+            return
+        end if
+        select type (user_data)
+            type is (transport_test_state_t)
+                state => user_data
+            class default
+                return
+        end select
+        if (state%width <= 0.0_dp) then
+            return
+        end if
+        regions%nroots = 0
+        regions%ncomponents = 1
+        allocate(regions%components(1))
+        regions%components(1) = gc_cylindrical_allowed_component_t( &
+            component_id=1, sigma=sigma, &
+            x_begin=-0.5_dp*state%width, x_end=0.5_dp*state%width, &
+            canonical_begin=-0.5_dp*state%width, &
+            canonical_end=0.5_dp*state%width, &
+            canonical_measure=state%width)
+        regions%total_canonical_measure = state%width
+        regions%topology_certified = .false.
+        regions%certificate_method = 'transport-provider-label-is-not-proof'
+        status = GC_CYL_CLASS_SUCCESS
+    end subroutine transport_allowed_region_provider
+
+    subroutine transport_allowed_region_verifier(h0, jperp, sigma, rc_min, &
+            rc_max, regions, user_data, certificate_id, status)
+        real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        integer, intent(out) :: certificate_id
+        integer, intent(out) :: status
+
+        type(transport_test_state_t), pointer :: state
+        real(dp) :: x_min, x_max, tolerance
+
+        certificate_id = 0
+        status = GC_CYL_CLASS_INVALID_INPUT
+        if (.not. all(ieee_is_finite([h0, jperp, rc_min, rc_max]))) return
+        if (h0 <= 0.0_dp .or. jperp < 0.0_dp) return
+        if (abs(sigma) /= 1) return
+        if (.not. associated(user_data)) return
+        select type (user_data)
+            type is (transport_test_state_t)
+                state => user_data
+            class default
+                return
+        end select
+        if (state%width <= 0.0_dp) return
+        x_min = -0.5_dp*state%width
+        x_max = 0.5_dp*state%width
+        tolerance = 1.0e-13_dp*max(1.0_dp, state%width)
+        if (abs(rc_min - x_min) > tolerance) return
+        if (abs(rc_max - x_max) > tolerance) return
+        if (regions%nroots /= 0) return
+        if (regions%ncomponents /= 1) return
+        if (.not. allocated(regions%components)) return
+        if (size(regions%components) /= 1) return
+        if (regions%components(1)%component_id /= 1) return
+        if (regions%components(1)%sigma /= sigma) return
+        if (abs(regions%components(1)%x_begin - x_min) > tolerance) return
+        if (abs(regions%components(1)%x_end - x_max) > tolerance) return
+        if (abs(regions%components(1)%canonical_begin - x_min) > tolerance) return
+        if (abs(regions%components(1)%canonical_end - x_max) > tolerance) return
+        if (abs(regions%components(1)%canonical_measure - state%width) &
+            > tolerance) return
+        if (abs(regions%total_canonical_measure - state%width) > tolerance) return
+        certificate_id = TRANSPORT_CERTIFICATE_ID
+        status = GC_CYL_CLASS_SUCCESS
+    end subroutine transport_allowed_region_verifier
+
     subroutine transport_node_factory(h0, jperp, user_data, adapter, context, &
             status)
         real(dp), intent(in) :: h0, jperp
@@ -162,12 +260,18 @@ contains
         call initialize_gc_cylindrical_class_adapter(test_field, test_potential, &
             h0, jperp, MASS, CHARGE, C_LIGHT, -0.5_dp*state%width, &
             0.5_dp*state%width, transport_cut_map, adapter, status, &
-            splitter=transport_splitter, user_data=state)
+            splitter=transport_splitter, user_data=state, &
+            allowed_region_provider=transport_allowed_region_provider, &
+            allowed_region_verifier=transport_allowed_region_verifier, &
+            allowed_region_certificate_id=TRANSPORT_CERTIFICATE_ID)
         if (state%omit_splitter) then
             call initialize_gc_cylindrical_class_adapter(test_field, &
                 test_potential, h0, jperp, MASS, CHARGE, C_LIGHT, &
                 -0.5_dp*state%width, 0.5_dp*state%width, transport_cut_map, &
-                adapter, status, user_data=state)
+                adapter, status, user_data=state, &
+                allowed_region_provider=transport_allowed_region_provider, &
+                allowed_region_verifier=transport_allowed_region_verifier, &
+                allowed_region_certificate_id=TRANSPORT_CERTIFICATE_ID)
         end if
         if (status /= GC_CYL_CLASS_SUCCESS) return
         section_reference = [2.0_dp, 0.0_dp, 0.0_dp]
