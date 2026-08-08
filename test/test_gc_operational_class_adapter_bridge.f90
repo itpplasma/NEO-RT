@@ -204,4 +204,11 @@ contains
         mapping%mapped_class_enclosure = gc_interval_t(coordinate, coordinate)
     end function root_map
 
+    subroutine require(condition, message)
+        logical, intent(in) :: condition
+        character(len=*), intent(in) :: message
+
+        if (.not. condition) error stop message
+    end subroutine require
+
 end program test_gc_operational_class_adapter_bridge
