@@ -6,11 +6,13 @@ program test_gc_eqdsk_cut_graph_atlas
     use neort_gc_eqdsk_cut_graph_atlas, only: &
         EQDSK_CUT_ATLAS_SUCCESS, EQDSK_CUT_GRAPH_CERTIFICATE_ID, &
         build_eqdsk_cut_graph_atlas, clear_eqdsk_cut_graph_atlas, &
+        enclose_eqdsk_cut_graph_strip, &
         eqdsk_cut_graph_atlas_options_t, eqdsk_cut_graph_atlas_t, &
         map_eqdsk_cut_graph_atlas, map_eqdsk_cut_graph_atlas_flux, &
         validate_eqdsk_cut_graph_atlas
     use neort_gc_eqdsk_cut_jet, only: EQDSK_CUT_JET_SUCCESS, &
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
+    use neort_gc_eqdsk_cut_interval, only: eqdsk_cut_interval_result_t
     use neort_gc_eqdsk_axis_certificate, only: &
         EQDSK_AXIS_CERT_SUCCESS, build_eqdsk_axis_certificate, &
         eqdsk_axis_certificate_t, validate_eqdsk_axis_certificate
@@ -108,7 +110,8 @@ contains
         real(dp) :: endpoint_position(3), endpoint_tangent(3)
         real(dp) :: scale, endpoint_flux(2), target_flux
         type(eqdsk_cut_jet_t) :: jet
-        integer :: i, local_status, jet_status
+        type(eqdsk_cut_interval_result_t), allocatable :: enclosures(:)
+        integer :: i, local_status, jet_status, strip_index
 
         call require(atlas%global_completeness_certified, &
             'regular branch did not record rectangular completeness')
@@ -134,6 +137,28 @@ contains
                 'optional and vector cut slopes disagree')
             call require(dpsihat_dR == dpsihat_dR, &
                 'cut flux derivative is nonfinite')
+        end do
+        do strip_index = 1, size(atlas%strips)
+            radius = 0.5_dp*(atlas%strips(strip_index)%r_lo + &
+                atlas%strips(strip_index)%r_hi)
+            call enclose_eqdsk_cut_graph_strip(atlas, strip_index, radius, &
+                radius, enclosures, local_status)
+            call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+                'certified graph point enclosure failed')
+            call require(allocated(enclosures), &
+                'certified graph point enclosure was not allocated')
+            call require(size(enclosures) > 0, &
+                'certified graph point enclosure was empty')
+            call map_eqdsk_cut_graph_atlas(atlas, radius, position, &
+                dposition, status=local_status)
+            call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+                'point-enclosure scalar map failed')
+            call evaluate_eqdsk_cut_jet(position, 1.0_dp, 1, &
+                [0.0_dp, 0.0_dp, 0.0_dp], jet, jet_status)
+            call require(jet_status == EQDSK_CUT_JET_SUCCESS, &
+                'point-enclosure scalar jet failed')
+            call require(any_enclosure_contains(enclosures, jet), &
+                'interval graph cover excluded its analytic midplane root')
         end do
         call map_eqdsk_cut_graph_atlas(atlas, r_lo, endpoint_position, &
             endpoint_tangent, status=local_status)
@@ -166,6 +191,27 @@ contains
             2.0e-10_dp*max(1.0_dp, abs(target_flux)), &
             'inverse branch map missed its normalized-flux target')
     end subroutine check_regular_branch
+
+    logical function any_enclosure_contains(enclosures, jet)
+        type(eqdsk_cut_interval_result_t), intent(in) :: enclosures(:)
+        type(eqdsk_cut_jet_t), intent(in) :: jet
+
+        integer :: i
+
+        any_enclosure_contains = .false.
+        do i = 1, size(enclosures)
+            if (enclosures(i)%psi%lo > jet%psi_jet(1)) cycle
+            if (enclosures(i)%psi%hi < jet%psi_jet(1)) cycle
+            if (enclosures(i)%psi_R%lo > jet%psi_jet(2)) cycle
+            if (enclosures(i)%psi_R%hi < jet%psi_jet(2)) cycle
+            if (enclosures(i)%psi_Z%lo > jet%psi_jet(3)) cycle
+            if (enclosures(i)%psi_Z%hi < jet%psi_jet(3)) cycle
+            if (enclosures(i)%numerator%lo > 0.0_dp) cycle
+            if (enclosures(i)%numerator%hi < 0.0_dp) cycle
+            any_enclosure_contains = .true.
+            return
+        end do
+    end function any_enclosure_contains
 
     subroutine require(condition, message)
         logical, intent(in) :: condition

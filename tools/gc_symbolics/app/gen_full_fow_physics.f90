@@ -272,6 +272,8 @@ program gen_full_fow_physics
     type(expr_t) :: allowed_f_local, allowed_g_local
     type(expr_t) :: allowed_bmod_local, allowed_potential_local
     type(expr_t) :: allowed_energy_local
+    type(expr_t) :: allowed_g_second_series
+    type(expr_t) :: allowed_potential_second_series
     type(expr_t) :: allowed_parallel_sign, allowed_vparallel
     type(expr_t) :: allowed_dvparallel_dr, allowed_psi_physical
     type(expr_t) :: allowed_dpsi_physical_dr, allowed_psi_star
@@ -475,6 +477,8 @@ program gen_full_fow_physics
     type(expr_t) :: invariant_ppar_squared, invariant_launch_residual
     type(engine_result_t) :: simplified
     type(engine_result_t) :: resonance_series
+    type(engine_result_t) :: allowed_g_second_series_result
+    type(engine_result_t) :: allowed_potential_second_series_result
     character(2048) :: output_path
     integer :: argument_status, output_length, k, i, j
 
@@ -1875,6 +1879,20 @@ program gen_full_fow_physics
         allowed_dpsi_dr*allowed_x)**2/2
     allowed_energy_local = h-jk*abs(charge)*allowed_bmod_local/ &
         (mass*c_light)-charge*allowed_potential_local
+    allowed_g_second_series_result = simplify_engine%series_coeff( &
+        allowed_g_local, allowed_x, zero, 2)
+    if (.not. allowed_g_second_series_result%ok) then
+        error stop "fortsym could not derive Eq13 field-norm second jet"
+    end if
+    allowed_g_second_series = allowed_g_second_series_result%value
+    allowed_potential_second_series_result = &
+        simplify_engine%series_coeff(allowed_potential_local, allowed_x, &
+        zero, 2)
+    if (.not. allowed_potential_second_series_result%ok) then
+        error stop "fortsym could not derive Eq13 potential second jet"
+    end if
+    allowed_potential_second_series = &
+        allowed_potential_second_series_result%value
 
     ! The regular canonical chart is evaluated only where v_parallel^2>0.
     ! Its square-root singularity at a simple turning point is replaced by
@@ -2458,8 +2476,7 @@ program gen_full_fow_physics
         allowed_dbmod_dr)
     call check_identity(proofs, proof_engine, &
         "Eq13 path field norm second derivative", &
-        subs(diff(diff(allowed_g_local, allowed_x), allowed_x), &
-        allowed_x, zero)-allowed_d2g_dr2)
+        2*allowed_g_second_series-allowed_d2g_dr2)
     call check_identity(proofs, proof_engine, &
         "Eq13 square-root field norm second chain rule", &
         2*(allowed_dsqrt_g_dr**2 + &
@@ -2477,8 +2494,7 @@ program gen_full_fow_physics
         allowed_denergy_dr)
     call check_identity(proofs, proof_engine, &
         "Eq13 potential second path chain rule", &
-        subs(diff(diff(allowed_potential_local, allowed_x), allowed_x), &
-        allowed_x, zero) - &
+        2*allowed_potential_second_series - &
         (allowed_d2phi_dpsi2*(allowed_field_scale*allowed_dpsi_dr)**2 + &
         allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2))
     call check_identity(proofs, proof_engine, &

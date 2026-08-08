@@ -87,6 +87,7 @@ module neort_gc_eqdsk_cut_graph_atlas
     public :: validate_eqdsk_cut_graph_atlas
     public :: map_eqdsk_cut_graph_atlas
     public :: map_eqdsk_cut_graph_atlas_flux
+    public :: enclose_eqdsk_cut_graph_strip
 
     integer, parameter :: Z_COVER_SUCCESS = 0
     integer, parameter :: Z_COVER_UNRESOLVED = 1
@@ -198,6 +199,62 @@ contains
 
         status = validate_atlas_structure(atlas, .true.)
     end subroutine validate_eqdsk_cut_graph_atlas
+
+    subroutine enclose_eqdsk_cut_graph_strip(atlas, strip_index, r_lo, r_hi, &
+            enclosures, status)
+        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        integer, intent(in) :: strip_index
+        real(dp), intent(in) :: r_lo, r_hi
+        type(eqdsk_cut_interval_result_t), allocatable, intent(out) :: &
+            enclosures(:)
+        integer, intent(out) :: status
+
+        type(eqdsk_cut_graph_atlas_t) :: working
+        type(eqdsk_cut_graph_atlas_strip_t) :: certified_strip
+        type(candidate_leaf_t), allocatable :: candidates(:)
+        integer :: i, n_candidates, outcome, local_status
+
+        if (allocated(enclosures)) deallocate(enclosures)
+        status = EQDSK_CUT_ATLAS_INVALID_INPUT
+        if (.not. all(ieee_is_finite([r_lo, r_hi]))) return
+        if (r_hi < r_lo) return
+        if (.not. allocated(atlas%strips)) return
+        if (strip_index < 1 .or. strip_index > size(atlas%strips)) return
+        if (r_lo < atlas%strips(strip_index)%r_lo .or. &
+                r_hi > atlas%strips(strip_index)%r_hi) return
+        if (atlas%certificate_id /= EQDSK_CUT_GRAPH_CERTIFICATE_ID .or. &
+                .not. atlas%global_completeness_certified) then
+            status = EQDSK_CUT_ATLAS_INVALID_CERTIFICATE
+            return
+        end if
+
+        working = atlas
+        call collect_slab_candidates(working, &
+            atlas%strips(strip_index)%cell_R, r_lo, r_hi, candidates, &
+            n_candidates, outcome, local_status)
+        if (outcome /= Z_COVER_SUCCESS) then
+            status = local_status
+            if (status == EQDSK_CUT_ATLAS_SUCCESS) then
+                status = EQDSK_CUT_ATLAS_UNRESOLVED
+            end if
+            return
+        end if
+        call assemble_candidate_band(working, &
+            atlas%strips(strip_index)%cell_R, r_lo, r_hi, candidates, &
+            n_candidates, certified_strip, outcome, local_status)
+        if (outcome /= Z_COVER_SUCCESS) then
+            status = local_status
+            if (status == EQDSK_CUT_ATLAS_SUCCESS) then
+                status = EQDSK_CUT_ATLAS_UNRESOLVED
+            end if
+            return
+        end if
+        allocate(enclosures(n_candidates))
+        do i = 1, n_candidates
+            enclosures(i) = candidates(i)%interval
+        end do
+        status = EQDSK_CUT_ATLAS_SUCCESS
+    end subroutine enclose_eqdsk_cut_graph_strip
 
     subroutine map_eqdsk_cut_graph_atlas(atlas, radius, position, &
             dposition_dR, dZ_dR, dpsihat_dR, status)
@@ -464,14 +521,35 @@ contains
         type(eqdsk_cut_graph_atlas_strip_t), intent(out) :: strip
         integer, intent(out) :: status
 
-        integer :: cell_Z, local_status, local_outcome, n_candidates
-        real(dp) :: box_lo, box_hi
+        integer :: n_candidates
         type(candidate_leaf_t), allocatable :: candidates(:)
 
         strip = eqdsk_cut_graph_atlas_strip_t()
         outcome = Z_COVER_UNRESOLVED
         status = EQDSK_CUT_ATLAS_SUCCESS
+        call collect_slab_candidates(atlas, cell_R, r_lo, r_hi, candidates, &
+            n_candidates, outcome, status)
+        if (outcome /= Z_COVER_SUCCESS) return
+        call assemble_candidate_band(atlas, cell_R, r_lo, r_hi, candidates, &
+            n_candidates, strip, outcome, status)
+        if (allocated(candidates)) deallocate(candidates)
+    end subroutine certify_slab_contents
+
+    subroutine collect_slab_candidates(atlas, cell_R, r_lo, r_hi, candidates, &
+            n_candidates, outcome, status)
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
+        integer, intent(in) :: cell_R
+        real(dp), intent(in) :: r_lo, r_hi
+        type(candidate_leaf_t), allocatable, intent(out) :: candidates(:)
+        integer, intent(out) :: n_candidates, outcome, status
+
+        integer :: cell_Z, local_status, local_outcome
+        real(dp) :: box_lo, box_hi
+
+        if (allocated(candidates)) deallocate(candidates)
         n_candidates = 0
+        outcome = Z_COVER_UNRESOLVED
+        status = EQDSK_CUT_ATLAS_SUCCESS
         do cell_Z = 1, nzet-1
             box_lo = max(atlas%requested_z_lo, zet(cell_Z))
             box_hi = min(atlas%requested_z_hi, zet(cell_Z+1))
@@ -491,13 +569,10 @@ contains
         end do
         if (n_candidates <= 0) then
             atlas%failure_stage = 2
-            outcome = Z_COVER_UNRESOLVED
             return
         end if
-        call assemble_candidate_band(atlas, cell_R, r_lo, r_hi, candidates, &
-            n_candidates, strip, outcome, status)
-        if (allocated(candidates)) deallocate(candidates)
-    end subroutine certify_slab_contents
+        outcome = Z_COVER_SUCCESS
+    end subroutine collect_slab_candidates
 
     recursive subroutine cover_z_box(atlas, cell_R, cell_Z, r_lo, r_hi, z_lo, &
             z_hi, depth, candidates, n_candidates, outcome, status)
