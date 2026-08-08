@@ -4325,7 +4325,7 @@ contains
         logical :: comment_line
 
         wrapped = ''
-        rest = line
+        rest = trim(line)
         comment_line = .false.
         prefix = adjustl(rest)
         if (len_trim(prefix) > 0) comment_line = prefix(1:1) == '!'
@@ -4334,10 +4334,10 @@ contains
             cut = generated_line_break(rest, available)
             if (cut < 1) cut = available
             if (comment_line) then
-                wrapped = wrapped//rest(:cut)//new_line('a')// &
+                wrapped = wrapped//trim(rest(:cut))//new_line('a')// &
                     '! '
             else
-                wrapped = wrapped//rest(:cut)//' &'//new_line('a')// &
+                wrapped = wrapped//trim(rest(:cut))//' &'//new_line('a')// &
                     '            '
             end if
             rest = adjustl(rest(cut+1:))
