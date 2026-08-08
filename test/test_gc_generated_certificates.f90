@@ -64,6 +64,15 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_cut_axis_rho_limit', &
             'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884')) &
         error stop 'EQDSK axis-rho-limit certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_endpoint_system', &
+            'neort-cert-v1:eqdsk_cut_endpoint_system:6:fortsym-5457884')) &
+        error stop 'EQDSK endpoint-system certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_endpoint_newton', &
+            'neort-cert-v1:eqdsk_cut_endpoint_newton:7:fortsym-5457884')) &
+        error stop 'EQDSK endpoint-Newton certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_endpoint_krawczyk', &
+            'neort-cert-v1:eqdsk_cut_endpoint_krawczyk:2:fortsym-5457884')) &
+        error stop 'EQDSK endpoint-Krawczyk certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_flux_profile_segment', &
             'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884')) &
         error stop 'EQDSK flux-profile certificate registry mismatch'

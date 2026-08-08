@@ -80,6 +80,10 @@ set(generated_files
     neort_eqdsk_flux_profile_rho_chain_symbolic.f90
     neort_eqdsk_cut_flux_coordinate_symbolic.f90
     neort_eqdsk_cut_axis_rho_limit_symbolic.f90
+    neort_eqdsk_cut_endpoint_system_symbolic.f90
+    neort_eqdsk_cut_endpoint_system_interval_symbolic.f90
+    neort_eqdsk_cut_endpoint_newton_symbolic.f90
+    neort_eqdsk_cut_endpoint_krawczyk_interval_symbolic.f90
     neort_cylindrical_hamiltonian_symbolic.f90
     neort_cylindrical_canonical_symbolic.f90
     neort_cylindrical_vparallel_symbolic.f90

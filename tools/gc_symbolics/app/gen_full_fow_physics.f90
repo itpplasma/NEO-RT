@@ -191,6 +191,9 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_flux_profile_rho_chain_roots(1)
     type(expr_t) :: eqdsk_cut_flux_coordinate_roots(3)
     type(expr_t) :: eqdsk_cut_axis_rho_limit_roots(3)
+    type(expr_t) :: eqdsk_cut_endpoint_system_roots(6)
+    type(expr_t) :: eqdsk_cut_endpoint_newton_roots(7)
+    type(expr_t) :: eqdsk_cut_endpoint_krawczyk_roots(2)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
     type(expr_t) :: frequency_contribution_roots(2)
@@ -315,6 +318,23 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_rho_map_derivative_residual
     type(expr_t) :: eqcut_axis_rho_dR, eqcut_axis_rho_dZ
     type(expr_t) :: eqcut_axis_rho_limit_residual
+    type(expr_t) :: endpoint_n, endpoint_n_r, endpoint_n_z
+    type(expr_t) :: endpoint_psi, endpoint_psi_r, endpoint_psi_z
+    type(expr_t) :: endpoint_psi_sep, endpoint_target_psihat
+    type(expr_t) :: endpoint_flux_residual, endpoint_flux_r, endpoint_flux_z
+    type(expr_t) :: endpoint_r0, endpoint_z0, endpoint_n0, endpoint_g0
+    type(expr_t) :: endpoint_nr0, endpoint_nz0, endpoint_gr0, endpoint_gz0
+    type(expr_t) :: endpoint_determinant, endpoint_y11, endpoint_y12
+    type(expr_t) :: endpoint_y21, endpoint_y22
+    type(expr_t) :: endpoint_newton_r, endpoint_newton_z
+    type(expr_t) :: endpoint_nr_box, endpoint_nz_box
+    type(expr_t) :: endpoint_gr_box, endpoint_gz_box
+    type(expr_t) :: endpoint_delta_r_box, endpoint_delta_z_box
+    type(expr_t) :: endpoint_krawczyk_r, endpoint_krawczyk_z
+    type(expr_t) :: endpoint_oracle_delta_r, endpoint_oracle_delta_z
+    type(expr_t) :: endpoint_oracle_n0, endpoint_oracle_g0
+    type(expr_t) :: endpoint_newton_r_oracle, endpoint_newton_z_oracle
+    type(expr_t) :: endpoint_krawczyk_r_oracle, endpoint_krawczyk_z_oracle
     character(len=64) :: eqdsk_cell_arg_names(38)
     character(len=64) :: eqdsk_profile_arg_names(9)
     type(expr_t) :: axis_b_r, axis_b_phi, axis_b_z, axis_bhat_r
@@ -826,6 +846,92 @@ program gen_full_fow_physics
         -2*eqcut_axis_branch_sign**2*eqcut_dpsihat_dstor
     eqcut_rho_map_derivative_residual = diff(eqcut_s_tor, eqcut_rho) &
         -eqcut_rho_dstor_drho
+
+    ! Certified endpoint chart for the coupled system N=0 and
+    ! psi/psi_sep=target.  A generated Newton map supplies the point inverse;
+    ! its interval Krawczyk inclusion is the existence-and-uniqueness gate.
+    endpoint_n = sym(arena, "cut_numerator")
+    endpoint_n_r = sym(arena, "d_cut_numerator_d_R")
+    endpoint_n_z = sym(arena, "d_cut_numerator_d_Z")
+    endpoint_psi = sym(arena, "psi")
+    endpoint_psi_r = sym(arena, "psi_R")
+    endpoint_psi_z = sym(arena, "psi_Z")
+    endpoint_psi_sep = sym(arena, "psi_sep")
+    endpoint_target_psihat = sym(arena, "target_psihat")
+    endpoint_flux_residual = endpoint_psi/endpoint_psi_sep &
+        -endpoint_target_psihat
+    endpoint_flux_r = endpoint_psi_r/endpoint_psi_sep
+    endpoint_flux_z = endpoint_psi_z/endpoint_psi_sep
+    endpoint_r0 = sym(arena, "R0")
+    endpoint_z0 = sym(arena, "Z0")
+    endpoint_n0 = sym(arena, "cut_numerator0")
+    endpoint_g0 = sym(arena, "flux_residual0")
+    endpoint_nr0 = sym(arena, "d_cut_numerator_d_R0")
+    endpoint_nz0 = sym(arena, "d_cut_numerator_d_Z0")
+    endpoint_gr0 = sym(arena, "d_flux_residual_d_R0")
+    endpoint_gz0 = sym(arena, "d_flux_residual_d_Z0")
+    endpoint_determinant = endpoint_nr0*endpoint_gz0 &
+        -endpoint_nz0*endpoint_gr0
+    endpoint_y11 = endpoint_gz0/endpoint_determinant
+    endpoint_y12 = -endpoint_nz0/endpoint_determinant
+    endpoint_y21 = -endpoint_gr0/endpoint_determinant
+    endpoint_y22 = endpoint_nr0/endpoint_determinant
+    endpoint_newton_r = endpoint_r0-endpoint_y11*endpoint_n0 &
+        -endpoint_y12*endpoint_g0
+    endpoint_newton_z = endpoint_z0-endpoint_y21*endpoint_n0 &
+        -endpoint_y22*endpoint_g0
+    endpoint_nr_box = sym(arena, "d_cut_numerator_d_R_box")
+    endpoint_nz_box = sym(arena, "d_cut_numerator_d_Z_box")
+    endpoint_gr_box = sym(arena, "d_flux_residual_d_R_box")
+    endpoint_gz_box = sym(arena, "d_flux_residual_d_Z_box")
+    endpoint_delta_r_box = sym(arena, "delta_R_box")
+    endpoint_delta_z_box = sym(arena, "delta_Z_box")
+    endpoint_krawczyk_r = endpoint_newton_r &
+        +(one-endpoint_y11*endpoint_nr_box &
+        -endpoint_y12*endpoint_gr_box)*endpoint_delta_r_box &
+        +(-endpoint_y11*endpoint_nz_box &
+        -endpoint_y12*endpoint_gz_box)*endpoint_delta_z_box
+    endpoint_krawczyk_z = endpoint_newton_z &
+        +(-endpoint_y21*endpoint_nr_box &
+        -endpoint_y22*endpoint_gr_box)*endpoint_delta_r_box &
+        +(one-endpoint_y21*endpoint_nz_box &
+        -endpoint_y22*endpoint_gz_box)*endpoint_delta_z_box
+    endpoint_oracle_delta_r = sym(arena, "oracle_delta_R")
+    endpoint_oracle_delta_z = sym(arena, "oracle_delta_Z")
+    endpoint_oracle_n0 = endpoint_nr0*endpoint_oracle_delta_r &
+        +endpoint_nz0*endpoint_oracle_delta_z
+    endpoint_oracle_g0 = endpoint_gr0*endpoint_oracle_delta_r &
+        +endpoint_gz0*endpoint_oracle_delta_z
+    endpoint_newton_r_oracle = subs(subs(endpoint_newton_r, endpoint_n0, &
+        endpoint_oracle_n0), endpoint_g0, endpoint_oracle_g0)
+    endpoint_newton_z_oracle = subs(subs(endpoint_newton_z, endpoint_n0, &
+        endpoint_oracle_n0), endpoint_g0, endpoint_oracle_g0)
+    endpoint_krawczyk_r_oracle = endpoint_krawczyk_r
+    endpoint_krawczyk_z_oracle = endpoint_krawczyk_z
+    endpoint_krawczyk_r_oracle = subs(endpoint_krawczyk_r_oracle, &
+        endpoint_n0, endpoint_oracle_n0)
+    endpoint_krawczyk_r_oracle = subs(endpoint_krawczyk_r_oracle, &
+        endpoint_g0, endpoint_oracle_g0)
+    endpoint_krawczyk_r_oracle = subs(endpoint_krawczyk_r_oracle, &
+        endpoint_nr_box, endpoint_nr0)
+    endpoint_krawczyk_r_oracle = subs(endpoint_krawczyk_r_oracle, &
+        endpoint_nz_box, endpoint_nz0)
+    endpoint_krawczyk_r_oracle = subs(endpoint_krawczyk_r_oracle, &
+        endpoint_gr_box, endpoint_gr0)
+    endpoint_krawczyk_r_oracle = subs(endpoint_krawczyk_r_oracle, &
+        endpoint_gz_box, endpoint_gz0)
+    endpoint_krawczyk_z_oracle = subs(endpoint_krawczyk_z_oracle, &
+        endpoint_n0, endpoint_oracle_n0)
+    endpoint_krawczyk_z_oracle = subs(endpoint_krawczyk_z_oracle, &
+        endpoint_g0, endpoint_oracle_g0)
+    endpoint_krawczyk_z_oracle = subs(endpoint_krawczyk_z_oracle, &
+        endpoint_nr_box, endpoint_nr0)
+    endpoint_krawczyk_z_oracle = subs(endpoint_krawczyk_z_oracle, &
+        endpoint_nz_box, endpoint_nz0)
+    endpoint_krawczyk_z_oracle = subs(endpoint_krawczyk_z_oracle, &
+        endpoint_gr_box, endpoint_gr0)
+    endpoint_krawczyk_z_oracle = subs(endpoint_krawczyk_z_oracle, &
+        endpoint_gz_box, endpoint_gz0)
 
     ! ------------------------------------------------------------------
     ! Positive action, cyclotron frequency, and exact phase-space candidate.
@@ -1843,6 +1949,30 @@ program gen_full_fow_physics
         "axis rho_tor derivative has finite square-root limit", &
         eqcut_axis_rho_limit_residual)
     call check_identity(proofs, proof_engine, &
+        "endpoint inverse Jacobian row one column one", &
+        endpoint_y11*endpoint_nr0+endpoint_y12*endpoint_gr0-one)
+    call check_identity(proofs, proof_engine, &
+        "endpoint inverse Jacobian row one column two", &
+        endpoint_y11*endpoint_nz0+endpoint_y12*endpoint_gz0)
+    call check_identity(proofs, proof_engine, &
+        "endpoint inverse Jacobian row two column one", &
+        endpoint_y21*endpoint_nr0+endpoint_y22*endpoint_gr0)
+    call check_identity(proofs, proof_engine, &
+        "endpoint inverse Jacobian row two column two", &
+        endpoint_y21*endpoint_nz0+endpoint_y22*endpoint_gz0-one)
+    call check_identity(proofs, proof_engine, &
+        "endpoint Newton map solves affine R system", &
+        endpoint_newton_r_oracle-(endpoint_r0-endpoint_oracle_delta_r))
+    call check_identity(proofs, proof_engine, &
+        "endpoint Newton map solves affine Z system", &
+        endpoint_newton_z_oracle-(endpoint_z0-endpoint_oracle_delta_z))
+    call check_identity(proofs, proof_engine, &
+        "endpoint Krawczyk map contracts affine R system", &
+        endpoint_krawczyk_r_oracle-(endpoint_r0-endpoint_oracle_delta_r))
+    call check_identity(proofs, proof_engine, &
+        "endpoint Krawczyk map contracts affine Z system", &
+        endpoint_krawczyk_z_oracle-(endpoint_z0-endpoint_oracle_delta_z))
+    call check_identity(proofs, proof_engine, &
         "section reversal flips dpsi_star/dx", &
         dpsi_dx_reversed + dpsi_dx_section)
     call check_identity(proofs, proof_engine, &
@@ -2029,6 +2159,13 @@ program gen_full_fow_physics
         eqcut_dZ_drho]
     eqdsk_cut_axis_rho_limit_roots = [eqcut_axis_curvature, &
         eqcut_axis_rho_dR, eqcut_axis_rho_dZ]
+    eqdsk_cut_endpoint_system_roots = [endpoint_n, endpoint_flux_residual, &
+        endpoint_n_r, endpoint_n_z, endpoint_flux_r, endpoint_flux_z]
+    eqdsk_cut_endpoint_newton_roots = [endpoint_determinant, &
+        endpoint_newton_r, endpoint_newton_z, endpoint_y11, endpoint_y12, &
+        endpoint_y21, endpoint_y22]
+    eqdsk_cut_endpoint_krawczyk_roots = [endpoint_krawczyk_r, &
+        endpoint_krawczyk_z]
     eq17_outer_roots = [eq17_outer_factor]
     frequency_contribution_roots = [frequency_contribution, phase_contribution]
     frequency_identity_roots = [n_squared_frequency_contribution, &
@@ -2096,6 +2233,7 @@ program gen_full_fow_physics
     call simplify_array(endpoint_roots)
     call simplify_array(profile_potential_roots)
     call simplify_array(eqdsk_flux_profile_segment_roots)
+    call simplify_array(eqdsk_scaled_flux_normalization_roots)
     call simplify_array(eqdsk_cell_jet_roots)
     call simplify_array(eqdsk_cell_fourth_jet_roots)
     call simplify_array(eqdsk_profile_jet_roots)
@@ -2111,8 +2249,12 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_axis_curvature_roots)
     call simplify_array(eqdsk_cut_axis_limit_roots)
     call simplify_array(eqdsk_rho_tor_map_roots)
+    call simplify_array(eqdsk_flux_profile_rho_chain_roots)
     call simplify_array(eqdsk_cut_flux_coordinate_roots)
     call simplify_array(eqdsk_cut_axis_rho_limit_roots)
+    call simplify_array(eqdsk_cut_endpoint_system_roots)
+    call simplify_array(eqdsk_cut_endpoint_newton_roots)
+    call simplify_array(eqdsk_cut_endpoint_krawczyk_roots)
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
@@ -2669,6 +2811,50 @@ program gen_full_fow_physics
         eqdsk_cut_axis_rho_limit_roots, &
         [character(len=64) :: "axis_flux_curvature", &
         "dR_drho_tor_limit", "dZ_drho_tor_limit"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_endpoint_system_symbolic.f90", &
+        "neort_eqdsk_cut_endpoint_system_symbolic", &
+        "evaluate_neort_eqdsk_cut_endpoint_system", &
+        [character(len=64) :: "cut_numerator", "d_cut_numerator_d_R", &
+        "d_cut_numerator_d_Z", "psi", "psi_R", "psi_Z", "psi_sep", &
+        "target_psihat"], eqdsk_cut_endpoint_system_roots, &
+        [character(len=64) :: "cut_residual", "flux_residual", &
+        "cut_jacobian_R", "cut_jacobian_Z", "flux_jacobian_R", &
+        "flux_jacobian_Z"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_endpoint_system_interval_symbolic.f90", &
+        "neort_eqdsk_cut_endpoint_system_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_endpoint_system_interval", &
+        [character(len=64) :: "cut_numerator", "d_cut_numerator_d_R", &
+        "d_cut_numerator_d_Z", "psi", "psi_R", "psi_Z", "psi_sep", &
+        "target_psihat"], eqdsk_cut_endpoint_system_roots, &
+        [character(len=64) :: "cut_residual", "flux_residual", &
+        "cut_jacobian_R", "cut_jacobian_Z", "flux_jacobian_R", &
+        "flux_jacobian_Z"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_endpoint_newton_symbolic.f90", &
+        "neort_eqdsk_cut_endpoint_newton_symbolic", &
+        "evaluate_neort_eqdsk_cut_endpoint_newton", &
+        [character(len=64) :: "R0", "Z0", "cut_numerator0", &
+        "flux_residual0", "d_cut_numerator_d_R0", &
+        "d_cut_numerator_d_Z0", "d_flux_residual_d_R0", &
+        "d_flux_residual_d_Z0"], eqdsk_cut_endpoint_newton_roots, &
+        [character(len=64) :: "jacobian_determinant", "newton_R", &
+        "newton_Z", "inverse_11", "inverse_12", "inverse_21", &
+        "inverse_22"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_endpoint_krawczyk_interval_symbolic.f90", &
+        "neort_eqdsk_cut_endpoint_krawczyk_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_endpoint_krawczyk_interval", &
+        [character(len=64) :: "R0", "Z0", "cut_numerator0", &
+        "flux_residual0", "d_cut_numerator_d_R0", &
+        "d_cut_numerator_d_Z0", "d_flux_residual_d_R0", &
+        "d_flux_residual_d_Z0", "d_cut_numerator_d_R_box", &
+        "d_cut_numerator_d_Z_box", "d_flux_residual_d_R_box", &
+        "d_flux_residual_d_Z_box", "delta_R_box", "delta_Z_box"], &
+        eqdsk_cut_endpoint_krawczyk_roots, &
+        [character(len=64) :: "krawczyk_R", "krawczyk_Z"], &
+        interval_kernel=.true.)
     call emit_certificate_registry(trim(output_path)// &
         "/neort_generated_certificate_registry.f90")
 
@@ -2900,7 +3086,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 29"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 32"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -2917,6 +3103,9 @@ contains
         write (unit, "(a)") "        'eqdsk_flux_profile_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_cut_flux_coordinate', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit', &"
+        write (unit, "(a)") "        'eqdsk_cut_endpoint_system', &"
+        write (unit, "(a)") "        'eqdsk_cut_endpoint_newton', &"
+        write (unit, "(a)") "        'eqdsk_cut_endpoint_krawczyk', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_segment', &"
         write (unit, "(a)") "        'eqdsk_scaled_flux_normalization' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
@@ -2947,6 +3136,9 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_system:6:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_newton:7:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_krawczyk:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
