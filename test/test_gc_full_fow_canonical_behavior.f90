@@ -34,7 +34,7 @@ program test_gc_full_fow_canonical_behavior
     real(dp) :: symmetry(21), n_reference, n_r_reference, n_rr_reference
     integer :: i, branch
 
-    h_values = [0.04_dp, 0.02_dp, 0.01_dp]
+    h_values = [0.16_dp, 0.08_dp, 0.04_dp]
     do branch = 1, 2
         sigma = real(2*branch-3, dp)
         call evaluate_regular_numerator(sigma, n_value, n_r_value, &
