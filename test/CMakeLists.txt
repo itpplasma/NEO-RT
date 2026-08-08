@@ -423,6 +423,15 @@ add_test(NAME test_gc_eqdsk_allowed_region_interval
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_allowed_region_interval.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_eqdsk_allowed_region_cut_box
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_allowed_region_cut_box.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gc_eqdsk_allowed_region_cut_box PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+    TIMEOUT 180
+)
 add_test(NAME test_gc_eqdsk_allowed_region_signs
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_allowed_region_signs.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

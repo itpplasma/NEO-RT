@@ -215,6 +215,7 @@ set(NEO_RT_SOURCES
     src/gc_eqdsk_cut_jet.f90
     src/gc_eqdsk_cut_interval.f90
     src/gc_eqdsk_allowed_region_interval.f90
+    src/gc_eqdsk_allowed_region_cut_box.f90
     src/gc_eqdsk_cut_endpoint_certificate.f90
     src/gc_eqdsk_axis_certificate.f90
     src/gc_eqdsk_cut_graph_atlas.f90
