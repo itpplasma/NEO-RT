@@ -316,7 +316,13 @@ contains
         write (unit, '(a)') &
             '! Fortsym-generated homoclinic limit; do not hand-edit.'
         write (unit, '(a)') '! '//trim(contract_comment)
-        write (unit, '(a)', advance='no') emitted_text
+        if (len(emitted_text) > 0 .and. &
+                emitted_text(len(emitted_text):) == new_line('a')) then
+            write (unit, '(a)', advance='no') &
+                emitted_text(:len(emitted_text)-1)
+        else
+            write (unit, '(a)', advance='no') emitted_text
+        end if
         close (unit)
         write (output_unit, '(a)') 'wrote '//trim(path)
     end subroutine emit_kernel_file
