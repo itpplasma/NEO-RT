@@ -25,6 +25,8 @@ module neort_gc_nonlocal_transport_integral
         gc_nonlocal_transport_options_t, gc_nonlocal_transport_provider_t, &
         gc_nonlocal_transport_quadrature_t, &
         gc_nonlocal_transport_reference_t, gc_nonlocal_transport_result_t
+    use neort_full_fow_torque_assembly_symbolic, only: &
+        evaluate_neort_full_fow_torque_assembly
 
     implicit none
     private
@@ -294,7 +296,8 @@ contains
 
             real(dp) :: force_values(nforce), outer_measure_factor
             integer :: local_callback_status
-            real(dp) :: frequency_harmonic_factor
+            real(dp) :: torque_value
+            integer :: force_index
 
             sample = gc_nonlocal_orbit_sample_t()
             call provider%evaluate_orbit(reference, h0, jperp, x, sigma, &
@@ -332,9 +335,14 @@ contains
                 callback_status = GC_NONLOCAL_NONFINITE
                 return
             end if
-            frequency_harmonic_factor = real(harmonic_n, dp)**2
-            sample%thermodynamic_force(1:nforce) = &
-                frequency_harmonic_factor*outer_measure_factor*force_values
+            ! Eq. 10 supplies n^2.  outer_measure_factor is the signed native
+            ! W_outer prefactor; force_values retain the signed component too.
+            do force_index = 1, nforce
+                call evaluate_neort_full_fow_torque_assembly( &
+                    real(harmonic_n, dp), outer_measure_factor, &
+                    force_values(force_index), torque_value)
+                sample%thermodynamic_force(force_index) = torque_value
+            end do
             sample%nforce = nforce
             callback_status = GC_NONLOCAL_SUCCESS
         end subroutine transport_evaluate

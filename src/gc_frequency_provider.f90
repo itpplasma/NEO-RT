@@ -2,6 +2,7 @@ module neort_gc_frequency_provider
     !! Real-space canonical-frequency provider for the direct GEQDSK backend.
     !! The transport layer sees only strict first-order frequencies; finite-
     !! orbit trajectories are used as a centered numerical limiting device.
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
 #ifdef NEO_RT_USE_STANDALONE
     use do_magfie_mod, only: inp_swi
@@ -29,6 +30,8 @@ module neort_gc_frequency_provider
         gc_orbit_options_t, gc_orbit_average_t, gc_orbit_perturbation_i, &
         compute_return_map, &
         compute_gc_full_orbit_average, compute_zero_width_passing_cycle
+    use neort_full_fow_cycle_frequency_symbolic, only: &
+        evaluate_neort_full_fow_cycle_frequency
     use neort_thin_orbit_limit, only: orbit_return_t
     use util, only: pi, c
 
@@ -166,7 +169,9 @@ contains
         type(gc_invariants_t) :: invariants
         type(orbit_return_t) :: orbit_return
         real(dp) :: xi_squared, potential, grad_potential(3), speed_ratio
-        integer :: invariant_status, parallel_sign, winding, potential_status
+        integer :: invariant_status, parallel_sign, winding, frequency_winding
+        integer :: potential_status
+        real(dp) :: domega_b_dx, domega_phi_dx, domega_prec_dx
 #ifdef NEO_RT_USE_STANDALONE
         type(gc_cylindrical_backend_result_t) :: cylindrical_result
         integer :: cylindrical_status
@@ -226,6 +231,11 @@ contains
         if (xi_squared < 0.0_dp) return
         parallel_sign = parallel_direction*context%htheta_sign
         winding = merge(parallel_direction, 0, orbit_class == GC_ORBIT_PASSING)
+        ! The return-map winding is zero for trapped topology, while the
+        ! legacy bounce-frequency API retains its positive trapped frequency.
+        ! Preserve that established convention explicitly at this seam.
+        frequency_winding = merge(parallel_direction, 1, &
+            orbit_class == GC_ORBIT_PASSING)
         call context%electric_potential%evaluate(context%reference_position, &
             context%reference_sample, potential, grad_potential, &
             potential_status)
@@ -249,17 +259,18 @@ contains
             status = GC_FREQUENCY_ORBIT_ERROR
             return
         end if
+        if (.not. ieee_is_finite(orbit_return%period) .or. &
+                orbit_return%period <= 0.0_dp) then
+            status = GC_FREQUENCY_ORBIT_ERROR
+            return
+        end if
         result%period = orbit_return%period
         result%delta_phi = orbit_return%delta_phi
-        result%omega_b = 2.0_dp*pi/orbit_return%period
-        if (orbit_class == GC_ORBIT_PASSING) then
-            result%omega_b = real(parallel_direction, dp)*result%omega_b
-        end if
-        result%omega_phi = orbit_return%delta_phi/orbit_return%period
-        ! The precession part is defined against the same full-cycle field-line
-        ! winding as the return map: omega_prec = omega_phi - q*omega_b.
-        result%omega_prec = result%omega_phi &
-            - context%q_fieldline*result%omega_b
+        call evaluate_neort_full_fow_cycle_frequency(orbit_return%period, &
+            real(frequency_winding, dp), orbit_return%delta_phi, &
+            context%q_fieldline, 0.0_dp, 0.0_dp, 0.0_dp, result%omega_b, &
+            result%omega_phi, result%omega_prec, domega_b_dx, domega_phi_dx, &
+            domega_prec_dx)
         status = GC_FREQUENCY_SUCCESS
     end subroutine evaluate_gc_full_orbit_frequency
 

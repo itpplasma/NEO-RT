@@ -38,6 +38,8 @@ module neort_gc_nonlocal_resonance_integral
         gc_nonlocal_resonance_result_t
     use neort_full_fow_simple_root_symbolic, only: &
         evaluate_neort_full_fow_simple_root_force
+    use neort_full_fow_resonance_scalar_symbolic, only: &
+        evaluate_neort_full_fow_resonance_scalar
 
     implicit none
     private
@@ -296,10 +298,8 @@ contains
             status = sample_status
             return
         end if
-        residual = real(harmonic_m, dp)*sample%omega_b &
-            +real(harmonic_n, dp)*sample%omega_phi
-        residual_derivative = real(harmonic_m, dp)*sample%domega_b_dx &
-            +real(harmonic_n, dp)*sample%domega_phi_dx
+        call evaluate_resonance(harmonic_m, harmonic_n, sample, residual, &
+            residual_derivative)
         if (.not. all(ieee_is_finite([residual, residual_derivative]))) then
             status = GC_NONLOCAL_NONFINITE
             valid = .false.
@@ -597,11 +597,8 @@ contains
                 status = sample_status
                 return
             end if
-            stationary_residual = real(harmonic_m, dp)*stationary_sample%omega_b &
-                +real(harmonic_n, dp)*stationary_sample%omega_phi
-            stationary_derivative = real(harmonic_m, dp) &
-                *stationary_sample%domega_b_dx &
-                +real(harmonic_n, dp)*stationary_sample%domega_phi_dx
+            call evaluate_resonance(harmonic_m, harmonic_n, stationary_sample, &
+                stationary_residual, stationary_derivative)
             if (.not. all(ieee_is_finite([stationary_residual, &
                 stationary_derivative]))) then
                 status = GC_NONLOCAL_NONFINITE
@@ -643,6 +640,7 @@ contains
         integer, intent(out) :: status
 
         real(dp) :: left_x, right_x, left_value, right_value, middle_x, middle_value
+        real(dp) :: middle_derivative
         type(gc_nonlocal_orbit_sample_t) :: middle_sample
         integer :: iteration, callback_status, sample_status
         logical :: valid
@@ -668,17 +666,16 @@ contains
                 status = sample_status
                 return
             end if
-            middle_value = real(harmonic_m, dp)*middle_sample%omega_b &
-                +real(harmonic_n, dp)*middle_sample%omega_phi
-            if (.not. ieee_is_finite(middle_value)) then
+            call evaluate_resonance(harmonic_m, harmonic_n, middle_sample, &
+                middle_value, middle_derivative)
+            if (.not. all(ieee_is_finite([middle_value, middle_derivative]))) then
                 status = GC_NONLOCAL_NONFINITE
                 return
             end if
             root_x = middle_x
             root_sample = middle_sample
             if (abs(middle_value) <= options%residual_tolerance) then
-                if (abs(residual_derivative_at_root(middle_sample, harmonic_m, &
-                    harmonic_n)) <= options%derivative_tolerance) then
+                if (abs(middle_derivative) <= options%derivative_tolerance) then
                     status = GC_NONLOCAL_SUCCESS
                     return
                 end if
@@ -704,6 +701,18 @@ contains
         end do
     end subroutine locate_root
 
+    pure subroutine evaluate_resonance(harmonic_m, harmonic_n, sample, residual, &
+            residual_derivative)
+        integer, intent(in) :: harmonic_m, harmonic_n
+        type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
+        real(dp), intent(out) :: residual, residual_derivative
+
+        call evaluate_neort_full_fow_resonance_scalar(real(harmonic_m, dp), &
+            real(harmonic_n, dp), sample%omega_b, sample%omega_phi, &
+            sample%domega_b_dx, sample%domega_phi_dx, residual, &
+            residual_derivative)
+    end subroutine evaluate_resonance
+
     pure real(dp) function grid_coordinate(component, index, options)
         type(gc_nonlocal_component_t), intent(in) :: component
         integer, intent(in) :: index
@@ -716,9 +725,10 @@ contains
     pure real(dp) function residual_derivative_at_root(sample, harmonic_m, harmonic_n)
         type(gc_nonlocal_orbit_sample_t), intent(in) :: sample
         integer, intent(in) :: harmonic_m, harmonic_n
+        real(dp) :: residual
 
-        residual_derivative_at_root = real(harmonic_m, dp)*sample%domega_b_dx &
-            +real(harmonic_n, dp)*sample%domega_phi_dx
+        call evaluate_resonance(harmonic_m, harmonic_n, sample, residual, &
+            residual_derivative_at_root)
     end function residual_derivative_at_root
 
     pure logical function is_exact_zero(value)

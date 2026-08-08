@@ -8,6 +8,12 @@ module neort_gc_cylindrical_orbit
     use fortnum_ode_vode, only: vode_init, vode_integrate_to, vode_state_t
     use fortnum_status, only: FORTNUM_OK, fortnum_status_t
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
+    use neort_full_fow_cycle_average_symbolic, only: &
+        evaluate_neort_full_fow_cycle_average
+    use neort_full_fow_cycle_frequency_symbolic, only: &
+        evaluate_neort_full_fow_cycle_frequency
+    use neort_full_fow_resonance_scalar_symbolic, only: &
+        evaluate_neort_full_fow_resonance_scalar
     use neort_gc_cylindrical_model, only: GC_CYL_FIELD_ERROR, &
         GC_CYL_INTEGRATOR_ERROR, GC_CYL_INVALID_INPUT, &
         GC_CYL_NO_RETURN_MODEL => GC_CYL_NO_RETURN, &
@@ -227,7 +233,8 @@ contains
             call classify_result(result)
             return
         end if
-        if (.not. found .or. root_time <= 0.0_dp) then
+        if (.not. found .or. .not. ieee_is_finite(root_time) .or. &
+                root_time <= 0.0_dp) then
             result%status = GC_CYL_NO_RETURN
             call classify_result(result)
             return
@@ -310,6 +317,11 @@ contains
         real(dp) :: initial_state(9)
         real(dp), allocatable :: final_state(:)
         real(dp) :: atol(9), target_time, root_time, event_tolerance
+        real(dp) :: average_real, average_imag, residence_average, field_average
+        real(dp) :: cycle_omega_b, cycle_omega_phi, cycle_omega_prec
+        real(dp) :: unused_domega_b, unused_domega_phi, unused_domega_prec
+        real(dp) :: supplied_phase_rate, return_phase_rate
+        real(dp) :: unused_supplied_derivative, unused_return_derivative
         integer :: status, rhs_status, event_direction, event_index
         logical :: found
 
@@ -349,6 +361,15 @@ contains
             call classify_phase_result(result)
             return
         end if
+        call evaluate_neort_full_fow_resonance_scalar( &
+            real(bounce_harmonic, dp), real(toroidal_harmonic, dp), omega_b, &
+            omega_phi, 0.0_dp, 0.0_dp, supplied_phase_rate, &
+            unused_supplied_derivative)
+        if (.not. ieee_is_finite(supplied_phase_rate)) then
+            result%status = GC_CYL_STATE_ERROR
+            call classify_phase_result(result)
+            return
+        end if
         atol(6:7) = options%absolute_tolerance
         atol(8:9) = options%absolute_tolerance
         event_tolerance = max(options%event_time_tolerance, &
@@ -376,25 +397,57 @@ contains
             call classify_phase_result(result)
             return
         end if
-        if (.not. found .or. root_time <= 0.0_dp) then
+        if (.not. found .or. .not. ieee_is_finite(root_time) .or. &
+                root_time <= 0.0_dp) then
             result%status = GC_CYL_NO_RETURN
             call classify_phase_result(result)
             return
         end if
         result%period = root_time
         result%delta_phi = final_state(3) - initial_state(3)
-        result%omega_phi = result%delta_phi/result%period
-        result%omega_b = omega_b
-        result%omega_prec = result%omega_phi
-        if (section%frequency_winding /= 0) then
-            result%omega_prec = result%omega_phi &
-                -2.0_dp*PI*real(section%frequency_winding, dp) &
-                *section%fieldline_q/result%period
+        call evaluate_neort_full_fow_cycle_frequency(result%period, &
+            real(section%frequency_winding, dp), result%delta_phi, &
+            section%fieldline_q, 0.0_dp, 0.0_dp, 0.0_dp, cycle_omega_b, &
+            cycle_omega_phi, cycle_omega_prec, unused_domega_b, &
+            unused_domega_phi, unused_domega_prec)
+        ! The phase RHS uses the caller's convention.  Certify only the actual
+        ! harmonic temporal rate through the generated resonance scalar: an
+        ! unused omega_b must not invalidate an m=0 phase.  Retain both
+        ! supplied frequencies verbatim because they drive the RHS.  The
+        ! reported precession is the return-derived section precession, not a
+        ! silently mixed supplied-frequency quantity.
+        if (.not. all(ieee_is_finite([cycle_omega_b, cycle_omega_phi, &
+                cycle_omega_prec]))) then
+            result%status = GC_CYL_STATE_ERROR
+            call classify_phase_result(result)
+            return
         end if
-        result%perturbation_average = cmplx(final_state(6), final_state(7), dp) &
-            /result%period
-        result%inverse_b_average = final_state(8)/result%period
-        result%b_average = final_state(9)/result%period
+        call evaluate_neort_full_fow_resonance_scalar( &
+            real(bounce_harmonic, dp), real(toroidal_harmonic, dp), &
+            cycle_omega_b, cycle_omega_phi, unused_domega_b, unused_domega_phi, &
+            return_phase_rate, unused_return_derivative)
+        if (.not. all(ieee_is_finite([supplied_phase_rate, &
+                return_phase_rate]))) then
+            result%status = GC_CYL_STATE_ERROR
+            call classify_phase_result(result)
+            return
+        end if
+        if (abs(supplied_phase_rate-return_phase_rate) > &
+                1.0e-10_dp*max(1.0_dp, abs(supplied_phase_rate), &
+                abs(return_phase_rate))) then
+            result%status = GC_CYL_STATE_ERROR
+            call classify_phase_result(result)
+            return
+        end if
+        result%omega_b = omega_b
+        result%omega_phi = omega_phi
+        result%omega_prec = cycle_omega_prec
+        call evaluate_neort_full_fow_cycle_average(final_state(6), final_state(7), &
+            final_state(8), final_state(9), result%period, average_real, &
+            average_imag, residence_average, field_average)
+        result%perturbation_average = cmplx(average_real, average_imag, dp)
+        result%inverse_b_average = residence_average
+        result%b_average = field_average
         result%state_at_return = state_from_array(final_state(1:5))
         call validate_invariant_return(field_model, potential_model, invariants, &
             final_state(1:5), mass, charge, c_light, options, &
@@ -451,8 +504,7 @@ contains
             end if
             phase_argument = real(toroidal_harmonic, dp) &
                 *(local_state%phi - section%point(3)) &
-                -(real(bounce_harmonic, dp)*omega_b &
-                +real(toroidal_harmonic, dp)*omega_phi)*time
+                -supplied_phase_rate*time
             phase = cmplx(cos(phase_argument), sin(phase_argument), dp)
             derivative(6) = real(amplitude*phase, dp)
             derivative(7) = aimag(amplitude*phase)
@@ -771,6 +823,8 @@ contains
         type(gc_cylindrical_return_t), intent(inout) :: result
 
         type(gc_cylindrical_state_t) :: state
+        real(dp) :: unused_omega_phi, unused_omega_prec
+        real(dp) :: unused_domega_b, unused_domega_phi, unused_domega_prec
         integer :: validation_status
 
         state = state_from_array(final_array(1:5))
@@ -784,18 +838,26 @@ contains
             call classify_result(result)
             return
         end if
+        if (.not. ieee_is_finite(period) .or. period <= 0.0_dp) then
+            result%status = GC_CYL_STATE_ERROR
+            call classify_result(result)
+            return
+        end if
         result%period = period
         result%delta_phi = final_array(3) - initial_phi
-        result%omega_return = 2.0_dp*PI/period
+        call evaluate_neort_full_fow_cycle_frequency(period, 1.0_dp, 0.0_dp, &
+            0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, result%omega_return, &
+            unused_omega_phi, unused_omega_prec, unused_domega_b, &
+            unused_domega_phi, unused_domega_prec)
         result%frequency_winding = section%frequency_winding
         result%fieldline_q = section%fieldline_q
         result%topology_delta_phi = 2.0_dp*PI*real(section%winding, dp) &
             *section%fieldline_q
-        result%omega_b = 2.0_dp*PI*real(section%frequency_winding, dp)/period
-        result%omega_phi = result%delta_phi/period
-        result%omega_prec = result%omega_phi &
-            -2.0_dp*PI*real(section%frequency_winding, dp) &
-            *section%fieldline_q/period
+        call evaluate_neort_full_fow_cycle_frequency(period, &
+            real(section%frequency_winding, dp), result%delta_phi, &
+            section%fieldline_q, 0.0_dp, 0.0_dp, 0.0_dp, result%omega_b, &
+            result%omega_phi, result%omega_prec, unused_domega_b, &
+            unused_domega_phi, unused_domega_prec)
         result%precession = result%omega_prec
         result%state_at_return = state
         result%status = GC_CYL_SUCCESS

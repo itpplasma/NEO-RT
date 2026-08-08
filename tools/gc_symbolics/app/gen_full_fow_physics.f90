@@ -213,6 +213,9 @@ program gen_full_fow_physics
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
     type(expr_t) :: frequency_contribution_roots(2)
+    type(expr_t) :: cycle_frequency_roots(6), resonance_scalar_roots(2)
+    type(expr_t) :: cycle_average_roots(4), torque_assembly_roots(1)
+    type(expr_t) :: mode_mapping_roots(4)
     type(expr_t) :: interp_u, interp_v, interp_w00, interp_w10
     type(expr_t) :: interp_w01, interp_w11
     type(expr_t) :: interp_r00, interp_r10, interp_r01, interp_r11
@@ -554,6 +557,32 @@ program gen_full_fow_physics
     type(expr_t) :: invariant_h, invariant_pphi, invariant_psistar
     type(expr_t) :: invariant_vparallel_squared, invariant_ppar_from_pphi
     type(expr_t) :: invariant_ppar_squared, invariant_launch_residual
+    type(expr_t) :: cycle_period, cycle_winding, cycle_delta_phi
+    type(expr_t) :: cycle_q_fieldline, cycle_dperiod, cycle_ddelta_phi
+    type(expr_t) :: cycle_dq, cycle_omega_b, cycle_omega_phi
+    type(expr_t) :: cycle_omega_prec, cycle_domega_b, cycle_domega_phi
+    type(expr_t) :: cycle_domega_prec, cycle_positive_winding_residual
+    type(expr_t) :: cycle_frequency_reversal_residual
+    type(expr_t) :: resonance_m, resonance_n, resonance_omega_b
+    type(expr_t) :: resonance_omega_phi, resonance_domega_b
+    type(expr_t) :: resonance_domega_phi, resonance_scalar
+    type(expr_t) :: resonance_derivative, resonance_reversed
+    type(expr_t) :: resonance_reversal_residual
+    type(expr_t) :: average_real_accum, average_imag_accum
+    type(expr_t) :: average_residence_accum, average_field_accum
+    type(expr_t) :: average_period, average_real, average_imag
+    type(expr_t) :: average_residence, average_field
+    type(expr_t) :: torque_n, torque_outer_factor, torque_force
+    type(expr_t) :: torque_value, torque_force_reversed
+    type(expr_t) :: torque_reversal_residual, torque_n_reversal_residual
+    type(expr_t) :: torque_outer_reversed, torque_outer_reversal_residual
+    type(expr_t) :: torque_phase_frequency_ratio
+    type(expr_t) :: torque_phase_frequency_residual
+    type(expr_t) :: mode_m_signed, mode_n_signed, mode_orientation
+    type(expr_t) :: mode_omega_b_positive, mode_omega_phi
+    type(expr_t) :: mode_m_positive, mode_n_positive
+    type(expr_t) :: mode_signed_residual, mode_positive_residual
+    type(expr_t) :: mode_residual_difference
     type(engine_result_t) :: simplified
     type(engine_result_t) :: resonance_series
     type(engine_result_t) :: allowed_g_second_series_result
@@ -614,6 +643,32 @@ program gen_full_fow_physics
     phi = sym(arena, "phi")
     phase_half_real = sym(arena, "phase_half_real")
     phase_half_imag = sym(arena, "phase_half_imag")
+    cycle_period = sym(arena, "period")
+    cycle_winding = sym(arena, "winding")
+    cycle_delta_phi = sym(arena, "delta_phi")
+    cycle_q_fieldline = sym(arena, "q_fieldline")
+    cycle_dperiod = sym(arena, "dperiod_dx")
+    cycle_ddelta_phi = sym(arena, "ddelta_phi_dx")
+    cycle_dq = sym(arena, "dq_fieldline_dx")
+    resonance_m = sym(arena, "m_mode")
+    resonance_n = sym(arena, "n_mode")
+    resonance_omega_b = sym(arena, "omega_b")
+    resonance_omega_phi = sym(arena, "omega_phi")
+    resonance_domega_b = sym(arena, "domega_b_dx")
+    resonance_domega_phi = sym(arena, "domega_phi_dx")
+    average_real_accum = sym(arena, "accum_real")
+    average_imag_accum = sym(arena, "accum_imag")
+    average_residence_accum = sym(arena, "residence_accum")
+    average_field_accum = sym(arena, "field_accum")
+    average_period = sym(arena, "period")
+    torque_n = sym(arena, "n_mode")
+    torque_outer_factor = sym(arena, "outer_measure_factor")
+    torque_force = sym(arena, "force_value")
+    mode_m_signed = sym(arena, "m_signed")
+    mode_n_signed = sym(arena, "n_signed")
+    mode_orientation = sym(arena, "orientation_sign")
+    mode_omega_b_positive = sym(arena, "omega_b_positive")
+    mode_omega_phi = sym(arena, "omega_phi")
     zero = num(arena, 0)
     one = num(arena, 1)
 
@@ -1222,6 +1277,73 @@ program gen_full_fow_physics
     psi_star = c_light/charge*p_phi
     dpsi_dp_phi = diff(psi_star, p_phi)
 
+    ! Cycle frequencies are generated from the return-map observables.  The
+    ! integer winding is a discrete class label, so its derivative with
+    ! respect to the continuous scan coordinate is exactly zero within a
+    ! certified class.  Lower-level orientation-signed callers retain their
+    ! supplied winding; the EQDSK full-FOW caller supplies +1 explicitly.
+    cycle_omega_b = 2*pi_expr(arena)*cycle_winding/cycle_period
+    cycle_omega_phi = cycle_delta_phi/cycle_period
+    cycle_omega_prec = cycle_omega_phi - cycle_q_fieldline*cycle_omega_b
+    cycle_domega_b = diff(cycle_omega_b, cycle_period)*cycle_dperiod
+    cycle_domega_phi = diff(cycle_omega_phi, cycle_period)*cycle_dperiod + &
+        diff(cycle_omega_phi, cycle_delta_phi)*cycle_ddelta_phi
+    cycle_domega_prec = cycle_domega_phi - cycle_q_fieldline*cycle_domega_b - &
+        cycle_omega_b*cycle_dq
+    cycle_positive_winding_residual = subs(cycle_omega_b, cycle_winding, one) - &
+        2*pi_expr(arena)/cycle_period
+    cycle_frequency_reversal_residual = subs(subs(cycle_omega_b, cycle_winding, &
+        -cycle_winding), cycle_period, cycle_period) + cycle_omega_b
+
+    ! The resonance scalar remains signed.  Only its zero set is unchanged by
+    ! a simultaneous reversal of both frequency coordinates (or both Fourier
+    ! labels); no absolute value belongs in this construction.
+    resonance_scalar = resonance_m*resonance_omega_b + &
+        resonance_n*resonance_omega_phi
+    resonance_derivative = resonance_m*resonance_domega_b + &
+        resonance_n*resonance_domega_phi
+    resonance_reversed = subs(subs(resonance_scalar, resonance_omega_b, &
+        -resonance_omega_b), resonance_omega_phi, -resonance_omega_phi)
+    resonance_reversal_residual = resonance_reversed + resonance_scalar
+
+    ! A cycle average is a positive-period normalization of the accumulated
+    ! real, imaginary, residence, and field observables.  The accumulators are
+    ! deliberately not modified here: their signed/native meaning belongs to
+    ! the orbit RHS and only the cycle normalization is shared.
+    average_real = average_real_accum/average_period
+    average_imag = average_imag_accum/average_period
+    average_residence = average_residence_accum/average_period
+    average_field = average_field_accum/average_period
+
+    ! The torque assembly follows the Buchholz full-orbit phase residual and
+    ! Albert et al. Eq. 17/18 frequency-residual distinction.  The derived
+    ! phase/frequency weight ratio supplies n^2; the signed Eq. 10 outer
+    ! prefactor and signed force/component remain separate.  Any positivity
+    ! belongs only to separate root Jacobian factors; W_outer is not assumed
+    ! positive.
+    torque_value = torque_n**2*torque_outer_factor*torque_force
+    torque_force_reversed = subs(torque_value, torque_force, -torque_force)
+    torque_reversal_residual = torque_force_reversed + torque_value
+    torque_n_reversal_residual = subs(torque_value, torque_n, -torque_n) - &
+        torque_value
+    torque_outer_reversed = subs(torque_value, torque_outer_factor, &
+        -torque_outer_factor)
+    torque_outer_reversal_residual = torque_outer_reversed + torque_value
+
+    ! Albert's signed passing convention and the positive first-return/POTATO
+    ! convention are related by a class-dependent bounce-mode relabelling.
+    ! With s=+1 for co-passing and s=-1 for counter-passing,
+    ! m_signed*(s*omega_b_positive)+n*omega_phi equals
+    ! (s*m_signed)*omega_b_positive+n*omega_phi.  The mapping is explicit so
+    ! changing omega_b alone can never be mistaken for a harmless symmetry.
+    mode_m_positive = mode_orientation*mode_m_signed
+    mode_n_positive = mode_n_signed
+    mode_signed_residual = mode_m_signed*mode_orientation* &
+        mode_omega_b_positive + mode_n_signed*mode_omega_phi
+    mode_positive_residual = mode_m_positive*mode_omega_b_positive + &
+        mode_n_positive*mode_omega_phi
+    mode_residual_difference = mode_positive_residual-mode_signed_residual
+
     ! Frequency delta weights.  Derive F' from an x-dependent local model at
     ! the explicit root x_r.  The root side condition is g(x_r)=0; locally
     ! g(x)=g'(x_r)(x-x_r), tau(x)=tau_r+tau'(x_r)(x-x_r).  The emitted
@@ -1703,6 +1825,13 @@ program gen_full_fow_physics
         f_prime_abs
     phase_contribution_positive = dpsi_abs*hm_squared_positive* &
         n_abs*tau_pos**2/g_prime_abs
+    ! Buchholz's phase residual and Albert's frequency residual are related by
+    ! F_freq=(n/tau_b) g_phase at a simple root.  With positive root/Jacobian
+    ! factors this makes the phase weight n_abs**2 times the frequency weight;
+    ! the signed W_outer prefactor remains outside this identity.
+    torque_phase_frequency_ratio = phase_contribution_positive/ &
+        frequency_contribution_positive
+    torque_phase_frequency_residual = torque_phase_frequency_ratio - n_abs**2
     ! Direct simple-root delta weight used by the class integral.  Absolute
     ! values belong only to the positive coordinate measure, complex harmonic
     ! modulus, and delta-function Jacobian.  The thermodynamic force remains
@@ -2289,6 +2418,48 @@ program gen_full_fow_physics
     h_axisymmetric = p_parallel**2/(2*mass) + mu*bmod + q_phi_energy
 
     call suite_begin(proofs, "NEO-RT direct full-FOW symbolic derivations")
+    call check_identity(proofs, proof_engine, "cycle omega_b definition", &
+        cycle_omega_b - 2*pi_expr(arena)*cycle_winding/cycle_period)
+    call check_identity(proofs, proof_engine, "cycle omega_phi definition", &
+        cycle_omega_phi - cycle_delta_phi/cycle_period)
+    call check_identity(proofs, proof_engine, "cycle precession definition", &
+        cycle_omega_prec - (cycle_omega_phi - cycle_q_fieldline*cycle_omega_b))
+    call check_identity(proofs, proof_engine, "cycle quotient derivative omega_b", &
+        cycle_domega_b - diff(cycle_omega_b, cycle_period)*cycle_dperiod)
+    call check_identity(proofs, proof_engine, "cycle quotient derivative omega_phi", &
+        cycle_domega_phi - diff(cycle_omega_phi, cycle_period)*cycle_dperiod - &
+        diff(cycle_omega_phi, cycle_delta_phi)*cycle_ddelta_phi)
+    call check_identity(proofs, proof_engine, "cycle precession derivative", &
+        cycle_domega_prec - (cycle_domega_phi - cycle_q_fieldline*cycle_domega_b - &
+        cycle_omega_b*cycle_dq))
+    call check_identity(proofs, proof_engine, "positive winding convention", &
+        cycle_positive_winding_residual)
+    call check_identity(proofs, proof_engine, "signed resonance scalar", &
+        resonance_scalar - (resonance_m*resonance_omega_b + &
+        resonance_n*resonance_omega_phi))
+    call check_identity(proofs, proof_engine, "signed resonance derivative", &
+        resonance_derivative - (resonance_m*resonance_domega_b + &
+        resonance_n*resonance_domega_phi))
+    call check_identity(proofs, proof_engine, "frequency reversal preserves resonance zero", &
+        resonance_reversal_residual)
+    call check_identity(proofs, proof_engine, "cycle real average normalization", &
+        average_real - average_real_accum/average_period)
+    call check_identity(proofs, proof_engine, "cycle imaginary average normalization", &
+        average_imag - average_imag_accum/average_period)
+    call check_identity(proofs, proof_engine, "cycle residence average normalization", &
+        average_residence - average_residence_accum/average_period)
+    call check_identity(proofs, proof_engine, "cycle field average normalization", &
+        average_field - average_field_accum/average_period)
+    call check_identity(proofs, proof_engine, "signed torque assembly", &
+        torque_value - torque_n**2*torque_outer_factor*torque_force)
+    call check_identity(proofs, proof_engine, "force reversal flips torque", &
+        torque_reversal_residual)
+    call check_identity(proofs, proof_engine, "signed outer factor flips torque", &
+        torque_outer_reversal_residual)
+    call check_identity(proofs, proof_engine, "n reversal preserves torque weight", &
+        torque_n_reversal_residual)
+    call check_identity(proofs, proof_engine, &
+        "signed-to-positive passing mode mapping", mode_residual_difference)
     call check_identity(proofs, proof_engine, "J_K omega_c = mu B", &
         jk_omega_c - mu*bmod)
     call check_identity(proofs, proof_engine, &
@@ -2372,6 +2543,9 @@ program gen_full_fow_physics
         "frequency-root and phase-root contribution weights", &
         n_abs**2*frequency_contribution_positive - &
         phase_contribution_positive)
+    call check_identity(proofs, proof_engine, &
+        "torque n-squared is phase/frequency weight ratio", &
+        torque_phase_frequency_residual)
     call check_identity(proofs, proof_engine, &
         "simple-root harmonic modulus from complex components", &
         root_hm_squared-(hm_real**2+hm_imag**2))
@@ -3147,6 +3321,15 @@ program gen_full_fow_physics
     call simplify_array(canonical_turning_roots)
     call simplify_array(canonical_symmetry_roots)
     call simplify_array(eqdsk_cut_r_chart_roots)
+    cycle_frequency_roots = [cycle_omega_b, cycle_omega_phi, cycle_omega_prec, &
+        cycle_domega_b, cycle_domega_phi, cycle_domega_prec]
+    resonance_scalar_roots = [resonance_scalar, resonance_derivative]
+    cycle_average_roots = [average_real, average_imag, average_residence, &
+        average_field]
+    torque_assembly_roots = [torque_value]
+    mode_mapping_roots = [mode_m_positive, mode_n_positive, mode_signed_residual, &
+        mode_positive_residual]
+
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eqdsk_cut_r_flux_chart_roots)
     call simplify_array(eqdsk_cut_mean_value_roots)
@@ -3170,6 +3353,11 @@ program gen_full_fow_physics
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
+    call simplify_array(cycle_frequency_roots)
+    call simplify_array(resonance_scalar_roots)
+    call simplify_array(cycle_average_roots)
+    call simplify_array(torque_assembly_roots)
+    call simplify_array(mode_mapping_roots)
     call simplify_array(simple_root_force_roots)
     call simplify_array(axisymmetric_pphi_roots)
     call simplify_array(sign_symmetry_roots)
@@ -3232,6 +3420,43 @@ program gen_full_fow_physics
         "evaluate_neort_resonance_weights", [character(len=64) :: "n_mode", "tau", "g_prime"], &
         resonance_roots, [character(len=64) :: "frequency_phase_derivative", &
         "frequency_root_weight", "phase_root_weight"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_cycle_frequency_symbolic.f90", &
+        "neort_full_fow_cycle_frequency_symbolic", &
+        "evaluate_neort_full_fow_cycle_frequency", &
+        [character(len=64) :: "period", "winding", "delta_phi", "q_fieldline", &
+        "dperiod_dx", "ddelta_phi_dx", "dq_fieldline_dx"], cycle_frequency_roots, &
+        [character(len=64) :: "omega_b", "omega_phi", "omega_prec", &
+        "domega_b_dx", "domega_phi_dx", "domega_prec_dx"], line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_resonance_scalar_symbolic.f90", &
+        "neort_full_fow_resonance_scalar_symbolic", &
+        "evaluate_neort_full_fow_resonance_scalar", &
+        [character(len=64) :: "m_mode", "n_mode", "omega_b", "omega_phi", &
+        "domega_b_dx", "domega_phi_dx"], resonance_scalar_roots, &
+        [character(len=64) :: "residual", "residual_derivative"], line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_cycle_average_symbolic.f90", &
+        "neort_full_fow_cycle_average_symbolic", &
+        "evaluate_neort_full_fow_cycle_average", &
+        [character(len=64) :: "accum_real", "accum_imag", "residence_accum", &
+        "field_accum", "period"], cycle_average_roots, &
+        [character(len=64) :: "average_real", "average_imag", &
+        "residence_average", "field_average"], line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_mode_mapping_symbolic.f90", &
+        "neort_full_fow_mode_mapping_symbolic", &
+        "evaluate_neort_full_fow_mode_mapping", &
+        [character(len=64) :: "m_signed", "n_signed", "orientation_sign", &
+        "omega_b_positive", "omega_phi"], mode_mapping_roots, &
+        [character(len=64) :: "m_positive", "n_positive", "signed_residual", &
+        "positive_residual"], line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_torque_assembly_symbolic.f90", &
+        "neort_full_fow_torque_assembly_symbolic", &
+        "evaluate_neort_full_fow_torque_assembly", &
+        [character(len=64) :: "n_mode", "outer_measure_factor", "force_value"], &
+        torque_assembly_roots, [character(len=64) :: "torque_value"], line_limit=88)
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_frequency_contribution_symbolic.f90", &
         "neort_full_fow_frequency_contribution_symbolic", &
@@ -4387,7 +4612,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 49"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 54"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -4425,7 +4650,10 @@ contains
         write (unit, "(a)") "        'eqdsk_physical_flux_map', &"
         write (unit, "(a)") "        'full_fow_canonical_numerator', &"
         write (unit, "(a)") "        'full_fow_canonical_turning', &"
-        write (unit, "(a)") "        'full_fow_canonical_symmetry' ]"
+        write (unit, "(a)") "        'full_fow_canonical_symmetry', &"
+        write (unit, "(a)") "        'full_fow_cycle_frequency', 'full_fow_resonance_scalar', &"
+        write (unit, "(a)") "        'full_fow_cycle_average', 'full_fow_mode_mapping', &"
+        write (unit, "(a)") "        'full_fow_torque_assembly' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -4490,7 +4718,17 @@ contains
         write (unit, "(a)") &
             "        'neort-cert-v1:full_fow_canonical_turning:2:fortsym-5457884', &"
         write (unit, "(a)") &
-            "        'neort-cert-v1:full_fow_canonical_symmetry:21:fortsym-5457884' ]"
+            "        'neort-cert-v1:full_fow_canonical_symmetry:21:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_cycle_frequency:6:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_resonance_scalar:2:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_cycle_average:4:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_mode_mapping:4:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_torque_assembly:1:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

@@ -64,6 +64,10 @@ module neort_gc_eqdsk_nonlocal_transport
         gc_cylindrical_nonlocal_context_t, gc_cylindrical_nonlocal_orbit_t, &
         initialize_gc_cylindrical_nonlocal_provider
     use neort_gc_cylindrical_orbit, only: gc_cylindrical_orbit_options_t
+    use neort_full_fow_cycle_frequency_symbolic, only: &
+        evaluate_neort_full_fow_cycle_frequency
+    use neort_full_fow_cycle_average_symbolic, only: &
+        evaluate_neort_full_fow_cycle_average
     use neort_gc_cylindrical_physical_return, only: &
         GC_CYL_PHYSICAL_EVENT_RADIAL_DOMAIN, GC_CYL_PHYSICAL_EVENT_RETURN, &
         GC_CYL_PHYSICAL_EVENT_WALL, gc_cylindrical_physical_return_options_t, &
@@ -2354,7 +2358,7 @@ contains
                 launch, local_status)
             if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
             call integrate_physical_cycle(factory, launch, harmonic_m, harmonic_n, &
-                .true., .false., 2.0_dp*pi/orbit%tau_b, &
+                .true., .false., orbit%omega_b, &
                 orbit%omega_phi, result)
             if (result%status /= GC_EQDSK_NONLOCAL_SUCCESS) return
             if (abs(result%period-orbit%tau_b) > &
@@ -2563,6 +2567,8 @@ contains
         type(gc_eqdsk_orbit_result_t), intent(in) :: result
         type(gc_cylindrical_nonlocal_orbit_t), intent(out) :: orbit
         integer, intent(out) :: status
+        real(dp) :: unused_omega_prec, unused_domega_b, unused_domega_phi
+        real(dp) :: unused_domega_prec
 
         orbit = gc_cylindrical_nonlocal_orbit_t()
         orbit%component_id = component_id
@@ -2623,14 +2629,20 @@ contains
             status = GC_EQDSK_NONLOCAL_SUCCESS
             return
         end if
-        if (result%period <= 0.0_dp) then
+        if (.not. ieee_is_finite(result%period) .or. result%period <= 0.0_dp) then
             orbit%status = GC_CYL_NONLOCAL_ORBIT_UNRESOLVED
             status = GC_EQDSK_NONLOCAL_SUCCESS
             return
         end if
         orbit%tau_b = result%period
-        orbit%omega_b = 2.0_dp*pi/result%period
-        orbit%omega_phi = result%delta_phi/result%period
+        ! Direct real-space FOW has no Boozer q reduction.  The explicit +1
+        ! first-return winding gives the positive bounce frequency and keeps
+        ! delta_phi/period signed; precession is intentionally not stored in
+        ! this nonlocal sample.
+        call evaluate_neort_full_fow_cycle_frequency(result%period, 1.0_dp, &
+            result%delta_phi, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+            orbit%omega_b, orbit%omega_phi, unused_omega_prec, &
+            unused_domega_b, unused_domega_phi, unused_domega_prec)
         orbit%delta_phi_b = result%delta_phi
         orbit%complete_cycle_return = .true.
         orbit%p_phi_mapping_certified = launch%derivative_available
@@ -2743,6 +2755,8 @@ contains
         real(dp) :: saved_period_error, saved_delta_phi_error
         real(dp) :: saved_omega_b_error, saved_omega_phi_error
         real(dp) :: saved_h_m_error, saved_shell_error
+        real(dp) :: unused_omega_prec, unused_domega_b, unused_domega_phi
+        real(dp) :: unused_domega_prec
 
         result = gc_eqdsk_orbit_result_t()
         behavior_requested = present(track_behavior) .and. track_behavior
@@ -2823,11 +2837,14 @@ contains
                 return
             end if
         end if
-        if (physical_return%period <= 0.0_dp) return
+        if (.not. ieee_is_finite(physical_return%period) .or. &
+                physical_return%period <= 0.0_dp) return
         result%period = physical_return%period
         result%delta_phi = physical_return%delta_phi
-        result%omega_b = 2.0_dp*pi/result%period
-        result%omega_phi = result%delta_phi/result%period
+        call evaluate_neort_full_fow_cycle_frequency(result%period, 1.0_dp, &
+            result%delta_phi, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
+            result%omega_b, result%omega_phi, unused_omega_prec, &
+            unused_domega_b, unused_domega_phi, unused_domega_prec)
         pass_omega_b = result%omega_b
         pass_omega_phi = result%omega_phi
         if (.not. all(ieee_is_finite([pass_omega_b, pass_omega_phi]))) then
@@ -3316,10 +3333,12 @@ contains
         real(dp) :: parallel_sign_tolerance, local_tolerance_factor
         real(dp) :: residence_target_s_tor, unused_psihat, unused_derivative
         integer :: flux_map_status
+        real(dp) :: average_real, average_imag, residence_average, field_average
 
         status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
         callback_status = GC_CYL_SUCCESS
         behavior_requested = present(track_behavior) .and. track_behavior
+        if (.not. ieee_is_finite(period) .or. period <= 0.0_dp) return
         local_tolerance_factor = 1.0_dp
         if (present(tolerance_factor)) local_tolerance_factor = tolerance_factor
         if (.not. ieee_is_finite(local_tolerance_factor) .or. &
@@ -3362,14 +3381,22 @@ contains
         if (size(final) /= AUGMENTED_STATE_SIZE) return
         if (.not. all(ieee_is_finite(final))) return
         if (include_harmonic) then
-            result%h_m = cmplx(final(6), final(7), kind=dp)/period
+            call evaluate_neort_full_fow_cycle_average(final(6), final(7), final(8), &
+                final(9), period, average_real, average_imag, residence_average, &
+                field_average)
+            result%h_m = cmplx(average_real, average_imag, kind=dp)
             if (.not. all(ieee_is_finite([real(result%h_m, dp), &
                 aimag(result%h_m)]))) return
             factory%harmonic_average_successes = &
                 factory%harmonic_average_successes + 1
         end if
         if (include_shell) then
-            result%shell_average = final(8)/period
+            if (.not. include_harmonic) then
+                call evaluate_neort_full_fow_cycle_average(final(6), final(7), &
+                    final(8), final(9), period, average_real, average_imag, &
+                    residence_average, field_average)
+            end if
+            result%shell_average = residence_average
             if (.not. ieee_is_finite(result%shell_average)) return
             if (result%shell_average < -1.0e-8_dp) return
             if (result%shell_average > 1.0_dp+1.0e-8_dp) return
