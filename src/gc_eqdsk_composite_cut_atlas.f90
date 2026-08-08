@@ -308,6 +308,24 @@ contains
             return
         end if
 
+        ! The graph atlas is an open interior chart at the two transverse
+        ! endpoint roots.  Use the endpoint certificates there instead of
+        ! asking the graph bisection chart to bracket a root at its boundary.
+        ! This is also the one-sided chart needed by the class adapter's
+        ! endpoint validation; it does not extend the certified domain.
+        if (radius == radius_lo) then
+            call map_certified_endpoint(atlas%inboard_endpoint, &
+                atlas%field_scale, position, dposition_dradius, local_status)
+            status = local_status
+            return
+        end if
+        if (radius == radius_hi) then
+            call map_certified_endpoint(atlas%outboard_endpoint, &
+                atlas%field_scale, position, dposition_dradius, local_status)
+            status = local_status
+            return
+        end if
+
         if (radius <= atlas%axis%r_lo) then
             call map_eqdsk_cut_graph_atlas(atlas%inboard_graph, radius, &
                 position, dposition_dradius, status=local_status)
@@ -326,6 +344,31 @@ contains
         end if
         status = EQDSK_COMPOSITE_ATLAS_SUCCESS
     end subroutine map_eqdsk_composite_cut_atlas_radius
+
+    subroutine map_certified_endpoint(endpoint, field_scale, position, &
+            dposition_dR, status)
+        type(eqdsk_cut_endpoint_certificate_t), intent(in) :: endpoint
+        real(dp), intent(in) :: field_scale
+        real(dp), intent(out) :: position(3), dposition_dR(3)
+        integer, intent(out) :: status
+
+        type(eqdsk_cut_jet_t) :: jet
+        real(dp) :: dZ_dR, dpsihat_dR
+        integer :: local_status
+
+        position = [endpoint%newton_point_R, endpoint%newton_point_Z, 0.0_dp]
+        dposition_dR = 0.0_dp
+        status = EQDSK_COMPOSITE_ATLAS_MAPPING_FAILURE
+        call evaluate_eqdsk_cut_jet(position, field_scale, 1, &
+            [0.0_dp, 0.0_dp, 0.0_dp], jet, local_status)
+        if (local_status /= EQDSK_CUT_JET_SUCCESS) return
+        call evaluate_neort_eqdsk_cut_r_flux_chart( &
+            jet%d_cut_numerator_d_R, jet%d_cut_numerator_d_Z, &
+            jet%psi_jet(2), jet%psi_jet(3), psi_sep, dZ_dR, dpsihat_dR)
+        if (.not. all(ieee_is_finite([position, dZ_dR, dpsihat_dR]))) return
+        dposition_dR = [1.0_dp, dZ_dR, 0.0_dp]
+        status = EQDSK_COMPOSITE_ATLAS_SUCCESS
+    end subroutine map_certified_endpoint
 
     subroutine map_eqdsk_composite_cut_atlas_rho(atlas, flux_map, rho_tor, &
             branch_sign, position, dposition_drho_tor, status)
