@@ -4,6 +4,8 @@ program test_gc_generated_profile_potential_segment
         evaluate_neort_profile_potential_segment
     use neort_eqdsk_flux_profile_segment_symbolic, only: &
         evaluate_neort_eqdsk_flux_profile_segment
+    use neort_eqdsk_scaled_flux_normalization_symbolic, only: &
+        evaluate_neort_eqdsk_scaled_flux_normalization
     use util_for_test, only: pass_test
     implicit none
     real(dp) :: result(3)
@@ -24,6 +26,9 @@ program test_gc_generated_profile_potential_segment
     call require_close('explicit psihat derivative', dpsihat_dstor, 2.0_dp)
     call require_close('explicit psihat to s_tor inverse', inverse_s_tor, &
         0.375_dp)
+    call evaluate_neort_eqdsk_scaled_flux_normalization(3.0_dp, 2.0_dp, &
+        3.0_dp, psihat)
+    call require_close('scaled equilibrium flux normalization', psihat, 0.5_dp)
     write (*, '(A)') 'test_gc_generated_profile_potential_segment OK'
     call pass_test
 

@@ -67,6 +67,9 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_flux_profile_segment', &
             'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884')) &
         error stop 'EQDSK flux-profile certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_scaled_flux_normalization', &
+            'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884')) &
+        error stop 'EQDSK scaled-flux certificate registry mismatch'
     if (index(fortsym_revision, '545788453a204d58705f735b519c3863c2f734c8') == 0) &
         error stop 'Fortsym revision provenance missing'
     if (index(regenerate_command, 'gen_full_fow_physics') == 0) &

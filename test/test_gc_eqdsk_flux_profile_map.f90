@@ -5,6 +5,7 @@ program test_gc_eqdsk_flux_profile_map
         EQDSK_FLUX_MAP_SUCCESS, eqdsk_flux_profile_map_t, &
         initialize_eqdsk_flux_profile_map, map_eqdsk_psihat_to_s_tor, &
         map_eqdsk_rho_tor_to_psihat, map_eqdsk_s_tor_to_psihat, &
+        map_eqdsk_scaled_psi_to_s_tor, &
         validate_eqdsk_flux_profile_map
     implicit none
 
@@ -34,6 +35,10 @@ program test_gc_eqdsk_flux_profile_map
     call map_eqdsk_psihat_to_s_tor(map, 0.7_dp, s_tor, status)
     call require(status == EQDSK_FLUX_MAP_SUCCESS, 'inverse map failed')
     call require_close(s_tor, 0.75_dp, 'inverse nonuniform map')
+    call map_eqdsk_scaled_psi_to_s_tor(map, 5.6_dp, s_tor, status)
+    call require(status == EQDSK_FLUX_MAP_SUCCESS, &
+        'scaled physical-flux inverse failed')
+    call require_close(s_tor, 0.75_dp, 'scaled physical-flux inverse')
 
     call map_eqdsk_rho_tor_to_psihat(map, 0.25_dp, s_tor, psihat, &
         derivative, status)

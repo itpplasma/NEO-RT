@@ -55,6 +55,7 @@ set(generated_files
     neort_profile_endpoint_symbolic.f90
     neort_profile_potential_segment_symbolic.f90
     neort_eqdsk_flux_profile_segment_symbolic.f90
+    neort_eqdsk_scaled_flux_normalization_symbolic.f90
     neort_eqdsk_quintic_cell_jet_symbolic.f90
     neort_eqdsk_quintic_cell_jet_interval_symbolic.f90
     neort_eqdsk_quintic_cell_fourth_jet_symbolic.f90

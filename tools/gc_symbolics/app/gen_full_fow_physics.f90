@@ -174,6 +174,7 @@ program gen_full_fow_physics
     type(expr_t) :: interpolation_roots(9), endpoint_roots(8)
     type(expr_t) :: profile_potential_roots(3)
     type(expr_t) :: eqdsk_flux_profile_segment_roots(3)
+    type(expr_t) :: eqdsk_scaled_flux_normalization_roots(1)
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
     type(expr_t) :: eqdsk_cell_fourth_jet_roots(5)
     type(expr_t) :: eqdsk_cut_jet_roots(7)
@@ -227,6 +228,8 @@ program gen_full_fow_physics
     type(expr_t) :: flux_segment_derivative_residual
     type(expr_t) :: flux_segment_forward_inverse_residual
     type(expr_t) :: flux_segment_inverse_forward_residual
+    type(expr_t) :: scaled_flux_value, scaled_flux_psihat
+    type(expr_t) :: scaled_flux_round_trip_residual
     type(expr_t) :: cell_coefficient(6,6), cell_delta_r, cell_delta_z
     type(expr_t) :: cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr
     type(expr_t) :: cell_psi_rz, cell_psi_zz, cell_psi_rrr
@@ -1485,6 +1488,11 @@ program gen_full_fow_physics
         flux_segment_target_psihat, flux_segment_psihat)-flux_segment_s
     flux_segment_inverse_forward_residual = subs(flux_segment_psihat, &
         flux_segment_s, flux_segment_inverse_s)-flux_segment_target_psihat
+    scaled_flux_value = sym(arena, "scaled_psi")
+    scaled_flux_psihat = scaled_flux_value &
+        /(flux_segment_field_scale*flux_segment_psi_sep)
+    scaled_flux_round_trip_residual = scaled_flux_psihat &
+        *flux_segment_field_scale*flux_segment_psi_sep-scaled_flux_value
 
     ! Axisymmetric phase-space one-form and Noether construction.  The
     ! explicit convention is A_phi_cov=psi and b_phi_cov=R*b_phi.
@@ -1932,6 +1940,9 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "flux segment inverse map reproduces target", &
         flux_segment_inverse_forward_residual)
+    call check_identity(proofs, proof_engine, &
+        "scaled equilibrium flux normalization round trip", &
+        scaled_flux_round_trip_residual)
     if (proofs%failed /= 0) error stop "full-FOW symbolic proof failed"
     call suite_end(proofs)
 
@@ -1986,6 +1997,7 @@ program gen_full_fow_physics
         delta_phi_constant]
     eqdsk_flux_profile_segment_roots = [flux_segment_psihat, &
         flux_segment_dpsihat_dstor, flux_segment_inverse_s]
+    eqdsk_scaled_flux_normalization_roots = [scaled_flux_psihat]
     eqdsk_cell_jet_roots = [cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr, &
         cell_psi_rz, cell_psi_zz, cell_psi_rrr, cell_psi_rrz, &
         cell_psi_rzz, cell_psi_zzz]
@@ -2459,6 +2471,13 @@ program gen_full_fow_physics
         [character(len=64) :: "psihat", "dpsihat_dstor", &
         "s_tor_from_psihat"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_scaled_flux_normalization_symbolic.f90", &
+        "neort_eqdsk_scaled_flux_normalization_symbolic", &
+        "evaluate_neort_eqdsk_scaled_flux_normalization", &
+        [character(len=64) :: "scaled_psi", "field_scale", "psi_sep"], &
+        eqdsk_scaled_flux_normalization_roots, &
+        [character(len=64) :: "psihat"])
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_quintic_cell_jet_symbolic.f90", &
         "neort_eqdsk_quintic_cell_jet_symbolic", &
         "evaluate_neort_eqdsk_quintic_cell_jet", eqdsk_cell_arg_names, &
@@ -2881,7 +2900,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 28"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 29"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -2898,7 +2917,8 @@ contains
         write (unit, "(a)") "        'eqdsk_flux_profile_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_cut_flux_coordinate', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit', &"
-        write (unit, "(a)") "        'eqdsk_flux_profile_segment' ]"
+        write (unit, "(a)") "        'eqdsk_flux_profile_segment', &"
+        write (unit, "(a)") "        'eqdsk_scaled_flux_normalization' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -2927,7 +2947,8 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884' ]"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

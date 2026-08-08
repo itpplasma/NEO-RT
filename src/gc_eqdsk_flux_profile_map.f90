@@ -13,6 +13,8 @@ module neort_gc_eqdsk_flux_profile_map
         evaluate_neort_eqdsk_flux_profile_rho_chain
     use neort_eqdsk_rho_tor_map_symbolic, only: &
         evaluate_neort_eqdsk_rho_tor_map
+    use neort_eqdsk_scaled_flux_normalization_symbolic, only: &
+        evaluate_neort_eqdsk_scaled_flux_normalization
     implicit none
     private
 
@@ -47,6 +49,7 @@ module neort_gc_eqdsk_flux_profile_map
     public :: map_eqdsk_rho_tor_to_psihat
     public :: map_eqdsk_s_tor_to_psihat
     public :: map_eqdsk_psihat_to_s_tor
+    public :: map_eqdsk_scaled_psi_to_s_tor
 
 contains
 
@@ -268,6 +271,30 @@ contains
         end if
         status = EQDSK_FLUX_MAP_SUCCESS
     end subroutine map_eqdsk_psihat_to_s_tor
+
+    subroutine map_eqdsk_scaled_psi_to_s_tor(map, scaled_psi, s_tor, status)
+        type(eqdsk_flux_profile_map_t), intent(in) :: map
+        real(dp), intent(in) :: scaled_psi
+        real(dp), intent(out) :: s_tor
+        integer, intent(out) :: status
+
+        real(dp) :: psihat
+
+        s_tor = 0.0_dp
+        call validate_eqdsk_flux_profile_map(map, status)
+        if (status /= EQDSK_FLUX_MAP_SUCCESS) return
+        if (.not. ieee_is_finite(scaled_psi)) then
+            status = EQDSK_FLUX_MAP_NONFINITE
+            return
+        end if
+        call evaluate_neort_eqdsk_scaled_flux_normalization(scaled_psi, &
+            map%field_scale, map%psi_sep, psihat)
+        if (.not. ieee_is_finite(psihat)) then
+            status = EQDSK_FLUX_MAP_NONFINITE
+            return
+        end if
+        call map_eqdsk_psihat_to_s_tor(map, psihat, s_tor, status)
+    end subroutine map_eqdsk_scaled_psi_to_s_tor
 
     subroutine map_eqdsk_rho_tor_to_psihat(map, rho_tor, s_tor, psihat, &
             dpsihat_drho_tor, status)
