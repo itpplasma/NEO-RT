@@ -4,7 +4,7 @@ module neort_generated_certificate_registry
         'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: regenerate_command = &
         'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'
-    integer, parameter :: certificate_count = 36
+    integer, parameter :: certificate_count = 41
     character(len=32), parameter :: certificate_id(certificate_count) = &
         [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &
         'root_enclosures', 'interpolation', 'profile_endpoints', &
@@ -29,7 +29,12 @@ module neort_generated_certificate_registry
         'eqdsk_axis_stationarity_krawczyk', &
         'eqdsk_flux_profile_segment', &
         'eqdsk_scaled_flux_normalization', &
-        'gauss_interval_map' ]
+        'gauss_interval_map', &
+        'profile_potential_map', &
+        'eqdsk_allowed_energy', &
+        'eqdsk_canonical_cut', &
+        'eqdsk_turning_chart', &
+        'eqdsk_physical_flux_map' ]
     character(len=64), parameter :: certificate_fingerprint(certificate_count) = &
         [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &
         'neort-cert-v1:littlejohn:22:fortsym-5457884', &
@@ -66,7 +71,12 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_axis_stationarity_krawczyk:2:fortsym-5457884', &
         'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884', &
-        'neort-cert-v1:gauss_interval_map:2:fortsym-5457884' ]
+        'neort-cert-v1:gauss_interval_map:2:fortsym-5457884', &
+        'neort-cert-v1:profile_potential_map:3:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_allowed_energy:17:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_canonical_cut:4:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_turning_chart:5:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_physical_flux_map:2:fortsym-5457884' ]
     ! Fingerprints are provenance/arity manifests, not algebraic proofs.
     ! Root multiplicity and crossing counts require interval/theorem gates.
 contains

@@ -13,7 +13,7 @@ contains
             psi_R, psi_Z, psi_RR, psi_RZ, psi_ZZ, psi_sep, dZ_dR, d2Z_dR2, dpsihat_dR, d2psihat_dR2)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: N_R, N_Z, N_RR, N_RZ, N_ZZ, psi_R, psi_Z, psi_RR, psi_RZ, psi_ZZ, &
             psi_sep

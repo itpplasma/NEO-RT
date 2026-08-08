@@ -20,7 +20,7 @@ contains
             coefficient_5_5, psi_RRRR, psi_RRRZ, psi_RRZZ, psi_RZZZ, psi_ZZZZ)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: delta_R, delta_Z, coefficient_0_0, coefficient_0_1, coefficient_0_2, &
             coefficient_0_3, coefficient_0_4, coefficient_0_5, coefficient_1_0, coefficient_1_1, &

@@ -14,7 +14,7 @@ contains
             vacuum_radius_reference, profile_value, profile_first, profile_second, vacuum_F)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: profile_delta, coefficient_0, coefficient_1, coefficient_2, &
             coefficient_3, coefficient_4, coefficient_5, vacuum_Bphi_reference, vacuum_radius_reference

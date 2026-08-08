@@ -13,7 +13,7 @@ contains
             psi_ZZ, residual_R, residual_Z, jacobian_11, jacobian_12, jacobian_21, jacobian_22)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: psi_R, psi_Z, psi_RR, psi_RZ, psi_ZZ
         type(gc_outward_interval_t), intent(out) :: residual_R, residual_Z, jacobian_11, jacobian_12, jacobian_21, &

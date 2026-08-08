@@ -14,7 +14,7 @@ contains
             krawczyk_Z)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: R0, Z0, psi_R0, psi_Z0, psi_RR0, psi_RZ0, psi_ZZ0, psi_RR_box, &
             psi_RZ_box, psi_ZZ_box, delta_R_box, delta_Z_box

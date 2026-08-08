@@ -13,7 +13,7 @@ contains
             psi_sep, axis_flux_curvature, axis_hessian_determinant)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: dZ_dR, psi_RR, psi_RZ, psi_ZZ, psi_sep
         type(gc_outward_interval_t), intent(out) :: axis_flux_curvature, axis_hessian_determinant

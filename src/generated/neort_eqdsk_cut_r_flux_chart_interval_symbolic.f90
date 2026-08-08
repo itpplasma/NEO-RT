@@ -13,7 +13,7 @@ contains
             dZ_dR, dpsihat_dR)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: N_R, N_Z, psi_R, psi_Z, psi_sep
         type(gc_outward_interval_t), intent(out) :: dZ_dR, dpsihat_dR

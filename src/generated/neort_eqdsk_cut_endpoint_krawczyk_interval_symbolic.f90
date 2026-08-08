@@ -15,7 +15,7 @@ contains
             d_flux_residual_d_Z_box, delta_R_box, delta_Z_box, krawczyk_R, krawczyk_Z)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: R0, Z0, cut_numerator0, flux_residual0, d_cut_numerator_d_R0, &
             d_cut_numerator_d_Z0, d_flux_residual_d_R0, d_flux_residual_d_Z0, d_cut_numerator_d_R_box, &

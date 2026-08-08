@@ -13,7 +13,7 @@ contains
             delta_Z, N_mean_value)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
-            operator(+), operator(-), operator(*), operator(/), operator(**)
+            operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: N_mid, N_R_box, N_Z_box, delta_R, delta_Z
         type(gc_outward_interval_t), intent(out) :: N_mean_value
