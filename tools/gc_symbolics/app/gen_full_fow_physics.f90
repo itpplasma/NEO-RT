@@ -4340,9 +4340,9 @@ contains
                 wrapped = wrapped//trim(rest(:cut))//' &'//new_line('a')// &
                     '            '
             end if
-            rest = adjustl(rest(cut+1:))
+            rest = trim(adjustl(rest(cut+1:)))
         end do
-        wrapped = wrapped//rest
+        wrapped = wrapped//trim(rest)
     end function wrap_generated_line
 
     pure integer function generated_line_break(line, available) result(cut)
