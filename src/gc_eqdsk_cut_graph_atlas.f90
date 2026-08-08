@@ -270,6 +270,11 @@ contains
                     atlas%requested_psihat_lo-1.0e-12_dp .or. &
                     candidates(i)%interval%psi_hat%hi > &
                     atlas%requested_psihat_hi+1.0e-12_dp) then
+                write (*, '(a,6(1x,es24.16))') 'runtime enclosure diagnostic=', &
+                    candidates(i)%interval%psi_hat%lo, &
+                    candidates(i)%interval%psi_hat%hi, &
+                    atlas%requested_psihat_lo, atlas%requested_psihat_hi, &
+                    r_lo, r_hi
                 if (depth >= atlas%options%max_r_depth .or. &
                         r_hi-r_lo <= atlas%options%minimum_r_width) then
                     status = EQDSK_CUT_ATLAS_UNRESOLVED
