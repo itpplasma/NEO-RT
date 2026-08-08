@@ -55,6 +55,9 @@ program gen_full_fow_physics
     type(native_engine_t) :: simplify_engine
     type(suite_t) :: proofs
     type(expr_t) :: roots(48), action_roots(11), perturbation_roots(6)
+    type(expr_t) :: cut_topology_flow_roots(1)
+    type(expr_t) :: cut_topology_jacobian_roots(3)
+    type(expr_t) :: cut_topology_partner_roots(2)
     type(expr_t) :: harmonic_integrand_roots(8)
     type(expr_t) :: resonance_roots(3), eq17_roots(2), cylindrical_roots(22)
     type(expr_t) :: noether_roots(4)
@@ -81,6 +84,22 @@ program gen_full_fow_physics
     type(expr_t) :: a_real, a_imag, m_mode, theta, phi
     type(expr_t) :: phase_half_real, phase_half_imag, phase_half_norm
     type(expr_t) :: q_abs, zero, one, jk, omega_c, omega_c_var, jk_omega_c, jk_candidate
+    type(expr_t) :: cut_topology_v_r, cut_topology_v_z, cut_topology_z_r
+    type(expr_t) :: cut_topology_g
+    type(expr_t) :: cut_topology_j11, cut_topology_j12
+    type(expr_t) :: cut_topology_j21, cut_topology_j22
+    type(expr_t) :: cut_topology_trace, cut_topology_determinant
+    type(expr_t) :: cut_topology_discriminant
+    type(expr_t) :: cut_topology_p_star, cut_topology_p_star_x
+    type(expr_t) :: cut_topology_dp_star_d_r, cut_topology_dp_star_d_z
+    type(expr_t) :: cut_topology_partner_residual
+    type(expr_t) :: cut_topology_partner_derivative
+    type(expr_t) :: cut_topology_r, cut_topology_z, cut_topology_p_field
+    type(expr_t) :: cut_topology_p_field_r, cut_topology_p_field_z
+    type(expr_t) :: cut_topology_flow_identity
+    type(expr_t) :: cut_topology_discriminant_identity
+    type(expr_t) :: cut_topology_partner_identity
+    type(expr_t) :: cut_topology_partner_derivative_identity
     type(expr_t) :: q_phi_energy
     type(expr_t) :: jk_max, d_jk_d_h, d_jk_d_phi, d_jk_d_omega, eq4_coeff
     type(expr_t) :: psi_star, dpsi_dp_phi, f_prime, freq_weight, phase_weight
@@ -671,6 +690,54 @@ program gen_full_fow_physics
     mode_omega_phi = sym(arena, "omega_phi")
     zero = num(arena, 0)
     one = num(arena, 1)
+
+    ! ------------------------------------------------------------------
+    ! Operational cut-topology primitives.  These are deliberately kept
+    ! independent of the runtime topology and class contracts: the runtime
+    ! supplies a graph slope, a two-dimensional flow Jacobian, or an
+    ! invariant/partner sample, and receives only the generated scalar
+    ! algebra.  No trace-free or Hamiltonian reduction is assumed.
+    cut_topology_v_r = sym(arena, "v_R")
+    cut_topology_v_z = sym(arena, "v_Z")
+    cut_topology_z_r = sym(arena, "Z_R")
+    cut_topology_g = cut_topology_v_z - cut_topology_z_r*cut_topology_v_r
+
+    cut_topology_j11 = sym(arena, "J_11")
+    cut_topology_j12 = sym(arena, "J_12")
+    cut_topology_j21 = sym(arena, "J_21")
+    cut_topology_j22 = sym(arena, "J_22")
+    cut_topology_trace = cut_topology_j11 + cut_topology_j22
+    cut_topology_determinant = cut_topology_j11*cut_topology_j22 - &
+        cut_topology_j12*cut_topology_j21
+    cut_topology_discriminant = cut_topology_trace**2 - &
+        4*cut_topology_determinant
+
+    cut_topology_p_star = sym(arena, "p_star")
+    cut_topology_p_star_x = sym(arena, "p_star_X")
+    cut_topology_dp_star_d_r = sym(arena, "dp_star_d_R")
+    cut_topology_dp_star_d_z = sym(arena, "dp_star_d_Z")
+    cut_topology_partner_residual = cut_topology_p_star - &
+        cut_topology_p_star_x
+    cut_topology_partner_derivative = cut_topology_dp_star_d_r + &
+        cut_topology_z_r*cut_topology_dp_star_d_z
+
+    cut_topology_r = sym(arena, "R")
+    cut_topology_z = sym(arena, "Z")
+    cut_topology_p_field = cut_topology_r**2 + cut_topology_z
+    cut_topology_p_field_r = diff(cut_topology_p_field, cut_topology_r)
+    cut_topology_p_field_z = diff(cut_topology_p_field, cut_topology_z)
+    cut_topology_flow_identity = cut_topology_g - &
+        (cut_topology_v_z - cut_topology_z_r*cut_topology_v_r)
+    cut_topology_discriminant_identity = cut_topology_discriminant - &
+        ((cut_topology_j11 + cut_topology_j22)**2 - &
+        4*(cut_topology_j11*cut_topology_j22 - &
+        cut_topology_j12*cut_topology_j21))
+    cut_topology_partner_identity = cut_topology_partner_residual - &
+        (cut_topology_p_star - cut_topology_p_star_x)
+    cut_topology_partner_derivative_identity = &
+        (diff(cut_topology_p_field, cut_topology_r) + &
+        cut_topology_z_r*diff(cut_topology_p_field, cut_topology_z)) - &
+        (cut_topology_p_field_r + cut_topology_z_r*cut_topology_p_field_z)
 
     ! ------------------------------------------------------------------
     ! Exact libneo tensor-quintic cell jet.  The runtime chooses the owning
@@ -2418,6 +2485,18 @@ program gen_full_fow_physics
     h_axisymmetric = p_parallel**2/(2*mass) + mu*bmod + q_phi_energy
 
     call suite_begin(proofs, "NEO-RT direct full-FOW symbolic derivations")
+    call check_identity(proofs, proof_engine, &
+        "normal section flow is v_Z minus graph slope times v_R", &
+        cut_topology_flow_identity)
+    call check_identity(proofs, proof_engine, &
+        "flow discriminant uses the full 2x2 characteristic polynomial", &
+        cut_topology_discriminant_identity)
+    call check_identity(proofs, proof_engine, &
+        "same-invariant partner residual is p_star minus p_star_X", &
+        cut_topology_partner_identity)
+    call check_identity(proofs, proof_engine, &
+        "partner derivative is the graph-cut chain rule", &
+        cut_topology_partner_derivative_identity)
     call check_identity(proofs, proof_engine, "cycle omega_b definition", &
         cycle_omega_b - 2*pi_expr(arena)*cycle_winding/cycle_period)
     call check_identity(proofs, proof_engine, "cycle omega_phi definition", &
@@ -3329,6 +3408,11 @@ program gen_full_fow_physics
     torque_assembly_roots = [torque_value]
     mode_mapping_roots = [mode_m_positive, mode_n_positive, mode_signed_residual, &
         mode_positive_residual]
+    cut_topology_flow_roots = [cut_topology_g]
+    cut_topology_jacobian_roots = [cut_topology_trace, &
+        cut_topology_determinant, cut_topology_discriminant]
+    cut_topology_partner_roots = [cut_topology_partner_residual, &
+        cut_topology_partner_derivative]
 
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eqdsk_cut_r_flux_chart_roots)
@@ -3377,6 +3461,9 @@ program gen_full_fow_physics
     call simplify_array(cylindrical_canonical_roots)
     call simplify_array(cylindrical_vparallel_roots)
     call simplify_array(cylindrical_launch_roots)
+    call simplify_array(cut_topology_flow_roots)
+    call simplify_array(cut_topology_jacobian_roots)
+    call simplify_array(cut_topology_partner_roots)
 
     action_roots = roots(1:11)
     perturbation_roots = roots(12:17)
@@ -3537,6 +3624,26 @@ program gen_full_fow_physics
         "coefficient_4", "coefficient_5", "cell_width"], &
         polynomial_enclosure_roots, [character(len=64) :: "tail_absolute_bound", &
         "polynomial_lower_bound", "polynomial_upper_bound"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_gc_cut_topology_section_flow_symbolic.f90", &
+        "neort_gc_cut_topology_section_flow_symbolic", &
+        "evaluate_neort_gc_cut_topology_section_flow", &
+        [character(len=64) :: "v_R", "v_Z", "Z_R"], &
+        cut_topology_flow_roots, [character(len=64) :: "normal_section_flow"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_gc_cut_topology_flow_jacobian_symbolic.f90", &
+        "neort_gc_cut_topology_flow_jacobian_symbolic", &
+        "evaluate_neort_gc_cut_topology_flow_jacobian", &
+        [character(len=64) :: "J_11", "J_12", "J_21", "J_22"], &
+        cut_topology_jacobian_roots, [character(len=64) :: "trace", &
+        "determinant", "discriminant"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_gc_cut_topology_partner_symbolic.f90", &
+        "neort_gc_cut_topology_partner_symbolic", &
+        "evaluate_neort_gc_cut_topology_partner", &
+        [character(len=64) :: "p_star", "p_star_X", "dp_star_d_R", &
+        "dp_star_d_Z", "Z_R"], cut_topology_partner_roots, &
+        [character(len=64) :: "partner_residual", "partner_derivative"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_bstar_symbolic.f90", &
         "neort_cylindrical_bstar_symbolic", &
@@ -4471,7 +4578,7 @@ contains
             error stop "fortsym emitted a nonconforming overlong line"
         end if
         if (len(emitted_text) > 0 .and. &
-                emitted_text(len(emitted_text):) == new_line('a')) then
+            emitted_text(len(emitted_text):) == new_line('a')) then
             write (unit, '(a)', advance='no') &
                 emitted_text(:len(emitted_text)-1)
         else
@@ -4584,7 +4691,7 @@ contains
         cut = 0
         do i = min(available, len(line)), 1, -1
             if (line(i:i) == ' ' .or. line(i:i) == ',' .or. &
-                    line(i:i) == '*') then
+                line(i:i) == '*') then
                 cut = i
                 exit
             end if
@@ -4618,7 +4725,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 54"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 55"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -4659,7 +4766,7 @@ contains
         write (unit, "(a)") "        'full_fow_canonical_symmetry', &"
         write (unit, "(a)") "        'full_fow_cycle_frequency', 'full_fow_resonance_scalar', &"
         write (unit, "(a)") "        'full_fow_cycle_average', 'full_fow_mode_mapping', &"
-        write (unit, "(a)") "        'full_fow_torque_assembly' ]"
+        write (unit, "(a)") "        'full_fow_torque_assembly', 'full_fow_cut_topology' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -4734,7 +4841,9 @@ contains
         write (unit, "(a)") &
             "        'neort-cert-v1:full_fow_mode_mapping:4:fortsym-5457884', &"
         write (unit, "(a)") &
-            "        'neort-cert-v1:full_fow_torque_assembly:1:fortsym-5457884' ]"
+            "        'neort-cert-v1:full_fow_torque_assembly:1:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_cut_topology:6:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

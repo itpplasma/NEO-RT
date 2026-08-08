@@ -408,6 +408,10 @@ add_test(NAME test_gc_cylindrical_independent_behavior
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_independent_behavior.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_cut_topology_primitives
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_cut_topology_primitives.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_generated_geometry_interp_endpoints
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_geometry_interp_endpoints.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
