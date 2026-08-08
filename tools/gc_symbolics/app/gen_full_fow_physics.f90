@@ -384,6 +384,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_allowed_g_rho, eqcut_allowed_g_rhorho
     type(expr_t) :: eqcut_allowed_psistar_R
     type(expr_t) :: eqcut_allowed_psistar_rho
+    type(expr_t) :: eqcut_allowed_axis_dR_drho
     type(expr_t) :: eqcut_allowed_axis_g_rho
     type(expr_t) :: eqcut_allowed_axis_psistar_rho
     type(expr_t) :: eqcut_flux_coordinate_chain_residual
@@ -392,6 +393,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_allowed_first_chain_residual
     type(expr_t) :: eqcut_allowed_second_chain_residual
     type(expr_t) :: eqcut_allowed_psistar_chain_residual
+    type(expr_t) :: eqcut_allowed_axis_g_chain_residual
+    type(expr_t) :: eqcut_allowed_axis_psistar_chain_residual
     type(expr_t) :: eqcut_rho_map_derivative_residual
     type(expr_t) :: eqcut_axis_rho_dR, eqcut_axis_rho_dZ
     type(expr_t) :: eqcut_axis_rho_limit_residual
@@ -934,6 +937,7 @@ program gen_full_fow_physics
     eqcut_allowed_g_R = sym(arena, "dvparallel_squared_dR")
     eqcut_allowed_g_RR = sym(arena, "d2vparallel_squared_dR2")
     eqcut_allowed_psistar_R = sym(arena, "dpsi_star_dR")
+    eqcut_allowed_axis_dR_drho = sym(arena, "dR_drho_tor_limit")
     eqcut_s_tor = eqcut_rho**2
     eqcut_rho_dstor_drho = 2*eqcut_rho
     eqcut_d2stor_drho2 = 2*one
@@ -968,9 +972,15 @@ program gen_full_fow_physics
     eqcut_axis_rho_dR = eqcut_axis_branch_sign &
         *sqrt(2*eqcut_dpsihat_dstor/eqcut_axis_curvature)
     eqcut_axis_rho_dZ = eqcut_axis_slope*eqcut_axis_rho_dR
-    eqcut_allowed_axis_g_rho = eqcut_allowed_g_R*eqcut_axis_rho_dR
+    eqcut_allowed_axis_g_rho = &
+        eqcut_allowed_g_R*eqcut_allowed_axis_dR_drho
     eqcut_allowed_axis_psistar_rho = &
-        eqcut_allowed_psistar_R*eqcut_axis_rho_dR
+        eqcut_allowed_psistar_R*eqcut_allowed_axis_dR_drho
+    eqcut_allowed_axis_g_chain_residual = eqcut_allowed_axis_g_rho - &
+        eqcut_allowed_g_R*eqcut_allowed_axis_dR_drho
+    eqcut_allowed_axis_psistar_chain_residual = &
+        eqcut_allowed_axis_psistar_rho - &
+        eqcut_allowed_psistar_R*eqcut_allowed_axis_dR_drho
     eqcut_axis_rho_limit_residual = eqcut_axis_curvature &
         *eqcut_axis_rho_dR**2 &
         -2*eqcut_axis_branch_sign**2*eqcut_dpsihat_dstor
@@ -2375,6 +2385,12 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "axis rho_tor derivative has finite square-root limit", &
         eqcut_axis_rho_limit_residual)
+    call check_identity(proofs, proof_engine, &
+        "axis allowed-energy rho derivative uses the finite chart", &
+        eqcut_allowed_axis_g_chain_residual)
+    call check_identity(proofs, proof_engine, &
+        "axis canonical rho derivative uses the finite chart", &
+        eqcut_allowed_axis_psistar_chain_residual)
     call check_identity(proofs, proof_engine, &
         "endpoint inverse Jacobian row one column one", &
         endpoint_y11*endpoint_nr0+endpoint_y12*endpoint_gr0-one)
