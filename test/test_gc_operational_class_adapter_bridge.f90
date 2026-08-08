@@ -104,6 +104,7 @@ program test_gc_operational_class_adapter_bridge
 
     call make_fixture(candidate, assembly)
     candidate%component_id = huge(candidate%component_id)
+    assembly%classes%component_id = candidate%component_id
     call bridge_gc_operational_class_assembly(candidate, assembly, split, status)
     call require(status == GC_CLASS_ADAPTER_BRIDGE_ID_OVERFLOW, &
         'component-ID overflow was not rejected')
