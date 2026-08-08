@@ -4,7 +4,7 @@ module neort_generated_certificate_registry
         'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: regenerate_command = &
         'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'
-    integer, parameter :: certificate_count = 45
+    integer, parameter :: certificate_count = 49
     character(len=32), parameter :: certificate_id(certificate_count) = &
         [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &
         'root_enclosures', 'interpolation', 'profile_endpoints', &
@@ -21,6 +21,7 @@ module neort_generated_certificate_registry
         'eqdsk_s_tor_to_rho', &
         'eqdsk_flux_profile_rho_chain', &
         'eqdsk_cut_flux_coordinate', &
+        'eqdsk_flux_coordinate_interval', &
         'eqdsk_cut_axis_rho_limit', &
         'eqdsk_allowed_rho_chain', &
         'eqdsk_allowed_axis_rho_chain', &
@@ -38,7 +39,10 @@ module neort_generated_certificate_registry
         'eqdsk_allowed_energy', &
         'eqdsk_canonical_cut', &
         'eqdsk_turning_chart', &
-        'eqdsk_physical_flux_map' ]
+        'eqdsk_physical_flux_map', &
+        'full_fow_canonical_numerator', &
+        'full_fow_canonical_turning', &
+        'full_fow_canonical_symmetry' ]
     character(len=64), parameter :: certificate_fingerprint(certificate_count) = &
         [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &
         'neort-cert-v1:littlejohn:22:fortsym-5457884', &
@@ -67,6 +71,7 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_s_tor_to_rho:1:fortsym-5457884', &
         'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_flux_coordinate_interval:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_allowed_rho_chain:7:fortsym-5457884', &
         'neort-cert-v1:eqdsk_allowed_axis_rho_chain:2:fortsym-5457884', &
@@ -84,7 +89,10 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_allowed_energy:17:fortsym-5457884', &
         'neort-cert-v1:eqdsk_canonical_cut:4:fortsym-5457884', &
         'neort-cert-v1:eqdsk_turning_chart:5:fortsym-5457884', &
-        'neort-cert-v1:eqdsk_physical_flux_map:2:fortsym-5457884' ]
+        'neort-cert-v1:eqdsk_physical_flux_map:2:fortsym-5457884', &
+        'neort-cert-v1:full_fow_canonical_numerator:3:fortsym-5457884', &
+        'neort-cert-v1:full_fow_canonical_turning:2:fortsym-5457884', &
+        'neort-cert-v1:full_fow_canonical_symmetry:21:fortsym-5457884' ]
     ! Fingerprints are provenance/arity manifests, not algebraic proofs.
     ! Root multiplicity and crossing counts require interval/theorem gates.
 contains
