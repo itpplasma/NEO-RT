@@ -533,7 +533,7 @@ contains
         type(eqdsk_cut_graph_atlas_strip_t), intent(out) :: strip
         integer, intent(out) :: status
 
-        integer :: n_candidates
+        integer :: n_candidates, i
         type(candidate_leaf_t), allocatable :: candidates(:)
 
         strip = eqdsk_cut_graph_atlas_strip_t()
@@ -542,6 +542,22 @@ contains
         call collect_slab_candidates(atlas, cell_R, r_lo, r_hi, candidates, &
             n_candidates, outcome, status)
         if (outcome /= Z_COVER_SUCCESS) return
+        do i = 1, n_candidates
+            ! The interval evaluator downstream needs a spatial leaf whose
+            ! flux enclosure remains in the requested closed domain.  A
+            ! transverse box can pass the cut-sign test while still reaching
+            ! outside that domain because its R width is too large.  Return
+            ! this slab to the R bisection rather than passing an invalid
+            ! profile interval to the physics kernel.
+            if (candidates(i)%interval%psi_hat%lo < &
+                    atlas%requested_psihat_lo-1.0e-12_dp .or. &
+                    candidates(i)%interval%psi_hat%hi > &
+                    atlas%requested_psihat_hi+1.0e-12_dp) then
+                atlas%failure_stage = 6
+                outcome = Z_COVER_MULTIPLE
+                return
+            end if
+        end do
         call assemble_candidate_band(atlas, cell_R, r_lo, r_hi, candidates, &
             n_candidates, strip, outcome, status)
         if (allocated(candidates)) deallocate(candidates)
