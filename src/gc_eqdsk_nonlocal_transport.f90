@@ -2143,6 +2143,7 @@ contains
                     status = GC_CYL_CLASS_SUCCESS
                 else
                     certificate_id = 0
+                    factory%last_return_status = 3000 + local_status
                 end if
             class default
                 return
