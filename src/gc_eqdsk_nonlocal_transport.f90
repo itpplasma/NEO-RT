@@ -1279,8 +1279,9 @@ contains
             status = local_status
             return
         end if
-        if (.not. factory%cut_atlas%certified .or. &
-                .not. factory%cut_atlas%two_cut_multiplicity_certified) return
+        if (.not. factory%cut_atlas%certified) return
+        if (.not. factory%certified_cut_atlas% &
+                surface_intersection_pair_certified) return
         call physical_cut_map(factory, factory%options%reference_surface, &
             factory%section_position, dposition, status)
         if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
@@ -1305,7 +1306,10 @@ contains
             status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
             return
         end if
-        factory%section_reference_id = 'direct-eqdsk-C0-cut-atlas-v2'
+        ! This reference certifies only the geometric section.  Finite-width
+        ! orbit multiplicity remains an orbit-evidence gate and is not needed
+        ! to construct or lock the section itself.
+        factory%section_reference_id = 'direct-eqdsk-C0-cut-atlas-v3'
         factory%cut_ready = .true.
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine build_poincare_reference
