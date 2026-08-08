@@ -1516,16 +1516,19 @@ contains
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine interpolate_profile
 
-    subroutine interpolate_potential(potential, psi, values, status)
+    subroutine interpolate_potential(potential, psi, values, status, &
+            second_derivative)
         class(gc_eqdsk_profile_potential_t), intent(in) :: potential
         real(dp), intent(in) :: psi
         real(dp), intent(out) :: values(2)
         integer, intent(out) :: status
+        real(dp), intent(out), optional :: second_derivative
 
         integer :: left, right
-        real(dp) :: weight, dpsi, second_derivative
+        real(dp) :: weight, dpsi, local_second_derivative
 
         values = 0.0_dp
+        if (present(second_derivative)) second_derivative = 0.0_dp
         status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
         if (.not. potential%initialized) return
         call locate_monotonic(potential%psi_pol, psi, left, right, weight, &
@@ -1540,12 +1543,14 @@ contains
             potential%psi_pol(left), potential%psi_pol(right), &
             potential%phi(left), potential%omega_e(left), &
             potential%omega_e(right), potential%c_light, values(1), &
-            values(2), second_derivative)
-        if (.not. all(ieee_is_finite([values, second_derivative]))) then
+            values(2), local_second_derivative)
+        if (.not. all(ieee_is_finite([values, local_second_derivative]))) then
             values = 0.0_dp
             status = GC_EQDSK_NONLOCAL_NONFINITE
             return
         end if
+        if (present(second_derivative)) &
+            second_derivative = local_second_derivative
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine interpolate_potential
 

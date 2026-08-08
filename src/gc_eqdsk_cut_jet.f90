@@ -11,9 +11,13 @@ module neort_gc_eqdsk_cut_jet
         hrad, hzet, psi_sep, rtf, splfpol, splpsi, use_fpol
     use neort_eqdsk_cut_numerator_symbolic, only: &
         evaluate_neort_eqdsk_cut_numerator
+    use neort_eqdsk_cut_numerator_hessian_symbolic, only: &
+        evaluate_neort_eqdsk_cut_numerator_hessian
     use neort_eqdsk_cut_jet_symbolic, only: evaluate_neort_eqdsk_cut_jet
     use neort_eqdsk_quintic_cell_jet_symbolic, only: &
         evaluate_neort_eqdsk_quintic_cell_jet
+    use neort_eqdsk_quintic_cell_fourth_jet_symbolic, only: &
+        evaluate_neort_eqdsk_quintic_cell_fourth_jet
     use neort_eqdsk_quintic_profile_jet_symbolic, only: &
         evaluate_neort_eqdsk_quintic_profile_jet
     implicit none
@@ -29,7 +33,9 @@ module neort_gc_eqdsk_cut_jet
         !! psi_jet and F_jet are unscaled equilibrium quantities.  The cut
         !! quantities include field_scale exactly as certified by the generated
         !! field_scale**2 identity.
-        real(dp) :: psi_jet(10) = 0.0_dp
+        !! psi_jet ordering is psi, first derivatives, symmetric second,
+        !! symmetric third, then symmetric fourth derivatives.
+        real(dp) :: psi_jet(15) = 0.0_dp
         real(dp) :: f_jet(3) = 0.0_dp
         real(dp) :: cut_value = 0.0_dp
         real(dp) :: d_cut_d_R = 0.0_dp
@@ -41,6 +47,9 @@ module neort_gc_eqdsk_cut_jet
         real(dp) :: cut_numerator = 0.0_dp
         real(dp) :: d_cut_numerator_d_R = 0.0_dp
         real(dp) :: d_cut_numerator_d_Z = 0.0_dp
+        real(dp) :: d2_cut_numerator_d_R2 = 0.0_dp
+        real(dp) :: d2_cut_numerator_d_RdZ = 0.0_dp
+        real(dp) :: d2_cut_numerator_d_Z2 = 0.0_dp
     end type eqdsk_cut_jet_t
 
     public :: evaluate_eqdsk_cut_jet
@@ -115,6 +124,21 @@ contains
             result%psi_jet(4), result%psi_jet(5), result%psi_jet(6), &
             result%psi_jet(7), result%psi_jet(8), result%psi_jet(9), &
             result%psi_jet(10))
+        call evaluate_neort_eqdsk_quintic_cell_fourth_jet(delta_R, delta_Z, &
+            coefficient(1,1), coefficient(1,2), coefficient(1,3), &
+            coefficient(1,4), coefficient(1,5), coefficient(1,6), &
+            coefficient(2,1), coefficient(2,2), coefficient(2,3), &
+            coefficient(2,4), coefficient(2,5), coefficient(2,6), &
+            coefficient(3,1), coefficient(3,2), coefficient(3,3), &
+            coefficient(3,4), coefficient(3,5), coefficient(3,6), &
+            coefficient(4,1), coefficient(4,2), coefficient(4,3), &
+            coefficient(4,4), coefficient(4,5), coefficient(4,6), &
+            coefficient(5,1), coefficient(5,2), coefficient(5,3), &
+            coefficient(5,4), coefficient(5,5), coefficient(5,6), &
+            coefficient(6,1), coefficient(6,2), coefficient(6,3), &
+            coefficient(6,4), coefficient(6,5), coefficient(6,6), &
+            result%psi_jet(11), result%psi_jet(12), result%psi_jet(13), &
+            result%psi_jet(14), result%psi_jet(15))
         if (.not. all(ieee_is_finite(result%psi_jet))) then
             status = EQDSK_CUT_JET_NONFINITE
             return
@@ -165,9 +189,22 @@ contains
             result%psi_jet(10), result%f_jet(1), result%f_jet(2), psi_sep, &
             result%cut_numerator, result%d_cut_numerator_d_R, &
             result%d_cut_numerator_d_Z)
+        call evaluate_neort_eqdsk_cut_numerator_hessian(position(1), &
+            result%psi_jet(2), result%psi_jet(3), result%psi_jet(4), &
+            result%psi_jet(5), result%psi_jet(6), result%psi_jet(7), &
+            result%psi_jet(8), result%psi_jet(9), result%psi_jet(10), &
+            result%psi_jet(11), result%psi_jet(12), result%psi_jet(13), &
+            result%psi_jet(14), result%psi_jet(15), result%f_jet(1), &
+            result%f_jet(2), result%f_jet(3), psi_sep, &
+            result%d2_cut_numerator_d_R2, &
+            result%d2_cut_numerator_d_RdZ, &
+            result%d2_cut_numerator_d_Z2)
         if (.not. all(ieee_is_finite([result%cut_numerator, &
                 result%d_cut_numerator_d_R, &
-                result%d_cut_numerator_d_Z]))) then
+                result%d_cut_numerator_d_Z, &
+                result%d2_cut_numerator_d_R2, &
+                result%d2_cut_numerator_d_RdZ, &
+                result%d2_cut_numerator_d_Z2]))) then
             result = eqdsk_cut_jet_t()
             status = EQDSK_CUT_JET_NONFINITE
             return
@@ -187,7 +224,10 @@ contains
                 result%d_cut_d_arc_phi, result%d_cut_d_Z, result%cut_rate, &
                 result%absolute_cut_rate, result%orientation_scalar, &
                 result%cut_numerator, result%d_cut_numerator_d_R, &
-                result%d_cut_numerator_d_Z]))) then
+                result%d_cut_numerator_d_Z, &
+                result%d2_cut_numerator_d_R2, &
+                result%d2_cut_numerator_d_RdZ, &
+                result%d2_cut_numerator_d_Z2]))) then
             result = eqdsk_cut_jet_t()
             status = EQDSK_CUT_JET_NONFINITE
             return
