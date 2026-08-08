@@ -49,6 +49,7 @@ program gen_gc_homoclinic_limit
     type(expr_t) :: nondegeneracy_margin, section_reversed_margin
     type(expr_t) :: epsilon_margin, section_reversed_epsilon_margin
     type(expr_t) :: saddle_rate_floor_margin, epsilon_floor_margin
+    type(expr_t) :: c_tau_input, c_phi_input
     type(expr_t) :: tau_one_epsilon, tau_two_epsilon
     type(expr_t) :: phi_one_epsilon, phi_two_epsilon, log_epsilon
     type(expr_t) :: tau_finite_one, tau_finite_two
@@ -82,6 +83,8 @@ program gen_gc_homoclinic_limit
     saddle_rate_floor = sym(arena, 'saddle_rate_floor')
     epsilon = sym(arena, 'epsilon')
     epsilon_floor = sym(arena, 'epsilon_floor')
+    c_tau_input = sym(arena, 'c_tau')
+    c_phi_input = sym(arena, 'c_phi')
     tau_one_epsilon = sym(arena, 'tau_one_epsilon')
     tau_two_epsilon = sym(arena, 'tau_two_epsilon')
     phi_one_epsilon = sym(arena, 'phi_one_epsilon')
@@ -136,14 +139,14 @@ program gen_gc_homoclinic_limit
     epsilon_floor_margin = epsilon_floor
 
     log_epsilon = log(epsilon)
-    tau_finite_one = tau_one_epsilon+c_tau*log_epsilon
-    tau_finite_two = tau_two_epsilon+2*c_tau*log_epsilon
-    phi_finite_one = phi_one_epsilon+c_phi*log_epsilon
-    phi_finite_two = phi_two_epsilon+2*c_phi*log_epsilon
+    tau_finite_one = tau_one_epsilon+c_tau_input*log_epsilon
+    tau_finite_two = tau_two_epsilon+2*c_tau_input*log_epsilon
+    phi_finite_one = phi_one_epsilon+c_phi_input*log_epsilon
+    phi_finite_two = phi_two_epsilon+2*c_phi_input*log_epsilon
     phi_finite_one_toroidal_reverse = &
-        -phi_one_epsilon-c_phi*log_epsilon
+        -phi_one_epsilon-c_phi_input*log_epsilon
     phi_finite_two_toroidal_reverse = &
-        -phi_two_epsilon-2*c_phi*log_epsilon
+        -phi_two_epsilon-2*c_phi_input*log_epsilon
 
     call suite_begin(proofs, 'homoclinic limit Fortsym contracts')
     call check_identity(proofs, proof_engine, 'quadratic H qq derivative', &
@@ -191,13 +194,13 @@ program gen_gc_homoclinic_limit
         'section reversal keeps epsilon margin', &
         section_reversed_epsilon_margin-epsilon_margin)
     call check_identity(proofs, proof_engine, 'one-leg tau finite part', &
-        tau_finite_one-(tau_one_epsilon+c_tau*log(epsilon)))
+        tau_finite_one-(tau_one_epsilon+c_tau_input*log(epsilon)))
     call check_identity(proofs, proof_engine, 'two-leg tau finite part', &
-        tau_finite_two-(tau_two_epsilon+2*c_tau*log(epsilon)))
+        tau_finite_two-(tau_two_epsilon+2*c_tau_input*log(epsilon)))
     call check_identity(proofs, proof_engine, 'one-leg phi finite part', &
-        phi_finite_one-(phi_one_epsilon+c_phi*log(epsilon)))
+        phi_finite_one-(phi_one_epsilon+c_phi_input*log(epsilon)))
     call check_identity(proofs, proof_engine, 'two-leg phi finite part', &
-        phi_finite_two-(phi_two_epsilon+2*c_phi*log(epsilon)))
+        phi_finite_two-(phi_two_epsilon+2*c_phi_input*log(epsilon)))
     call check_identity(proofs, proof_engine, 'one-leg phi finite reversal', &
         phi_finite_one_toroidal_reverse+phi_finite_one)
     call check_identity(proofs, proof_engine, 'two-leg phi finite reversal', &
