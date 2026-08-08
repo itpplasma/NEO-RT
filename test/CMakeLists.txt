@@ -460,6 +460,10 @@ add_test(NAME test_gc_sign_symmetry_behavior
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_sign_symmetry_behavior.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_full_fow_canonical_behavior
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_canonical_behavior.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_certified_interval_roots
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_certified_interval_roots.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

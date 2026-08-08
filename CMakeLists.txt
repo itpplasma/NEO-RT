@@ -130,6 +130,11 @@ set(NEO_RT_SOURCES
     src/generated/neort_full_fow_frequency_identity_symbolic.f90
     src/generated/neort_full_fow_simple_root_symbolic.f90
     src/generated/neort_full_fow_sign_symmetry_symbolic.f90
+    src/generated/neort_full_fow_canonical_numerator_symbolic.f90
+    src/generated/neort_full_fow_canonical_numerator_interval_symbolic.f90
+    src/generated/neort_full_fow_canonical_turning_symbolic.f90
+    src/generated/neort_full_fow_canonical_turning_interval_symbolic.f90
+    src/generated/neort_full_fow_canonical_symmetry_symbolic.f90
     src/generated/neort_full_fow_normalization_symbolic.f90
     src/generated/neort_full_fow_quadrature_map_symbolic.f90
     src/generated/neort_gauss_legendre_interval_map_symbolic.f90
@@ -181,6 +186,7 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_s_tor_to_rho_interval_symbolic.f90
     src/generated/neort_eqdsk_flux_profile_rho_chain_symbolic.f90
     src/generated/neort_eqdsk_cut_flux_coordinate_symbolic.f90
+    src/generated/neort_eqdsk_cut_flux_coordinate_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_rho_limit_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_rho_limit_interval_symbolic.f90
     src/generated/neort_eqdsk_allowed_rho_chain_symbolic.f90
