@@ -186,7 +186,7 @@ contains
         open(newunit=unit, file=trim(path), status='replace', action='write', &
             iostat=ios)
         if (ios /= 0) error stop 'cannot open continuation kernel output'
-        write(unit, '(a)') emitted_text
+        write(unit, '(a)', advance='no') emitted_text
         close(unit)
         write(output_unit, '(a)') 'wrote '//trim(path)
     end subroutine emit_kernel_file
