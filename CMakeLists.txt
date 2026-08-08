@@ -226,6 +226,7 @@ set(NEO_RT_SOURCES
     src/gc_cylindrical_physical_return.f90
     src/gc_cylindrical_topology.f90
     src/gc_certified_interval_roots.f90
+    src/gc_operational_scalar_roots.f90
     src/gc_poincare_cut_atlas.f90
     src/gc_callback_context.f90
     src/gc_cylindrical_class_adapter.f90

@@ -297,6 +297,11 @@ add_test(NAME test_gc_cylindrical_topology
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_operational_scalar_roots
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_operational_scalar_roots.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_gc_cylindrical_orbit
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_orbit.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
