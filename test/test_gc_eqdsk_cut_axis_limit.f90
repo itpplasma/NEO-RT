@@ -8,6 +8,8 @@ program test_gc_eqdsk_cut_axis_limit
         evaluate_neort_eqdsk_cut_axis_rho_limit
     use neort_eqdsk_cut_flux_coordinate_symbolic, only: &
         evaluate_neort_eqdsk_cut_flux_coordinate
+    use neort_eqdsk_rho_tor_map_symbolic, only: &
+        evaluate_neort_eqdsk_rho_tor_map
     use neort_gc_outward_interval, only: gc_outward_interval, &
         gc_outward_interval_t
     implicit none
@@ -21,7 +23,7 @@ program test_gc_eqdsk_cut_axis_limit
     real(dp), parameter :: tolerance = 2.0e-14_dp
     real(dp) :: curvature, absolute_derivative, delta_r
     real(dp) :: oracle_curvature, oracle_delta_r, oracle_derivative
-    real(dp) :: s_tor, dpsihat_drho, dR_drho, dZ_drho
+    real(dp) :: s_tor, dstor_drho, dpsihat_drho, dR_drho, dZ_drho
     real(dp) :: oracle_dR_drho
     type(gc_outward_interval_t) :: interval_curvature, interval_determinant
 
@@ -48,9 +50,12 @@ program test_gc_eqdsk_cut_axis_limit
     call require_close(delta_r, oracle_delta_r, tolerance, &
         'outboard axis inverse limit')
 
-    call evaluate_neort_eqdsk_cut_flux_coordinate(0.4_dp, 0.7_dp, 0.2_dp, &
-        -0.3_dp, s_tor, dpsihat_drho, dR_drho, dZ_drho)
+    call evaluate_neort_eqdsk_rho_tor_map(0.4_dp, s_tor, dstor_drho)
     call require_close(s_tor, 0.16_dp, tolerance, 'rho_tor squared map')
+    call require_close(dstor_drho, 0.8_dp, tolerance, &
+        'rho_tor derivative map')
+    call evaluate_neort_eqdsk_cut_flux_coordinate(dstor_drho, 0.7_dp, &
+        0.2_dp, -0.3_dp, dpsihat_drho, dR_drho, dZ_drho)
     call require_close(dpsihat_drho, 0.56_dp, tolerance, &
         'rho_tor flux chain')
     call require_close(dR_drho, 2.8_dp, tolerance, &

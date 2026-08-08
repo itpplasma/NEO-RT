@@ -161,6 +161,7 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_cut_mean_value_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_curvature_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_limit_symbolic.f90
+    src/generated/neort_eqdsk_rho_tor_map_symbolic.f90
     src/generated/neort_eqdsk_cut_flux_coordinate_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_rho_limit_symbolic.f90
     src/generated/neort_cylindrical_hamiltonian_symbolic.f90
