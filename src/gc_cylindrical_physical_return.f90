@@ -23,6 +23,8 @@ module neort_gc_cylindrical_physical_return
     use fortnum_status, only: FORTNUM_OK, fortnum_status_t
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
     use neort_gc_callback_context, only: gc_callback_context_t
+    use neort_gc_physical_return_contract, only: &
+        gc_cylindrical_physical_return_certificate_t
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_FIELD_ERROR, &
         GC_CYL_INTEGRATOR_ERROR, GC_CYL_INVARIANT_ERROR, GC_CYL_INVALID_INPUT, &
@@ -103,6 +105,8 @@ module neort_gc_cylindrical_physical_return
         real(dp) :: intersection_times(2) = 0.0_dp
         real(dp) :: intersection_rates(2) = 0.0_dp
         logical :: intersection_multiplicity_certified = .false.
+        integer :: multiplicity_status = &
+            GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN
         type(gc_cylindrical_state_t) :: state_at_event
         logical :: physical_return_found = .false.
         logical :: wall_hit = .false.
@@ -153,18 +157,25 @@ module neort_gc_cylindrical_physical_return
         end subroutine gc_cylindrical_radial_domain_i
     end interface
 
-    type :: gc_physical_return_certificate_t
-        !! Independent theorem evidence for the observed return evidence.
-        integer :: certificate_id = 0
-        integer :: crossing_count = 0
-        logical :: exactly_two_proved = .false.
-    end type gc_physical_return_certificate_t
+    abstract interface
+        subroutine gc_cylindrical_physical_return_multiplicity_provider( &
+                evidence, certificate, status)
+            import :: gc_cylindrical_physical_return_t
+            import :: gc_cylindrical_physical_return_certificate_t
+            type(gc_cylindrical_physical_return_t), intent(in) :: evidence
+            type(gc_cylindrical_physical_return_certificate_t), intent(out) :: &
+                certificate
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_physical_return_multiplicity_provider
+    end interface
 
     public :: gc_cylindrical_physical_event_i
     public :: gc_cylindrical_physical_event_rate_i
     public :: gc_cylindrical_radial_domain_i
-    public :: gc_physical_return_certificate_t
+    public :: gc_cylindrical_physical_return_multiplicity_provider
+    public :: gc_cylindrical_physical_return_certificate_t
     public :: compute_gc_cylindrical_physical_return
+    public :: certify_gc_cylindrical_physical_return
     public :: attach_gc_cylindrical_physical_return_certificate
 
 contains
@@ -561,6 +572,8 @@ contains
             ! multiplicity belongs to a separate theorem/provider and is
             ! attached by certify_gc_cylindrical_physical_return.
             result%intersection_multiplicity_certified = .false.
+            result%multiplicity_status = &
+                GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN
         else
             call integrate_to_cut(y_start, pre_time, target_time, &
                 event_orientation, y_final, root_time, event_index, found, &
@@ -1164,16 +1177,46 @@ contains
 
     end subroutine compute_gc_cylindrical_physical_return
 
+    subroutine certify_gc_cylindrical_physical_return(result, provider, status, &
+            message)
+        type(gc_cylindrical_physical_return_t), intent(inout) :: result
+        procedure(gc_cylindrical_physical_return_multiplicity_provider) :: &
+            provider
+        integer, intent(out) :: status
+        character(len=*), intent(out) :: message
+
+        type(gc_cylindrical_physical_return_certificate_t) :: certificate
+        integer :: provider_status
+
+        result%intersection_multiplicity_certified = .false.
+        result%multiplicity_status = GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN
+        certificate = gc_cylindrical_physical_return_certificate_t()
+        call provider(result, certificate, provider_status)
+        if (provider_status == GC_CYL_PHYSICAL_RETURN_CERTIFICATE_UNAVAILABLE) then
+            status = provider_status
+            message = 'exactly-two theorem provider is unavailable'
+            return
+        end if
+        if (provider_status /= GC_CYL_SUCCESS) then
+            status = GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID
+            message = 'exactly-two theorem provider failed'
+            return
+        end if
+        call attach_gc_cylindrical_physical_return_certificate(result, certificate, &
+            status, message)
+    end subroutine certify_gc_cylindrical_physical_return
+
     subroutine attach_gc_cylindrical_physical_return_certificate(result, &
             certificate, status, message)
         type(gc_cylindrical_physical_return_t), intent(inout) :: result
-        type(gc_physical_return_certificate_t), intent(in) :: certificate
+        type(gc_cylindrical_physical_return_certificate_t), intent(in) :: certificate
         integer, intent(out) :: status
         character(len=*), intent(out) :: message
 
         status = GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID
         message = 'exactly-two certificate does not match return evidence'
         result%intersection_multiplicity_certified = .false.
+        result%multiplicity_status = GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN
         if (result%status /= GC_CYL_SUCCESS .or. &
                 .not. result%physical_return_found) return
         if (result%event_kind /= GC_CYL_PHYSICAL_EVENT_RETURN .or. &
@@ -1196,6 +1239,7 @@ contains
                 any(abs(result%intersection_rates) <= tiny(1.0_dp))) return
 
         result%intersection_multiplicity_certified = .true.
+        result%multiplicity_status = GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_CERTIFIED
         status = GC_CYL_SUCCESS
         message = 'independent exactly-two theorem certificate attached'
     end subroutine attach_gc_cylindrical_physical_return_certificate

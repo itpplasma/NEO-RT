@@ -229,6 +229,7 @@ set(NEO_RT_SOURCES
     src/gc_dynamics.f90
     src/gc_cylindrical_model.f90
     src/gc_cylindrical_dynamics.f90
+    src/gc_physical_return_contract.f90
     src/gc_cylindrical_physical_return.f90
     src/gc_cylindrical_topology.f90
     src/gc_certified_interval_roots.f90

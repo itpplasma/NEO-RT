@@ -79,7 +79,7 @@ module neort_gc_eqdsk_nonlocal_transport
         GC_CYL_PHYSICAL_EVENT_RADIAL_DOMAIN, GC_CYL_PHYSICAL_EVENT_RETURN, &
         GC_CYL_PHYSICAL_EVENT_WALL, gc_cylindrical_physical_return_options_t, &
         attach_gc_cylindrical_physical_return_certificate, &
-        gc_physical_return_certificate_t, &
+        gc_cylindrical_physical_return_certificate_t, &
         gc_cylindrical_physical_return_t, &
         compute_gc_cylindrical_physical_return
     use neort_gc_cylindrical_transport_provider, only: &
@@ -2976,7 +2976,8 @@ contains
         type(gc_cylindrical_invariants_t) :: invariants
         type(gc_cylindrical_physical_return_options_t) :: return_options
         type(gc_cylindrical_physical_return_t) :: physical_return
-        type(gc_physical_return_certificate_t) :: multiplicity_certificate
+        type(gc_cylindrical_physical_return_certificate_t) :: &
+            multiplicity_certificate
         integer :: local_status
         character(len=256) :: certificate_message
         logical :: behavior_requested, is_refinement_pass
@@ -3034,7 +3035,8 @@ contains
         if (factory%cut_atlas%two_cut_multiplicity_certified .and. &
                 factory%two_cut_multiplicity_certificate_id == &
                     GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID) then
-            multiplicity_certificate = gc_physical_return_certificate_t()
+            multiplicity_certificate = &
+                gc_cylindrical_physical_return_certificate_t()
             multiplicity_certificate%certificate_id = &
                 factory%two_cut_multiplicity_certificate_id
             multiplicity_certificate%crossing_count = 2
