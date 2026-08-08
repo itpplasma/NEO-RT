@@ -10,8 +10,16 @@ program test_gc_eqdsk_allowed_rho_chain
         evaluate_neort_eqdsk_allowed_rho_chain
     use neort_eqdsk_flux_profile_segment_interval_symbolic, only: &
         evaluate_neort_eqdsk_flux_profile_segment_interval
+    use neort_eqdsk_physical_flux_normalization_interval_symbolic, only: &
+        evaluate_neort_eqdsk_physical_flux_normalization_interval
+    use neort_eqdsk_physical_flux_normalization_symbolic, only: &
+        evaluate_neort_eqdsk_physical_flux_normalization
     use neort_eqdsk_rho_tor_map_interval_symbolic, only: &
         evaluate_neort_eqdsk_rho_tor_map_interval
+    use neort_eqdsk_s_tor_to_rho_interval_symbolic, only: &
+        evaluate_neort_eqdsk_s_tor_to_rho_interval
+    use neort_eqdsk_s_tor_to_rho_symbolic, only: &
+        evaluate_neort_eqdsk_s_tor_to_rho
     use neort_gc_outward_interval, only: gc_outward_interval, &
         gc_outward_interval_t
     implicit none
@@ -23,6 +31,8 @@ program test_gc_eqdsk_allowed_rho_chain
     type(gc_outward_interval_t) :: axis_output(2)
     type(gc_outward_interval_t) :: s_tor, ds_drho
     type(gc_outward_interval_t) :: psihat, dpsihat_ds, inverse_s
+    type(gc_outward_interval_t) :: inverse_rho, physical_psihat
+    real(dp) :: rho_from_s, physical_psihat_scalar
     real(dp), parameter :: expected_p_first = 2.4_dp
     real(dp), parameter :: expected_p_second = 6.32_dp
     real(dp), parameter :: expected_r_first = 1.2_dp
@@ -82,6 +92,25 @@ program test_gc_eqdsk_allowed_rho_chain
     call require_contains(s_tor, 0.16_dp, 'rho map upper endpoint')
     call require_contains(ds_drho, 0.6_dp, 'rho derivative lower endpoint')
     call require_contains(ds_drho, 0.8_dp, 'rho derivative upper endpoint')
+    call evaluate_neort_eqdsk_s_tor_to_rho(0.36_dp, rho_from_s)
+    call require_close(rho_from_s, 0.6_dp, 'inverse rho map')
+    call evaluate_neort_eqdsk_s_tor_to_rho_interval( &
+        gc_outward_interval(0.09_dp, 0.16_dp), inverse_rho)
+    call require_contains(inverse_rho, 0.3_dp, &
+        'inverse rho map lower endpoint')
+    call require_contains(inverse_rho, 0.4_dp, &
+        'inverse rho map upper endpoint')
+
+    call evaluate_neort_eqdsk_physical_flux_normalization(3.0_dp, 6.0_dp, &
+        physical_psihat_scalar)
+    call require_close(physical_psihat_scalar, 0.5_dp, &
+        'physical flux normalization')
+    call evaluate_neort_eqdsk_physical_flux_normalization_interval( &
+        gc_outward_interval(2.0_dp, 3.0_dp), point(6.0_dp), physical_psihat)
+    call require_contains(physical_psihat, 1.0_dp/3.0_dp, &
+        'physical flux normalization lower endpoint')
+    call require_contains(physical_psihat, 0.5_dp, &
+        'physical flux normalization upper endpoint')
 
     call evaluate_neort_eqdsk_flux_profile_segment_interval( &
         gc_outward_interval(0.2_dp, 0.3_dp), point(0.06_dp), &

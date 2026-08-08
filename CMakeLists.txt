@@ -151,6 +151,8 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_flux_profile_segment_symbolic.f90
     src/generated/neort_eqdsk_flux_profile_segment_interval_symbolic.f90
     src/generated/neort_eqdsk_scaled_flux_normalization_symbolic.f90
+    src/generated/neort_eqdsk_physical_flux_normalization_symbolic.f90
+    src/generated/neort_eqdsk_physical_flux_normalization_interval_symbolic.f90
     src/generated/neort_eqdsk_physical_flux_map_symbolic.f90
     src/generated/neort_eqdsk_physical_flux_map_interval_symbolic.f90
     src/generated/neort_eqdsk_quintic_cell_jet_symbolic.f90
@@ -175,6 +177,8 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_cut_axis_limit_symbolic.f90
     src/generated/neort_eqdsk_rho_tor_map_symbolic.f90
     src/generated/neort_eqdsk_rho_tor_map_interval_symbolic.f90
+    src/generated/neort_eqdsk_s_tor_to_rho_symbolic.f90
+    src/generated/neort_eqdsk_s_tor_to_rho_interval_symbolic.f90
     src/generated/neort_eqdsk_flux_profile_rho_chain_symbolic.f90
     src/generated/neort_eqdsk_cut_flux_coordinate_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_rho_limit_symbolic.f90

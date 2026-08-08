@@ -55,6 +55,9 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_rho_tor_map', &
             'neort-cert-v1:eqdsk_rho_tor_map:2:fortsym-5457884')) &
         error stop 'EQDSK rho-tor-map certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_s_tor_to_rho', &
+            'neort-cert-v1:eqdsk_s_tor_to_rho:1:fortsym-5457884')) &
+        error stop 'EQDSK inverse-rho certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_flux_profile_rho_chain', &
             'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884')) &
         error stop 'EQDSK flux-profile rho-chain certificate registry mismatch'
@@ -88,6 +91,9 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_scaled_flux_normalization', &
             'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884')) &
         error stop 'EQDSK scaled-flux certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_physical_flux_norm', &
+            'neort-cert-v1:eqdsk_physical_flux_norm:1:fortsym-5457884')) &
+        error stop 'EQDSK physical-flux certificate registry mismatch'
     if (.not. certificate_matches('gauss_interval_map', &
             'neort-cert-v1:gauss_interval_map:2:fortsym-5457884')) &
         error stop 'Gauss interval-map certificate registry mismatch'

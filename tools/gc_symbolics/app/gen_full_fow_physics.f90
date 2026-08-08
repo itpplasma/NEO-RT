@@ -177,6 +177,7 @@ program gen_full_fow_physics
     type(expr_t) :: profile_potential_map_roots(3)
     type(expr_t) :: eqdsk_flux_profile_segment_roots(3)
     type(expr_t) :: eqdsk_scaled_flux_normalization_roots(1)
+    type(expr_t) :: eqdsk_physical_flux_normalization_roots(1)
     type(expr_t) :: eqdsk_physical_flux_map_roots(2)
     type(expr_t) :: eqdsk_allowed_energy_roots(17)
     type(expr_t) :: eqdsk_canonical_cut_roots(4)
@@ -194,6 +195,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cut_axis_curvature_roots(2)
     type(expr_t) :: eqdsk_cut_axis_limit_roots(3)
     type(expr_t) :: eqdsk_rho_tor_map_roots(2)
+    type(expr_t) :: eqdsk_s_tor_to_rho_roots(1)
     type(expr_t) :: eqdsk_flux_profile_rho_chain_roots(1)
     type(expr_t) :: eqdsk_cut_flux_coordinate_roots(3)
     type(expr_t) :: eqdsk_cut_axis_rho_limit_roots(3)
@@ -249,6 +251,8 @@ program gen_full_fow_physics
     type(expr_t) :: flux_segment_inverse_forward_residual
     type(expr_t) :: scaled_flux_value, scaled_flux_psihat
     type(expr_t) :: scaled_flux_round_trip_residual
+    type(expr_t) :: physical_flux_normalized_value, physical_flux_psihat
+    type(expr_t) :: physical_flux_normalization_residual
     type(expr_t) :: physical_flux_raw_psi, physical_flux_raw_psi_r
     type(expr_t) :: physical_flux_raw_psi_z, physical_flux_dz_dr
     type(expr_t) :: physical_flux_raw_dpsi_dr
@@ -396,6 +400,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_allowed_axis_g_chain_residual
     type(expr_t) :: eqcut_allowed_axis_psistar_chain_residual
     type(expr_t) :: eqcut_rho_map_derivative_residual
+    type(expr_t) :: eqcut_s_tor_input, eqcut_rho_from_s
+    type(expr_t) :: eqcut_s_tor_inverse_residual
     type(expr_t) :: eqcut_axis_rho_dR, eqcut_axis_rho_dZ
     type(expr_t) :: eqcut_axis_rho_limit_residual
     type(expr_t) :: endpoint_n, endpoint_n_r, endpoint_n_z
@@ -986,6 +992,10 @@ program gen_full_fow_physics
         -2*eqcut_axis_branch_sign**2*eqcut_dpsihat_dstor
     eqcut_rho_map_derivative_residual = diff(eqcut_s_tor, eqcut_rho) &
         -eqcut_rho_dstor_drho
+    eqcut_s_tor_input = sym(arena, "s_tor")
+    eqcut_rho_from_s = sqrt(eqcut_s_tor_input)
+    eqcut_s_tor_inverse_residual = eqcut_rho_from_s**2 &
+        -eqcut_s_tor_input
 
     ! Certified endpoint chart for the coupled system N=0 and
     ! psi/psi_sep=target.  A generated Newton map supplies the point inverse;
@@ -1852,6 +1862,11 @@ program gen_full_fow_physics
         /(flux_segment_field_scale*flux_segment_psi_sep)
     scaled_flux_round_trip_residual = scaled_flux_psihat &
         *flux_segment_field_scale*flux_segment_psi_sep-scaled_flux_value
+    physical_flux_normalized_value = sym(arena, "psi_physical")
+    physical_flux_psihat = physical_flux_normalized_value &
+        /flux_segment_psi_sep
+    physical_flux_normalization_residual = physical_flux_psihat &
+        *flux_segment_psi_sep-physical_flux_normalized_value
     physical_flux_raw_psi = sym(arena, "psi")
     physical_flux_raw_psi_r = sym(arena, "psi_R")
     physical_flux_raw_psi_z = sym(arena, "psi_Z")
@@ -2365,6 +2380,9 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "rho_tor map derivative is exact", eqcut_rho_map_derivative_residual)
     call check_identity(proofs, proof_engine, &
+        "nonnegative s_tor square-root map is the inverse branch", &
+        eqcut_s_tor_inverse_residual)
+    call check_identity(proofs, proof_engine, &
         "rho_tor to normalized-flux derivative is the chain rule", &
         eqcut_flux_coordinate_chain_residual)
     call check_identity(proofs, proof_engine, &
@@ -2566,6 +2584,9 @@ program gen_full_fow_physics
         "scaled equilibrium flux normalization round trip", &
         scaled_flux_round_trip_residual)
     call check_identity(proofs, proof_engine, &
+        "physical equilibrium flux normalization round trip", &
+        physical_flux_normalization_residual)
+    call check_identity(proofs, proof_engine, &
         "physical equilibrium flux applies field scale exactly once", &
         physical_flux_psi/physical_flux_field_scale-physical_flux_raw_psi)
     call check_identity(proofs, proof_engine, &
@@ -2679,6 +2700,7 @@ program gen_full_fow_physics
     eqdsk_flux_profile_segment_roots = [flux_segment_psihat, &
         flux_segment_dpsihat_dstor, flux_segment_inverse_s]
     eqdsk_scaled_flux_normalization_roots = [scaled_flux_psihat]
+    eqdsk_physical_flux_normalization_roots = [physical_flux_psihat]
     eqdsk_physical_flux_map_roots = [physical_flux_psi, &
         physical_flux_dpsi_dr]
     eqdsk_allowed_energy_roots = [allowed_g, &
@@ -2720,6 +2742,7 @@ program gen_full_fow_physics
     eqdsk_cut_axis_limit_roots = [eqcut_axis_curvature, &
         eqcut_axis_abs_dpsihat, eqcut_axis_inverse_delta_r]
     eqdsk_rho_tor_map_roots = [eqcut_s_tor, eqcut_rho_dstor_drho]
+    eqdsk_s_tor_to_rho_roots = [eqcut_rho_from_s]
     eqdsk_flux_profile_rho_chain_roots = [eqcut_dpsihat_drho]
     eqdsk_cut_flux_coordinate_roots = [eqcut_dpsihat_drho, eqcut_dR_drho, &
         eqcut_dZ_drho]
@@ -2815,6 +2838,8 @@ program gen_full_fow_physics
     call simplify_array(profile_potential_roots)
     call simplify_array(profile_potential_map_roots)
     call simplify_array(eqdsk_flux_profile_segment_roots)
+    call simplify_array(eqdsk_scaled_flux_normalization_roots)
+    call simplify_array(eqdsk_physical_flux_normalization_roots)
     call simplify_array(eqdsk_physical_flux_map_roots)
     call simplify_array(eqdsk_allowed_energy_roots)
     call simplify_array(eqdsk_canonical_cut_roots)
@@ -2834,6 +2859,7 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_axis_curvature_roots)
     call simplify_array(eqdsk_cut_axis_limit_roots)
     call simplify_array(eqdsk_rho_tor_map_roots)
+    call simplify_array(eqdsk_s_tor_to_rho_roots)
     call simplify_array(eqdsk_flux_profile_rho_chain_roots)
     call simplify_array(eqdsk_cut_flux_coordinate_roots)
     call simplify_array(eqdsk_cut_axis_rho_limit_roots)
@@ -3315,6 +3341,20 @@ program gen_full_fow_physics
         eqdsk_scaled_flux_normalization_roots, &
         [character(len=64) :: "psihat"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_physical_flux_normalization_symbolic.f90", &
+        "neort_eqdsk_physical_flux_normalization_symbolic", &
+        "evaluate_neort_eqdsk_physical_flux_normalization", &
+        [character(len=64) :: "psi_physical", "psi_sep"], &
+        eqdsk_physical_flux_normalization_roots, &
+        [character(len=64) :: "psihat"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_physical_flux_normalization_interval_symbolic.f90", &
+        "neort_eqdsk_physical_flux_normalization_interval_symbolic", &
+        "evaluate_neort_eqdsk_physical_flux_normalization_interval", &
+        [character(len=64) :: "psi_physical", "psi_sep"], &
+        eqdsk_physical_flux_normalization_roots, &
+        [character(len=64) :: "psihat"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_physical_flux_map_symbolic.f90", &
         "neort_eqdsk_physical_flux_map_symbolic", &
         "evaluate_neort_eqdsk_physical_flux_map", &
@@ -3506,6 +3546,18 @@ program gen_full_fow_physics
         [character(len=64) :: "rho_tor"], eqdsk_rho_tor_map_roots, &
         [character(len=64) :: "s_tor", "dstor_drho_tor"], &
         interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_s_tor_to_rho_symbolic.f90", &
+        "neort_eqdsk_s_tor_to_rho_symbolic", &
+        "evaluate_neort_eqdsk_s_tor_to_rho", &
+        [character(len=64) :: "s_tor"], eqdsk_s_tor_to_rho_roots, &
+        [character(len=64) :: "rho_tor"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_s_tor_to_rho_interval_symbolic.f90", &
+        "neort_eqdsk_s_tor_to_rho_interval_symbolic", &
+        "evaluate_neort_eqdsk_s_tor_to_rho_interval", &
+        [character(len=64) :: "s_tor"], eqdsk_s_tor_to_rho_roots, &
+        [character(len=64) :: "rho_tor"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_flux_profile_rho_chain_symbolic.f90", &
         "neort_eqdsk_flux_profile_rho_chain_symbolic", &
@@ -3897,7 +3949,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 43"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 45"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -3911,6 +3963,7 @@ contains
         write (unit, "(a)") "        'eqdsk_cut_axis_curvature', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_limit', &"
         write (unit, "(a)") "        'eqdsk_rho_tor_map', &"
+        write (unit, "(a)") "        'eqdsk_s_tor_to_rho', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_cut_flux_coordinate', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit', &"
@@ -3924,6 +3977,7 @@ contains
         write (unit, "(a)") "        'eqdsk_axis_stationarity_krawczyk', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_segment', &"
         write (unit, "(a)") "        'eqdsk_scaled_flux_normalization', &"
+        write (unit, "(a)") "        'eqdsk_physical_flux_norm', &"
         write (unit, "(a)") "        'gauss_interval_map', &"
         write (unit, "(a)") "        'profile_potential_map', &"
         write (unit, "(a)") "        'eqdsk_allowed_energy', &"
@@ -3955,6 +4009,8 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_rho_tor_map:2:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_s_tor_to_rho:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &"
@@ -3971,6 +4027,8 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &"
         write (unit, "(a)") &
             "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_physical_flux_norm:1:fortsym-5457884', &"
         write (unit, "(a)") &
             "        'neort-cert-v1:gauss_interval_map:2:fortsym-5457884', &"
         write (unit, "(a)") &
