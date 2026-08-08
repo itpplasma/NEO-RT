@@ -247,7 +247,9 @@ program gen_full_fow_physics
     type(expr_t) :: flux_segment_inverse_forward_residual
     type(expr_t) :: scaled_flux_value, scaled_flux_psihat
     type(expr_t) :: scaled_flux_round_trip_residual
-    type(expr_t) :: physical_flux_raw_psi, physical_flux_raw_dpsi_dr
+    type(expr_t) :: physical_flux_raw_psi, physical_flux_raw_psi_r
+    type(expr_t) :: physical_flux_raw_psi_z, physical_flux_dz_dr
+    type(expr_t) :: physical_flux_raw_dpsi_dr
     type(expr_t) :: physical_flux_field_scale, physical_flux_psi
     type(expr_t) :: physical_flux_dpsi_dr
     type(expr_t) :: allowed_field_scale, allowed_dz_dr, allowed_d2z_dr2
@@ -1794,7 +1796,11 @@ program gen_full_fow_physics
     scaled_flux_round_trip_residual = scaled_flux_psihat &
         *flux_segment_field_scale*flux_segment_psi_sep-scaled_flux_value
     physical_flux_raw_psi = sym(arena, "psi")
-    physical_flux_raw_dpsi_dr = sym(arena, "dpsi_dR")
+    physical_flux_raw_psi_r = sym(arena, "psi_R")
+    physical_flux_raw_psi_z = sym(arena, "psi_Z")
+    physical_flux_dz_dr = sym(arena, "dZ_dR")
+    physical_flux_raw_dpsi_dr = physical_flux_raw_psi_r + &
+        physical_flux_raw_psi_z*physical_flux_dz_dr
     physical_flux_field_scale = sym(arena, "field_scale")
     physical_flux_psi = physical_flux_field_scale*physical_flux_raw_psi
     physical_flux_dpsi_dr = physical_flux_field_scale* &
@@ -3217,14 +3223,16 @@ program gen_full_fow_physics
         "/neort_eqdsk_physical_flux_map_symbolic.f90", &
         "neort_eqdsk_physical_flux_map_symbolic", &
         "evaluate_neort_eqdsk_physical_flux_map", &
-        [character(len=64) :: "psi", "dpsi_dR", "field_scale"], &
+        [character(len=64) :: "psi", "psi_R", "psi_Z", "dZ_dR", &
+        "field_scale"], &
         eqdsk_physical_flux_map_roots, &
         [character(len=64) :: "psi_physical", "dpsi_physical_dR"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_physical_flux_map_interval_symbolic.f90", &
         "neort_eqdsk_physical_flux_map_interval_symbolic", &
         "evaluate_neort_eqdsk_physical_flux_map_interval", &
-        [character(len=64) :: "psi", "dpsi_dR", "field_scale"], &
+        [character(len=64) :: "psi", "psi_R", "psi_Z", "dZ_dR", &
+        "field_scale"], &
         eqdsk_physical_flux_map_roots, &
         [character(len=64) :: "psi_physical", "dpsi_physical_dR"], &
         interval_kernel=.true.)
