@@ -30,6 +30,10 @@ module neort_gc_cylindrical_class_adapter
     use neort_gc_cylindrical_topology, only: &
         find_gc_cylindrical_allowed_regions, &
         gc_cylindrical_allowed_region_set_t
+    use neort_gc_certified_interval_roots, only: &
+        GC_INTERVAL_ROOT_EXTREMAL, GC_INTERVAL_ROOT_SIMPLE, &
+        GC_INTERVAL_ROOT_TANGENT, GC_INTERVAL_ROOT_TRANSVERSE, &
+        gc_interval_root_box_t, gc_interval_t
 
     implicit none
     private
@@ -75,6 +79,13 @@ module neort_gc_cylindrical_class_adapter
         real(dp) :: psi_star_min = 0.0_dp
         real(dp) :: psi_star_max = 0.0_dp
         real(dp) :: canonical_measure = 0.0_dp
+        type(gc_interval_t) :: rc_min_enclosure
+        type(gc_interval_t) :: rc_max_enclosure
+        type(gc_interval_t) :: psi_star_min_enclosure
+        type(gc_interval_t) :: psi_star_max_enclosure
+        type(gc_interval_t) :: canonical_measure_enclosure
+        type(gc_interval_root_box_t) :: lower_root_certificate
+        type(gc_interval_root_box_t) :: upper_root_certificate
         logical :: lower_root = .false.
         logical :: upper_root = .false.
         logical :: lower_tangent = .false.
@@ -601,7 +612,7 @@ contains
                 end if
             end if
             do i = 1, regions%ncomponents
-                call interval_from_topology(adapter, regions%components(i), &
+                call interval_from_topology(regions, regions%components(i), &
                     interval, local_status, &
                     associated(adapter%allowed_region_provider))
                 if (local_status /= GC_CYL_CLASS_SUCCESS) then
@@ -719,10 +730,10 @@ contains
 
         integer :: i, j
         real(dp) :: bound_tolerance, measure_sum, measure_tolerance
+        real(dp) :: measure_lower_sum, measure_upper_sum
         real(dp) :: canonical_scale, canonical_tolerance
         real(dp) :: previous_end
-        logical :: root_found
-        integer :: root_index, root_matches
+        integer :: root_index
 
         status = GC_CYL_CLASS_SPLITTER_FAILURE
         ! topology_certified and certificate_method are provider metadata, not
@@ -732,6 +743,11 @@ contains
         if (regions%ncomponents < 0) return
         if (.not. ieee_is_finite(regions%total_canonical_measure)) return
         if (regions%total_canonical_measure < 0.0_dp) return
+        if (.not. valid_interval(regions%total_canonical_measure_enclosure)) return
+        if (regions%total_canonical_measure_enclosure%lo < 0.0_dp) return
+        if (.not. interval_contains( &
+                regions%total_canonical_measure_enclosure, &
+                regions%total_canonical_measure)) return
 
         bound_tolerance = 100.0_dp*adapter%options%allowed_tolerance*max(1.0_dp, &
             max(abs(adapter%rc_min), abs(adapter%rc_max)))
@@ -740,8 +756,12 @@ contains
         if (regions%nroots > 0) then
             if (.not. allocated(regions%roots)) return
             if (.not. allocated(regions%root_canonical)) return
+            if (.not. allocated(regions%root_boxes)) return
+            if (.not. allocated(regions%root_canonical_enclosures)) return
             if (size(regions%roots) /= regions%nroots) return
             if (size(regions%root_canonical) /= regions%nroots) return
+            if (size(regions%root_boxes) /= regions%nroots) return
+            if (size(regions%root_canonical_enclosures) /= regions%nroots) return
         else
             if (allocated(regions%roots)) then
                 if (size(regions%roots) /= 0) return
@@ -749,15 +769,31 @@ contains
             if (allocated(regions%root_canonical)) then
                 if (size(regions%root_canonical) /= 0) return
             end if
+            if (allocated(regions%root_boxes)) then
+                if (size(regions%root_boxes) /= 0) return
+            end if
+            if (allocated(regions%root_canonical_enclosures)) then
+                if (size(regions%root_canonical_enclosures) /= 0) return
+            end if
         end if
         if (regions%nroots > 0) then
             if (.not. all(ieee_is_finite(regions%roots))) return
             if (.not. all(ieee_is_finite(regions%root_canonical))) return
             do i = 1, regions%nroots
-                if (regions%roots(i) < adapter%rc_min - bound_tolerance) return
-                if (regions%roots(i) > adapter%rc_max + bound_tolerance) return
+                if (.not. valid_certified_root_box(regions%root_boxes(i), &
+                        adapter%rc_min, adapter%rc_max)) return
+                if (.not. interval_contains(gc_interval_t( &
+                        regions%root_boxes(i)%lo, regions%root_boxes(i)%hi), &
+                        regions%roots(i))) return
+                if (.not. valid_interval( &
+                        regions%root_canonical_enclosures(i))) return
+                if (.not. interval_contains( &
+                        regions%root_canonical_enclosures(i), &
+                        regions%root_canonical(i))) return
                 if (i > 1) then
                     if (regions%roots(i) <= regions%roots(i - 1)) return
+                    if (regions%root_boxes(i)%lo <= &
+                            regions%root_boxes(i - 1)%hi) return
                 end if
             end do
         end if
@@ -770,6 +806,8 @@ contains
                 if (size(regions%components) /= 0) return
             end if
             if (regions%total_canonical_measure > bound_tolerance) return
+            if (.not. interval_contains( &
+                    regions%total_canonical_measure_enclosure, 0.0_dp)) return
             status = GC_CYL_CLASS_SUCCESS
             return
         end if
@@ -788,9 +826,44 @@ contains
                 regions%components(i)%x_end, &
                 regions%components(i)%canonical_begin, &
                 regions%components(i)%canonical_end, &
-                regions%components(i)%canonical_measure]))) return
+                regions%components(i)%canonical_measure, &
+                regions%components(i)%canonical_measure_lower, &
+                regions%components(i)%canonical_measure_upper]))) return
             if (regions%components(i)%x_end <= regions%components(i)%x_begin) return
             if (regions%components(i)%canonical_measure <= 0.0_dp) return
+            if (regions%components(i)%canonical_measure_lower <= 0.0_dp) return
+            if (regions%components(i)%canonical_measure_upper < &
+                    regions%components(i)%canonical_measure_lower) return
+            if (regions%components(i)%canonical_measure < &
+                    regions%components(i)%canonical_measure_lower) return
+            if (regions%components(i)%canonical_measure > &
+                    regions%components(i)%canonical_measure_upper) return
+            if (regions%components(i)%lower_root) then
+                root_index = regions%components(i)%lower_root_index
+                if (root_index < 1 .or. root_index > regions%nroots) return
+                if (.not. interval_contains(gc_interval_t( &
+                        regions%root_boxes(root_index)%lo, &
+                        regions%root_boxes(root_index)%hi), &
+                        regions%components(i)%x_begin)) return
+                if (.not. interval_contains( &
+                        regions%root_canonical_enclosures(root_index), &
+                        regions%components(i)%canonical_begin)) return
+            else
+                if (regions%components(i)%lower_root_index /= 0) return
+            end if
+            if (regions%components(i)%upper_root) then
+                root_index = regions%components(i)%upper_root_index
+                if (root_index < 1 .or. root_index > regions%nroots) return
+                if (.not. interval_contains(gc_interval_t( &
+                        regions%root_boxes(root_index)%lo, &
+                        regions%root_boxes(root_index)%hi), &
+                        regions%components(i)%x_end)) return
+                if (.not. interval_contains( &
+                        regions%root_canonical_enclosures(root_index), &
+                        regions%components(i)%canonical_end)) return
+            else
+                if (regions%components(i)%upper_root_index /= 0) return
+            end if
             canonical_scale = max(canonical_scale, &
                 abs(regions%components(i)%canonical_begin))
             canonical_scale = max(canonical_scale, &
@@ -808,6 +881,8 @@ contains
 
         previous_end = adapter%rc_min
         measure_sum = 0.0_dp
+        measure_lower_sum = 0.0_dp
+        measure_upper_sum = 0.0_dp
         do i = 1, regions%ncomponents
             if (regions%components(i)%x_begin < adapter%rc_min - &
                 bound_tolerance) return
@@ -828,42 +903,22 @@ contains
                 end if
             end if
             if (regions%components(i)%lower_root) then
-                root_found = .false.
-                root_index = 0
-                root_matches = 0
-                do j = 1, regions%nroots
-                    if (abs(regions%roots(j) - regions%components(i)%x_begin) &
-                        <= bound_tolerance) then
-                        root_found = .true.
-                        root_matches = root_matches + 1
-                        root_index = j
-                    end if
-                end do
-                if (.not. root_found) return
-                if (root_matches /= 1) return
+                root_index = regions%components(i)%lower_root_index
                 if (abs(regions%root_canonical(root_index) - &
                         regions%components(i)%canonical_begin) > &
-                    canonical_tolerance) return
+                        canonical_tolerance) return
             end if
             if (regions%components(i)%upper_root) then
-                root_found = .false.
-                root_index = 0
-                root_matches = 0
-                do j = 1, regions%nroots
-                    if (abs(regions%roots(j) - regions%components(i)%x_end) &
-                        <= bound_tolerance) then
-                        root_found = .true.
-                        root_matches = root_matches + 1
-                        root_index = j
-                    end if
-                end do
-                if (.not. root_found) return
-                if (root_matches /= 1) return
+                root_index = regions%components(i)%upper_root_index
                 if (abs(regions%root_canonical(root_index) - &
                         regions%components(i)%canonical_end) > &
-                    canonical_tolerance) return
+                        canonical_tolerance) return
             end if
             measure_sum = measure_sum + regions%components(i)%canonical_measure
+            measure_lower_sum = measure_lower_sum &
+                +regions%components(i)%canonical_measure_lower
+            measure_upper_sum = measure_upper_sum &
+                +regions%components(i)%canonical_measure_upper
             previous_end = regions%components(i)%x_end
         end do
         if (previous_end < adapter%rc_max - bound_tolerance) then
@@ -876,6 +931,10 @@ contains
         if (.not. ieee_is_finite(measure_tolerance)) return
         if (abs(measure_sum - regions%total_canonical_measure) > &
             measure_tolerance) return
+        if (regions%total_canonical_measure_enclosure%lo > &
+                measure_lower_sum) return
+        if (regions%total_canonical_measure_enclosure%hi < &
+                measure_upper_sum) return
         status = GC_CYL_CLASS_SUCCESS
     end subroutine validate_certified_regions
 
@@ -929,6 +988,20 @@ contains
             launch%status = status
             return
         end if
+        if (adapter%intervals(i)%lower_root) then
+            if (rc < adapter%intervals(i)%lower_root_certificate%hi) then
+                status = GC_CYL_CLASS_NOT_ALLOWED
+                launch%status = status
+                return
+            end if
+        end if
+        if (adapter%intervals(i)%upper_root) then
+            if (rc > adapter%intervals(i)%upper_root_certificate%lo) then
+                status = GC_CYL_CLASS_NOT_ALLOWED
+                launch%status = status
+                return
+            end if
+        end if
 
         call evaluate_gc_cylindrical_class_point(adapter, rc, sigma, point, &
             point_status)
@@ -950,10 +1023,19 @@ contains
         launch%psi_star = point%psi_star
         launch%dpsi_star_drc = point%dpsi_star_drc
         launch%derivative_available = point%derivative_available
-        launch%endpoint_tangent = point%at_turning_point .and. &
-            abs(point%dvparallel_squared_drc) <= &
-            adapter%options%tangency_tolerance &
-            *max(1.0_dp, abs(2.0_dp*adapter%h0/adapter%mass))
+        launch%endpoint_tangent = .false.
+        if (adapter%intervals(i)%lower_tangent) then
+            launch%endpoint_tangent = &
+                adapter%intervals(i)%lower_root_certificate%lo == rc
+            launch%endpoint_tangent = launch%endpoint_tangent .and. &
+                adapter%intervals(i)%lower_root_certificate%hi == rc
+        end if
+        if (adapter%intervals(i)%upper_tangent) then
+            if (adapter%intervals(i)%upper_root_certificate%lo == rc .and. &
+                    adapter%intervals(i)%upper_root_certificate%hi == rc) then
+                launch%endpoint_tangent = .true.
+            end if
+        end if
         launch%state%R = point%position(1)
         launch%state%Z = point%position(2)
         launch%state%phi = point%position(3)
@@ -1036,17 +1118,87 @@ contains
         end do
     end subroutine validate_cut_samples
 
-    subroutine interval_from_topology(adapter, component, interval, status, &
+    pure logical function valid_interval(value)
+        type(gc_interval_t), intent(in) :: value
+
+        valid_interval = ieee_is_finite(value%lo)
+        valid_interval = valid_interval .and. ieee_is_finite(value%hi)
+        valid_interval = valid_interval .and. value%lo <= value%hi
+    end function valid_interval
+
+    pure logical function interval_contains(interval, value)
+        type(gc_interval_t), intent(in) :: interval
+        real(dp), intent(in) :: value
+
+        interval_contains = valid_interval(interval)
+        interval_contains = interval_contains .and. ieee_is_finite(value)
+        interval_contains = interval_contains .and. value >= interval%lo
+        interval_contains = interval_contains .and. value <= interval%hi
+    end function interval_contains
+
+    pure logical function valid_certified_root_box(root, domain_lo, domain_hi)
+        type(gc_interval_root_box_t), intent(in) :: root
+        real(dp), intent(in) :: domain_lo, domain_hi
+
+        logical :: derivative_excludes_zero, second_derivative_excludes_zero
+
+        valid_certified_root_box = .false.
+        if (.not. all(ieee_is_finite([root%lo, root%hi, &
+                root%derivative_enclosure%lo, &
+                root%derivative_enclosure%hi, &
+                root%second_derivative_enclosure%lo, &
+                root%second_derivative_enclosure%hi]))) return
+        if (root%lo > root%hi) return
+        if (root%lo < domain_lo .or. root%hi > domain_hi) return
+        if (root%enclosure_certificate_id <= 0) return
+        if (.not. root%classification_certified) return
+        if (.not. root%bracket_certified .and. &
+                .not. root%interval_newton_certified) return
+        if (.not. valid_interval(root%derivative_enclosure)) return
+        if (.not. valid_interval(root%second_derivative_enclosure)) return
+        derivative_excludes_zero = root%derivative_enclosure%hi < 0.0_dp
+        derivative_excludes_zero = derivative_excludes_zero .or. &
+            root%derivative_enclosure%lo > 0.0_dp
+        second_derivative_excludes_zero = &
+            root%second_derivative_enclosure%hi < 0.0_dp
+        second_derivative_excludes_zero = &
+            second_derivative_excludes_zero .or. &
+            root%second_derivative_enclosure%lo > 0.0_dp
+
+        select case (root%kind)
+            case (GC_INTERVAL_ROOT_SIMPLE)
+                if (root%multiplicity_lower /= 1) return
+                if (root%multiplicity_upper /= 1) return
+                if (.not. root%derivative_excludes_zero) return
+                if (.not. derivative_excludes_zero) return
+                if (.not. root%transversality_certified) return
+                if (root%transversality_kind /= &
+                        GC_INTERVAL_ROOT_TRANSVERSE) return
+            case (GC_INTERVAL_ROOT_TANGENT)
+                if (root%multiplicity_lower /= 2) return
+                if (root%multiplicity_upper /= 2) return
+                if (.not. root%stationary_certified) return
+                if (root%stationary_certificate_id <= 0) return
+                if (.not. second_derivative_excludes_zero) return
+                if (root%transversality_certified) return
+                if (root%transversality_kind /= &
+                        GC_INTERVAL_ROOT_EXTREMAL) return
+                if (root%lo /= root%hi) return
+            case default
+                return
+        end select
+        valid_certified_root_box = .true.
+    end function valid_certified_root_box
+
+    subroutine interval_from_topology(regions, component, interval, status, &
             certified)
-        type(gc_cylindrical_class_adapter_t), intent(inout) :: adapter
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
         type(gc_cylindrical_allowed_component_t), intent(in) :: component
         type(gc_cylindrical_class_interval_t), intent(out) :: interval
         integer, intent(out) :: status
         logical, intent(in) :: certified
 
-        type(gc_cylindrical_class_point_t) :: lower_point, upper_point
-        real(dp) :: scale
-        integer :: lower_status, upper_status
+        integer :: root_index
 
         interval = gc_cylindrical_class_interval_t()
         interval%component_id = component%component_id
@@ -1056,6 +1208,17 @@ contains
         interval%psi_star_min = component%canonical_begin
         interval%psi_star_max = component%canonical_end
         interval%canonical_measure = component%canonical_measure
+        interval%rc_min_enclosure = gc_interval_t(component%x_begin, &
+            component%x_begin)
+        interval%rc_max_enclosure = gc_interval_t(component%x_end, &
+            component%x_end)
+        interval%psi_star_min_enclosure = gc_interval_t( &
+            component%canonical_begin, component%canonical_begin)
+        interval%psi_star_max_enclosure = gc_interval_t( &
+            component%canonical_end, component%canonical_end)
+        interval%canonical_measure_enclosure = gc_interval_t( &
+            component%canonical_measure_lower, &
+            component%canonical_measure_upper)
         interval%lower_root = component%lower_root
         interval%upper_root = component%upper_root
         ! Certification reaches this helper only after the typed provider's
@@ -1068,39 +1231,44 @@ contains
         interval%limiting_chart = 'unresolved'
         if (certified) then
             if (component%lower_root) then
-                interval%lower_boundary_kind = 'certified-root'
+                root_index = component%lower_root_index
+                interval%lower_root_certificate = &
+                    regions%root_boxes(root_index)
+                interval%rc_min_enclosure = gc_interval_t( &
+                    regions%root_boxes(root_index)%lo, &
+                    regions%root_boxes(root_index)%hi)
+                interval%psi_star_min_enclosure = &
+                    regions%root_canonical_enclosures(root_index)
+                interval%lower_tangent = regions%root_boxes(root_index)%kind &
+                    == GC_INTERVAL_ROOT_TANGENT
+                if (interval%lower_tangent) then
+                    interval%lower_boundary_kind = 'certified-tangent-root'
+                else
+                    interval%lower_boundary_kind = 'certified-simple-root'
+                end if
             else
                 interval%lower_boundary_kind = 'certified-bound'
             end if
             if (component%upper_root) then
-                interval%upper_boundary_kind = 'certified-root'
+                root_index = component%upper_root_index
+                interval%upper_root_certificate = &
+                    regions%root_boxes(root_index)
+                interval%rc_max_enclosure = gc_interval_t( &
+                    regions%root_boxes(root_index)%lo, &
+                    regions%root_boxes(root_index)%hi)
+                interval%psi_star_max_enclosure = &
+                    regions%root_canonical_enclosures(root_index)
+                interval%upper_tangent = regions%root_boxes(root_index)%kind &
+                    == GC_INTERVAL_ROOT_TANGENT
+                if (interval%upper_tangent) then
+                    interval%upper_boundary_kind = 'certified-tangent-root'
+                else
+                    interval%upper_boundary_kind = 'certified-simple-root'
+                end if
             else
                 interval%upper_boundary_kind = 'certified-bound'
             end if
-            interval%limiting_chart = 'certified-provider'
-        end if
-        scale = max(1.0_dp, abs(2.0_dp*adapter%h0/adapter%mass))
-        call evaluate_gc_cylindrical_class_point(adapter, interval%rc_min, &
-            interval%sigma, lower_point, lower_status)
-        call evaluate_gc_cylindrical_class_point(adapter, interval%rc_max, &
-            interval%sigma, upper_point, upper_status)
-        if (lower_status /= GC_CYL_CLASS_SUCCESS) then
-            status = GC_CYL_CLASS_INTERIOR_INVALID
-            return
-        end if
-        if (upper_status /= GC_CYL_CLASS_SUCCESS) then
-            status = GC_CYL_CLASS_INTERIOR_INVALID
-            return
-        end if
-        interval%lower_tangent = interval%lower_root
-        if (interval%lower_tangent) then
-            interval%lower_tangent = abs(lower_point%dvparallel_squared_drc) &
-                <= adapter%options%tangency_tolerance*scale
-        end if
-        interval%upper_tangent = interval%upper_root
-        if (interval%upper_tangent) then
-            interval%upper_tangent = abs(upper_point%dvparallel_squared_drc) &
-                <= adapter%options%tangency_tolerance*scale
+            interval%limiting_chart = 'fortsym-certified-root-box'
         end if
         if (certified) then
             status = GC_CYL_CLASS_SUCCESS

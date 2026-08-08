@@ -82,8 +82,12 @@ module neort_gc_cylindrical_model
         real(dp) :: canonical_begin = 0.0_dp
         real(dp) :: canonical_end = 0.0_dp
         real(dp) :: canonical_measure = 0.0_dp
+        real(dp) :: canonical_measure_lower = 0.0_dp
+        real(dp) :: canonical_measure_upper = 0.0_dp
         logical :: lower_root = .false.
         logical :: upper_root = .false.
+        integer :: lower_root_index = 0
+        integer :: upper_root_index = 0
     end type gc_cylindrical_allowed_component_t
 
     type, public :: gc_cylindrical_section_t

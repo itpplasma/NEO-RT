@@ -183,8 +183,12 @@ contains
             x_begin=-0.5_dp*state%width, x_end=0.5_dp*state%width, &
             canonical_begin=-0.5_dp*state%width, &
             canonical_end=0.5_dp*state%width, &
-            canonical_measure=state%width)
+            canonical_measure=state%width, &
+            canonical_measure_lower=state%width, &
+            canonical_measure_upper=state%width)
         regions%total_canonical_measure = state%width
+        regions%total_canonical_measure_enclosure%lo = state%width
+        regions%total_canonical_measure_enclosure%hi = state%width
         regions%topology_certified = .false.
         regions%certificate_method = 'transport-provider-label-is-not-proof'
         status = GC_CYL_CLASS_SUCCESS

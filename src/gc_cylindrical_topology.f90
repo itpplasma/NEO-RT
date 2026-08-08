@@ -10,6 +10,8 @@ module neort_gc_cylindrical_topology
     use neort_gc_cylindrical_model, only: GC_CYL_INVALID_INPUT, &
         GC_CYL_SUCCESS, gc_cylindrical_allowed_component_t, &
         gc_cylindrical_allowed_value_i
+    use neort_gc_certified_interval_roots, only: gc_interval_root_box_t, &
+        gc_interval_t
 
     implicit none
     private
@@ -19,8 +21,11 @@ module neort_gc_cylindrical_topology
         integer :: ncomponents = 0
         real(dp), allocatable :: roots(:)
         real(dp), allocatable :: root_canonical(:)
+        type(gc_interval_root_box_t), allocatable :: root_boxes(:)
+        type(gc_interval_t), allocatable :: root_canonical_enclosures(:)
         type(gc_cylindrical_allowed_component_t), allocatable :: components(:)
         real(dp) :: total_canonical_measure = 0.0_dp
+        type(gc_interval_t) :: total_canonical_measure_enclosure
         !! The adaptive sampler below is diagnostic only.  It is not an
         !! interval/root-isolation proof and must never be consumed as one.
         logical :: topology_certified = .false.
@@ -462,8 +467,13 @@ contains
         component%canonical_end = psi_end
         component%lower_root = edge_index > 0
         component%upper_root = edge_index < nroots + 1
+        if (component%lower_root) component%lower_root_index = edge_index
+        if (component%upper_root) component%upper_root_index = edge_index + 1
         call integrate_canonical_measure(evaluate, x_begin, x_end, &
             component%canonical_measure, status)
+        if (status /= GC_CYL_SUCCESS) return
+        component%canonical_measure_lower = component%canonical_measure
+        component%canonical_measure_upper = component%canonical_measure
     end subroutine fill_component
 
     subroutine integrate_canonical_measure(evaluate, x_begin, x_end, measure, &
@@ -518,8 +528,11 @@ contains
         type(gc_cylindrical_allowed_region_set_t), intent(inout) :: regions
 
         regions%total_canonical_measure = 0.0_dp
+        regions%total_canonical_measure_enclosure = gc_interval_t()
         if (regions%ncomponents == 0) return
         regions%total_canonical_measure = sum(regions%components%canonical_measure)
+        regions%total_canonical_measure_enclosure = gc_interval_t( &
+            regions%total_canonical_measure, regions%total_canonical_measure)
     end subroutine sum_component_measure
 
     pure function canonical_measure_density(dpsi_star_dx) result(value)

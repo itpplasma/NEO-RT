@@ -10,6 +10,10 @@ module gc_cylindrical_class_adapter_test_support
         gc_cylindrical_potential_t, make_gc_cylindrical_field_sample
     use neort_gc_cylindrical_topology, only: &
         gc_cylindrical_allowed_region_set_t
+    use neort_gc_certified_interval_roots, only: &
+        GC_INTERVAL_ROOT_EXTREMAL, GC_INTERVAL_ROOT_SIMPLE, &
+        GC_INTERVAL_ROOT_TANGENT, GC_INTERVAL_ROOT_TRANSVERSE, &
+        gc_interval_root_box_t, gc_interval_t
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_INVALID_INPUT, GC_CYL_CLASS_SUCCESS, &
         gc_cylindrical_class_interval_t, &
@@ -171,18 +175,32 @@ contains
         regions%nroots = 3
         regions%ncomponents = 2
         allocate(regions%roots(3), regions%root_canonical(3), &
-            regions%components(2))
+            regions%root_boxes(3), &
+            regions%root_canonical_enclosures(3), regions%components(2))
         regions%roots = [0.5_dp, 1.0_dp, 2.0_dp]
         regions%root_canonical = [0.125_dp, 0.5_dp, 2.0_dp]
+        regions%root_boxes(1) = manufactured_tangent_root(0.5_dp)
+        regions%root_boxes(2) = manufactured_simple_root(0.99_dp, 1.01_dp)
+        regions%root_boxes(3) = manufactured_simple_root(1.99_dp, 2.01_dp)
+        regions%root_canonical_enclosures = [ &
+            gc_interval_t(0.125_dp, 0.125_dp), &
+            gc_interval_t(0.49_dp, 0.51_dp), &
+            gc_interval_t(1.99_dp, 2.01_dp)]
         regions%components(1) = gc_cylindrical_allowed_component_t( &
             component_id=1, sigma=sigma, x_begin=0.5_dp, x_end=1.0_dp, &
             canonical_begin=0.125_dp, canonical_end=0.5_dp, &
-            canonical_measure=0.375_dp, lower_root=.true., upper_root=.true.)
+            canonical_measure=0.375_dp, canonical_measure_lower=0.375_dp, &
+            canonical_measure_upper=0.375_dp, lower_root=.true., &
+            upper_root=.true., lower_root_index=1, upper_root_index=2)
         regions%components(2) = gc_cylindrical_allowed_component_t( &
             component_id=2, sigma=sigma, x_begin=2.0_dp, x_end=4.5_dp, &
             canonical_begin=2.0_dp, canonical_end=10.125_dp, &
-            canonical_measure=8.125_dp, lower_root=.true., upper_root=.false.)
+            canonical_measure=8.125_dp, canonical_measure_lower=8.125_dp, &
+            canonical_measure_upper=8.125_dp, lower_root=.true., &
+            upper_root=.false., lower_root_index=3)
         regions%total_canonical_measure = 8.5_dp
+        regions%total_canonical_measure_enclosure = gc_interval_t(8.5_dp, &
+            8.5_dp)
         ! These fields are intentionally not a proof.  The verifier below
         ! ignores them and recomputes the manufactured structure independently.
         regions%topology_certified = .false.
@@ -207,6 +225,15 @@ contains
                         ieee_value(0.0_dp, ieee_quiet_nan)
                 case (10)
                     regions%root_canonical(1) = 99.0_dp
+                case (20)
+                    regions%roots(1) = 0.6_dp
+                case (21)
+                    regions%root_boxes(2)%lo = 1.02_dp
+                    regions%root_boxes(2)%hi = 1.01_dp
+                case (22)
+                    regions%root_boxes(2)%lo = 0.50_dp
+                case (23)
+                    regions%root_canonical(1) = 0.2_dp
                 case default
                     continue
             end select
@@ -321,6 +348,48 @@ contains
         certificate_id = MANUFACTURED_CERTIFICATE_ID
         status = GC_CYL_CLASS_SUCCESS
     end subroutine permissive_allowed_region_verifier
+
+    pure function manufactured_simple_root(lo, hi) result(root)
+        real(dp), intent(in) :: lo, hi
+        type(gc_interval_root_box_t) :: root
+
+        root = gc_interval_root_box_t()
+        root%lo = lo
+        root%hi = hi
+        root%kind = GC_INTERVAL_ROOT_SIMPLE
+        root%cut_id = 1
+        root%multiplicity_lower = 1
+        root%multiplicity_upper = 1
+        root%derivative_excludes_zero = .true.
+        root%bracket_certified = .true.
+        root%classification_certified = .true.
+        root%transversality_certified = .true.
+        root%transversality_kind = GC_INTERVAL_ROOT_TRANSVERSE
+        root%enclosure_certificate_id = MANUFACTURED_CERTIFICATE_ID
+        root%derivative_enclosure = gc_interval_t(0.01_dp, 1.0_dp)
+        root%second_derivative_enclosure = gc_interval_t(-1.0_dp, 1.0_dp)
+    end function manufactured_simple_root
+
+    pure function manufactured_tangent_root(point) result(root)
+        real(dp), intent(in) :: point
+        type(gc_interval_root_box_t) :: root
+
+        root = gc_interval_root_box_t()
+        root%lo = point
+        root%hi = point
+        root%kind = GC_INTERVAL_ROOT_TANGENT
+        root%cut_id = 1
+        root%multiplicity_lower = 2
+        root%multiplicity_upper = 2
+        root%stationary_certified = .true.
+        root%bracket_certified = .true.
+        root%classification_certified = .true.
+        root%transversality_kind = GC_INTERVAL_ROOT_EXTREMAL
+        root%enclosure_certificate_id = MANUFACTURED_CERTIFICATE_ID
+        root%stationary_certificate_id = MANUFACTURED_CERTIFICATE_ID + 1
+        root%derivative_enclosure = gc_interval_t(0.0_dp, 0.0_dp)
+        root%second_derivative_enclosure = gc_interval_t(0.01_dp, 1.0_dp)
+    end function manufactured_tangent_root
 
     subroutine adversarial_splitter(h0, jperp, sigma, candidate, user_data, &
             split_classes, certified, status)
@@ -677,6 +746,7 @@ program test_gc_cylindrical_class_adapter
     end do
     call check_permissive_region_gate(9)
     call check_permissive_region_gate(10)
+    call check_root_interval_provenance()
     do i = 11, 15
         call check_adversarial_splitter(i)
     end do
@@ -784,6 +854,53 @@ contains
         call clear_gc_cylindrical_class_adapter(malformed_adapter)
         region_state%mode = 0
     end subroutine check_permissive_region_gate
+
+    subroutine check_root_interval_provenance()
+        integer, parameter :: malformed_modes(4) = [20, 21, 22, 23]
+        integer :: i
+
+        ! The typed verifier below accepts every payload.  Each malformed
+        ! result must therefore be rejected by the adapter-owned structural
+        ! provenance gate, not by a provider or verifier opinion.
+        do i = 1, size(malformed_modes)
+            region_state%mode = malformed_modes(i)
+            call initialize_gc_cylindrical_class_adapter(field, potential, &
+                H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, &
+                RC_MIN, RC_MAX, manufactured_cut_map, malformed_adapter, &
+                status, options=options, user_data=region_state, &
+                allowed_region_provider=manufactured_allowed_region_provider, &
+                allowed_region_verifier=permissive_allowed_region_verifier, &
+                allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+            call require(status == GC_CYL_CLASS_SUCCESS, &
+                'provenance-case adapter initialization failed')
+            call enumerate_gc_cylindrical_classes(malformed_adapter, &
+                malformed_result, status)
+            call require(status == GC_CYL_CLASS_SPLITTER_FAILURE, &
+                'malformed root provenance was accepted')
+            call require(.not. malformed_result%class_complete, &
+                'malformed root provenance claimed complete classes')
+            call clear_gc_cylindrical_class_adapter(malformed_adapter)
+        end do
+
+        region_state%mode = 0
+        call initialize_gc_cylindrical_class_adapter(field, potential, &
+            H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, &
+            RC_MAX, manufactured_cut_map, malformed_adapter, status, &
+            options=options, user_data=region_state, &
+            allowed_region_provider=manufactured_allowed_region_provider, &
+            allowed_region_verifier=permissive_allowed_region_verifier, &
+            allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+        call require(status == GC_CYL_CLASS_SUCCESS, &
+            'valid provenance adapter initialization failed')
+        call enumerate_gc_cylindrical_classes(malformed_adapter, &
+            malformed_result, status)
+        call require(status == GC_CYL_CLASS_SPLITTER_UNAVAILABLE, &
+            'valid disjoint root boxes were rejected')
+        call require(malformed_result%nallowed_intervals == 4, &
+            'valid disjoint root boxes lost allowed intervals')
+        call clear_gc_cylindrical_class_adapter(malformed_adapter)
+        region_state%mode = 0
+    end subroutine check_root_interval_provenance
 
     subroutine check_adversarial_splitter(mode)
         integer, intent(in) :: mode
