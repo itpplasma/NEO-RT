@@ -1335,6 +1335,18 @@ contains
         interval%canonical_measure_enclosure = gc_interval_t( &
             component%canonical_measure_lower, &
             component%canonical_measure_upper)
+        if (component%endpoint_evidence_certified) then
+            interval%rc_min_enclosure = component%x_begin_enclosure
+            interval%rc_max_enclosure = component%x_end_enclosure
+            interval%psi_star_min_enclosure = &
+                component%canonical_begin_enclosure
+            interval%psi_star_max_enclosure = &
+                component%canonical_end_enclosure
+        end if
+        if (component%canonical_measure_certified) then
+            interval%canonical_measure_enclosure = &
+                component%canonical_measure_enclosure
+        end if
         interval%lower_root = component%lower_root
         interval%upper_root = component%upper_root
         ! Certification reaches this helper only after the typed provider's

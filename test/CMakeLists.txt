@@ -549,6 +549,10 @@ add_test(NAME test_gc_certified_canonical_variation
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_certified_canonical_variation.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_eqdsk_certified_allowed_provider
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_certified_allowed_provider.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_poincare_cut_atlas
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_poincare_cut_atlas.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

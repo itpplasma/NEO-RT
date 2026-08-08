@@ -493,6 +493,14 @@ contains
         if (status /= GC_CYL_SUCCESS) return
         component%canonical_measure_lower = component%canonical_measure
         component%canonical_measure_upper = component%canonical_measure
+        component%x_begin_enclosure = gc_interval_t(x_begin, x_begin)
+        component%x_end_enclosure = gc_interval_t(x_end, x_end)
+        component%canonical_begin_enclosure = gc_interval_t(psi_begin, psi_begin)
+        component%canonical_end_enclosure = gc_interval_t(psi_end, psi_end)
+        component%canonical_measure_enclosure = gc_interval_t( &
+            component%canonical_measure, component%canonical_measure)
+        component%endpoint_evidence_certified = .false.
+        component%canonical_measure_certified = .false.
     end subroutine fill_component
 
     subroutine integrate_canonical_measure(evaluate, x_begin, x_end, measure, &

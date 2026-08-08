@@ -18,6 +18,7 @@ module neort_gc_cylindrical_model
         evaluate_neort_cylindrical_vparallel
     use neort_gc_perpendicular_invariant, only: &
         gc_buchholz_jk_from_mu_phys, gc_potato_jperp_from_mu_phys
+    use neort_gc_certified_interval_roots, only: gc_interval_t
 
     implicit none
     private
@@ -84,6 +85,14 @@ module neort_gc_cylindrical_model
         real(dp) :: canonical_measure = 0.0_dp
         real(dp) :: canonical_measure_lower = 0.0_dp
         real(dp) :: canonical_measure_upper = 0.0_dp
+        type(gc_interval_t) :: x_begin_enclosure
+        type(gc_interval_t) :: x_end_enclosure
+        type(gc_interval_t) :: canonical_begin_enclosure
+        type(gc_interval_t) :: canonical_end_enclosure
+        type(gc_interval_t) :: canonical_measure_enclosure
+        integer :: canonical_measure_certificate_id = 0
+        logical :: endpoint_evidence_certified = .false.
+        logical :: canonical_measure_certified = .false.
         logical :: lower_root = .false.
         logical :: upper_root = .false.
         integer :: lower_root_index = 0
