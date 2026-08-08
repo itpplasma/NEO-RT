@@ -29,7 +29,7 @@ program test_gc_circular_flux_continuation
     real(dp) :: q_pitch, toroidal_flux_value, toroidal_flux_edge
     real(dp) :: rho_tor, dvolume_ds, current_oracle
     real(dp) :: psi_tor_emitted, s_tor_emitted, rho_tor_emitted
-    real(dp) :: dvolume_ds_emitted, current_emitted
+    real(dp) :: dvolume_ds_emitted, dvolume_ds_cgs_emitted, current_emitted
     integer :: k
 
     call evaluate_neort_circular_flux_continuation(edge_radius, edge_radius, &
@@ -114,7 +114,7 @@ program test_gc_circular_flux_continuation
             delta_q, major_radius, psi, dpsi, q)
         call evaluate_full(radius_value, psi, dpsi, q, psi_tor_emitted, &
             s_tor_emitted, rho_tor_emitted, dvolume_ds_emitted, &
-            current_emitted)
+            dvolume_ds_cgs_emitted, current_emitted)
         toroidal_flux_value = integrated_toroidal_flux(radius_value)
         call require_close('emitted toroidal flux', psi_tor_emitted, &
             direct_toroidal_flux(radius_value), 4.0e-9_dp)
@@ -128,6 +128,8 @@ program test_gc_circular_flux_continuation
         dvolume_ds = direct_volume_jacobian(radius_value)
         call require_close('emitted dV/ds_tor', dvolume_ds_emitted, &
             dvolume_ds, 2.0e-7_dp)
+        call require_close('emitted dV/ds_tor CGS', dvolume_ds_cgs_emitted, &
+            1.0e6_dp*dvolume_ds, 2.0e-7_dp)
         call require_close('finite-difference dV/ds_tor', dvolume_ds, &
             finite_difference_volume_jacobian(radius_value), 2.0e-7_dp)
     end do
@@ -135,7 +137,8 @@ program test_gc_circular_flux_continuation
     call evaluate_neort_circular_flux_continuation(edge_radius, edge_radius, &
         psi_edge, toroidal_flux, q_axis, delta_q, major_radius, psi, dpsi, q)
     call evaluate_full(edge_radius, psi, dpsi, q, psi_tor_emitted, &
-        s_tor_emitted, rho_tor_emitted, dvolume_ds_emitted, current_emitted)
+        s_tor_emitted, rho_tor_emitted, dvolume_ds_emitted, &
+        dvolume_ds_cgs_emitted, current_emitted)
     current_oracle = ampere_contour_current(dpsi)
     call require_close('emitted Ampere contour current', current_emitted, &
         current_oracle, 2.0e-10_dp)
@@ -154,28 +157,28 @@ contains
         real(dp), intent(in) :: major_radius_value
         real(dp), intent(out) :: psi_value, dpsi_value, q_value
         real(dp) :: psi_tor_dummy, s_tor_dummy, rho_tor_dummy
-        real(dp) :: dvolume_dummy, current_dummy
+        real(dp) :: dvolume_dummy, dvolume_cgs_dummy, current_dummy
 
         call evaluate_neort_circular_flux_continuation_raw(radius_value, &
             edge_radius_value, psi_edge_value, toroidal_flux_value, &
             q_axis_value, delta_q_value, major_radius_value, psi_value, &
             dpsi_value, q_value, psi_tor_dummy, s_tor_dummy, rho_tor_dummy, &
-            dvolume_dummy, current_dummy)
+            dvolume_dummy, dvolume_cgs_dummy, current_dummy)
     end subroutine evaluate_neort_circular_flux_continuation
 
     subroutine evaluate_full(radius_value, psi_value, dpsi_value, q_value, &
             psi_tor_value, s_tor_value, rho_tor_value, dvolume_value, &
-            current_value)
+            dvolume_cgs_value, current_value)
         real(dp), intent(in) :: radius_value
         real(dp), intent(out) :: psi_value, dpsi_value, q_value
         real(dp), intent(out) :: psi_tor_value, s_tor_value, rho_tor_value
-        real(dp), intent(out) :: dvolume_value, current_value
+        real(dp), intent(out) :: dvolume_value, dvolume_cgs_value, current_value
 
         call evaluate_neort_circular_flux_continuation_raw(radius_value, &
             edge_radius, psi_edge, toroidal_flux, q_axis, delta_q, &
             major_radius, psi_value, &
             dpsi_value, q_value, psi_tor_value, s_tor_value, rho_tor_value, &
-            dvolume_value, current_value)
+            dvolume_value, dvolume_cgs_value, current_value)
     end subroutine evaluate_full
 
     subroutine require_close(label, got, expected, tolerance)

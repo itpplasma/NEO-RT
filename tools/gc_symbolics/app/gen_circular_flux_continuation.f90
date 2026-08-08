@@ -84,6 +84,7 @@ program gen_circular_flux_continuation
     type(expr_t) :: psi_tor_u, dpsi_tor_du
     type(expr_t) :: psi_tor, psi_tor_edge, s_tor_radius
     type(expr_t) :: rho_tor_radius, volume, volume_per_s_tor
+    type(expr_t) :: volume_per_s_tor_cgs
     type(expr_t) :: s_tor_from_psi, rho_tor_from_psi
     type(expr_t) :: volume_per_s_tor_from_psi
     type(expr_t) :: pressure_axis, pressure_profile, dpressure_dpsi
@@ -95,7 +96,7 @@ program gen_circular_flux_continuation
     type(expr_t) :: zbox_bottom_expression, zbox_top_expression
     type(expr_t) :: axis_z
     type(expr_t) :: rho_tor_from_psi_residual
-    type(expr_t) :: roots(8), limit_roots(3)
+    type(expr_t) :: roots(9), limit_roots(3)
     type(expr_t) :: edge_value_residual, edge_slope_residual
     type(expr_t) :: profile_edge_residual, q_psi_residual
     type(expr_t) :: inverse_radius_residual
@@ -255,6 +256,7 @@ program gen_circular_flux_continuation
     rho_tor_radius = sqrt(s_tor_radius)
     volume = 2*pi_constant**2*major_radius*radius**2
     volume_per_s_tor = diff(volume, radius)/diff(s_tor_radius, radius)
+    volume_per_s_tor_cgs = volume_per_s_tor*real_expr(arena, 1.0e6_dp)
     s_tor_from_psi = subs(s_tor_radius, radius, inverse_radius)
     rho_tor_from_psi = subs(rho_tor_radius, radius, inverse_radius)
     volume_per_s_tor_from_psi = subs(volume_per_s_tor, radius, inverse_radius)
@@ -388,6 +390,8 @@ program gen_circular_flux_continuation
         4*pi_constant**2*major_radius*(major_radius-edge_u)*minor_u
     call check_identity(proofs, proof_engine, 'finite-aspect dV/ds_tor', &
         volume_jacobian_formula_residual)
+    call check_identity(proofs, proof_engine, 'dV/ds_tor SI-to-CGS volume', &
+        volume_per_s_tor_cgs-volume_per_s_tor*real_expr(arena, 1.0e6_dp))
     ! These map checks inherit the generic inverse-u certificate.  Their
     ! emitted samples are evaluated from the composed physical trees and are
     ! independently checked by direct geometry in the focused test.
@@ -440,7 +444,8 @@ program gen_circular_flux_continuation
     if (proofs%failed /= 0) error stop 'circular continuation proof failed'
 
     roots = [psi_continuation, dpsi_continuation, safety_factor, psi_tor, &
-        s_tor_radius, rho_tor_radius, volume_per_s_tor, plasma_current]
+        s_tor_radius, rho_tor_radius, volume_per_s_tor, &
+        volume_per_s_tor_cgs, plasma_current]
     limit_roots = [psi_limit, dpsi_limit, q_axis]
     call simplify_array(roots)
     call simplify_array(limit_roots)
@@ -450,7 +455,8 @@ program gen_circular_flux_continuation
         [character(len=64) :: 'radius', 'edge_radius', 'psi_edge', &
         'toroidal_flux', 'q_axis', 'delta_q', 'major_radius'], &
         [character(len=64) :: 'psi', 'dpsi_dr', 'q_safety', 'psi_tor', &
-        's_tor', 'rho_tor', 'dvolume_ds_tor', 'plasma_current'])
+        's_tor', 'rho_tor', 'dvolume_ds_tor', 'dvolume_ds_tor_cgs', &
+        'plasma_current'])
     call emit_kernel_file(trim(limit_kernel_path), &
         'neort_circular_flux_continuation_limit_symbolic', &
         'evaluate_neort_circular_flux_continuation_limit', limit_roots, &

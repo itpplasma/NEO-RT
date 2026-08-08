@@ -7,6 +7,8 @@ program test_eqdsk_axis
     use neort_gc_dynamics, only: gc_field_sample_t
     use neort_gc_eqdsk_adapter, only: eqdsk_gc_field_t
     use neort_gc_models, only: GC_MODEL_SUCCESS
+    use neort_circular_flux_continuation_symbolic, only: &
+        evaluate_neort_circular_flux_continuation
     use do_magfie_pert_mod, only: inp_swi_pert, read_boozer_pert_file, &
         init_magfie_pert_at_s, do_magfie_pert_amp, set_mph
     use neort_orbit, only: fieldline_label_component
@@ -25,7 +27,7 @@ program test_eqdsk_axis
     real(dp) :: psi_edge_adapter, h_radial
     real(dp) :: legacy_state(7)
     real(dp) :: dVds_inner, dVds_outer
-    real(dp) :: dVds_scan(151), dVds_curvature, dVds_max_curvature
+    real(dp) :: dVds_expected, dVds_max_relative_error
     real(dp), parameter :: s_inner = (0.001_dp/64.0_dp)**2
     real(dp), parameter :: s_outer = (0.002_dp/64.0_dp)**2
     complex(dp) :: bamp
@@ -57,22 +59,19 @@ program test_eqdsk_axis
         error stop "GEQDSK near-axis volume derivative failed"
     end if
 
+    dVds_max_relative_error = 0.0_dp
     do k = 10, 160
         call set_s(real(k, dp)/250.0_dp)
         call init_magfie_at_s()
         call init_flux_surface_average(real(k, dp)/250.0_dp)
-        dVds_scan(k - 9) = dVds
+        call circular_dvolume_oracle(real(k, dp)/250.0_dp, dVds_expected)
+        dVds_max_relative_error = max(dVds_max_relative_error, &
+            abs(dVds/dVds_expected - 1.0_dp))
     end do
-    dVds_max_curvature = 0.0_dp
-    do k = 2, size(dVds_scan) - 1
-        dVds_curvature = abs(dVds_scan(k + 1) - 2.0_dp*dVds_scan(k) &
-            + dVds_scan(k - 1))/(sum(dVds_scan)/real(size(dVds_scan), dp))
-        dVds_max_curvature = max(dVds_max_curvature, dVds_curvature)
-    end do
-    if (dVds_max_curvature > 8.0e-4_dp) then
-        write(*,*) 'Circular-equilibrium dV/ds radial metric rings: ', &
-            dVds_max_curvature
-        error stop "GEQDSK radial metric rings between grid cells"
+    if (dVds_max_relative_error > 1.0e-4_dp) then
+        write(*,*) 'Circular-equilibrium dV/ds_tor interpolation error: ', &
+            dVds_max_relative_error
+        error stop "GEQDSK radial metric differs from generated oracle"
     end if
 
     call set_s(0.25_dp)
@@ -186,4 +185,48 @@ program test_eqdsk_axis
         .not. ieee_is_finite(aimag(bamp))) error stop "R-Z perturbation is non-finite"
 
     call pass_test
+
+contains
+
+    subroutine circular_dvolume_oracle(s_tor_target, dvolume_cgs)
+        !! The Fortsym kernel owns both the normalized toroidal-flux map and
+        !! dV/ds_tor.  Bisection is numerical orchestration only; the focused
+        !! circular-continuation test independently validates both quantities
+        !! against contour quadrature and a finite-difference volume oracle.
+        real(dp), intent(in) :: s_tor_target
+        real(dp), intent(out) :: dvolume_cgs
+        real(dp), parameter :: edge_radius = 0.5_dp
+        real(dp), parameter :: major_radius = 1.6_dp
+        real(dp), parameter :: toroidal_flux = 3.2_dp
+        real(dp), parameter :: q_axis = 1.5_dp
+        real(dp), parameter :: delta_q = 2.5_dp
+        integer, parameter :: bisection_steps = 80
+        real(dp) :: radius_left, radius_right, radius_midpoint
+        real(dp) :: psi_value, dpsi_value, q_value, psi_tor_value
+        real(dp) :: s_tor_value, rho_tor_value, dvolume_value
+        real(dp) :: dvolume_cgs_value, current_value
+        integer :: j
+
+        radius_left = 0.0_dp
+        radius_right = edge_radius
+        do j = 1, bisection_steps
+            radius_midpoint = 0.5_dp*(radius_left + radius_right)
+            call evaluate_neort_circular_flux_continuation(radius_midpoint, &
+                edge_radius, 1.0_dp, toroidal_flux, q_axis, delta_q, &
+                major_radius, psi_value, dpsi_value, q_value, psi_tor_value, &
+                s_tor_value, rho_tor_value, dvolume_value, dvolume_cgs_value, &
+                current_value)
+            if (s_tor_value < s_tor_target) then
+                radius_left = radius_midpoint
+            else
+                radius_right = radius_midpoint
+            end if
+        end do
+        radius_midpoint = 0.5_dp*(radius_left + radius_right)
+        call evaluate_neort_circular_flux_continuation(radius_midpoint, &
+            edge_radius, 1.0_dp, toroidal_flux, q_axis, delta_q, major_radius, &
+            psi_value, dpsi_value, q_value, psi_tor_value, s_tor_value, &
+            rho_tor_value, dvolume_value, dvolume_cgs_value, current_value)
+        dvolume_cgs = dvolume_cgs_value
+    end subroutine circular_dvolume_oracle
 end program test_eqdsk_axis
