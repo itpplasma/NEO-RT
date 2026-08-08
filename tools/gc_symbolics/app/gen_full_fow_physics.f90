@@ -3572,7 +3572,7 @@ program gen_full_fow_physics
         "neort_eqdsk_allowed_axis_rho_chain_symbolic", &
         "evaluate_neort_eqdsk_allowed_axis_rho_chain", &
         [character(len=64) :: "dR_drho_tor_limit", &
-        "dvparallel_squared_dR_axis", "dpsi_star_dR_axis"], &
+        "dvparallel_squared_dR", "dpsi_star_dR"], &
         eqdsk_allowed_axis_rho_chain_roots, &
         [character(len=64) :: "dvparallel_squared_drho_tor_axis", &
         "dpsi_star_drho_tor_axis"])
@@ -3581,7 +3581,7 @@ program gen_full_fow_physics
         "neort_eqdsk_allowed_axis_rho_chain_interval_symbolic", &
         "evaluate_neort_eqdsk_allowed_axis_rho_chain_interval", &
         [character(len=64) :: "dR_drho_tor_limit", &
-        "dvparallel_squared_dR_axis", "dpsi_star_dR_axis"], &
+        "dvparallel_squared_dR", "dpsi_star_dR"], &
         eqdsk_allowed_axis_rho_chain_roots, &
         [character(len=64) :: "dvparallel_squared_drho_tor_axis", &
         "dpsi_star_drho_tor_axis"], interval_kernel=.true.)
