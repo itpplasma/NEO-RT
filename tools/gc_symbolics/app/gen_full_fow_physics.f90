@@ -2457,9 +2457,17 @@ program gen_full_fow_physics
         subs(diff(allowed_bmod_local, allowed_x), allowed_x, zero) - &
         allowed_dbmod_dr)
     call check_identity(proofs, proof_engine, &
-        "Eq13 path field magnitude second derivative", &
-        subs(diff(diff(allowed_bmod_local, allowed_x), allowed_x), &
-        allowed_x, zero)-allowed_d2bmod_dr2)
+        "Eq13 path field norm second derivative", &
+        subs(diff(diff(allowed_g_local, allowed_x), allowed_x), &
+        allowed_x, zero)-allowed_d2g_dr2)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 square-root field norm second chain rule", &
+        2*(allowed_dsqrt_g_dr**2 + &
+        allowed_sqrt_g*allowed_d2sqrt_g_dr2)-allowed_d2g_dr2)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 field magnitude second product rule", &
+        eqcut_radius*allowed_d2bmod_dr2 + 2*allowed_dbmod_dr - &
+        allowed_field_scale*allowed_d2sqrt_g_dr2)
     call check_identity(proofs, proof_engine, &
         "Eq13 allowed energy value", &
         subs(allowed_energy_local, allowed_x, zero)-allowed_energy_margin)
@@ -2468,9 +2476,17 @@ program gen_full_fow_physics
         subs(diff(allowed_energy_local, allowed_x), allowed_x, zero) - &
         allowed_denergy_dr)
     call check_identity(proofs, proof_engine, &
-        "Eq13 allowed energy second derivative", &
-        subs(diff(diff(allowed_energy_local, allowed_x), allowed_x), &
-        allowed_x, zero)-allowed_d2energy_dr2)
+        "Eq13 potential second path chain rule", &
+        subs(diff(diff(allowed_potential_local, allowed_x), allowed_x), &
+        allowed_x, zero) - &
+        (allowed_d2phi_dpsi2*(allowed_field_scale*allowed_dpsi_dr)**2 + &
+        allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2))
+    call check_identity(proofs, proof_engine, &
+        "Eq13 allowed energy second derivative composition", &
+        allowed_d2energy_dr2 + jk*allowed_d2omega_c_dr2 + &
+        charge*(allowed_d2phi_dpsi2* &
+        (allowed_field_scale*allowed_dpsi_dr)**2 + &
+        allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2))
     call check_identity(proofs, proof_engine, &
         "simple-turn root coordinate has quadratic physical displacement", &
         turning_delta_x-turning_direction*turning_y**2)
