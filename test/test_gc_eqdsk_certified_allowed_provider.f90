@@ -122,6 +122,7 @@ contains
         candidate%query_lo = 0.25_dp
         candidate%query_hi = 0.75_dp
         candidate%cut_id = CUT_ID
+        candidate%status = 0
         candidate%enclosure_certificate_id = ENCLOSURE_ID
         candidate%stationary_certificate_id = STATIONARY_ID
         candidate%stationary_point = TANGENT_ROOT

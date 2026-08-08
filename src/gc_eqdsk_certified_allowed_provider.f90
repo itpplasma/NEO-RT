@@ -120,6 +120,7 @@ contains
         if (registered_stationary_id <= 0 .or. &
                 expected_stationary_id /= registered_stationary_id) return
         if (candidate%query_lo /= x_lo .or. candidate%query_hi /= x_hi) return
+        if (candidate%status /= 0 .or. point_value%status /= 0) return
         if (candidate%enclosure_certificate_id /= expected_enclosure_id .or. &
                 candidate%stationary_certificate_id /= expected_stationary_id) return
         if (.not. valid_interval(candidate%f) .or. &
