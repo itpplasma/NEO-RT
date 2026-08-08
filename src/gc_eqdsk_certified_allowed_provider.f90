@@ -211,6 +211,8 @@ contains
         integer :: root_offset
         integer :: active_branch, active_sigma
         real(dp) :: active_h0, active_j_k, active_lo, active_hi
+        integer :: last_energy_status
+        real(dp) :: last_energy_lo, last_energy_hi
         type(gc_cylindrical_allowed_component_t), allocatable :: components(:)
         type(gc_interval_root_box_t), allocatable :: roots(:)
         type(gc_interval_t), allocatable :: root_canonical_enclosures(:)
@@ -253,6 +255,9 @@ contains
             active_sigma = sigma
             active_h0 = h0
             active_j_k = j_k
+            last_energy_status = -1
+            last_energy_lo = 0.0_dp
+            last_energy_hi = 0.0_dp
             call branch_domain(context, branch, active_lo, active_hi)
             call isolate_gc_interval_roots(evaluate_energy, verify_energy, &
                 verify_energy_stationary, active_lo, active_hi, root_options, &
@@ -264,6 +269,9 @@ contains
                     root_results(branch)%nroots, root_results(branch)%boxes_visited, &
                     root_results(branch)%boxes_discarded, &
                     root_results(branch)%unresolved_boxes, active_lo, active_hi
+                write (*, '(a,3(1x,i0),2(1x,es24.16))') &
+                    'allowed callback diagnostic=', last_energy_status, &
+                    active_branch, active_sigma, last_energy_lo, last_energy_hi
                 status = GC_EQDSK_ALLOWED_PROVIDER_ROOT_FAILURE
                 return
             end if
@@ -374,12 +382,18 @@ contains
                 evaluated, provenance, local_status)
             if (local_status /= EQDSK_CUT_BOX_SUCCESS) then
                 value%status = local_status
+                last_energy_status = local_status
+                last_energy_lo = x_lo
+                last_energy_hi = x_hi
                 return
             end if
             value%f = to_interval(evaluated%energy_margin)
             value%df = to_interval(evaluated%denergy_margin_dR)
             value%d2f = to_interval(evaluated%d2energy_margin_dR2)
             value%status = 0
+            last_energy_status = value%status
+            last_energy_lo = x_lo
+            last_energy_hi = x_hi
             value%certified = provenance%certified
             if (value%stationary_certificate_id > 0 .and. &
                     contains_zero(value%df) .and. &
