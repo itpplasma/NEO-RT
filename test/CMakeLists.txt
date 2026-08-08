@@ -227,6 +227,15 @@ add_test(NAME test_gc_eqdsk_cut_flux_curvature
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_eqdsk_cut_jet_fourth
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_jet_fourth.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gc_eqdsk_cut_jet_fourth PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+)
+
 add_test(NAME test_gc_generated_certificates
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_certificates.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -314,6 +323,11 @@ add_test(NAME test_gc_operational_partner_crossings
 
 add_test(NAME test_gc_operational_class_assembly
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_operational_class_assembly.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_operational_topology_chain
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_operational_topology_chain.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -450,6 +464,10 @@ add_test(NAME test_gc_profile_potential_map
 )
 add_test(NAME test_gc_eqdsk_allowed_region_interval
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_allowed_region_interval.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_eqdsk_operational_point
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_operational_point.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_gc_eqdsk_allowed_region_cut_box

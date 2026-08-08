@@ -238,6 +238,7 @@ set(NEO_RT_SOURCES
     src/gc_cylindrical_orbit.f90
     src/gc_eqdsk_adapter.f90
     src/gc_eqdsk_cut_jet.f90
+    src/gc_eqdsk_operational_point.f90
     src/gc_eqdsk_cut_interval.f90
     src/gc_eqdsk_allowed_region_interval.f90
     src/gc_eqdsk_allowed_region_cut_box.f90
