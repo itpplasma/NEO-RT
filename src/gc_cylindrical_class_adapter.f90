@@ -75,6 +75,12 @@ module neort_gc_cylindrical_class_adapter
     type, public :: gc_cylindrical_class_interval_t
         integer :: component_id = 0
         integer :: sigma = 0
+        ! POTATO-compatible class metadata.  These fields describe the
+        ! assembled class boundary pair; they do not alter the physical
+        ! interval or its certification records.
+        integer :: ifuntype = 0
+        integer :: left_boundary_id = 0
+        integer :: right_boundary_id = 0
         real(dp) :: rc_min = 0.0_dp
         real(dp) :: rc_max = 0.0_dp
         real(dp) :: psi_star_min = 0.0_dp

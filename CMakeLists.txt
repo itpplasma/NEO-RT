@@ -232,6 +232,7 @@ set(NEO_RT_SOURCES
     src/gc_operational_fixed_points.f90
     src/gc_operational_partner_crossings.f90
     src/gc_operational_class_assembly.f90
+    src/gc_operational_class_adapter_bridge.f90
     src/gc_poincare_cut_atlas.f90
     src/gc_callback_context.f90
     src/gc_cylindrical_class_adapter.f90
