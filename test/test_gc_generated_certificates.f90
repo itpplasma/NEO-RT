@@ -73,6 +73,15 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_cut_endpoint_krawczyk', &
             'neort-cert-v1:eqdsk_cut_endpoint_krawczyk:2:fortsym-5457884')) &
         error stop 'EQDSK endpoint-Krawczyk certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_axis_stationarity_system', &
+            'neort-cert-v1:eqdsk_axis_stationarity_system:6:fortsym-5457884')) &
+        error stop 'EQDSK axis-stationarity-system registry mismatch'
+    if (.not. certificate_matches('eqdsk_axis_stationarity_newton', &
+            'neort-cert-v1:eqdsk_axis_stationarity_newton:7:fortsym-5457884')) &
+        error stop 'EQDSK axis-stationarity-Newton registry mismatch'
+    if (.not. certificate_matches('eqdsk_axis_stationarity_krawczyk', &
+            'neort-cert-v1:eqdsk_axis_stationarity_krawczyk:2:fortsym-5457884')) &
+        error stop 'EQDSK axis-stationarity-Krawczyk registry mismatch'
     if (.not. certificate_matches('eqdsk_flux_profile_segment', &
             'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884')) &
         error stop 'EQDSK flux-profile certificate registry mismatch'

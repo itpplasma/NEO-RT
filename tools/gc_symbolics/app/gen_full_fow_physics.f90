@@ -194,6 +194,9 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cut_endpoint_system_roots(6)
     type(expr_t) :: eqdsk_cut_endpoint_newton_roots(7)
     type(expr_t) :: eqdsk_cut_endpoint_krawczyk_roots(2)
+    type(expr_t) :: eqdsk_axis_stationarity_system_roots(6)
+    type(expr_t) :: eqdsk_axis_stationarity_newton_roots(7)
+    type(expr_t) :: eqdsk_axis_stationarity_krawczyk_roots(2)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
     type(expr_t) :: frequency_contribution_roots(2)
@@ -335,6 +338,23 @@ program gen_full_fow_physics
     type(expr_t) :: endpoint_oracle_n0, endpoint_oracle_g0
     type(expr_t) :: endpoint_newton_r_oracle, endpoint_newton_z_oracle
     type(expr_t) :: endpoint_krawczyk_r_oracle, endpoint_krawczyk_z_oracle
+    type(expr_t) :: axis_stat_psi_r, axis_stat_psi_z
+    type(expr_t) :: axis_stat_psi_rr, axis_stat_psi_rz, axis_stat_psi_zz
+    type(expr_t) :: axis_stat_r0, axis_stat_z0
+    type(expr_t) :: axis_stat_psi_r0, axis_stat_psi_z0
+    type(expr_t) :: axis_stat_psi_rr0, axis_stat_psi_rz0, axis_stat_psi_zz0
+    type(expr_t) :: axis_stat_determinant
+    type(expr_t) :: axis_stat_y11, axis_stat_y12, axis_stat_y21, axis_stat_y22
+    type(expr_t) :: axis_stat_newton_r, axis_stat_newton_z
+    type(expr_t) :: axis_stat_psi_rr_box, axis_stat_psi_rz_box
+    type(expr_t) :: axis_stat_psi_zz_box
+    type(expr_t) :: axis_stat_delta_r_box, axis_stat_delta_z_box
+    type(expr_t) :: axis_stat_krawczyk_r, axis_stat_krawczyk_z
+    type(expr_t) :: axis_stat_oracle_delta_r, axis_stat_oracle_delta_z
+    type(expr_t) :: axis_stat_oracle_psi_r0, axis_stat_oracle_psi_z0
+    type(expr_t) :: axis_stat_newton_r_oracle, axis_stat_newton_z_oracle
+    type(expr_t) :: axis_stat_krawczyk_r_oracle
+    type(expr_t) :: axis_stat_krawczyk_z_oracle
     character(len=64) :: eqdsk_cell_arg_names(38)
     character(len=64) :: eqdsk_profile_arg_names(9)
     type(expr_t) :: axis_b_r, axis_b_phi, axis_b_z, axis_bhat_r
@@ -932,6 +952,83 @@ program gen_full_fow_physics
         endpoint_gr_box, endpoint_gr0)
     endpoint_krawczyk_z_oracle = subs(endpoint_krawczyk_z_oracle, &
         endpoint_gz_box, endpoint_gz0)
+
+    ! Magnetic-axis point chart: grad(psi)=0.  The generated Hessian inverse
+    ! and Krawczyk map turn the existing convex axis box into a numerical root
+    ! enclosure without promoting a sampled minimum to a proof.
+    axis_stat_psi_r = sym(arena, "psi_R")
+    axis_stat_psi_z = sym(arena, "psi_Z")
+    axis_stat_psi_rr = sym(arena, "psi_RR")
+    axis_stat_psi_rz = sym(arena, "psi_RZ")
+    axis_stat_psi_zz = sym(arena, "psi_ZZ")
+    axis_stat_r0 = sym(arena, "R0")
+    axis_stat_z0 = sym(arena, "Z0")
+    axis_stat_psi_r0 = sym(arena, "psi_R0")
+    axis_stat_psi_z0 = sym(arena, "psi_Z0")
+    axis_stat_psi_rr0 = sym(arena, "psi_RR0")
+    axis_stat_psi_rz0 = sym(arena, "psi_RZ0")
+    axis_stat_psi_zz0 = sym(arena, "psi_ZZ0")
+    axis_stat_determinant = axis_stat_psi_rr0*axis_stat_psi_zz0 &
+        -axis_stat_psi_rz0**2
+    axis_stat_y11 = axis_stat_psi_zz0/axis_stat_determinant
+    axis_stat_y12 = -axis_stat_psi_rz0/axis_stat_determinant
+    axis_stat_y21 = axis_stat_y12
+    axis_stat_y22 = axis_stat_psi_rr0/axis_stat_determinant
+    axis_stat_newton_r = axis_stat_r0-axis_stat_y11*axis_stat_psi_r0 &
+        -axis_stat_y12*axis_stat_psi_z0
+    axis_stat_newton_z = axis_stat_z0-axis_stat_y21*axis_stat_psi_r0 &
+        -axis_stat_y22*axis_stat_psi_z0
+    axis_stat_psi_rr_box = sym(arena, "psi_RR_box")
+    axis_stat_psi_rz_box = sym(arena, "psi_RZ_box")
+    axis_stat_psi_zz_box = sym(arena, "psi_ZZ_box")
+    axis_stat_delta_r_box = sym(arena, "delta_R_box")
+    axis_stat_delta_z_box = sym(arena, "delta_Z_box")
+    axis_stat_krawczyk_r = axis_stat_newton_r &
+        +(one-axis_stat_y11*axis_stat_psi_rr_box &
+        -axis_stat_y12*axis_stat_psi_rz_box)*axis_stat_delta_r_box &
+        +(-axis_stat_y11*axis_stat_psi_rz_box &
+        -axis_stat_y12*axis_stat_psi_zz_box)*axis_stat_delta_z_box
+    axis_stat_krawczyk_z = axis_stat_newton_z &
+        +(-axis_stat_y21*axis_stat_psi_rr_box &
+        -axis_stat_y22*axis_stat_psi_rz_box)*axis_stat_delta_r_box &
+        +(one-axis_stat_y21*axis_stat_psi_rz_box &
+        -axis_stat_y22*axis_stat_psi_zz_box)*axis_stat_delta_z_box
+    axis_stat_oracle_delta_r = sym(arena, "oracle_delta_R")
+    axis_stat_oracle_delta_z = sym(arena, "oracle_delta_Z")
+    axis_stat_oracle_psi_r0 = &
+        axis_stat_psi_rr0*axis_stat_oracle_delta_r &
+        +axis_stat_psi_rz0*axis_stat_oracle_delta_z
+    axis_stat_oracle_psi_z0 = &
+        axis_stat_psi_rz0*axis_stat_oracle_delta_r &
+        +axis_stat_psi_zz0*axis_stat_oracle_delta_z
+    axis_stat_newton_r_oracle = subs(subs(axis_stat_newton_r, &
+        axis_stat_psi_r0, axis_stat_oracle_psi_r0), axis_stat_psi_z0, &
+        axis_stat_oracle_psi_z0)
+    axis_stat_newton_z_oracle = subs(subs(axis_stat_newton_z, &
+        axis_stat_psi_r0, axis_stat_oracle_psi_r0), axis_stat_psi_z0, &
+        axis_stat_oracle_psi_z0)
+    axis_stat_krawczyk_r_oracle = axis_stat_krawczyk_r
+    axis_stat_krawczyk_z_oracle = axis_stat_krawczyk_z
+    axis_stat_krawczyk_r_oracle = subs(axis_stat_krawczyk_r_oracle, &
+        axis_stat_psi_r0, axis_stat_oracle_psi_r0)
+    axis_stat_krawczyk_r_oracle = subs(axis_stat_krawczyk_r_oracle, &
+        axis_stat_psi_z0, axis_stat_oracle_psi_z0)
+    axis_stat_krawczyk_r_oracle = subs(axis_stat_krawczyk_r_oracle, &
+        axis_stat_psi_rr_box, axis_stat_psi_rr0)
+    axis_stat_krawczyk_r_oracle = subs(axis_stat_krawczyk_r_oracle, &
+        axis_stat_psi_rz_box, axis_stat_psi_rz0)
+    axis_stat_krawczyk_r_oracle = subs(axis_stat_krawczyk_r_oracle, &
+        axis_stat_psi_zz_box, axis_stat_psi_zz0)
+    axis_stat_krawczyk_z_oracle = subs(axis_stat_krawczyk_z_oracle, &
+        axis_stat_psi_r0, axis_stat_oracle_psi_r0)
+    axis_stat_krawczyk_z_oracle = subs(axis_stat_krawczyk_z_oracle, &
+        axis_stat_psi_z0, axis_stat_oracle_psi_z0)
+    axis_stat_krawczyk_z_oracle = subs(axis_stat_krawczyk_z_oracle, &
+        axis_stat_psi_rr_box, axis_stat_psi_rr0)
+    axis_stat_krawczyk_z_oracle = subs(axis_stat_krawczyk_z_oracle, &
+        axis_stat_psi_rz_box, axis_stat_psi_rz0)
+    axis_stat_krawczyk_z_oracle = subs(axis_stat_krawczyk_z_oracle, &
+        axis_stat_psi_zz_box, axis_stat_psi_zz0)
 
     ! ------------------------------------------------------------------
     ! Positive action, cyclotron frequency, and exact phase-space candidate.
@@ -1973,6 +2070,38 @@ program gen_full_fow_physics
         "endpoint Krawczyk map contracts affine Z system", &
         endpoint_krawczyk_z_oracle-(endpoint_z0-endpoint_oracle_delta_z))
     call check_identity(proofs, proof_engine, &
+        "axis inverse Hessian row one column one", &
+        axis_stat_y11*axis_stat_psi_rr0 &
+        +axis_stat_y12*axis_stat_psi_rz0-one)
+    call check_identity(proofs, proof_engine, &
+        "axis inverse Hessian row one column two", &
+        axis_stat_y11*axis_stat_psi_rz0 &
+        +axis_stat_y12*axis_stat_psi_zz0)
+    call check_identity(proofs, proof_engine, &
+        "axis inverse Hessian row two column one", &
+        axis_stat_y21*axis_stat_psi_rr0 &
+        +axis_stat_y22*axis_stat_psi_rz0)
+    call check_identity(proofs, proof_engine, &
+        "axis inverse Hessian row two column two", &
+        axis_stat_y21*axis_stat_psi_rz0 &
+        +axis_stat_y22*axis_stat_psi_zz0-one)
+    call check_identity(proofs, proof_engine, &
+        "axis Newton map solves affine R stationarity", &
+        axis_stat_newton_r_oracle &
+        -(axis_stat_r0-axis_stat_oracle_delta_r))
+    call check_identity(proofs, proof_engine, &
+        "axis Newton map solves affine Z stationarity", &
+        axis_stat_newton_z_oracle &
+        -(axis_stat_z0-axis_stat_oracle_delta_z))
+    call check_identity(proofs, proof_engine, &
+        "axis Krawczyk map contracts affine R stationarity", &
+        axis_stat_krawczyk_r_oracle &
+        -(axis_stat_r0-axis_stat_oracle_delta_r))
+    call check_identity(proofs, proof_engine, &
+        "axis Krawczyk map contracts affine Z stationarity", &
+        axis_stat_krawczyk_z_oracle &
+        -(axis_stat_z0-axis_stat_oracle_delta_z))
+    call check_identity(proofs, proof_engine, &
         "section reversal flips dpsi_star/dx", &
         dpsi_dx_reversed + dpsi_dx_section)
     call check_identity(proofs, proof_engine, &
@@ -2166,6 +2295,14 @@ program gen_full_fow_physics
         endpoint_y21, endpoint_y22]
     eqdsk_cut_endpoint_krawczyk_roots = [endpoint_krawczyk_r, &
         endpoint_krawczyk_z]
+    eqdsk_axis_stationarity_system_roots = [axis_stat_psi_r, &
+        axis_stat_psi_z, axis_stat_psi_rr, axis_stat_psi_rz, &
+        axis_stat_psi_rz, axis_stat_psi_zz]
+    eqdsk_axis_stationarity_newton_roots = [axis_stat_determinant, &
+        axis_stat_newton_r, axis_stat_newton_z, axis_stat_y11, axis_stat_y12, &
+        axis_stat_y21, axis_stat_y22]
+    eqdsk_axis_stationarity_krawczyk_roots = [axis_stat_krawczyk_r, &
+        axis_stat_krawczyk_z]
     eq17_outer_roots = [eq17_outer_factor]
     frequency_contribution_roots = [frequency_contribution, phase_contribution]
     frequency_identity_roots = [n_squared_frequency_contribution, &
@@ -2253,6 +2390,9 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_endpoint_system_roots)
     call simplify_array(eqdsk_cut_endpoint_newton_roots)
     call simplify_array(eqdsk_cut_endpoint_krawczyk_roots)
+    call simplify_array(eqdsk_axis_stationarity_system_roots)
+    call simplify_array(eqdsk_axis_stationarity_newton_roots)
+    call simplify_array(eqdsk_axis_stationarity_krawczyk_roots)
     call simplify_array(eq17_outer_roots)
     call simplify_array(frequency_contribution_roots)
     call simplify_array(frequency_identity_roots)
@@ -2853,6 +2993,43 @@ program gen_full_fow_physics
         eqdsk_cut_endpoint_krawczyk_roots, &
         [character(len=64) :: "krawczyk_R", "krawczyk_Z"], &
         interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_axis_stationarity_system_symbolic.f90", &
+        "neort_eqdsk_axis_stationarity_system_symbolic", &
+        "evaluate_neort_eqdsk_axis_stationarity_system", &
+        [character(len=64) :: "psi_R", "psi_Z", "psi_RR", "psi_RZ", &
+        "psi_ZZ"], eqdsk_axis_stationarity_system_roots, &
+        [character(len=64) :: "residual_R", "residual_Z", "jacobian_11", &
+        "jacobian_12", "jacobian_21", "jacobian_22"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_axis_stationarity_system_interval_symbolic.f90", &
+        "neort_eqdsk_axis_stationarity_system_interval_symbolic", &
+        "evaluate_neort_eqdsk_axis_stationarity_system_interval", &
+        [character(len=64) :: "psi_R", "psi_Z", "psi_RR", "psi_RZ", &
+        "psi_ZZ"], eqdsk_axis_stationarity_system_roots, &
+        [character(len=64) :: "residual_R", "residual_Z", "jacobian_11", &
+        "jacobian_12", "jacobian_21", "jacobian_22"], &
+        interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_axis_stationarity_newton_symbolic.f90", &
+        "neort_eqdsk_axis_stationarity_newton_symbolic", &
+        "evaluate_neort_eqdsk_axis_stationarity_newton", &
+        [character(len=64) :: "R0", "Z0", "psi_R0", "psi_Z0", &
+        "psi_RR0", "psi_RZ0", "psi_ZZ0"], &
+        eqdsk_axis_stationarity_newton_roots, &
+        [character(len=64) :: "hessian_determinant", "newton_R", &
+        "newton_Z", "inverse_11", "inverse_12", "inverse_21", &
+        "inverse_22"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_axis_stationarity_krawczyk_interval_symbolic.f90", &
+        "neort_eqdsk_axis_stationarity_krawczyk_interval_symbolic", &
+        "evaluate_neort_eqdsk_axis_stationarity_krawczyk_interval", &
+        [character(len=64) :: "R0", "Z0", "psi_R0", "psi_Z0", &
+        "psi_RR0", "psi_RZ0", "psi_ZZ0", "psi_RR_box", "psi_RZ_box", &
+        "psi_ZZ_box", "delta_R_box", "delta_Z_box"], &
+        eqdsk_axis_stationarity_krawczyk_roots, &
+        [character(len=64) :: "krawczyk_R", "krawczyk_Z"], &
+        interval_kernel=.true.)
     call emit_certificate_registry(trim(output_path)// &
         "/neort_generated_certificate_registry.f90")
 
@@ -3084,7 +3261,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 32"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 35"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -3104,6 +3281,9 @@ contains
         write (unit, "(a)") "        'eqdsk_cut_endpoint_system', &"
         write (unit, "(a)") "        'eqdsk_cut_endpoint_newton', &"
         write (unit, "(a)") "        'eqdsk_cut_endpoint_krawczyk', &"
+        write (unit, "(a)") "        'eqdsk_axis_stationarity_system', &"
+        write (unit, "(a)") "        'eqdsk_axis_stationarity_newton', &"
+        write (unit, "(a)") "        'eqdsk_axis_stationarity_krawczyk', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_segment', &"
         write (unit, "(a)") "        'eqdsk_scaled_flux_normalization' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
@@ -3137,6 +3317,9 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_system:6:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_newton:7:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_krawczyk:2:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_axis_stationarity_system:6:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_axis_stationarity_newton:7:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_axis_stationarity_krawczyk:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
