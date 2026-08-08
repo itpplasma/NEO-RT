@@ -16,7 +16,7 @@ contains
         real(dp), intent(in) :: scaled_psi, field_scale, psi_sep
         real(dp), intent(out) :: psihat
 
-        psihat = scaled_psi/(field_scale*psi_sep)
+        psihat = scaled_psi/field_scale/psi_sep
 
     end subroutine evaluate_neort_eqdsk_scaled_flux_normalization
 

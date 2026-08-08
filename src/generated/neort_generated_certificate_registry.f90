@@ -4,7 +4,7 @@ module neort_generated_certificate_registry
         'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: regenerate_command = &
         'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'
-    integer, parameter :: certificate_count = 43
+    integer, parameter :: certificate_count = 45
     character(len=32), parameter :: certificate_id(certificate_count) = &
         [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &
         'root_enclosures', 'interpolation', 'profile_endpoints', &
@@ -18,6 +18,7 @@ module neort_generated_certificate_registry
         'eqdsk_cut_axis_curvature', &
         'eqdsk_cut_axis_limit', &
         'eqdsk_rho_tor_map', &
+        'eqdsk_s_tor_to_rho', &
         'eqdsk_flux_profile_rho_chain', &
         'eqdsk_cut_flux_coordinate', &
         'eqdsk_cut_axis_rho_limit', &
@@ -31,6 +32,7 @@ module neort_generated_certificate_registry
         'eqdsk_axis_stationarity_krawczyk', &
         'eqdsk_flux_profile_segment', &
         'eqdsk_scaled_flux_normalization', &
+        'eqdsk_physical_flux_norm', &
         'gauss_interval_map', &
         'profile_potential_map', &
         'eqdsk_allowed_energy', &
@@ -62,6 +64,7 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_rho_tor_map:2:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_s_tor_to_rho:1:fortsym-5457884', &
         'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &
@@ -75,6 +78,7 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_axis_stationarity_krawczyk:2:fortsym-5457884', &
         'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_physical_flux_norm:1:fortsym-5457884', &
         'neort-cert-v1:gauss_interval_map:2:fortsym-5457884', &
         'neort-cert-v1:profile_potential_map:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_allowed_energy:17:fortsym-5457884', &
