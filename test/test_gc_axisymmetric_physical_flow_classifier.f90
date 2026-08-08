@@ -47,10 +47,13 @@ program test_gc_axisymmetric_physical_flow_classifier
     call require(result%bparallel_star > 0.0_dp .and. &
         result%p_parallel > 0.0_dp, 'O-point physical scales are invalid')
 
-    ! Independent X-point oracle: changing only psi_RR changes the local
-    ! second-order equilibrium jet and reverses the Hessian determinant.
-    ! The first-order stationary certificate remains the same by construction.
-    input = manufactured_input(20.0_dp)
+    ! Independent X-point oracle: psi_Z=psi_RZ=0 makes the stationary
+    ! residual independent of psi_ZZ at this point.  Setting psi_ZZ=-3
+    ! reverses the physical psi-star Hessian determinant while preserving the
+    ! same first-order stationary certificate.  Direct rational reduction of
+    ! -4*L**2*det(Hess psi-star) gives 6.2475.
+    input = manufactured_input(0.0_dp)
+    input%psi_zz = -3.0_dp
     call classify_gc_axisymmetric_physical_fixed_point(input, certificate, &
         result, status)
     call require(status == GC_PHYSICAL_FLOW_SUCCESS, &
@@ -59,6 +62,8 @@ program test_gc_axisymmetric_physical_flow_classifier
         'positive physical-flow discriminant was not classified X')
     call require(result%discriminant > 0.0_dp, &
         'X-point discriminant sign was not preserved')
+    call require_close(result%discriminant, 6.2475_dp, &
+        'independent X-point discriminant')
 
     ! Sigma labels the signed parallel branch.  Only the branch sign and
     ! accepted-domain facts are asserted here; no sigma-reversal symmetry is
