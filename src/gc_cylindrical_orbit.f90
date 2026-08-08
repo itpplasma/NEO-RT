@@ -38,7 +38,7 @@ module neort_gc_cylindrical_orbit
     integer, parameter, public :: GC_CYL_NO_RETURN = GC_CYL_NO_RETURN_MODEL
 
     type, public :: gc_cylindrical_orbit_options_t
-        real(dp) :: relative_tolerance = 3.0e-10_dp
+        real(dp) :: relative_tolerance = 1.0e-10_dp
         real(dp) :: absolute_tolerance = 1.0e-11_dp
         real(dp) :: invariant_relative_tolerance = 1.0e-8_dp
         real(dp) :: event_time_tolerance = 1.0e-10_dp
