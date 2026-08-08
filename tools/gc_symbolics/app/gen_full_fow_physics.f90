@@ -4315,6 +4315,17 @@ program gen_full_fow_physics
         [character(len=64) :: "delta_x", "v_parallel", "psi_star", &
         "dpsi_star_dy", "dpsi_star_dy_root"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_turning_chart_interval_symbolic.f90", &
+        "neort_eqdsk_turning_chart_interval_symbolic", &
+        "evaluate_neort_eqdsk_turning_chart_interval", &
+        [character(len=64) :: "root_coordinate_y", "allowed_side_sign", &
+        "dvparallel_squared_dx_root", "psi_star_flux_root", &
+        "dpsi_flux_dx_root", "bphi_covariant_root", &
+        "dbphi_covariant_dx_root", "mass", "charge", "c_light", &
+        "parallel_sign"], eqdsk_turning_chart_roots, &
+        [character(len=64) :: "delta_x", "v_parallel", "psi_star", &
+        "dpsi_star_dy", "dpsi_star_dy_root"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_canonical_numerator_symbolic.f90", &
         "neort_full_fow_canonical_numerator_symbolic", &
         "evaluate_neort_full_fow_canonical_numerator", &

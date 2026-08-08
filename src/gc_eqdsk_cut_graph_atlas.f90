@@ -14,6 +14,7 @@ module neort_gc_eqdsk_cut_graph_atlas
         evaluate_eqdsk_cut_interval_box
     use neort_gc_eqdsk_cut_jet, only: &
         EQDSK_CUT_JET_SUCCESS, eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
+    use neort_gc_outward_interval, only: gc_outward_interval_t
     use neort_eqdsk_cut_r_flux_chart_symbolic, only: &
         evaluate_neort_eqdsk_cut_r_flux_chart
     implicit none
@@ -83,6 +84,7 @@ module neort_gc_eqdsk_cut_graph_atlas
     public :: map_eqdsk_cut_graph_atlas
     public :: map_eqdsk_cut_graph_atlas_flux
     public :: enclose_eqdsk_cut_graph_strip
+    public :: enclose_eqdsk_cut_graph_strip_tight
 
     integer, parameter :: Z_COVER_SUCCESS = 0
     integer, parameter :: Z_COVER_UNRESOLVED = 1
@@ -208,6 +210,141 @@ contains
             r_hi, enclosures, status)
     end subroutine enclose_eqdsk_cut_graph_strip
 
+    subroutine enclose_eqdsk_cut_graph_strip_tight(atlas, strip_index, r_lo, &
+            r_hi, max_z_depth, enclosures, status)
+        !! Refine only the certified candidate Z bands for a query R box.
+        !!
+        !! The atlas leaf proves that the cut graph is present and unique;
+        !! this query-local refinement makes the spatial enclosure tight
+        !! enough for downstream derivative sign certificates.  A child is
+        !! retained only when its generated cut numerator still contains the
+        !! zero set.  If subdivision cannot improve the enclosure, the
+        !! parent leaf is retained, so coverage is never traded for sharpness.
+        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        integer, intent(in) :: strip_index, max_z_depth
+        real(dp), intent(in) :: r_lo, r_hi
+        type(eqdsk_cut_interval_result_t), allocatable, intent(out) :: &
+            enclosures(:)
+        integer, intent(out) :: status
+
+        type(eqdsk_cut_graph_atlas_strip_t) :: strip
+        integer :: i, local_status
+
+        if (allocated(enclosures)) deallocate(enclosures)
+        status = EQDSK_CUT_ATLAS_INVALID_INPUT
+        if (max_z_depth <= 0) then
+            call enclose_eqdsk_cut_graph_strip(atlas, strip_index, r_lo, r_hi, &
+                enclosures, status)
+            return
+        end if
+        if (.not. all(ieee_is_finite([r_lo, r_hi]))) return
+        if (r_hi < r_lo .or. .not. allocated(atlas%strips)) return
+        if (strip_index < 1 .or. strip_index > size(atlas%strips)) return
+        if (r_lo < atlas%strips(strip_index)%r_lo .or. &
+                r_hi > atlas%strips(strip_index)%r_hi) return
+        if (atlas%certificate_id /= EQDSK_CUT_GRAPH_CERTIFICATE_ID .or. &
+                .not. atlas%global_completeness_certified) then
+            status = EQDSK_CUT_ATLAS_INVALID_CERTIFICATE
+            return
+        end if
+
+        strip = atlas%strips(strip_index)
+        if (strip%candidate_leaf_count < 1 .or. &
+                .not. allocated(strip%candidate_cell_Z) .or. &
+                .not. allocated(strip%candidate_z_lo) .or. &
+                .not. allocated(strip%candidate_z_hi)) return
+        allocate(enclosures(0))
+        do i = 1, strip%candidate_leaf_count
+            call refine_candidate(strip%cell_R, strip%candidate_cell_Z(i), &
+                r_lo, r_hi, strip%candidate_z_lo(i), strip%candidate_z_hi(i), &
+                0, max_z_depth, enclosures, local_status)
+            if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+                deallocate(enclosures)
+                status = local_status
+                return
+            end if
+        end do
+        if (size(enclosures) < 1) then
+            deallocate(enclosures)
+            status = EQDSK_CUT_ATLAS_INTERVAL_FAILURE
+            return
+        end if
+        status = EQDSK_CUT_ATLAS_SUCCESS
+
+    contains
+
+        recursive subroutine refine_candidate(cell_r, cell_z, r_lower, r_upper, &
+                z_lower, z_upper, depth, depth_limit, kept, refine_status)
+            integer, intent(in) :: cell_r, cell_z, depth, depth_limit
+            real(dp), intent(in) :: r_lower, r_upper, z_lower, z_upper
+            type(eqdsk_cut_interval_result_t), allocatable, intent(inout) :: kept(:)
+            integer, intent(out) :: refine_status
+
+            type(eqdsk_cut_interval_result_t) :: parent
+            type(eqdsk_cut_interval_result_t), allocatable :: saved(:)
+            real(dp) :: z_mid
+            integer :: parent_status, lower_status, upper_status, count_before
+
+            refine_status = EQDSK_CUT_ATLAS_INTERVAL_FAILURE
+            call evaluate_eqdsk_cut_interval_box(cell_r, cell_z, r_lower, &
+                r_upper, z_lower, z_upper, parent, parent_status)
+            if (parent_status /= EQDSK_CUT_INTERVAL_SUCCESS) return
+            if (.not. contains_zero(parent%numerator)) then
+                refine_status = EQDSK_CUT_ATLAS_SUCCESS
+                return
+            end if
+            if (.not. parent%r_chart_certified .or. &
+                    .not. parent%denominator_positive_certified) then
+                call append_enclosure(kept, parent)
+                refine_status = EQDSK_CUT_ATLAS_SUCCESS
+                return
+            end if
+            if (depth >= depth_limit .or. z_upper <= z_lower) then
+                call append_enclosure(kept, parent)
+                refine_status = EQDSK_CUT_ATLAS_SUCCESS
+                return
+            end if
+            z_mid = 0.5_dp*(z_lower+z_upper)
+            count_before = size(kept)
+            call refine_candidate(cell_r, cell_z, r_lower, r_upper, z_lower, &
+                z_mid, depth+1, depth_limit, kept, lower_status)
+            call refine_candidate(cell_r, cell_z, r_lower, r_upper, z_mid, &
+                z_upper, depth+1, depth_limit, kept, upper_status)
+            if (lower_status /= EQDSK_CUT_ATLAS_SUCCESS .or. &
+                    upper_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+                allocate(saved(count_before))
+                if (count_before > 0) saved = kept(:count_before)
+                deallocate(kept)
+                allocate(kept(count_before))
+                if (count_before > 0) kept = saved
+                deallocate(saved)
+                call append_enclosure(kept, parent)
+            else if (size(kept) == count_before) then
+                call append_enclosure(kept, parent)
+            end if
+            refine_status = EQDSK_CUT_ATLAS_SUCCESS
+        end subroutine refine_candidate
+
+        subroutine append_enclosure(array, item)
+            type(eqdsk_cut_interval_result_t), allocatable, intent(inout) :: array(:)
+            type(eqdsk_cut_interval_result_t), intent(in) :: item
+            type(eqdsk_cut_interval_result_t), allocatable :: extended(:)
+            integer :: n
+
+            n = size(array)
+            allocate(extended(n+1))
+            if (n > 0) extended(:n) = array
+            extended(n+1) = item
+            call move_alloc(extended, array)
+        end subroutine append_enclosure
+
+        logical function contains_zero(interval)
+            type(gc_outward_interval_t), intent(in) :: interval
+
+            contains_zero = interval%lo <= 0.0_dp .and. interval%hi >= 0.0_dp
+        end function contains_zero
+    end subroutine enclose_eqdsk_cut_graph_strip_tight
+
     subroutine enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, r_lo, &
             r_hi, enclosures, status)
         type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
@@ -273,9 +410,10 @@ contains
         real(dp), intent(out), optional :: dZ_dR, dpsihat_dR
         integer, intent(out) :: status
 
-        integer :: strip_index, iteration, jet_status
+        integer :: strip_index, iteration, polish, jet_status
         real(dp) :: left, right, midpoint, f_left, f_right, f_midpoint
         real(dp) :: z_root, tolerance, dZ_root, dpsihat_root
+        real(dp) :: polish_candidate, polish_derivative
         type(eqdsk_cut_jet_t) :: jet
         logical :: converged, have_midpoint
 
@@ -351,7 +489,53 @@ contains
             status = EQDSK_CUT_ATLAS_MAPPING_FAILURE
             return
         end if
+        ! The interval certificate establishes a unique regular root in the
+        ! bracket.  Polish the numerical chart value before returning it: the
+        ! physical event callback has a much tighter residual gate than the
+        ! graph-width tolerance, and a bisection midpoint can otherwise leave
+        ! a harmless but measurable cut residual.  Newton steps remain inside
+        ! the certified bracket; a midpoint fallback preserves the chart if a
+        ! floating-point derivative evaluation is unusable.
         z_root = midpoint
+        do polish = 1, 8
+            call evaluate_scalar_jet(radius, z_root, jet, jet_status)
+            if (jet_status /= EQDSK_CUT_JET_SUCCESS) then
+                status = EQDSK_CUT_ATLAS_MAPPING_FAILURE
+                return
+            end if
+            polish_derivative = jet%d_cut_numerator_d_Z
+            if (abs(polish_derivative) > tiny(polish_derivative) .and. &
+                    ieee_is_finite(polish_derivative)) then
+                polish_candidate = z_root-jet%cut_numerator/polish_derivative
+            else
+                polish_candidate = 0.5_dp*(left+right)
+            end if
+            if (.not. ieee_is_finite(polish_candidate) .or. &
+                    polish_candidate <= left .or. polish_candidate >= right) then
+                polish_candidate = 0.5_dp*(left+right)
+            end if
+            call evaluate_scalar_numerator(radius, polish_candidate, &
+                f_midpoint, jet_status)
+            if (jet_status /= EQDSK_CUT_JET_SUCCESS) then
+                status = EQDSK_CUT_ATLAS_MAPPING_FAILURE
+                return
+            end if
+            if (atlas%strips(strip_index)%normal_sign > 0) then
+                if (f_midpoint > 0.0_dp) then
+                    right = polish_candidate
+                else
+                    left = polish_candidate
+                end if
+            else
+                if (f_midpoint > 0.0_dp) then
+                    left = polish_candidate
+                else
+                    right = polish_candidate
+                end if
+            end if
+            z_root = polish_candidate
+            if (f_midpoint == 0.0_dp) exit
+        end do
         call evaluate_scalar_jet(radius, z_root, jet, jet_status)
         if (jet_status /= EQDSK_CUT_JET_SUCCESS) then
             status = EQDSK_CUT_ATLAS_MAPPING_FAILURE

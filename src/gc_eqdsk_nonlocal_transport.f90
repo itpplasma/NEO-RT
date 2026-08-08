@@ -51,6 +51,7 @@ module neort_gc_eqdsk_nonlocal_transport
         launch_gc_cylindrical_class
     use neort_gc_cylindrical_topology, only: &
         gc_cylindrical_allowed_region_set_t
+    use neort_gc_certified_interval_roots, only: GC_INTERVAL_ROOT_SIMPLE, gc_interval_t
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_FIELD_ERROR, GC_CYL_INTEGRATOR_ERROR, &
@@ -439,6 +440,8 @@ module neort_gc_eqdsk_nonlocal_transport
         real(dp) :: last_canonical_momentum_error = 0.0_dp
         integer :: topology_certification_attempts = 0
         integer :: topology_certification_successes = 0
+        real(dp) :: topology_h0 = 0.0_dp
+        real(dp) :: topology_jk = 0.0_dp
         integer :: two_cut_multiplicity_certificate_id = 0
         integer :: harmonic_average_successes = 0
         integer :: residence_average_successes = 0
@@ -2634,18 +2637,27 @@ contains
 
         type(gc_cylindrical_allowed_region_set_t) :: same_sign_regions
         type(gc_cylindrical_allowed_region_set_t) :: opposite_sign_regions
-        integer :: local_status
+        integer :: local_status, i
 
         certified = .false.
         status = GC_CYL_CLASS_SPLITTER_FAILURE
         factory%topology_certification_attempts = &
             factory%topology_certification_attempts + 1
+        if (factory%topology_ready .and. factory%topology_h0 == h0 .and. &
+                factory%topology_jk == jperp) then
+            certified = .true.
+            status = GC_CYL_CLASS_SUCCESS
+            factory%topology_certification_successes = &
+                factory%topology_certification_successes + 1
+            return
+        end if
         factory%topology_ready = .false.
 
-        ! The regular chart has a different theorem from a turning chart.  A
-        ! component ending at v_parallel=0 needs the one-sided Puiseux
-        ! certificate; it must not enter this path through a finite sample.
-        if (candidate%lower_root .or. candidate%upper_root) return
+
+        ! A component ending at v_parallel=0 is certified by the generated
+        ! one-sided Puiseux chart consumed by the allowed-region provider.
+        ! Tangent roots remain closed by that provider until their distinct
+        ! fixed-invariant stationary certificate is available.
         if (abs(sigma) /= 1) return
 
         ! For fixed (H0,J_K), P_phi=(q/c) psi_star is constant on an orbit.
@@ -2664,59 +2676,69 @@ contains
             factory%allowed_region_context, h0, jperp, -sigma, &
             opposite_sign_regions, local_status)
         if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
-        if (.not. regular_canonical_ranges_certified(same_sign_regions)) return
-        if (.not. regular_canonical_ranges_certified(opposite_sign_regions)) return
+        if (.not. allowed_components_certified(same_sign_regions)) return
+        if (.not. allowed_components_certified(opposite_sign_regions)) return
         if (.not. candidate_is_provider_component(candidate, same_sign_regions)) return
 
-        ! This is an independent topology certificate, not a claim made by
-        ! the ODE event sequence.  Its ID is carried into the physical-return
-        ! options so that the integrator cannot manufacture multiplicity.
-        factory%cut_atlas%two_cut_multiplicity_certified = .true.
-        factory%two_cut_multiplicity_certificate_id = &
-            GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID
+        ! This is only the complete component inventory.  It deliberately
+        ! does not claim that every fixed P_phi has exactly two intersections;
+        ! that stronger property belongs to the launch-specific multiplicity
+        ! certificate attached after the physical return is observed.
+        factory%cut_atlas%two_cut_multiplicity_certified = .false.
+        factory%two_cut_multiplicity_certificate_id = 0
         factory%topology_certification_successes = &
             factory%topology_certification_successes + 1
+        factory%topology_h0 = h0
+        factory%topology_jk = jperp
         factory%topology_ready = .true.
         certified = .true.
         status = GC_CYL_CLASS_SUCCESS
     end subroutine certify_homoclinic_component
 
-    logical function regular_canonical_ranges_certified(regions)
+    logical function allowed_components_certified(regions)
         type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
 
-        integer :: i, j
-        real(dp) :: lower_i, upper_i, lower_j, upper_j
+        integer :: i
         type(gc_cylindrical_allowed_component_t) :: component_i
-        type(gc_cylindrical_allowed_component_t) :: component_j
 
-        regular_canonical_ranges_certified = .false.
+        allowed_components_certified = .false.
         if (.not. regions%topology_certified) return
-        if (regions%nroots /= 0) return
         if (regions%ncomponents < 1) return
         if (.not. allocated(regions%components)) return
         if (size(regions%components) /= regions%ncomponents) return
+        if (regions%nroots < 0) return
+        if (regions%nroots > 0) then
+            if (.not. allocated(regions%root_boxes)) return
+            if (.not. allocated(regions%root_canonical)) return
+            if (size(regions%root_boxes) /= regions%nroots .or. &
+                    size(regions%root_canonical) /= regions%nroots) return
+        end if
         do i = 1, regions%ncomponents
             component_i = regions%components(i)
-            if (component_i%lower_root .or. component_i%upper_root) return
             if (.not. component_i%canonical_measure_certified) return
             if (component_i%canonical_measure <= 0.0_dp) return
             if (.not. all(ieee_is_finite([component_i%canonical_begin, &
                     component_i%canonical_end, &
                     component_i%canonical_measure]))) return
-            lower_i = min(component_i%canonical_begin, component_i%canonical_end)
-            upper_i = max(component_i%canonical_begin, component_i%canonical_end)
-            if (upper_i <= lower_i) return
-            do j = 1, i - 1
-                component_j = regions%components(j)
-                lower_j = min(component_j%canonical_begin, &
-                    component_j%canonical_end)
-                upper_j = max(component_j%canonical_begin, &
-                    component_j%canonical_end)
-                if (max(lower_i, lower_j) < min(upper_i, upper_j)) return
-            end do
+            if (component_i%lower_root) then
+                if (component_i%lower_root_index < 1 .or. &
+                        component_i%lower_root_index > regions%nroots) return
+                if (regions%root_boxes(component_i%lower_root_index)%kind /= &
+                        GC_INTERVAL_ROOT_SIMPLE) return
+            else if (component_i%lower_root_index /= 0) then
+                return
+            end if
+            if (component_i%upper_root) then
+                if (component_i%upper_root_index < 1 .or. &
+                        component_i%upper_root_index > regions%nroots) return
+                if (regions%root_boxes(component_i%upper_root_index)%kind /= &
+                        GC_INTERVAL_ROOT_SIMPLE) return
+            else if (component_i%upper_root_index /= 0) then
+                return
+            end if
         end do
-        regular_canonical_ranges_certified = .true.
-    end function regular_canonical_ranges_certified
+        allowed_components_certified = .true.
+    end function allowed_components_certified
 
     logical function candidate_is_provider_component(candidate, regions)
         type(gc_cylindrical_class_interval_t), intent(in) :: candidate

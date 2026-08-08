@@ -18,7 +18,7 @@ module neort_gc_eqdsk_allowed_region_cut_box
         evaluate_eqdsk_allowed_region_interval
     use neort_gc_eqdsk_cut_graph_atlas, only: &
         EQDSK_CUT_ATLAS_SUCCESS, EQDSK_CUT_GRAPH_CERTIFICATE_ID, &
-        enclose_eqdsk_cut_graph_strip, &
+        enclose_eqdsk_cut_graph_strip, enclose_eqdsk_cut_graph_strip_tight, &
         eqdsk_cut_graph_atlas_t, validate_eqdsk_cut_graph_atlas
     use neort_gc_eqdsk_cut_interval, only: eqdsk_cut_interval_result_t
     use neort_gc_outward_interval, only: gc_outward_interval_is_valid, &
@@ -131,7 +131,7 @@ contains
 
     subroutine evaluate_eqdsk_allowed_region_cut_box(atlas, radius, &
             field_scale, raw_psi_sep, profile, h0, j_k, mass, charge, &
-            c_light, sigma, result, provenance, status)
+            c_light, sigma, result, provenance, status, tighten_z_depth)
         type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
         type(gc_outward_interval_t), intent(in) :: radius
         real(dp), intent(in) :: field_scale, raw_psi_sep
@@ -142,6 +142,7 @@ contains
         type(eqdsk_allowed_region_cut_provenance_t), intent(out) :: &
             provenance
         integer, intent(out) :: status
+        integer, intent(in), optional :: tighten_z_depth
 
         type(eqdsk_cut_interval_result_t), allocatable :: enclosures(:)
         type(eqdsk_cut_interval_result_t), allocatable :: collected(:)
@@ -151,11 +152,15 @@ contains
         real(dp) :: sub_lo, sub_hi
         integer :: i, j, strip_count, strip_position
         integer :: local_status, atlas_status
+        integer :: z_refinement_depth
         logical :: valid
 
         result = eqdsk_allowed_interval_result_t()
         provenance = eqdsk_allowed_region_cut_provenance_t()
         status = EQDSK_CUT_BOX_INVALID_INPUT
+        z_refinement_depth = 0
+        if (present(tighten_z_depth)) z_refinement_depth = tighten_z_depth
+        if (z_refinement_depth < 0) return
 
         if (.not. gc_outward_interval_is_valid(radius)) return
         if (radius%lo <= 0.0_dp .or. radius%hi < radius%lo) return
@@ -238,8 +243,13 @@ contains
             provenance%strip_index(strip_position) = i
             provenance%strip_r_lo(strip_position) = sub_lo
             provenance%strip_r_hi(strip_position) = sub_hi
-            call enclose_eqdsk_cut_graph_strip(atlas, i, sub_lo, sub_hi, &
-                enclosures, local_status)
+            if (z_refinement_depth > 0) then
+                call enclose_eqdsk_cut_graph_strip_tight(atlas, i, sub_lo, &
+                    sub_hi, z_refinement_depth, enclosures, local_status)
+            else
+                call enclose_eqdsk_cut_graph_strip(atlas, i, sub_lo, sub_hi, &
+                    enclosures, local_status)
+            end if
             if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
                 status = EQDSK_CUT_BOX_GRAPH_FAILURE
                 return

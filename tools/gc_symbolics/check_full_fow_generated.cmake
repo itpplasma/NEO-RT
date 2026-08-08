@@ -72,6 +72,7 @@ set(generated_files
     neort_eqdsk_canonical_cut_symbolic.f90
     neort_eqdsk_canonical_cut_interval_symbolic.f90
     neort_eqdsk_turning_chart_symbolic.f90
+    neort_eqdsk_turning_chart_interval_symbolic.f90
     neort_eqdsk_flux_profile_segment_symbolic.f90
     neort_eqdsk_scaled_flux_normalization_symbolic.f90
     neort_eqdsk_physical_flux_normalization_symbolic.f90

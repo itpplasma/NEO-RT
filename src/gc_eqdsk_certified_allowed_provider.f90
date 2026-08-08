@@ -4,8 +4,9 @@ module neort_gc_eqdsk_certified_allowed_provider
     !! This module owns no physics formula.  It delegates every value and jet
     !! to the generated EQDSK interval evaluator, and uses the generic
     !! interval/root engine for coverage.  A component is returned only when
-    !! its canonical measure is closed by generated interval data.  Turning
-    !! and tangent limits for which that data is not available fail closed.
+    !! its canonical measure is closed by generated interval data.  Tangent
+    !! limits for which a stationary certificate is unavailable fail closed;
+    !! simple turning endpoints use the generated one-sided chart.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_next_after
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_callback_context, only: gc_callback_context_t
@@ -19,13 +20,18 @@ module neort_gc_eqdsk_certified_allowed_provider
         gc_interval_enclosure_verifier_i, gc_interval_root_box_t, &
         gc_interval_root_callback_i, gc_interval_root_options_t, &
         gc_interval_root_result_t, gc_interval_stationary_verifier_i, &
-        gc_interval_t, isolate_gc_interval_roots
+        GC_INTERVAL_ROOT_SIMPLE, gc_interval_t, isolate_gc_interval_roots
+    use neort_gc_certified_canonical_variation, only: &
+        GC_CANONICAL_VARIATION_SUCCESS, gc_canonical_variation_options_t, &
+        gc_canonical_variation_result_t, certify_gc_canonical_total_variation
     use neort_gc_eqdsk_allowed_region_cut_box, only: &
         EQDSK_CUT_BOX_SUCCESS, eqdsk_allowed_region_cut_provenance_t, &
         eqdsk_potential_profile_nodes_t, &
         evaluate_eqdsk_allowed_region_cut_box
     use neort_gc_eqdsk_allowed_region_interval, only: &
         eqdsk_allowed_interval_result_t
+    use neort_eqdsk_turning_chart_interval_symbolic, only: &
+        evaluate_neort_eqdsk_turning_chart_interval
     use neort_gc_eqdsk_composite_cut_atlas, only: &
         eqdsk_composite_cut_atlas_t
     use neort_gc_eqdsk_cut_graph_atlas, only: &
@@ -82,6 +88,14 @@ module neort_gc_eqdsk_certified_allowed_provider
         integer :: stationary_certificate_id = 0
         procedure(gc_eqdsk_stationary_root_certificate_i), pointer, nopass :: &
             stationary_root_certificate => null()
+        ! The same fixed-invariant node is queried by the class provider,
+        ! verifier, splitter, and nonlocal callbacks.  Cache only the
+        ! completed typed result; failed or partial constructions never enter
+        ! this cache.
+        logical :: region_cache_valid(2) = .false.
+        real(dp) :: region_cache_h0(2) = 0.0_dp
+        real(dp) :: region_cache_jk(2) = 0.0_dp
+        type(gc_cylindrical_allowed_region_set_t) :: region_cache(2)
         logical :: initialized = .false.
     end type gc_eqdsk_certified_allowed_provider_context_t
 
@@ -207,6 +221,7 @@ contains
         type(gc_interval_root_result_t) :: root_results(3)
         type(gc_interval_root_options_t) :: root_options
         integer :: branch, local_status, root_count, component_count
+        integer :: cache_slot
         integer :: energy_certificate_id
         integer :: root_offset
         integer :: active_branch, active_sigma
@@ -222,6 +237,14 @@ contains
         if (.not. context%initialized) return
         if (.not. all(ieee_is_finite([h0, j_k]))) return
         if (j_k < 0.0_dp .or. abs(sigma) /= 1) return
+        cache_slot = merge(1, 2, sigma < 0)
+        if (context%region_cache_valid(cache_slot) .and. &
+                context%region_cache_h0(cache_slot) == h0 .and. &
+                context%region_cache_jk(cache_slot) == j_k) then
+            regions = context%region_cache(cache_slot)
+            status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+            return
+        end if
 
         energy_certificate_id = certificate_index('eqdsk_allowed_energy')
         if (energy_certificate_id <= 0) then
@@ -327,6 +350,10 @@ contains
         end if
         regions%topology_certified = .true.
         regions%certificate_method = 'fortsym-energy-interval-root-and-measure'
+        context%region_cache(cache_slot) = regions
+        context%region_cache_h0(cache_slot) = h0
+        context%region_cache_jk(cache_slot) = j_k
+        context%region_cache_valid(cache_slot) = .true.
         status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
 
     contains
@@ -500,6 +527,8 @@ contains
             integer :: i, n, global_lower, global_upper
             real(dp) :: domain_lo, domain_hi, left, right, probe
             type(gc_interval_t) :: begin_canonical, end_canonical, measure
+            type(gc_interval_t) :: begin_turning_derivative
+            type(gc_interval_t) :: end_turning_derivative
             logical :: lower_root, upper_root
             type(gc_cylindrical_allowed_component_t) :: component
 
@@ -528,21 +557,34 @@ contains
                 end if
                 if (.not. interval_is_allowed(ctx, energy, jk, sign, branch_id, &
                         probe, probe)) cycle
-                ! A generated canonical jet cannot yet certify the one-sided
-                ! limit at a turning endpoint.  Do not replace it by a sample
-                ! or a fitted square-root expression.
-                if (lower_root .or. upper_root) then
-                    local_status = GC_EQDSK_ALLOWED_PROVIDER_MEASURE_FAILURE
-                    return
+                ! A simple turning endpoint is evaluated through the generated
+                ! one-sided y=sqrt(|R-R_t|) chart below.  Tangent roots still
+                ! fail closed until their separate stationary certificate is
+                ! available.
+                begin_turning_derivative = gc_interval_t()
+                end_turning_derivative = gc_interval_t()
+                if (lower_root) then
+                    call turning_endpoint_canonical(ctx, energy, jk, sign, &
+                        branch_id, root_result%roots(i), 1, begin_canonical, &
+                        begin_turning_derivative, local_status)
+                else
+                    call endpoint_canonical(ctx, energy, jk, sign, branch_id, &
+                        left, begin_canonical, local_status)
                 end if
-                call endpoint_canonical(ctx, energy, jk, sign, branch_id, left, &
-                    begin_canonical, local_status)
                 if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
-                call endpoint_canonical(ctx, energy, jk, sign, branch_id, right, &
-                    end_canonical, local_status)
+                if (upper_root) then
+                    call turning_endpoint_canonical(ctx, energy, jk, sign, &
+                        branch_id, root_result%roots(i+1), -1, end_canonical, &
+                        end_turning_derivative, local_status)
+                else
+                    call endpoint_canonical(ctx, energy, jk, sign, branch_id, &
+                        right, end_canonical, local_status)
+                end if
                 if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
                 call certify_measure(ctx, energy, jk, sign, branch_id, left, right, &
-                    measure, local_status)
+                    lower_root, begin_turning_derivative, begin_canonical, &
+                    upper_root, end_turning_derivative, end_canonical, measure, &
+                    local_status)
                 if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
                 component = gc_cylindrical_allowed_component_t()
                 count = count+1
@@ -555,8 +597,18 @@ contains
                 component%canonical_measure = midpoint(measure)
                 component%canonical_measure_lower = measure%lo
                 component%canonical_measure_upper = measure%hi
-                component%x_begin_enclosure = gc_interval_t(left, left)
-                component%x_end_enclosure = gc_interval_t(right, right)
+                if (lower_root) then
+                    component%x_begin_enclosure = gc_interval_t( &
+                        root_result%roots(i)%lo, root_result%roots(i)%hi)
+                else
+                    component%x_begin_enclosure = gc_interval_t(left, left)
+                end if
+                if (upper_root) then
+                    component%x_end_enclosure = gc_interval_t( &
+                        root_result%roots(i+1)%lo, root_result%roots(i+1)%hi)
+                else
+                    component%x_end_enclosure = gc_interval_t(right, right)
+                end if
                 component%canonical_begin_enclosure = begin_canonical
                 component%canonical_end_enclosure = end_canonical
                 component%canonical_measure_enclosure = measure
@@ -602,6 +654,61 @@ contains
             local_status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
         end subroutine root_canonical_enclosure
 
+        subroutine turning_endpoint_canonical(ctx, energy, jk, sign, branch_id, &
+                root, allowed_side_sign, value, derivative_limit, local_status)
+            type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: ctx
+            real(dp), intent(in) :: energy, jk
+            integer, intent(in) :: sign, branch_id, allowed_side_sign
+            type(gc_interval_root_box_t), intent(in) :: root
+            type(gc_interval_t), intent(out) :: value, derivative_limit
+            integer, intent(out) :: local_status
+
+            type(eqdsk_allowed_interval_result_t) :: evaluated
+            type(eqdsk_allowed_region_cut_provenance_t) :: provenance
+            type(gc_outward_interval_t) :: chart_delta, chart_side, chart_sign
+            type(gc_outward_interval_t) :: chart_delta_x, chart_v_parallel
+            type(gc_outward_interval_t) :: chart_psi_star
+            type(gc_outward_interval_t) :: chart_dpsi_star_dy
+            type(gc_outward_interval_t) :: chart_dpsi_star_dy_root
+            integer :: status_box
+
+            value = gc_interval_t()
+            derivative_limit = gc_interval_t()
+            local_status = GC_EQDSK_ALLOWED_PROVIDER_MEASURE_FAILURE
+            if (root%kind /= GC_INTERVAL_ROOT_SIMPLE) return
+            if (.not. root%derivative_excludes_zero) return
+            if (abs(allowed_side_sign) /= 1) return
+            call evaluate_eqdsk_allowed_region_cut_box(ctx%graph(branch_id), &
+                gc_outward_interval(root%lo, root%hi), ctx%field_scale, &
+                ctx%raw_psi_sep, ctx%profile, energy, jk, ctx%mass, &
+                ctx%charge, ctx%c_light, sign, evaluated, provenance, status_box)
+            if (status_box /= EQDSK_CUT_BOX_SUCCESS) return
+            if (.not. gc_outward_interval_is_valid(evaluated%dv_parallel_squared_dR)) return
+            if (.not. gc_outward_interval_is_valid(evaluated%psi_physical)) return
+            if (.not. gc_outward_interval_is_valid(evaluated%dpsi_physical_dR)) return
+            if (.not. gc_outward_interval_is_valid(evaluated%bphi_covariant)) return
+            if (.not. gc_outward_interval_is_valid(evaluated%dbphi_covariant_dR)) return
+            chart_delta = gc_outward_interval(0.0_dp, 0.0_dp)
+            chart_side = gc_outward_interval(real(allowed_side_sign, dp), &
+                real(allowed_side_sign, dp))
+            chart_sign = gc_outward_interval(real(sign, dp), real(sign, dp))
+            call evaluate_neort_eqdsk_turning_chart_interval(chart_delta, &
+                chart_side, evaluated%dv_parallel_squared_dR, &
+                evaluated%psi_physical, evaluated%dpsi_physical_dR, &
+                evaluated%bphi_covariant, evaluated%dbphi_covariant_dR, &
+                gc_outward_interval(ctx%mass, ctx%mass), &
+                gc_outward_interval(ctx%charge, ctx%charge), &
+                gc_outward_interval(ctx%c_light, ctx%c_light), chart_sign, &
+                chart_delta_x, chart_v_parallel, chart_psi_star, &
+                chart_dpsi_star_dy, chart_dpsi_star_dy_root)
+            value = to_interval(chart_psi_star)
+            derivative_limit = to_interval(chart_dpsi_star_dy_root)
+            if (.not. valid_interval(value) .or. &
+                    .not. valid_interval(derivative_limit)) return
+            if (.not. excludes_zero(derivative_limit)) return
+            local_status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+        end subroutine turning_endpoint_canonical
+
         subroutine endpoint_canonical(ctx, energy, jk, sign, branch_id, x, value, local_status)
             type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: ctx
             real(dp), intent(in) :: energy, jk, x
@@ -626,39 +733,28 @@ contains
         end subroutine endpoint_canonical
 
         subroutine certify_measure(ctx, energy, jk, sign, branch_id, left, right, &
-                value, local_status)
+                lower_root, lower_turning_derivative, lower_endpoint, upper_root, &
+                upper_turning_derivative, upper_endpoint, value, local_status)
             type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: ctx
             real(dp), intent(in) :: energy, jk, left, right
             integer, intent(in) :: sign, branch_id
+            logical, intent(in) :: lower_root, upper_root
+            type(gc_interval_t), intent(in) :: lower_turning_derivative
+            type(gc_interval_t), intent(in) :: lower_endpoint
+            type(gc_interval_t), intent(in) :: upper_turning_derivative
+            type(gc_interval_t), intent(in) :: upper_endpoint
             type(gc_interval_t), intent(out) :: value
             integer, intent(out) :: local_status
 
-            type(gc_interval_t) :: left_value, right_value
-            type(eqdsk_allowed_interval_result_t) :: evaluated
-            type(eqdsk_allowed_region_cut_provenance_t) :: provenance
-            integer :: status_box
-
-            value = gc_interval_t()
-            call evaluate_eqdsk_allowed_region_cut_box(ctx%graph(branch_id), &
-                gc_outward_interval(left, right), ctx%field_scale, &
-                ctx%raw_psi_sep, ctx%profile, energy, jk, ctx%mass, ctx%charge, &
-                ctx%c_light, sign, evaluated, provenance, status_box)
-            local_status = GC_EQDSK_ALLOWED_PROVIDER_MEASURE_FAILURE
-            if (status_box /= EQDSK_CUT_BOX_SUCCESS) return
-            if (.not. evaluated%canonical_chart_certified) return
-            if (.not. excludes_zero(to_interval(evaluated%dpsi_star_dR))) return
-            call endpoint_canonical(ctx, energy, jk, sign, branch_id, left, &
-                left_value, local_status)
-            if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
-            call endpoint_canonical(ctx, energy, jk, sign, branch_id, right, &
-                right_value, local_status)
-            if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
-            value = abs_difference(right_value, left_value)
-            if (.not. valid_interval(value) .or. value%hi <= 0.0_dp) then
-                local_status = GC_EQDSK_ALLOWED_PROVIDER_MEASURE_FAILURE
-                return
-            end if
-            local_status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+            associate (unused_lower_root => lower_root, &
+                unused_lower_derivative => lower_turning_derivative, &
+                unused_lower_endpoint => lower_endpoint, &
+                unused_upper_root => upper_root, &
+                unused_upper_derivative => upper_turning_derivative, &
+                unused_upper_endpoint => upper_endpoint)
+            end associate
+            call certify_canonical_variation(ctx, energy, jk, sign, branch_id, &
+                left, right, value, local_status)
         end subroutine certify_measure
 
         logical function interval_is_allowed(ctx, energy, jk, sign, branch_id, lo, hi)
@@ -691,6 +787,213 @@ contains
         end subroutine append_component
 
     end subroutine build_gc_eqdsk_certified_allowed_regions
+
+    subroutine certify_canonical_variation(ctx, energy, jk, sign, branch_id, &
+            left, right, value, status)
+        type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: ctx
+        real(dp), intent(in) :: energy, jk, left, right
+        integer, intent(in) :: sign, branch_id
+        type(gc_interval_t), intent(out) :: value
+        integer, intent(out) :: status
+
+        type(gc_canonical_variation_options_t) :: options
+        type(gc_canonical_variation_result_t) :: result
+        type(gc_interval_callback_result_t) :: interval_value
+        type(gc_interval_callback_result_t) :: left_value
+        type(gc_interval_callback_result_t) :: right_value
+        type(gc_interval_t) :: partitioned_measure, segment_measure
+        integer :: canonical_certificate_id
+        integer :: i, partition_count
+        integer :: active_tight_z_depth
+        real(dp) :: partition_left, partition_right, partition_width
+
+        value = gc_interval_t()
+        status = GC_EQDSK_ALLOWED_PROVIDER_MEASURE_FAILURE
+        active_tight_z_depth = 0
+        canonical_certificate_id = certificate_index('eqdsk_canonical_cut')
+        if (canonical_certificate_id <= 0) return
+        options = gc_canonical_variation_options_t()
+        options%expected_cut_id = branch_id
+        options%expected_value_certificate_id = canonical_certificate_id
+        options%root_options%initial_partition = 4
+        options%root_options%max_depth = min(ctx%measure_max_depth, 12)
+        options%root_options%max_boxes = 1024
+        options%root_options%max_roots = 32
+        ! The canonical derivative is enclosed over the certified graph leaf,
+        ! whose finite Z halo can be wider than the energy-root coordinate
+        ! box.  Resolve the stationary box to the graph-induced scale; the
+        ! resulting variation bound, rather than a point estimate, carries
+        ! the remaining uncertainty.
+        options%root_options%x_tolerance = max(ctx%root_x_tolerance, 5.0e-2_dp)
+        options%root_options%expected_enclosure_certificate_id = &
+            canonical_certificate_id
+        options%root_options%expected_stationary_certificate_id = 0
+        call evaluate_canonical(left, right, interval_value)
+        if (interval_value%status == 0 .and. &
+                excludes_zero(interval_value%df)) then
+            call evaluate_canonical(left, left, left_value)
+            call evaluate_canonical(right, right, right_value)
+            if (left_value%status == 0 .and. right_value%status == 0) then
+                value = abs_difference(right_value%f, left_value%f)
+                if (valid_interval(value) .and. value%hi > 0.0_dp) then
+                    status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+                    return
+                end if
+            end if
+        end if
+        ! The interval root isolator may certify that each initial box is
+        ! root-free even when the hull over the union is too wide to certify
+        ! monotonicity in one call.  Assemble those certified monotone boxes
+        ! directly before invoking the more expensive stationary-root path.
+        partition_count = 16
+        partition_width = (right-left)/real(partition_count, dp)
+        partitioned_measure = gc_interval_t(0.0_dp, 0.0_dp)
+        do i = 1, partition_count
+            partition_left = left+real(i-1, dp)*partition_width
+            partition_right = left+real(i, dp)*partition_width
+            call evaluate_canonical(partition_left, partition_right, interval_value)
+            if (interval_value%status /= 0 .or. &
+                    .not. excludes_zero(interval_value%df)) then
+                ! Coarse graph leaves are sufficient for the fast path.  Only
+                ! the interval-root proof needs the expensive query-local Z
+                ! subdivision; keeping that refinement out of every probe is
+                ! important because the production callback is synchronous.
+                active_tight_z_depth = 3
+                call certify_gc_canonical_total_variation(evaluate_canonical, &
+                    verify_canonical, evaluate_canonical_derivative, &
+                    verify_canonical_derivative, verify_canonical_derivative_stationary, &
+                    partition_left, partition_right, options, result)
+                active_tight_z_depth = 0
+                if (result%status /= GC_CANONICAL_VARIATION_SUCCESS .or. &
+                        .not. result%certified) return
+                segment_measure = result%total_variation_enclosure
+                if (.not. valid_interval(segment_measure) .or. &
+                        segment_measure%hi <= 0.0_dp) return
+                partitioned_measure = add_interval(partitioned_measure, segment_measure)
+                if (i == partition_count) then
+                    value = partitioned_measure
+                    status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+                    return
+                end if
+                cycle
+            end if
+            call evaluate_canonical(partition_left, partition_left, left_value)
+            call evaluate_canonical(partition_right, partition_right, right_value)
+            if (left_value%status /= 0 .or. right_value%status /= 0) then
+                return
+            end if
+            segment_measure = abs_difference(right_value%f, left_value%f)
+            if (.not. valid_interval(segment_measure)) exit
+            partitioned_measure = add_interval(partitioned_measure, segment_measure)
+            if (i == partition_count .and. partitioned_measure%hi > 0.0_dp) then
+                value = partitioned_measure
+                status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+                return
+            end if
+        end do
+
+    contains
+
+        subroutine evaluate_canonical(x_lo, x_hi, callback)
+            real(dp), intent(in) :: x_lo, x_hi
+            type(gc_interval_callback_result_t), intent(out) :: callback
+            type(eqdsk_allowed_interval_result_t) :: evaluated
+            type(eqdsk_allowed_region_cut_provenance_t) :: provenance
+            integer :: local_status
+
+            callback = gc_interval_callback_result_t()
+            callback%query_lo = x_lo
+            callback%query_hi = x_hi
+            callback%cut_id = branch_id
+            callback%enclosure_certificate_id = canonical_certificate_id
+            call evaluate_eqdsk_allowed_region_cut_box(ctx%graph(branch_id), &
+                gc_outward_interval(x_lo, x_hi), ctx%field_scale, &
+                ctx%raw_psi_sep, ctx%profile, energy, jk, ctx%mass, &
+                ctx%charge, ctx%c_light, sign, evaluated, provenance, &
+                local_status, tighten_z_depth=active_tight_z_depth)
+            if (local_status /= EQDSK_CUT_BOX_SUCCESS) return
+            if (.not. evaluated%canonical_chart_certified) return
+            callback%f = to_interval(evaluated%psi_star)
+            callback%df = to_interval(evaluated%dpsi_star_dR)
+            callback%d2f = to_interval(evaluated%d2psi_star_dR2)
+            callback%status = 0
+            callback%certified = provenance%certified
+        end subroutine evaluate_canonical
+
+        subroutine verify_canonical(x_lo, x_hi, callback, expected_id, &
+                verification_status)
+            real(dp), intent(in) :: x_lo, x_hi
+            type(gc_interval_callback_result_t), intent(in) :: callback
+            integer, intent(in) :: expected_id
+            integer, intent(out) :: verification_status
+            type(gc_interval_callback_result_t) :: expected
+
+            call evaluate_canonical(x_lo, x_hi, expected)
+            verification_status = 1
+            if (expected%status /= 0) return
+            if (expected_id /= canonical_certificate_id) return
+            if (callback%query_lo /= x_lo .or. callback%query_hi /= x_hi) return
+            if (callback%cut_id /= branch_id .or. &
+                    callback%enclosure_certificate_id /= expected_id) return
+            if (.not. encloses(callback%f, expected%f) .or. &
+                    .not. encloses(callback%df, expected%df) .or. &
+                    .not. encloses(callback%d2f, expected%d2f)) return
+            verification_status = 0
+        end subroutine verify_canonical
+
+        subroutine evaluate_canonical_derivative(x_lo, x_hi, callback)
+            real(dp), intent(in) :: x_lo, x_hi
+            type(gc_interval_callback_result_t), intent(out) :: callback
+            type(gc_interval_callback_result_t) :: canonical
+
+            call evaluate_canonical(x_lo, x_hi, canonical)
+            callback = canonical
+            callback%f = canonical%df
+            callback%df = canonical%d2f
+            ! A third derivative is not required to certify a simple root of
+            ! d(psi_star)/dR.  A valid repeated enclosure keeps unresolved
+            ! tangent cases fail closed.
+            callback%d2f = canonical%d2f
+        end subroutine evaluate_canonical_derivative
+
+        subroutine verify_canonical_derivative(x_lo, x_hi, callback, &
+                expected_id, verification_status)
+            real(dp), intent(in) :: x_lo, x_hi
+            type(gc_interval_callback_result_t), intent(in) :: callback
+            integer, intent(in) :: expected_id
+            integer, intent(out) :: verification_status
+            type(gc_interval_callback_result_t) :: expected
+
+            call evaluate_canonical_derivative(x_lo, x_hi, expected)
+            verification_status = 1
+            if (expected%status /= 0) return
+            if (expected_id /= canonical_certificate_id) return
+            if (callback%query_lo /= x_lo .or. callback%query_hi /= x_hi) return
+            if (callback%cut_id /= branch_id .or. &
+                    callback%enclosure_certificate_id /= expected_id) return
+            if (.not. encloses(callback%f, expected%f) .or. &
+                    .not. encloses(callback%df, expected%df) .or. &
+                    .not. encloses(callback%d2f, expected%d2f)) return
+            verification_status = 0
+        end subroutine verify_canonical_derivative
+
+        subroutine verify_canonical_derivative_stationary(x_lo, x_hi, point, &
+                callback, expected_enclosure_id, expected_stationary_id, &
+                verification_status)
+            real(dp), intent(in) :: x_lo, x_hi, point
+            type(gc_interval_callback_result_t), intent(out) :: callback
+            integer, intent(in) :: expected_enclosure_id, expected_stationary_id
+            integer, intent(out) :: verification_status
+
+            callback = gc_interval_callback_result_t()
+            verification_status = 1
+            associate (unused_x_lo => x_lo, unused_x_hi => x_hi, &
+                unused_point => point, unused_enclosure_id => expected_enclosure_id, &
+                unused_stationary_id => expected_stationary_id)
+            end associate
+        end subroutine verify_canonical_derivative_stationary
+
+    end subroutine certify_canonical_variation
 
     subroutine verify_gc_eqdsk_certified_allowed_regions(context, h0, j_k, sigma, &
             rc_min, rc_max, regions, certificate_id, status)
