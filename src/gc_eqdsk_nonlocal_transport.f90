@@ -41,8 +41,11 @@ module neort_gc_eqdsk_nonlocal_transport
         gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_options_t, &
         gc_cylindrical_class_launch_t, gc_cylindrical_class_point_t, &
+        gc_cylindrical_class_result_t, &
+        enumerate_gc_cylindrical_classes, &
         evaluate_gc_cylindrical_class_point, &
-        initialize_gc_cylindrical_class_adapter
+        initialize_gc_cylindrical_class_adapter, &
+        launch_gc_cylindrical_class
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_FIELD_ERROR, GC_CYL_INTEGRATOR_ERROR, &
@@ -53,10 +56,6 @@ module neort_gc_eqdsk_nonlocal_transport
         gc_cylindrical_invariants_t, gc_cylindrical_potential_t, &
         gc_cylindrical_polygon_wall_t, gc_cylindrical_state_t, &
         gc_cylindrical_invariant_residuals, invariants_from_cylindrical_state
-    use neort_gc_cylindrical_topology, only: &
-        gc_cylindrical_allowed_component_t, &
-        gc_cylindrical_allowed_region_set_t, &
-        find_gc_cylindrical_allowed_regions
     use neort_gc_cylindrical_nonlocal_provider, only: &
         GC_CYL_NONLOCAL_CALLBACK_FAILURE, GC_CYL_NONLOCAL_ORBIT_ERROR_STATUS, &
         GC_CYL_NONLOCAL_ORBIT_UNRESOLVED, GC_CYL_NONLOCAL_ORBIT_VALID, &
@@ -2112,7 +2111,8 @@ contains
         class(gc_callback_context_t), pointer, intent(inout) :: user_data
         integer, intent(out) :: class_kind, status
 
-        type(gc_cylindrical_class_interval_t), allocatable :: classes(:)
+        type(gc_cylindrical_class_adapter_t) :: adapter
+        type(gc_cylindrical_class_result_t) :: classes
         type(gc_cylindrical_class_launch_t) :: launch
         type(gc_eqdsk_orbit_result_t) :: orbit_result
         integer :: local_status, i
@@ -2123,17 +2123,19 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
-            call enumerate_operational_classes(factory, h0, jperp, classes, &
+            call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
                 local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            if (.not. allocated(classes)) return
+            call enumerate_gc_cylindrical_classes(adapter, classes, local_status)
+            if (local_status /= GC_CYL_CLASS_SUCCESS) return
             found = .false.
-            do i = 1, size(classes)
-                if (classes(i)%component_id /= component_id) cycle
-                if (classes(i)%sigma /= sigma) cycle
-                if (x < classes(i)%rc_min .or. x > classes(i)%rc_max) cycle
+            do i = 1, classes%nclasses
+                if (classes%classes(i)%component_id /= component_id) cycle
+                if (classes%classes(i)%sigma /= sigma) cycle
+                if (x < classes%classes(i)%rc_min .or. &
+                        x > classes%classes(i)%rc_max) cycle
                 found = .true.
-                call make_raw_launch(factory, h0, jperp, x, sigma, &
+                call launch_gc_cylindrical_class(adapter, x, sigma, &
                     component_id, launch, local_status)
                 if (local_status /= GC_CYL_CLASS_SUCCESS) return
                 call integrate_physical_cycle(factory, launch, 0, 0, .false., &
@@ -2248,7 +2250,8 @@ contains
         type(gc_nonlocal_component_t), allocatable, intent(out) :: components(:)
         integer, intent(out) :: status
 
-        type(gc_cylindrical_class_interval_t), allocatable :: classes(:)
+        type(gc_cylindrical_class_adapter_t) :: adapter
+        type(gc_cylindrical_class_result_t) :: classes
         integer :: local_status, i
 
         if (allocated(components)) deallocate(components)
@@ -2256,25 +2259,25 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
-            call enumerate_operational_classes(factory, h0, jperp, classes, &
+            call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
                 local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            if (.not. allocated(classes)) then
+            call enumerate_gc_cylindrical_classes(adapter, classes, local_status)
+            if (local_status /= GC_CYL_CLASS_SUCCESS) return
+            if (.not. classes%class_complete) return
+            if (classes%nclasses < 0) return
+            if (classes%nclasses == 0) then
                 allocate(components(0))
                 status = GC_CYL_NONLOCAL_SUCCESS
                 return
             end if
-            if (size(classes) == 0) then
-                allocate(components(0))
-                status = GC_CYL_NONLOCAL_SUCCESS
-                return
-            end if
-            allocate(components(size(classes)))
-            do i = 1, size(classes)
-                components(i)%component_id = classes(i)%component_id
-                components(i)%sigma = classes(i)%sigma
-                components(i)%x_min = classes(i)%rc_min
-                components(i)%x_max = classes(i)%rc_max
+            if (.not. allocated(classes%classes)) return
+            allocate(components(classes%nclasses))
+            do i = 1, classes%nclasses
+                components(i)%component_id = classes%classes(i)%component_id
+                components(i)%sigma = classes%classes(i)%sigma
+                components(i)%x_min = classes%classes(i)%rc_min
+                components(i)%x_max = classes%classes(i)%rc_max
             end do
             status = GC_CYL_NONLOCAL_SUCCESS
         class default
@@ -2439,158 +2442,6 @@ contains
         end select
     end subroutine physical_cut_map_callback
 
-    subroutine enumerate_operational_classes(factory, h0, jperp, classes, status)
-        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
-        real(dp), intent(in) :: h0, jperp
-        type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
-            classes(:)
-        integer, intent(out) :: status
-
-        type(gc_cylindrical_class_adapter_t) :: adapter
-        type(gc_cylindrical_allowed_region_set_t) :: regions
-        type(gc_cylindrical_class_interval_t) :: candidate
-        type(gc_cylindrical_class_interval_t), allocatable :: split(:)
-        integer :: adapter_status, local_status, sigma, i, j, nclasses
-        logical :: operational_complete
-
-        if (allocated(classes)) deallocate(classes)
-        status = GC_CYL_CLASS_SPLITTER_FAILURE
-        nclasses = 0
-        call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
-            adapter_status)
-        if (adapter_status /= GC_CYL_CLASS_SUCCESS) return
-        do sigma = -1, 1, 2
-            regions = gc_cylindrical_allowed_region_set_t()
-            call find_gc_cylindrical_allowed_regions(evaluate_operational_sigma, &
-                adapter%rc_min, adapter%rc_max, adapter%options%scan_points, &
-                sigma, regions, local_status)
-            if (local_status /= GC_CYL_SUCCESS) return
-            if (regions%ncomponents < 0) return
-            if (regions%ncomponents == 0) cycle
-            if (.not. allocated(regions%components)) return
-            do i = 1, regions%ncomponents
-                call operational_interval_from_component(regions%components(i), &
-                    candidate, local_status)
-                if (local_status /= GC_CYL_CLASS_SUCCESS) return
-                call certify_homoclinic_component(factory, h0, jperp, sigma, &
-                    candidate, split, operational_complete, local_status)
-                if (local_status /= GC_CYL_CLASS_SUCCESS .or. &
-                        .not. operational_complete) return
-                if (.not. allocated(split)) return
-                do j = 1, size(split)
-                    call append_operational_class(classes, nclasses, split(j), &
-                        local_status)
-                    if (local_status /= GC_CYL_CLASS_SUCCESS) return
-                end do
-                deallocate(split)
-            end do
-        end do
-        if (.not. allocated(classes)) allocate(classes(0))
-        status = GC_CYL_CLASS_SUCCESS
-
-    contains
-
-        subroutine evaluate_operational_sigma(x, value, derivative, psi_star, &
-                dpsi_star_dx, callback_status)
-            real(dp), intent(in) :: x
-            real(dp), intent(out) :: value, derivative, psi_star
-            real(dp), intent(out) :: dpsi_star_dx
-            integer, intent(out) :: callback_status
-
-            type(gc_cylindrical_class_point_t) :: point
-
-            call evaluate_gc_cylindrical_class_point(adapter, x, sigma, point, &
-                callback_status)
-            if (callback_status /= GC_CYL_CLASS_SUCCESS) then
-                value = 0.0_dp
-                derivative = 0.0_dp
-                psi_star = 0.0_dp
-                dpsi_star_dx = 0.0_dp
-                return
-            end if
-            value = point%vparallel_squared
-            derivative = point%dvparallel_squared_drc
-            psi_star = point%psi_star
-            dpsi_star_dx = point%dpsi_star_drc
-            callback_status = GC_CYL_SUCCESS
-        end subroutine evaluate_operational_sigma
-
-    end subroutine enumerate_operational_classes
-
-    subroutine operational_interval_from_component(component, interval, status)
-        type(gc_cylindrical_allowed_component_t), intent(in) :: component
-        type(gc_cylindrical_class_interval_t), intent(out) :: interval
-        integer, intent(out) :: status
-
-        interval = gc_cylindrical_class_interval_t()
-        status = GC_CYL_CLASS_SPLITTER_FAILURE
-        if (component%component_id <= 0) return
-        if (abs(component%sigma) /= 1) return
-        if (.not. all(ieee_is_finite([component%x_begin, component%x_end, &
-                component%canonical_begin, component%canonical_end, &
-                component%canonical_measure]))) return
-        if (component%x_end <= component%x_begin) return
-        if (component%canonical_measure <= 0.0_dp) return
-        interval%component_id = component%component_id
-        interval%sigma = component%sigma
-        interval%rc_min = component%x_begin
-        interval%rc_max = component%x_end
-        interval%psi_star_min = component%canonical_begin
-        interval%psi_star_max = component%canonical_end
-        interval%canonical_measure = component%canonical_measure
-        interval%canonical_measure_enclosure%lo = component%canonical_measure_lower
-        interval%canonical_measure_enclosure%hi = component%canonical_measure_upper
-        interval%lower_root = component%lower_root
-        interval%upper_root = component%upper_root
-        interval%lower_boundary_kind = operational_boundary_kind(.not. &
-            component%lower_root, component%lower_root, .false.)
-        interval%upper_boundary_kind = operational_boundary_kind(.not. &
-            component%upper_root, component%upper_root, .false.)
-        interval%limiting_chart = 'potato-operational-cut'
-        status = GC_CYL_CLASS_SUCCESS
-    end subroutine operational_interval_from_component
-
-    subroutine append_operational_class(classes, count, value, status)
-        type(gc_cylindrical_class_interval_t), allocatable, intent(inout) :: &
-            classes(:)
-        integer, intent(inout) :: count
-        type(gc_cylindrical_class_interval_t), intent(in) :: value
-        integer, intent(out) :: status
-
-        type(gc_cylindrical_class_interval_t), allocatable :: enlarged(:)
-
-        status = GC_CYL_CLASS_SPLITTER_FAILURE
-        if (count < 0) return
-        if (.not. allocated(classes)) then
-            allocate(classes(1))
-            classes(1) = value
-            count = 1
-            status = GC_CYL_CLASS_SUCCESS
-            return
-        end if
-        if (size(classes) /= count) return
-        allocate(enlarged(count + 1))
-        if (count > 0) enlarged(1:count) = classes
-        enlarged(count + 1) = value
-        call move_alloc(enlarged, classes)
-        count = count + 1
-        status = GC_CYL_CLASS_SUCCESS
-    end subroutine append_operational_class
-
-    pure character(len=24) function operational_boundary_kind(is_outer, &
-            has_turning_root, internal_extremum)
-        logical, intent(in) :: is_outer, has_turning_root, internal_extremum
-
-        operational_boundary_kind = 'operational-cut-boundary'
-        if (has_turning_root) then
-            operational_boundary_kind = 'operational-turning-root'
-        else if (internal_extremum) then
-            operational_boundary_kind = 'operational-extremum'
-        else if (is_outer) then
-            operational_boundary_kind = 'operational-cut-boundary'
-        end if
-    end function operational_boundary_kind
-
     subroutine certified_splitter_callback(h0, jperp, sigma, candidate, user_data, &
             split_classes, certified, status)
         real(dp), intent(in) :: h0, jperp
@@ -2609,14 +2460,13 @@ contains
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
             call certify_homoclinic_component(factory, h0, jperp, sigma, candidate, &
-                split_classes, certified, status)
+                certified, status)
             if (status /= GC_CYL_CLASS_SUCCESS) return
             if (certified) then
-                if (.not. allocated(split_classes)) then
-                    status = GC_CYL_CLASS_SPLITTER_FAILURE
-                    certified = .false.
-                    return
-                end if
+                allocate(split_classes(1))
+                split_classes(1) = candidate
+                split_classes(1)%topology_certified = .true.
+                split_classes(1)%orbit_return_certified = .true.
             end if
         class default
             status = GC_CYL_CLASS_SUCCESS
@@ -2624,262 +2474,30 @@ contains
     end subroutine certified_splitter_callback
 
     subroutine certify_homoclinic_component(factory, h0, jperp, sigma, candidate, &
-            split_classes, certified, status)
+            certified, status)
         type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
         real(dp), intent(in) :: h0, jperp
         integer, intent(in) :: sigma
         type(gc_cylindrical_class_interval_t), intent(in) :: candidate
-        type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
-            split_classes(:)
         logical, intent(out) :: certified
         integer, intent(out) :: status
 
-        type(gc_cylindrical_class_adapter_t) :: adapter
-        type(gc_cylindrical_class_launch_t) :: launch
-        type(gc_eqdsk_orbit_result_t) :: orbit_result
-        real(dp), allocatable :: extrema(:), extrema_psi(:), edges(:), edge_psi(:)
-        real(dp), allocatable :: measure_weights(:)
-        real(dp) :: weight_sum, midpoint
-        integer :: adapter_status, local_status, n_extrema, nclasses, i
-
-        if (allocated(split_classes)) deallocate(split_classes)
         certified = .false.
+        ! A finite collection of successful interior returns cannot exclude a
+        ! stationary canonical-momentum X point or locate a homoclinic
+        ! separatrix between probes.  The Buchholz limiting charts must be
+        ! split by a generated interval/root-isolation certificate before an
+        ! interval can be called complete.  Keep this callback fail-closed
+        ! until that certificate is supplied; do not convert probes into
+        ! topology evidence.
         status = GC_CYL_CLASS_SPLITTER_FAILURE
         factory%topology_certification_attempts = &
             factory%topology_certification_attempts + 1
         factory%topology_ready = .false.
-
-        ! This is deliberately an operational POTATO-style decomposition.  It
-        ! consumes the sampled positive-v_parallel^2 interval, locates
-        ! stationary psi_star points, names the resulting boundaries, and
-        ! checks one physical return per resulting class.  Nothing here is an
-        ! interval proof, a root-isolation certificate, or a homoclinic
-        ! theorem.  The historical callback name and logical argument are
-        ! retained only because the generic adapter API predates this seam.
-        if (.not. all(ieee_is_finite([h0, jperp, candidate%rc_min, &
-                candidate%rc_max, candidate%psi_star_min, &
-                candidate%psi_star_max, candidate%canonical_measure]))) return
-        if (abs(sigma) /= 1) return
-        if (candidate%component_id <= 0) return
-        if (.not. candidate%allowed_interval) return
-        if (candidate%rc_max <= candidate%rc_min) return
-        if (candidate%canonical_measure <= 0.0_dp) return
-
-        call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
-            adapter_status)
-        if (adapter_status /= GC_CYL_CLASS_SUCCESS) return
-        call find_operational_extrema(adapter, candidate, extrema, extrema_psi, &
-            n_extrema, local_status)
-        if (local_status /= GC_CYL_CLASS_SUCCESS) return
-        nclasses = n_extrema + 1
-        allocate(edges(nclasses + 1), edge_psi(nclasses + 1), &
-            measure_weights(nclasses), split_classes(nclasses))
-        edges(1) = candidate%rc_min
-        edge_psi(1) = candidate%psi_star_min
-        if (n_extrema > 0) then
-            edges(2:n_extrema + 1) = extrema(1:n_extrema)
-            edge_psi(2:n_extrema + 1) = extrema_psi(1:n_extrema)
-        end if
-        edges(nclasses + 1) = candidate%rc_max
-        edge_psi(nclasses + 1) = candidate%psi_star_max
-        do i = 1, nclasses
-            if (edges(i + 1) <= edges(i)) then
-                deallocate(split_classes)
-                return
-            end if
-            measure_weights(i) = abs(edge_psi(i + 1) - edge_psi(i))
-        end do
-        weight_sum = sum(measure_weights)
-        if (.not. ieee_is_finite(weight_sum)) then
-            deallocate(split_classes)
-            return
-        end if
-        if (weight_sum <= tiny(weight_sum)) then
-            measure_weights = 1.0_dp
-            weight_sum = real(nclasses, dp)
-        end if
-
-        do i = 1, nclasses
-            split_classes(i) = candidate
-            split_classes(i)%component_id = candidate%component_id*1000 + i
-            split_classes(i)%rc_min = edges(i)
-            split_classes(i)%rc_max = edges(i + 1)
-            split_classes(i)%psi_star_min = edge_psi(i)
-            split_classes(i)%psi_star_max = edge_psi(i + 1)
-            split_classes(i)%canonical_measure = candidate%canonical_measure &
-                *measure_weights(i)/weight_sum
-            split_classes(i)%canonical_measure_enclosure%lo = &
-                split_classes(i)%canonical_measure
-            split_classes(i)%canonical_measure_enclosure%hi = &
-                split_classes(i)%canonical_measure
-            split_classes(i)%lower_root = candidate%lower_root .and. i == 1
-            split_classes(i)%upper_root = candidate%upper_root .and. &
-                i == nclasses
-            split_classes(i)%lower_tangent = candidate%lower_tangent .and. &
-                i == 1
-            split_classes(i)%upper_tangent = candidate%upper_tangent .and. &
-                i == nclasses
-            split_classes(i)%lower_boundary_kind = &
-                operational_boundary_kind(i == 1, candidate%lower_root, &
-                i > 1)
-            split_classes(i)%upper_boundary_kind = &
-                operational_boundary_kind(i == nclasses, candidate%upper_root, &
-                i < nclasses)
-            split_classes(i)%limiting_chart = 'potato-operational-class'
-
-            midpoint = 0.5_dp*(edges(i) + edges(i + 1))
-            call make_raw_launch(factory, h0, jperp, midpoint, sigma, &
-                split_classes(i)%component_id, launch, local_status)
-            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
-                deallocate(split_classes)
-                return
-            end if
-            call integrate_physical_cycle(factory, launch, 0, 0, .false., &
-                .false., 0.0_dp, 0.0_dp, orbit_result, track_behavior=.true.)
-            if (orbit_result%status /= GC_EQDSK_NONLOCAL_SUCCESS) then
-                deallocate(split_classes)
-                return
-            end if
-            if (.not. orbit_result%complete_cycle_certified) then
-                deallocate(split_classes)
-                return
-            end if
-            if (.not. physical_return_has_identity(factory, launch, &
-                    orbit_result)) then
-                deallocate(split_classes)
-                return
-            end if
-        end do
-        certified = .true.
-        status = GC_CYL_CLASS_SUCCESS
-        factory%topology_ready = .true.
-    end subroutine certify_homoclinic_component
-
-    subroutine find_operational_extrema(adapter, candidate, extrema, values, &
-            nextrema, status)
-        type(gc_cylindrical_class_adapter_t), intent(inout) :: adapter
-        type(gc_cylindrical_class_interval_t), intent(in) :: candidate
-        real(dp), allocatable, intent(out) :: extrema(:), values(:)
-        integer, intent(out) :: nextrema, status
-
-        type(gc_cylindrical_class_point_t) :: left_point, right_point, root_point
-        integer :: nscan, i, local_status
-        real(dp) :: step, left, right, root, previous_root
-        real(dp) :: derivative_scale, derivative_tolerance
-
-        nextrema = 0
-        status = GC_CYL_CLASS_SPLITTER_FAILURE
-        nscan = max(32, adapter%options%validation_points/4)
-        nscan = min(2049, nscan)
-        allocate(extrema(max(1, nscan)), values(max(1, nscan)))
-        step = (candidate%rc_max-candidate%rc_min)/real(nscan, dp)
-        if (.not. ieee_is_finite(step) .or. step <= 0.0_dp) return
-        derivative_scale = 1.0_dp
-        do i = 1, nscan - 1
-            left = candidate%rc_min + real(i, dp)*step
-            right = left + step
-            call evaluate_gc_cylindrical_class_point(adapter, left, &
-                candidate%sigma, left_point, local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            call evaluate_gc_cylindrical_class_point(adapter, right, &
-                candidate%sigma, right_point, local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            if (.not. left_point%derivative_available .or. &
-                    .not. right_point%derivative_available) cycle
-            derivative_scale = max(derivative_scale, &
-                abs(left_point%dpsi_star_drc))
-            derivative_scale = max(derivative_scale, &
-                abs(right_point%dpsi_star_drc))
-        end do
-        derivative_tolerance = 1.0e-10_dp*derivative_scale
-        do i = 1, nscan - 1
-            left = candidate%rc_min + real(i, dp)*step
-            right = left + step
-            call evaluate_gc_cylindrical_class_point(adapter, left, &
-                candidate%sigma, left_point, local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            call evaluate_gc_cylindrical_class_point(adapter, right, &
-                candidate%sigma, right_point, local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            if (.not. left_point%derivative_available .or. &
-                    .not. right_point%derivative_available) cycle
-            if (left_point%dpsi_star_drc == 0.0_dp) then
-                root = left
-            else if (left_point%dpsi_star_drc*right_point%dpsi_star_drc < &
-                    0.0_dp) then
-                call bisect_operational_extremum(adapter, candidate%sigma, &
-                    left, right, left_point%dpsi_star_drc, &
-                    right_point%dpsi_star_drc, derivative_tolerance, root, &
-                    local_status)
-                if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            else
-                cycle
-            end if
-            if (root <= candidate%rc_min .or. root >= candidate%rc_max) cycle
-            if (nextrema > 0) then
-                previous_root = extrema(nextrema)
-                if (abs(root-previous_root) <= 1.0e-8_dp*max(1.0_dp, &
-                        abs(root))) cycle
-            end if
-            call evaluate_gc_cylindrical_class_point(adapter, root, &
-                candidate%sigma, root_point, local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            if (.not. root_point%derivative_available) cycle
-            nextrema = nextrema + 1
-            extrema(nextrema) = root
-            values(nextrema) = root_point%psi_star
-        end do
-        status = GC_CYL_CLASS_SUCCESS
-    end subroutine find_operational_extrema
-
-    subroutine bisect_operational_extremum(adapter, sigma, left, right, &
-            dleft, dright, derivative_tolerance, root, status)
-        type(gc_cylindrical_class_adapter_t), intent(inout) :: adapter
-        integer, intent(in) :: sigma
-        real(dp), intent(in) :: left, right, dleft, dright, derivative_tolerance
-        real(dp), intent(out) :: root
-        integer, intent(out) :: status
-
-        type(gc_cylindrical_class_point_t) :: point
-        real(dp) :: a, b, fa, fb, midpoint, fm
-        integer :: iteration, local_status
-
-        a = left
-        b = right
-        fa = dleft
-        fb = dright
-        root = 0.5_dp*(a+b)
-        status = GC_CYL_CLASS_SPLITTER_FAILURE
-        do iteration = 1, 80
-            midpoint = 0.5_dp*(a+b)
-            call evaluate_gc_cylindrical_class_point(adapter, midpoint, sigma, &
-                point, local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            fm = point%dpsi_star_drc
-            if (.not. ieee_is_finite(fm)) return
-            if (abs(fm) <= derivative_tolerance .or. b-a <= &
-                    1.0e-12_dp*max(1.0_dp, abs(midpoint))) then
-                root = midpoint
-                status = GC_CYL_CLASS_SUCCESS
-                return
-            end if
-            if (fa*fm <= 0.0_dp) then
-                b = midpoint
-                fb = fm
-            else
-                a = midpoint
-                fa = fm
-            end if
-        end do
-        root = 0.5_dp*(a+b)
-        call evaluate_gc_cylindrical_class_point(adapter, root, sigma, point, &
-            local_status)
-        if (local_status /= GC_CYL_CLASS_SUCCESS) return
-        if (.not. ieee_is_finite(point%dpsi_star_drc)) return
-        status = GC_CYL_CLASS_SUCCESS
-        associate (unused_fb => fb)
+        associate (unused_h0 => h0, unused_jperp => jperp, unused_sigma => sigma, &
+                unused_candidate => candidate)
         end associate
-    end subroutine bisect_operational_extremum
+    end subroutine certify_homoclinic_component
 
     subroutine make_raw_launch(factory, h0, jperp, x, sigma, component_id, &
             launch, status)
