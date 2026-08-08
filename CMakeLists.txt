@@ -132,6 +132,7 @@ set(NEO_RT_SOURCES
     src/generated/neort_full_fow_sign_symmetry_symbolic.f90
     src/generated/neort_full_fow_normalization_symbolic.f90
     src/generated/neort_full_fow_quadrature_map_symbolic.f90
+    src/generated/neort_gauss_legendre_interval_map_symbolic.f90
     src/generated/neort_polynomial_cell_enclosure_symbolic.f90
     src/generated/neort_full_fow_section_reversal_symbolic.f90
     src/generated/neort_full_fow_eq17_symbolic.f90
@@ -207,6 +208,7 @@ set(NEO_RT_SOURCES
     src/gc_nonlocal_transport_integral.f90
     src/gc_cylindrical_transport_provider.f90
     src/gc_full_fow_normalization_runtime.f90
+    src/gc_unit_quadrature.f90
     src/gc_eqdsk_nonlocal_transport.f90
     src/gc_full_fow_runtime_metadata.f90
     src/gc_full_fow_runtime_delivery.f90

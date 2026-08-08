@@ -62,6 +62,7 @@ program gen_full_fow_physics
     type(expr_t) :: cutdot_roots(3), section_roots(9), crossing_roots(5)
     type(expr_t) :: sign_symmetry_roots(14)
     type(expr_t) :: normalization_roots(13), quadrature_map_roots(8)
+    type(expr_t) :: gauss_interval_map_roots(2)
     type(expr_t) :: polynomial_enclosure_roots(3)
     type(expr_t) :: cylindrical_bstar_roots(5)
     type(expr_t) :: physical_mu_roots(3), buchholz_action_roots(2)
@@ -409,6 +410,10 @@ program gen_full_fow_physics
     type(expr_t) :: quad_qphi_min, quad_jk_max, quad_h_hat, quad_h_phys
     type(expr_t) :: quad_dh_hat_dt, quad_weight_h, quad_jk_hat_max
     type(expr_t) :: quad_jk_hat, quad_jk_phys, quad_weight_j, quad_weight
+    type(expr_t) :: gauss_standard_node, gauss_standard_weight
+    type(expr_t) :: gauss_lower_bound, gauss_upper_bound
+    type(expr_t) :: gauss_half_span, gauss_midpoint
+    type(expr_t) :: gauss_mapped_node, gauss_mapped_weight
     type(expr_t) :: poly_c0, poly_c1, poly_c2, poly_c3, poly_c4, poly_c5
     type(expr_t) :: poly_width, poly_tail_bound, poly_lower, poly_upper
     type(expr_t) :: conversion_vperp, conversion_mu, conversion_jk
@@ -1145,6 +1150,20 @@ program gen_full_fow_physics
     quad_weight_j = quad_j_weight*quad_jk_hat_max
     quad_weight = quad_weight_h*quad_weight_j
 
+    ! The Gauss-Legendre implementation supplies its canonical rule on
+    ! [-1,1].  Derive the complete affine push-forward, including the
+    ! measure Jacobian, rather than duplicating that normalization in the
+    ! runtime consumer.
+    gauss_standard_node = sym(arena, "standard_node")
+    gauss_standard_weight = sym(arena, "standard_weight")
+    gauss_lower_bound = sym(arena, "lower_bound")
+    gauss_upper_bound = sym(arena, "upper_bound")
+    gauss_half_span = (gauss_upper_bound-gauss_lower_bound)/2
+    gauss_midpoint = (gauss_upper_bound+gauss_lower_bound)/2
+    gauss_mapped_node = gauss_midpoint + &
+        gauss_half_span*gauss_standard_node
+    gauss_mapped_weight = gauss_half_span*gauss_standard_weight
+
     ! Conservative degree-five local-polynomial enclosure.  The inequality
     ! is the triangle bound supplied by the interval provider; Fortsym emits
     ! the radius and endpoints so signed c0 values are handled identically.
@@ -1801,6 +1820,14 @@ program gen_full_fow_physics
         quad_weight-quad_h_weight*quad_dh_hat_dt* &
         quad_j_weight*quad_jk_hat_max)
     call check_identity(proofs, proof_engine, &
+        "Gauss interval affine coordinate", &
+        2*gauss_mapped_node-gauss_lower_bound-gauss_upper_bound- &
+        (gauss_upper_bound-gauss_lower_bound)*gauss_standard_node)
+    call check_identity(proofs, proof_engine, &
+        "Gauss interval measure Jacobian", &
+        2*gauss_mapped_weight- &
+        (gauss_upper_bound-gauss_lower_bound)*gauss_standard_weight)
+    call check_identity(proofs, proof_engine, &
         "polynomial enclosure midpoint is signed c0", &
         (poly_lower+poly_upper)/2-poly_c0)
     call check_identity(proofs, proof_engine, &
@@ -2329,6 +2356,7 @@ program gen_full_fow_physics
     quadrature_map_roots = [quad_h_hat, quad_h_phys, quad_weight_h, &
         quad_jk_hat_max, quad_jk_hat, quad_jk_phys, quad_weight_j, &
         quad_weight]
+    gauss_interval_map_roots = [gauss_mapped_node, gauss_mapped_weight]
     polynomial_enclosure_roots = [poly_tail_bound, poly_lower, poly_upper]
     cylindrical_bstar_roots = [bstar1, bstar2, bstar3, &
         bparallel_star, cylindrical_measure]
@@ -2402,6 +2430,7 @@ program gen_full_fow_physics
     call simplify_array(harmonic_integrand_roots)
     call simplify_array(normalization_roots)
     call simplify_array(quadrature_map_roots)
+    call simplify_array(gauss_interval_map_roots)
     call simplify_array(polynomial_enclosure_roots)
     call simplify_array(cylindrical_bstar_roots)
     call simplify_array(physical_mu_roots)
@@ -2522,6 +2551,13 @@ program gen_full_fow_physics
         "J_K_max_physical"], quadrature_map_roots, [character(len=64) :: "H_hat", "H_physical", &
         "energy_normalized_weight", "J_K_hat_max", "J_K_hat", &
         "J_K_physical", "action_normalized_weight", "paired_weight"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_gauss_legendre_interval_map_symbolic.f90", &
+        "neort_gauss_legendre_interval_map_symbolic", &
+        "evaluate_neort_gauss_legendre_interval_map", &
+        [character(len=64) :: "standard_node", "standard_weight", &
+        "lower_bound", "upper_bound"], gauss_interval_map_roots, &
+        [character(len=64) :: "mapped_node", "mapped_weight"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_polynomial_cell_enclosure_symbolic.f90", &
         "neort_polynomial_cell_enclosure_symbolic", &
@@ -3261,7 +3297,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 35"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 36"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -3285,7 +3321,8 @@ contains
         write (unit, "(a)") "        'eqdsk_axis_stationarity_newton', &"
         write (unit, "(a)") "        'eqdsk_axis_stationarity_krawczyk', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_segment', &"
-        write (unit, "(a)") "        'eqdsk_scaled_flux_normalization' ]"
+        write (unit, "(a)") "        'eqdsk_scaled_flux_normalization', &"
+        write (unit, "(a)") "        'gauss_interval_map' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -3321,7 +3358,8 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_axis_stationarity_newton:7:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_axis_stationarity_krawczyk:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884' ]"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:gauss_interval_map:2:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

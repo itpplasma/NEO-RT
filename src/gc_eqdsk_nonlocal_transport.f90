@@ -111,6 +111,8 @@ module neort_gc_eqdsk_nonlocal_transport
         gc_full_fow_reference_scales_t, initialize_gc_full_fow_reference, &
         map_gc_full_fow_energy_quadrature, &
         map_gc_full_fow_paired_quadrature
+    use neort_gc_unit_quadrature, only: GC_UNIT_QUADRATURE_SUCCESS, &
+        build_gc_unit_gauss_legendre
     use neort_gc_nonlocal_resonance_types, only: &
         GC_NONLOCAL_MAX_FORCE_VALUES, GC_NONLOCAL_SAMPLE_VALID, &
         gc_nonlocal_component_t, gc_nonlocal_orbit_sample_t
@@ -3625,10 +3627,10 @@ contains
         nj = jk_order
         if (nh < 2 .or. nj < 2) return
         if (nh*nj > factory%transport_options%max_total_nodes) return
-        call gauss_legendre_unit(nh, h_nodes, h_weights, local_status)
-        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
-        call gauss_legendre_unit(nj, j_nodes, j_weights, local_status)
-        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call build_gc_unit_gauss_legendre(nh, h_nodes, h_weights, local_status)
+        if (local_status /= GC_UNIT_QUADRATURE_SUCCESS) return
+        call build_gc_unit_gauss_legendre(nj, j_nodes, j_weights, local_status)
+        if (local_status /= GC_UNIT_QUADRATURE_SUCCESS) return
         if (.not. factory%options%phase_space_bound_certified) return
         phi_min = factory%options%qphi_min_certificate
         if (.not. ieee_is_finite(phi_min)) return
@@ -3807,89 +3809,6 @@ contains
         upper_bound = envelope%jk_max_physical
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine compute_jk_upper_bound
-
-    subroutine gauss_legendre_unit(order, nodes, weights, status)
-        integer, intent(in) :: order
-        real(dp), allocatable, intent(out) :: nodes(:), weights(:)
-        integer, intent(out) :: status
-
-        integer :: i, j, half, j_local
-        logical :: converged
-        real(dp) :: z, z_old, p1, p2, p3, pp
-        real(dp), parameter :: tolerance = 2.0e-15_dp
-
-        if (allocated(nodes)) deallocate(nodes)
-        if (allocated(weights)) deallocate(weights)
-        status = GC_EQDSK_NONLOCAL_INVALID_INPUT
-        if (order < 2) return
-        allocate(nodes(order), weights(order))
-        half = (order+1)/2
-        do i = 1, half
-            z = cos(pi*(real(i, dp)-0.25_dp)/(real(order, dp)+0.5_dp))
-            converged = .false.
-            do j = 1, 100
-                p1 = 1.0_dp
-                p2 = 0.0_dp
-                do j_local = 1, order
-                    p3 = p2
-                    p2 = p1
-                    p1 = ((2.0_dp*real(j_local, dp)-1.0_dp)*z*p2 &
-                        -(real(j_local, dp)-1.0_dp)*p3)/real(j_local, dp)
-                end do
-                pp = real(order, dp)*(z*p1-p2)/(z*z-1.0_dp)
-                if (.not. all(ieee_is_finite([p1, p2, pp, z]))) then
-                    deallocate(nodes, weights)
-                    return
-                end if
-                if (abs(pp) <= tiny(1.0_dp)) then
-                    deallocate(nodes, weights)
-                    return
-                end if
-                z_old = z
-                z = z_old-p1/pp
-                if (.not. ieee_is_finite(z)) then
-                    deallocate(nodes, weights)
-                    return
-                end if
-                if (abs(z-z_old) <= tolerance) then
-                    converged = .true.
-                    exit
-                end if
-            end do
-            if (.not. converged) then
-                deallocate(nodes, weights)
-                return
-            end if
-            nodes(i) = 0.5_dp*(1.0_dp-z)
-            nodes(order+1-i) = 0.5_dp*(1.0_dp+z)
-            weights(i) = 0.5_dp/((1.0_dp-z*z)*pp*pp)
-            weights(order+1-i) = weights(i)
-        end do
-        if (.not. all(ieee_is_finite(nodes)) .or. &
-                .not. all(ieee_is_finite(weights))) then
-            deallocate(nodes, weights)
-            return
-        end if
-        if (any(nodes <= 0.0_dp) .or. any(nodes >= 1.0_dp) .or. &
-                any(weights <= 0.0_dp)) then
-            deallocate(nodes, weights)
-            return
-        end if
-        if (any(nodes(2:) <= nodes(:order-1))) then
-            deallocate(nodes, weights)
-            return
-        end if
-        if (abs(sum(weights)-1.0_dp) > 1.0e-12_dp) then
-            deallocate(nodes, weights)
-            return
-        end if
-        if (maxval(abs(nodes + nodes(order:1:-1) - 1.0_dp)) > 1.0e-12_dp .or. &
-                maxval(abs(weights - weights(order:1:-1))) > 1.0e-12_dp) then
-            deallocate(nodes, weights)
-            return
-        end if
-        status = GC_EQDSK_NONLOCAL_SUCCESS
-    end subroutine gauss_legendre_unit
 
     integer function validate_factory_inputs(factory, harmonic_n) result(status)
         type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory

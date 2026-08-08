@@ -46,6 +46,7 @@ set(generated_files
     neort_full_fow_sign_symmetry_symbolic.f90
     neort_full_fow_normalization_symbolic.f90
     neort_full_fow_quadrature_map_symbolic.f90
+    neort_gauss_legendre_interval_map_symbolic.f90
     neort_polynomial_cell_enclosure_symbolic.f90
     neort_full_fow_section_reversal_symbolic.f90
     neort_full_fow_eq17_symbolic.f90
