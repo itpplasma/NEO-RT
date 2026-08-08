@@ -38,7 +38,8 @@ module neort_gc_eqdsk_nonlocal_transport
     use geoflux_coordinates, only: geoflux_get_axis, &
         geoflux_get_flux_profiles
     use neort_gc_cylindrical_class_adapter, only: &
-        GC_CYL_CLASS_CUT_ERROR, GC_CYL_CLASS_SPLITTER_FAILURE, &
+        GC_CYL_CLASS_CUT_ERROR, GC_CYL_CLASS_INTERIOR_INVALID, &
+        GC_CYL_CLASS_SPLITTER_FAILURE, &
         GC_CYL_CLASS_SUCCESS, &
         gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_options_t, &
@@ -48,6 +49,8 @@ module neort_gc_eqdsk_nonlocal_transport
         evaluate_gc_cylindrical_class_point, &
         initialize_gc_cylindrical_class_adapter, &
         launch_gc_cylindrical_class
+    use neort_gc_cylindrical_topology, only: &
+        gc_cylindrical_allowed_region_set_t
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_FIELD_ERROR, GC_CYL_INTEGRATOR_ERROR, &
@@ -94,6 +97,19 @@ module neort_gc_eqdsk_nonlocal_transport
         eqdsk_composite_cut_atlas_t, get_eqdsk_composite_cut_radius_bounds, &
         map_eqdsk_composite_cut_atlas_radius, &
         map_eqdsk_composite_cut_atlas_rho
+    use neort_gc_eqdsk_composite_r_ownership, only: &
+        EQDSK_R_OWNERSHIP_SUCCESS, build_eqdsk_composite_r_partition, &
+        eqdsk_composite_r_partition_t
+    use neort_gc_eqdsk_allowed_region_cut_box, only: &
+        EQDSK_CUT_BOX_SUCCESS, eqdsk_potential_profile_nodes_t, &
+        validate_eqdsk_potential_profile_nodes
+    use neort_gc_eqdsk_certified_allowed_provider, only: &
+        GC_EQDSK_ALLOWED_PROVIDER_SUCCESS, &
+        GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_ID, &
+        build_gc_eqdsk_certified_allowed_regions, &
+        gc_eqdsk_certified_allowed_provider_context_t, &
+        initialize_gc_eqdsk_certified_allowed_provider, &
+        verify_gc_eqdsk_certified_allowed_regions
     use neort_gc_eqdsk_cut_endpoint_certificate, only: &
         EQDSK_ENDPOINT_CERT_SUCCESS, build_eqdsk_cut_endpoint_certificate, &
         eqdsk_cut_endpoint_certificate_t
@@ -330,6 +346,10 @@ module neort_gc_eqdsk_nonlocal_transport
         type(gc_cylindrical_polygon_wall_t) :: wall
         type(gc_eqdsk_cut_atlas_t) :: cut_atlas
         type(eqdsk_composite_cut_atlas_t) :: certified_cut_atlas
+        type(eqdsk_composite_r_partition_t) :: r_partition
+        type(eqdsk_potential_profile_nodes_t) :: certified_profile
+        type(gc_eqdsk_certified_allowed_provider_context_t) :: &
+            allowed_region_context
         type(eqdsk_flux_profile_map_t) :: flux_map
         character(len=1024) :: eqdsk_path = ''
         character(len=1024) :: wall_path = ''
@@ -368,6 +388,7 @@ module neort_gc_eqdsk_nonlocal_transport
         logical :: perturbation_ready = .false.
         logical :: wall_ready = .false.
         logical :: cut_ready = .false.
+        logical :: allowed_region_ready = .false.
         logical :: topology_ready = .false.
         logical :: cut_atlas_certified = .false.
         character(len=64) :: cut_atlas_method = ''
@@ -695,6 +716,10 @@ contains
         if (allocated(factory%cut_atlas%branches)) deallocate(factory%cut_atlas%branches)
         factory%cut_atlas = gc_eqdsk_cut_atlas_t()
         factory%certified_cut_atlas = eqdsk_composite_cut_atlas_t()
+        factory%r_partition = eqdsk_composite_r_partition_t()
+        factory%certified_profile = eqdsk_potential_profile_nodes_t()
+        factory%allowed_region_context = &
+            gc_eqdsk_certified_allowed_provider_context_t()
         factory%wall%initialized = .false.
         factory%field = eqdsk_cylindrical_field_t()
         factory%field_ready = .false.
@@ -702,6 +727,7 @@ contains
         factory%perturbation_ready = .false.
         factory%wall_ready = .false.
         factory%cut_ready = .false.
+        factory%allowed_region_ready = .false.
         factory%topology_ready = .false.
         factory%cut_atlas_certified = .false.
         factory%cut_atlas_method = ''
@@ -1204,6 +1230,13 @@ contains
         factory%potential%endpoint_reconstruction_method = &
             'fortsym-affine-endpoints-s=0,1'
         factory%potential%initialized = .true.
+        call validate_eqdsk_potential_profile_nodes( &
+            factory%potential%psi_pol, factory%potential%phi, &
+            factory%potential%omega_e, factory%certified_profile, status)
+        if (status /= EQDSK_CUT_BOX_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+            return
+        end if
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine initialize_profile_potential
 
@@ -1341,6 +1374,10 @@ contains
         end if
         factory%cut_atlas = gc_eqdsk_cut_atlas_t()
         factory%certified_cut_atlas = eqdsk_composite_cut_atlas_t()
+        factory%r_partition = eqdsk_composite_r_partition_t()
+        factory%allowed_region_context = &
+            gc_eqdsk_certified_allowed_provider_context_t()
+        factory%allowed_region_ready = .false.
         factory%cut_atlas%method = 'fortsym-interval-cut-atlas-required'
         factory%cut_atlas_method = trim(factory%cut_atlas%method)
         factory%cut_atlas_certified = .false.
@@ -1397,6 +1434,17 @@ contains
             factory%options%cut_atlas_options, &
             factory%certified_cut_atlas, local_status)
         if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
+        call build_eqdsk_composite_r_partition(factory%certified_cut_atlas, &
+            factory%r_partition, local_status)
+        if (local_status /= EQDSK_R_OWNERSHIP_SUCCESS) return
+        call initialize_gc_eqdsk_certified_allowed_provider( &
+            factory%allowed_region_context, factory%certified_cut_atlas, &
+            factory%r_partition, factory%certified_profile, &
+            factory%options%field_scale, &
+            factory%certified_cut_atlas%inboard_graph%raw_psi_sep, &
+            factory%species%mass_g, factory%species%charge_esu, c, local_status)
+        if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
+        factory%allowed_region_ready = .true.
 
         allocate(factory%cut_atlas%branches(2))
         factory%cut_atlas%nbranches = 2
@@ -2026,8 +2074,68 @@ contains
             factory%species%charge_esu, c, radius_lo, radius_hi, &
             physical_class_cut_map_callback, adapter, &
             status, options=factory%options%class_options, &
-            splitter=certified_splitter_callback, user_data=factory)
+            splitter=certified_splitter_callback, user_data=factory, &
+            allowed_region_provider=factory_allowed_region_provider, &
+            allowed_region_verifier=factory_allowed_region_verifier, &
+            allowed_region_certificate_id= &
+                GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_ID)
     end subroutine initialize_factory_class_adapter
+
+    subroutine factory_allowed_region_provider(h0, jperp, sigma, user_data, &
+            regions, status)
+        real(dp), intent(in) :: h0, jperp
+        integer, intent(in) :: sigma
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_allowed_region_set_t), intent(out) :: regions
+        integer, intent(out) :: status
+
+        integer :: local_status
+
+        regions = gc_cylindrical_allowed_region_set_t()
+        status = GC_CYL_CLASS_INTERIOR_INVALID
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+                if (.not. factory%allowed_region_ready) return
+                call build_gc_eqdsk_certified_allowed_regions( &
+                    factory%allowed_region_context, h0, jperp, sigma, regions, &
+                    local_status)
+                if (local_status == GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) then
+                    status = GC_CYL_CLASS_SUCCESS
+                end if
+            class default
+                return
+        end select
+    end subroutine factory_allowed_region_provider
+
+    subroutine factory_allowed_region_verifier(h0, jperp, sigma, rc_min, &
+            rc_max, regions, user_data, certificate_id, status)
+        real(dp), intent(in) :: h0, jperp, rc_min, rc_max
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        integer, intent(out) :: certificate_id, status
+
+        integer :: local_status
+
+        certificate_id = 0
+        status = GC_CYL_CLASS_SPLITTER_FAILURE
+        if (.not. associated(user_data)) return
+        select type (factory => user_data)
+            type is (gc_eqdsk_nonlocal_factory_t)
+                if (.not. factory%allowed_region_ready) return
+                call verify_gc_eqdsk_certified_allowed_regions( &
+                    factory%allowed_region_context, h0, jperp, sigma, rc_min, &
+                    rc_max, regions, certificate_id, local_status)
+                if (local_status == GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) then
+                    status = GC_CYL_CLASS_SUCCESS
+                else
+                    certificate_id = 0
+                end if
+            class default
+                return
+        end select
+    end subroutine factory_allowed_region_verifier
 
     subroutine factory_node_factory(h0, jperp, user_data, adapter, context, &
             status)

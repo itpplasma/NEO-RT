@@ -844,6 +844,8 @@ contains
         do i = 1, regions%ncomponents
             if (regions%components(i)%component_id <= 0) return
             if (regions%components(i)%sigma /= sigma) return
+            if (.not. regions%components(i)%endpoint_evidence_certified) return
+            if (.not. regions%components(i)%canonical_measure_certified) return
             if (.not. all(ieee_is_finite([regions%components(i)%x_begin, &
                 regions%components(i)%x_end, &
                 regions%components(i)%canonical_begin, &
@@ -852,6 +854,23 @@ contains
                 regions%components(i)%canonical_measure_lower, &
                 regions%components(i)%canonical_measure_upper]))) return
             if (regions%components(i)%x_end <= regions%components(i)%x_begin) return
+            if (.not. valid_interval(regions%components(i)%x_begin_enclosure)) return
+            if (.not. valid_interval(regions%components(i)%x_end_enclosure)) return
+            if (.not. valid_interval(regions%components(i)%canonical_begin_enclosure)) return
+            if (.not. valid_interval(regions%components(i)%canonical_end_enclosure)) return
+            if (.not. interval_contains(regions%components(i)%x_begin_enclosure, &
+                    regions%components(i)%x_begin)) return
+            if (.not. interval_contains(regions%components(i)%x_end_enclosure, &
+                    regions%components(i)%x_end)) return
+            if (.not. interval_contains(regions%components(i)%canonical_begin_enclosure, &
+                    regions%components(i)%canonical_begin)) return
+            if (.not. interval_contains(regions%components(i)%canonical_end_enclosure, &
+                    regions%components(i)%canonical_end)) return
+            if (regions%components(i)%canonical_measure_certificate_id <= 0) return
+            if (.not. valid_interval(regions%components(i)%canonical_measure_enclosure)) return
+            if (regions%components(i)%canonical_measure_enclosure%lo <= 0.0_dp) return
+            if (.not. interval_contains(regions%components(i)%canonical_measure_enclosure, &
+                    regions%components(i)%canonical_measure)) return
             if (regions%components(i)%canonical_measure <= 0.0_dp) return
             if (regions%components(i)%canonical_measure_lower <= 0.0_dp) return
             if (regions%components(i)%canonical_measure_upper < &

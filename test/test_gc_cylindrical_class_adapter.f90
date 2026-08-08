@@ -223,12 +223,40 @@ contains
             canonical_measure=0.375_dp, canonical_measure_lower=0.375_dp, &
             canonical_measure_upper=0.375_dp, lower_root=.true., &
             upper_root=.true., lower_root_index=1, upper_root_index=2)
+        regions%components(1)%x_begin_enclosure = &
+            gc_interval_t(0.5_dp, 0.5_dp)
+        regions%components(1)%x_end_enclosure = &
+            gc_interval_t(0.99_dp, 1.01_dp)
+        regions%components(1)%canonical_begin_enclosure = &
+            gc_interval_t(0.125_dp, 0.125_dp)
+        regions%components(1)%canonical_end_enclosure = &
+            gc_interval_t(0.49_dp, 0.51_dp)
+        regions%components(1)%canonical_measure_enclosure = &
+            gc_interval_t(0.375_dp, 0.375_dp)
+        regions%components(1)%canonical_measure_certificate_id = &
+            MANUFACTURED_CERTIFICATE_ID
+        regions%components(1)%endpoint_evidence_certified = .true.
+        regions%components(1)%canonical_measure_certified = .true.
         regions%components(2) = gc_cylindrical_allowed_component_t( &
             component_id=2, sigma=sigma, x_begin=2.0_dp, x_end=4.5_dp, &
             canonical_begin=2.0_dp, canonical_end=10.125_dp, &
             canonical_measure=8.125_dp, canonical_measure_lower=8.125_dp, &
             canonical_measure_upper=8.125_dp, lower_root=.true., &
             upper_root=.false., lower_root_index=3)
+        regions%components(2)%x_begin_enclosure = &
+            gc_interval_t(1.99_dp, 2.01_dp)
+        regions%components(2)%x_end_enclosure = &
+            gc_interval_t(4.5_dp, 4.5_dp)
+        regions%components(2)%canonical_begin_enclosure = &
+            gc_interval_t(1.99_dp, 2.01_dp)
+        regions%components(2)%canonical_end_enclosure = &
+            gc_interval_t(10.125_dp, 10.125_dp)
+        regions%components(2)%canonical_measure_enclosure = &
+            gc_interval_t(8.125_dp, 8.125_dp)
+        regions%components(2)%canonical_measure_certificate_id = &
+            MANUFACTURED_CERTIFICATE_ID
+        regions%components(2)%endpoint_evidence_certified = .true.
+        regions%components(2)%canonical_measure_certified = .true.
         regions%total_canonical_measure = 8.5_dp
         regions%total_canonical_measure_enclosure = gc_interval_t(8.5_dp, &
             8.5_dp)
@@ -286,6 +314,33 @@ contains
                 case (31)
                     regions%root_coordinate_maps(2) &
                         %mapping_enclosure_certified = .false.
+                case (32)
+                    regions%components(1)%endpoint_evidence_certified = .false.
+                case (33)
+                    regions%components(1)%canonical_measure_certified = .false.
+                case (34)
+                    regions%components(1)%x_begin_enclosure = &
+                        gc_interval_t(0.6_dp, 0.7_dp)
+                case (35)
+                    regions%components(1)%canonical_end_enclosure = &
+                        gc_interval_t(0.6_dp, 0.7_dp)
+                case (36)
+                    regions%components(1)%canonical_measure_enclosure = &
+                        gc_interval_t(0.1_dp, 0.2_dp)
+                case (37)
+                    regions%components(1)%canonical_measure_certificate_id = 0
+                case (38)
+                    regions%components(1)%canonical_measure_enclosure = &
+                        gc_interval_t(0.0_dp, 0.5_dp)
+                case (39)
+                    regions%components(1)%x_end_enclosure = &
+                        gc_interval_t(0.1_dp, 0.2_dp)
+                case (40)
+                    regions%components(1)%canonical_begin_enclosure = &
+                        gc_interval_t(0.2_dp, 0.3_dp)
+                case (41)
+                    regions%components(1)%x_end_enclosure = &
+                        gc_interval_t(1.1_dp, 1.0_dp)
                 case default
                     continue
             end select
@@ -839,6 +894,9 @@ program test_gc_cylindrical_class_adapter
     call check_rejected_region_provider(8)
     call check_provider_verifier_contract()
     do i = 1, 5
+        call check_permissive_region_gate(i)
+    end do
+    do i = 32, 41
         call check_permissive_region_gate(i)
     end do
     call check_permissive_region_gate(9)
