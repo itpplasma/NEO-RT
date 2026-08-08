@@ -48,7 +48,7 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_rho_tor_map:2:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &
-        'neort-cert-v1:eqdsk_flux_profile_segment:2:fortsym-5457884' ]
+        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884' ]
     ! Fingerprints are provenance/arity manifests, not algebraic proofs.
     ! Root multiplicity and crossing counts require interval/theorem gates.
 contains

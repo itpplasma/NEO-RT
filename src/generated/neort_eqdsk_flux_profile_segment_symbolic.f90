@@ -9,19 +9,23 @@ module neort_eqdsk_flux_profile_segment_symbolic
     public :: evaluate_neort_eqdsk_flux_profile_segment
 contains
 
-    pure subroutine evaluate_neort_eqdsk_flux_profile_segment(s_tor, s_tor0, s_tor1, scaled_psi0, &
-            scaled_psi1, field_scale, psi_sep, psihat, dpsihat_dstor)
+    pure subroutine evaluate_neort_eqdsk_flux_profile_segment(s_tor, target_psihat, s_tor0, s_tor1, &
+            scaled_psi0, scaled_psi1, field_scale, psi_sep, psihat, dpsihat_dstor, s_tor_from_psihat)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: s_tor, s_tor0, s_tor1, scaled_psi0, scaled_psi1, field_scale, psi_sep
-        real(dp), intent(out) :: psihat, dpsihat_dstor
-        real(dp) :: t1, t2
+        real(dp), intent(in) :: s_tor, target_psihat, s_tor0, s_tor1, scaled_psi0, scaled_psi1, &
+            field_scale, psi_sep
+        real(dp), intent(out) :: psihat, dpsihat_dstor, s_tor_from_psihat
+        real(dp) :: t1, t2, t3, t4, t5
 
         t1 = -s_tor0
-        t2 = s_tor - s_tor0
-        psihat = (scaled_psi0*(-t2/(s_tor1 - s_tor0) + 1) + scaled_psi1*t2/(s_tor1 - s_tor0))/ &
-            field_scale/psi_sep
-        dpsihat_dstor = (scaled_psi1 - scaled_psi0)/field_scale/psi_sep/(s_tor1 - s_tor0)
+        t2 = s_tor1 - s_tor0
+        t3 = s_tor - s_tor0
+        t4 = -scaled_psi0
+        t5 = scaled_psi1 - scaled_psi0
+        psihat = (scaled_psi0*(-t3/t2 + 1) + scaled_psi1*t3/t2)/field_scale/psi_sep
+        dpsihat_dstor = t5/field_scale/psi_sep/t2
+        s_tor_from_psihat = s_tor0 + t2*(field_scale*psi_sep*target_psihat - scaled_psi0)/t5
 
     end subroutine evaluate_neort_eqdsk_flux_profile_segment
 
