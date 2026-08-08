@@ -86,6 +86,7 @@ module neort_gc_eqdsk_cut_graph_atlas
     public :: clear_eqdsk_cut_graph_atlas
     public :: validate_eqdsk_cut_graph_atlas
     public :: map_eqdsk_cut_graph_atlas
+    public :: map_eqdsk_cut_graph_atlas_flux
 
     integer, parameter :: Z_COVER_SUCCESS = 0
     integer, parameter :: Z_COVER_UNRESOLVED = 1
@@ -304,6 +305,113 @@ contains
         if (present(dpsihat_dR)) dpsihat_dR = dpsihat_root
         status = EQDSK_CUT_ATLAS_SUCCESS
     end subroutine map_eqdsk_cut_graph_atlas
+
+    subroutine map_eqdsk_cut_graph_atlas_flux(atlas, target_psihat, position, &
+            dposition_dR, dZ_dR, dpsihat_dR, status)
+        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        real(dp), intent(in) :: target_psihat
+        real(dp), intent(out) :: position(3), dposition_dR(3)
+        real(dp), intent(out) :: dZ_dR, dpsihat_dR
+        integer, intent(out) :: status
+
+        real(dp) :: left, right, midpoint, flux_left, flux_right, flux_midpoint
+        real(dp) :: tolerance
+        integer :: iteration, local_status
+        logical :: converged
+
+        position = 0.0_dp
+        dposition_dR = 0.0_dp
+        dZ_dR = 0.0_dp
+        dpsihat_dR = 0.0_dp
+        status = validate_atlas_structure(atlas, .true.)
+        if (status /= EQDSK_CUT_ATLAS_SUCCESS) return
+        if (.not. atlas%flux_monotonicity_certified) then
+            status = EQDSK_CUT_ATLAS_INVALID_CERTIFICATE
+            return
+        end if
+        if (.not. ieee_is_finite(target_psihat)) then
+            status = EQDSK_CUT_ATLAS_NONFINITE
+            return
+        end if
+
+        left = atlas%requested_r_lo
+        right = atlas%requested_r_hi
+        call evaluate_graph_flux(atlas, left, flux_left, local_status)
+        if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+            status = local_status
+            return
+        end if
+        call evaluate_graph_flux(atlas, right, flux_right, local_status)
+        if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+            status = local_status
+            return
+        end if
+        if (target_psihat < min(flux_left, flux_right) .or. &
+                target_psihat > max(flux_left, flux_right)) then
+            status = EQDSK_CUT_ATLAS_OUT_OF_RANGE
+            return
+        end if
+
+        converged = .false.
+        midpoint = left
+        do iteration = 1, atlas%options%max_bisection_iterations
+            midpoint = left+0.5_dp*(right-left)
+            call evaluate_graph_flux(atlas, midpoint, flux_midpoint, &
+                local_status)
+            if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+                status = local_status
+                return
+            end if
+            tolerance = max(atlas%options%map_absolute_tolerance, &
+                atlas%options%map_relative_tolerance*max(1.0_dp, &
+                abs(midpoint)))
+            if (abs(right-left) <= tolerance .or. &
+                    flux_midpoint == target_psihat) then
+                converged = .true.
+                exit
+            end if
+            if ((flux_midpoint < target_psihat) .eqv. &
+                    (atlas%flux_monotonicity_sign > 0)) then
+                left = midpoint
+            else
+                right = midpoint
+            end if
+        end do
+        if (.not. converged) then
+            status = EQDSK_CUT_ATLAS_MAPPING_FAILURE
+            return
+        end if
+        call map_eqdsk_cut_graph_atlas(atlas, midpoint, position, &
+            dposition_dR, dZ_dR, dpsihat_dR, status)
+    end subroutine map_eqdsk_cut_graph_atlas_flux
+
+    subroutine evaluate_graph_flux(atlas, radius, psihat, status)
+        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        real(dp), intent(in) :: radius
+        real(dp), intent(out) :: psihat
+        integer, intent(out) :: status
+
+        type(eqdsk_cut_jet_t) :: jet
+        real(dp) :: position(3), tangent(3)
+        integer :: jet_status
+
+        psihat = 0.0_dp
+        call map_eqdsk_cut_graph_atlas(atlas, radius, position, tangent, &
+            status=status)
+        if (status /= EQDSK_CUT_ATLAS_SUCCESS) return
+        call evaluate_scalar_jet(position(1), position(2), jet, jet_status)
+        if (jet_status /= EQDSK_CUT_JET_SUCCESS) then
+            status = EQDSK_CUT_ATLAS_MAPPING_FAILURE
+            return
+        end if
+        psihat = jet%psi_jet(1)/psi_sep
+        if (.not. ieee_is_finite(psihat)) then
+            psihat = 0.0_dp
+            status = EQDSK_CUT_ATLAS_NONFINITE
+            return
+        end if
+        status = EQDSK_CUT_ATLAS_SUCCESS
+    end subroutine evaluate_graph_flux
 
     recursive subroutine certify_r_slab(atlas, cell_R, r_lo, r_hi, depth, &
             status)

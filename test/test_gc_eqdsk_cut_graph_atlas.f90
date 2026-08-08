@@ -1,13 +1,16 @@
 program test_gc_eqdsk_cut_graph_atlas
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use field_eq_mod, only: nrad, nzet, rad, zet
+    use field_eq_mod, only: nrad, nzet, psi_sep, rad, zet
     use neort_gc_eqdsk_cylindrical_adapter, only: &
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
     use neort_gc_eqdsk_cut_graph_atlas, only: &
         EQDSK_CUT_ATLAS_SUCCESS, EQDSK_CUT_GRAPH_CERTIFICATE_ID, &
         build_eqdsk_cut_graph_atlas, clear_eqdsk_cut_graph_atlas, &
         eqdsk_cut_graph_atlas_options_t, eqdsk_cut_graph_atlas_t, &
-        map_eqdsk_cut_graph_atlas, validate_eqdsk_cut_graph_atlas
+        map_eqdsk_cut_graph_atlas, map_eqdsk_cut_graph_atlas_flux, &
+        validate_eqdsk_cut_graph_atlas
+    use neort_gc_eqdsk_cut_jet, only: EQDSK_CUT_JET_SUCCESS, &
+        eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_gc_eqdsk_axis_certificate, only: &
         EQDSK_AXIS_CERT_SUCCESS, build_eqdsk_axis_certificate, &
         eqdsk_axis_certificate_t, validate_eqdsk_axis_certificate
@@ -100,8 +103,10 @@ contains
         real(dp), intent(in) :: r_lo, r_hi
 
         real(dp) :: radius, position(3), dposition(3), dZ_dR, dpsihat_dR
-        real(dp) :: scale
-        integer :: i, local_status
+        real(dp) :: endpoint_position(3), endpoint_tangent(3)
+        real(dp) :: scale, endpoint_flux(2), target_flux
+        type(eqdsk_cut_jet_t) :: jet
+        integer :: i, local_status, jet_status
 
         call require(atlas%global_completeness_certified, &
             'regular branch did not record rectangular completeness')
@@ -128,6 +133,36 @@ contains
             call require(dpsihat_dR == dpsihat_dR, &
                 'cut flux derivative is nonfinite')
         end do
+        call map_eqdsk_cut_graph_atlas(atlas, r_lo, endpoint_position, &
+            endpoint_tangent, status=local_status)
+        call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+            'lower branch endpoint map failed')
+        call evaluate_eqdsk_cut_jet(endpoint_position, 1.0_dp, 1, &
+            [0.0_dp, 0.0_dp, 0.0_dp], jet, jet_status)
+        call require(jet_status == EQDSK_CUT_JET_SUCCESS, &
+            'lower branch endpoint flux failed')
+        endpoint_flux(1) = jet%psi_jet(1)/psi_sep
+        call map_eqdsk_cut_graph_atlas(atlas, r_hi, endpoint_position, &
+            endpoint_tangent, status=local_status)
+        call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+            'upper branch endpoint map failed')
+        call evaluate_eqdsk_cut_jet(endpoint_position, 1.0_dp, 1, &
+            [0.0_dp, 0.0_dp, 0.0_dp], jet, jet_status)
+        call require(jet_status == EQDSK_CUT_JET_SUCCESS, &
+            'upper branch endpoint flux failed')
+        endpoint_flux(2) = jet%psi_jet(1)/psi_sep
+        target_flux = 0.5_dp*sum(endpoint_flux)
+        call map_eqdsk_cut_graph_atlas_flux(atlas, target_flux, position, &
+            dposition, dZ_dR, dpsihat_dR, local_status)
+        call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+            'inverse certified branch map failed')
+        call evaluate_eqdsk_cut_jet(position, 1.0_dp, 1, &
+            [0.0_dp, 0.0_dp, 0.0_dp], jet, jet_status)
+        call require(jet_status == EQDSK_CUT_JET_SUCCESS, &
+            'inverse branch flux evaluation failed')
+        call require(abs(jet%psi_jet(1)/psi_sep-target_flux) <= &
+            2.0e-10_dp*max(1.0_dp, abs(target_flux)), &
+            'inverse branch map missed its normalized-flux target')
     end subroutine check_regular_branch
 
     subroutine require(condition, message)

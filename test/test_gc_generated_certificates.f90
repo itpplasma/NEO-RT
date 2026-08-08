@@ -52,6 +52,12 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_cut_axis_limit', &
             'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884')) &
         error stop 'EQDSK axis-limit certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_flux_coordinate', &
+            'neort-cert-v1:eqdsk_cut_flux_coordinate:4:fortsym-5457884')) &
+        error stop 'EQDSK flux-coordinate certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_axis_rho_limit', &
+            'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884')) &
+        error stop 'EQDSK axis-rho-limit certificate registry mismatch'
     if (index(fortsym_revision, '545788453a204d58705f735b519c3863c2f734c8') == 0) &
         error stop 'Fortsym revision provenance missing'
     if (index(regenerate_command, 'gen_full_fow_physics') == 0) &

@@ -4,6 +4,10 @@ program test_gc_eqdsk_cut_axis_limit
         evaluate_neort_eqdsk_cut_axis_curvature_interval
     use neort_eqdsk_cut_axis_limit_symbolic, only: &
         evaluate_neort_eqdsk_cut_axis_limit
+    use neort_eqdsk_cut_axis_rho_limit_symbolic, only: &
+        evaluate_neort_eqdsk_cut_axis_rho_limit
+    use neort_eqdsk_cut_flux_coordinate_symbolic, only: &
+        evaluate_neort_eqdsk_cut_flux_coordinate
     use neort_gc_outward_interval, only: gc_outward_interval, &
         gc_outward_interval_t
     implicit none
@@ -17,6 +21,8 @@ program test_gc_eqdsk_cut_axis_limit
     real(dp), parameter :: tolerance = 2.0e-14_dp
     real(dp) :: curvature, absolute_derivative, delta_r
     real(dp) :: oracle_curvature, oracle_delta_r, oracle_derivative
+    real(dp) :: s_tor, dpsihat_drho, dR_drho, dZ_drho
+    real(dp) :: oracle_dR_drho
     type(gc_outward_interval_t) :: interval_curvature, interval_determinant
 
     ! Independent quadratic axis oracle.  Along Z=slope*R, evaluate
@@ -41,6 +47,28 @@ program test_gc_eqdsk_cut_axis_limit
         psi_sep, delta_psihat, 1.0_dp, curvature, absolute_derivative, delta_r)
     call require_close(delta_r, oracle_delta_r, tolerance, &
         'outboard axis inverse limit')
+
+    call evaluate_neort_eqdsk_cut_flux_coordinate(0.4_dp, 0.7_dp, 0.2_dp, &
+        -0.3_dp, s_tor, dpsihat_drho, dR_drho, dZ_drho)
+    call require_close(s_tor, 0.16_dp, tolerance, 'rho_tor squared map')
+    call require_close(dpsihat_drho, 0.56_dp, tolerance, &
+        'rho_tor flux chain')
+    call require_close(dR_drho, 2.8_dp, tolerance, &
+        'inverse flux-chart chain')
+    call require_close(dZ_drho, -0.84_dp, tolerance, &
+        'inverse vertical-chart chain')
+
+    oracle_dR_drho = sqrt(2.0_dp*0.7_dp/oracle_curvature)
+    call evaluate_neort_eqdsk_cut_axis_rho_limit(slope, psi_rr, psi_rz, &
+        psi_zz, psi_sep, 0.7_dp, -1.0_dp, curvature, dR_drho, dZ_drho)
+    call require_close(dR_drho, -oracle_dR_drho, tolerance, &
+        'inboard axis rho_tor derivative')
+    call require_close(dZ_drho, -slope*oracle_dR_drho, tolerance, &
+        'inboard axis vertical rho_tor derivative')
+    call evaluate_neort_eqdsk_cut_axis_rho_limit(slope, psi_rr, psi_rz, &
+        psi_zz, psi_sep, 0.7_dp, 1.0_dp, curvature, dR_drho, dZ_drho)
+    call require_close(dR_drho, oracle_dR_drho, tolerance, &
+        'outboard axis rho_tor derivative')
 
     call evaluate_neort_eqdsk_cut_axis_curvature_interval( &
         gc_outward_interval(-0.21_dp, -0.19_dp), &
