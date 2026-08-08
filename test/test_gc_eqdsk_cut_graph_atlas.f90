@@ -1,6 +1,6 @@
 program test_gc_eqdsk_cut_graph_atlas
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use field_eq_mod, only: nrad, nzet, zet
+    use field_eq_mod, only: nrad, nzet, rad, zet
     use neort_gc_eqdsk_cylindrical_adapter, only: &
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
     use neort_gc_eqdsk_cut_graph_atlas, only: &
@@ -8,14 +8,18 @@ program test_gc_eqdsk_cut_graph_atlas
         build_eqdsk_cut_graph_atlas, clear_eqdsk_cut_graph_atlas, &
         eqdsk_cut_graph_atlas_options_t, eqdsk_cut_graph_atlas_t, &
         map_eqdsk_cut_graph_atlas, validate_eqdsk_cut_graph_atlas
+    use neort_gc_eqdsk_axis_certificate, only: &
+        EQDSK_AXIS_CERT_SUCCESS, build_eqdsk_axis_certificate, &
+        eqdsk_axis_certificate_t, validate_eqdsk_axis_certificate
     implicit none
 
     type(eqdsk_cylindrical_field_t) :: field
     type(eqdsk_cut_graph_atlas_t) :: inboard_atlas, outboard_atlas, full_atlas
     type(eqdsk_cut_graph_atlas_options_t) :: options, full_options
+    type(eqdsk_axis_certificate_t) :: axis_certificate
     character(len=1024) :: path
     real(dp) :: axis_R, inboard_lo, inboard_hi, outboard_lo, outboard_hi
-    integer :: status
+    integer :: status, axis_R_index, axis_Z_index
 
     call get_environment_variable('EQDSK_FILE', path)
     call require(len_trim(path) > 0, 'EQDSK_FILE is required')
@@ -28,6 +32,20 @@ program test_gc_eqdsk_cut_graph_atlas
     options%map_absolute_tolerance = 1.0e-11_dp
     options%map_relative_tolerance = 1.0e-13_dp
     axis_R = 0.5_dp*(field%domain_R_min+field%domain_R_max)
+    axis_R_index = minloc(abs(rad-axis_R), dim=1)
+    axis_Z_index = minloc(abs(zet), dim=1)
+    call require(axis_R_index > 1 .and. axis_R_index < nrad, &
+        'circular magnetic axis is not interior to the R grid')
+    call require(axis_Z_index > 1 .and. axis_Z_index < nzet, &
+        'circular magnetic axis is not interior to the Z grid')
+    call build_eqdsk_axis_certificate(rad(axis_R_index-1), &
+        rad(axis_R_index+1), zet(axis_Z_index-1), zet(axis_Z_index+1), &
+        axis_certificate, status)
+    call require(status == EQDSK_AXIS_CERT_SUCCESS, &
+        'nondegenerate circular magnetic axis was not certified')
+    call validate_eqdsk_axis_certificate(axis_certificate, status)
+    call require(status == EQDSK_AXIS_CERT_SUCCESS, &
+        'fresh magnetic-axis certificate failed validation')
     inboard_lo = field%domain_R_min+0.10_dp*(field%domain_R_max- &
         field%domain_R_min)
     inboard_hi = axis_R-0.10_dp*(field%domain_R_max- &

@@ -38,6 +38,11 @@ module neort_gc_eqdsk_cut_interval
         integer :: cell_Z = 0
         type(gc_outward_interval_t) :: psi
         type(gc_outward_interval_t) :: psi_hat
+        type(gc_outward_interval_t) :: psi_R
+        type(gc_outward_interval_t) :: psi_Z
+        type(gc_outward_interval_t) :: psi_RR
+        type(gc_outward_interval_t) :: psi_RZ
+        type(gc_outward_interval_t) :: psi_ZZ
         type(gc_outward_interval_t) :: F
         type(gc_outward_interval_t) :: dF_dpsi_hat
         type(gc_outward_interval_t) :: numerator
@@ -126,6 +131,11 @@ contains
         result%cell_R = cell_R
         result%cell_Z = cell_Z
         result%psi = jet(1)
+        result%psi_R = jet(2)
+        result%psi_Z = jet(3)
+        result%psi_RR = jet(4)
+        result%psi_RZ = jet(5)
+        result%psi_ZZ = jet(6)
         separatrix = point(psi_sep)
         result%psi_hat = result%psi/separatrix
         call evaluate_profile_hull(result%psi_hat, profile, &
