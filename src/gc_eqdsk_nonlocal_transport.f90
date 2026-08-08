@@ -28,12 +28,14 @@ module neort_gc_eqdsk_nonlocal_transport
     use fortnum_ode_vode, only: vode_init, vode_integrate_to, vode_state_t
     use fortnum_status, only: FORTNUM_OK, fortnum_status_t
     use do_magfie_mod, only: R0, a, bfac, inp_swi, psi_pr, sample_eqdsk_field, s
-    use field_eq_mod, only: btf, hfpol, psi_sep, rtf, splfpol, use_fpol
+    use field_eq_mod, only: btf, hfpol, nrad, nzet, psi_sep, rad, rtf, &
+        splfpol, use_fpol, zet
     use neort_gc_callback_context, only: gc_callback_context_t
     use do_magfie_pert_mod, only: inp_swi_pert, MAGFIE_PERT_OK, &
         do_magfie_pert_amp_cylindrical, read_boozer_pert_file, rz_nrad, &
         rz_nzet, set_mph
-    use geoflux_coordinates, only: geoflux_get_flux_profiles
+    use geoflux_coordinates, only: geoflux_get_axis, &
+        geoflux_get_flux_profiles
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_SPLITTER_FAILURE, GC_CYL_CLASS_SUCCESS, &
         gc_cylindrical_class_adapter_t, &
@@ -79,6 +81,15 @@ module neort_gc_eqdsk_nonlocal_transport
     use neort_gc_eqdsk_cylindrical_adapter, only: &
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field, &
         map_eqdsk_flux_position
+    use neort_gc_eqdsk_composite_cut_atlas, only: &
+        EQDSK_COMPOSITE_ATLAS_SUCCESS, EQDSK_COMPOSITE_CUT_INBOARD, &
+        EQDSK_COMPOSITE_CUT_OUTBOARD, build_eqdsk_composite_cut_atlas, &
+        eqdsk_composite_cut_atlas_options_t, &
+        eqdsk_composite_cut_atlas_t, &
+        map_eqdsk_composite_cut_atlas_rho
+    use neort_gc_eqdsk_cut_endpoint_certificate, only: &
+        EQDSK_ENDPOINT_CERT_SUCCESS, build_eqdsk_cut_endpoint_certificate, &
+        eqdsk_cut_endpoint_certificate_t
     use neort_gc_eqdsk_cut_jet, only: &
         EQDSK_CUT_JET_NONFINITE, EQDSK_CUT_JET_OUT_OF_DOMAIN, &
         EQDSK_CUT_JET_SUCCESS, eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
@@ -176,9 +187,10 @@ module neort_gc_eqdsk_nonlocal_transport
         real(dp) :: field_scale = 1.0_dp
         real(dp) :: profile_electric_factor = 1.0_dp
         real(dp) :: profile_bfactor = 1.0_dp
-        !! These are the physical volume bounds, not a profile interpolation
-        !! cutoff.  The default includes the axis; profile inputs must cover
-        !! the complete requested domain or initialization fails closed.
+        !! These are rho_tor bounds of the physical volume, not a profile
+        !! interpolation cutoff.  The default includes the axis; profile
+        !! inputs must cover the complete requested domain or initialization
+        !! fails closed.  Every conversion to s_tor or psi_hat is explicit.
         real(dp) :: surface_min = 0.0_dp
         real(dp) :: surface_max = 1.0_dp
         real(dp) :: reference_surface = 0.50_dp
@@ -194,6 +206,8 @@ module neort_gc_eqdsk_nonlocal_transport
         real(dp) :: step_refinement_absolute_tolerance = 1.0e-12_dp
         real(dp) :: topology_probe_fraction = 0.125_dp
         integer :: topology_probe_count = 5
+        real(dp) :: endpoint_initial_grid_fraction = 0.20_dp
+        integer :: endpoint_max_box_expansions = 7
         ! Negative selects launch rho_tor, converted to s_tor by the generated
         ! flux map, as the Eq. 17 target.  Otherwise this is an explicit s_tor
         ! threshold, never a geometric minor-radius approximation.
@@ -211,6 +225,7 @@ module neort_gc_eqdsk_nonlocal_transport
             gc_cylindrical_class_options_t()
         type(gc_cylindrical_orbit_options_t) :: orbit_options = &
             gc_cylindrical_orbit_options_t()
+        type(eqdsk_composite_cut_atlas_options_t) :: cut_atlas_options
     end type gc_eqdsk_nonlocal_options_t
 
     type, extends(gc_cylindrical_potential_t), public :: &
@@ -303,6 +318,7 @@ module neort_gc_eqdsk_nonlocal_transport
         type(gc_eqdsk_profile_potential_t) :: potential
         type(gc_cylindrical_polygon_wall_t) :: wall
         type(gc_eqdsk_cut_atlas_t) :: cut_atlas
+        type(eqdsk_composite_cut_atlas_t) :: certified_cut_atlas
         type(eqdsk_flux_profile_map_t) :: flux_map
         character(len=1024) :: eqdsk_path = ''
         character(len=1024) :: wall_path = ''
@@ -313,8 +329,9 @@ module neort_gc_eqdsk_nonlocal_transport
         character(len=16) :: wall_backend_units = 'cm'
         character(len=64) :: wall_hash = ''
         character(len=64) :: section_reference_id = ''
-        character(len=32) :: section_coordinate = 'Rc:cut_atlas_arclength'
-        character(len=32) :: section_units = 'cm'
+        character(len=32) :: section_coordinate = &
+            'rho_tor:certified_Eq13_outboard'
+        character(len=32) :: section_units = '1'
         real(dp) :: section_position(3) = 0.0_dp
         real(dp) :: section_flux = 0.0_dp
         integer :: section_orientation = 0
@@ -666,6 +683,7 @@ contains
         if (allocated(factory%wall%vertices)) deallocate(factory%wall%vertices)
         if (allocated(factory%cut_atlas%branches)) deallocate(factory%cut_atlas%branches)
         factory%cut_atlas = gc_eqdsk_cut_atlas_t()
+        factory%certified_cut_atlas = eqdsk_composite_cut_atlas_t()
         factory%wall%initialized = .false.
         factory%field = eqdsk_cylindrical_field_t()
         factory%field_ready = .false.
@@ -1250,8 +1268,8 @@ contains
         type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
         integer, intent(out) :: status
 
+        type(gc_cylindrical_field_sample_t) :: section_field
         real(dp) :: dposition(3), distance
-        real(dp) :: q_value, dqds_value, psi_value, dpsi_ds, psi_edge
         integer :: wall_status, local_status
 
         factory%cut_ready = .false.
@@ -1271,9 +1289,13 @@ contains
             status = GC_EQDSK_NONLOCAL_WALL_UNAVAILABLE
             return
         end if
-        call geoflux_get_flux_profiles(factory%options%reference_surface, &
-            q_value, dqds_value, psi_value, dpsi_ds, psi_edge)
-        factory%section_flux = factory%options%field_scale*psi_value
+        call factory%field%evaluate(factory%section_position, section_field, &
+            local_status)
+        if (local_status /= GC_CYL_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_FIELD_UNAVAILABLE
+            return
+        end if
+        factory%section_flux = section_field%psi
         if (.not. ieee_is_finite(factory%section_flux)) then
             status = GC_EQDSK_NONLOCAL_NONFINITE
             return
@@ -1292,10 +1314,18 @@ contains
         type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
         integer, intent(out) :: status
 
+        real(dp) :: axis_R, axis_Z, target_s_tor, target_psihat
+        real(dp) :: unused_derivative
+        real(dp) :: inboard_seed(2), outboard_seed(2)
+        real(dp) :: axis_box(4), inboard_box(4), outboard_box(4)
+        real(dp) :: inboard_theta, outboard_theta, position(3)
+        integer :: axis_R_index, axis_Z_index, local_status
+
         if (allocated(factory%cut_atlas%branches)) then
             deallocate(factory%cut_atlas%branches)
         end if
         factory%cut_atlas = gc_eqdsk_cut_atlas_t()
+        factory%certified_cut_atlas = eqdsk_composite_cut_atlas_t()
         factory%cut_atlas%method = 'fortsym-interval-cut-atlas-required'
         factory%cut_atlas_method = trim(factory%cut_atlas%method)
         factory%cut_atlas_certified = .false.
@@ -1306,13 +1336,141 @@ contains
         factory%canonical_one_form_convention = ''
         factory%fourier_phase_convention = ''
         factory%native_orientation_certified = .false.
-        ! The old outboard finite-theta scan is intentionally not a fallback:
-        ! it neither enumerates the inboard branch nor proves root
-        ! multiplicity, cut orientation, or axis-safe continuation.  The
-        ! generated atlas provider must return every connected Eq.13 branch,
-        ! its boundary charts, and the native one-form orientation tuple.
         status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        if (.not. factory%field_ready .or. .not. factory%flux_map%initialized) &
+            return
+        if (nrad < 3 .or. nzet < 3) return
+        call map_eqdsk_rho_tor_to_psihat(factory%flux_map, &
+            factory%options%surface_max, target_s_tor, target_psihat, &
+            unused_derivative, local_status)
+        if (local_status /= EQDSK_FLUX_MAP_SUCCESS) return
+
+        call geoflux_get_axis(axis_R, axis_Z)
+        if (.not. all(ieee_is_finite([axis_R, axis_Z]))) return
+        axis_R_index = minloc(abs(rad-axis_R), dim=1)
+        axis_Z_index = minloc(abs(zet-axis_Z), dim=1)
+        if (axis_R_index <= 1 .or. axis_R_index >= nrad) return
+        if (axis_Z_index <= 1 .or. axis_Z_index >= nzet) return
+        axis_box = [rad(axis_R_index-1), rad(axis_R_index+1), &
+            zet(axis_Z_index-1), zet(axis_Z_index+1)]
+
+        ! The geoflux scan is only a nonlinear-solver preconditioner.  It
+        ! cannot certify a root or multiplicity; both seeds are subsequently
+        ! enclosed by generated Krawczyk maps and the complete interval atlas.
+        call find_cut_endpoint_thetas(factory, target_s_tor, inboard_theta, &
+            outboard_theta, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call map_eqdsk_flux_position(target_s_tor, inboard_theta, 0.0_dp, &
+            position, local_status)
+        if (local_status /= GC_CYL_SUCCESS) return
+        inboard_seed = position(1:2)
+        call map_eqdsk_flux_position(target_s_tor, outboard_theta, 0.0_dp, &
+            position, local_status)
+        if (local_status /= GC_CYL_SUCCESS) return
+        outboard_seed = position(1:2)
+        call certify_endpoint_preconditioner(factory, target_psihat, &
+            axis_box, EQDSK_COMPOSITE_CUT_INBOARD, inboard_seed, &
+            inboard_box, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call certify_endpoint_preconditioner(factory, target_psihat, &
+            axis_box, EQDSK_COMPOSITE_CUT_OUTBOARD, outboard_seed, &
+            outboard_box, local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        call build_eqdsk_composite_cut_atlas(axis_box, inboard_box, &
+            outboard_box, inboard_seed, outboard_seed, target_psihat, &
+            factory%options%field_scale, zet(1), zet(nzet), &
+            factory%options%cut_atlas_options, &
+            factory%certified_cut_atlas, local_status)
+        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
+
+        allocate(factory%cut_atlas%branches(2))
+        factory%cut_atlas%nbranches = 2
+        factory%cut_atlas%branches(1)%branch_id = 1
+        factory%cut_atlas%branches(1)%rc_min = factory%options%surface_min
+        factory%cut_atlas%branches(1)%rc_max = factory%options%surface_max
+        factory%cut_atlas%branches(1)%orientation = &
+            EQDSK_COMPOSITE_CUT_INBOARD
+        factory%cut_atlas%branches(1)%continuation_certified = .true.
+        factory%cut_atlas%branches(1)%root_isolation_certified = .true.
+        factory%cut_atlas%branches(1)%lower_boundary_kind = 'axis-limit'
+        factory%cut_atlas%branches(1)%upper_boundary_kind = 'regular'
+        factory%cut_atlas%branches(1)%limiting_chart = &
+            'fortsym-rho-tor-axis'
+        factory%cut_atlas%branches(2) = factory%cut_atlas%branches(1)
+        factory%cut_atlas%branches(2)%branch_id = 2
+        factory%cut_atlas%branches(2)%orientation = &
+            EQDSK_COMPOSITE_CUT_OUTBOARD
+        factory%cut_atlas%certified = &
+            factory%certified_cut_atlas%geometric_completeness_certified &
+            .and. factory%certified_cut_atlas%branch_connectivity_certified &
+            .and. factory%certified_cut_atlas% &
+                surface_intersection_pair_certified
+        ! Physical-orbit multiplicity remains a separate theorem gate.  The
+        ! geometric certificate must never promote this flag by itself.
+        factory%cut_atlas%two_cut_multiplicity_certified = .false.
+        factory%cut_atlas%method = 'fortsym-interval-composite-Eq13-atlas'
+        factory%cut_atlas_method = trim(factory%cut_atlas%method)
+        factory%cut_atlas_certified = factory%cut_atlas%certified
+        factory%cut_atlas_branch_count = factory%cut_atlas%nbranches
+        factory%active_cut_branch_id = 2
+        factory%section_orientation = 1
+        factory%cut_parameter_orientation = &
+            'rho_tor:axis-to-outboard;C_native=+1'
+        factory%canonical_one_form_convention = &
+            'P_phi=(q/c)psi+m*v_parallel*R*b_phi'
+        factory%fourier_phase_convention = 'Re[A_n*exp(+i*n*phi)]'
+        factory%native_orientation_certified = factory%cut_atlas%certified
+        status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine build_cut_atlas
+
+    subroutine certify_endpoint_preconditioner(factory, target_psihat, &
+            axis_box, branch_sign, seed, box, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
+        real(dp), intent(in) :: target_psihat, axis_box(4)
+        integer, intent(in) :: branch_sign
+        real(dp), intent(inout) :: seed(2)
+        real(dp), intent(out) :: box(4)
+        integer, intent(out) :: status
+
+        type(eqdsk_cut_endpoint_certificate_t) :: endpoint
+        real(dp) :: base_R, base_Z, half_R, half_Z, scale, guard
+        integer :: expansion, local_status
+
+        box = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        if (abs(branch_sign) /= 1) return
+        if (.not. all(ieee_is_finite([target_psihat, axis_box, seed]))) return
+        base_R = minval(rad(2:nrad)-rad(1:nrad-1))
+        base_Z = minval(zet(2:nzet)-zet(1:nzet-1))
+        if (min(base_R, base_Z) <= 0.0_dp) return
+        guard = 1024.0_dp*epsilon(max(1.0_dp, maxval(abs(axis_box))))
+        do expansion = 0, factory%options%endpoint_max_box_expansions-1
+            scale = factory%options%endpoint_initial_grid_fraction &
+                *2.0_dp**expansion
+            half_R = scale*base_R
+            half_Z = scale*base_Z
+            box = [max(rad(1), seed(1)-half_R), &
+                min(rad(nrad), seed(1)+half_R), &
+                max(zet(1), seed(2)-half_Z), &
+                min(zet(nzet), seed(2)+half_Z)]
+            if (branch_sign == EQDSK_COMPOSITE_CUT_INBOARD) then
+                box(2) = min(box(2), axis_box(1)-guard)
+            else
+                box(1) = max(box(1), axis_box(2)+guard)
+            end if
+            if (box(1) >= seed(1) .or. box(2) <= seed(1) .or. &
+                    box(3) >= seed(2) .or. box(4) <= seed(2)) cycle
+            call build_eqdsk_cut_endpoint_certificate(box(1), box(2), &
+                box(3), box(4), target_psihat, factory%options%field_scale, &
+                seed(1), seed(2), factory%options%cut_atlas_options%endpoint, &
+                endpoint, local_status)
+            if (local_status == EQDSK_ENDPOINT_CERT_SUCCESS) then
+                seed = [endpoint%newton_point_R, endpoint%newton_point_Z]
+                status = GC_EQDSK_NONLOCAL_SUCCESS
+                return
+            end if
+        end do
+    end subroutine certify_endpoint_preconditioner
 
     subroutine interpolate_profile(factory, psi, values, status)
         type(gc_eqdsk_nonlocal_factory_t), intent(in) :: factory
@@ -1531,16 +1689,25 @@ contains
         real(dp), intent(out) :: position(3), dposition_drc(3)
         integer, intent(out) :: status
 
+        integer :: branch_sign, local_status
+
         position = 0.0_dp
         dposition_drc = 0.0_dp
         status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
-        associate (unused_factory => factory, unused_rc => rc)
-        end associate
-        ! This seam is deliberately unresolved until the Fortsym-generated
-        ! atlas continuation/root-isolation provider is integrated.  Keeping
-        ! the old scan below unreachable makes accidental certification
-        ! impossible while preserving its diagnostic implementation for
-        ! comparison during that integration.
+        if (.not. factory%cut_atlas_certified) return
+        select case (factory%active_cut_branch_id)
+        case (1)
+            branch_sign = EQDSK_COMPOSITE_CUT_INBOARD
+        case (2)
+            branch_sign = EQDSK_COMPOSITE_CUT_OUTBOARD
+        case default
+            return
+        end select
+        call map_eqdsk_composite_cut_atlas_rho( &
+            factory%certified_cut_atlas, factory%flux_map, rc, branch_sign, &
+            position, dposition_drc, local_status)
+        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
+        status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine map_certified_cut_atlas
 
     subroutine map_cut_without_derivative(factory, surface, position, status)
@@ -1629,6 +1796,81 @@ contains
         end if
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine find_outboard_cut_theta
+
+    subroutine find_cut_endpoint_thetas(factory, surface, inboard_theta, &
+            outboard_theta, status)
+        type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
+        real(dp), intent(in) :: surface
+        real(dp), intent(out) :: inboard_theta, outboard_theta
+        integer, intent(out) :: status
+
+        real(dp) :: theta_left, theta_right, f_left, f_right, root
+        real(dp) :: roots(MAX_CUT_ROOTS), positions(3, MAX_CUT_ROOTS)
+        real(dp) :: theta_scale
+        integer :: n, i, nroots, local_status, inboard_index, outboard_index
+
+        inboard_theta = 0.0_dp
+        outboard_theta = 0.0_dp
+        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        n = max(32, factory%options%cut_theta_points)
+        nroots = 0
+        theta_scale = 2.0_dp*pi/real(n, dp)
+        theta_left = -pi
+        call poincare_cut_value(factory, surface, theta_left, f_left, &
+            local_status)
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
+        do i = 1, n
+            theta_right = -pi+real(i, dp)*theta_scale
+            call poincare_cut_value(factory, surface, theta_right, f_right, &
+                local_status)
+            if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                status = local_status
+                return
+            end if
+            if (f_left == 0.0_dp) then
+                call append_cut_root(theta_left, roots, nroots)
+            end if
+            if (f_left*f_right < 0.0_dp) then
+                call bisect_cut_root(factory, surface, theta_left, &
+                    theta_right, f_left, f_right, root, local_status)
+                if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+                    status = local_status
+                    return
+                end if
+                call append_cut_root(root, roots, nroots)
+            end if
+            theta_left = theta_right
+            f_left = f_right
+        end do
+        if (abs(theta_left-pi) <= 10.0_dp*epsilon(pi) .and. &
+                f_left == 0.0_dp) then
+            call append_cut_root(-pi, roots, nroots)
+        end if
+        ! This is only a seed gate, but accepting a third resolved extremum
+        ! here would contradict the requested regular two-endpoint surface.
+        if (nroots /= 2) return
+        do i = 1, nroots
+            call map_eqdsk_flux_position(surface, roots(i), 0.0_dp, &
+                positions(:, i), local_status)
+            if (local_status /= GC_CYL_SUCCESS) then
+                status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+                return
+            end if
+        end do
+        inboard_index = minloc(positions(1, 1:nroots), dim=1)
+        outboard_index = maxloc(positions(1, 1:nroots), dim=1)
+        if (inboard_index == outboard_index) return
+        inboard_theta = roots(inboard_index)
+        outboard_theta = roots(outboard_index)
+        if (.not. all(ieee_is_finite([inboard_theta, outboard_theta]))) then
+            status = GC_EQDSK_NONLOCAL_NONFINITE
+            return
+        end if
+        status = GC_EQDSK_NONLOCAL_SUCCESS
+    end subroutine find_cut_endpoint_thetas
 
     subroutine append_cut_root(root, roots, nroots)
         real(dp), intent(in) :: root
@@ -3682,6 +3924,10 @@ contains
         if (factory%options%topology_probe_fraction <= 0.0_dp) return
         if (factory%options%topology_probe_fraction >= 0.5_dp) return
         if (factory%options%topology_probe_count < 3) return
+        if (factory%options%endpoint_initial_grid_fraction <= 0.0_dp .or. &
+                factory%options%endpoint_initial_grid_fraction >= 0.5_dp) &
+            return
+        if (factory%options%endpoint_max_box_expansions < 1) return
         if (factory%options%residence_target_s_tor >= 0.0_dp) then
             if (factory%options%residence_target_s_tor < &
                 factory%options%surface_min) return
