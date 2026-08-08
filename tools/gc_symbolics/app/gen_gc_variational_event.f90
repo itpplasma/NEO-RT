@@ -100,9 +100,10 @@ program gen_gc_variational_event
     y_orientation_residual = y_lambda_reverse - y_lambda
     abs_d = abs(d)
     d_squared = d*d
-    transversality_margin = d_squared-transversality_floor**2
+    transversality_margin = d_squared- &
+        transversality_floor*transversality_floor
     transversality_margin_reverse = &
-        d_reverse*d_reverse-transversality_floor**2
+        d_reverse*d_reverse-transversality_floor*transversality_floor
 
     call suite_begin(proofs, 'variational event Fortsym contracts')
     call check_identity(proofs, proof_engine, 'event transversality D', &
@@ -131,7 +132,8 @@ program gen_gc_variational_event
     call check_identity(proofs, proof_engine, 'squared transversality output', &
         d_squared-d*d)
     call check_identity(proofs, proof_engine, 'transversality margin', &
-        transversality_margin-(d*d-transversality_floor**2))
+        transversality_margin-(d*d- &
+        transversality_floor*transversality_floor))
     call check_identity(proofs, proof_engine, &
         'section reversal preserves transversality margin', &
         transversality_margin_reverse-transversality_margin)
