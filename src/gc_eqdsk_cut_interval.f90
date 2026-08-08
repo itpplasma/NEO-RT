@@ -11,14 +11,18 @@ module neort_gc_eqdsk_cut_interval
         psi_sep, rtf, splfpol, splpsi, use_fpol
     use neort_eqdsk_cut_numerator_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_numerator_interval
+    use neort_eqdsk_cut_numerator_hessian_interval_symbolic, only: &
+        evaluate_neort_eqdsk_cut_numerator_hessian_interval
     use neort_eqdsk_cut_mean_value_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_mean_value_interval
     use neort_eqdsk_cut_axis_curvature_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_axis_curvature_interval
-    use neort_eqdsk_cut_r_flux_chart_interval_symbolic, only: &
-        evaluate_neort_eqdsk_cut_r_flux_chart_interval
+    use neort_eqdsk_cut_r_flux_curvature_interval_symbolic, only: &
+        evaluate_neort_eqdsk_cut_r_flux_curvature_interval
     use neort_eqdsk_quintic_cell_jet_interval_symbolic, only: &
         evaluate_neort_eqdsk_quintic_cell_jet_interval
+    use neort_eqdsk_quintic_cell_fourth_jet_interval_symbolic, only: &
+        evaluate_neort_eqdsk_quintic_cell_fourth_jet_interval
     use neort_eqdsk_quintic_profile_jet_interval_symbolic, only: &
         evaluate_neort_eqdsk_quintic_profile_jet_interval
     use neort_gc_outward_interval, only: gc_outward_interval, &
@@ -43,14 +47,29 @@ module neort_gc_eqdsk_cut_interval
         type(gc_outward_interval_t) :: psi_RR
         type(gc_outward_interval_t) :: psi_RZ
         type(gc_outward_interval_t) :: psi_ZZ
+        type(gc_outward_interval_t) :: psi_RRR
+        type(gc_outward_interval_t) :: psi_RRZ
+        type(gc_outward_interval_t) :: psi_RZZ
+        type(gc_outward_interval_t) :: psi_ZZZ
+        type(gc_outward_interval_t) :: psi_RRRR
+        type(gc_outward_interval_t) :: psi_RRRZ
+        type(gc_outward_interval_t) :: psi_RRZZ
+        type(gc_outward_interval_t) :: psi_RZZZ
+        type(gc_outward_interval_t) :: psi_ZZZZ
         type(gc_outward_interval_t) :: F
         type(gc_outward_interval_t) :: dF_dpsi_hat
+        type(gc_outward_interval_t) :: d2F_dpsi_hat2
         type(gc_outward_interval_t) :: numerator
         type(gc_outward_interval_t) :: numerator_R
         type(gc_outward_interval_t) :: numerator_Z
+        type(gc_outward_interval_t) :: numerator_RR
+        type(gc_outward_interval_t) :: numerator_RZ
+        type(gc_outward_interval_t) :: numerator_ZZ
         type(gc_outward_interval_t) :: positive_denominator
         type(gc_outward_interval_t) :: dZ_dR
+        type(gc_outward_interval_t) :: d2Z_dR2
         type(gc_outward_interval_t) :: dpsihat_dR
+        type(gc_outward_interval_t) :: d2psihat_dR2
         type(gc_outward_interval_t) :: axis_flux_curvature
         type(gc_outward_interval_t) :: axis_hessian_determinant
         logical :: denominator_positive_certified = .false.
@@ -71,6 +90,7 @@ contains
         integer, intent(out) :: status
 
         type(gc_outward_interval_t) :: coefficient(6,6), jet(10)
+        type(gc_outward_interval_t) :: fourth_jet(5)
         type(gc_outward_interval_t) :: midpoint_jet(10)
         type(gc_outward_interval_t) :: radius, delta_R, delta_Z, separatrix
         type(gc_outward_interval_t) :: midpoint_profile(4), profile(4)
@@ -123,7 +143,10 @@ contains
         delta_R = radius-point(rad(cell_R))
         delta_Z = gc_outward_interval(Z_lo, Z_hi)-point(zet(cell_Z))
         call evaluate_cell_jet(delta_R, delta_Z, coefficient, jet)
-        if (.not. valid_intervals(jet)) then
+        call evaluate_cell_fourth_jet(delta_R, delta_Z, coefficient, &
+            fourth_jet)
+        if (.not. valid_intervals(jet) .or. &
+                .not. valid_intervals(fourth_jet)) then
             status = EQDSK_CUT_INTERVAL_NONFINITE
             return
         end if
@@ -136,6 +159,15 @@ contains
         result%psi_RR = jet(4)
         result%psi_RZ = jet(5)
         result%psi_ZZ = jet(6)
+        result%psi_RRR = jet(7)
+        result%psi_RRZ = jet(8)
+        result%psi_RZZ = jet(9)
+        result%psi_ZZZ = jet(10)
+        result%psi_RRRR = fourth_jet(1)
+        result%psi_RRRZ = fourth_jet(2)
+        result%psi_RRZZ = fourth_jet(3)
+        result%psi_RZZZ = fourth_jet(4)
+        result%psi_ZZZZ = fourth_jet(5)
         separatrix = point(psi_sep)
         result%psi_hat = result%psi/separatrix
         call evaluate_profile_hull(result%psi_hat, profile, &
@@ -143,6 +175,7 @@ contains
         if (status /= EQDSK_CUT_INTERVAL_SUCCESS) return
         result%F = profile(1)
         result%dF_dpsi_hat = profile(2)
+        result%d2F_dpsi_hat2 = profile(3)
 
         call evaluate_neort_eqdsk_cut_numerator_interval(radius, jet(2), &
             jet(3), jet(4), jet(5), jet(6), jet(7), jet(8), jet(9), jet(10), &
@@ -151,6 +184,18 @@ contains
             result%positive_denominator)
         if (.not. valid_intervals([result%numerator, result%numerator_R, &
                 result%numerator_Z, result%positive_denominator])) then
+            result = eqdsk_cut_interval_result_t()
+            status = EQDSK_CUT_INTERVAL_NONFINITE
+            return
+        end if
+        call evaluate_neort_eqdsk_cut_numerator_hessian_interval(radius, &
+            jet(2), jet(3), jet(4), jet(5), jet(6), jet(7), jet(8), jet(9), &
+            jet(10), fourth_jet(1), fourth_jet(2), fourth_jet(3), &
+            fourth_jet(4), fourth_jet(5), profile(1), profile(2), profile(3), &
+            separatrix, result%numerator_RR, result%numerator_RZ, &
+            result%numerator_ZZ)
+        if (.not. valid_intervals([result%numerator_RR, &
+                result%numerator_RZ, result%numerator_ZZ])) then
             result = eqdsk_cut_interval_result_t()
             status = EQDSK_CUT_INTERVAL_NONFINITE
             return
@@ -206,11 +251,15 @@ contains
             result%positive_denominator%lo > 0.0_dp
         if (result%numerator_Z%lo > 0.0_dp .or. &
                 result%numerator_Z%hi < 0.0_dp) then
-            call evaluate_neort_eqdsk_cut_r_flux_chart_interval( &
-                result%numerator_R, result%numerator_Z, jet(2), jet(3), &
-                separatrix, result%dZ_dR, result%dpsihat_dR)
+            call evaluate_neort_eqdsk_cut_r_flux_curvature_interval( &
+                result%numerator_R, result%numerator_Z, &
+                result%numerator_RR, result%numerator_RZ, &
+                result%numerator_ZZ, jet(2), jet(3), jet(4), jet(5), jet(6), &
+                separatrix, result%dZ_dR, result%d2Z_dR2, &
+                result%dpsihat_dR, result%d2psihat_dR2)
             if (.not. valid_intervals([result%dZ_dR, &
-                    result%dpsihat_dR])) then
+                    result%d2Z_dR2, result%dpsihat_dR, &
+                    result%d2psihat_dR2])) then
                 result = eqdsk_cut_interval_result_t()
                 status = EQDSK_CUT_INTERVAL_NONFINITE
                 return
@@ -346,6 +395,28 @@ contains
             jet(1), jet(2), jet(3), jet(4), jet(5), jet(6), jet(7), jet(8), &
             jet(9), jet(10))
     end subroutine evaluate_cell_jet
+
+    subroutine evaluate_cell_fourth_jet(delta_R, delta_Z, coefficient, jet)
+        type(gc_outward_interval_t), intent(in) :: delta_R, delta_Z
+        type(gc_outward_interval_t), intent(in) :: coefficient(6,6)
+        type(gc_outward_interval_t), intent(out) :: jet(5)
+
+        call evaluate_neort_eqdsk_quintic_cell_fourth_jet_interval( &
+            delta_R, delta_Z, &
+            coefficient(1,1), coefficient(1,2), coefficient(1,3), &
+            coefficient(1,4), coefficient(1,5), coefficient(1,6), &
+            coefficient(2,1), coefficient(2,2), coefficient(2,3), &
+            coefficient(2,4), coefficient(2,5), coefficient(2,6), &
+            coefficient(3,1), coefficient(3,2), coefficient(3,3), &
+            coefficient(3,4), coefficient(3,5), coefficient(3,6), &
+            coefficient(4,1), coefficient(4,2), coefficient(4,3), &
+            coefficient(4,4), coefficient(4,5), coefficient(4,6), &
+            coefficient(5,1), coefficient(5,2), coefficient(5,3), &
+            coefficient(5,4), coefficient(5,5), coefficient(5,6), &
+            coefficient(6,1), coefficient(6,2), coefficient(6,3), &
+            coefficient(6,4), coefficient(6,5), coefficient(6,6), &
+            jet(1), jet(2), jet(3), jet(4), jet(5))
+    end subroutine evaluate_cell_fourth_jet
 
     subroutine evaluate_profile_jet(delta, coefficient, vacuum_b, vacuum_r, &
             profile)

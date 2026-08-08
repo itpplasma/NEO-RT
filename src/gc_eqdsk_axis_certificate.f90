@@ -5,7 +5,7 @@ module neort_gc_eqdsk_axis_certificate
     !! faces and psi_Z on the two Z faces (Poincare-Miranda).  Uniqueness
     !! follows from the Fortsym-generated positive-definite Hessian test on
     !! every EQDSK cell tile (Sylvester criterion).  The same tiles certify a
-    !! regular Eq.13 R-chart and positive stationary cut-flux curvature.  No
+    !! regular Eq.13 R-chart and positive full along-cut flux curvature.  No
     !! sampled point is promoted to a proof.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
@@ -40,6 +40,8 @@ module neort_gc_eqdsk_axis_certificate
         real(dp) :: right_psi_R_lower = 0.0_dp
         real(dp) :: bottom_psi_Z_upper = 0.0_dp
         real(dp) :: top_psi_Z_lower = 0.0_dp
+        real(dp) :: left_dpsihat_dR_upper = 0.0_dp
+        real(dp) :: right_dpsihat_dR_lower = 0.0_dp
         integer :: cell_tiles_covered = 0
         integer :: certificate_id = 0
         logical :: unique_axis_certified = .false.
@@ -82,6 +84,8 @@ contains
         certificate%right_psi_R_lower = huge(1.0_dp)
         certificate%bottom_psi_Z_upper = -huge(1.0_dp)
         certificate%top_psi_Z_lower = huge(1.0_dp)
+        certificate%left_dpsihat_dR_upper = -huge(1.0_dp)
+        certificate%right_dpsihat_dR_lower = huge(1.0_dp)
         initialized = .false.
 
         do cell_R = 1, nrad-1
@@ -108,7 +112,7 @@ contains
                     status = EQDSK_AXIS_CERT_NOT_CONVEX
                     return
                 end if
-                if (tile%axis_flux_curvature%lo <= 0.0_dp) then
+                if (tile%d2psihat_dR2%lo <= 0.0_dp) then
                     status = EQDSK_AXIS_CERT_CUT_DEGENERATE
                     return
                 end if
@@ -123,8 +127,15 @@ contains
                         status = EQDSK_AXIS_CERT_INTERVAL_FAILURE
                         return
                     end if
+                    if (.not. face%r_chart_certified) then
+                        status = EQDSK_AXIS_CERT_CUT_DEGENERATE
+                        return
+                    end if
                     certificate%left_psi_R_upper = max( &
                         certificate%left_psi_R_upper, face%psi_R%hi)
+                    certificate%left_dpsihat_dR_upper = max( &
+                        certificate%left_dpsihat_dR_upper, &
+                        face%dpsihat_dR%hi)
                 end if
                 if (tile_r_hi == r_hi) then
                     call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, &
@@ -133,8 +144,15 @@ contains
                         status = EQDSK_AXIS_CERT_INTERVAL_FAILURE
                         return
                     end if
+                    if (.not. face%r_chart_certified) then
+                        status = EQDSK_AXIS_CERT_CUT_DEGENERATE
+                        return
+                    end if
                     certificate%right_psi_R_lower = min( &
                         certificate%right_psi_R_lower, face%psi_R%lo)
+                    certificate%right_dpsihat_dR_lower = min( &
+                        certificate%right_dpsihat_dR_lower, &
+                        face%dpsihat_dR%lo)
                 end if
                 if (tile_z_lo == z_lo) then
                     call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, &
@@ -166,7 +184,9 @@ contains
         if (certificate%left_psi_R_upper >= 0.0_dp .or. &
                 certificate%right_psi_R_lower <= 0.0_dp .or. &
                 certificate%bottom_psi_Z_upper >= 0.0_dp .or. &
-                certificate%top_psi_Z_lower <= 0.0_dp) then
+                certificate%top_psi_Z_lower <= 0.0_dp .or. &
+                certificate%left_dpsihat_dR_upper >= 0.0_dp .or. &
+                certificate%right_dpsihat_dR_lower <= 0.0_dp) then
             status = EQDSK_AXIS_CERT_NOT_BRACKETED
             return
         end if
@@ -193,7 +213,9 @@ contains
                 certificate%left_psi_R_upper, &
                 certificate%right_psi_R_lower, &
                 certificate%bottom_psi_Z_upper, &
-                certificate%top_psi_Z_lower]))) return
+                certificate%top_psi_Z_lower, &
+                certificate%left_dpsihat_dR_upper, &
+                certificate%right_dpsihat_dR_lower]))) return
         if (certificate%r_lo >= certificate%r_hi .or. &
                 certificate%z_lo >= certificate%z_hi) return
         if (certificate%psi_hat_lo > certificate%psi_hat_hi) return
@@ -203,7 +225,9 @@ contains
         if (certificate%left_psi_R_upper >= 0.0_dp .or. &
                 certificate%right_psi_R_lower <= 0.0_dp .or. &
                 certificate%bottom_psi_Z_upper >= 0.0_dp .or. &
-                certificate%top_psi_Z_lower <= 0.0_dp) return
+                certificate%top_psi_Z_lower <= 0.0_dp .or. &
+                certificate%left_dpsihat_dR_upper >= 0.0_dp .or. &
+                certificate%right_dpsihat_dR_lower <= 0.0_dp) return
         status = EQDSK_AXIS_CERT_SUCCESS
     end subroutine validate_eqdsk_axis_certificate
 
@@ -229,7 +253,7 @@ contains
             tile%axis_hessian_determinant%lo)
         certificate%cut_flux_curvature_lower = min( &
             certificate%cut_flux_curvature_lower, &
-            tile%axis_flux_curvature%lo)
+            tile%d2psihat_dR2%lo)
     end subroutine include_tile
 
     logical function valid_grid()

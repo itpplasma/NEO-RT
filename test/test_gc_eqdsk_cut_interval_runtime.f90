@@ -10,6 +10,10 @@ program test_gc_eqdsk_cut_interval_runtime
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_eqdsk_cut_r_flux_chart_symbolic, only: &
         evaluate_neort_eqdsk_cut_r_flux_chart
+    use neort_eqdsk_cut_numerator_hessian_symbolic, only: &
+        evaluate_neort_eqdsk_cut_numerator_hessian
+    use neort_eqdsk_cut_r_flux_curvature_symbolic, only: &
+        evaluate_neort_eqdsk_cut_r_flux_curvature
     use neort_eqdsk_cut_axis_limit_symbolic, only: &
         evaluate_neort_eqdsk_cut_axis_limit
     use neort_gc_eqdsk_cylindrical_adapter, only: &
@@ -24,6 +28,8 @@ program test_gc_eqdsk_cut_interval_runtime
     real(dp) :: point_dZ_dR, point_dpsihat_dR
     real(dp) :: point_axis_curvature, point_axis_abs_derivative
     real(dp) :: point_axis_delta_R
+    real(dp) :: point_numerator_RR, point_numerator_RZ, point_numerator_ZZ
+    real(dp) :: point_d2Z_dR2, point_d2psihat_dR2
     integer :: status, point_status, cell_R, cell_Z, zero_Z, i, j
 
     call get_environment_variable('EQDSK_FILE', path)
@@ -155,6 +161,31 @@ program test_gc_eqdsk_cut_interval_runtime
         'point cut slope is outside interval chart result')
     call require(encloses(box%dpsihat_dR, point_dpsihat_dR), &
         'point flux derivative is outside interval chart result')
+    call evaluate_neort_eqdsk_cut_numerator_hessian(R_value, &
+        point%psi_jet(2), point%psi_jet(3), point%psi_jet(4), &
+        point%psi_jet(5), point%psi_jet(6), point%psi_jet(7), &
+        point%psi_jet(8), point%psi_jet(9), point%psi_jet(10), &
+        midpoint(box%psi_RRRR), midpoint(box%psi_RRRZ), &
+        midpoint(box%psi_RRZZ), midpoint(box%psi_RZZZ), &
+        midpoint(box%psi_ZZZZ), point%f_jet(1), point%f_jet(2), &
+        point%f_jet(3), psi_sep, point_numerator_RR, point_numerator_RZ, &
+        point_numerator_ZZ)
+    call require(encloses(box%numerator_RR, point_numerator_RR), &
+        'point N_RR is outside interval Hessian result')
+    call require(encloses(box%numerator_RZ, point_numerator_RZ), &
+        'point N_RZ is outside interval Hessian result')
+    call require(encloses(box%numerator_ZZ, point_numerator_ZZ), &
+        'point N_ZZ is outside interval Hessian result')
+    call evaluate_neort_eqdsk_cut_r_flux_curvature( &
+        point%d_cut_numerator_d_R, point%d_cut_numerator_d_Z, &
+        point_numerator_RR, point_numerator_RZ, point_numerator_ZZ, &
+        point%psi_jet(2), point%psi_jet(3), point%psi_jet(4), &
+        point%psi_jet(5), point%psi_jet(6), psi_sep, point_dZ_dR, &
+        point_d2Z_dR2, point_dpsihat_dR, point_d2psihat_dR2)
+    call require(encloses(box%d2Z_dR2, point_d2Z_dR2), &
+        'point cut curvature is outside interval chart result')
+    call require(encloses(box%d2psihat_dR2, point_d2psihat_dR2), &
+        'point flux curvature is outside interval chart result')
     call evaluate_neort_eqdsk_cut_axis_limit(point_dZ_dR, &
         point%psi_jet(4), point%psi_jet(5), point%psi_jet(6), psi_sep, &
         0.01_dp, 1.0_dp, point_axis_curvature, point_axis_abs_derivative, &
@@ -173,6 +204,13 @@ program test_gc_eqdsk_cut_interval_runtime
     write (*, '(a)') 'test_gc_eqdsk_cut_interval_runtime OK'
 
 contains
+
+    pure real(dp) function midpoint(interval)
+        use neort_gc_outward_interval, only: gc_outward_interval_t
+        type(gc_outward_interval_t), intent(in) :: interval
+
+        midpoint = interval%lo+0.5_dp*(interval%hi-interval%lo)
+    end function midpoint
 
     logical function encloses(interval, value)
         use neort_gc_outward_interval, only: gc_outward_interval_t
