@@ -936,7 +936,7 @@ program gen_full_fow_physics
     eqcut_allowed_psistar_R = sym(arena, "dpsi_star_dR")
     eqcut_s_tor = eqcut_rho**2
     eqcut_rho_dstor_drho = 2*eqcut_rho
-    eqcut_d2stor_drho2 = 2
+    eqcut_d2stor_drho2 = 2*one
     eqcut_dpsihat_drho = eqcut_coordinate_dstor_drho*eqcut_dpsihat_dstor
     eqcut_d2psihat_drho2 = eqcut_coordinate_d2psihat_dstor2* &
         eqcut_coordinate_dstor_drho**2 + &

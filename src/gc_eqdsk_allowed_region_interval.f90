@@ -138,7 +138,7 @@ contains
         type(eqdsk_allowed_interval_result_t), intent(out) :: result
         integer, intent(out) :: status
 
-        type(eqdsk_allowed_interval_result_t) :: candidate
+        type(eqdsk_allowed_interval_result_t) :: accumulator, candidate
         type(gc_outward_interval_t) :: potential, dpotential_dpsi
         type(gc_outward_interval_t) :: d2potential_dpsi2
         type(gc_outward_interval_t) :: mapped_psi, mapped_dpsi_dR
@@ -158,11 +158,16 @@ contains
         if (size(cut_enclosures) < 1) return
 
         have_candidate = .false.
-        result%canonical_chart_certified = .true.
+        accumulator = eqdsk_allowed_interval_result_t()
+        accumulator%canonical_chart_certified = .true.
         do i = 1, size(cut_enclosures)
             if (.not. cut_enclosures(i)%denominator_positive_certified .or. &
                     .not. cut_enclosures(i)%r_chart_certified) then
                 status = EQDSK_ALLOWED_INTERVAL_UNCERTIFIED_CUT
+                return
+            end if
+            if (.not. valid_cut_enclosure(cut_enclosures(i))) then
+                status = EQDSK_ALLOWED_INTERVAL_NONFINITE
                 return
             end if
             call evaluate_neort_eqdsk_physical_flux_map_interval( &
@@ -191,20 +196,21 @@ contains
             end if
             candidate%profile_segments_covered = segments
             if (.not. have_candidate) then
-                result = candidate
+                accumulator = candidate
                 have_candidate = .true.
             else
-                call merge_allowed_results(result, candidate)
+                call merge_allowed_results(accumulator, candidate)
             end if
-            result%cut_enclosures_covered = i
+            accumulator%cut_enclosures_covered = i
         end do
         if (.not. have_candidate) return
-        if (.not. result%canonical_chart_certified) then
-            result%v_parallel = point(0.0_dp)
-            result%dv_parallel_dR = point(0.0_dp)
-            result%psi_star = point(0.0_dp)
-            result%dpsi_star_dR = point(0.0_dp)
+        if (.not. accumulator%canonical_chart_certified) then
+            accumulator%v_parallel = point(0.0_dp)
+            accumulator%dv_parallel_dR = point(0.0_dp)
+            accumulator%psi_star = point(0.0_dp)
+            accumulator%dpsi_star_dR = point(0.0_dp)
         end if
+        result = accumulator
         status = EQDSK_ALLOWED_INTERVAL_SUCCESS
     end subroutine evaluate_eqdsk_allowed_region_interval
 
@@ -345,5 +351,14 @@ contains
             result%d2v_parallel_squared_dR2, result%bphi_covariant, &
             result%dbphi_covariant_dR])
     end function valid_energy_result
+
+    pure logical function valid_cut_enclosure(cut)
+        type(eqdsk_cut_interval_result_t), intent(in) :: cut
+
+        valid_cut_enclosure = valid_intervals([cut%psi, cut%psi_R, &
+            cut%psi_Z, cut%psi_RR, cut%psi_RZ, cut%psi_ZZ, &
+            cut%psi_RRR, cut%psi_RRZ, cut%psi_RZZ, cut%psi_ZZZ, cut%F, &
+            cut%dF_dpsi_hat, cut%d2F_dpsi_hat2, cut%dZ_dR, cut%d2Z_dR2])
+    end function valid_cut_enclosure
 
 end module neort_gc_eqdsk_allowed_region_interval

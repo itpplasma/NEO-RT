@@ -2,6 +2,7 @@ program test_gc_eqdsk_allowed_region_interval
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_gc_eqdsk_allowed_region_interval, only: &
         EQDSK_ALLOWED_INTERVAL_PROFILE_GAP, &
+        EQDSK_ALLOWED_INTERVAL_NONFINITE, &
         EQDSK_ALLOWED_INTERVAL_SUCCESS, &
         EQDSK_ALLOWED_INTERVAL_UNCERTIFIED_CUT, &
         eqdsk_allowed_interval_result_t, &
@@ -13,6 +14,7 @@ program test_gc_eqdsk_allowed_region_interval
     implicit none
 
     type(eqdsk_cut_interval_result_t) :: cut(1)
+    type(eqdsk_cut_interval_result_t) :: partial_cut(2)
     type(eqdsk_allowed_interval_result_t) :: result, second_result
     type(gc_outward_interval_t) :: potential, first, second
     real(dp), parameter :: sqrt_ten = sqrt(10.0_dp)
@@ -88,6 +90,17 @@ program test_gc_eqdsk_allowed_region_interval
         'forbidden region entered regular square-root chart')
 
     call test_profile_knot(potential, first, second, segments, status)
+
+    partial_cut = [cut(1), cut(1)]
+    partial_cut(2)%psi = gc_outward_interval(1.0_dp, 0.0_dp)
+    call evaluate_eqdsk_allowed_region_interval(point(2.0_dp), 2.0_dp, &
+        10.0_dp, partial_cut, psi_nodes, phi_nodes, omega_nodes, 10.0_dp, &
+        1.0_dp, 2.0_dp, -1.0_dp, 2.0_dp, 1, second_result, status)
+    call require(status == EQDSK_ALLOWED_INTERVAL_NONFINITE, &
+        'invalid cut interval was accepted')
+    call require(second_result%cut_enclosures_covered == 0 .and. &
+        .not. second_result%canonical_chart_certified, &
+        'failed multi-cut evaluation leaked a partial result')
 
     cut(1)%r_chart_certified = .false.
     call evaluate_eqdsk_allowed_region_interval(point(2.0_dp), 2.0_dp, &
