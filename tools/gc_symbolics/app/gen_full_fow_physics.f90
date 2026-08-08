@@ -187,6 +187,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cut_axis_curvature_roots(2)
     type(expr_t) :: eqdsk_cut_axis_limit_roots(3)
     type(expr_t) :: eqdsk_rho_tor_map_roots(2)
+    type(expr_t) :: eqdsk_flux_profile_rho_chain_roots(1)
     type(expr_t) :: eqdsk_cut_flux_coordinate_roots(3)
     type(expr_t) :: eqdsk_cut_axis_rho_limit_roots(3)
     type(expr_t) :: eq17_outer_roots(1)
@@ -2011,6 +2012,7 @@ program gen_full_fow_physics
     eqdsk_cut_axis_limit_roots = [eqcut_axis_curvature, &
         eqcut_axis_abs_dpsihat, eqcut_axis_inverse_delta_r]
     eqdsk_rho_tor_map_roots = [eqcut_s_tor, eqcut_rho_dstor_drho]
+    eqdsk_flux_profile_rho_chain_roots = [eqcut_dpsihat_drho]
     eqdsk_cut_flux_coordinate_roots = [eqcut_dpsihat_drho, eqcut_dR_drho, &
         eqcut_dZ_drho]
     eqdsk_cut_axis_rho_limit_roots = [eqcut_axis_curvature, &
@@ -2625,6 +2627,13 @@ program gen_full_fow_physics
         [character(len=64) :: "rho_tor"], eqdsk_rho_tor_map_roots, &
         [character(len=64) :: "s_tor", "dstor_drho_tor"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_flux_profile_rho_chain_symbolic.f90", &
+        "neort_eqdsk_flux_profile_rho_chain_symbolic", &
+        "evaluate_neort_eqdsk_flux_profile_rho_chain", &
+        [character(len=64) :: "dstor_drho_tor", "dpsihat_dstor"], &
+        eqdsk_flux_profile_rho_chain_roots, &
+        [character(len=64) :: "dpsihat_drho_tor"])
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_flux_coordinate_symbolic.f90", &
         "neort_eqdsk_cut_flux_coordinate_symbolic", &
         "evaluate_neort_eqdsk_cut_flux_coordinate", &
@@ -2872,7 +2881,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 27"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 28"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -2886,6 +2895,7 @@ contains
         write (unit, "(a)") "        'eqdsk_cut_axis_curvature', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_limit', &"
         write (unit, "(a)") "        'eqdsk_rho_tor_map', &"
+        write (unit, "(a)") "        'eqdsk_flux_profile_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_cut_flux_coordinate', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_segment' ]"
@@ -2914,6 +2924,7 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_rho_tor_map:2:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884' ]"

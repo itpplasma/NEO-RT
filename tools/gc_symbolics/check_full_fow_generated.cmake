@@ -76,6 +76,7 @@ set(generated_files
     neort_eqdsk_cut_axis_curvature_interval_symbolic.f90
     neort_eqdsk_cut_axis_limit_symbolic.f90
     neort_eqdsk_rho_tor_map_symbolic.f90
+    neort_eqdsk_flux_profile_rho_chain_symbolic.f90
     neort_eqdsk_cut_flux_coordinate_symbolic.f90
     neort_eqdsk_cut_axis_rho_limit_symbolic.f90
     neort_cylindrical_hamiltonian_symbolic.f90

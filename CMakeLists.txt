@@ -162,6 +162,7 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_cut_axis_curvature_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_limit_symbolic.f90
     src/generated/neort_eqdsk_rho_tor_map_symbolic.f90
+    src/generated/neort_eqdsk_flux_profile_rho_chain_symbolic.f90
     src/generated/neort_eqdsk_cut_flux_coordinate_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_rho_limit_symbolic.f90
     src/generated/neort_cylindrical_hamiltonian_symbolic.f90
@@ -183,6 +184,7 @@ set(NEO_RT_SOURCES
     src/gc_eqdsk_cut_interval.f90
     src/gc_eqdsk_axis_certificate.f90
     src/gc_eqdsk_cut_graph_atlas.f90
+    src/gc_eqdsk_flux_profile_map.f90
     src/gc_frequency_provider.f90
     src/gc_full_resonance.f90
     src/gc_nonlocal_resonance_types.f90

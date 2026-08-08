@@ -55,6 +55,9 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_rho_tor_map', &
             'neort-cert-v1:eqdsk_rho_tor_map:2:fortsym-5457884')) &
         error stop 'EQDSK rho-tor-map certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_flux_profile_rho_chain', &
+            'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884')) &
+        error stop 'EQDSK flux-profile rho-chain certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_cut_flux_coordinate', &
             'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884')) &
         error stop 'EQDSK flux-coordinate certificate registry mismatch'
