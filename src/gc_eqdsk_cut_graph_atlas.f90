@@ -623,6 +623,37 @@ contains
             outcome = Z_COVER_SUCCESS
             return
         end if
+        ! A cut-box enclosure is consumed by the profile and energy interval
+        ! kernels.  A box whose flux enclosure straddles the requested closed
+        ! flux domain is not yet a usable leaf: accepting it would turn an
+        ! off-cut interval excursion into a profile-domain failure later.
+        ! Refine the spatial chart until the excursion is excluded, allowing
+        ! only the directed-rounding-sized boundary halo at axis/edge.
+        if (interval%psi_hat%lo < atlas%requested_psihat_lo- &
+                1.0e-12_dp .or. interval%psi_hat%hi > &
+                atlas%requested_psihat_hi+1.0e-12_dp) then
+            if (depth >= atlas%options%max_z_depth .or. &
+                    z_hi-z_lo <= atlas%options%minimum_z_width) then
+                atlas%failure_cell_Z = cell_Z
+                atlas%failure_z_depth = depth
+                atlas%failure_stage = 6
+                atlas%failure_z_lo = z_lo
+                atlas%failure_z_hi = z_hi
+                outcome = Z_COVER_UNRESOLVED
+                return
+            end if
+            midpoint = 0.5_dp*(z_lo+z_hi)
+            if (midpoint <= z_lo .or. midpoint >= z_hi) then
+                outcome = Z_COVER_UNRESOLVED
+                return
+            end if
+            call cover_z_box(atlas, cell_R, cell_Z, r_lo, r_hi, z_lo, midpoint, &
+                depth+1, candidates, n_candidates, outcome, status)
+            if (outcome /= Z_COVER_SUCCESS) return
+            call cover_z_box(atlas, cell_R, cell_Z, r_lo, r_hi, midpoint, z_hi, &
+                depth+1, candidates, n_candidates, outcome, status)
+            return
+        end if
         if (regular_candidate(interval)) then
             leaf%z_lo = z_lo
             leaf%z_hi = z_hi
