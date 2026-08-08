@@ -30,7 +30,8 @@ module neort_gc_eqdsk_composite_cut_atlas
     use neort_gc_eqdsk_cut_graph_atlas, only: &
         EQDSK_CUT_ATLAS_SUCCESS, build_eqdsk_cut_graph_atlas, &
         eqdsk_cut_graph_atlas_options_t, eqdsk_cut_graph_atlas_t, &
-        map_eqdsk_cut_graph_atlas_flux, validate_eqdsk_cut_graph_atlas
+        map_eqdsk_cut_graph_atlas, map_eqdsk_cut_graph_atlas_flux, &
+        validate_eqdsk_cut_graph_atlas
     use neort_gc_eqdsk_cut_jet, only: &
         EQDSK_CUT_JET_SUCCESS, eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_gc_eqdsk_flux_profile_map, only: &
@@ -78,6 +79,8 @@ module neort_gc_eqdsk_composite_cut_atlas
     end type eqdsk_composite_cut_atlas_t
 
     public :: build_eqdsk_composite_cut_atlas
+    public :: get_eqdsk_composite_cut_radius_bounds
+    public :: map_eqdsk_composite_cut_atlas_radius
     public :: map_eqdsk_composite_cut_atlas_rho
     public :: validate_eqdsk_composite_cut_atlas
 
@@ -246,6 +249,83 @@ contains
                 atlas%outboard_endpoint%r_hi) return
         status = EQDSK_COMPOSITE_ATLAS_SUCCESS
     end subroutine validate_eqdsk_composite_cut_atlas
+
+    subroutine get_eqdsk_composite_cut_radius_bounds(atlas, radius_lo, &
+            radius_hi, status)
+        type(eqdsk_composite_cut_atlas_t), intent(inout) :: atlas
+        real(dp), intent(out) :: radius_lo, radius_hi
+        integer, intent(out) :: status
+
+        integer :: local_status
+
+        radius_lo = 0.0_dp
+        radius_hi = 0.0_dp
+        call validate_eqdsk_composite_cut_atlas(atlas, local_status)
+        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
+            status = EQDSK_COMPOSITE_ATLAS_INVALID_CERTIFICATE
+            return
+        end if
+        radius_lo = atlas%inboard_endpoint%newton_point_R
+        radius_hi = atlas%outboard_endpoint%newton_point_R
+        if (.not. all(ieee_is_finite([radius_lo, radius_hi])) .or. &
+                radius_lo <= 0.0_dp .or. radius_hi <= radius_lo) then
+            radius_lo = 0.0_dp
+            radius_hi = 0.0_dp
+            status = EQDSK_COMPOSITE_ATLAS_INVALID_CERTIFICATE
+            return
+        end if
+        status = EQDSK_COMPOSITE_ATLAS_SUCCESS
+    end subroutine get_eqdsk_composite_cut_radius_bounds
+
+    subroutine map_eqdsk_composite_cut_atlas_radius(atlas, radius, position, &
+            dposition_dradius, status)
+        !! Map the complete physical-R Poincare cut from its HFS endpoint to
+        !! its LFS endpoint.  Branch selection is geometric orchestration;
+        !! every cut value and derivative is evaluated by the certified graph
+        !! atlases and their Fortsym-generated cut jets.
+        type(eqdsk_composite_cut_atlas_t), intent(inout) :: atlas
+        real(dp), intent(in) :: radius
+        real(dp), intent(out) :: position(3), dposition_dradius(3)
+        integer, intent(out) :: status
+
+        real(dp) :: radius_lo, radius_hi
+        integer :: local_status
+
+        position = 0.0_dp
+        dposition_dradius = 0.0_dp
+        if (.not. ieee_is_finite(radius)) then
+            status = EQDSK_COMPOSITE_ATLAS_INVALID_INPUT
+            return
+        end if
+        call get_eqdsk_composite_cut_radius_bounds(atlas, radius_lo, &
+            radius_hi, local_status)
+        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
+            status = local_status
+            return
+        end if
+        if (radius < radius_lo .or. radius > radius_hi) then
+            status = EQDSK_COMPOSITE_ATLAS_OUT_OF_RANGE
+            return
+        end if
+
+        if (radius <= atlas%axis%r_lo) then
+            call map_eqdsk_cut_graph_atlas(atlas%inboard_graph, radius, &
+                position, dposition_dradius, status=local_status)
+        else if (radius <= atlas%axis%r_hi) then
+            call map_eqdsk_cut_graph_atlas(atlas%axis_graph, radius, &
+                position, dposition_dradius, status=local_status)
+        else
+            call map_eqdsk_cut_graph_atlas(atlas%outboard_graph, radius, &
+                position, dposition_dradius, status=local_status)
+        end if
+        if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+            position = 0.0_dp
+            dposition_dradius = 0.0_dp
+            status = EQDSK_COMPOSITE_ATLAS_MAPPING_FAILURE
+            return
+        end if
+        status = EQDSK_COMPOSITE_ATLAS_SUCCESS
+    end subroutine map_eqdsk_composite_cut_atlas_radius
 
     subroutine map_eqdsk_composite_cut_atlas_rho(atlas, flux_map, rho_tor, &
             branch_sign, position, dposition_drho_tor, status)

@@ -4,9 +4,12 @@ program test_gc_eqdsk_composite_cut_atlas
     use field_eq_mod, only: nrad, nzet, psi_sep, rad, zet
     use geoflux_coordinates, only: geoflux_get_axis
     use neort_gc_eqdsk_composite_cut_atlas, only: &
-        EQDSK_COMPOSITE_ATLAS_SUCCESS, EQDSK_COMPOSITE_CUT_INBOARD, &
-        EQDSK_COMPOSITE_CUT_OUTBOARD, build_eqdsk_composite_cut_atlas, &
+        EQDSK_COMPOSITE_ATLAS_OUT_OF_RANGE, EQDSK_COMPOSITE_ATLAS_SUCCESS, &
+        EQDSK_COMPOSITE_CUT_INBOARD, EQDSK_COMPOSITE_CUT_OUTBOARD, &
+        build_eqdsk_composite_cut_atlas, &
         eqdsk_composite_cut_atlas_options_t, eqdsk_composite_cut_atlas_t, &
+        get_eqdsk_composite_cut_radius_bounds, &
+        map_eqdsk_composite_cut_atlas_radius, &
         map_eqdsk_composite_cut_atlas_rho, &
         validate_eqdsk_composite_cut_atlas
     use neort_gc_eqdsk_cylindrical_adapter, only: &
@@ -41,7 +44,9 @@ program test_gc_eqdsk_composite_cut_atlas
     real(dp) :: axis_inboard(3), axis_outboard(3)
     real(dp) :: axis_derivative_inboard(3), axis_derivative_outboard(3)
     real(dp) :: tiny_position(3), tiny_derivative(3), rho_regular
-    integer :: axis_R_index, axis_Z_index, status, jet_status
+    real(dp) :: full_cut_position(3), full_cut_derivative(3)
+    real(dp) :: full_cut_radius_lo, full_cut_radius_hi, radius_probe(5)
+    integer :: axis_R_index, axis_Z_index, status, jet_status, i
 
     call get_environment_variable('EQDSK_FILE', path)
     call require(len_trim(path) > 0, 'EQDSK_FILE is required')
@@ -116,6 +121,41 @@ program test_gc_eqdsk_composite_cut_atlas
     call validate_eqdsk_composite_cut_atlas(atlas, status)
     call require(status == EQDSK_COMPOSITE_ATLAS_SUCCESS, &
         'fresh composite atlas failed validation')
+
+    call get_eqdsk_composite_cut_radius_bounds(atlas, full_cut_radius_lo, &
+        full_cut_radius_hi, status)
+    call require(status == EQDSK_COMPOSITE_ATLAS_SUCCESS, &
+        'complete physical-R cut bounds failed')
+    call require(full_cut_radius_lo < R0 .and. R0 < full_cut_radius_hi, &
+        'complete physical-R cut does not span HFS to LFS')
+    radius_probe = [full_cut_radius_lo, &
+        0.5_dp*(full_cut_radius_lo+R0), R0, &
+        0.5_dp*(R0+full_cut_radius_hi), full_cut_radius_hi]
+    do i = 1, size(radius_probe)
+        call map_eqdsk_composite_cut_atlas_radius(atlas, radius_probe(i), &
+            full_cut_position, full_cut_derivative, status)
+        call require(status == EQDSK_COMPOSITE_ATLAS_SUCCESS, &
+            'complete physical-R cut map failed')
+        call require(abs(full_cut_position(1)-radius_probe(i)) <= &
+            4.0_dp*epsilon(max(1.0_dp, abs(radius_probe(i)))), &
+            'complete cut changed its physical-R coordinate')
+        call require(abs(full_cut_position(2)-axis_Z) <= 5.0e-10_dp, &
+            'circular complete cut departed from the symmetry plane')
+        call require(abs(full_cut_derivative(1)-1.0_dp) <= 1.0e-14_dp .and. &
+            abs(full_cut_derivative(2)) <= 5.0e-10_dp .and. &
+            abs(full_cut_derivative(3)) <= 1.0e-14_dp, &
+            'complete physical-R cut derivative missed the circular oracle')
+    end do
+    call map_eqdsk_composite_cut_atlas_radius(atlas, &
+        full_cut_radius_lo-spacing(full_cut_radius_lo), full_cut_position, &
+        full_cut_derivative, status)
+    call require(status == EQDSK_COMPOSITE_ATLAS_OUT_OF_RANGE, &
+        'complete cut accepted a point beyond its HFS endpoint')
+    call map_eqdsk_composite_cut_atlas_radius(atlas, &
+        full_cut_radius_hi+spacing(full_cut_radius_hi), full_cut_position, &
+        full_cut_derivative, status)
+    call require(status == EQDSK_COMPOSITE_ATLAS_OUT_OF_RANGE, &
+        'complete cut accepted a point beyond its LFS endpoint')
 
     call initialize_eqdsk_flux_profile_map([0.0_dp, 1.0_dp], &
         [0.0_dp, psi_sep], 1.0_dp, psi_sep, flux_map, status)
