@@ -82,6 +82,11 @@ module neort_gc_eqdsk_nonlocal_transport
     use neort_gc_eqdsk_cut_jet, only: &
         EQDSK_CUT_JET_NONFINITE, EQDSK_CUT_JET_OUT_OF_DOMAIN, &
         EQDSK_CUT_JET_SUCCESS, eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
+    use neort_gc_eqdsk_flux_profile_map, only: &
+        EQDSK_FLUX_MAP_NONFINITE, EQDSK_FLUX_MAP_OUT_OF_RANGE, &
+        EQDSK_FLUX_MAP_SUCCESS, clear_eqdsk_flux_profile_map, &
+        eqdsk_flux_profile_map_t, initialize_eqdsk_flux_profile_map, &
+        map_eqdsk_rho_tor_to_psihat, map_eqdsk_scaled_psi_to_s_tor
     use neort_gc_full_fow_normalization_runtime, only: &
         GC_FULL_FOW_NORMALIZATION_SUCCESS, &
         evaluate_gc_full_fow_canonical_flux, &
@@ -189,9 +194,9 @@ module neort_gc_eqdsk_nonlocal_transport
         real(dp) :: step_refinement_absolute_tolerance = 1.0e-12_dp
         real(dp) :: topology_probe_fraction = 0.125_dp
         integer :: topology_probe_count = 5
-        ! Negative selects the launch cut coordinate x as the Eq. 17 target.
-        ! Otherwise this is an explicit s_tor threshold, never a geometric
-        ! minor-radius approximation.
+        ! Negative selects launch rho_tor, converted to s_tor by the generated
+        ! flux map, as the Eq. 17 target.  Otherwise this is an explicit s_tor
+        ! threshold, never a geometric minor-radius approximation.
         real(dp) :: residence_target_s_tor = -1.0_dp
         !! Certified global lower bounds used by the paired (H0,J_K)
         !! domain.  A finite scan is retained only as a lower-bound witness;
@@ -298,6 +303,7 @@ module neort_gc_eqdsk_nonlocal_transport
         type(gc_eqdsk_profile_potential_t) :: potential
         type(gc_cylindrical_polygon_wall_t) :: wall
         type(gc_eqdsk_cut_atlas_t) :: cut_atlas
+        type(eqdsk_flux_profile_map_t) :: flux_map
         character(len=1024) :: eqdsk_path = ''
         character(len=1024) :: wall_path = ''
         character(len=1024) :: perturbation_path = ''
@@ -655,6 +661,7 @@ contains
         if (allocated(factory%profile_psi)) deallocate(factory%profile_psi)
         if (allocated(factory%profile_dpsi_ds)) deallocate(factory%profile_dpsi_ds)
         if (allocated(factory%profile_values)) deallocate(factory%profile_values)
+        call clear_eqdsk_flux_profile_map(factory%flux_map)
         call clear_profile_potential(factory%potential)
         if (allocated(factory%wall%vertices)) deallocate(factory%wall%vertices)
         if (allocated(factory%cut_atlas%branches)) deallocate(factory%cut_atlas%branches)
@@ -989,6 +996,13 @@ contains
         end do
         deallocate(plasma, rotation)
 
+        call initialize_eqdsk_flux_profile_map(factory%profile_s, &
+            factory%profile_psi, factory%options%field_scale, psi_sep, &
+            factory%flux_map, local_status)
+        if (local_status /= EQDSK_FLUX_MAP_SUCCESS) then
+            status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+            return
+        end if
         call initialize_profile_potential(factory, local_status)
         if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
             status = local_status
@@ -3042,6 +3056,8 @@ contains
         logical :: behavior_requested
         integer :: last_parallel_sign, parallel_sign_changes
         real(dp) :: parallel_sign_tolerance, local_tolerance_factor
+        real(dp) :: residence_target_s_tor, unused_psihat, unused_derivative
+        integer :: flux_map_status
 
         status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
         callback_status = GC_CYL_SUCCESS
@@ -3054,6 +3070,13 @@ contains
         parallel_sign_changes = 0
         parallel_sign_tolerance = max(tiny(1.0_dp), 1.0e-12_dp* &
             factory%species%mass_g*factory%species%reference_velocity_cm_s)
+        residence_target_s_tor = factory%options%residence_target_s_tor
+        if (include_shell .and. residence_target_s_tor < 0.0_dp) then
+            call map_eqdsk_rho_tor_to_psihat(factory%flux_map, launch%rc, &
+                residence_target_s_tor, unused_psihat, unused_derivative, &
+                flux_map_status)
+            if (flux_map_status /= EQDSK_FLUX_MAP_SUCCESS) return
+        end if
         initial = 0.0_dp
         initial(1) = launch%state%R
         initial(2) = launch%state%Z
@@ -3200,8 +3223,7 @@ contains
                     callback_status = GC_CYL_EQUILIBRIUM_DOMAIN
                     return
                 end if
-                target_surface = factory%options%residence_target_s_tor
-                if (target_surface < 0.0_dp) target_surface = launch%rc
+                target_surface = residence_target_s_tor
                 if (orbit_surface <= target_surface) then
                     derivative(8) = 1.0_dp
                 end if
@@ -3216,22 +3238,23 @@ contains
         real(dp), intent(out) :: surface
         integer, intent(out) :: status
 
-        real(dp) :: weight
-        integer :: left, right
+        integer :: flux_map_status
 
         surface = 0.0_dp
         status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
         if (.not. factory%profile_ready) return
-        call locate_monotonic(factory%profile_psi, psi, left, right, weight, &
-            status)
-        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
-        surface = (1.0_dp-weight)*factory%profile_s(left) &
-            +weight*factory%profile_s(right)
-        if (.not. ieee_is_finite(surface)) then
+        call map_eqdsk_scaled_psi_to_s_tor(factory%flux_map, psi, surface, &
+            flux_map_status)
+        select case (flux_map_status)
+        case (EQDSK_FLUX_MAP_SUCCESS)
+            status = GC_EQDSK_NONLOCAL_SUCCESS
+        case (EQDSK_FLUX_MAP_NONFINITE)
             status = GC_EQDSK_NONLOCAL_NONFINITE
-            return
-        end if
-        status = GC_EQDSK_NONLOCAL_SUCCESS
+        case (EQDSK_FLUX_MAP_OUT_OF_RANGE)
+            status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
+        case default
+            status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
+        end select
     end subroutine surface_from_profile_psi
 
     logical function launch_state_is_consistent(factory, launch) result(valid)
