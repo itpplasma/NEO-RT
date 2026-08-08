@@ -220,10 +220,25 @@ contains
             enclosures(:)
         integer, intent(out) :: status
 
+        call enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, r_lo, &
+            r_hi, 0, enclosures, status)
+    end subroutine enclose_eqdsk_cut_graph_strip
+
+    recursive subroutine enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, &
+            r_lo, r_hi, depth, enclosures, status)
+        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+        integer, intent(in) :: strip_index, depth
+        real(dp), intent(in) :: r_lo, r_hi
+        type(eqdsk_cut_interval_result_t), allocatable, intent(out) :: &
+            enclosures(:)
+        integer, intent(out) :: status
+
         type(eqdsk_cut_graph_atlas_t) :: working
         type(eqdsk_cut_graph_atlas_strip_t) :: certified_strip
         type(candidate_leaf_t), allocatable :: candidates(:)
+        type(eqdsk_cut_interval_result_t), allocatable :: left(:), right(:)
         integer :: i, n_candidates, outcome, local_status
+        real(dp) :: midpoint
 
         if (allocated(enclosures)) deallocate(enclosures)
         status = EQDSK_CUT_ATLAS_INVALID_INPUT
@@ -250,6 +265,39 @@ contains
             end if
             return
         end if
+        do i = 1, n_candidates
+            if (candidates(i)%interval%psi_hat%lo < &
+                    atlas%requested_psihat_lo-1.0e-12_dp .or. &
+                    candidates(i)%interval%psi_hat%hi > &
+                    atlas%requested_psihat_hi+1.0e-12_dp) then
+                if (depth >= atlas%options%max_r_depth .or. &
+                        r_hi-r_lo <= atlas%options%minimum_r_width) then
+                    status = EQDSK_CUT_ATLAS_UNRESOLVED
+                    return
+                end if
+                midpoint = 0.5_dp*(r_lo+r_hi)
+                if (midpoint <= r_lo .or. midpoint >= r_hi) then
+                    status = EQDSK_CUT_ATLAS_UNRESOLVED
+                    return
+                end if
+                call enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, &
+                    r_lo, midpoint, depth+1, left, local_status)
+                if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+                    status = local_status
+                    return
+                end if
+                call enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, &
+                    midpoint, r_hi, depth+1, right, local_status)
+                if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
+                    status = local_status
+                    return
+                end if
+                allocate(enclosures(size(left)+size(right)))
+                if (size(left) > 0) enclosures(1:size(left)) = left
+                if (size(right) > 0) enclosures(size(left)+1:) = right
+                return
+            end if
+        end do
         call assemble_candidate_band(working, &
             atlas%strips(strip_index)%cell_R, r_lo, r_hi, candidates, &
             n_candidates, certified_strip, outcome, local_status)
@@ -265,7 +313,7 @@ contains
             enclosures(i) = candidates(i)%interval
         end do
         status = EQDSK_CUT_ATLAS_SUCCESS
-    end subroutine enclose_eqdsk_cut_graph_strip
+    end subroutine enclose_eqdsk_cut_graph_strip_depth
 
     subroutine map_eqdsk_cut_graph_atlas(atlas, radius, position, &
             dposition_dR, dZ_dR, dpsihat_dR, status)
@@ -533,7 +581,7 @@ contains
         type(eqdsk_cut_graph_atlas_strip_t), intent(out) :: strip
         integer, intent(out) :: status
 
-        integer :: n_candidates, i
+        integer :: n_candidates
         type(candidate_leaf_t), allocatable :: candidates(:)
 
         strip = eqdsk_cut_graph_atlas_strip_t()
@@ -542,24 +590,6 @@ contains
         call collect_slab_candidates(atlas, cell_R, r_lo, r_hi, candidates, &
             n_candidates, outcome, status)
         if (outcome /= Z_COVER_SUCCESS) return
-        do i = 1, n_candidates
-            ! The interval evaluator downstream needs a spatial leaf whose
-            ! flux enclosure remains in the requested closed domain.  A
-            ! transverse box can pass the cut-sign test while still reaching
-            ! outside that domain because its R width is too large.  Return
-            ! this slab to the R bisection rather than passing an invalid
-            ! profile interval to the physics kernel.
-            if (candidates(i)%interval%psi_hat%lo < &
-                    atlas%requested_psihat_lo-1.0e-12_dp .or. &
-                    candidates(i)%interval%psi_hat%hi > &
-                    atlas%requested_psihat_hi+1.0e-12_dp) then
-                atlas%failure_stage = 6
-                atlas%failure_r_lo = r_lo
-                atlas%failure_r_hi = r_hi
-                outcome = Z_COVER_MULTIPLE
-                return
-            end if
-        end do
         call assemble_candidate_band(atlas, cell_R, r_lo, r_hi, candidates, &
             n_candidates, strip, outcome, status)
         if (allocated(candidates)) deallocate(candidates)
