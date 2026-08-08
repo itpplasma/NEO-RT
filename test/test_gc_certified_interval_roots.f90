@@ -83,6 +83,24 @@ program test_gc_certified_interval_roots
         'shared endpoint ownership was not canonicalized')
     options%initial_partition = 1
 
+    call run_case(18, -1.0_dp, 1.0_dp, result)
+    call require(result%status == GC_INTERVAL_ROOT_SUCCESS .and. result%nroots == 1, &
+        'simple root at the left domain endpoint was lost')
+    call require(result%roots(1)%lo == -1.0_dp .and. &
+        result%roots(1)%hi == -1.0_dp .and. &
+        result%roots(1)%left_endpoint_root .and. &
+        .not. result%roots(1)%right_endpoint_root, &
+        'left domain endpoint evidence is wrong')
+
+    call run_case(19, -1.0_dp, 1.0_dp, result)
+    call require(result%status == GC_INTERVAL_ROOT_SUCCESS .and. result%nroots == 1, &
+        'simple root at the right domain endpoint was lost')
+    call require(result%roots(1)%lo == 1.0_dp .and. &
+        result%roots(1)%hi == 1.0_dp .and. &
+        .not. result%roots(1)%left_endpoint_root .and. &
+        result%roots(1)%right_endpoint_root, &
+        'right domain endpoint evidence is wrong')
+
     options%max_stationary_iterations = 1
     options%max_depth = 0
     call run_case(17, -1.0_dp, 1.0_dp, result)
@@ -246,8 +264,10 @@ contains
             value%f = gc_interval_t(down(lo), up(hi))
             value%df = gc_interval_t(1.0_dp, 1.0_dp)
             value%d2f = gc_interval_t(0.0_dp, 0.0_dp)
-        case (17)
-            value%f = gc_interval_t(down(lo - 0.3_dp), up(hi - 0.3_dp))
+        case (17:19)
+            x = merge(0.3_dp, merge(-1.0_dp, 1.0_dp, callback_mode == 18), &
+                callback_mode == 17)
+            value%f = gc_interval_t(down(lo - x), up(hi - x))
             value%df = gc_interval_t(1.0_dp, 1.0_dp)
             value%d2f = gc_interval_t(0.0_dp, 0.0_dp)
         case default
@@ -276,8 +296,10 @@ contains
                     nearby_root_a*nearby_root_b)
             case (16)
                 value%f = point_interval(x)
-            case (17)
-                value%f = point_interval(x - 0.3_dp)
+            case (17:19)
+                value%f = point_interval(x - merge(0.3_dp, &
+                    merge(-1.0_dp, 1.0_dp, callback_mode == 18), &
+                    callback_mode == 17))
             end select
         end if
         if (callback_mode == 13) value%f%lo = value%f%lo + 1.0_dp
@@ -357,11 +379,13 @@ contains
             else
                 value = gc_interval_t(down(lo), up(hi))
             end if
-        case (17)
+        case (17:19)
+            value%lo = merge(0.3_dp, merge(-1.0_dp, 1.0_dp, mode == 18), &
+                mode == 17)
             if (lo == hi) then
-                value = reference_point_interval(lo - 0.3_dp)
+                value = reference_point_interval(lo - value%lo)
             else
-                value = gc_interval_t(down(lo - 0.3_dp), up(hi - 0.3_dp))
+                value = gc_interval_t(down(lo - value%lo), up(hi - value%lo))
             end if
         case default
             value = gc_interval_t(0.0_dp, 0.0_dp)
@@ -385,7 +409,7 @@ contains
                 up(2.0_dp*hi - (nearby_root_a + nearby_root_b)))
         case (5, 7, 15)
             value = gc_interval_t(0.0_dp, 0.0_dp)
-        case (16, 17)
+        case (16:19)
             value = gc_interval_t(1.0_dp, 1.0_dp)
         case default
             value = gc_interval_t(0.0_dp, 0.0_dp)

@@ -536,6 +536,13 @@ contains
         bracketed = certified_sign_bracket(left_value%f, right_value%f)
         bracket_proved = bracketed
         newton_proved = .false.
+        if (exact_zero(left_value%f) .and. excludes_zero(left_value%df)) then
+            current = gc_interval_t(lo, lo)
+            found = .true.
+        else if (exact_zero(right_value%f) .and. excludes_zero(right_value%df)) then
+            current = gc_interval_t(hi, hi)
+            found = .true.
+        end if
 
         do iteration = 1, options%max_stationary_iterations
             if (current%hi - current%lo <= options%x_tolerance) then
