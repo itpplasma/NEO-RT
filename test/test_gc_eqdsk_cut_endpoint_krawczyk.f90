@@ -17,6 +17,8 @@ program test_gc_eqdsk_cut_endpoint_krawczyk
     real(dp) :: determinant, newton_r, newton_z
     real(dp) :: inverse_11, inverse_12, inverse_21, inverse_22
     type(gc_outward_interval_t) :: krawczyk_r, krawczyk_z
+    type(gc_outward_interval_t) :: nonlinear_r, nonlinear_z
+    type(gc_outward_interval_t) :: reversed_r, reversed_z
 
     ! Independent system oracle.  With psi=6, psi_sep=3, and target=1/2,
     ! the normalized-flux residual is 3/2 and its gradient is (4/3,-2/3).
@@ -62,6 +64,49 @@ program test_gc_eqdsk_cut_endpoint_krawczyk
         'affine Krawczyk R map did not contract to roundoff')
     call require(krawczyk_z%hi-krawczyk_z%lo < 1.0e-12_dp, &
         'affine Krawczyk Z map did not contract to roundoff')
+
+    ! Nonlinear independent oracle with the same exact root (R,Z)=(1,2):
+    !   N=2u+v+u^2, g=-u+3v+v^2, u=R-1, v=Z-2.
+    ! At x0=(1.05,1.95), f=(0.0525,-0.1975) and
+    ! J0=[[2.1,1],[-1,2.9]].  Over X=x0+[-0.1,0.1]^2, only the two
+    ! diagonal derivatives vary, giving N_R=[1.9,2.3], g_Z=[2.7,3.1].
+    call evaluate_neort_eqdsk_cut_endpoint_krawczyk_interval( &
+        point(1.05_dp), point(1.95_dp), point(0.0525_dp), &
+        point(-0.1975_dp), point(2.1_dp), point(1.0_dp), &
+        point(-1.0_dp), point(2.9_dp), &
+        gc_outward_interval(1.9_dp, 2.3_dp), point(1.0_dp), &
+        point(-1.0_dp), gc_outward_interval(2.7_dp, 3.1_dp), &
+        gc_outward_interval(-0.1_dp, 0.1_dp), &
+        gc_outward_interval(-0.1_dp, 0.1_dp), nonlinear_r, nonlinear_z)
+    call require(nonlinear_r%lo <= 1.0_dp .and. nonlinear_r%hi >= 1.0_dp, &
+        'nonlinear Krawczyk R enclosure excluded the exact root')
+    call require(nonlinear_z%lo <= 2.0_dp .and. nonlinear_z%hi >= 2.0_dp, &
+        'nonlinear Krawczyk Z enclosure excluded the exact root')
+    call require(nonlinear_r%lo > 0.95_dp .and. &
+        nonlinear_r%hi < 1.15_dp, &
+        'nonlinear Krawczyk R map is not strictly inside X')
+    call require(nonlinear_z%lo > 1.85_dp .and. &
+        nonlinear_z%hi < 2.05_dp, &
+        'nonlinear Krawczyk Z map is not strictly inside X')
+
+    ! Reversing N and its entire derivative row is a cut-orientation
+    ! relabelling.  The endpoint and its Krawczyk enclosure must not move.
+    call evaluate_neort_eqdsk_cut_endpoint_krawczyk_interval( &
+        point(1.05_dp), point(1.95_dp), point(-0.0525_dp), &
+        point(-0.1975_dp), point(-2.1_dp), point(-1.0_dp), &
+        point(-1.0_dp), point(2.9_dp), &
+        gc_outward_interval(-2.3_dp, -1.9_dp), point(-1.0_dp), &
+        point(-1.0_dp), gc_outward_interval(2.7_dp, 3.1_dp), &
+        gc_outward_interval(-0.1_dp, 0.1_dp), &
+        gc_outward_interval(-0.1_dp, 0.1_dp), reversed_r, reversed_z)
+    call require_close(reversed_r%lo, nonlinear_r%lo, &
+        'cut reversal Krawczyk R lower bound')
+    call require_close(reversed_r%hi, nonlinear_r%hi, &
+        'cut reversal Krawczyk R upper bound')
+    call require_close(reversed_z%lo, nonlinear_z%lo, &
+        'cut reversal Krawczyk Z lower bound')
+    call require_close(reversed_z%hi, nonlinear_z%hi, &
+        'cut reversal Krawczyk Z upper bound')
 
     write (*, '(a)') 'test_gc_eqdsk_cut_endpoint_krawczyk OK'
 
