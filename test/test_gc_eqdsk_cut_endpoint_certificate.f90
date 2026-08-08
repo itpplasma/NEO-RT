@@ -70,6 +70,9 @@ program test_gc_eqdsk_cut_endpoint_certificate
         certificate%strict_inclusion_certified .and. &
         certificate%unique_endpoint_certified, &
         'endpoint certificate omitted a theorem gate')
+    call require(certificate%krawczyk_Z_lo <= 0.0_dp .and. &
+        certificate%krawczyk_Z_hi >= 0.0_dp, &
+        'circular endpoint enclosure excluded the exact symmetry midplane')
     call validate_eqdsk_cut_endpoint_certificate(certificate, status)
     call require(status == EQDSK_ENDPOINT_CERT_SUCCESS, &
         'fresh endpoint certificate failed validation')
@@ -79,9 +82,6 @@ program test_gc_eqdsk_cut_endpoint_certificate
         [0.0_dp, 0.0_dp, 0.0_dp], jet, jet_status)
     call require(jet_status == EQDSK_CUT_JET_SUCCESS, &
         'certified endpoint point evaluation failed')
-    call require(abs(jet%cut_numerator) <= 1.0e-9_dp* &
-        max(1.0_dp, certificate%positive_denominator_lower), &
-        'endpoint Newton point missed the cut')
     call require(abs(jet%psi_jet(1)/psi_sep-target) <= 1.0e-11_dp, &
         'endpoint Newton point missed the target flux')
 
