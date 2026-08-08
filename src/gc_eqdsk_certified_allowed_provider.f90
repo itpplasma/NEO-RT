@@ -41,6 +41,17 @@ module neort_gc_eqdsk_certified_allowed_provider
     implicit none
     private
 
+    abstract interface
+        subroutine gc_eqdsk_stationary_root_certificate_i(x_lo, x_hi, h0, &
+                j_k, sigma, branch, stationary_point, certificate_id, status)
+            import dp
+            real(dp), intent(in) :: x_lo, x_hi, h0, j_k
+            integer, intent(in) :: sigma, branch
+            real(dp), intent(out) :: stationary_point
+            integer, intent(out) :: certificate_id, status
+        end subroutine gc_eqdsk_stationary_root_certificate_i
+    end interface
+
     integer, parameter, public :: GC_EQDSK_ALLOWED_PROVIDER_SUCCESS = 0
     integer, parameter, public :: GC_EQDSK_ALLOWED_PROVIDER_INVALID_INPUT = 1
     integer, parameter, public :: GC_EQDSK_ALLOWED_PROVIDER_ROOT_FAILURE = 2
@@ -64,24 +75,85 @@ module neort_gc_eqdsk_certified_allowed_provider
         integer :: root_max_roots = 1024
         real(dp) :: root_x_tolerance = 1.0e-10_dp
         integer :: measure_max_depth = 20
+        !! Zero means that no generated fixed-(H0,J_K) stationary
+        !! certificate is available.  A nonzero value is accepted only when
+        !! it is the existing generated energy-jet ID and the point query
+        !! below closes exact f=f'=0 evidence.
+        integer :: stationary_certificate_id = 0
+        procedure(gc_eqdsk_stationary_root_certificate_i), pointer, nopass :: &
+            stationary_root_certificate => null()
         logical :: initialized = .false.
     end type gc_eqdsk_certified_allowed_provider_context_t
 
     public :: initialize_gc_eqdsk_certified_allowed_provider
     public :: build_gc_eqdsk_certified_allowed_regions
     public :: verify_gc_eqdsk_certified_allowed_regions
+    public :: gc_eqdsk_stationary_root_certificate_i
+    public :: verify_gc_eqdsk_fixed_invariant_stationary_certificate
 
 contains
 
+    subroutine verify_gc_eqdsk_fixed_invariant_stationary_certificate( &
+            x_lo, x_hi, candidate, point_value, expected_enclosure_id, &
+            expected_stationary_id, status)
+        !! Validate the exact point half of the stationary-root contract.
+        !!
+        !! The interval candidate only isolates a stationary point and
+        !! encloses f.  It is not a tangent-root certificate.  Promotion is
+        !! possible only when the generated fixed-invariant point query
+        !! returns the same stationary identity and exact zero f and f'.
+        !! This adapter deliberately does not turn an interval containing
+        !! zero into an exact zero.
+        real(dp), intent(in) :: x_lo, x_hi
+        type(gc_interval_callback_result_t), intent(in) :: candidate
+        type(gc_interval_callback_result_t), intent(in) :: point_value
+        integer, intent(in) :: expected_enclosure_id, expected_stationary_id
+        integer, intent(out) :: status
+        integer :: registered_stationary_id
+
+        status = GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE
+        if (.not. all(ieee_is_finite([x_lo, x_hi]))) return
+        if (x_hi < x_lo .or. expected_enclosure_id <= 0 .or. &
+                expected_stationary_id <= 0) return
+        registered_stationary_id = certificate_index( &
+            'eqdsk_allowed_energy_stationary')
+        if (registered_stationary_id <= 0 .or. &
+                expected_stationary_id /= registered_stationary_id) return
+        if (candidate%query_lo /= x_lo .or. candidate%query_hi /= x_hi) return
+        if (candidate%enclosure_certificate_id /= expected_enclosure_id .or. &
+                candidate%stationary_certificate_id /= expected_stationary_id) return
+        if (.not. valid_interval(candidate%f) .or. &
+                .not. valid_interval(candidate%df) .or. &
+                .not. valid_interval(candidate%d2f)) return
+        if (.not. ieee_is_finite(candidate%stationary_point) .or. &
+                candidate%stationary_point < x_lo .or. &
+                candidate%stationary_point > x_hi) return
+        if (point_value%query_lo /= candidate%stationary_point .or. &
+                point_value%query_hi /= candidate%stationary_point) return
+        if (point_value%enclosure_certificate_id /= expected_enclosure_id .or. &
+                point_value%stationary_certificate_id /= expected_stationary_id .or. &
+                point_value%stationary_point /= candidate%stationary_point) return
+        if (.not. valid_interval(point_value%f) .or. &
+                .not. valid_interval(point_value%df) .or. &
+                .not. valid_interval(point_value%d2f)) return
+        if (.not. exact_zero(point_value%f) .or. &
+                .not. exact_zero(point_value%df) .or. &
+                .not. excludes_zero(candidate%d2f) .or. &
+                .not. excludes_zero(point_value%d2f)) return
+        status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+    end subroutine verify_gc_eqdsk_fixed_invariant_stationary_certificate
+
     subroutine initialize_gc_eqdsk_certified_allowed_provider(context, atlas, &
             partition, profile, field_scale, raw_psi_sep, mass, charge, &
-            c_light, status)
+            c_light, status, stationary_root_certificate)
         type(gc_eqdsk_certified_allowed_provider_context_t), intent(out) :: context
         type(eqdsk_composite_cut_atlas_t), intent(in) :: atlas
         type(eqdsk_composite_r_partition_t), intent(in) :: partition
         type(eqdsk_potential_profile_nodes_t), intent(in) :: profile
         real(dp), intent(in) :: field_scale, raw_psi_sep, mass, charge, c_light
         integer, intent(out) :: status
+        procedure(gc_eqdsk_stationary_root_certificate_i), optional :: &
+            stationary_root_certificate
 
         integer :: branch, local_status
 
@@ -112,6 +184,9 @@ contains
         context%mass = mass
         context%charge = charge
         context%c_light = c_light
+        if (present(stationary_root_certificate)) then
+            context%stationary_root_certificate => stationary_root_certificate
+        end if
         do branch = 1, 3
             if (context%graph(branch)%certificate_id <= 0) return
             if (.not. context%graph(branch)%global_completeness_certified) return
@@ -158,10 +233,17 @@ contains
         root_options%max_boxes = context%root_max_boxes
         root_options%max_roots = context%root_max_roots
         root_options%expected_enclosure_certificate_id = energy_certificate_id
-        ! No generated fixed-(H0,J_K) stationary certificate exists yet.
-        ! Setting this to zero makes the generic engine reject unresolved
-        ! tangent roots instead of promoting a sampled extremum.
-        root_options%expected_stationary_certificate_id = 0
+        context%stationary_certificate_id = certificate_index( &
+            'eqdsk_allowed_energy_stationary')
+        if (context%stationary_certificate_id < 0) then
+            status = GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE
+            return
+        end if
+        ! The default remains zero until a real generated fixed-(H0,J_K)
+        ! certificate is registered.  The generic engine then fails tangent
+        ! candidates closed before any interval extremum can be promoted.
+        root_options%expected_stationary_certificate_id = &
+            context%stationary_certificate_id
         root_options%x_tolerance = context%root_x_tolerance
 
         root_count = 0
@@ -271,7 +353,14 @@ contains
             value%cut_id = active_branch
             value%enclosure_certificate_id = &
                 root_options%expected_enclosure_certificate_id
-            value%stationary_certificate_id = 0
+            value%stationary_certificate_id = &
+                root_options%expected_stationary_certificate_id
+            if (value%stationary_certificate_id > 0) then
+                ! A finite sentinel is required by the generic callback
+                ! contract.  It is replaced only by the real certificate
+                ! source below; a midpoint is never promoted to evidence.
+                value%stationary_point = huge(1.0_dp)
+            end if
             call evaluate_eqdsk_allowed_region_cut_box(context%graph(active_branch), &
                 gc_outward_interval(x_lo, x_hi), context%field_scale, &
                 context%raw_psi_sep, context%profile, active_h0, active_j_k, &
@@ -286,6 +375,24 @@ contains
             value%d2f = to_interval(evaluated%d2energy_margin_dR2)
             value%status = 0
             value%certified = provenance%certified
+            if (value%stationary_certificate_id > 0 .and. &
+                    contains_zero(value%df) .and. &
+                    associated(context%stationary_root_certificate)) then
+                call context%stationary_root_certificate(x_lo, x_hi, active_h0, &
+                    active_j_k, active_sigma, active_branch, &
+                    value%stationary_point, value%stationary_certificate_id, &
+                    local_status)
+                if (local_status /= 0 .or. &
+                        value%stationary_certificate_id /= &
+                            root_options%expected_stationary_certificate_id .or. &
+                        .not. ieee_is_finite(value%stationary_point) .or. &
+                        value%stationary_point < x_lo .or. &
+                        value%stationary_point > x_hi) then
+                    value%stationary_point = huge(1.0_dp)
+                    value%stationary_certificate_id = &
+                        root_options%expected_stationary_certificate_id
+                end if
+            end if
         end subroutine evaluate_energy
 
         subroutine verify_energy(x_lo, x_hi, value, expected_id, local_status)
@@ -301,7 +408,8 @@ contains
             if (value%query_lo /= x_lo .or. value%query_hi /= x_hi) return
             if (value%cut_id /= active_branch .or. &
                     value%enclosure_certificate_id /= expected_id .or. &
-                    value%stationary_certificate_id /= 0) return
+                    value%stationary_certificate_id /= &
+                        root_options%expected_stationary_certificate_id) return
             if (.not. encloses(value%f, expected%f) .or. &
                     .not. encloses(value%df, expected%df) .or. &
                     .not. encloses(value%d2f, expected%d2f)) return
@@ -314,11 +422,23 @@ contains
             type(gc_interval_callback_result_t), intent(out) :: value
             integer, intent(in) :: expected_enclosure_id, expected_stationary_id
             integer, intent(out) :: local_status
+            type(gc_interval_callback_result_t) :: candidate
 
             value = gc_interval_callback_result_t()
             local_status = 1
-            ! A fixed-(H0,J_K) stationary certificate is not available.
-            ! The explicit failure is part of the production contract.
+            if (expected_enclosure_id /= &
+                    root_options%expected_enclosure_certificate_id) return
+            if (expected_stationary_id <= 0 .or. &
+                    expected_stationary_id /= &
+                    root_options%expected_stationary_certificate_id) return
+            if (expected_stationary_id /= &
+                    certificate_index('eqdsk_allowed_energy_stationary')) return
+            if (point < x_lo .or. point > x_hi) return
+            call evaluate_energy(x_lo, x_hi, candidate)
+            call evaluate_energy(point, point, value)
+            call verify_gc_eqdsk_fixed_invariant_stationary_certificate( &
+                x_lo, x_hi, candidate, value, expected_enclosure_id, &
+                expected_stationary_id, local_status)
         end subroutine verify_energy_stationary
 
         subroutine copy_branch_roots(ctx, energy, jk, sign, branch_id, root_result, &
@@ -657,6 +777,18 @@ contains
         excludes_zero = valid_interval(value) .and. &
             (value%hi < 0.0_dp .or. value%lo > 0.0_dp)
     end function excludes_zero
+
+    pure logical function contains_zero(value)
+        type(gc_interval_t), intent(in) :: value
+        contains_zero = valid_interval(value) .and. value%lo <= 0.0_dp .and. &
+            value%hi >= 0.0_dp
+    end function contains_zero
+
+    pure logical function exact_zero(value)
+        type(gc_interval_t), intent(in) :: value
+        exact_zero = valid_interval(value) .and. value%lo == 0.0_dp .and. &
+            value%hi == 0.0_dp
+    end function exact_zero
 
     pure logical function encloses(value, expected)
         type(gc_interval_t), intent(in) :: value, expected

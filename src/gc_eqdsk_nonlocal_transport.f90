@@ -57,6 +57,7 @@ module neort_gc_eqdsk_nonlocal_transport
         GC_CYL_INVARIANT_ERROR, GC_CYL_NO_RETURN, GC_CYL_PERTURBATION_ERROR, &
         GC_CYL_POTENTIAL_ERROR, GC_CYL_START_ERROR, GC_CYL_STATE_ERROR, &
         GC_CYL_SUCCESS, GC_CYL_WALL_ERROR, GC_CYL_WALL_LOSS, &
+        gc_cylindrical_allowed_component_t, &
         gc_cylindrical_field_sample_t, gc_cylindrical_field_t, &
         gc_cylindrical_invariants_t, gc_cylindrical_potential_t, &
         gc_cylindrical_polygon_wall_t, gc_cylindrical_state_t, &
@@ -74,8 +75,11 @@ module neort_gc_eqdsk_nonlocal_transport
     use neort_full_fow_cycle_average_symbolic, only: &
         evaluate_neort_full_fow_cycle_average
     use neort_gc_cylindrical_physical_return, only: &
+        GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR, &
         GC_CYL_PHYSICAL_EVENT_RADIAL_DOMAIN, GC_CYL_PHYSICAL_EVENT_RETURN, &
         GC_CYL_PHYSICAL_EVENT_WALL, gc_cylindrical_physical_return_options_t, &
+        attach_gc_cylindrical_physical_return_certificate, &
+        gc_physical_return_certificate_t, &
         gc_cylindrical_physical_return_t, &
         compute_gc_cylindrical_physical_return
     use neort_gc_cylindrical_transport_provider, only: &
@@ -180,6 +184,8 @@ module neort_gc_eqdsk_nonlocal_transport
     integer, parameter, public :: GC_EQDSK_NONLOCAL_DOMAIN_ERROR = 1009
     integer, parameter, public :: GC_EQDSK_NONLOCAL_ORBIT_ERROR = 1010
     integer, parameter, public :: GC_EQDSK_NONLOCAL_NONFINITE = 1011
+    integer, parameter, public :: GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID = &
+        130041
 
     integer, parameter :: FACTORY_FORCE_COUNT = 3
     integer, parameter, public :: GC_EQDSK_PROFILE_DENSITY = 1
@@ -433,6 +439,7 @@ module neort_gc_eqdsk_nonlocal_transport
         real(dp) :: last_canonical_momentum_error = 0.0_dp
         integer :: topology_certification_attempts = 0
         integer :: topology_certification_successes = 0
+        integer :: two_cut_multiplicity_certificate_id = 0
         integer :: harmonic_average_successes = 0
         integer :: residence_average_successes = 0
         logical :: step_refinement_certified = .false.
@@ -2618,22 +2625,109 @@ contains
         logical, intent(out) :: certified
         integer, intent(out) :: status
 
+        type(gc_cylindrical_allowed_region_set_t) :: same_sign_regions
+        type(gc_cylindrical_allowed_region_set_t) :: opposite_sign_regions
+        integer :: local_status
+
         certified = .false.
-        ! A finite collection of successful interior returns cannot exclude a
-        ! stationary canonical-momentum X point or locate a homoclinic
-        ! separatrix between probes.  The Buchholz limiting charts must be
-        ! split by a generated interval/root-isolation certificate before an
-        ! interval can be called complete.  Keep this callback fail-closed
-        ! until that certificate is supplied; do not convert probes into
-        ! topology evidence.
         status = GC_CYL_CLASS_SPLITTER_FAILURE
         factory%topology_certification_attempts = &
             factory%topology_certification_attempts + 1
         factory%topology_ready = .false.
-        associate (unused_h0 => h0, unused_jperp => jperp, unused_sigma => sigma, &
-                unused_candidate => candidate)
-        end associate
+
+        ! The regular chart has a different theorem from a turning chart.  A
+        ! component ending at v_parallel=0 needs the one-sided Puiseux
+        ! certificate; it must not enter this path through a finite sample.
+        if (candidate%lower_root .or. candidate%upper_root) return
+        if (abs(sigma) /= 1) return
+
+        ! For fixed (H0,J_K), P_phi=(q/c) psi_star is constant on an orbit.
+        ! The generated interval evaluator has already excluded zero from
+        ! dpsi_star/dR on every regular component.  The provider call below
+        ! supplies the complete root-isolated decomposition for both signs;
+        ! requiring pairwise disjoint canonical ranges then proves that a
+        ! fixed P_phi has at most one cut point for each sign of v_parallel.
+        ! The physical integrator still has to observe the two transverse
+        ! crossings and the return-state checks before a sample is usable.
+        call build_gc_eqdsk_certified_allowed_regions( &
+            factory%allowed_region_context, h0, jperp, sigma, &
+            same_sign_regions, local_status)
+        if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
+        call build_gc_eqdsk_certified_allowed_regions( &
+            factory%allowed_region_context, h0, jperp, -sigma, &
+            opposite_sign_regions, local_status)
+        if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
+        if (.not. regular_canonical_ranges_certified(same_sign_regions)) return
+        if (.not. regular_canonical_ranges_certified(opposite_sign_regions)) return
+        if (.not. candidate_is_provider_component(candidate, same_sign_regions)) return
+
+        ! This is an independent topology certificate, not a claim made by
+        ! the ODE event sequence.  Its ID is carried into the physical-return
+        ! options so that the integrator cannot manufacture multiplicity.
+        factory%cut_atlas%two_cut_multiplicity_certified = .true.
+        factory%two_cut_multiplicity_certificate_id = &
+            GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID
+        factory%topology_certification_successes = &
+            factory%topology_certification_successes + 1
+        factory%topology_ready = .true.
+        certified = .true.
+        status = GC_CYL_CLASS_SUCCESS
     end subroutine certify_homoclinic_component
+
+    logical function regular_canonical_ranges_certified(regions)
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+
+        integer :: i, j
+        real(dp) :: lower_i, upper_i, lower_j, upper_j
+        type(gc_cylindrical_allowed_component_t) :: component_i
+        type(gc_cylindrical_allowed_component_t) :: component_j
+
+        regular_canonical_ranges_certified = .false.
+        if (.not. regions%topology_certified) return
+        if (regions%nroots /= 0) return
+        if (regions%ncomponents < 1) return
+        if (.not. allocated(regions%components)) return
+        if (size(regions%components) /= regions%ncomponents) return
+        do i = 1, regions%ncomponents
+            component_i = regions%components(i)
+            if (component_i%lower_root .or. component_i%upper_root) return
+            if (.not. component_i%canonical_measure_certified) return
+            if (component_i%canonical_measure <= 0.0_dp) return
+            if (.not. all(ieee_is_finite([component_i%canonical_begin, &
+                    component_i%canonical_end, &
+                    component_i%canonical_measure]))) return
+            lower_i = min(component_i%canonical_begin, component_i%canonical_end)
+            upper_i = max(component_i%canonical_begin, component_i%canonical_end)
+            if (upper_i <= lower_i) return
+            do j = 1, i - 1
+                component_j = regions%components(j)
+                lower_j = min(component_j%canonical_begin, &
+                    component_j%canonical_end)
+                upper_j = max(component_j%canonical_begin, &
+                    component_j%canonical_end)
+                if (max(lower_i, lower_j) < min(upper_i, upper_j)) return
+            end do
+        end do
+        regular_canonical_ranges_certified = .true.
+    end function regular_canonical_ranges_certified
+
+    logical function candidate_is_provider_component(candidate, regions)
+        type(gc_cylindrical_class_interval_t), intent(in) :: candidate
+        type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+
+        integer :: i
+
+        candidate_is_provider_component = .false.
+        if (.not. allocated(regions%components)) return
+        do i = 1, size(regions%components)
+            if (regions%components(i)%component_id /= candidate%component_id) cycle
+            if (regions%components(i)%sigma /= candidate%sigma) cycle
+            if (regions%components(i)%x_begin /= candidate%rc_min) cycle
+            if (regions%components(i)%x_end /= candidate%rc_max) cycle
+            candidate_is_provider_component = .true.
+            return
+        end do
+    end function candidate_is_provider_component
 
     subroutine make_raw_launch(factory, h0, jperp, x, sigma, component_id, &
             launch, status)
@@ -2882,7 +2976,9 @@ contains
         type(gc_cylindrical_invariants_t) :: invariants
         type(gc_cylindrical_physical_return_options_t) :: return_options
         type(gc_cylindrical_physical_return_t) :: physical_return
+        type(gc_physical_return_certificate_t) :: multiplicity_certificate
         integer :: local_status
+        character(len=256) :: certificate_message
         logical :: behavior_requested, is_refinement_pass
         real(dp) :: base_step, refined_step, tolerance_factor
         real(dp) :: pass_omega_b, pass_omega_phi
@@ -2935,6 +3031,21 @@ contains
             factory_physical_return_event, return_options, physical_return, &
             wall_model=factory%wall, radial_domain=factory_radial_domain_event, &
             user_data=factory, return_event_rate=factory_physical_return_rate)
+        if (factory%cut_atlas%two_cut_multiplicity_certified .and. &
+                factory%two_cut_multiplicity_certificate_id == &
+                    GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID) then
+            multiplicity_certificate = gc_physical_return_certificate_t()
+            multiplicity_certificate%certificate_id = &
+                factory%two_cut_multiplicity_certificate_id
+            multiplicity_certificate%crossing_count = 2
+            multiplicity_certificate%exactly_two_proved = .true.
+            call attach_gc_cylindrical_physical_return_certificate( &
+                physical_return, multiplicity_certificate, local_status, &
+                certificate_message)
+            if (local_status /= GC_CYL_SUCCESS) then
+                physical_return%status = GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR
+            end if
+        end if
         call record_physical_return(factory, physical_return)
         result%event_kind = physical_return%event_kind
         result%intersection_count = physical_return%intersection_count
@@ -3313,7 +3424,9 @@ contains
         options%require_opposite_intersection = .true.
         options%require_transverse_intersection = .true.
         options%complete_atlas_multiplicity_certified = &
-            factory%cut_atlas%two_cut_multiplicity_certified
+            factory%cut_atlas%two_cut_multiplicity_certified .and. &
+            factory%two_cut_multiplicity_certificate_id == &
+                GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID
         options%cut_rate_tolerance = factory%options%cut_root_tolerance
     end subroutine make_physical_return_options
 

@@ -47,6 +47,17 @@ module neort_gc_cylindrical_physical_return
     integer, parameter, public :: GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR = 32
     integer, parameter, public :: GC_CYL_PHYSICAL_EVENT_NONTRANSVERSE = 33
 
+    ! These statuses describe the independent multiplicity-certification
+    ! layer, not the numerical ODE result%status.
+    integer, parameter, public :: &
+        GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN = 0
+    integer, parameter, public :: &
+        GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_CERTIFIED = 1
+    integer, parameter, public :: &
+        GC_CYL_PHYSICAL_RETURN_CERTIFICATE_UNAVAILABLE = 2
+    integer, parameter, public :: &
+        GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID = 3
+
     type, public :: gc_cylindrical_physical_return_options_t
         real(dp) :: relative_tolerance = 3.0e-10_dp
         real(dp) :: absolute_tolerance(5) = 1.0e-11_dp
@@ -64,6 +75,9 @@ module neort_gc_cylindrical_physical_return
         integer :: return_orientation = 0
         logical :: require_opposite_intersection = .false.
         logical :: require_transverse_intersection = .false.
+        ! Retained for source compatibility with callers that have not yet
+        ! been migrated to a theorem provider.  It is intentionally ignored:
+        ! a caller flag cannot certify global cut multiplicity.
         logical :: complete_atlas_multiplicity_certified = .false.
         real(dp) :: cut_rate_tolerance = 1.0e-12_dp
         integer :: maximum_steps = 500000
@@ -139,10 +153,19 @@ module neort_gc_cylindrical_physical_return
         end subroutine gc_cylindrical_radial_domain_i
     end interface
 
+    type :: gc_physical_return_certificate_t
+        !! Independent theorem evidence for the observed return evidence.
+        integer :: certificate_id = 0
+        integer :: crossing_count = 0
+        logical :: exactly_two_proved = .false.
+    end type gc_physical_return_certificate_t
+
     public :: gc_cylindrical_physical_event_i
     public :: gc_cylindrical_physical_event_rate_i
     public :: gc_cylindrical_radial_domain_i
+    public :: gc_physical_return_certificate_t
     public :: compute_gc_cylindrical_physical_return
+    public :: attach_gc_cylindrical_physical_return_certificate
 
 contains
 
@@ -186,6 +209,8 @@ contains
         logical :: disarm_found, disarmed_event_valid
         class(gc_callback_context_t), pointer :: callback_data
         procedure(gc_cylindrical_radial_domain_i), pointer :: radial_domain_proc
+        procedure(gc_cylindrical_physical_event_rate_i), pointer :: &
+            return_event_rate_proc
 
         result = gc_cylindrical_physical_return_t()
         callback_status = GC_CYL_SUCCESS
@@ -193,7 +218,9 @@ contains
         pre_nfev = 0
         nullify(callback_data)
         nullify(radial_domain_proc)
+        nullify(return_event_rate_proc)
         if (present(user_data)) callback_data => user_data
+        if (present(return_event_rate)) return_event_rate_proc => return_event
         have_wall = .false.
         if (present(wall_model)) have_wall = .true.
         have_radial = .false.
@@ -530,8 +557,10 @@ contains
             result%intersection_orientations(2) = event_orientation
             result%intersection_times(2) = root_time
             result%intersection_rates(2) = cut_rate
-            result%intersection_multiplicity_certified = &
-                options%complete_atlas_multiplicity_certified
+            ! Two events are numerical evidence only.  Global exactly-two
+            ! multiplicity belongs to a separate theorem/provider and is
+            ! attached by certify_gc_cylindrical_physical_return.
+            result%intersection_multiplicity_certified = .false.
         else
             call integrate_to_cut(y_start, pre_time, target_time, &
                 event_orientation, y_final, root_time, event_index, found, &
@@ -954,7 +983,7 @@ contains
 
             rate = 0.0_dp
             ok = .false.
-            if (.not. present(return_event_rate)) then
+            if (.not. associated(return_event_rate_proc)) then
                 if (options%require_transverse_intersection) then
                     call note_callback_failure(GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR)
                     return
@@ -968,7 +997,7 @@ contains
                 call note_callback_failure(map_field_status(field_status))
                 return
             end if
-            call return_event_rate(state_array(1:3), local_state, local_field, &
+            call return_event_rate_proc(state_array(1:3), local_state, local_field, &
                 callback_data, rate, rate_status)
             if (rate_status /= GC_CYL_SUCCESS .or. .not. ieee_is_finite(rate)) then
                 call note_callback_failure(GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR)
@@ -1134,6 +1163,42 @@ contains
         end subroutine integrate_to_cut
 
     end subroutine compute_gc_cylindrical_physical_return
+
+    subroutine attach_gc_cylindrical_physical_return_certificate(result, &
+            certificate, status, message)
+        type(gc_cylindrical_physical_return_t), intent(inout) :: result
+        type(gc_physical_return_certificate_t), intent(in) :: certificate
+        integer, intent(out) :: status
+        character(len=*), intent(out) :: message
+
+        status = GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID
+        message = 'exactly-two certificate does not match return evidence'
+        result%intersection_multiplicity_certified = .false.
+        if (result%status /= GC_CYL_SUCCESS .or. &
+                .not. result%physical_return_found) return
+        if (result%event_kind /= GC_CYL_PHYSICAL_EVENT_RETURN .or. &
+                result%wall_hit .or. result%radial_domain_hit .or. &
+                result%numerical_failure .or. result%return_orientation == 0) return
+        if (result%intersection_count /= 2) return
+        if (certificate%certificate_id <= 0 .or. &
+                certificate%crossing_count /= 2 .or. &
+                .not. certificate%exactly_two_proved) return
+        if (abs(result%intersection_orientations(1)) /= 1 .or. &
+                abs(result%intersection_orientations(2)) /= 1 .or. &
+                result%intersection_orientations(1) == &
+                result%intersection_orientations(2) .or. &
+                result%intersection_orientations(2) /= result%return_orientation .or. &
+                result%intersection_times(2) <= result%intersection_times(1) .or. &
+                result%intersection_times(1) <= 0.0_dp .or. &
+                result%period < result%intersection_times(2) .or. &
+                .not. all(ieee_is_finite(result%intersection_times)) .or. &
+                .not. all(ieee_is_finite(result%intersection_rates)) .or. &
+                any(abs(result%intersection_rates) <= tiny(1.0_dp))) return
+
+        result%intersection_multiplicity_certified = .true.
+        status = GC_CYL_SUCCESS
+        message = 'independent exactly-two theorem certificate attached'
+    end subroutine attach_gc_cylindrical_physical_return_certificate
 
     logical function valid_inputs(state_array, invariants, mass, charge, c_light, &
             options) result(valid)

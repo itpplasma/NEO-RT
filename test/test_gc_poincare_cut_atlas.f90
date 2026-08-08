@@ -4,7 +4,8 @@ program test_gc_poincare_cut_atlas
     !! PCA_PROVIDER_UNAVAILABLE until those generated providers exist.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use gc_poincare_cut_atlas, only: PCA_CALLBACK_FAILURE, PCA_DOMAIN_NONE, &
-        PCA_INCOMPLETE_ATLAS, PCA_INVALID_CONTRACT, PCA_INVALID_STATE, &
+        PCA_INCOMPLETE_ATLAS, PCA_INVALID_CERTIFICATE, PCA_INVALID_CONTRACT, &
+        PCA_INVALID_STATE, &
         PCA_UNKNOWN_MULTIPLICITY, &
         PCA_PROVIDER_UNAVAILABLE, PCA_SUCCESS, PCA_UNRESOLVED_TANGENCY, &
         PCA_WALL_NONE, PCA_BOUNDARY_REGULAR, PCA_BOUNDARY_REFLECTING, &
@@ -15,12 +16,13 @@ program test_gc_poincare_cut_atlas
         poincare_fortsym_allowed_interval_certificate, &
         poincare_fortsym_branch_certificate, poincare_fortsym_cdot_enclosure_verifier, &
         poincare_fortsym_context_binding_certificate, &
-        poincare_fortsym_eq13_cut_kernel, poincare_fortsym_exactly_two_certificate, &
+        poincare_fortsym_eq13_cut_kernel, poincare_fortsym_exactly_two_provider, &
         poincare_fortsym_homoclinic_pair_certificate, &
         poincare_fortsym_phase_space_density_kernel, &
         poincare_fortsym_return_state_certificate, poincare_global_component_t, &
         poincare_homoclinic_pair_t, poincare_phase_space_context_t, &
         poincare_return_cycle_evidence_t, poincare_state_evidence_t, &
+        poincare_exactly_two_certificate_t, &
         poincare_validated_cut_atlas_t, &
         validate_poincare_cut_atlas, validate_return_cycle_evidence
     implicit none
@@ -34,6 +36,7 @@ program test_gc_poincare_cut_atlas
     call test_unordered_events_rejected()
     call test_cdot_tangency_rejected()
     call test_orientation_is_derived_from_cdot()
+    call test_invalid_exactly_two_certificate_rejected()
     call test_crossing_input_identity_mismatch_rejected()
     call test_return_invariant_mismatch_rejected()
     call test_missing_context_provider_fails_closed()
@@ -178,6 +181,25 @@ contains
         call require(status == PCA_SUCCESS, &
             'Cdot-derived opposite/same event ordering was rejected')
     end subroutine test_orientation_is_derived_from_cdot
+
+    subroutine test_invalid_exactly_two_certificate_rejected()
+        type(poincare_cut_atlas_t) :: atlas
+        type(poincare_validated_cut_atlas_t) :: token
+        type(poincare_return_cycle_evidence_t) :: evidence
+        integer :: status
+        character(len=256) :: message
+
+        atlas = test_atlas()
+        call validate_poincare_cut_atlas(atlas, evaluate_line, evaluate_cut, &
+            certify_disjoint, certify_branch, token, status, message)
+        call require(status == PCA_SUCCESS, 'test token setup failed')
+        evidence = test_evidence()
+        call validate_return_cycle_evidence(token, evidence, certify_cdot, &
+            certify_density, certify_context_binding, malformed_exactly_two, &
+            certify_return_state, status, message)
+        call require(status == PCA_INVALID_CERTIFICATE, &
+            'untyped two-event observation was accepted as a theorem')
+    end subroutine test_invalid_exactly_two_certificate_rejected
 
     subroutine test_crossing_input_identity_mismatch_rejected()
         type(poincare_cut_atlas_t) :: atlas
@@ -642,10 +664,12 @@ contains
         status = PCA_PROVIDER_UNAVAILABLE
     end subroutine provider_unavailable_context
 
-    subroutine certify_exactly_two(atlas, evidence, status)
+    subroutine certify_exactly_two(atlas, evidence, certificate, status)
         type(poincare_validated_cut_atlas_t), intent(in) :: atlas
         type(poincare_return_cycle_evidence_t), intent(in) :: evidence
+        type(poincare_exactly_two_certificate_t), intent(out) :: certificate
         integer, intent(out) :: status
+        certificate = poincare_exactly_two_certificate_t()
         if (.not. allocated(evidence%crossings)) then
             status = PCA_UNKNOWN_MULTIPLICITY
             return
@@ -658,8 +682,21 @@ contains
             status = PCA_INVALID_CONTRACT
             return
         end if
+        certificate%certificate_id = 2401
+        certificate%crossing_count = 2
+        certificate%exactly_two_proved = .true.
         status = PCA_SUCCESS
     end subroutine certify_exactly_two
+
+    subroutine malformed_exactly_two(atlas, evidence, certificate, status)
+        type(poincare_validated_cut_atlas_t), intent(in) :: atlas
+        type(poincare_return_cycle_evidence_t), intent(in) :: evidence
+        type(poincare_exactly_two_certificate_t), intent(out) :: certificate
+        integer, intent(out) :: status
+
+        certificate = poincare_exactly_two_certificate_t()
+        status = PCA_SUCCESS
+    end subroutine malformed_exactly_two
 
     subroutine certify_return_state(launch_state, return_state, tolerance, status)
         use, intrinsic :: ieee_arithmetic, only: ieee_is_finite

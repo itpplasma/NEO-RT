@@ -1,11 +1,14 @@
 program test_gc_eqdsk_certified_allowed_provider
     !! Contract-level coverage for an Eq. 13-style certified allowed provider.
     !!
-    !! The Eqdsk-specific provider is not part of this worktree yet.  Keep the
-    !! fixture independent of a graph or field representation and exercise the
-    !! interval/root-isolation contract that a provider must satisfy.
+    !! Keep the fixture independent of a graph or field representation and
+    !! exercise both the provider's fixed-invariant certificate seam and the
+    !! interval/root-isolation contract it must satisfy.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use, intrinsic :: ieee_arithmetic, only: ieee_next_after
+    use neort_gc_eqdsk_certified_allowed_provider, only: &
+        GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE, &
+        verify_gc_eqdsk_fixed_invariant_stationary_certificate
     use neort_gc_certified_interval_roots, only: &
         GC_INTERVAL_ROOT_CALLBACK_FAILURE, GC_INTERVAL_ROOT_SIMPLE, &
         GC_INTERVAL_ROOT_SUCCESS, GC_INTERVAL_ROOT_UNRESOLVED, &
@@ -105,9 +108,54 @@ program test_gc_eqdsk_certified_allowed_provider
         .not. result%coverage_certified .and. result%nroots == 0, &
         'forged cut identity was accepted')
 
+    call check_fixed_invariant_stationary_certificate_seam()
+
     write (*, '(A)') 'test_gc_eqdsk_certified_allowed_provider OK'
 
 contains
+
+    subroutine check_fixed_invariant_stationary_certificate_seam()
+        type(gc_interval_callback_result_t) :: candidate, point_value
+        integer :: status
+
+        candidate = gc_interval_callback_result_t()
+        candidate%query_lo = 0.25_dp
+        candidate%query_hi = 0.75_dp
+        candidate%cut_id = CUT_ID
+        candidate%enclosure_certificate_id = ENCLOSURE_ID
+        candidate%stationary_certificate_id = STATIONARY_ID
+        candidate%stationary_point = TANGENT_ROOT
+        candidate%f = gc_interval_t(-1.0_dp, 1.0_dp)
+        candidate%df = gc_interval_t(-1.0_dp, 1.0_dp)
+        candidate%d2f = gc_interval_t(1.0_dp, 3.0_dp)
+
+        point_value = candidate
+        point_value%query_lo = TANGENT_ROOT
+        point_value%query_hi = TANGENT_ROOT
+        point_value%f = gc_interval_t(0.0_dp, 0.0_dp)
+        point_value%df = gc_interval_t(0.0_dp, 0.0_dp)
+        point_value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
+        call verify_gc_eqdsk_fixed_invariant_stationary_certificate( &
+            candidate%query_lo, candidate%query_hi, candidate, point_value, &
+            ENCLOSURE_ID, STATIONARY_ID, status)
+        call require(status == GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE, &
+            'unregistered stationary identity was accepted')
+
+        point_value%f = gc_interval_t(-epsilon(1.0_dp), epsilon(1.0_dp))
+        call verify_gc_eqdsk_fixed_invariant_stationary_certificate( &
+            candidate%query_lo, candidate%query_hi, candidate, point_value, &
+            ENCLOSURE_ID, STATIONARY_ID, status)
+        call require(status == GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE, &
+            'non-exact stationary value was promoted to a certificate')
+
+        point_value%f = gc_interval_t(0.0_dp, 0.0_dp)
+        point_value%stationary_certificate_id = 0
+        call verify_gc_eqdsk_fixed_invariant_stationary_certificate( &
+            candidate%query_lo, candidate%query_hi, candidate, point_value, &
+            ENCLOSURE_ID, STATIONARY_ID, status)
+        call require(status == GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE, &
+            'missing stationary identity was accepted')
+    end subroutine check_fixed_invariant_stationary_certificate_seam
 
     subroutine manufactured_callback(lo, hi, value)
         real(dp), intent(in) :: lo, hi

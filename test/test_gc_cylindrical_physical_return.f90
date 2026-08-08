@@ -62,8 +62,14 @@ program test_gc_cylindrical_physical_return
     use neort_gc_cylindrical_physical_return, only: &
         GC_CYL_PHYSICAL_EVENT_RADIAL_DOMAIN, GC_CYL_PHYSICAL_EVENT_RETURN, &
         GC_CYL_PHYSICAL_EVENT_WALL, &
+        GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID, &
+        GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_CERTIFIED, &
+        GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN, &
+        gc_cylindrical_physical_return_certificate_t, &
         gc_cylindrical_physical_return_options_t, &
-        gc_cylindrical_physical_return_t, compute_gc_cylindrical_physical_return
+        gc_cylindrical_physical_return_t, &
+        attach_gc_cylindrical_physical_return_certificate, &
+        compute_gc_cylindrical_physical_return
     use test_physical_return_models, only: circular_helical_field_t, &
         z_limit_wall_t
     use util_for_test, only: pass_test
@@ -145,6 +151,11 @@ contains
         if (.not. local_result%physical_return_found) then
             error stop 'circular return was not certified'
         end if
+        if (local_result%intersection_multiplicity_certified .or. &
+                local_result%multiplicity_status /= &
+                GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN) then
+            error stop 'single numerical return self-certified multiplicity'
+        end if
         call require_close('circular period', local_result%period, &
             expected_circular_period, 3.0e-8_dp)
         call require_close('circular delta phi', local_result%delta_phi, &
@@ -164,6 +175,8 @@ contains
 
         type(gc_cylindrical_physical_return_options_t) :: disarm_options
         type(gc_cylindrical_physical_return_t) :: local_result
+        type(gc_cylindrical_physical_return_certificate_t) :: certificate
+        character(len=256) :: message
 
         disarm_options = local_options
         disarm_options%require_opposite_intersection = .true.
@@ -184,6 +197,11 @@ contains
         if (local_result%intersection_count /= 2) then
             error stop 'two-stage disarm did not record two crossings'
         end if
+        if (local_result%intersection_multiplicity_certified .or. &
+                local_result%multiplicity_status /= &
+                GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN) then
+            error stop 'two numerical events self-certified multiplicity'
+        end if
         if (local_result%intersection_orientations(1) /= -1 .or. &
                 local_result%intersection_orientations(2) /= 1) then
             error stop 'two-stage crossing orientations are wrong'
@@ -198,6 +216,26 @@ contains
         call require_close('true same-oriented event time', &
             local_result%intersection_times(2), expected_circular_period, &
             3.0e-8_dp)
+
+        certificate%certificate_id = 2401
+        certificate%crossing_count = 2
+        certificate%exactly_two_proved = .true.
+        call attach_gc_cylindrical_physical_return_certificate(local_result, &
+            certificate, status, message)
+        if (status /= GC_CYL_SUCCESS .or. &
+                .not. local_result%intersection_multiplicity_certified .or. &
+                local_result%multiplicity_status /= &
+                GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_CERTIFIED) then
+            error stop 'independent exactly-two certificate was not attached'
+        end if
+
+        certificate = gc_cylindrical_physical_return_certificate_t()
+        call attach_gc_cylindrical_physical_return_certificate(local_result, &
+            certificate, status, message)
+        if (status /= GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID .or. &
+                local_result%intersection_multiplicity_certified) then
+            error stop 'invalid exactly-two certificate did not fail closed'
+        end if
     end subroutine check_disarm_restart
 
     subroutine check_helical_return(initial, local_invariants, local_options)

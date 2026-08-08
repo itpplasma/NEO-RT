@@ -20,6 +20,7 @@ module gc_poincare_cut_atlas
     integer, parameter, public :: PCA_INCOMPLETE_ATLAS = 5
     integer, parameter, public :: PCA_PROVIDER_UNAVAILABLE = 6
     integer, parameter, public :: PCA_INVALID_STATE = 7
+    integer, parameter, public :: PCA_INVALID_CERTIFICATE = 8
 
     integer, parameter, public :: PCA_WALL_NONE = 0
     integer, parameter, public :: PCA_WALL_HIT = 1
@@ -154,6 +155,17 @@ module gc_poincare_cut_atlas
         type(poincare_orbit_diagnostics_t) :: diagnostics
     end type poincare_return_cycle_evidence_t
 
+    type, public :: poincare_exactly_two_certificate_t
+        !! Theorem evidence supplied independently of numerical integration.
+        !!
+        !! crossing_count is the multiplicity proved by the provider; it is
+        !! deliberately not inferred from evidence%crossings.  certificate_id
+        !! identifies the theorem/provider instance and must be positive.
+        integer :: certificate_id = 0
+        integer :: crossing_count = 0
+        logical :: exactly_two_proved = .false.
+    end type poincare_exactly_two_certificate_t
+
     abstract interface
         subroutine poincare_cut_branch_evaluator(branch, parameter, position, &
                 parameterization_value, parameterization_derivative, status)
@@ -235,13 +247,16 @@ module gc_poincare_cut_atlas
             integer, intent(out) :: status
         end subroutine poincare_fortsym_context_binding_certificate
 
-        subroutine poincare_fortsym_exactly_two_certificate(atlas, evidence, status)
+        subroutine poincare_fortsym_exactly_two_provider(atlas, evidence, &
+                certificate, status)
             import :: poincare_validated_cut_atlas_t
             import :: poincare_return_cycle_evidence_t
+            import :: poincare_exactly_two_certificate_t
             type(poincare_validated_cut_atlas_t), intent(in) :: atlas
             type(poincare_return_cycle_evidence_t), intent(in) :: evidence
+            type(poincare_exactly_two_certificate_t), intent(out) :: certificate
             integer, intent(out) :: status
-        end subroutine poincare_fortsym_exactly_two_certificate
+        end subroutine poincare_fortsym_exactly_two_provider
 
         subroutine poincare_fortsym_return_state_certificate(launch_state, &
                 return_state, tolerance, status)
@@ -262,7 +277,7 @@ module gc_poincare_cut_atlas
     public :: poincare_fortsym_cdot_enclosure_verifier
     public :: poincare_fortsym_phase_space_density_kernel
     public :: poincare_fortsym_context_binding_certificate
-    public :: poincare_fortsym_exactly_two_certificate
+    public :: poincare_fortsym_exactly_two_provider
     public :: poincare_fortsym_return_state_certificate
     public :: make_symmetric_midplane_atlas
     public :: validate_poincare_cut_atlas
@@ -680,14 +695,14 @@ contains
 
     subroutine validate_return_cycle_evidence(validated_atlas, evidence, &
             cdot_enclosure, density_kernel, context_binding_certificate, &
-            exactly_two_certificate, return_state_certificate, status, message)
+            exactly_two_provider, return_state_certificate, status, message)
         type(poincare_validated_cut_atlas_t), intent(in) :: validated_atlas
         type(poincare_return_cycle_evidence_t), intent(in) :: evidence
         procedure(poincare_fortsym_cdot_enclosure_verifier) :: cdot_enclosure
         procedure(poincare_fortsym_phase_space_density_kernel) :: density_kernel
         procedure(poincare_fortsym_context_binding_certificate) :: &
             context_binding_certificate
-        procedure(poincare_fortsym_exactly_two_certificate) :: exactly_two_certificate
+        procedure(poincare_fortsym_exactly_two_provider) :: exactly_two_provider
         procedure(poincare_fortsym_return_state_certificate) :: &
             return_state_certificate
         integer, intent(out) :: status
@@ -697,6 +712,7 @@ contains
         integer :: launch_sign, first_sign, second_sign, crossing_sign
         real(dp) :: signed_jacobian, positive_density
         logical :: found
+        type(poincare_exactly_two_certificate_t) :: exactly_two_certificate
 
         status = PCA_SUCCESS
         message = 'certified two-intersection full return'
@@ -809,15 +825,27 @@ contains
             message = 'launch/return state certificate failed'
             return
         end if
-        call exactly_two_certificate(validated_atlas, evidence, local_status)
+        !! The observed crossing array is evidence only.  Its length cannot
+        !! prove that no additional crossings were missed.  Only the separate
+        !! theorem/provider may issue the typed multiplicity certificate.
+        exactly_two_certificate = poincare_exactly_two_certificate_t()
+        call exactly_two_provider(validated_atlas, evidence, exactly_two_certificate, &
+            local_status)
         if (local_status == PCA_PROVIDER_UNAVAILABLE) then
             status = PCA_PROVIDER_UNAVAILABLE
             message = 'Fortsym exactly-two theorem provider is unavailable'
             return
         end if
         if (local_status /= PCA_SUCCESS) then
-            status = PCA_UNKNOWN_MULTIPLICITY
-            message = 'Fortsym exactly-two theorem certificate failed'
+            status = PCA_INVALID_CERTIFICATE
+            message = 'Fortsym exactly-two theorem provider failed'
+            return
+        end if
+        if (exactly_two_certificate%certificate_id <= 0 .or. &
+                exactly_two_certificate%crossing_count /= 2 .or. &
+                .not. exactly_two_certificate%exactly_two_proved) then
+            status = PCA_INVALID_CERTIFICATE
+            message = 'exactly-two provider returned no valid theorem certificate'
             return
         end if
 
