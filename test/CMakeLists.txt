@@ -218,6 +218,7 @@ add_test(NAME test_gc_eqdsk_composite_cut_atlas
 set_tests_properties(test_gc_eqdsk_composite_cut_atlas PROPERTIES
     ENVIRONMENT
         "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+    LABELS slow
     TIMEOUT 180
 )
 
