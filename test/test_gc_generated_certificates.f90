@@ -62,7 +62,7 @@ program test_gc_generated_certificates
             'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884')) &
         error stop 'EQDSK axis-rho-limit certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_flux_profile_segment', &
-            'neort-cert-v1:eqdsk_flux_profile_segment:2:fortsym-5457884')) &
+            'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884')) &
         error stop 'EQDSK flux-profile certificate registry mismatch'
     if (index(fortsym_revision, '545788453a204d58705f735b519c3863c2f734c8') == 0) &
         error stop 'Fortsym revision provenance missing'
