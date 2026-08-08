@@ -393,6 +393,10 @@ add_test(NAME test_gc_full_fow_symbolic_kernel
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_symbolic_kernel.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_potato_class_coordinate_map
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_potato_class_coordinate_map.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_unit_quadrature
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_unit_quadrature.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

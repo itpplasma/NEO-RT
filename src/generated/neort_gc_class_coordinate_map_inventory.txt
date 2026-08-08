@@ -1,0 +1,24 @@
+# neort_gc_class_coordinate_map_inventory_v1
+generator=tools/gc_symbolics/app/gen_gc_class_coordinate_map.f90
+fortsym_revision=fortsym@545788453a204d58705f735b519c3863c2f734c8
+kernel=neort_gc_class_coordinate_map_generated:evaluate_neort_gc_class_coordinate_map
+boundary_convention=1:rho;2:inner;3:separatrix;4:xpoint
+orientation=ifuntype=10*left+right;34 and 43 use the same increasing 1/2*(1+tanh(x)) map
+log_truncation=type3:0.5*log(margin/width);type4:0.25*log(margin/width)
+outputs=xi,dxi_dx,xbeg,xend for all 16 pairs
+pair=1:1:ifuntype=11
+pair=1:2:ifuntype=12
+pair=1:3:ifuntype=13
+pair=1:4:ifuntype=14
+pair=2:1:ifuntype=21
+pair=2:2:ifuntype=22
+pair=2:3:ifuntype=23
+pair=2:4:ifuntype=24
+pair=3:1:ifuntype=31
+pair=3:2:ifuntype=32
+pair=3:3:ifuntype=33
+pair=3:4:ifuntype=34
+pair=4:1:ifuntype=41
+pair=4:2:ifuntype=42
+pair=4:3:ifuntype=43
+pair=4:4:ifuntype=44

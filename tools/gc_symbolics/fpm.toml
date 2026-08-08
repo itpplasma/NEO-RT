@@ -30,6 +30,11 @@ source-dir = "app"
 main = "gen_full_fow_physics.f90"
 
 [[executable]]
+name = "gen_gc_class_coordinate_map"
+source-dir = "app"
+main = "gen_gc_class_coordinate_map.f90"
+
+[[executable]]
 name = "gen_circular_flux_continuation"
 source-dir = "app"
 main = "gen_circular_flux_continuation.f90"

@@ -107,6 +107,8 @@ set(NEO_RT_SOURCES
     src/gc_perpendicular_invariant.f90
     src/gc_outward_interval.f90
     src/generated/neort_generated_certificate_registry.f90
+    src/generated/neort_gc_class_coordinate_map_symbolic.f90
+    src/gc_potato_class_coordinate_map.f90
     src/generated/neort_cylindrical_geometry_symbolic.f90
     src/generated/neort_cylindrical_bstar_symbolic.f90
     src/generated/neort_cylindrical_littlejohn_symbolic.f90
@@ -290,6 +292,12 @@ add_custom_target(check_neort_full_fow_generated
         -P ${CMAKE_SOURCE_DIR}/tools/gc_symbolics/check_full_fow_generated.cmake
     USES_TERMINAL
     COMMENT "Regenerating and comparing Fortsym full-FOW kernels")
+
+add_custom_target(check_neort_gc_class_coordinate_map_generated
+    COMMAND ${CMAKE_COMMAND} -DNEORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_SOURCE_DIR}/tools/gc_symbolics/check_gc_class_coordinate_map_generated.cmake
+    USES_TERMINAL
+    COMMENT "Regenerating and comparing Fortsym POTATO class-coordinate map")
 
 add_custom_target(check_neort_circular_flux_continuation_generated
     COMMAND ${CMAKE_COMMAND} -DNEORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}

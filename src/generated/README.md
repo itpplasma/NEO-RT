@@ -24,6 +24,8 @@ Integration hooks:
 - the main CMake source list contains generated modules in dependency order;
 - `check_neort_full_fow_generated` runs
   `tools/gc_symbolics/check_full_fow_generated.cmake` and compares every file;
+- `check_neort_gc_class_coordinate_map_generated` regenerates and compares the
+  bounded POTATO class-coordinate kernel and its freshness inventory;
 - set `NEORT_TEST_TMPDIR` for the regeneration comparison directory (remote
   jobs use `/var/tmp/ert`; the fallback is a checkout-side directory);
 - runtime consumers still own domain/status/orbit-topology orchestration.
