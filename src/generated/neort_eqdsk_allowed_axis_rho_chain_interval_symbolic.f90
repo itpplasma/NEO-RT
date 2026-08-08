@@ -18,11 +18,9 @@ contains
         implicit none
         type(gc_outward_interval_t), intent(in) :: dR_drho_tor_limit, dvparallel_squared_dR_axis, dpsi_star_dR_axis
         type(gc_outward_interval_t), intent(out) :: dvparallel_squared_drho_tor_axis, dpsi_star_drho_tor_axis
-        type(gc_outward_interval_t) :: t1
 
-        t1 = sqrt(dpsihat_dstor*psi_sep*2/(psi_RR + dZ_dR*psi_RZ*2 + psi_ZZ*dZ_dR**2))
-        dvparallel_squared_drho_tor_axis = branch_sign*dvparallel_squared_dR*t1
-        dpsi_star_drho_tor_axis = branch_sign*dpsi_star_dR*t1
+        dvparallel_squared_drho_tor_axis = dR_drho_tor_limit*dvparallel_squared_dR
+        dpsi_star_drho_tor_axis = dR_drho_tor_limit*dpsi_star_dR
 
     end subroutine evaluate_neort_eqdsk_allowed_axis_rho_chain_interval
 
