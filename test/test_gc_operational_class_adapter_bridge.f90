@@ -1,5 +1,5 @@
 program test_gc_operational_class_adapter_bridge
-    use, intrinsic :: iso_fortran_env, only: dp => real64, int64
+    use, intrinsic :: iso_fortran_env, only: dp => real64, error_unit, int64
     use neort_gc_certified_interval_roots, only: &
         gc_interval_root_box_t, gc_interval_t
     use neort_gc_cylindrical_class_adapter, only: &
@@ -208,7 +208,10 @@ contains
         logical, intent(in) :: condition
         character(len=*), intent(in) :: message
 
-        if (.not. condition) error stop message
+        if (.not. condition) then
+            write (error_unit, '(a)') trim(message)
+            error stop 1
+        end if
     end subroutine require
 
 end program test_gc_operational_class_adapter_bridge
