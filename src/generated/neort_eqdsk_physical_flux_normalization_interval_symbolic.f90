@@ -9,16 +9,16 @@ module neort_eqdsk_physical_flux_normalization_interval_symbolic
     public :: evaluate_neort_eqdsk_physical_flux_normalization_interval
 contains
 
-    pure subroutine evaluate_neort_eqdsk_physical_flux_normalization_interval(psi_physical, psi_sep, &
-            psihat)
+    pure subroutine evaluate_neort_eqdsk_physical_flux_normalization_interval(psi_physical, field_scale, &
+            psi_sep, psihat)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
             operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
-        type(gc_outward_interval_t), intent(in) :: psi_physical, psi_sep
+        type(gc_outward_interval_t), intent(in) :: psi_physical, field_scale, psi_sep
         type(gc_outward_interval_t), intent(out) :: psihat
 
-        psihat = psi_physical/psi_sep
+        psihat = psi_physical/field_scale/psi_sep
 
     end subroutine evaluate_neort_eqdsk_physical_flux_normalization_interval
 

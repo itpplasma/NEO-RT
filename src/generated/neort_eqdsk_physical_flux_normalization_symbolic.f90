@@ -9,13 +9,14 @@ module neort_eqdsk_physical_flux_normalization_symbolic
     public :: evaluate_neort_eqdsk_physical_flux_normalization
 contains
 
-    pure subroutine evaluate_neort_eqdsk_physical_flux_normalization(psi_physical, psi_sep, psihat)
+    pure subroutine evaluate_neort_eqdsk_physical_flux_normalization(psi_physical, field_scale, psi_sep, &
+            psihat)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: psi_physical, psi_sep
+        real(dp), intent(in) :: psi_physical, field_scale, psi_sep
         real(dp), intent(out) :: psihat
 
-        psihat = psi_physical/psi_sep
+        psihat = psi_physical/field_scale/psi_sep
 
     end subroutine evaluate_neort_eqdsk_physical_flux_normalization
 
