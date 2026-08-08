@@ -351,6 +351,11 @@ add_test(NAME test_gc_cylindrical_physical_return
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_physical_return_certificate
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_physical_return_certificate.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 if(USE_STANDALONE)
     add_test(NAME test_gc_cylindrical_backend_entry
         COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_backend_entry.x
