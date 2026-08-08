@@ -1422,6 +1422,8 @@ contains
         canonical_scale = max(canonical_scale, abs(candidate%psi_star_max))
         canonical_scale = max(canonical_scale, abs(candidate%canonical_measure))
         do i = 1, size(split)
+            if (.not. split(i)%topology_certified) return
+            if (.not. split(i)%root_isolation_certified) return
             if (.not. all(ieee_is_finite([split(i)%rc_min, split(i)%rc_max, &
                 split(i)%psi_star_min, split(i)%psi_star_max, &
                 split(i)%canonical_measure]))) return
@@ -1494,11 +1496,6 @@ contains
         end do
         do i = 1, size(split) - 1
             if (split(i)%upper_root) return
-        end do
-        do i = 1, size(split)
-            split(i)%topology_certified = .true.
-            split(i)%root_isolation_certified = candidate%root_isolation_certified
-            split(i)%orbit_return_certified = .true.
         end do
         status = GC_CYL_CLASS_SUCCESS
     end subroutine validate_split

@@ -52,6 +52,7 @@ module gc_cylindrical_class_adapter_test_support
 
     public :: manufactured_cut_map
     public :: identity_splitter
+    public :: topology_only_splitter
     public :: adversarial_splitter
     public :: manufactured_allowed_region_provider
     public :: manufactured_allowed_region_verifier
@@ -144,9 +145,31 @@ contains
         base_id = 1000 + candidate%component_id
         if (sigma < 0) base_id = base_id + 100
         split_classes(1)%component_id = base_id
+        split_classes(1)%orbit_return_certified = .true.
         certified = .true.
         status = GC_CYL_CLASS_SUCCESS
     end subroutine identity_splitter
+
+    subroutine topology_only_splitter(h0, jperp, sigma, candidate, user_data, &
+            split_classes, certified, status)
+        real(dp), intent(in) :: h0, jperp
+        integer, intent(in) :: sigma
+        type(gc_cylindrical_class_interval_t), intent(in) :: candidate
+        class(gc_callback_context_t), pointer, intent(inout) :: user_data
+        type(gc_cylindrical_class_interval_t), allocatable, intent(out) :: &
+            split_classes(:)
+        logical, intent(out) :: certified
+        integer, intent(out) :: status
+
+        associate (unused_h0 => h0, unused_jperp => jperp, &
+                unused_sigma => sigma, unused_user_data => user_data)
+        end associate
+        allocate(split_classes(1))
+        split_classes(1) = candidate
+        split_classes(1)%orbit_return_certified = .false.
+        certified = .true.
+        status = GC_CYL_CLASS_SUCCESS
+    end subroutine topology_only_splitter
 
     subroutine manufactured_allowed_region_provider(h0, jperp, sigma, &
             user_data, regions, status)
@@ -538,7 +561,7 @@ program test_gc_cylindrical_class_adapter
         manufactured_cut_map, manufactured_field_t, manufactured_potential_t, &
         manufactured_allowed_region_provider, manufactured_allowed_region_verifier, &
         manufactured_region_state_t, permissive_allowed_region_verifier, &
-        identity_splitter, target_dvparallel_squared, &
+        identity_splitter, topology_only_splitter, target_dvparallel_squared, &
         target_vparallel_squared
     use neort_gc_cylindrical_class_adapter, only: &
         GC_CYL_CLASS_JK_UNITS, &
@@ -561,6 +584,7 @@ program test_gc_cylindrical_class_adapter
     type(gc_cylindrical_class_adapter_t) :: adapter
     type(gc_cylindrical_class_adapter_t) :: split_adapter
     type(gc_cylindrical_class_adapter_t) :: thin_adapter
+    type(gc_cylindrical_class_adapter_t) :: topology_only_adapter
     type(gc_cylindrical_class_adapter_t) :: invalid_adapter
     type(gc_cylindrical_class_adapter_t) :: uncertified_adapter
     type(gc_cylindrical_class_result_t) :: result
@@ -579,6 +603,7 @@ program test_gc_cylindrical_class_adapter
     type(manufactured_region_state_t), target :: region_state
     type(gc_cylindrical_class_adapter_t) :: malformed_adapter
     type(gc_cylindrical_class_result_t) :: malformed_result
+    type(gc_cylindrical_class_result_t) :: topology_only_result
     integer :: status, point_status, plus_id, minus_id, tangent_id
     real(dp) :: omega_c, expected_v2, expected_dv2, expected_v
     real(dp) :: expected_psi, expected_psi_star, expected_dpsi_star
@@ -695,6 +720,26 @@ program test_gc_cylindrical_class_adapter
     do i = 1, split_result%nclasses
         call require(split_result%classes(i)%orbit_return_certified, &
             'uncertified class escaped the splitter seam')
+    end do
+
+    call initialize_gc_cylindrical_class_adapter(field, potential, &
+        H0_REFERENCE, JPERP_REFERENCE, MASS, CHARGE, C_LIGHT, RC_MIN, RC_MAX, &
+        manufactured_cut_map, topology_only_adapter, status, options=options, &
+        splitter=topology_only_splitter, user_data=region_state, &
+        allowed_region_provider=manufactured_allowed_region_provider, &
+        allowed_region_verifier=manufactured_allowed_region_verifier, &
+        allowed_region_certificate_id=MANUFACTURED_CERTIFICATE_ID)
+    call require(status == GC_CYL_CLASS_SUCCESS, &
+        'topology-only adapter initialization failed')
+    call enumerate_gc_cylindrical_classes(topology_only_adapter, &
+        topology_only_result, status)
+    call require(status == GC_CYL_CLASS_SUCCESS .and. &
+        topology_only_result%class_complete, &
+        'topology-only classes were not structurally complete')
+    do i = 1, topology_only_result%nclasses
+        call require(.not. &
+            topology_only_result%classes(i)%orbit_return_certified, &
+            'topology-only splitter fabricated physical-return evidence')
     end do
 
     plus_id = class_id_at(split_result%classes, 1, 0.75_dp)
