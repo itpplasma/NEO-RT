@@ -680,9 +680,9 @@ contains
             evaluate(zbox_bottom_expr, 0.0_dp)
         write(unit, '(a,es24.16e3)') 'ZBOX_LENGTH = ', box_value
         write(unit, '(a)') ''
-        write(unit, '(a)') 'FPROF = np.full(NR, '
+        write(unit, '(a)') 'FPROF = np.full(NR,'
         write(unit, '(a,es24.16e3,a)') '    ', f_value, ', dtype=np.float64)'
-        write(unit, '(a)') 'FFPRIMEPROF = np.full(NR, '
+        write(unit, '(a)') 'FFPRIMEPROF = np.full(NR,'
         write(unit, '(a,es24.16e3,a)') '    ', ffprime_value, ', dtype=np.float64)'
         write(unit, '(a)') 'PTOTPROF = np.array(['
         do k = 0, FIXTURE_NR-1
