@@ -20,7 +20,7 @@ program test_gc_eqdsk_operational_point
 
     type(eqdsk_cut_jet_t) :: cut, invalid_cut
     type(eqdsk_operational_point_t) :: actual
-    real(dp) :: expected(31), observed(31)
+    real(dp) :: expected(32), observed(32)
     real(dp) :: dZ_dR, d2Z_dR2, dpsihat_dR, d2psihat_dR2
     real(dp) :: field_norm_squared, psi_physical, dpsi_physical_dR
     real(dp) :: d2psi_physical_dR2, bmod, dbmod_dR, d2bmod_dR2
