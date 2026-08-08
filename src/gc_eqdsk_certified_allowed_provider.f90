@@ -259,6 +259,11 @@ contains
                 root_results(branch))
             if (root_results(branch)%status /= GC_INTERVAL_ROOT_SUCCESS .or. &
                     .not. root_results(branch)%coverage_certified) then
+                write (*, '(a,6(1x,i0),2(1x,es24.16))') &
+                    'allowed root diagnostic=', branch, root_results(branch)%status, &
+                    root_results(branch)%nroots, root_results(branch)%boxes_visited, &
+                    root_results(branch)%boxes_discarded, &
+                    root_results(branch)%unresolved_boxes, active_lo, active_hi
                 status = GC_EQDSK_ALLOWED_PROVIDER_ROOT_FAILURE
                 return
             end if
