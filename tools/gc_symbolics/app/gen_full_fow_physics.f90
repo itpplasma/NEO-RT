@@ -197,6 +197,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_flux_profile_rho_chain_roots(1)
     type(expr_t) :: eqdsk_cut_flux_coordinate_roots(3)
     type(expr_t) :: eqdsk_cut_axis_rho_limit_roots(3)
+    type(expr_t) :: eqdsk_allowed_rho_chain_roots(7)
+    type(expr_t) :: eqdsk_allowed_axis_rho_chain_roots(2)
     type(expr_t) :: eqdsk_cut_endpoint_system_roots(6)
     type(expr_t) :: eqdsk_cut_endpoint_newton_roots(7)
     type(expr_t) :: eqdsk_cut_endpoint_krawczyk_roots(2)
@@ -374,8 +376,22 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_dpsihat_drho, eqcut_dR_drho, eqcut_dZ_drho
     type(expr_t) :: eqcut_coordinate_dpsihat_dR
     type(expr_t) :: eqcut_coordinate_dZ_dR
+    type(expr_t) :: eqcut_coordinate_d2psihat_dstor2
+    type(expr_t) :: eqcut_coordinate_d2psihat_dR2
+    type(expr_t) :: eqcut_d2stor_drho2, eqcut_d2psihat_drho2
+    type(expr_t) :: eqcut_d2R_drho2
+    type(expr_t) :: eqcut_allowed_g_R, eqcut_allowed_g_RR
+    type(expr_t) :: eqcut_allowed_g_rho, eqcut_allowed_g_rhorho
+    type(expr_t) :: eqcut_allowed_psistar_R
+    type(expr_t) :: eqcut_allowed_psistar_rho
+    type(expr_t) :: eqcut_allowed_axis_g_rho
+    type(expr_t) :: eqcut_allowed_axis_psistar_rho
     type(expr_t) :: eqcut_flux_coordinate_chain_residual
     type(expr_t) :: eqcut_flux_inverse_chain_residual
+    type(expr_t) :: eqcut_flux_inverse_second_chain_residual
+    type(expr_t) :: eqcut_allowed_first_chain_residual
+    type(expr_t) :: eqcut_allowed_second_chain_residual
+    type(expr_t) :: eqcut_allowed_psistar_chain_residual
     type(expr_t) :: eqcut_rho_map_derivative_residual
     type(expr_t) :: eqcut_axis_rho_dR, eqcut_axis_rho_dZ
     type(expr_t) :: eqcut_axis_rho_limit_residual
@@ -913,18 +929,48 @@ program gen_full_fow_physics
     eqcut_coordinate_dpsihat_dR = sym(arena, "dpsihat_dR")
     eqcut_coordinate_dZ_dR = sym(arena, "dZ_dR")
     eqcut_coordinate_dstor_drho = sym(arena, "dstor_drho_tor")
+    eqcut_coordinate_d2psihat_dstor2 = sym(arena, "d2psihat_dstor2")
+    eqcut_coordinate_d2psihat_dR2 = sym(arena, "d2psihat_dR2")
+    eqcut_allowed_g_R = sym(arena, "dvparallel_squared_dR")
+    eqcut_allowed_g_RR = sym(arena, "d2vparallel_squared_dR2")
+    eqcut_allowed_psistar_R = sym(arena, "dpsi_star_dR")
     eqcut_s_tor = eqcut_rho**2
     eqcut_rho_dstor_drho = 2*eqcut_rho
+    eqcut_d2stor_drho2 = 2
     eqcut_dpsihat_drho = eqcut_coordinate_dstor_drho*eqcut_dpsihat_dstor
+    eqcut_d2psihat_drho2 = eqcut_coordinate_d2psihat_dstor2* &
+        eqcut_coordinate_dstor_drho**2 + &
+        eqcut_dpsihat_dstor*eqcut_d2stor_drho2
     eqcut_dR_drho = eqcut_dpsihat_drho/eqcut_coordinate_dpsihat_dR
+    eqcut_d2R_drho2 = (eqcut_d2psihat_drho2 - &
+        eqcut_coordinate_d2psihat_dR2*eqcut_dR_drho**2)/ &
+        eqcut_coordinate_dpsihat_dR
     eqcut_dZ_drho = eqcut_coordinate_dZ_dR*eqcut_dR_drho
+    eqcut_allowed_g_rho = eqcut_allowed_g_R*eqcut_dR_drho
+    eqcut_allowed_g_rhorho = eqcut_allowed_g_RR*eqcut_dR_drho**2 + &
+        eqcut_allowed_g_R*eqcut_d2R_drho2
+    eqcut_allowed_psistar_rho = eqcut_allowed_psistar_R*eqcut_dR_drho
     eqcut_flux_coordinate_chain_residual = eqcut_dpsihat_drho &
         -eqcut_coordinate_dstor_drho*eqcut_dpsihat_dstor
     eqcut_flux_inverse_chain_residual = eqcut_coordinate_dpsihat_dR &
         *eqcut_dR_drho-eqcut_dpsihat_drho
+    eqcut_flux_inverse_second_chain_residual = &
+        eqcut_coordinate_dpsihat_dR*eqcut_d2R_drho2 + &
+        eqcut_coordinate_d2psihat_dR2*eqcut_dR_drho**2 - &
+        eqcut_d2psihat_drho2
+    eqcut_allowed_first_chain_residual = eqcut_allowed_g_rho - &
+        eqcut_allowed_g_R*eqcut_dR_drho
+    eqcut_allowed_second_chain_residual = eqcut_allowed_g_rhorho - &
+        (eqcut_allowed_g_RR*eqcut_dR_drho**2 + &
+        eqcut_allowed_g_R*eqcut_d2R_drho2)
+    eqcut_allowed_psistar_chain_residual = eqcut_allowed_psistar_rho - &
+        eqcut_allowed_psistar_R*eqcut_dR_drho
     eqcut_axis_rho_dR = eqcut_axis_branch_sign &
         *sqrt(2*eqcut_dpsihat_dstor/eqcut_axis_curvature)
     eqcut_axis_rho_dZ = eqcut_axis_slope*eqcut_axis_rho_dR
+    eqcut_allowed_axis_g_rho = eqcut_allowed_g_R*eqcut_axis_rho_dR
+    eqcut_allowed_axis_psistar_rho = &
+        eqcut_allowed_psistar_R*eqcut_axis_rho_dR
     eqcut_axis_rho_limit_residual = eqcut_axis_curvature &
         *eqcut_axis_rho_dR**2 &
         -2*eqcut_axis_branch_sign**2*eqcut_dpsihat_dstor
@@ -2315,6 +2361,18 @@ program gen_full_fow_physics
         "inverse cut-flux chart preserves normalized-flux derivative", &
         eqcut_flux_inverse_chain_residual)
     call check_identity(proofs, proof_engine, &
+        "inverse cut-flux chart preserves second derivative", &
+        eqcut_flux_inverse_second_chain_residual)
+    call check_identity(proofs, proof_engine, &
+        "allowed energy rho derivative is the inverse-chart chain", &
+        eqcut_allowed_first_chain_residual)
+    call check_identity(proofs, proof_engine, &
+        "allowed energy rho curvature is the inverse-chart chain", &
+        eqcut_allowed_second_chain_residual)
+    call check_identity(proofs, proof_engine, &
+        "canonical rho derivative is the inverse-chart chain", &
+        eqcut_allowed_psistar_chain_residual)
+    call check_identity(proofs, proof_engine, &
         "axis rho_tor derivative has finite square-root limit", &
         eqcut_axis_rho_limit_residual)
     call check_identity(proofs, proof_engine, &
@@ -2651,6 +2709,12 @@ program gen_full_fow_physics
         eqcut_dZ_drho]
     eqdsk_cut_axis_rho_limit_roots = [eqcut_axis_curvature, &
         eqcut_axis_rho_dR, eqcut_axis_rho_dZ]
+    eqdsk_allowed_rho_chain_roots = [eqcut_dpsihat_drho, &
+        eqcut_d2psihat_drho2, eqcut_dR_drho, eqcut_d2R_drho2, &
+        eqcut_allowed_g_rho, eqcut_allowed_g_rhorho, &
+        eqcut_allowed_psistar_rho]
+    eqdsk_allowed_axis_rho_chain_roots = [eqcut_allowed_axis_g_rho, &
+        eqcut_allowed_axis_psistar_rho]
     eqdsk_cut_endpoint_system_roots = [endpoint_n, endpoint_flux_residual, &
         endpoint_n_r, endpoint_n_z, endpoint_flux_r, endpoint_flux_z]
     eqdsk_cut_endpoint_newton_roots = [endpoint_determinant, &
@@ -2754,8 +2818,11 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_axis_curvature_roots)
     call simplify_array(eqdsk_cut_axis_limit_roots)
     call simplify_array(eqdsk_rho_tor_map_roots)
+    call simplify_array(eqdsk_flux_profile_rho_chain_roots)
     call simplify_array(eqdsk_cut_flux_coordinate_roots)
     call simplify_array(eqdsk_cut_axis_rho_limit_roots)
+    call simplify_array(eqdsk_allowed_rho_chain_roots)
+    call simplify_array(eqdsk_allowed_axis_rho_chain_roots)
     call simplify_array(eqdsk_cut_endpoint_system_roots)
     call simplify_array(eqdsk_cut_endpoint_newton_roots)
     call simplify_array(eqdsk_cut_endpoint_krawczyk_roots)
@@ -3216,6 +3283,15 @@ program gen_full_fow_physics
         [character(len=64) :: "psihat", "dpsihat_dstor", &
         "s_tor_from_psihat"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_flux_profile_segment_interval_symbolic.f90", &
+        "neort_eqdsk_flux_profile_segment_interval_symbolic", &
+        "evaluate_neort_eqdsk_flux_profile_segment_interval", &
+        [character(len=64) :: "s_tor", "target_psihat", "s_tor0", &
+        "s_tor1", "scaled_psi0", "scaled_psi1", "field_scale", &
+        "psi_sep"], eqdsk_flux_profile_segment_roots, &
+        [character(len=64) :: "psihat", "dpsihat_dstor", &
+        "s_tor_from_psihat"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_scaled_flux_normalization_symbolic.f90", &
         "neort_eqdsk_scaled_flux_normalization_symbolic", &
         "evaluate_neort_eqdsk_scaled_flux_normalization", &
@@ -3408,6 +3484,13 @@ program gen_full_fow_physics
         [character(len=64) :: "rho_tor"], eqdsk_rho_tor_map_roots, &
         [character(len=64) :: "s_tor", "dstor_drho_tor"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_rho_tor_map_interval_symbolic.f90", &
+        "neort_eqdsk_rho_tor_map_interval_symbolic", &
+        "evaluate_neort_eqdsk_rho_tor_map_interval", &
+        [character(len=64) :: "rho_tor"], eqdsk_rho_tor_map_roots, &
+        [character(len=64) :: "s_tor", "dstor_drho_tor"], &
+        interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_flux_profile_rho_chain_symbolic.f90", &
         "neort_eqdsk_flux_profile_rho_chain_symbolic", &
         "evaluate_neort_eqdsk_flux_profile_rho_chain", &
@@ -3431,6 +3514,61 @@ program gen_full_fow_physics
         eqdsk_cut_axis_rho_limit_roots, &
         [character(len=64) :: "axis_flux_curvature", &
         "dR_drho_tor_limit", "dZ_drho_tor_limit"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_axis_rho_limit_interval_symbolic.f90", &
+        "neort_eqdsk_cut_axis_rho_limit_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_axis_rho_limit_interval", &
+        [character(len=64) :: "dZ_dR", "psi_RR", "psi_RZ", "psi_ZZ", &
+        "psi_sep", "dpsihat_dstor", "branch_sign"], &
+        eqdsk_cut_axis_rho_limit_roots, &
+        [character(len=64) :: "axis_flux_curvature", &
+        "dR_drho_tor_limit", "dZ_drho_tor_limit"], &
+        interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_allowed_rho_chain_symbolic.f90", &
+        "neort_eqdsk_allowed_rho_chain_symbolic", &
+        "evaluate_neort_eqdsk_allowed_rho_chain", &
+        [character(len=64) :: "dstor_drho_tor", "dpsihat_dstor", &
+        "d2psihat_dstor2", "dpsihat_dR", &
+        "d2psihat_dR2", "dvparallel_squared_dR", &
+        "d2vparallel_squared_dR2", "dpsi_star_dR"], &
+        eqdsk_allowed_rho_chain_roots, &
+        [character(len=64) :: "dpsihat_drho_tor", &
+        "d2psihat_drho_tor2", "dR_drho_tor", "d2R_drho_tor2", &
+        "dvparallel_squared_drho_tor", &
+        "d2vparallel_squared_drho_tor2", "dpsi_star_drho_tor"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_allowed_rho_chain_interval_symbolic.f90", &
+        "neort_eqdsk_allowed_rho_chain_interval_symbolic", &
+        "evaluate_neort_eqdsk_allowed_rho_chain_interval", &
+        [character(len=64) :: "dstor_drho_tor", "dpsihat_dstor", &
+        "d2psihat_dstor2", "dpsihat_dR", &
+        "d2psihat_dR2", "dvparallel_squared_dR", &
+        "d2vparallel_squared_dR2", "dpsi_star_dR"], &
+        eqdsk_allowed_rho_chain_roots, &
+        [character(len=64) :: "dpsihat_drho_tor", &
+        "d2psihat_drho_tor2", "dR_drho_tor", "d2R_drho_tor2", &
+        "dvparallel_squared_drho_tor", &
+        "d2vparallel_squared_drho_tor2", "dpsi_star_drho_tor"], &
+        interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_allowed_axis_rho_chain_symbolic.f90", &
+        "neort_eqdsk_allowed_axis_rho_chain_symbolic", &
+        "evaluate_neort_eqdsk_allowed_axis_rho_chain", &
+        [character(len=64) :: "dR_drho_tor_limit", &
+        "dvparallel_squared_dR_axis", "dpsi_star_dR_axis"], &
+        eqdsk_allowed_axis_rho_chain_roots, &
+        [character(len=64) :: "dvparallel_squared_drho_tor_axis", &
+        "dpsi_star_drho_tor_axis"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_allowed_axis_rho_chain_interval_symbolic.f90", &
+        "neort_eqdsk_allowed_axis_rho_chain_interval_symbolic", &
+        "evaluate_neort_eqdsk_allowed_axis_rho_chain_interval", &
+        [character(len=64) :: "dR_drho_tor_limit", &
+        "dvparallel_squared_dR_axis", "dpsi_star_dR_axis"], &
+        eqdsk_allowed_axis_rho_chain_roots, &
+        [character(len=64) :: "dvparallel_squared_drho_tor_axis", &
+        "dpsi_star_drho_tor_axis"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_endpoint_system_symbolic.f90", &
         "neort_eqdsk_cut_endpoint_system_symbolic", &
@@ -3743,7 +3881,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 41"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 43"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -3760,6 +3898,8 @@ contains
         write (unit, "(a)") "        'eqdsk_flux_profile_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_cut_flux_coordinate', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit', &"
+        write (unit, "(a)") "        'eqdsk_allowed_rho_chain', &"
+        write (unit, "(a)") "        'eqdsk_allowed_axis_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_cut_endpoint_system', &"
         write (unit, "(a)") "        'eqdsk_cut_endpoint_newton', &"
         write (unit, "(a)") "        'eqdsk_cut_endpoint_krawczyk', &"
@@ -3802,6 +3942,10 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_allowed_rho_chain:7:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_allowed_axis_rho_chain:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_system:6:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_newton:7:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_endpoint_krawczyk:2:fortsym-5457884', &"
