@@ -44,7 +44,14 @@ program test_gc_operational_class_adapter_bridge
         'canonical class endpoints were not mapped')
     call require(maxval(abs([split%canonical_measure] - &
         [4.0_dp, 7.0_dp, 1.0_dp])) < 1.0e-12_dp, &
-        'canonical class measures were not mapped')
+        'certified canonical class measure midpoints were not mapped')
+    call require(split(1)%canonical_measure_enclosure%lo == 3.9_dp .and. &
+        split(1)%canonical_measure_enclosure%hi == 4.1_dp .and. &
+        split(2)%canonical_measure_enclosure%lo == 6.8_dp .and. &
+        split(2)%canonical_measure_enclosure%hi == 7.2_dp .and. &
+        split(3)%canonical_measure_enclosure%lo == 0.9_dp .and. &
+        split(3)%canonical_measure_enclosure%hi == 1.1_dp, &
+        'nondegenerate canonical measure enclosure was not transferred')
     call require(abs(sum(split%canonical_measure) - &
         candidate%canonical_measure) < 1.0e-12_dp, &
         'canonical measure does not partition the candidate')
@@ -97,6 +104,18 @@ program test_gc_operational_class_adapter_bridge
         'incorrect total measure was accepted')
 
     call make_fixture(candidate, assembly)
+    assembly%classes(2)%canonical_measure_enclosure%lo = -0.1_dp
+    call bridge_gc_operational_class_assembly(candidate, assembly, split, status)
+    call require(status == GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR, &
+        'out-of-range canonical measure enclosure was accepted')
+
+    call make_fixture(candidate, assembly)
+    assembly%classes(2)%canonical_measure_certified = .false.
+    call bridge_gc_operational_class_assembly(candidate, assembly, split, status)
+    call require(status == GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR, &
+        'missing canonical measure certificate was accepted')
+
+    call make_fixture(candidate, assembly)
     assembly%classes(2)%left_boundary_id = 12
     call bridge_gc_operational_class_assembly(candidate, assembly, split, status)
     call require(status == GC_CLASS_ADAPTER_BRIDGE_PARTITION_ERROR, &
@@ -129,7 +148,7 @@ contains
         candidate%rc_max_enclosure = gc_interval_t(10.0_dp, 10.0_dp)
         candidate%psi_star_min_enclosure = gc_interval_t(2.0_dp, 2.0_dp)
         candidate%psi_star_max_enclosure = gc_interval_t(8.0_dp, 8.0_dp)
-        candidate%canonical_measure_enclosure = gc_interval_t(12.0_dp, 12.0_dp)
+        candidate%canonical_measure_enclosure = gc_interval_t(11.5_dp, 12.5_dp)
         candidate%lower_root = .true.
         candidate%upper_root = .true.
         candidate%lower_tangent = .true.
@@ -151,22 +170,23 @@ contains
         allocate(assembly%classes(3))
         call set_class(assembly%classes(1), 1, 0.0_dp, 3.0_dp, 2.0_dp, &
             5.0_dp, GC_CLASS_BOUNDARY_REGULAR, GC_CLASS_BOUNDARY_X, 14, &
-            0, 11, 4.0_dp)
+            0, 11, 4.0_dp, 3.9_dp, 4.1_dp)
         call set_class(assembly%classes(2), 2, 3.0_dp, 7.0_dp, 5.0_dp, &
             1.0_dp, GC_CLASS_BOUNDARY_X, GC_CLASS_BOUNDARY_SEPARATRIX, 43, &
-            11, 12, 7.0_dp)
+            11, 12, 7.0_dp, 6.8_dp, 7.2_dp)
         call set_class(assembly%classes(3), 3, 7.0_dp, 10.0_dp, 1.0_dp, &
             8.0_dp, GC_CLASS_BOUNDARY_SEPARATRIX, GC_CLASS_BOUNDARY_REGULAR, &
-            31, 12, 0, 1.0_dp)
+            31, 12, 0, 1.0_dp, 0.9_dp, 1.1_dp)
     end subroutine make_fixture
 
     subroutine set_class(class, class_id, x_lo, x_hi, canonical_lo, &
             canonical_hi, left_kind, right_kind, ifuntype, left_id, right_id, &
-            variation)
+            variation, measure_lo, measure_hi)
         type(gc_operational_class_interval_t), intent(out) :: class
         integer, intent(in) :: class_id, left_kind, right_kind, ifuntype
         integer, intent(in) :: left_id, right_id
         real(dp), intent(in) :: x_lo, x_hi, canonical_lo, canonical_hi, variation
+        real(dp), intent(in) :: measure_lo, measure_hi
 
         class = gc_operational_class_interval_t()
         class%class_id = class_id
@@ -182,6 +202,9 @@ contains
         class%left_boundary_id = left_id
         class%right_boundary_id = right_id
         class%canonical_total_variation = variation
+        class%canonical_measure_enclosure = gc_interval_t(measure_lo, measure_hi)
+        class%canonical_measure_certificate_id = 700 + class_id
+        class%canonical_measure_certified = .true.
     end subroutine set_class
 
     function root_certificate(cut_id, coordinate) result(root)

@@ -1,10 +1,13 @@
 program test_gc_operational_class_assembly
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_certified_interval_roots, only: gc_interval_t
     use neort_gc_operational_class_assembly, only: &
         GC_CLASS_ASSEMBLY_DUPLICATE_BOUNDARY, GC_CLASS_ASSEMBLY_SUCCESS, &
+        GC_CLASS_ASSEMBLY_INVALID_MEASURE, &
         GC_CLASS_BOUNDARY_REGULAR, GC_CLASS_BOUNDARY_TURNING, &
         assemble_gc_operational_classes, &
-        gc_operational_allowed_interval_t, gc_operational_class_assembly_result_t
+        gc_operational_allowed_interval_t, gc_operational_class_assembly_result_t, &
+        gc_operational_canonical_measure_evidence_t
     use neort_gc_operational_fixed_points, only: &
         GC_FIXED_POINT_O, GC_FIXED_POINT_SUCCESS, GC_FIXED_POINT_X, &
         gc_operational_fixed_point_t, &
@@ -20,9 +23,15 @@ program test_gc_operational_class_assembly
     type(gc_operational_fixed_point_result_t) :: fixed_points
     type(gc_operational_partner_result_t) :: partners
     type(gc_operational_class_assembly_result_t) :: result
+    type(gc_operational_canonical_measure_evidence_t), allocatable :: evidence(:)
 
     call make_manufactured_input(allowed, fixed_points, partners)
-    call assemble_gc_operational_classes(allowed, fixed_points, partners, result)
+    allocate(evidence(3))
+    call set_measure(evidence(1), 4.75_dp, 5.25_dp, 901)
+    call set_measure(evidence(2), 7.50_dp, 8.50_dp, 902)
+    call set_measure(evidence(3), 2.75_dp, 3.25_dp, 903)
+    call assemble_gc_operational_classes(allowed, fixed_points, partners, result, &
+        evidence)
     call require(result%status == GC_CLASS_ASSEMBLY_SUCCESS, &
         'manufactured class assembly failed')
     call require(result%complete .and. result%nclasses == 3, &
@@ -40,9 +49,31 @@ program test_gc_operational_class_assembly
         < 1.0e-12_dp, 'class upper coordinates are not sorted')
     call require(maxval(abs([result%classes%canonical_total_variation]- &
         [5.0_dp, 8.0_dp, 3.0_dp])) < 1.0e-12_dp, &
-        'canonical total variation is wrong')
+        'certified canonical measure midpoint is wrong')
+    call require(result%classes(1)%canonical_measure_certified .and. &
+        result%classes(1)%canonical_measure_certificate_id == 901 .and. &
+        result%classes(1)%canonical_measure_enclosure%lo == 4.75_dp .and. &
+        result%classes(1)%canonical_measure_enclosure%hi == 5.25_dp, &
+        'certified canonical measure evidence was not preserved')
     call require(abs(sum(result%classes%canonical_total_variation)-16.0_dp) &
         < 1.0e-12_dp, 'class total variation does not partition the fixture')
+
+    evidence(2)%enclosure = gc_interval_t(-0.1_dp, 8.5_dp)
+    call assemble_gc_operational_classes(allowed, fixed_points, partners, result, &
+        evidence)
+    call require(result%status == GC_CLASS_ASSEMBLY_INVALID_MEASURE .and. &
+        .not. result%complete, 'out-of-range measure evidence was accepted')
+    evidence(2)%enclosure = gc_interval_t(7.50_dp, 8.50_dp)
+    evidence(2)%certified = .false.
+    call assemble_gc_operational_classes(allowed, fixed_points, partners, result, &
+        evidence)
+    call require(result%status == GC_CLASS_ASSEMBLY_INVALID_MEASURE .and. &
+        .not. result%complete, 'uncertified measure evidence was accepted')
+    evidence(2)%certified = .true.
+    call assemble_gc_operational_classes(allowed, fixed_points, partners, result, &
+        evidence)
+    call require(result%status == GC_CLASS_ASSEMBLY_SUCCESS .and. &
+        result%complete, 'valid measure evidence was not reusable')
     call require(result%classes(1)%left_boundary_id == 0 .and. &
         result%classes(1)%right_boundary_id == 2 .and. &
         result%classes(2)%left_boundary_id == 2 .and. &
@@ -60,6 +91,8 @@ program test_gc_operational_class_assembly
     call assemble_gc_operational_classes(allowed, fixed_points, partners, result)
     call require(result%status == GC_CLASS_ASSEMBLY_SUCCESS .and. &
         result%nclasses == 1, 'single allowed interval was not retained')
+    call require(.not. result%classes(1)%canonical_measure_certified, &
+        'compatibility path falsely claimed certified measure evidence')
     call require(result%classes(1)%ifuntype == 11 .and. &
         abs(result%classes(1)%canonical_total_variation-4.0_dp) < 1.0e-12_dp, &
         'single-class canonical variation is wrong')
@@ -423,6 +456,17 @@ contains
         boundary%x = x
         boundary%canonical_momentum = canonical_momentum
     end subroutine set_boundary
+
+    subroutine set_measure(evidence, lo, hi, certificate_id)
+        type(gc_operational_canonical_measure_evidence_t), intent(out) :: evidence
+        real(dp), intent(in) :: lo, hi
+        integer, intent(in) :: certificate_id
+
+        evidence = gc_operational_canonical_measure_evidence_t()
+        evidence%enclosure = gc_interval_t(lo, hi)
+        evidence%certificate_id = certificate_id
+        evidence%certified = .true.
+    end subroutine set_measure
 
     subroutine require_rejected(result, message)
         type(gc_operational_class_assembly_result_t), intent(in) :: result

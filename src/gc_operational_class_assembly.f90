@@ -8,6 +8,7 @@ module neort_gc_operational_class_assembly
     !! field, differentiate a quantity, or invent a topology.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_gc_certified_interval_roots, only: gc_interval_t
     use neort_gc_operational_fixed_points, only: &
         GC_FIXED_POINT_O, GC_FIXED_POINT_SUCCESS, GC_FIXED_POINT_X, &
         gc_operational_fixed_point_t, gc_operational_fixed_point_result_t
@@ -27,6 +28,7 @@ module neort_gc_operational_class_assembly
     integer, parameter, public :: GC_CLASS_ASSEMBLY_INCONSISTENT_PAIR = 6
     integer, parameter, public :: GC_CLASS_ASSEMBLY_ENDPOINT_MISMATCH = 7
     integer, parameter, public :: GC_CLASS_ASSEMBLY_NONFINITE = 8
+    integer, parameter, public :: GC_CLASS_ASSEMBLY_INVALID_MEASURE = 9
 
     integer, parameter, public :: GC_CLASS_BOUNDARY_REGULAR = 1
     integer, parameter, public :: GC_CLASS_BOUNDARY_TURNING = 2
@@ -46,6 +48,15 @@ module neort_gc_operational_class_assembly
         real(dp) :: canonical_hi = 0.0_dp
     end type gc_operational_allowed_interval_t
 
+    type, public :: gc_operational_canonical_measure_evidence_t
+        !! Certified outward enclosure of one final class's canonical measure.
+        !! The certificate ID is provenance supplied by the certified measure
+        !! provider; assembly never derives or widens this enclosure.
+        type(gc_interval_t) :: enclosure
+        integer :: certificate_id = 0
+        logical :: certified = .false.
+    end type gc_operational_canonical_measure_evidence_t
+
     type, public :: gc_operational_class_interval_t
         integer :: class_id = 0
         integer :: component_id = 0
@@ -58,6 +69,9 @@ module neort_gc_operational_class_assembly
         real(dp) :: canonical_lo = 0.0_dp
         real(dp) :: canonical_hi = 0.0_dp
         real(dp) :: canonical_total_variation = 0.0_dp
+        type(gc_interval_t) :: canonical_measure_enclosure
+        integer :: canonical_measure_certificate_id = 0
+        logical :: canonical_measure_certified = .false.
         integer :: left_boundary_id = 0
         integer :: right_boundary_id = 0
     end type gc_operational_class_interval_t
@@ -74,11 +88,13 @@ module neort_gc_operational_class_assembly
 contains
 
     subroutine assemble_gc_operational_classes(allowed, fixed_points, partners, &
-            result)
+            result, canonical_measure_evidence)
         type(gc_operational_allowed_interval_t), intent(in) :: allowed
         type(gc_operational_fixed_point_result_t), intent(in) :: fixed_points
         type(gc_operational_partner_result_t), intent(in) :: partners
         type(gc_operational_class_assembly_result_t), intent(out) :: result
+        type(gc_operational_canonical_measure_evidence_t), intent(in), &
+            optional :: canonical_measure_evidence(:)
 
         type(gc_operational_fixed_point_t), allocatable :: points(:)
         type(gc_operational_separatrix_boundary_t), allocatable :: &
@@ -86,6 +102,7 @@ contains
         type(gc_operational_class_interval_t), allocatable :: classes(:)
         real(dp) :: coordinate_tolerance
         integer :: i, j, status, npoints
+        logical :: has_measure_evidence
 
         result = gc_operational_class_assembly_result_t()
         allocate(result%classes(0))
@@ -132,6 +149,13 @@ contains
         end do
 
         allocate(classes(size(boundaries)+1))
+        has_measure_evidence = present(canonical_measure_evidence)
+        if (has_measure_evidence) then
+            if (size(canonical_measure_evidence) /= size(classes)) then
+                result%status = GC_CLASS_ASSEMBLY_INVALID_MEASURE
+                return
+            end if
+        end if
         do i = 1, size(classes)
             classes(i)%class_id = i
             classes(i)%component_id = allowed%component_id
@@ -160,9 +184,22 @@ contains
             end if
             classes(i)%ifuntype = 10*classes(i)%left_kind + &
                 classes(i)%right_kind
-            call class_total_variation(classes(i), points, npoints, &
-                coordinate_tolerance, classes(i)%canonical_total_variation, &
-                status)
+            if (has_measure_evidence) then
+                call copy_measure_evidence(canonical_measure_evidence(i), &
+                    classes(i), status)
+            else
+                ! Compatibility path for old topology-only callers.  This
+                ! scalar is explicitly uncertified and must not be used as
+                ! production measure evidence by the adapter bridge.
+                call class_total_variation(classes(i), points, npoints, &
+                    coordinate_tolerance, classes(i)%canonical_total_variation, &
+                    status)
+                classes(i)%canonical_measure_enclosure = gc_interval_t( &
+                    classes(i)%canonical_total_variation, &
+                    classes(i)%canonical_total_variation)
+                classes(i)%canonical_measure_certificate_id = 0
+                classes(i)%canonical_measure_certified = .false.
+            end if
             if (status /= GC_CLASS_ASSEMBLY_SUCCESS) then
                 result%status = status
                 return
@@ -174,6 +211,29 @@ contains
         result%complete = .true.
         result%status = GC_CLASS_ASSEMBLY_SUCCESS
     end subroutine assemble_gc_operational_classes
+
+    subroutine copy_measure_evidence(evidence, class, status)
+        type(gc_operational_canonical_measure_evidence_t), intent(in) :: evidence
+        type(gc_operational_class_interval_t), intent(inout) :: class
+        integer, intent(out) :: status
+
+        status = GC_CLASS_ASSEMBLY_INVALID_MEASURE
+        if (.not. evidence%certified) return
+        if (evidence%certificate_id <= 0) return
+        if (.not. all(ieee_is_finite([evidence%enclosure%lo, &
+                evidence%enclosure%hi]))) return
+        if (evidence%enclosure%lo < 0.0_dp) return
+        if (evidence%enclosure%hi < evidence%enclosure%lo) return
+        class%canonical_measure_enclosure = evidence%enclosure
+        class%canonical_measure_certificate_id = evidence%certificate_id
+        class%canonical_measure_certified = .true.
+        ! Retain a point-valued diagnostic for callers that still consume the
+        ! historical field.  It is not used as certification evidence.
+        class%canonical_total_variation = 0.5_dp*evidence%enclosure%lo + &
+            0.5_dp*evidence%enclosure%hi
+        if (.not. ieee_is_finite(class%canonical_total_variation)) return
+        status = GC_CLASS_ASSEMBLY_SUCCESS
+    end subroutine copy_measure_evidence
 
     integer function validate_allowed(allowed)
         type(gc_operational_allowed_interval_t), intent(in) :: allowed

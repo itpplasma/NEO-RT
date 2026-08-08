@@ -8,6 +8,8 @@ module neort_gc_operational_class_adapter_bridge
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64
     use neort_gc_certified_interval_roots, only: gc_interval_t
+    use neort_gc_outward_interval, only: gc_outward_interval, &
+        gc_outward_interval_is_valid, gc_outward_interval_t, operator(+)
     use neort_gc_cylindrical_class_adapter, only: &
         gc_cylindrical_class_interval_t
     use neort_gc_operational_class_assembly, only: &
@@ -96,8 +98,8 @@ contains
             split_classes(i)%psi_star_max_enclosure = gc_interval_t( &
                 split_classes(i)%psi_star_max, split_classes(i)%psi_star_max)
             split_classes(i)%canonical_measure_enclosure = gc_interval_t( &
-                split_classes(i)%canonical_measure, &
-                split_classes(i)%canonical_measure)
+                assembly%classes(i)%canonical_measure_enclosure%lo, &
+                assembly%classes(i)%canonical_measure_enclosure%hi)
             split_classes(i)%allowed_interval = .true.
             split_classes(i)%topology_certified = .true.
             split_classes(i)%root_isolation_certified = .true.
@@ -158,6 +160,11 @@ contains
         if (.not. valid_interval(candidate%psi_star_min_enclosure)) return
         if (.not. valid_interval(candidate%psi_star_max_enclosure)) return
         if (.not. valid_interval(candidate%canonical_measure_enclosure)) return
+        if (candidate%canonical_measure_enclosure%lo < 0.0_dp) return
+        if (candidate%canonical_measure < &
+                candidate%canonical_measure_enclosure%lo) return
+        if (candidate%canonical_measure > &
+                candidate%canonical_measure_enclosure%hi) return
         valid_candidate = .true.
     end function valid_candidate
 
@@ -167,7 +174,8 @@ contains
 
         integer :: i, j
         real(dp) :: coordinate_tolerance, canonical_tolerance
-        real(dp) :: measure_sum, measure_tolerance
+        type(gc_outward_interval_t) :: measure_sum
+        type(gc_outward_interval_t) :: class_measure
 
         validate_assembly = GC_CLASS_ADAPTER_BRIDGE_INVALID_ASSEMBLY
         if (assembly%status /= GC_CLASS_ASSEMBLY_SUCCESS) return
@@ -181,7 +189,7 @@ contains
         canonical_tolerance = 512.0_dp*epsilon(1.0_dp)*max(1.0_dp, &
             abs(candidate%psi_star_min), abs(candidate%psi_star_max), &
             abs(candidate%canonical_measure))
-        measure_sum = 0.0_dp
+        measure_sum = gc_outward_interval(0.0_dp, 0.0_dp)
         do i = 1, assembly%nclasses
             if (assembly%classes(i)%class_id /= i) then
                 validate_assembly = GC_CLASS_ADAPTER_BRIDGE_PARTITION_ERROR
@@ -208,6 +216,29 @@ contains
                 return
             end if
             if (assembly%classes(i)%canonical_total_variation <= 0.0_dp) then
+                if (assembly%classes(i)%canonical_measure_enclosure%hi > &
+                        0.0_dp) then
+                    validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
+                    return
+                end if
+            end if
+            if (.not. assembly%classes(i)%canonical_measure_certified) then
+                validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
+                return
+            end if
+            if (assembly%classes(i)%canonical_measure_certificate_id <= 0) then
+                validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
+                return
+            end if
+            if (.not. valid_measure_interval(assembly%classes(i)% &
+                    canonical_measure_enclosure)) then
+                validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
+                return
+            end if
+            if (assembly%classes(i)%canonical_total_variation < &
+                    assembly%classes(i)%canonical_measure_enclosure%lo .or. &
+                    assembly%classes(i)%canonical_total_variation > &
+                    assembly%classes(i)%canonical_measure_enclosure%hi) then
                 validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
                 return
             end if
@@ -302,16 +333,20 @@ contains
                     end if
                 end if
             end do
-            measure_sum = measure_sum + &
-                assembly%classes(i)%canonical_total_variation
+            class_measure = gc_outward_interval( &
+                assembly%classes(i)%canonical_measure_enclosure%lo, &
+                assembly%classes(i)%canonical_measure_enclosure%hi)
+            measure_sum = measure_sum + class_measure
         end do
-        if (.not. ieee_is_finite(measure_sum)) then
+        if (.not. gc_outward_interval_is_valid(measure_sum)) then
             validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
             return
         end if
-        measure_tolerance = 512.0_dp*epsilon(1.0_dp)*max(1.0_dp, &
-            abs(candidate%canonical_measure), abs(measure_sum))
-        if (abs(measure_sum-candidate%canonical_measure) > measure_tolerance) then
+        if (measure_sum%lo < candidate%canonical_measure_enclosure%lo) then
+            validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
+            return
+        end if
+        if (measure_sum%hi > candidate%canonical_measure_enclosure%hi) then
             validate_assembly = GC_CLASS_ADAPTER_BRIDGE_MEASURE_ERROR
             return
         end if
@@ -331,6 +366,15 @@ contains
         valid_interval = all(ieee_is_finite([value%lo, value%hi])) .and. &
             value%lo <= value%hi
     end function valid_interval
+
+    pure logical function valid_measure_interval(value)
+        use neort_gc_certified_interval_roots, only: gc_interval_t
+        type(gc_interval_t), intent(in) :: value
+
+        valid_measure_interval = valid_interval(value)
+        if (.not. valid_measure_interval) return
+        valid_measure_interval = value%lo >= 0.0_dp
+    end function valid_measure_interval
 
     logical function valid_component_id_range(component_id, nclasses)
         integer, intent(in) :: component_id, nclasses
