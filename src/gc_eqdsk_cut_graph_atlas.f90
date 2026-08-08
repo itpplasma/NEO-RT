@@ -554,6 +554,8 @@ contains
                     candidates(i)%interval%psi_hat%hi > &
                     atlas%requested_psihat_hi+1.0e-12_dp) then
                 atlas%failure_stage = 6
+                atlas%failure_r_lo = r_lo
+                atlas%failure_r_hi = r_hi
                 outcome = Z_COVER_MULTIPLE
                 return
             end if

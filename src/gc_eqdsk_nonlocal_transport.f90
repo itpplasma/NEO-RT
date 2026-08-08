@@ -1446,7 +1446,7 @@ contains
             factory%options%cut_atlas_options, &
             factory%certified_cut_atlas, local_status)
         if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
-            write (*, '(a,1x,i0,8(1x,i0))') 'cut atlas diagnostic=', local_status, &
+            write (*, '(a,1x,i0,8(1x,i0),4(1x,es24.16))') 'cut atlas diagnostic=', local_status, &
                 factory%certified_cut_atlas%inboard_graph%failure_stage, &
                 factory%certified_cut_atlas%inboard_graph%failure_r_depth, &
                 factory%certified_cut_atlas%inboard_graph%failure_z_depth, &
@@ -1454,7 +1454,11 @@ contains
                 factory%certified_cut_atlas%axis_graph%failure_r_depth, &
                 factory%certified_cut_atlas%axis_graph%failure_z_depth, &
                 factory%certified_cut_atlas%outboard_graph%failure_stage, &
-                factory%certified_cut_atlas%outboard_graph%failure_r_depth
+                factory%certified_cut_atlas%outboard_graph%failure_r_depth, &
+                factory%certified_cut_atlas%inboard_graph%failure_r_lo, &
+                factory%certified_cut_atlas%inboard_graph%failure_r_hi, &
+                factory%certified_cut_atlas%inboard_graph%failure_z_lo, &
+                factory%certified_cut_atlas%inboard_graph%failure_z_hi
             return
         end if
         call build_eqdsk_composite_r_partition(factory%certified_cut_atlas, &
