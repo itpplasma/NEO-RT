@@ -4,7 +4,7 @@ module neort_generated_certificate_registry
         'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: regenerate_command = &
         'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'
-    integer, parameter :: certificate_count = 32
+    integer, parameter :: certificate_count = 35
     character(len=32), parameter :: certificate_id(certificate_count) = &
         [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &
         'root_enclosures', 'interpolation', 'profile_endpoints', &
@@ -24,6 +24,9 @@ module neort_generated_certificate_registry
         'eqdsk_cut_endpoint_system', &
         'eqdsk_cut_endpoint_newton', &
         'eqdsk_cut_endpoint_krawczyk', &
+        'eqdsk_axis_stationarity_system', &
+        'eqdsk_axis_stationarity_newton', &
+        'eqdsk_axis_stationarity_krawczyk', &
         'eqdsk_flux_profile_segment', &
         'eqdsk_scaled_flux_normalization' ]
     character(len=64), parameter :: certificate_fingerprint(certificate_count) = &
@@ -57,6 +60,9 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_cut_endpoint_system:6:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_endpoint_newton:7:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_endpoint_krawczyk:2:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_axis_stationarity_system:6:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_axis_stationarity_newton:7:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_axis_stationarity_krawczyk:2:fortsym-5457884', &
         'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884' ]
     ! Fingerprints are provenance/arity manifests, not algebraic proofs.
