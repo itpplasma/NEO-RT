@@ -2405,11 +2405,23 @@ contains
             type is (gc_eqdsk_nonlocal_factory_t)
             call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
                 local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
+            if (local_status /= GC_CYL_CLASS_SUCCESS) then
+                factory%last_return_status = 2400 + local_status
+                return
+            end if
             call enumerate_gc_cylindrical_classes(adapter, classes, local_status)
-            if (local_status /= GC_CYL_CLASS_SUCCESS) return
-            if (.not. classes%class_complete) return
-            if (classes%nclasses < 0) return
+            if (local_status /= GC_CYL_CLASS_SUCCESS) then
+                factory%last_return_status = 2500 + local_status
+                return
+            end if
+            if (.not. classes%class_complete) then
+                factory%last_return_status = 2600
+                return
+            end if
+            if (classes%nclasses < 0) then
+                factory%last_return_status = 2601
+                return
+            end if
             if (classes%nclasses == 0) then
                 allocate(components(0))
                 status = GC_CYL_NONLOCAL_SUCCESS
