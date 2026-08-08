@@ -32,6 +32,8 @@ module neort_gc_operational_partner_crossings
     type, public :: gc_operational_partner_options_t
         type(gc_operational_root_options_t) :: root
         real(dp) :: x_exclusion_fraction = 1.0e-8_dp
+        real(dp) :: residual_absolute_tolerance = 1.0e-10_dp
+        real(dp) :: residual_relative_tolerance = 1.0e-12_dp
     end type gc_operational_partner_options_t
 
     type, public :: gc_operational_partner_pair_t
@@ -56,6 +58,8 @@ module neort_gc_operational_partner_crossings
         integer :: npairs = 0
         integer :: nboundaries = 0
         logical :: complete = .false.
+        real(dp) :: residual_absolute_tolerance = 1.0e-10_dp
+        real(dp) :: residual_relative_tolerance = 1.0e-12_dp
         type(gc_operational_partner_pair_t), allocatable :: pairs(:)
         type(gc_operational_separatrix_boundary_t), allocatable :: boundaries(:)
     end type gc_operational_partner_result_t
@@ -83,10 +87,14 @@ contains
         result = gc_operational_partner_result_t()
         allocate(result%pairs(0), result%boundaries(0))
         if (.not. all(ieee_is_finite([x_lo, x_hi, &
-                options%x_exclusion_fraction]))) return
+                options%x_exclusion_fraction, &
+                options%residual_absolute_tolerance, &
+                options%residual_relative_tolerance]))) return
         if (x_hi <= x_lo) return
         if (options%x_exclusion_fraction <= 0.0_dp .or. &
                 options%x_exclusion_fraction >= 0.5_dp) return
+        if (options%residual_absolute_tolerance <= 0.0_dp .or. &
+                options%residual_relative_tolerance < 0.0_dp) return
         if (.not. fixed_points%complete) return
         if (fixed_points%npoints < 0 .or. fixed_points%n_x_points < 0) return
         if (fixed_points%npoints > 0) then
@@ -184,6 +192,10 @@ contains
         end if
         result%npairs = pair_count
         result%nboundaries = boundary_count
+        result%residual_absolute_tolerance = &
+            options%residual_absolute_tolerance
+        result%residual_relative_tolerance = &
+            options%residual_relative_tolerance
         result%complete = .true.
         result%status = GC_PARTNER_SUCCESS
 

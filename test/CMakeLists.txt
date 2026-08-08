@@ -312,6 +312,11 @@ add_test(NAME test_gc_operational_partner_crossings
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_operational_class_assembly
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_operational_class_assembly.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_gc_cylindrical_orbit
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_orbit.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
