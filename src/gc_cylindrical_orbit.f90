@@ -14,6 +14,8 @@ module neort_gc_cylindrical_orbit
         evaluate_neort_full_fow_cycle_frequency
     use neort_full_fow_resonance_scalar_symbolic, only: &
         evaluate_neort_full_fow_resonance_scalar
+    use neort_cylindrical_canonical_scale_symbolic, only: &
+        evaluate_neort_cylindrical_canonical_scale
     use neort_gc_cylindrical_model, only: GC_CYL_FIELD_ERROR, &
         GC_CYL_INTEGRATOR_ERROR, GC_CYL_INVALID_INPUT, &
         GC_CYL_NO_RETURN_MODEL => GC_CYL_NO_RETURN, &
@@ -699,7 +701,8 @@ contains
 
         type(gc_cylindrical_field_sample_t) :: field
         type(gc_cylindrical_state_t) :: state
-        real(dp) :: potential, gradient(3), tolerance
+        real(dp) :: potential, gradient(3), tolerance, canonical_scale
+        real(dp) :: canonical_flux_term, canonical_parallel_term
         integer :: field_status, potential_status, residual_status
 
         energy_error = 0.0_dp
@@ -728,13 +731,15 @@ contains
             return
         end if
         tolerance = options%invariant_relative_tolerance
+        call evaluate_neort_cylindrical_canonical_scale(charge, c_light, &
+            state%R, state%p_parallel, field%psi, field%bhat(2), &
+            canonical_flux_term, canonical_parallel_term, canonical_scale)
         rejected = abs(energy_error) > tolerance*max(abs(invariants%energy), &
             tiny(invariants%energy)) .or. &
             abs(magnetic_moment_error) > tolerance*max(&
             abs(invariants%magnetic_moment), tiny(invariants%magnetic_moment)) .or. &
             abs(canonical_momentum_error) > tolerance*max(&
-            abs(invariants%canonical_toroidal_momentum), &
-            tiny(invariants%canonical_toroidal_momentum))
+            canonical_scale, tiny(invariants%canonical_toroidal_momentum))
         if (rejected) then
             status = GC_CYL_INVARIANT_ERROR
             return

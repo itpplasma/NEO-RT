@@ -266,6 +266,7 @@ contains
         result%orbit_status = orbit%status
         if (orbit%status /= GC_CYL_SUCCESS) then
             result%status = GC_CYL_BACKEND_ORBIT_ERROR
+            status = GC_CYL_BACKEND_ORBIT_ERROR
             return
         end if
         result%period = orbit%period

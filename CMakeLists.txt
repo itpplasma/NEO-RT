@@ -223,6 +223,7 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_axis_stationarity_krawczyk_interval_symbolic.f90
     src/generated/neort_cylindrical_hamiltonian_symbolic.f90
     src/generated/neort_cylindrical_canonical_symbolic.f90
+    src/generated/neort_cylindrical_canonical_scale_symbolic.f90
     src/generated/neort_cylindrical_vparallel_symbolic.f90
     src/generated/neort_cylindrical_launch_symbolic.f90
     src/gc_dynamics.f90

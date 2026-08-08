@@ -115,6 +115,7 @@ set(generated_files
     neort_eqdsk_axis_stationarity_krawczyk_interval_symbolic.f90
     neort_cylindrical_hamiltonian_symbolic.f90
     neort_cylindrical_canonical_symbolic.f90
+    neort_cylindrical_canonical_scale_symbolic.f90
     neort_cylindrical_vparallel_symbolic.f90
     neort_cylindrical_launch_symbolic.f90
 )
