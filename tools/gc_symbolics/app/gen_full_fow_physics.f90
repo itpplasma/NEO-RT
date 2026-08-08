@@ -264,6 +264,7 @@ program gen_full_fow_physics
     type(expr_t) :: allowed_bmod, allowed_dbmod_dr, allowed_d2bmod_dr2
     type(expr_t) :: allowed_potential, allowed_dphi_dpsi
     type(expr_t) :: allowed_d2phi_dpsi2
+    type(expr_t) :: allowed_jk
     type(expr_t) :: allowed_omega_c, allowed_domega_c_dr
     type(expr_t) :: allowed_d2omega_c_dr2
     type(expr_t) :: allowed_energy_margin, allowed_denergy_dr
@@ -1812,6 +1813,7 @@ program gen_full_fow_physics
     allowed_field_scale = sym(arena, "field_scale")
     allowed_dz_dr = sym(arena, "dZ_dR")
     allowed_d2z_dr2 = sym(arena, "d2Z_dR2")
+    allowed_jk = sym(arena, "J_K")
     allowed_potential = sym(arena, "electrostatic_potential")
     allowed_dphi_dpsi = sym(arena, "dPhi_dpsi")
     allowed_d2phi_dpsi2 = sym(arena, "d2Phi_dpsi2")
@@ -1862,10 +1864,11 @@ program gen_full_fow_physics
     allowed_domega_c_dr = abs(charge)*allowed_dbmod_dr/(mass*c_light)
     allowed_d2omega_c_dr2 = abs(charge)*allowed_d2bmod_dr2/ &
         (mass*c_light)
-    allowed_energy_margin = h-jk*allowed_omega_c-charge*allowed_potential
-    allowed_denergy_dr = -jk*allowed_domega_c_dr - &
+    allowed_energy_margin = h-allowed_jk*allowed_omega_c - &
+        charge*allowed_potential
+    allowed_denergy_dr = -allowed_jk*allowed_domega_c_dr - &
         charge*allowed_dphi_dpsi*allowed_field_scale*allowed_dpsi_dr
-    allowed_d2energy_dr2 = -jk*allowed_d2omega_c_dr2 - charge* &
+    allowed_d2energy_dr2 = -allowed_jk*allowed_d2omega_c_dr2 - charge* &
         (allowed_d2phi_dpsi2*(allowed_field_scale*allowed_dpsi_dr)**2 + &
         allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2)
     allowed_vparallel_squared = 2*allowed_energy_margin/mass
@@ -1898,7 +1901,7 @@ program gen_full_fow_physics
         allowed_d2psi_dr2*allowed_x**2/2) + &
         allowed_d2phi_dpsi2*(allowed_field_scale* &
         allowed_dpsi_dr*allowed_x)**2/2
-    allowed_energy_local = h-jk*abs(charge)*allowed_bmod_local/ &
+    allowed_energy_local = h-allowed_jk*abs(charge)*allowed_bmod_local/ &
         (mass*c_light)-charge*allowed_potential_local
     allowed_g_second_series_result = simplify_engine%series_coeff( &
         allowed_g_local, allowed_x, zero, 2)
