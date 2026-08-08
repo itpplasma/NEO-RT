@@ -97,7 +97,7 @@ program test_gc_operational_class_adapter_bridge
         'incorrect total measure was accepted')
 
     call make_fixture(candidate, assembly)
-    assembly%classes(2)%left_boundary_id = 11
+    assembly%classes(2)%left_boundary_id = 12
     call bridge_gc_operational_class_assembly(candidate, assembly, split, status)
     call require(status == GC_CLASS_ADAPTER_BRIDGE_PARTITION_ERROR, &
         'duplicate boundary ownership was accepted')
