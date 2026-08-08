@@ -3659,7 +3659,10 @@ contains
         status = GC_EQDSK_NONLOCAL_DOMAIN_ERROR
         if (.not. factory%field_ready .or. .not. factory%profile_ready) return
         call certify_phase_space_domain(factory, local_status)
-        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        if (local_status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            status = local_status
+            return
+        end if
         nh = h0_order
         nj = jk_order
         if (nh < 2 .or. nj < 2) return
@@ -3739,7 +3742,7 @@ contains
         type(gc_eqdsk_nonlocal_factory_t), intent(inout) :: factory
         integer, intent(out) :: status
 
-        real(dp) :: qphi_min, psi_lo, psi_hi, x_lo, x_hi
+        real(dp) :: qphi_min, x_lo, x_hi
         real(dp) :: cell_lo, cell_hi, f_lo, f_hi
         real(dp) :: f_lower, r_upper, b_lower, field_scale_local
         type(gc_full_fow_degree5_enclosure_t) :: enclosure
@@ -3763,9 +3766,9 @@ contains
             qphi_min = min(qphi_min, factory%species%charge_esu * &
                 factory%profile_values(i, PROFILE_PHI))
         end do
-        psi_lo = factory%profile_psi(1)
-        psi_hi = factory%profile_psi(size(factory%profile_psi))
-        if (.not. ieee_is_finite(qphi_min) .or. psi_hi <= psi_lo) return
+        if (.not. ieee_is_finite(qphi_min)) return
+        if (.not. factory%flux_map%initialized .or. &
+                .not. factory%flux_map%endpoints_certified) return
         r_upper = factory%field%domain_R_max
         field_scale_local = factory%field%field_scale
         if (.not. ieee_is_finite(r_upper) .or. r_upper <= 0.0_dp .or. &
@@ -3777,10 +3780,13 @@ contains
             if (size(splfpol, 1) < 6 .or. size(splfpol, 2) < 2) return
             if (.not. ieee_is_finite(hfpol) .or. hfpol <= 0.0_dp) return
             if (.not. ieee_is_finite(psi_sep) .or. psi_sep <= 0.0_dp) return
-            x_lo = psi_lo/(field_scale_local*psi_sep)
-            x_hi = psi_hi/(field_scale_local*psi_sep)
-            if (.not. all(ieee_is_finite([x_lo, x_hi])) .or. &
-                    x_lo < 0.0_dp .or. x_hi > 1.0_dp .or. x_hi <= x_lo) return
+            ! The profile map has already certified its labelled s_tor=0 and
+            ! s_tor=1 endpoints against the Fortsym normalization.  Use those
+            ! exact domain labels for the global F enclosure; recomputing the
+            ! endpoint ratios would turn harmless axis subtraction roundoff
+            ! into a false out-of-domain result.
+            x_lo = 0.0_dp
+            x_hi = 1.0_dp
             first_cell = max(0, min(size(splfpol, 2)-2, int(x_lo/hfpol)))
             last_cell = max(0, min(size(splfpol, 2)-2, int(x_hi/hfpol)))
             f_lower = huge(1.0_dp)

@@ -86,6 +86,14 @@ program test_gc_eqdsk_flux_profile_map
         'restored profile did not recover its certificate')
 
     call initialize_eqdsk_flux_profile_map(s_nodes, &
+        [-epsilon(1.0_dp)*8.0_dp, 0.8_dp, &
+        (1.0_dp-epsilon(1.0_dp))*8.0_dp], 2.0_dp, 4.0_dp, map, status)
+    call require(status == EQDSK_FLUX_MAP_SUCCESS, &
+        'roundoff-sized endpoint residuals lost endpoint certification')
+    call require(map%endpoints_certified, &
+        'accepted endpoint residuals were not explicitly certified')
+
+    call initialize_eqdsk_flux_profile_map(s_nodes, &
         [0.0_dp, 1.0_dp, 0.5_dp], 1.0_dp, 0.5_dp, map, status)
     call require(status == EQDSK_FLUX_MAP_NOT_MONOTONE, &
         'decreasing profile segment retained a monotonicity certificate')
