@@ -18,6 +18,8 @@ program test_gc_eqdsk_cut_graph_atlas
         initialize_eqdsk_flux_profile_map
     use neort_gc_eqdsk_radial_interval_map, only: &
         EQDSK_RADIAL_INTERVAL_NOT_MONOTONE, &
+        EQDSK_RADIAL_INTERVAL_NORMALIZATION, &
+        EQDSK_RADIAL_INTERVAL_OUT_OF_RANGE, &
         EQDSK_RADIAL_INTERVAL_SUCCESS, &
         eqdsk_rho_interval_provenance_t, &
         map_eqdsk_outboard_r_interval_to_rho_tor
@@ -31,11 +33,17 @@ program test_gc_eqdsk_cut_graph_atlas
     type(eqdsk_cut_graph_atlas_t) :: inboard_atlas, outboard_atlas, full_atlas
     type(eqdsk_cut_graph_atlas_options_t) :: options, full_options
     type(eqdsk_axis_certificate_t) :: axis_certificate
-    type(eqdsk_flux_profile_map_t) :: flux_map
+    type(eqdsk_flux_profile_map_t) :: flux_map, unit_scale_flux_map
+    type(eqdsk_flux_profile_map_t) :: mismatched_flux_map
     type(eqdsk_rho_interval_provenance_t) :: radial_provenance
+    type(eqdsk_rho_interval_provenance_t) :: unit_scale_provenance
+    type(eqdsk_rho_interval_provenance_t) :: mismatched_provenance
     type(gc_outward_interval_t) :: rho_interval
+    type(gc_outward_interval_t) :: unit_scale_rho_interval
+    type(gc_outward_interval_t) :: mismatched_rho_interval
     character(len=1024) :: path
     real(dp) :: axis_R, inboard_lo, inboard_hi, outboard_lo, outboard_hi
+    real(dp) :: mismatched_psi_sep
     integer :: status, axis_R_index, axis_Z_index
 
     call get_environment_variable('EQDSK_FILE', path)
@@ -95,6 +103,52 @@ program test_gc_eqdsk_cut_graph_atlas
         outboard_lo+0.3_dp*(outboard_hi-outboard_lo), &
         outboard_lo+0.7_dp*(outboard_hi-outboard_lo), rho_interval, &
         radial_provenance)
+    call initialize_eqdsk_flux_profile_map([0.0_dp, 1.0_dp], &
+        [0.0_dp, psi_sep], 1.0_dp, psi_sep, unit_scale_flux_map, status)
+    call require(status == EQDSK_FLUX_MAP_SUCCESS, &
+        'unit-scale flux profile was not certified')
+    call map_eqdsk_outboard_r_interval_to_rho_tor(outboard_atlas, &
+        unit_scale_flux_map, outboard_lo+0.3_dp*(outboard_hi-outboard_lo), &
+        outboard_lo+0.7_dp*(outboard_hi-outboard_lo), &
+        unit_scale_rho_interval, unit_scale_provenance, status)
+    call require(status == EQDSK_RADIAL_INTERVAL_SUCCESS, &
+        'unit-scale radial map was rejected')
+    call require(abs(midpoint(rho_interval)-midpoint(unit_scale_rho_interval)) &
+        <= 1.0e-10_dp*max(1.0_dp, abs(midpoint(rho_interval))), &
+        'field-scale cancellation changed the normalized radial map')
+
+    mismatched_psi_sep = 1.1_dp*psi_sep
+    call initialize_eqdsk_flux_profile_map([0.0_dp, 1.0_dp], &
+        [0.0_dp, 3.0_dp*mismatched_psi_sep], 3.0_dp, mismatched_psi_sep, &
+        mismatched_flux_map, status)
+    call require(status == EQDSK_FLUX_MAP_SUCCESS, &
+        'mismatched-separatrix profile was not independently certified')
+    call map_eqdsk_outboard_r_interval_to_rho_tor(outboard_atlas, &
+        mismatched_flux_map, outboard_lo, outboard_hi, &
+        mismatched_rho_interval, mismatched_provenance, status)
+    call require(status == EQDSK_RADIAL_INTERVAL_NORMALIZATION, &
+        'raw psi_sep/profile provenance mismatch was accepted')
+
+    call require(size(outboard_atlas%strips) > 1, &
+        'fixture does not provide a multistrip outboard interval')
+    call check_radial_interval(outboard_atlas, flux_map, &
+        outboard_atlas%strips(1)%r_lo, &
+        outboard_atlas%strips(size(outboard_atlas%strips))%r_hi, rho_interval, &
+        radial_provenance)
+    call require(radial_provenance%nstrips > 1, &
+        'multistrip radial interval was reduced to one strip')
+
+    call map_eqdsk_outboard_r_interval_to_rho_tor(outboard_atlas, flux_map, &
+        outboard_lo-1.0e-6_dp, outboard_hi, rho_interval, radial_provenance, &
+        status)
+    call require(status == EQDSK_RADIAL_INTERVAL_OUT_OF_RANGE, &
+        'R box below the certified domain was accepted')
+    call map_eqdsk_outboard_r_interval_to_rho_tor(outboard_atlas, flux_map, &
+        outboard_lo, outboard_hi+1.0e-6_dp, rho_interval, radial_provenance, &
+        status)
+    call require(status == EQDSK_RADIAL_INTERVAL_OUT_OF_RANGE, &
+        'R box above the certified domain was accepted')
+
     call map_eqdsk_outboard_r_interval_to_rho_tor(inboard_atlas, flux_map, &
         inboard_lo, inboard_hi, rho_interval, radial_provenance, status)
     call require(status == EQDSK_RADIAL_INTERVAL_NOT_MONOTONE, &
@@ -258,6 +312,12 @@ contains
                 'physical flux did not retain exactly one field scale')
         end do
     end subroutine check_radial_interval
+
+    pure real(dp) function midpoint(interval)
+        type(gc_outward_interval_t), intent(in) :: interval
+
+        midpoint = 0.5_dp*(interval%lo+interval%hi)
+    end function midpoint
 
     logical function any_enclosure_contains(enclosures, jet)
         type(eqdsk_cut_interval_result_t), intent(in) :: enclosures(:)
