@@ -10,15 +10,16 @@ module neort_eqdsk_cut_axis_curvature_interval_symbolic
 contains
 
     pure subroutine evaluate_neort_eqdsk_cut_axis_curvature_interval(dZ_dR, psi_RR, psi_RZ, psi_ZZ, &
-            psi_sep, axis_flux_curvature)
+            psi_sep, axis_flux_curvature, axis_hessian_determinant)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
             operator(+), operator(-), operator(*), operator(/), operator(**)
         implicit none
         type(gc_outward_interval_t), intent(in) :: dZ_dR, psi_RR, psi_RZ, psi_ZZ, psi_sep
-        type(gc_outward_interval_t), intent(out) :: axis_flux_curvature
+        type(gc_outward_interval_t), intent(out) :: axis_flux_curvature, axis_hessian_determinant
 
         axis_flux_curvature = (psi_RR + dZ_dR*psi_RZ*2 + psi_ZZ*dZ_dR**2)/psi_sep
+        axis_hessian_determinant = psi_RR*psi_ZZ - psi_RZ**2
 
     end subroutine evaluate_neort_eqdsk_cut_axis_curvature_interval
 
