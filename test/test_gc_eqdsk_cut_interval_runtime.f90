@@ -90,8 +90,8 @@ program test_gc_eqdsk_cut_interval_runtime
 
     ! Regression box retained from the first global-atlas failure.  Its scalar
     ! midpoint is an independent oracle for interval tightening diagnostics.
-    cell_R = 12
-    cell_Z = 26
+    cell_R = 24
+    cell_Z = 52
     call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, &
         1.0997585571929329e2_dp, 1.0997586161389307e2_dp, &
         -1.5955200195312504e1_dp, -1.5954589843750004e1_dp, box, status)
