@@ -10,11 +10,10 @@ module neort_eqdsk_allowed_axis_rho_chain_symbolic
 contains
 
     pure subroutine evaluate_neort_eqdsk_allowed_axis_rho_chain(dR_drho_tor_limit, &
-            dvparallel_squared_dR_axis, dpsi_star_dR_axis, dvparallel_squared_drho_tor_axis, &
-            dpsi_star_drho_tor_axis)
+            dvparallel_squared_dR, dpsi_star_dR, dvparallel_squared_drho_tor_axis, dpsi_star_drho_tor_axis)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: dR_drho_tor_limit, dvparallel_squared_dR_axis, dpsi_star_dR_axis
+        real(dp), intent(in) :: dR_drho_tor_limit, dvparallel_squared_dR, dpsi_star_dR
         real(dp), intent(out) :: dvparallel_squared_drho_tor_axis, dpsi_star_drho_tor_axis
 
         dvparallel_squared_drho_tor_axis = dR_drho_tor_limit*dvparallel_squared_dR

@@ -10,13 +10,12 @@ module neort_eqdsk_allowed_axis_rho_chain_interval_symbolic
 contains
 
     pure subroutine evaluate_neort_eqdsk_allowed_axis_rho_chain_interval(dR_drho_tor_limit, &
-            dvparallel_squared_dR_axis, dpsi_star_dR_axis, dvparallel_squared_drho_tor_axis, &
-            dpsi_star_drho_tor_axis)
+            dvparallel_squared_dR, dpsi_star_dR, dvparallel_squared_drho_tor_axis, dpsi_star_drho_tor_axis)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
             operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
-        type(gc_outward_interval_t), intent(in) :: dR_drho_tor_limit, dvparallel_squared_dR_axis, dpsi_star_dR_axis
+        type(gc_outward_interval_t), intent(in) :: dR_drho_tor_limit, dvparallel_squared_dR, dpsi_star_dR
         type(gc_outward_interval_t), intent(out) :: dvparallel_squared_drho_tor_axis, dpsi_star_drho_tor_axis
 
         dvparallel_squared_drho_tor_axis = dR_drho_tor_limit*dvparallel_squared_dR
