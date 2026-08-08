@@ -1445,7 +1445,18 @@ contains
             factory%options%field_scale, zet(1), zet(nzet), &
             factory%options%cut_atlas_options, &
             factory%certified_cut_atlas, local_status)
-        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
+        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
+            write (*, '(a,1x,i0,8(1x,i0))') 'cut atlas diagnostic=', local_status, &
+                factory%certified_cut_atlas%inboard_graph%failure_stage, &
+                factory%certified_cut_atlas%inboard_graph%failure_r_depth, &
+                factory%certified_cut_atlas%inboard_graph%failure_z_depth, &
+                factory%certified_cut_atlas%axis_graph%failure_stage, &
+                factory%certified_cut_atlas%axis_graph%failure_r_depth, &
+                factory%certified_cut_atlas%axis_graph%failure_z_depth, &
+                factory%certified_cut_atlas%outboard_graph%failure_stage, &
+                factory%certified_cut_atlas%outboard_graph%failure_r_depth
+            return
+        end if
         call build_eqdsk_composite_r_partition(factory%certified_cut_atlas, &
             factory%r_partition, local_status)
         if (local_status /= EQDSK_R_OWNERSHIP_SUCCESS) return
