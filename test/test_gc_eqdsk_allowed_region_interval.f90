@@ -22,7 +22,8 @@ program test_gc_eqdsk_allowed_region_interval
     real(dp), parameter :: phi_nodes(2) = [0.0_dp, 8.0_dp]
     real(dp), parameter :: omega_nodes(2) = [2.0_dp, 6.0_dp]
     real(dp) :: energy, energy_first, energy_second, speed
-    real(dp) :: canonical, canonical_first
+    real(dp) :: speed_first, speed_second
+    real(dp) :: canonical, canonical_first, canonical_second
     integer :: segments, status
 
     call make_manufactured_cut(cut(1))
@@ -42,16 +43,24 @@ program test_gc_eqdsk_allowed_region_interval
     energy_first = 4.0_dp+sqrt_ten/8.0_dp
     energy_second = 2.0_dp-sqrt_ten/8.0_dp
     speed = sqrt(energy)
+    speed_first = energy_first/(2.0_dp*speed)
+    speed_second = energy_second/(2.0_dp*speed) - &
+        energy_first**2/(4.0_dp*speed**3)
     canonical = 2.0_dp-24.0_dp*speed/sqrt_ten
     canonical_first = 2.0_dp-4.0_dp*( &
         energy_first/(2.0_dp*speed)*6.0_dp/sqrt_ten + &
         speed*3.0_dp/sqrt_ten)
+    canonical_second = -4.0_dp*( &
+        speed_second*6.0_dp/sqrt_ten + &
+        2.0_dp*speed_first*3.0_dp/sqrt_ten)
 
     call require_contains(result%field_norm_squared, 10.0_dp, &
         'manufactured field norm')
     call require_contains(result%psi_physical, 2.0_dp, 'physical psi')
     call require_contains(result%dpsi_physical_dR, 2.0_dp, &
         'physical psi derivative')
+    call require_contains(result%d2psi_physical_dR2, 0.0_dp, &
+        'physical psi second derivative')
     call require_contains(result%bmod, sqrt_ten, 'field magnitude')
     call require_contains(result%dbmod_dR, -sqrt_ten/2.0_dp, &
         'field first derivative')
@@ -68,10 +77,16 @@ program test_gc_eqdsk_allowed_region_interval
         'covariant toroidal field ratio')
     call require_contains(result%dbphi_covariant_dR, 3.0_dp/sqrt_ten, &
         'covariant ratio derivative')
+    call require_contains(result%d2bphi_covariant_dR2, 0.0_dp, &
+        'covariant ratio second derivative')
     call require_contains(result%v_parallel, speed, 'parallel speed')
+    call require_contains(result%d2v_parallel_dR2, speed_second, &
+        'parallel speed second derivative')
     call require_contains(result%psi_star, canonical, 'canonical flux')
     call require_contains(result%dpsi_star_dR, canonical_first, &
         'canonical flux derivative')
+    call require_contains(result%d2psi_star_dR2, canonical_second, &
+        'canonical flux second derivative')
 
     call evaluate_eqdsk_allowed_region_interval(point(2.0_dp), 2.0_dp, &
         10.0_dp, cut, psi_nodes, phi_nodes, omega_nodes, 10.0_dp, 2.0_dp, &

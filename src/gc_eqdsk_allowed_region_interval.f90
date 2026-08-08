@@ -29,6 +29,7 @@ module neort_gc_eqdsk_allowed_region_interval
         type(gc_outward_interval_t) :: field_norm_squared
         type(gc_outward_interval_t) :: psi_physical
         type(gc_outward_interval_t) :: dpsi_physical_dR
+        type(gc_outward_interval_t) :: d2psi_physical_dR2
         type(gc_outward_interval_t) :: bmod
         type(gc_outward_interval_t) :: dbmod_dR
         type(gc_outward_interval_t) :: d2bmod_dR2
@@ -43,10 +44,13 @@ module neort_gc_eqdsk_allowed_region_interval
         type(gc_outward_interval_t) :: d2v_parallel_squared_dR2
         type(gc_outward_interval_t) :: bphi_covariant
         type(gc_outward_interval_t) :: dbphi_covariant_dR
+        type(gc_outward_interval_t) :: d2bphi_covariant_dR2
         type(gc_outward_interval_t) :: v_parallel
         type(gc_outward_interval_t) :: dv_parallel_dR
+        type(gc_outward_interval_t) :: d2v_parallel_dR2
         type(gc_outward_interval_t) :: psi_star
         type(gc_outward_interval_t) :: dpsi_star_dR
+        type(gc_outward_interval_t) :: d2psi_star_dR2
         logical :: canonical_chart_certified = .false.
         integer :: cut_enclosures_covered = 0
         integer :: profile_segments_covered = 0
@@ -207,8 +211,10 @@ contains
         if (.not. accumulator%canonical_chart_certified) then
             accumulator%v_parallel = point(0.0_dp)
             accumulator%dv_parallel_dR = point(0.0_dp)
+            accumulator%d2v_parallel_dR2 = point(0.0_dp)
             accumulator%psi_star = point(0.0_dp)
             accumulator%dpsi_star_dR = point(0.0_dp)
+            accumulator%d2psi_star_dR2 = point(0.0_dp)
         end if
         result = accumulator
         status = EQDSK_ALLOWED_INTERVAL_SUCCESS
@@ -243,7 +249,8 @@ contains
             result%denergy_margin_dR, result%d2energy_margin_dR2, &
             result%v_parallel_squared, result%dv_parallel_squared_dR, &
             result%d2v_parallel_squared_dR2, result%bphi_covariant, &
-            result%dbphi_covariant_dR)
+            result%dbphi_covariant_dR, result%d2psi_physical_dR2, &
+            result%d2bphi_covariant_dR2)
         status = EQDSK_ALLOWED_INTERVAL_NONFINITE
         if (.not. valid_energy_result(result)) return
         result%canonical_chart_certified = &
@@ -254,11 +261,17 @@ contains
                 point(mass), point(charge), point(c_light), &
                 point(real(parallel_sign, dp)), result%psi_physical, &
                 result%dpsi_physical_dR, result%bphi_covariant, &
-                result%dbphi_covariant_dR, result%v_parallel, &
-                result%dv_parallel_dR, result%psi_star, result%dpsi_star_dR)
+                result%dbphi_covariant_dR, &
+                result%d2v_parallel_squared_dR2, &
+                result%d2psi_physical_dR2, &
+                result%d2bphi_covariant_dR2, result%v_parallel, &
+                result%dv_parallel_dR, result%psi_star, &
+                result%dpsi_star_dR, result%d2v_parallel_dR2, &
+                result%d2psi_star_dR2)
             if (.not. valid_intervals([result%v_parallel, &
-                    result%dv_parallel_dR, result%psi_star, &
-                    result%dpsi_star_dR])) return
+                    result%dv_parallel_dR, result%d2v_parallel_dR2, &
+                    result%psi_star, result%dpsi_star_dR, &
+                    result%d2psi_star_dR2])) return
         end if
         status = EQDSK_ALLOWED_INTERVAL_SUCCESS
     end subroutine evaluate_energy_candidate
@@ -273,6 +286,8 @@ contains
             candidate%psi_physical)
         result%dpsi_physical_dR = interval_hull(result%dpsi_physical_dR, &
             candidate%dpsi_physical_dR)
+        result%d2psi_physical_dR2 = interval_hull( &
+            result%d2psi_physical_dR2, candidate%d2psi_physical_dR2)
         result%bmod = interval_hull(result%bmod, candidate%bmod)
         result%dbmod_dR = interval_hull(result%dbmod_dR, candidate%dbmod_dR)
         result%d2bmod_dR2 = interval_hull(result%d2bmod_dR2, &
@@ -300,6 +315,9 @@ contains
             candidate%bphi_covariant)
         result%dbphi_covariant_dR = interval_hull( &
             result%dbphi_covariant_dR, candidate%dbphi_covariant_dR)
+        result%d2bphi_covariant_dR2 = interval_hull( &
+            result%d2bphi_covariant_dR2, &
+            candidate%d2bphi_covariant_dR2)
         result%profile_segments_covered = &
             result%profile_segments_covered+candidate%profile_segments_covered
         if (result%canonical_chart_certified .and. &
@@ -308,10 +326,14 @@ contains
                 candidate%v_parallel)
             result%dv_parallel_dR = interval_hull(result%dv_parallel_dR, &
                 candidate%dv_parallel_dR)
+            result%d2v_parallel_dR2 = interval_hull( &
+                result%d2v_parallel_dR2, candidate%d2v_parallel_dR2)
             result%psi_star = interval_hull(result%psi_star, &
                 candidate%psi_star)
             result%dpsi_star_dR = interval_hull(result%dpsi_star_dR, &
                 candidate%dpsi_star_dR)
+            result%d2psi_star_dR2 = interval_hull( &
+                result%d2psi_star_dR2, candidate%d2psi_star_dR2)
         else
             result%canonical_chart_certified = .false.
         end if
@@ -343,13 +365,14 @@ contains
 
         valid_energy_result = valid_intervals([result%field_norm_squared, &
             result%psi_physical, result%dpsi_physical_dR, result%bmod, &
+            result%d2psi_physical_dR2, &
             result%dbmod_dR, result%d2bmod_dR2, result%omega_c, &
             result%domega_c_dR, result%d2omega_c_dR2, &
             result%energy_margin, result%denergy_margin_dR, &
             result%d2energy_margin_dR2, result%v_parallel_squared, &
             result%dv_parallel_squared_dR, &
             result%d2v_parallel_squared_dR2, result%bphi_covariant, &
-            result%dbphi_covariant_dR])
+            result%dbphi_covariant_dR, result%d2bphi_covariant_dR2])
     end function valid_energy_result
 
     pure logical function valid_cut_enclosure(cut)
