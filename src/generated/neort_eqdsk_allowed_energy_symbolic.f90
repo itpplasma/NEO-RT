@@ -42,9 +42,10 @@ contains
             psi_RRZ*2 + psi_RZZ*t9) + psi_Z*(psi_RRZ + d2Z_dR2*psi_ZZ + dZ_dR*psi_RZZ*2 + psi_ZZZ*t9) + &
             dF_dpsihat**2*t8/psi_sep**2)/t3)/radius
         t12 = abs(charge)
-        t13 = h - charge*electrostatic_potential - field_scale*mu*t3/radius
-        t14 = -charge*dPhi_dpsi*field_scale*t2 - field_scale*mu*t7
-        t15 = -charge*(d2Phi_dpsi2*field_scale**2*t8 + dPhi_dpsi*field_scale*t10) - field_scale*mu*t11
+        t13 = h - J_K*field_scale*t12*t3/c_light/mass/radius - charge*electrostatic_potential
+        t14 = -J_K*field_scale*t12*t7/c_light/mass - charge*dPhi_dpsi*field_scale*t2
+        t15 = -J_K*field_scale*t12*t11/c_light/mass - charge*(d2Phi_dpsi2*field_scale**2*t8 + dPhi_dpsi* &
+            field_scale*t10)
         field_norm_squared = t1
         psi_physical = field_scale*psi
         dpsi_physical_dR = field_scale*t2
