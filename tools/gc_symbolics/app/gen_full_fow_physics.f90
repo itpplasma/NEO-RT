@@ -2530,7 +2530,7 @@ program gen_full_fow_physics
         allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2))
     call check_identity(proofs, proof_engine, &
         "Eq13 allowed energy second derivative composition", &
-        allowed_d2energy_dr2 + jk*allowed_d2omega_c_dr2 + &
+        allowed_d2energy_dr2 + allowed_jk*allowed_d2omega_c_dr2 + &
         charge*(allowed_d2phi_dpsi2* &
         (allowed_field_scale*allowed_dpsi_dr)**2 + &
         allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2))
