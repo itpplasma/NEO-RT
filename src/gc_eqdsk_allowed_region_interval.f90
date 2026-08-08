@@ -72,7 +72,7 @@ contains
         type(gc_outward_interval_t), intent(out) :: d2potential_dpsi2
         integer, intent(out) :: segments_covered, status
 
-        type(gc_outward_interval_t) :: query, local_potential
+        type(gc_outward_interval_t) :: query, bounded_psi, local_potential
         type(gc_outward_interval_t) :: local_first, local_second
         integer :: i, node_count
         logical :: have_segment
@@ -95,21 +95,20 @@ contains
             if (psi_nodes(i+1) <= psi_nodes(i)) return
         end do
         status = EQDSK_ALLOWED_INTERVAL_PROFILE_GAP
-        if (psi%lo < psi_nodes(1)) then
-            write (*, '(a,4(1x,es24.16))') 'profile gap diagnostic=', &
-                psi%lo, psi%hi, psi_nodes(1), psi_nodes(node_count)
-            return
-        end if
-        if (psi%hi > psi_nodes(node_count)) then
-            write (*, '(a,4(1x,es24.16))') 'profile gap diagnostic=', &
-                psi%lo, psi%hi, psi_nodes(1), psi_nodes(node_count)
-            return
-        end if
+        if (psi%hi < psi_nodes(1) .or. psi%lo > psi_nodes(node_count)) return
+        ! The cut-box interval is an enclosure of a certified physical cut
+        ! root.  Its off-root spatial halo can extend outside the closed
+        ! profile domain, especially at the axis and edge.  Intersect that
+        ! enclosure with the profile domain before invoking the generated
+        ! interpolation kernel; a wholly disjoint box still fails closed.
+        bounded_psi = gc_outward_interval(max(psi%lo, psi_nodes(1)), &
+            min(psi%hi, psi_nodes(node_count)))
+        if (.not. gc_outward_interval_is_valid(bounded_psi)) return
 
         have_segment = .false.
         do i = 1, node_count-1
-            query = gc_outward_interval(max(psi%lo, psi_nodes(i)), &
-                min(psi%hi, psi_nodes(i+1)))
+            query = gc_outward_interval(max(bounded_psi%lo, psi_nodes(i)), &
+                min(bounded_psi%hi, psi_nodes(i+1)))
             if (query%hi < query%lo) cycle
             call evaluate_neort_profile_potential_map_interval(query, &
                 point(psi_nodes(i)), point(psi_nodes(i+1)), &
