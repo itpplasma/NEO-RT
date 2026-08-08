@@ -1,5 +1,6 @@
 module neort_gc_orbit_integrator
     !! Full axisymmetric guiding-center return map and strict thin-orbit limit.
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use fortnum_ode, only: ODE_EVENT_RISING, ODE_EVENT_FALLING
     use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
@@ -7,6 +8,10 @@ module neort_gc_orbit_integrator
     use neort_gc_dynamics, only: GC_SUCCESS, gc_field_sample_t, gc_rhs
     use neort_gc_models, only: GC_MODEL_SUCCESS, gc_field_t, gc_potential_t, &
         gc_invariants_t, state_from_invariants, canonical_flux_from_state
+    use neort_full_fow_cycle_average_symbolic, only: &
+        evaluate_neort_full_fow_cycle_average
+    use neort_full_fow_resonance_scalar_symbolic, only: &
+        evaluate_neort_full_fow_resonance_scalar
     use neort_thin_orbit_limit, only: orbit_return_t
     use util, only: pi
 
@@ -432,9 +437,9 @@ contains
             orbit_class, winding, period_estimate, omega_b, omega_phi, mth, mph, perturbation, &
             options, result)
         !! Average a perturbation and field moments on the physical finite-width
-        !! return map. The Fourier phase is the temporal bounce-harmonic phase
-        !! mph*phi-(mth*omega_b+mph*omega_phi)*t. This routine deliberately has
-        !! no q reduction; a failed return remains a failed orbit.
+        !! return map. The Fourier phase uses the generated temporal
+        !! bounce-harmonic resonance scalar. This routine deliberately has no
+        !! q reduction; a failed return remains a failed orbit.
         class(gc_field_t), intent(in) :: field_model
         class(gc_potential_t), intent(in) :: potential_model
         type(gc_invariants_t), intent(in) :: invariants
@@ -454,6 +459,8 @@ contains
         real(dp), allocatable :: final_state(:)
         real(dp) :: atol(9), maximum_time, return_time, event_time_tolerance
         real(dp) :: reference_potential, reference_gradient(3), reference_kinetic_energy
+        real(dp) :: average_real, average_imag, residence_average, field_average
+        real(dp) :: phase_rate, unused_phase_rate_derivative
         integer :: start_status, rhs_status, event_direction, reference_status
         logical :: found
 
@@ -478,6 +485,13 @@ contains
             options, initial_state, start_status)
         if (start_status /= GC_ORBIT_SUCCESS) then
             result%status = start_status
+            return
+        end if
+        call evaluate_neort_full_fow_resonance_scalar(real(mth, dp), real(mph, dp), &
+            omega_b, omega_phi, 0.0_dp, 0.0_dp, phase_rate, &
+            unused_phase_rate_derivative)
+        if (.not. ieee_is_finite(phase_rate)) then
+            result%status = GC_ORBIT_STATE_ERROR
             return
         end if
 
@@ -521,16 +535,19 @@ contains
             result%status = GC_ORBIT_INTEGRATOR_ERROR
             return
         end if
-        if (.not. found .or. return_time <= 0.0_dp) then
+        if (.not. found .or. .not. ieee_is_finite(return_time) .or. &
+                return_time <= 0.0_dp) then
             result%status = GC_ORBIT_NO_RETURN
             return
         end if
 
         result%period = return_time/reference_velocity
-        result%perturbation_average = cmplx(final_state(6), final_state(7), dp) &
-            /return_time
-        result%inverse_b_average = final_state(8)/return_time
-        result%b_average = final_state(9)/return_time
+        call evaluate_neort_full_fow_cycle_average(final_state(6), final_state(7), &
+            final_state(8), final_state(9), return_time, average_real, average_imag, &
+            residence_average, field_average)
+        result%perturbation_average = cmplx(average_real, average_imag, dp)
+        result%inverse_b_average = residence_average
+        result%b_average = field_average
         result%status = GC_ORBIT_SUCCESS
 
     contains
@@ -612,8 +629,7 @@ contains
             ! valid for trapped, passing, shaped, and finite-width orbits.
             phase_argument = real(mph, dp) &
                 *(state(2) - reference_position(2)) &
-                -(real(mth, dp)*omega_b + real(mph, dp)*omega_phi) &
-                *time/reference_velocity
+                -phase_rate*time/reference_velocity
             phase = cmplx(cos(phase_argument), sin(phase_argument), dp)
             hamiltonian_factor = normalized_full_hamiltonian_factor(invariants, &
                 local_potential, sample%bmod, reference_kinetic_energy)

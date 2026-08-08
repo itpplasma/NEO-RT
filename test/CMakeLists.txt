@@ -472,6 +472,10 @@ add_test(NAME test_gc_variational_event
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_variational_event.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_full_fow_runtime_algebra
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_runtime_algebra.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_certified_interval_roots
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_certified_interval_roots.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

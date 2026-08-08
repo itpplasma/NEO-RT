@@ -126,6 +126,11 @@ set(NEO_RT_SOURCES
     src/generated/neort_full_fow_perturbation_symbolic.f90
     src/generated/neort_full_fow_harmonic_symbolic.f90
     src/generated/neort_full_fow_resonance_symbolic.f90
+    src/generated/neort_full_fow_cycle_frequency_symbolic.f90
+    src/generated/neort_full_fow_resonance_scalar_symbolic.f90
+    src/generated/neort_full_fow_cycle_average_symbolic.f90
+    src/generated/neort_full_fow_mode_mapping_symbolic.f90
+    src/generated/neort_full_fow_torque_assembly_symbolic.f90
     src/generated/neort_full_fow_frequency_contribution_symbolic.f90
     src/generated/neort_full_fow_frequency_identity_symbolic.f90
     src/generated/neort_full_fow_simple_root_symbolic.f90
