@@ -13,6 +13,8 @@ module neort_gc_eqdsk_cut_interval
         evaluate_neort_eqdsk_cut_numerator_interval
     use neort_eqdsk_cut_mean_value_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_mean_value_interval
+    use neort_eqdsk_cut_axis_curvature_interval_symbolic, only: &
+        evaluate_neort_eqdsk_cut_axis_curvature_interval
     use neort_eqdsk_cut_r_flux_chart_interval_symbolic, only: &
         evaluate_neort_eqdsk_cut_r_flux_chart_interval
     use neort_eqdsk_quintic_cell_jet_interval_symbolic, only: &
@@ -44,6 +46,8 @@ module neort_gc_eqdsk_cut_interval
         type(gc_outward_interval_t) :: positive_denominator
         type(gc_outward_interval_t) :: dZ_dR
         type(gc_outward_interval_t) :: dpsihat_dR
+        type(gc_outward_interval_t) :: axis_flux_curvature
+        type(gc_outward_interval_t) :: axis_hessian_determinant
         logical :: denominator_positive_certified = .false.
         logical :: r_chart_certified = .false.
         integer :: profile_cells_covered = 0
@@ -197,6 +201,16 @@ contains
                 separatrix, result%dZ_dR, result%dpsihat_dR)
             if (.not. valid_intervals([result%dZ_dR, &
                     result%dpsihat_dR])) then
+                result = eqdsk_cut_interval_result_t()
+                status = EQDSK_CUT_INTERVAL_NONFINITE
+                return
+            end if
+            call evaluate_neort_eqdsk_cut_axis_curvature_interval( &
+                result%dZ_dR, jet(4), jet(5), jet(6), separatrix, &
+                result%axis_flux_curvature, &
+                result%axis_hessian_determinant)
+            if (.not. valid_intervals([result%axis_flux_curvature, &
+                    result%axis_hessian_determinant])) then
                 result = eqdsk_cut_interval_result_t()
                 status = EQDSK_CUT_INTERVAL_NONFINITE
                 return

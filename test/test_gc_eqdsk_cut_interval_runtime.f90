@@ -10,6 +10,8 @@ program test_gc_eqdsk_cut_interval_runtime
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_eqdsk_cut_r_flux_chart_symbolic, only: &
         evaluate_neort_eqdsk_cut_r_flux_chart
+    use neort_eqdsk_cut_axis_limit_symbolic, only: &
+        evaluate_neort_eqdsk_cut_axis_limit
     use neort_gc_eqdsk_cylindrical_adapter, only: &
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
     implicit none
@@ -20,6 +22,8 @@ program test_gc_eqdsk_cut_interval_runtime
     character(len=1024) :: path
     real(dp) :: R_value, Z_value, position(3), denominator, positive_psi_sep
     real(dp) :: point_dZ_dR, point_dpsihat_dR
+    real(dp) :: point_axis_curvature, point_axis_abs_derivative
+    real(dp) :: point_axis_delta_R
     integer :: status, point_status, cell_R, cell_Z, zero_Z, i, j
 
     call get_environment_variable('EQDSK_FILE', path)
@@ -151,6 +155,15 @@ program test_gc_eqdsk_cut_interval_runtime
         'point cut slope is outside interval chart result')
     call require(encloses(box%dpsihat_dR, point_dpsihat_dR), &
         'point flux derivative is outside interval chart result')
+    call evaluate_neort_eqdsk_cut_axis_limit(point_dZ_dR, &
+        point%psi_jet(4), point%psi_jet(5), point%psi_jet(6), psi_sep, &
+        0.01_dp, 1.0_dp, point_axis_curvature, point_axis_abs_derivative, &
+        point_axis_delta_R)
+    call require(encloses(box%axis_flux_curvature, point_axis_curvature), &
+        'point axis curvature is outside interval chart result')
+    call require(point_axis_abs_derivative == point_axis_abs_derivative .and. &
+        point_axis_delta_R == point_axis_delta_R, &
+        'point axis limiting chart is nonfinite')
 
     call evaluate_eqdsk_cut_interval_box(cell_R, cell_Z, rad(cell_R), &
         rad(cell_R+2), zet(cell_Z), zet(cell_Z+1), box, status)
