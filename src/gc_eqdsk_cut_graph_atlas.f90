@@ -68,6 +68,8 @@ module neort_gc_eqdsk_cut_graph_atlas
         type(eqdsk_cut_graph_atlas_options_t) :: options
         type(eqdsk_cut_graph_atlas_strip_t), allocatable :: strips(:)
         integer :: certificate_id = 0
+        real(dp) :: raw_psi_sep = 0.0_dp
+        logical :: raw_psi_sep_valid = .false.
         logical :: global_completeness_certified = .false.
         integer :: flux_monotonicity_sign = 0
         logical :: flux_monotonicity_certified = .false.
@@ -125,6 +127,11 @@ contains
                 psihat_lo >= psihat_hi) return
         status = validate_grid()
         if (status /= EQDSK_CUT_ATLAS_SUCCESS) return
+        if (.not. ieee_is_finite(psi_sep)) then
+            status = EQDSK_CUT_ATLAS_NONFINITE
+            return
+        end if
+        if (psi_sep <= 0.0_dp) return
         if (r_lo < rad(1) .or. r_hi > rad(nrad) .or. &
                 z_lo < zet(1) .or. z_hi > zet(nzet)) then
             status = EQDSK_CUT_ATLAS_OUT_OF_RANGE
@@ -138,6 +145,8 @@ contains
         atlas%requested_psihat_lo = psihat_lo
         atlas%requested_psihat_hi = psihat_hi
         atlas%options = options
+        atlas%raw_psi_sep = psi_sep
+        atlas%raw_psi_sep_valid = .true.
 
         do cell_R = 1, nrad-1
             slab_lo = max(r_lo, rad(cell_R))
@@ -179,6 +188,8 @@ contains
         atlas%requested_psihat_hi = 0.0_dp
         atlas%options = eqdsk_cut_graph_atlas_options_t()
         atlas%certificate_id = 0
+        atlas%raw_psi_sep = 0.0_dp
+        atlas%raw_psi_sep_valid = .false.
         atlas%global_completeness_certified = .false.
         atlas%flux_monotonicity_sign = 0
         atlas%flux_monotonicity_certified = .false.
@@ -351,7 +362,8 @@ contains
         end if
         call evaluate_neort_eqdsk_cut_r_flux_chart( &
             jet%d_cut_numerator_d_R, jet%d_cut_numerator_d_Z, &
-            jet%psi_jet(2), jet%psi_jet(3), psi_sep, dZ_root, dpsihat_root)
+            jet%psi_jet(2), jet%psi_jet(3), atlas%raw_psi_sep, dZ_root, &
+            dpsihat_root)
         if (.not. all(ieee_is_finite([dZ_root, dpsihat_root]))) then
             status = EQDSK_CUT_ATLAS_MAPPING_FAILURE
             return
@@ -461,7 +473,7 @@ contains
             status = EQDSK_CUT_ATLAS_MAPPING_FAILURE
             return
         end if
-        psihat = jet%psi_jet(1)/psi_sep
+        psihat = jet%psi_jet(1)/atlas%raw_psi_sep
         if (.not. ieee_is_finite(psihat)) then
             psihat = 0.0_dp
             status = EQDSK_CUT_ATLAS_NONFINITE
@@ -901,6 +913,8 @@ contains
 
         if (allocated(atlas%strips)) deallocate(atlas%strips)
         atlas%certificate_id = 0
+        atlas%raw_psi_sep = 0.0_dp
+        atlas%raw_psi_sep_valid = .false.
         atlas%global_completeness_certified = .false.
         atlas%flux_monotonicity_sign = 0
         atlas%flux_monotonicity_certified = .false.
@@ -977,6 +991,8 @@ contains
         validate_atlas_structure = EQDSK_CUT_ATLAS_INVALID_CERTIFICATE
         if (validate_grid() /= EQDSK_CUT_ATLAS_SUCCESS) return
         if (.not. valid_options(atlas%options)) return
+        validate_atlas_structure = validate_source_provenance(atlas)
+        if (validate_atlas_structure /= EQDSK_CUT_ATLAS_SUCCESS) return
         if (.not. all(ieee_is_finite([atlas%requested_r_lo, &
                 atlas%requested_r_hi, atlas%requested_z_lo, &
                 atlas%requested_z_hi, atlas%requested_psihat_lo, &
@@ -1020,6 +1036,25 @@ contains
         if (previous_r /= atlas%requested_r_hi) return
         validate_atlas_structure = EQDSK_CUT_ATLAS_SUCCESS
     end function validate_atlas_structure
+
+    integer function validate_source_provenance(atlas)
+        type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
+
+        validate_source_provenance = EQDSK_CUT_ATLAS_INVALID_CERTIFICATE
+        if (.not. atlas%raw_psi_sep_valid) return
+        if (.not. ieee_is_finite(atlas%raw_psi_sep)) then
+            validate_source_provenance = EQDSK_CUT_ATLAS_NONFINITE
+            return
+        end if
+        if (atlas%raw_psi_sep <= 0.0_dp) return
+        if (.not. ieee_is_finite(psi_sep)) then
+            validate_source_provenance = EQDSK_CUT_ATLAS_NONFINITE
+            return
+        end if
+        if (psi_sep <= 0.0_dp) return
+        if (atlas%raw_psi_sep /= psi_sep) return
+        validate_source_provenance = EQDSK_CUT_ATLAS_SUCCESS
+    end function validate_source_provenance
 
     logical function valid_strip(strip)
         type(eqdsk_cut_graph_atlas_strip_t), intent(in) :: strip

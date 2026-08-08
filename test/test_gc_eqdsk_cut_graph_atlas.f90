@@ -4,6 +4,7 @@ program test_gc_eqdsk_cut_graph_atlas
     use neort_gc_eqdsk_cylindrical_adapter, only: &
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
     use neort_gc_eqdsk_cut_graph_atlas, only: &
+        EQDSK_CUT_ATLAS_INVALID_CERTIFICATE, &
         EQDSK_CUT_ATLAS_SUCCESS, EQDSK_CUT_GRAPH_CERTIFICATE_ID, &
         build_eqdsk_cut_graph_atlas, clear_eqdsk_cut_graph_atlas, &
         enclose_eqdsk_cut_graph_strip, &
@@ -17,6 +18,7 @@ program test_gc_eqdsk_cut_graph_atlas
         EQDSK_FLUX_MAP_SUCCESS, eqdsk_flux_profile_map_t, &
         initialize_eqdsk_flux_profile_map
     use neort_gc_eqdsk_radial_interval_map, only: &
+        EQDSK_RADIAL_INTERVAL_INVALID_ATLAS, &
         EQDSK_RADIAL_INTERVAL_NOT_MONOTONE, &
         EQDSK_RADIAL_INTERVAL_NORMALIZATION, &
         EQDSK_RADIAL_INTERVAL_OUT_OF_RANGE, &
@@ -31,6 +33,7 @@ program test_gc_eqdsk_cut_graph_atlas
 
     type(eqdsk_cylindrical_field_t) :: field
     type(eqdsk_cut_graph_atlas_t) :: inboard_atlas, outboard_atlas, full_atlas
+    type(eqdsk_cut_graph_atlas_t) :: mutated_atlas
     type(eqdsk_cut_graph_atlas_options_t) :: options, full_options
     type(eqdsk_axis_certificate_t) :: axis_certificate
     type(eqdsk_flux_profile_map_t) :: flux_map, unit_scale_flux_map
@@ -94,6 +97,10 @@ program test_gc_eqdsk_cut_graph_atlas
     call require(outboard_atlas%flux_monotonicity_certified .and. &
         outboard_atlas%flux_monotonicity_sign == 1, &
         'outboard cut flux was not certified strictly increasing')
+    call require(outboard_atlas%raw_psi_sep_valid, &
+        'outboard atlas omitted raw separatrix provenance validity')
+    call require(outboard_atlas%raw_psi_sep == psi_sep, &
+        'outboard atlas did not retain the raw separatrix flux')
     call check_regular_branch(outboard_atlas, outboard_lo, outboard_hi)
     call initialize_eqdsk_flux_profile_map([0.0_dp, 1.0_dp], &
         [0.0_dp, 3.0_dp*psi_sep], 3.0_dp, psi_sep, flux_map, status)
@@ -116,6 +123,17 @@ program test_gc_eqdsk_cut_graph_atlas
     call require(abs(midpoint(rho_interval)-midpoint(unit_scale_rho_interval)) &
         <= 1.0e-10_dp*max(1.0_dp, abs(midpoint(rho_interval))), &
         'field-scale cancellation changed the normalized radial map')
+
+    mutated_atlas = outboard_atlas
+    mutated_atlas%raw_psi_sep = 1.1_dp*mutated_atlas%raw_psi_sep
+    call validate_eqdsk_cut_graph_atlas(mutated_atlas, status)
+    call require(status == EQDSK_CUT_ATLAS_INVALID_CERTIFICATE, &
+        'mutated raw atlas separatrix provenance was accepted')
+    call map_eqdsk_outboard_r_interval_to_rho_tor(mutated_atlas, flux_map, &
+        outboard_lo, outboard_hi, mismatched_rho_interval, &
+        mismatched_provenance, status)
+    call require(status == EQDSK_RADIAL_INTERVAL_INVALID_ATLAS, &
+        'radial map accepted a mutated atlas separatrix provenance')
 
     mismatched_psi_sep = 1.1_dp*psi_sep
     call initialize_eqdsk_flux_profile_map([0.0_dp, 1.0_dp], &
@@ -173,6 +191,9 @@ program test_gc_eqdsk_cut_graph_atlas
         'full circular cut atlas failed structural validation')
 
     call clear_eqdsk_cut_graph_atlas(inboard_atlas)
+    call require(.not. inboard_atlas%raw_psi_sep_valid .and. &
+        inboard_atlas%raw_psi_sep == 0.0_dp, &
+        'clearing atlas did not remove raw separatrix provenance')
     call validate_eqdsk_cut_graph_atlas(inboard_atlas, status)
     call require(status /= EQDSK_CUT_ATLAS_SUCCESS, &
         'cleared atlas remained valid')

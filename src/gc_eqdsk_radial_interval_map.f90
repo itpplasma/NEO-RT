@@ -8,7 +8,6 @@ module neort_gc_eqdsk_radial_interval_map
     !!   raw EQDSK psi -> physical psi -> psi_hat -> s_tor -> rho_tor.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use field_eq_mod, only: psi_sep
     use neort_eqdsk_physical_flux_map_interval_symbolic, only: &
         evaluate_neort_eqdsk_physical_flux_map_interval
     use neort_eqdsk_physical_flux_normalization_interval_symbolic, only: &
@@ -101,7 +100,7 @@ contains
             status = EQDSK_RADIAL_INTERVAL_INVALID_PROFILE
             return
         end if
-        if (flux_map%psi_sep /= psi_sep) then
+        if (flux_map%psi_sep /= atlas%raw_psi_sep) then
             status = EQDSK_RADIAL_INTERVAL_NORMALIZATION
             return
         end if
