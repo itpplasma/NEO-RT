@@ -180,7 +180,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cut_r_chart_roots(2), eqdsk_cut_z_chart_roots(2)
     type(expr_t) :: eqdsk_cut_r_flux_chart_roots(2)
     type(expr_t) :: eqdsk_cut_mean_value_roots(1)
-    type(expr_t) :: eqdsk_cut_axis_curvature_roots(1)
+    type(expr_t) :: eqdsk_cut_axis_curvature_roots(2)
     type(expr_t) :: eqdsk_cut_axis_limit_roots(3)
     type(expr_t) :: eq17_outer_roots(1)
     type(expr_t) :: axisymmetric_pphi_roots(3)
@@ -260,6 +260,7 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_axis_slope, eqcut_axis_psi_rr
     type(expr_t) :: eqcut_axis_psi_rz, eqcut_axis_psi_zz
     type(expr_t) :: eqcut_axis_psi_sep, eqcut_axis_curvature
+    type(expr_t) :: eqcut_axis_hessian_determinant
     type(expr_t) :: eqcut_axis_delta_psihat
     type(expr_t) :: eqcut_axis_branch_sign, eqcut_axis_abs_dpsihat
     type(expr_t) :: eqcut_axis_inverse_delta_r
@@ -659,6 +660,8 @@ program gen_full_fow_physics
     eqcut_axis_curvature = (eqcut_axis_psi_rr + &
         2*eqcut_axis_psi_rz*eqcut_axis_slope + &
         eqcut_axis_psi_zz*eqcut_axis_slope**2)/eqcut_axis_psi_sep
+    eqcut_axis_hessian_determinant = eqcut_axis_psi_rr &
+        *eqcut_axis_psi_zz-eqcut_axis_psi_rz**2
     eqcut_axis_abs_dpsihat = sqrt(2*eqcut_axis_curvature &
         *eqcut_axis_delta_psihat)
     eqcut_axis_inverse_delta_r = eqcut_axis_branch_sign &
@@ -1752,7 +1755,8 @@ program gen_full_fow_physics
     eqdsk_cut_r_flux_chart_roots = [eqcut_r_chart_slope, &
         eqcut_r_chart_dpsihat]
     eqdsk_cut_mean_value_roots = [eqcut_mean_enclosure]
-    eqdsk_cut_axis_curvature_roots = [eqcut_axis_curvature]
+    eqdsk_cut_axis_curvature_roots = [eqcut_axis_curvature, &
+        eqcut_axis_hessian_determinant]
     eqdsk_cut_axis_limit_roots = [eqcut_axis_curvature, &
         eqcut_axis_abs_dpsihat, eqcut_axis_inverse_delta_r]
     eq17_outer_roots = [eq17_outer_factor]
@@ -2278,7 +2282,8 @@ program gen_full_fow_physics
         "evaluate_neort_eqdsk_cut_axis_curvature_interval", &
         [character(len=64) :: "dZ_dR", "psi_RR", "psi_RZ", "psi_ZZ", &
         "psi_sep"], eqdsk_cut_axis_curvature_roots, &
-        [character(len=64) :: "axis_flux_curvature"], interval_kernel=.true.)
+        [character(len=64) :: "axis_flux_curvature", &
+        "axis_hessian_determinant"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_axis_limit_symbolic.f90", &
         "neort_eqdsk_cut_axis_limit_symbolic", &
@@ -2548,7 +2553,7 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_flux_chart:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_mean_value:1:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_curvature:1:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."

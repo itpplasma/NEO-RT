@@ -38,7 +38,7 @@ program test_gc_generated_certificates
             'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884')) error stop &
         'EQDSK Z-chart certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_cut_axis_curvature', &
-            'neort-cert-v1:eqdsk_cut_axis_curvature:1:fortsym-5457884')) &
+            'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884')) &
         error stop 'EQDSK axis-curvature certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_cut_axis_limit', &
             'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884')) &

@@ -17,7 +17,7 @@ program test_gc_eqdsk_cut_axis_limit
     real(dp), parameter :: tolerance = 2.0e-14_dp
     real(dp) :: curvature, absolute_derivative, delta_r
     real(dp) :: oracle_curvature, oracle_delta_r, oracle_derivative
-    type(gc_outward_interval_t) :: interval_curvature
+    type(gc_outward_interval_t) :: interval_curvature, interval_determinant
 
     ! Independent quadratic axis oracle.  Along Z=slope*R, evaluate
     ! psi_hat(R) directly and recover its second derivative from a centered
@@ -47,12 +47,15 @@ program test_gc_eqdsk_cut_axis_limit
         gc_outward_interval(2.99_dp, 3.01_dp), &
         gc_outward_interval(0.39_dp, 0.41_dp), &
         gc_outward_interval(1.99_dp, 2.01_dp), &
-        gc_outward_interval(4.99_dp, 5.01_dp), interval_curvature)
+        gc_outward_interval(4.99_dp, 5.01_dp), interval_curvature, &
+        interval_determinant)
     call require(interval_curvature%lo <= oracle_curvature .and. &
         interval_curvature%hi >= oracle_curvature, &
         'axis curvature interval excluded its quadratic oracle')
     call require(interval_curvature%lo > 0.0_dp, &
         'nondegenerate positive axis curvature was not certified')
+    call require(interval_determinant%lo > 0.0_dp, &
+        'positive-definite axis Hessian determinant was not certified')
 
     write (*, '(a)') 'test_gc_eqdsk_cut_axis_limit OK'
 
