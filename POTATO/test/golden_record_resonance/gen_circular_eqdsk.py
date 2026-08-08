@@ -33,19 +33,6 @@ import sys
 
 import numpy as np
 
-from circular_flux_continuation_generated import (
-    A,
-    B0,
-    EDGE_INDEX,
-    PSI,
-    PSI_EDGE,
-    Q,
-    Q0,
-    QA,
-    R0,
-    RADIUS,
-)
-
 # Round-trip helper lives in the libneo python package fetched by the build.
 THIS = os.path.dirname(os.path.abspath(__file__))
 LIBNEO_PY = os.path.join(
@@ -56,6 +43,9 @@ if os.path.isdir(LIBNEO_PY):
 from libneo.eqdsk_base import read_eqdsk, write_eqdsk  # noqa: E402
 
 # --- circular equilibrium parameters (public-safe synthetic) -----------------
+R0 = 1.60        # magnetic axis major radius [m]
+A = 0.50         # minor radius of the boundary flux surface [m]
+B0 = 2.0         # toroidal field on axis [T]
 P0 = 5.0e3       # on-axis pressure [Pa]; low beta
 # Monotonically rising (sheared) safety factor q(r) = Q0 + (QA-Q0)*(r/a)^2.
 # Magnetic shear is essential: a constant-q (degenerate) equilibrium makes every
@@ -63,18 +53,32 @@ P0 = 5.0e3       # on-axis pressure [Pa]; low beta
 # the resonance root finder hits its oscillatory-root cap on nearly every mode
 # and the run neither finishes fast nor produces isolated resonance lines. A
 # rising q with q=1..few crossed over the radius gives well-separated lines.
+Q0 = 1.5         # safety factor on axis
+QA = 4.0         # safety factor at the boundary r=a
 NR = 65
 NZ = 65
 
 
 def q_of_r(r):
     """Sheared safety factor as a function of minor radius r in [0, A]."""
-    return np.interp(r, RADIUS, Q)
+    return Q0 + (QA - Q0) * (r / A) ** 2
 
 
 def psi_of_r():
-    """Return the Fortsym-emitted analytic circular flux samples."""
-    return RADIUS.copy(), PSI.copy()
+    """Poloidal flux psi(r) from the prescribed q, psi(0)=0.
+
+    On the outboard midplane B_tor = R0*B0/R and B_pol = psi'(r)/R, so
+    q = r*B_tor/(R*B_pol) = r*R0*B0/psi'(r), giving psi'(r) = R0*B0*r/q(r).
+    Integrate outward; the same psi(rho) is then laid on concentric circles
+    rho = sqrt((R-R0)^2 + Z^2) (geometric-axis model equilibrium).
+    """
+    n = 2048
+    r = np.linspace(0.0, A, n)
+    dpsidr = np.zeros(n)
+    dpsidr[1:] = R0 * B0 * r[1:] / q_of_r(r[1:])
+    psi = np.concatenate([[0.0], np.cumsum(0.5 * (dpsidr[1:] + dpsidr[:-1])
+                                          * np.diff(r))])
+    return r, psi
 
 
 def build_eqdsk():
@@ -88,15 +92,10 @@ def build_eqdsk():
     Z = zboxmid - 0.5 * zboxlength + np.linspace(0.0, zboxlength, NZ)
     RR, ZZ = np.meshgrid(R, Z)  # shape (NZ, NR), matching read/write layout
 
-    # The Fortsym-emitted continuation covers the complete EQDSK box.  There
-    # is deliberately no right-hand clamp: the sampled analytic continuation
-    # keeps dpsi/dr positive beyond the nominal LCFS.
     r_tab, psi_tab = psi_of_r()
-    psi_edge = PSI_EDGE
+    psi_edge = psi_tab[-1]
     rho = np.sqrt((RR - R0) ** 2 + ZZ ** 2)
-    if np.max(rho) > r_tab[-1]:
-        raise ValueError("Fortsym continuation does not cover the EQDSK box")
-    PsiVs = np.interp(rho, r_tab, psi_tab)
+    PsiVs = np.interp(rho, r_tab, psi_tab, right=psi_edge)
 
     # Toroidal field: constant f = R0*B0 (vacuum, low beta), so B_tor = f/R.
     fprof = np.full(NR, R0 * B0)

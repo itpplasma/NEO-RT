@@ -13,9 +13,11 @@ program test_gc_circular_flux_continuation
     real(dp), parameter :: q_axis = 1.5_dp
     real(dp), parameter :: delta_q = 2.5_dp
     real(dp), parameter :: h = 1.0e-5_dp
+    integer, parameter :: quadrature_steps = 20000
     real(dp) :: psi, dpsi, q, psi_left, psi_right, dpsi_left
     real(dp) :: dpsi_right, psi_limit, dpsi_limit, q_limit
     real(dp) :: psi_limit_left, psi_limit_right
+    real(dp) :: radius_value, oracle_value
     integer :: k
 
     call evaluate_neort_circular_flux_continuation(edge_radius, edge_radius, &
@@ -33,15 +35,21 @@ program test_gc_circular_flux_continuation
         4.0e-5_dp)
 
     do k = 0, 256
+        radius_value = edge_radius + 1.5_dp*edge_radius*real(k, dp)/256.0_dp
         call evaluate_neort_circular_flux_continuation( &
-            edge_radius + 1.5_dp*edge_radius*real(k, dp)/256.0_dp, &
+            radius_value, &
             edge_radius, psi_edge, toroidal_flux, q_axis, delta_q, psi, dpsi, q)
         if (dpsi <= 0.0_dp) error stop 'exterior flux is not strictly monotone'
         if (k > 0) then
             if (psi <= psi_left) error stop 'exterior flux values are not increasing'
         end if
+        oracle_value = numerical_flux(radius_value)
+        call require_close('numerical flux oracle', psi, oracle_value, &
+            2.0e-9_dp)
         psi_left = psi
     end do
+    call require_close('defining LCFS slope', dpsi, &
+        toroidal_flux*edge_radius/(q_axis+delta_q), 2.0e-13_dp)
 
     call evaluate_neort_circular_flux_continuation_limit(edge_radius, &
         edge_radius, psi_edge, toroidal_flux, q_axis, psi_limit, dpsi_limit, &
@@ -72,5 +80,28 @@ contains
             error stop 'circular continuation oracle failed'
         end if
     end subroutine require_close
+
+    real(dp) function numerical_flux(radius_value)
+        real(dp), intent(in) :: radius_value
+        real(dp) :: lower, step, left, right
+        integer :: j
+
+        lower = edge_radius
+        step = (radius_value-lower)/real(quadrature_steps, dp)
+        numerical_flux = psi_edge
+        left = oracle_dpsi(lower)
+        do j = 1, quadrature_steps
+            right = oracle_dpsi(lower+real(j, dp)*step)
+            numerical_flux = numerical_flux + 0.5_dp*step*(left+right)
+            left = right
+        end do
+    end function numerical_flux
+
+    pure real(dp) function oracle_dpsi(radius_value)
+        real(dp), intent(in) :: radius_value
+
+        oracle_dpsi = toroidal_flux*radius_value/(q_axis + delta_q* &
+            (radius_value/edge_radius)**2)
+    end function oracle_dpsi
 
 end program test_gc_circular_flux_continuation

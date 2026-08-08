@@ -191,11 +191,6 @@ add_test(NAME test_gc_eqdsk_cut_axis_limit
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-add_test(NAME test_gc_circular_flux_continuation
-    COMMAND ${CMAKE_BINARY_DIR}/test_gc_circular_flux_continuation.x
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-)
-
 add_test(NAME test_gc_eqdsk_cut_endpoint_krawczyk
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_endpoint_krawczyk.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

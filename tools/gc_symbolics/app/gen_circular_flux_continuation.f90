@@ -52,8 +52,9 @@ program gen_circular_flux_continuation
     type(expr_t) :: radius, edge_radius, psi_edge, toroidal_flux
     type(expr_t) :: q_axis, delta_q, q_edge, safety_factor
     type(expr_t) :: psi_continuation, dpsi_continuation
-    type(expr_t) :: psi_limit, dpsi_limit, psi_profile
+    type(expr_t) :: psi_limit, dpsi_limit, psi_profile, dpsi_profile
     type(expr_t) :: roots(3), limit_roots(3), edge_value_residual
+    type(expr_t) :: edge_slope_residual
     type(engine_result_t) :: simplified
     character(2048) :: kernel_path, limit_kernel_path, python_path
     integer :: kernel_length, limit_kernel_length, python_length, argument_status
@@ -98,6 +99,7 @@ program gen_circular_flux_continuation
     dpsi_continuation = diff(psi_continuation, radius)
     psi_profile = toroidal_flux*edge_radius**2/(2*delta_q)* &
         log(safety_factor/q_axis)
+    dpsi_profile = diff(psi_profile, radius)
 
     ! The delta_q=0 branch is derived as the finite zero-shear limit of the
     ! same radial flux law.  It is emitted separately so no runtime division by
@@ -111,8 +113,14 @@ program gen_circular_flux_continuation
         dpsi_continuation - toroidal_flux*radius/safety_factor)
     call check_identity(proofs, proof_engine, 'limit derivative', &
         dpsi_limit - toroidal_flux*radius/q_axis)
+    call check_identity(proofs, proof_engine, 'shared interior flux law', &
+        dpsi_profile - toroidal_flux*radius/safety_factor)
     edge_value_residual = subs(psi_continuation, radius, edge_radius) - psi_edge
     call check_identity(proofs, proof_engine, 'edge value', edge_value_residual)
+    edge_slope_residual = subs(dpsi_profile, radius, edge_radius) - &
+        subs(dpsi_continuation, radius, edge_radius)
+    call check_identity(proofs, proof_engine, 'interior-continuation edge slope', &
+        edge_slope_residual)
     call suite_end(proofs)
     if (proofs%failed /= 0) error stop 'circular continuation proof failed'
 
