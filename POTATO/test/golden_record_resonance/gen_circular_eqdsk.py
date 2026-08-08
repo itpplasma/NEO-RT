@@ -8,15 +8,11 @@ synthetic concentric-circle equilibrium reproduces it without shipping any
 experimental AUG #30835 g-file or kinetic profiles, which must not enter public
 NEO-RT.
 
-The equilibrium is a low-beta circular tokamak with concentric circular flux
-surfaces
-
-    psi(R,Z) = psi_edge * ((R-R0)^2 + Z^2) / a^2 ,   psi(axis)=0
-
-so the poloidal field is B_pol = |grad psi| / R, growing linearly with minor
-radius like a uniform-current screw pinch. The toroidal field is a constant
-f = R0*B0 (vacuum, low beta), pressure is a small parabola. Everything is in
-SI (m, T, Vs); POTATO's libneo reader converts to its internal cgs grid.
+The equilibrium is a finite-aspect geometric circular orbit/interpolation
+fixture, not a Grad-Shafranov force-balance equilibrium. Fortsym owns the
+normalization, inverse maps, profiles, geometry, and every serialized sample.
+Everything is in SI (m, T, Vs); POTATO's libneo reader converts to its
+internal cgs grid.
 
 Outputs (written next to this script):
   circ.eqdsk       g-file consumed as the gfile by field_divB0.inp
@@ -36,13 +32,42 @@ import numpy as np
 from circular_flux_continuation_generated import (
     A,
     B0,
-    PSI,
+    BMOD_IM,
+    BMOD_RAD_CM,
+    BMOD_RE,
+    BMOD_ZET_CM,
+    BOUNDARY_POINTS,
+    D_VOLUME_DS_TOR_AXIS,
+    D_VOLUME_DS_TOR_PROFILE,
+    DPRESS_DPSIPROF,
+    FFPRIMEPROF,
+    FPROF,
+    IP,
+    LCFS,
+    LIMITER,
+    NR,
+    NZ,
+    PSI_AXIS,
     PSI_EDGE,
-    Q,
+    PSI_PROFILE,
+    PSI_VS,
+    PROFILE_POLY,
+    QPROF,
+    TOROIDAL_FLUX,
+    PTOTPROF,
     Q0,
     QA,
     R0,
-    RADIUS,
+    R_AXIS,
+    RBOX_LEFT,
+    RBOX_LENGTH,
+    R_GRID,
+    Z_AXIS,
+    ZBOX_LENGTH,
+    ZBOX_MID,
+    Z_GRID,
+    WALL,
+    WALL_POINTS,
 )
 
 # Round-trip helper lives in the libneo python package fetched by the build.
@@ -55,70 +80,34 @@ if os.path.isdir(LIBNEO_PY):
 from libneo.eqdsk_base import read_eqdsk, write_eqdsk  # noqa: E402
 
 # --- circular equilibrium parameters (public-safe synthetic) -----------------
-P0 = 5.0e3       # on-axis pressure [Pa]; low beta
-# Monotonically rising (sheared) safety factor q(r) = Q0 + (QA-Q0)*(r/a)^2.
-# Magnetic shear is essential: a constant-q (degenerate) equilibrium makes every
-# poloidal harmonic resonate at the same frequency ratio across all J_perp, so
-# the resonance root finder hits its oscillatory-root cap on nearly every mode
-# and the run neither finishes fast nor produces isolated resonance lines. A
-# rising q with q=1..few crossed over the radius gives well-separated lines.
-NR = 65
-NZ = 65
-
-
-def q_of_r(r):
-    """Sheared safety factor as a function of minor radius r in [0, A]."""
-    return np.interp(r, RADIUS, Q)
-
-
-def psi_of_r():
-    """Return the Fortsym-emitted analytic circular flux samples."""
-    return RADIUS.copy(), PSI.copy()
-
-
+# The generated q table is sheared so the resonance gate has isolated lines.
 def build_eqdsk():
-    # Box generously around the boundary so orbits stay inside the grid.
-    rboxleft = R0 - 1.6 * A
-    rboxlength = 3.2 * A
-    zboxmid = 0.0
-    zboxlength = 3.2 * A
+    # The Fortsym generator owns the actual grid and every physical sample.
+    # This writer only arranges those generated arrays into the EQDSK record.
+    rboxleft = RBOX_LEFT
+    rboxlength = RBOX_LENGTH
+    zboxmid = ZBOX_MID
+    zboxlength = ZBOX_LENGTH
 
-    R = rboxleft + np.linspace(0.0, rboxlength, NR)
-    Z = zboxmid - 0.5 * zboxlength + np.linspace(0.0, zboxlength, NZ)
-    RR, ZZ = np.meshgrid(R, Z)  # shape (NZ, NR), matching read/write layout
+    R = R_GRID.copy()
+    Z = Z_GRID.copy()
 
-    r_tab, psi_tab = psi_of_r()
     psi_edge = PSI_EDGE
-    rho = np.sqrt((RR - R0) ** 2 + ZZ ** 2)
-    if np.max(rho) > r_tab[-1]:
-        raise ValueError("Fortsym continuation does not cover the EQDSK box")
-    PsiVs = np.interp(rho, r_tab, psi_tab)
+    PsiVs = PSI_VS.copy()
 
-    # Toroidal field: constant f = R0*B0 (vacuum, low beta), so B_tor = f/R.
-    fprof = np.full(NR, R0 * B0)
-    fdfdpsiprof = np.zeros(NR)  # f constant -> f f' = 0
+    # Generated toroidal-field arrays are copied into the EQDSK record.
+    fprof = FPROF.copy()
+    fdfdpsiprof = FFPRIMEPROF.copy()
 
-    # Small parabolic pressure in normalized flux s=psi/psi_edge, zero at edge.
-    s = np.linspace(0.0, 1.0, NR)
-    ptotprof = P0 * (1.0 - s)
-    dpressdpsiprof = np.full(NR, -P0 / psi_edge)
+    ptotprof = PTOTPROF.copy()
+    dpressdpsiprof = DPRESS_DPSIPROF.copy()
 
-    # q profile on the uniform s grid (s = psi/psi_edge -> r via the inverse).
-    r_on_s = np.interp(s * psi_edge, psi_tab, r_tab)
-    qprof = q_of_r(r_on_s)
+    # q samples are Fortsym-generated values on the uniform physical grid.
+    qprof = QPROF.copy()
 
-    # Plasma current from Ampere on the boundary loop: Ip = B_pol(a)*2*pi*a/mu0,
-    # with B_pol(a) = psi'(a)/(R0+a) = R0*B0*a/(q(a)*(R0+a)).
-    mu0 = 4.0e-7 * np.pi
-    Bpol_edge = R0 * B0 * A / (QA * (R0 + A))
-    Ip = Bpol_edge * 2.0 * np.pi * A / mu0
-
-    # Circular boundary and a slightly larger circular limiter.
-    theta = np.linspace(0.0, 2.0 * np.pi, 129)
-    lcfs = np.column_stack([R0 + A * np.cos(theta), A * np.sin(theta)])
-    lim = np.column_stack(
-        [R0 + 1.1 * A * np.cos(theta), 1.1 * A * np.sin(theta)]
-    )
+    Ip = IP
+    lcfs = LCFS.copy()
+    lim = LIMITER.copy()
 
     eqdata = {
         "header": "POTATO circular synthetic gate  CIRC 00000        ",
@@ -126,12 +115,12 @@ def build_eqdsk():
         "nzgr": NZ,
         "rboxlength": rboxlength,
         "zboxlength": zboxlength,
-        "R0": R0,
+        "R0": R_AXIS,
         "rboxleft": rboxleft,
         "zboxmid": zboxmid,
-        "Rpsi0": R0,
-        "Zpsi0": 0.0,
-        "PsiaxisVs": 0.0,
+        "Rpsi0": R_AXIS,
+        "Zpsi0": Z_AXIS,
+        "PsiaxisVs": PSI_AXIS,
         "PsiedgeVs": psi_edge,
         "Btor_at_R0": B0,
         "Ip": Ip,
@@ -146,32 +135,49 @@ def build_eqdsk():
         "Lcfs": lcfs,
         "Limiter": lim,
     }
+    if PSI_VS.shape != (NZ, NR) or PSI_PROFILE.size != NR:
+        raise ValueError("Fortsym circular fixture dimensions are inconsistent")
+    if QPROF.size != NR or not np.allclose(qprof, QPROF, rtol=0.0, atol=0.0):
+        raise ValueError("Fortsym circular q profile was altered")
+    if fprof.size != NR or fdfdpsiprof.size != NR:
+        raise ValueError("Fortsym circular F profiles are inconsistent")
+    if ptotprof.size != NR or dpressdpsiprof.size != NR:
+        raise ValueError("Fortsym circular pressure profiles are inconsistent")
+    if lcfs.shape != (BOUNDARY_POINTS, 2) or lim.shape != (BOUNDARY_POINTS, 2):
+        raise ValueError("Fortsym circular boundary arrays are inconsistent")
+    if BMOD_RAD_CM.size != NR or BMOD_ZET_CM.size != NZ:
+        raise ValueError("Fortsym perturbation coordinates are inconsistent")
+    if BMOD_RE.shape != (NR, NZ) or BMOD_IM.shape != (NR, NZ):
+        raise ValueError("Fortsym perturbation arrays are inconsistent")
+    if WALL.shape != (WALL_POINTS, 2) or PROFILE_POLY.shape != (4, 10):
+        raise ValueError("Fortsym wall/profile arrays are inconsistent")
+    if not np.all(np.isfinite(BMOD_RE)) or not np.all(np.isfinite(BMOD_IM)):
+        raise ValueError("Fortsym perturbation arrays contain non-finite values")
+    if D_VOLUME_DS_TOR_PROFILE.size != NR:
+        raise ValueError("Fortsym circular volume profile is inconsistent")
+    if not np.isfinite(D_VOLUME_DS_TOR_AXIS):
+        raise ValueError("invalid Fortsym circular volume Jacobian")
+    if not np.all(np.isfinite(D_VOLUME_DS_TOR_PROFILE)) or np.any(
+        D_VOLUME_DS_TOR_PROFILE <= 0.0
+    ):
+        raise ValueError("invalid Fortsym circular volume Jacobian profile")
+    if not np.all(np.isfinite(PsiVs)) or not np.all(np.isfinite(qprof)):
+        raise ValueError("Fortsym circular samples contain non-finite values")
     return eqdata, R, Z
 
 
-def write_bmod_n(path, R, Z):
-    """Write the synthetic n-harmonic |B| perturbation POTATO's pertham reads.
+def write_bmod_n(path):
+    """Serialize the Fortsym-generated perturbation POTATO's pertham reads.
 
-    Format (Fortran unformatted sequential, default record markers): nrad,nzet;
-    then rad,zet (cm, matching the field grid); then the real and imaginary
-    amplitude arrays on the (nrad,nzet) grid. The pattern is a smooth poloidal
-    m-like ripple peaked near the edge so resonant points carry nonzero weight;
-    the magnitude is arbitrary (the gate compares resonance-line counts, not
-    torque values).
+    Format (Fortran unformatted sequential, default record markers): generated
+    dimensions, coordinates, and real/imaginary arrays on the field grid.
     """
-    rad_cm = R * 100.0
-    zet_cm = Z * 100.0
+    rad_cm = BMOD_RAD_CM.copy()
+    zet_cm = BMOD_ZET_CM.copy()
+    bre = BMOD_RE.copy()
+    bim = BMOD_IM.copy()
     nrad = rad_cm.size
     nzet = zet_cm.size
-
-    RR, ZZ = np.meshgrid(rad_cm, zet_cm, indexing="ij")  # (nrad,nzet)
-    r0_cm = R0 * 100.0
-    a_cm = A * 100.0
-    rho = np.sqrt((RR - r0_cm) ** 2 + ZZ ** 2)
-    tht = np.arctan2(ZZ, RR - r0_cm)
-    env = (rho / a_cm) ** 2  # grows toward the edge
-    bre = (1.0e3 * env * np.cos(3.0 * tht)).astype(np.float64)
-    bim = (1.0e3 * env * np.sin(3.0 * tht)).astype(np.float64)
 
     def rec(payload):
         n = len(payload)
@@ -186,48 +192,28 @@ def write_bmod_n(path, R, Z):
 
 
 def write_convexwall(path):
-    """Circular stretch-coords wall (cm) enclosing the boundary with margin.
+    """Serialize the Fortsym-generated circular stretch-coords wall (cm).
 
-    stretch_coords reads (R,Z) pairs in the field grid units (cm) and pulls
-    points outside this convex wall back in. A circle of radius 1.12*a around
-    the axis sits just outside the a=A boundary so traced orbits are not
-    distorted but far-SOL excursions are bounded.
+    stretch_coords reads generated (R,Z) pairs in the field-grid units (cm).
     """
-    rw = 1.12 * A * 100.0
-    r0_cm = R0 * 100.0
-    theta = np.linspace(0.0, 2.0 * np.pi, 100, endpoint=False)
     with open(path, "w") as f:
-        for t in theta:
-            f.write(f"{r0_cm + rw*np.cos(t):24.16e}{rw*np.sin(t):24.16e}\n")
+        for r_value, z_value in WALL:
+            f.write(f"{r_value:24.16e}{z_value:24.16e}\n")
 
 
 def write_profile_poly(path):
-    """Monotonic species profiles as descending-power polynomials in s_pol.
+    """Serialize Fortsym-generated descending-power profile coefficients.
 
-    POTATO reads ten coefficients per array (index 0..9, descending powers of
-    the normalized poloidal flux s_pol in [0,1]); evaluation is
-    sum_k poly(k) * s_pol**(9-k). Linear profiles padded with leading zeros:
-      density     n = 5e13 * (1 - 0.5 s_pol)  [cm^-3]
-      temperature T = 2000  * (1 - 0.7 s_pol)  [eV]
-      potential   Phi = 300 * (1 - s_pol)      [V]
-    The reader takes line 1 = density, line 2 = dummy, line 3 = temperature,
-    line 4 = potential; lines 1-2 of the file are comment/dummy header.
+    POTATO reads ten generated coefficients per array. The reader takes line 1
+    as density, line 2 as dummy, line 3 as temperature, and line 4 as
+    potential; lines 1-2 of the file are comment/dummy header.
     """
-    def lin(slope, intercept):
-        return [0.0] * 8 + [slope, intercept]
-
-    rows = [
-        lin(-2.5e13, 5.0e13),   # density
-        [0.0] * 10,             # dummy (reader discards)
-        lin(-1.4e3, 2.0e3),     # temperature
-        lin(-3.0e2, 3.0e2),     # potential
-    ]
     with open(path, "w") as f:
         f.write("% Public-safe synthetic circular-case profiles "
                 "(NOT AUG #30835)\n")
         f.write("% ten coefficients per line, descending powers of s_pol; "
                 "order: density, dummy, temperature, potential\n")
-        for row in rows:
+        for row in PROFILE_POLY:
             f.write(" ".join(f"{c:.16e}" for c in row) + "\n")
 
 
@@ -255,10 +241,10 @@ def main():
     assert abs(back["R0"] - R0) < 1e-6
     assert abs(back["Btor_at_R0"] - B0) < 1e-6
     assert abs(back["PsiedgeVs"] - psi_edge) < 1e-6
-    assert np.allclose(back["fprof"], R0 * B0, atol=1e-6)
+    assert np.allclose(back["fprof"], TOROIDAL_FLUX, atol=1e-6)
     assert np.allclose(back["PsiVs"], eqdata["PsiVs"], atol=1e-6 * psi_edge)
 
-    write_bmod_n(os.path.join(THIS, "bmod_n.dat"), R, Z)
+    write_bmod_n(os.path.join(THIS, "bmod_n.dat"))
     write_convexwall(os.path.join(THIS, "convexwall.dat"))
     write_profile_poly(os.path.join(THIS, "profile_poly.in"))
 
