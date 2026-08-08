@@ -90,6 +90,50 @@ program gen_full_fow_physics
     type(expr_t) :: cut_topology_j21, cut_topology_j22
     type(expr_t) :: cut_topology_trace, cut_topology_determinant
     type(expr_t) :: cut_topology_discriminant
+    type(expr_t) :: physical_flow_roots(7)
+    type(expr_t) :: physical_flow_d_r, physical_flow_d_z
+    type(expr_t) :: physical_flow_radius, physical_flow_r_local
+    type(expr_t) :: physical_flow_psi, physical_flow_f, physical_flow_phi
+    type(expr_t) :: physical_flow_psi_r, physical_flow_psi_z
+    type(expr_t) :: physical_flow_psi_rr, physical_flow_psi_rz
+    type(expr_t) :: physical_flow_psi_zz, physical_flow_psi_rrr
+    type(expr_t) :: physical_flow_psi_rrz, physical_flow_psi_rzz
+    type(expr_t) :: physical_flow_psi_zzz, physical_flow_psi_sep
+    type(expr_t) :: physical_flow_f_prime, physical_flow_f_second
+    type(expr_t) :: physical_flow_phi_prime, physical_flow_phi_second
+    type(expr_t) :: physical_flow_delta_psi, physical_flow_delta_psihat
+    type(expr_t) :: physical_flow_psi_local, physical_flow_f_local
+    type(expr_t) :: physical_flow_phi_local
+    type(expr_t) :: physical_flow_b(3), physical_flow_bhat(3)
+    type(expr_t) :: physical_flow_curl(3), physical_flow_bmod
+    type(expr_t) :: physical_flow_h0, physical_flow_jk, physical_flow_sigma
+    type(expr_t) :: physical_flow_mu, physical_flow_p_parallel
+    type(expr_t) :: physical_flow_psi_star_local
+    type(expr_t) :: physical_flow_psi_star_r, physical_flow_psi_star_z
+    type(expr_t) :: physical_flow_psi_star_rr
+    type(expr_t) :: physical_flow_psi_star_rz, physical_flow_psi_star_zz
+    type(expr_t) :: physical_flow_bparallel_star
+    type(expr_t) :: physical_flow_littlejohn_factor
+    type(expr_t) :: physical_flow_j11, physical_flow_j12
+    type(expr_t) :: physical_flow_j21, physical_flow_j22
+    type(expr_t) :: physical_flow_trace, physical_flow_determinant
+    type(expr_t) :: physical_flow_discriminant
+    type(expr_t) :: physical_flow_energy_identity
+    type(expr_t) :: physical_flow_mu_identity
+    type(expr_t) :: physical_flow_flux_r_identity
+    type(expr_t) :: physical_flow_flux_phi_identity
+    type(expr_t) :: physical_flow_flux_z_identity
+    type(expr_t) :: physical_flow_psi_star_identity
+    type(expr_t) :: physical_flow_psi_star_gradient_r_identity
+    type(expr_t) :: physical_flow_psi_star_gradient_z_identity
+    type(expr_t) :: physical_flow_fixed_point_jacobian_identity
+    type(expr_t) :: physical_flow_trace_identity
+    type(expr_t) :: physical_flow_determinant_identity
+    type(expr_t) :: physical_flow_discriminant_identity
+    type(expr_t) :: physical_flow_sigma_identity
+    type(expr_t) :: physical_flow_uniform_hessian_rr
+    type(expr_t) :: physical_flow_uniform_hessian_rz
+    type(expr_t) :: physical_flow_uniform_hessian_zz
     type(expr_t) :: cut_topology_p_star, cut_topology_p_star_x
     type(expr_t) :: cut_topology_dp_star_d_r, cut_topology_dp_star_d_z
     type(expr_t) :: cut_topology_partner_residual
@@ -1611,6 +1655,176 @@ program gen_full_fow_physics
     cylindrical_measure = radius*bparallel_star
     hamiltonian_dot = p_parallel/mass*dot_p + force1*v1 + force2*v2 + force3*v3
 
+    ! ------------------------------------------------------------------
+    ! Axisymmetric physical fixed-(H0,J_K,sigma) fixed-point Jacobian.
+    ! The local Taylor jet is in physical cylindrical (R,Z), not a Boozer
+    ! angle.  psi and F=R*B_phi determine
+    !
+    !   B_R=-psi_Z/R,  B_phi=F/R,  B_Z=psi_R/R.
+    !
+    ! At a stationary point of the full canonical momentum, POTATO's exact
+    ! two-dimensional identity is
+    !
+    !   J = L*[[-psi*_RZ,-psi*_ZZ],[psi*_RR,psi*_RZ]],
+    !   L = p_parallel/(m*R*B_parallel_star).
+    !
+    ! We therefore differentiate the full physical psi-star, not a cut
+    ! curvature and not the already-expanded curl(bhat) velocity.  A
+    ! third-order psi jet is required because psi-star depends on grad(psi)
+    ! through |B|; F and Phi require second-order jets.  B_parallel_star is
+    ! evaluated from the existing Littlejohn expression, but its derivatives
+    ! never enter this fixed-point identity.
+    physical_flow_d_r = sym(arena, "physical_d_R")
+    physical_flow_d_z = sym(arena, "physical_d_Z")
+    physical_flow_radius = sym(arena, "R")
+    physical_flow_r_local = physical_flow_radius + physical_flow_d_r
+    physical_flow_psi = sym(arena, "psi")
+    physical_flow_f = sym(arena, "F")
+    physical_flow_phi = sym(arena, "Phi")
+    physical_flow_psi_r = sym(arena, "psi_R")
+    physical_flow_psi_z = sym(arena, "psi_Z")
+    physical_flow_psi_rr = sym(arena, "psi_RR")
+    physical_flow_psi_rz = sym(arena, "psi_RZ")
+    physical_flow_psi_zz = sym(arena, "psi_ZZ")
+    physical_flow_psi_rrr = sym(arena, "psi_RRR")
+    physical_flow_psi_rrz = sym(arena, "psi_RRZ")
+    physical_flow_psi_rzz = sym(arena, "psi_RZZ")
+    physical_flow_psi_zzz = sym(arena, "psi_ZZZ")
+    physical_flow_psi_sep = sym(arena, "psi_sep")
+    physical_flow_f_prime = sym(arena, "dF_dpsihat")
+    physical_flow_f_second = sym(arena, "d2F_dpsihat2")
+    physical_flow_phi_prime = sym(arena, "dPhi_dpsi")
+    physical_flow_phi_second = sym(arena, "d2Phi_dpsi2")
+    physical_flow_h0 = sym(arena, "H0")
+    physical_flow_jk = sym(arena, "J_K")
+    physical_flow_sigma = sym(arena, "sigma")
+    physical_flow_mu = abs(charge)*physical_flow_jk/(mass*c_light)
+
+    physical_flow_psi_local = physical_flow_psi + physical_flow_psi_r* &
+        physical_flow_d_r + physical_flow_psi_z*physical_flow_d_z + &
+        physical_flow_psi_rr*physical_flow_d_r**2/2 + &
+        physical_flow_psi_rz*physical_flow_d_r*physical_flow_d_z + &
+        physical_flow_psi_zz*physical_flow_d_z**2/2 + &
+        physical_flow_psi_rrr*physical_flow_d_r**3/6 + &
+        physical_flow_psi_rrz*physical_flow_d_r**2*physical_flow_d_z/2 + &
+        physical_flow_psi_rzz*physical_flow_d_r*physical_flow_d_z**2/2 + &
+        physical_flow_psi_zzz*physical_flow_d_z**3/6
+    physical_flow_delta_psi = physical_flow_psi_local - physical_flow_psi
+    physical_flow_delta_psihat = physical_flow_delta_psi/physical_flow_psi_sep
+    physical_flow_f_local = physical_flow_f + physical_flow_f_prime* &
+        physical_flow_delta_psihat + physical_flow_f_second* &
+        physical_flow_delta_psihat**2/2
+    physical_flow_phi_local = physical_flow_phi + physical_flow_phi_prime* &
+        physical_flow_delta_psi + physical_flow_phi_second* &
+        physical_flow_delta_psi**2/2
+
+    physical_flow_b(1) = -exact_derivative(physical_flow_psi_local, &
+        physical_flow_d_z, "axisymmetric B_R from psi")/physical_flow_r_local
+    physical_flow_b(2) = physical_flow_f_local/physical_flow_r_local
+    physical_flow_b(3) = exact_derivative(physical_flow_psi_local, &
+        physical_flow_d_r, "axisymmetric B_Z from psi")/physical_flow_r_local
+    physical_flow_bmod = sqrt(physical_flow_b(1)**2 + &
+        physical_flow_b(2)**2 + physical_flow_b(3)**2)
+    do i = 1, 3
+        physical_flow_bhat(i) = physical_flow_b(i)/physical_flow_bmod
+    end do
+    physical_flow_curl(1) = -exact_derivative(physical_flow_bhat(2), &
+        physical_flow_d_z, "axisymmetric curl bhat R")
+    physical_flow_curl(2) = exact_derivative(physical_flow_bhat(1), &
+        physical_flow_d_z, "axisymmetric curl bhat phi R") - &
+        exact_derivative(physical_flow_bhat(3), physical_flow_d_r, &
+        "axisymmetric curl bhat phi Z")
+    physical_flow_curl(3) = exact_derivative(physical_flow_bhat(2), &
+        physical_flow_d_r, "axisymmetric curl bhat Z") + &
+        physical_flow_bhat(2)/physical_flow_r_local
+    physical_flow_p_parallel = physical_flow_sigma*sqrt(2*mass* &
+        (physical_flow_h0-physical_flow_mu*physical_flow_bmod- &
+        charge*physical_flow_phi_local))
+    physical_flow_psi_star_local = physical_flow_psi_local + c_light/charge* &
+        physical_flow_p_parallel*physical_flow_f_local/physical_flow_bmod
+    physical_flow_bparallel_star = instantiate_physical_bparallel(bparallel_star)
+    physical_flow_psi_star_r = exact_derivative(physical_flow_psi_star_local, &
+        physical_flow_d_r, "physical psi-star R gradient")
+    physical_flow_psi_star_z = exact_derivative(physical_flow_psi_star_local, &
+        physical_flow_d_z, "physical psi-star Z gradient")
+    physical_flow_psi_star_rr = exact_simplify(subs(subs( &
+        exact_derivative(physical_flow_psi_star_r, physical_flow_d_r, &
+        "physical psi-star RR Hessian"), physical_flow_d_r, zero), &
+        physical_flow_d_z, zero), "physical psi-star RR Hessian at origin")
+    physical_flow_psi_star_rz = exact_simplify(subs(subs( &
+        exact_derivative(physical_flow_psi_star_r, physical_flow_d_z, &
+        "physical psi-star RZ Hessian"), physical_flow_d_r, zero), &
+        physical_flow_d_z, zero), "physical psi-star RZ Hessian at origin")
+    physical_flow_psi_star_zz = exact_simplify(subs(subs( &
+        exact_derivative(physical_flow_psi_star_z, physical_flow_d_z, &
+        "physical psi-star ZZ Hessian"), physical_flow_d_r, zero), &
+        physical_flow_d_z, zero), "physical psi-star ZZ Hessian at origin")
+    physical_flow_littlejohn_factor = exact_simplify(subs(subs( &
+        physical_flow_p_parallel/(mass*physical_flow_r_local* &
+        physical_flow_bparallel_star), physical_flow_d_r, zero), &
+        physical_flow_d_z, zero), "fixed-point Littlejohn factor")
+    physical_flow_j11 = -physical_flow_littlejohn_factor* &
+        physical_flow_psi_star_rz
+    physical_flow_j12 = -physical_flow_littlejohn_factor* &
+        physical_flow_psi_star_zz
+    physical_flow_j21 = physical_flow_littlejohn_factor* &
+        physical_flow_psi_star_rr
+    physical_flow_j22 = physical_flow_littlejohn_factor* &
+        physical_flow_psi_star_rz
+    physical_flow_trace = physical_flow_j11 + physical_flow_j22
+    physical_flow_determinant = physical_flow_j11*physical_flow_j22 - &
+        physical_flow_j12*physical_flow_j21
+    physical_flow_discriminant = physical_flow_trace**2 - &
+        4*physical_flow_determinant
+
+    ! Exact identities and the uniform straight-field limit are part of the
+    ! generator proof ledger.  The sigma reversal identity is only for the
+    ! signed p_parallel definition; the resulting physical flow is not
+    ! declared symmetric under sigma reversal.
+    physical_flow_energy_identity = physical_flow_p_parallel**2 - &
+        physical_flow_sigma**2*2*mass*(physical_flow_h0 - &
+        physical_flow_mu*physical_flow_bmod - charge*physical_flow_phi_local)
+    physical_flow_mu_identity = physical_flow_mu - abs(charge)* &
+        physical_flow_jk/(mass*c_light)
+    physical_flow_flux_r_identity = physical_flow_b(1) + &
+        exact_derivative(physical_flow_psi_local, physical_flow_d_z, &
+        "axisymmetric flux R identity")/physical_flow_r_local
+    physical_flow_flux_phi_identity = physical_flow_b(2) - &
+        physical_flow_f_local/physical_flow_r_local
+    physical_flow_flux_z_identity = physical_flow_b(3) - &
+        exact_derivative(physical_flow_psi_local, physical_flow_d_r, &
+        "axisymmetric flux Z identity")/physical_flow_r_local
+    physical_flow_psi_star_identity = physical_flow_psi_star_local - &
+        (physical_flow_psi_local + c_light/charge* &
+        physical_flow_p_parallel*physical_flow_f_local/physical_flow_bmod)
+    physical_flow_psi_star_gradient_r_identity = physical_flow_psi_star_r - &
+        exact_derivative(physical_flow_psi_star_local, physical_flow_d_r, &
+        "physical psi-star R gradient identity")
+    physical_flow_psi_star_gradient_z_identity = physical_flow_psi_star_z - &
+        exact_derivative(physical_flow_psi_star_local, physical_flow_d_z, &
+        "physical psi-star Z gradient identity")
+    physical_flow_fixed_point_jacobian_identity = physical_flow_j11 - &
+        (-physical_flow_littlejohn_factor*physical_flow_psi_star_rz)
+    physical_flow_trace_identity = physical_flow_trace - &
+        (physical_flow_j11 + physical_flow_j22)
+    physical_flow_determinant_identity = physical_flow_determinant - &
+        (physical_flow_j11*physical_flow_j22 - &
+        physical_flow_j12*physical_flow_j21)
+    physical_flow_discriminant_identity = physical_flow_discriminant - &
+        (physical_flow_trace**2 - 4*physical_flow_determinant)
+    physical_flow_sigma_identity = subs(physical_flow_p_parallel, &
+        physical_flow_sigma, -physical_flow_sigma) + physical_flow_p_parallel
+
+    physical_flow_uniform_hessian_rr = exact_simplify( &
+        uniform_physical_flow_limit(physical_flow_psi_star_rr)-one, &
+        "uniform straight-field psi-star RR limit")
+    physical_flow_uniform_hessian_rz = exact_simplify( &
+        uniform_physical_flow_limit(physical_flow_psi_star_rz), &
+        "uniform straight-field psi-star RZ limit")
+    physical_flow_uniform_hessian_zz = exact_simplify( &
+        uniform_physical_flow_limit(physical_flow_psi_star_zz), &
+        "uniform straight-field psi-star ZZ limit")
+
     ! Genuine axisymmetric Noether identity along the generated Littlejohn
     ! dynamics.  Here B_R/B_phi/B_Z are full field components, while bhat_phi
     ! is the unit-vector component.  The flux convention is psi_R=R*B_Z and
@@ -2546,6 +2760,52 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "partner derivative is the graph-cut chain rule", &
         cut_topology_partner_derivative_identity)
+    call check_identity(proofs, proof_engine, &
+        "fixed-invariant parallel momentum shell", &
+        physical_flow_energy_identity)
+    call check_identity(proofs, proof_engine, &
+        "physical J_K to magnetic moment conversion", &
+        physical_flow_mu_identity)
+    call check_identity(proofs, proof_engine, &
+        "axisymmetric flux field R component", &
+        physical_flow_flux_r_identity)
+    call check_identity(proofs, proof_engine, &
+        "axisymmetric toroidal field F/R component", &
+        physical_flow_flux_phi_identity)
+    call check_identity(proofs, proof_engine, &
+        "axisymmetric flux field Z component", &
+        physical_flow_flux_z_identity)
+    call check_identity(proofs, proof_engine, &
+        "physical psi-star definition", physical_flow_psi_star_identity)
+    call check_identity(proofs, proof_engine, &
+        "physical psi-star R gradient", &
+        physical_flow_psi_star_gradient_r_identity)
+    call check_identity(proofs, proof_engine, &
+        "physical psi-star Z gradient", &
+        physical_flow_psi_star_gradient_z_identity)
+    call check_identity(proofs, proof_engine, &
+        "fixed-point Jacobian identity", &
+        physical_flow_fixed_point_jacobian_identity)
+    call check_identity(proofs, proof_engine, &
+        "physical flow trace definition", physical_flow_trace_identity)
+    call check_identity(proofs, proof_engine, &
+        "physical flow determinant definition", &
+        physical_flow_determinant_identity)
+    call check_identity(proofs, proof_engine, &
+        "physical flow discriminant definition", &
+        physical_flow_discriminant_identity)
+    call check_identity(proofs, proof_engine, &
+        "sigma reversal changes only p_parallel sign", &
+        physical_flow_sigma_identity)
+    call check_identity(proofs, proof_engine, &
+        "uniform straight-field psi-star RR limit", &
+        physical_flow_uniform_hessian_rr)
+    call check_identity(proofs, proof_engine, &
+        "uniform straight-field psi-star RZ limit", &
+        physical_flow_uniform_hessian_rz)
+    call check_identity(proofs, proof_engine, &
+        "uniform straight-field psi-star ZZ limit", &
+        physical_flow_uniform_hessian_zz)
     call check_identity(proofs, proof_engine, "cycle omega_b definition", &
         cycle_omega_b - 2*pi_expr(arena)*cycle_winding/cycle_period)
     call check_identity(proofs, proof_engine, "cycle omega_phi definition", &
@@ -3486,6 +3746,10 @@ program gen_full_fow_physics
         cut_topology_determinant, cut_topology_discriminant]
     cut_topology_partner_roots = [cut_topology_partner_residual, &
         cut_topology_partner_derivative]
+    physical_flow_roots = [physical_flow_j11, physical_flow_j12, &
+        physical_flow_j21, physical_flow_j22, physical_flow_trace, &
+        physical_flow_determinant, &
+        physical_flow_discriminant]
 
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eqdsk_cut_r_flux_chart_roots)
@@ -3537,6 +3801,7 @@ program gen_full_fow_physics
     call simplify_array(cut_topology_flow_roots)
     call simplify_array(cut_topology_jacobian_roots)
     call simplify_array(cut_topology_partner_roots)
+    call simplify_array(physical_flow_roots)
 
     action_roots = roots(1:11)
     perturbation_roots = roots(12:17)
@@ -3710,6 +3975,17 @@ program gen_full_fow_physics
         [character(len=64) :: "J_11", "J_12", "J_21", "J_22"], &
         cut_topology_jacobian_roots, [character(len=64) :: "trace", &
         "determinant", "discriminant"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_gc_axisymmetric_physical_flow_jacobian_symbolic.f90", &
+        "neort_gc_axisymmetric_physical_flow_jacobian_symbolic", &
+        "evaluate_neort_gc_axisymmetric_physical_flow_jacobian", &
+        [character(len=64) :: "mass", "charge", "c_light", "R", "H0", &
+        "J_K", "sigma", "psi", "psi_R", "psi_Z", "psi_RR", "psi_RZ", &
+        "psi_ZZ", "psi_RRR", "psi_RRZ", "psi_RZZ", "psi_ZZZ", &
+        "psi_sep", "F", "dF_dpsihat", "d2F_dpsihat2", "Phi", &
+        "dPhi_dpsi", "d2Phi_dpsi2"], physical_flow_roots, &
+        [character(len=64) :: "J_11", "J_12", "J_21", "J_22", "trace", &
+        "determinant", "discriminant"], line_limit=88)
     call emit_kernel_file(trim(output_path)// &
         "/neort_gc_cut_topology_partner_symbolic.f90", &
         "neort_gc_cut_topology_partner_symbolic", &
@@ -4497,6 +4773,51 @@ program gen_full_fow_physics
         "/neort_generated_certificate_registry.f90")
 
 contains
+
+    function instantiate_physical_bparallel(expression) result(value)
+        type(expr_t), intent(in) :: expression
+        type(expr_t) :: value
+
+        value = expression
+        value = subs(value, b1, physical_flow_b(1))
+        value = subs(value, b2, physical_flow_b(2))
+        value = subs(value, b3, physical_flow_b(3))
+        value = subs(value, bhat1, physical_flow_bhat(1))
+        value = subs(value, bhat2, physical_flow_bhat(2))
+        value = subs(value, bhat3, physical_flow_bhat(3))
+        value = subs(value, curl1, physical_flow_curl(1))
+        value = subs(value, curl2, physical_flow_curl(2))
+        value = subs(value, curl3, physical_flow_curl(3))
+        value = subs(value, mu, physical_flow_mu)
+        value = subs(value, p_parallel, physical_flow_p_parallel)
+    end function instantiate_physical_bparallel
+
+    function uniform_physical_flow_limit(expression) result(value)
+        type(expr_t), intent(in) :: expression
+        type(expr_t) :: value
+
+        ! B_Z=1, B_R=B_phi=0 and Phi=0.  Writing psi=R**2/2 keeps
+        ! the physical cylindrical flux representation explicit and avoids
+        ! a hidden field-component oracle in this limiting proof.
+        value = expression
+        value = subs(value, physical_flow_psi, physical_flow_radius**2/2)
+        value = subs(value, physical_flow_psi_r, physical_flow_radius)
+        value = subs(value, physical_flow_psi_z, zero)
+        value = subs(value, physical_flow_psi_rr, one)
+        value = subs(value, physical_flow_psi_rz, zero)
+        value = subs(value, physical_flow_psi_zz, zero)
+        value = subs(value, physical_flow_psi_rrr, zero)
+        value = subs(value, physical_flow_psi_rrz, zero)
+        value = subs(value, physical_flow_psi_rzz, zero)
+        value = subs(value, physical_flow_psi_zzz, zero)
+        value = subs(value, physical_flow_psi_sep, one)
+        value = subs(value, physical_flow_f, zero)
+        value = subs(value, physical_flow_f_prime, zero)
+        value = subs(value, physical_flow_f_second, zero)
+        value = subs(value, physical_flow_phi, zero)
+        value = subs(value, physical_flow_phi_prime, zero)
+        value = subs(value, physical_flow_phi_second, zero)
+    end function uniform_physical_flow_limit
 
     function exact_simplify(expression, context) result(value)
         type(expr_t), intent(in) :: expression
