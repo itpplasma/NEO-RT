@@ -1864,9 +1864,10 @@ program gen_full_fow_physics
         *flux_segment_field_scale*flux_segment_psi_sep-scaled_flux_value
     physical_flux_normalized_value = sym(arena, "psi_physical")
     physical_flux_psihat = physical_flux_normalized_value &
-        /flux_segment_psi_sep
+        /(flux_segment_field_scale*flux_segment_psi_sep)
     physical_flux_normalization_residual = physical_flux_psihat &
-        *flux_segment_psi_sep-physical_flux_normalized_value
+        *flux_segment_field_scale*flux_segment_psi_sep &
+        -physical_flux_normalized_value
     physical_flux_raw_psi = sym(arena, "psi")
     physical_flux_raw_psi_r = sym(arena, "psi_R")
     physical_flux_raw_psi_z = sym(arena, "psi_Z")
@@ -3344,14 +3345,14 @@ program gen_full_fow_physics
         "/neort_eqdsk_physical_flux_normalization_symbolic.f90", &
         "neort_eqdsk_physical_flux_normalization_symbolic", &
         "evaluate_neort_eqdsk_physical_flux_normalization", &
-        [character(len=64) :: "psi_physical", "psi_sep"], &
+        [character(len=64) :: "psi_physical", "field_scale", "psi_sep"], &
         eqdsk_physical_flux_normalization_roots, &
         [character(len=64) :: "psihat"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_physical_flux_normalization_interval_symbolic.f90", &
         "neort_eqdsk_physical_flux_normalization_interval_symbolic", &
         "evaluate_neort_eqdsk_physical_flux_normalization_interval", &
-        [character(len=64) :: "psi_physical", "psi_sep"], &
+        [character(len=64) :: "psi_physical", "field_scale", "psi_sep"], &
         eqdsk_physical_flux_normalization_roots, &
         [character(len=64) :: "psihat"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &

@@ -101,12 +101,13 @@ program test_gc_eqdsk_allowed_rho_chain
     call require_contains(inverse_rho, 0.4_dp, &
         'inverse rho map upper endpoint')
 
-    call evaluate_neort_eqdsk_physical_flux_normalization(3.0_dp, 6.0_dp, &
-        physical_psihat_scalar)
+    call evaluate_neort_eqdsk_physical_flux_normalization(3.0_dp, 2.0_dp, &
+        3.0_dp, physical_psihat_scalar)
     call require_close(physical_psihat_scalar, 0.5_dp, &
         'physical flux normalization')
     call evaluate_neort_eqdsk_physical_flux_normalization_interval( &
-        gc_outward_interval(2.0_dp, 3.0_dp), point(6.0_dp), physical_psihat)
+        gc_outward_interval(2.0_dp, 3.0_dp), point(2.0_dp), point(3.0_dp), &
+        physical_psihat)
     call require_contains(physical_psihat, 1.0_dp/3.0_dp, &
         'physical flux normalization lower endpoint')
     call require_contains(physical_psihat, 0.5_dp, &
