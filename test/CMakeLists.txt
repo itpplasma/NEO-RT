@@ -322,6 +322,14 @@ add_test(NAME test_gc_full_fow_scales_boundary_cut
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_scales_boundary_cut.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_eqdsk_cut_jet_symbolic
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_jet_symbolic.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_generated_certificates
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_certificates.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_cylindrical_littlejohn_generated
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_littlejohn_generated.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
