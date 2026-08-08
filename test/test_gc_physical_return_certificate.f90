@@ -6,18 +6,23 @@ program test_gc_physical_return_certificate
     use neort_gc_cylindrical_model, only: GC_CYL_SUCCESS
     use neort_gc_cylindrical_physical_return, only: &
         GC_CYL_PHYSICAL_EVENT_RETURN, &
+        GC_CYL_PHYSICAL_RETURN_CERTIFICATE_UNAVAILABLE, &
         GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID, &
         GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_CERTIFIED, &
         GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN, &
         attach_gc_cylindrical_physical_return_certificate, &
+        certify_gc_cylindrical_physical_return, &
         gc_cylindrical_physical_return_certificate_t, &
         gc_cylindrical_physical_return_t
     implicit none
 
     type(gc_cylindrical_physical_return_t) :: evidence
     type(gc_cylindrical_physical_return_certificate_t) :: certificate
+    type(gc_cylindrical_physical_return_t) :: provider_evidence
     integer :: status
     character(len=256) :: message
+
+    call test_provider_statuses()
 
     evidence = numerical_two_event_evidence()
     certificate = valid_certificate()
@@ -51,6 +56,67 @@ program test_gc_physical_return_certificate
     write (*, '(a)') 'PASS: physical return certificate contract'
 
 contains
+
+    subroutine test_provider_statuses()
+        provider_evidence = numerical_two_event_evidence()
+        call certify_gc_cylindrical_physical_return(provider_evidence, &
+            unavailable_provider, status, message)
+        call require(status == GC_CYL_PHYSICAL_RETURN_CERTIFICATE_UNAVAILABLE, &
+            'unavailable provider did not remain unavailable')
+        call require(provider_evidence%multiplicity_status == &
+            GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN, &
+            'unavailable provider did not fail closed')
+
+        provider_evidence = numerical_two_event_evidence()
+        call certify_gc_cylindrical_physical_return(provider_evidence, &
+            invalid_provider, status, message)
+        call require(status == GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID, &
+            'malformed provider certificate was accepted')
+        call require(provider_evidence%multiplicity_status == &
+            GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN, &
+            'malformed provider did not fail closed')
+
+        provider_evidence = numerical_two_event_evidence()
+        call certify_gc_cylindrical_physical_return(provider_evidence, &
+            valid_provider, status, message)
+        call require(status == GC_CYL_SUCCESS .and. &
+            provider_evidence%multiplicity_status == &
+            GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_CERTIFIED, &
+            'valid provider certificate was not attached')
+    end subroutine test_provider_statuses
+
+    subroutine unavailable_provider(evidence, certificate, provider_status)
+        type(gc_cylindrical_physical_return_t), intent(in) :: evidence
+        type(gc_cylindrical_physical_return_certificate_t), intent(out) :: certificate
+        integer, intent(out) :: provider_status
+
+        associate (unused_evidence => evidence)
+        end associate
+        certificate = gc_cylindrical_physical_return_certificate_t()
+        provider_status = GC_CYL_PHYSICAL_RETURN_CERTIFICATE_UNAVAILABLE
+    end subroutine unavailable_provider
+
+    subroutine invalid_provider(evidence, certificate, provider_status)
+        type(gc_cylindrical_physical_return_t), intent(in) :: evidence
+        type(gc_cylindrical_physical_return_certificate_t), intent(out) :: certificate
+        integer, intent(out) :: provider_status
+
+        associate (unused_evidence => evidence)
+        end associate
+        certificate = gc_cylindrical_physical_return_certificate_t()
+        provider_status = GC_CYL_SUCCESS
+    end subroutine invalid_provider
+
+    subroutine valid_provider(evidence, certificate, provider_status)
+        type(gc_cylindrical_physical_return_t), intent(in) :: evidence
+        type(gc_cylindrical_physical_return_certificate_t), intent(out) :: certificate
+        integer, intent(out) :: provider_status
+
+        associate (unused_evidence => evidence)
+        end associate
+        certificate = valid_certificate()
+        provider_status = GC_CYL_SUCCESS
+    end subroutine valid_provider
 
     function numerical_two_event_evidence() result(value)
         type(gc_cylindrical_physical_return_t) :: value

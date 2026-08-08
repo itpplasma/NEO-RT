@@ -23,8 +23,6 @@ module neort_gc_cylindrical_physical_return
     use fortnum_status, only: FORTNUM_OK, fortnum_status_t
     use neort_gc_cylindrical_dynamics, only: gc_cylindrical_rhs
     use neort_gc_callback_context, only: gc_callback_context_t
-    use neort_gc_physical_return_contract, only: &
-        gc_cylindrical_physical_return_certificate_t
     use neort_gc_cylindrical_model, only: &
         GC_CYL_EQUILIBRIUM_DOMAIN, GC_CYL_FIELD_ERROR, &
         GC_CYL_INTEGRATOR_ERROR, GC_CYL_INVARIANT_ERROR, GC_CYL_INVALID_INPUT, &
@@ -115,6 +113,15 @@ module neort_gc_cylindrical_physical_return
         logical :: numerical_failure = .true.
     end type gc_cylindrical_physical_return_t
 
+    ! The numerical crossing list is evidence only.  This typed value is
+    ! accepted as multiplicity proof only when an independent provider fills
+    ! it with a nonzero identity and an exactly-two theorem result.
+    type, public :: gc_cylindrical_physical_return_certificate_t
+        integer :: certificate_id = 0
+        integer :: crossing_count = 0
+        logical :: exactly_two_proved = .false.
+    end type gc_cylindrical_physical_return_certificate_t
+
     abstract interface
         subroutine gc_cylindrical_physical_event_i(position, state, field, &
                 user_data, value, status)
@@ -127,6 +134,18 @@ module neort_gc_cylindrical_physical_return
             real(dp), intent(out) :: value
             integer, intent(out) :: status
         end subroutine gc_cylindrical_physical_event_i
+    end interface
+
+    abstract interface
+        subroutine gc_cylindrical_physical_return_multiplicity_provider( &
+                evidence, certificate, status)
+            import :: gc_cylindrical_physical_return_t
+            import :: gc_cylindrical_physical_return_certificate_t
+            type(gc_cylindrical_physical_return_t), intent(in) :: evidence
+            type(gc_cylindrical_physical_return_certificate_t), intent(out) :: &
+                certificate
+            integer, intent(out) :: status
+        end subroutine gc_cylindrical_physical_return_multiplicity_provider
     end interface
 
     abstract interface
@@ -157,23 +176,10 @@ module neort_gc_cylindrical_physical_return
         end subroutine gc_cylindrical_radial_domain_i
     end interface
 
-    abstract interface
-        subroutine gc_cylindrical_physical_return_multiplicity_provider( &
-                evidence, certificate, status)
-            import :: gc_cylindrical_physical_return_t
-            import :: gc_cylindrical_physical_return_certificate_t
-            type(gc_cylindrical_physical_return_t), intent(in) :: evidence
-            type(gc_cylindrical_physical_return_certificate_t), intent(out) :: &
-                certificate
-            integer, intent(out) :: status
-        end subroutine gc_cylindrical_physical_return_multiplicity_provider
-    end interface
-
     public :: gc_cylindrical_physical_event_i
     public :: gc_cylindrical_physical_event_rate_i
     public :: gc_cylindrical_radial_domain_i
     public :: gc_cylindrical_physical_return_multiplicity_provider
-    public :: gc_cylindrical_physical_return_certificate_t
     public :: compute_gc_cylindrical_physical_return
     public :: certify_gc_cylindrical_physical_return
     public :: attach_gc_cylindrical_physical_return_certificate
@@ -219,6 +225,7 @@ contains
         logical :: found, have_domain, have_wall, have_radial, valid
         logical :: disarm_found, disarmed_event_valid
         class(gc_callback_context_t), pointer :: callback_data
+        procedure(gc_cylindrical_physical_event_i), pointer :: return_event_proc
         procedure(gc_cylindrical_radial_domain_i), pointer :: radial_domain_proc
         procedure(gc_cylindrical_physical_event_rate_i), pointer :: &
             return_event_rate_proc
@@ -228,9 +235,11 @@ contains
         pre_steps = 0
         pre_nfev = 0
         nullify(callback_data)
+        nullify(return_event_proc)
         nullify(radial_domain_proc)
         nullify(return_event_rate_proc)
         if (present(user_data)) callback_data => user_data
+        return_event_proc => return_event
         if (present(return_event_rate)) return_event_rate_proc => return_event
         have_wall = .false.
         if (present(wall_model)) have_wall = .true.
@@ -750,7 +759,7 @@ contains
                 call note_callback_failure(map_field_status(field_status))
                 return
             end if
-            call return_event(state_array(1:3), local_state, local_field, &
+            call return_event_proc(state_array(1:3), local_state, local_field, &
                 callback_data, value, event_status)
             if (event_status /= GC_CYL_SUCCESS) then
                 call note_callback_failure(GC_CYL_PHYSICAL_EVENT_CALLBACK_ERROR)
@@ -1180,8 +1189,7 @@ contains
     subroutine certify_gc_cylindrical_physical_return(result, provider, status, &
             message)
         type(gc_cylindrical_physical_return_t), intent(inout) :: result
-        procedure(gc_cylindrical_physical_return_multiplicity_provider) :: &
-            provider
+        procedure(gc_cylindrical_physical_return_multiplicity_provider) :: provider
         integer, intent(out) :: status
         character(len=*), intent(out) :: message
 
@@ -1191,6 +1199,10 @@ contains
         result%intersection_multiplicity_certified = .false.
         result%multiplicity_status = GC_CYL_PHYSICAL_RETURN_MULTIPLICITY_UNKNOWN
         certificate = gc_cylindrical_physical_return_certificate_t()
+        status = GC_CYL_PHYSICAL_RETURN_CERTIFICATE_INVALID
+        message = 'numerical return has no valid multiplicity certificate'
+        if (result%status /= GC_CYL_SUCCESS .or. &
+                .not. result%physical_return_found) return
         call provider(result, certificate, provider_status)
         if (provider_status == GC_CYL_PHYSICAL_RETURN_CERTIFICATE_UNAVAILABLE) then
             status = provider_status
