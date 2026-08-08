@@ -186,7 +186,13 @@ contains
         open(newunit=unit, file=trim(path), status='replace', action='write', &
             iostat=ios)
         if (ios /= 0) error stop 'cannot open continuation kernel output'
-        write(unit, '(a)', advance='no') emitted_text
+        if (len(emitted_text) > 0 .and. &
+                emitted_text(len(emitted_text):) == new_line('a')) then
+            write(unit, '(a)', advance='no') &
+                emitted_text(:len(emitted_text)-1)
+        else
+            write(unit, '(a)', advance='no') emitted_text
+        end if
         close(unit)
         write(output_unit, '(a)') 'wrote '//trim(path)
     end subroutine emit_kernel_file
