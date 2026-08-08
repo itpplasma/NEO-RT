@@ -31,8 +31,8 @@ program gen_circular_flux_continuation
     ! run must retain the smallest resolution that passes the independent
     ! interpolation convergence gate after the finite-aspect normalization is
     ! corrected.
-    integer, parameter :: FIXTURE_NR = 65
-    integer, parameter :: FIXTURE_NZ = 65
+    integer, parameter :: FIXTURE_NR = 129
+    integer, parameter :: FIXTURE_NZ = 129
     integer, parameter :: BOUNDARY_POINTS = 129
     integer, parameter :: WALL_POINTS = 100
     real(dp), parameter :: R0_VALUE = 1.60_dp
