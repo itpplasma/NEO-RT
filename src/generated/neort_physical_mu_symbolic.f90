@@ -24,4 +24,3 @@ contains
     end subroutine evaluate_neort_physical_mu
 
 end module neort_physical_mu_symbolic
-

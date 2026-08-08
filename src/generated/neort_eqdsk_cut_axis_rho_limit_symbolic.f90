@@ -26,4 +26,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_axis_rho_limit
 
 end module neort_eqdsk_cut_axis_rho_limit_symbolic
-

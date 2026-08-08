@@ -30,4 +30,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_r_flux_curvature_interval
 
 end module neort_eqdsk_cut_r_flux_curvature_interval_symbolic
-

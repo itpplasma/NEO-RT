@@ -40,4 +40,3 @@ contains
     end subroutine evaluate_neort_action_normalization
 
 end module neort_full_fow_action_symbolic
-

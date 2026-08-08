@@ -21,4 +21,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_z_chart
 
 end module neort_eqdsk_cut_z_chart_symbolic
-

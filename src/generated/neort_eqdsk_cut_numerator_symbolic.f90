@@ -38,4 +38,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_numerator
 
 end module neort_eqdsk_cut_numerator_symbolic
-

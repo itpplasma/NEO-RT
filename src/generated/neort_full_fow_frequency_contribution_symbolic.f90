@@ -24,4 +24,3 @@ contains
     end subroutine evaluate_neort_frequency_root_contribution
 
 end module neort_full_fow_frequency_contribution_symbolic
-

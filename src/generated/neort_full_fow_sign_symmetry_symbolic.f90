@@ -70,4 +70,3 @@ contains
     end subroutine evaluate_neort_full_fow_sign_symmetry_ledger
 
 end module neort_full_fow_sign_symmetry_symbolic
-

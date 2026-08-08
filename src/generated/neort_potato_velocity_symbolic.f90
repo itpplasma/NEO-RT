@@ -22,4 +22,3 @@ contains
     end subroutine evaluate_neort_potato_velocity
 
 end module neort_potato_velocity_symbolic
-

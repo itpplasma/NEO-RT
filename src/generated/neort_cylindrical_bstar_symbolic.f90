@@ -32,4 +32,3 @@ contains
     end subroutine evaluate_neort_cylindrical_bstar
 
 end module neort_cylindrical_bstar_symbolic
-

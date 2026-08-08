@@ -37,4 +37,3 @@ contains
     end subroutine evaluate_neort_full_fow_quadrature_map
 
 end module neort_full_fow_quadrature_map_symbolic
-

@@ -44,4 +44,3 @@ contains
     end subroutine evaluate_neort_full_fow_refinement_scales
 
 end module neort_full_fow_refinement_symbolic
-

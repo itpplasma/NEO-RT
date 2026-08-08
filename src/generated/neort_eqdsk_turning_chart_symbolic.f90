@@ -36,4 +36,3 @@ contains
     end subroutine evaluate_neort_eqdsk_turning_chart
 
 end module neort_eqdsk_turning_chart_symbolic
-

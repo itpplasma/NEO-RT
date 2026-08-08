@@ -41,4 +41,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_numerator_interval
 
 end module neort_eqdsk_cut_numerator_interval_symbolic
-

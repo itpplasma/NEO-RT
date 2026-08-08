@@ -69,4 +69,3 @@ contains
     end subroutine evaluate_neort_eqdsk_quintic_cell_fourth_jet_interval
 
 end module neort_eqdsk_quintic_cell_fourth_jet_interval_symbolic
-

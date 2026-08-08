@@ -29,4 +29,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_flux_coordinate_interval
 
 end module neort_eqdsk_cut_flux_coordinate_interval_symbolic
-

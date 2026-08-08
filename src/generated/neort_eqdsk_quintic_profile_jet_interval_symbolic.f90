@@ -35,4 +35,3 @@ contains
     end subroutine evaluate_neort_eqdsk_quintic_profile_jet_interval
 
 end module neort_eqdsk_quintic_profile_jet_interval_symbolic
-

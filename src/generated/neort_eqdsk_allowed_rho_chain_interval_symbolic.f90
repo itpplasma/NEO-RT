@@ -40,4 +40,3 @@ contains
     end subroutine evaluate_neort_eqdsk_allowed_rho_chain_interval
 
 end module neort_eqdsk_allowed_rho_chain_interval_symbolic
-

@@ -35,4 +35,3 @@ contains
     end subroutine evaluate_neort_buchholz_cut
 
 end module neort_buchholz_cut_symbolic
-

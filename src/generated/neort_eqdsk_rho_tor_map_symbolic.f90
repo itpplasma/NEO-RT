@@ -21,4 +21,3 @@ contains
     end subroutine evaluate_neort_eqdsk_rho_tor_map
 
 end module neort_eqdsk_rho_tor_map_symbolic
-

@@ -100,4 +100,3 @@ contains
     end subroutine evaluate_neort_full_fow_canonical_symmetry
 
 end module neort_full_fow_canonical_symmetry_symbolic
-

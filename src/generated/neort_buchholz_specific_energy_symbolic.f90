@@ -21,4 +21,3 @@ contains
     end subroutine evaluate_neort_buchholz_specific_energy
 
 end module neort_buchholz_specific_energy_symbolic
-

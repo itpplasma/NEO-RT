@@ -27,4 +27,3 @@ contains
     end subroutine evaluate_neort_full_fow_simple_root_force
 
 end module neort_full_fow_simple_root_symbolic
-

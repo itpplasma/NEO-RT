@@ -56,4 +56,3 @@ contains
     end subroutine evaluate_neort_cylindrical_geometry
 
 end module neort_cylindrical_geometry_symbolic
-

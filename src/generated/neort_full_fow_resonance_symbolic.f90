@@ -25,4 +25,3 @@ contains
     end subroutine evaluate_neort_resonance_weights
 
 end module neort_full_fow_resonance_symbolic
-

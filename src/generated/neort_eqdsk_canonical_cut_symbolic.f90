@@ -29,4 +29,3 @@ contains
     end subroutine evaluate_neort_eqdsk_canonical_cut
 
 end module neort_eqdsk_canonical_cut_symbolic
-

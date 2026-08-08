@@ -32,4 +32,3 @@ contains
     end subroutine evaluate_neort_eqdsk_flux_profile_segment_interval
 
 end module neort_eqdsk_flux_profile_segment_interval_symbolic
-

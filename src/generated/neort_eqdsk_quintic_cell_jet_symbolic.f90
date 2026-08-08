@@ -120,4 +120,3 @@ contains
     end subroutine evaluate_neort_eqdsk_quintic_cell_jet
 
 end module neort_eqdsk_quintic_cell_jet_symbolic
-

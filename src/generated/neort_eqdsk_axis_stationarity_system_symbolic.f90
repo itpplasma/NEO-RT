@@ -27,4 +27,3 @@ contains
     end subroutine evaluate_neort_eqdsk_axis_stationarity_system
 
 end module neort_eqdsk_axis_stationarity_system_symbolic
-

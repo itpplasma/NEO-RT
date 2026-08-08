@@ -26,4 +26,3 @@ contains
     end subroutine evaluate_neort_profile_potential_segment
 
 end module neort_profile_potential_segment_symbolic
-

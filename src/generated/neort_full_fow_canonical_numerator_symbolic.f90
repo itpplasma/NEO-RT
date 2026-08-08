@@ -32,4 +32,3 @@ contains
     end subroutine evaluate_neort_full_fow_canonical_numerator
 
 end module neort_full_fow_canonical_numerator_symbolic
-

@@ -24,4 +24,3 @@ contains
     end subroutine evaluate_neort_gauss_legendre_interval_map
 
 end module neort_gauss_legendre_interval_map_symbolic
-

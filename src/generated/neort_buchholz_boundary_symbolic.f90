@@ -46,4 +46,3 @@ contains
     end subroutine evaluate_neort_buchholz_boundary_limits
 
 end module neort_buchholz_boundary_symbolic
-

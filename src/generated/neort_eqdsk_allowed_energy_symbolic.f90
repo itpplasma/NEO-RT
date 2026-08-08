@@ -67,4 +67,3 @@ contains
     end subroutine evaluate_neort_eqdsk_allowed_energy
 
 end module neort_eqdsk_allowed_energy_symbolic
-

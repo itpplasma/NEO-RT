@@ -33,4 +33,3 @@ contains
     end subroutine evaluate_neort_eqdsk_quintic_profile_jet
 
 end module neort_eqdsk_quintic_profile_jet_symbolic
-

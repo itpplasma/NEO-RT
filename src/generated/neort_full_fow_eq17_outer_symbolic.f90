@@ -24,4 +24,3 @@ contains
     end subroutine evaluate_neort_eq17_outer_factor
 
 end module neort_full_fow_eq17_outer_symbolic
-

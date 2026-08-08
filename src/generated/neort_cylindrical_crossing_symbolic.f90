@@ -30,4 +30,3 @@ contains
     end subroutine evaluate_neort_cylindrical_crossing_density
 
 end module neort_cylindrical_crossing_symbolic
-

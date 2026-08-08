@@ -28,4 +28,3 @@ contains
     end subroutine evaluate_neort_axisymmetric_noether
 
 end module neort_axisymmetric_noether_symbolic
-

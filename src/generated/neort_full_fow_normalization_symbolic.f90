@@ -42,4 +42,3 @@ contains
     end subroutine evaluate_neort_full_fow_normalization
 
 end module neort_full_fow_normalization_symbolic
-

@@ -29,4 +29,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_endpoint_system
 
 end module neort_eqdsk_cut_endpoint_system_symbolic
-

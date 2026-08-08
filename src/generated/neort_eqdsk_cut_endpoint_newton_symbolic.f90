@@ -32,4 +32,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_endpoint_newton
 
 end module neort_eqdsk_cut_endpoint_newton_symbolic
-

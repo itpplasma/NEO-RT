@@ -27,4 +27,3 @@ contains
     end subroutine evaluate_neort_profile_potential_map
 
 end module neort_profile_potential_map_symbolic
-

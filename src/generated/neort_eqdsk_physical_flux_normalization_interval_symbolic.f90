@@ -23,4 +23,3 @@ contains
     end subroutine evaluate_neort_eqdsk_physical_flux_normalization_interval
 
 end module neort_eqdsk_physical_flux_normalization_interval_symbolic
-

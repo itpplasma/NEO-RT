@@ -4,7 +4,7 @@ module neort_generated_certificate_registry
         'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: regenerate_command = &
         'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'
-    integer, parameter :: certificate_count = 49
+    integer, parameter :: certificate_count = 54
     character(len=32), parameter :: certificate_id(certificate_count) = &
         [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &
         'root_enclosures', 'interpolation', 'profile_endpoints', &
@@ -42,7 +42,10 @@ module neort_generated_certificate_registry
         'eqdsk_physical_flux_map', &
         'full_fow_canonical_numerator', &
         'full_fow_canonical_turning', &
-        'full_fow_canonical_symmetry' ]
+        'full_fow_canonical_symmetry', &
+        'full_fow_cycle_frequency', 'full_fow_resonance_scalar', &
+        'full_fow_cycle_average', 'full_fow_mode_mapping', &
+        'full_fow_torque_assembly' ]
     character(len=64), parameter :: certificate_fingerprint(certificate_count) = &
         [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &
         'neort-cert-v1:littlejohn:22:fortsym-5457884', &
@@ -92,7 +95,12 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_physical_flux_map:2:fortsym-5457884', &
         'neort-cert-v1:full_fow_canonical_numerator:3:fortsym-5457884', &
         'neort-cert-v1:full_fow_canonical_turning:2:fortsym-5457884', &
-        'neort-cert-v1:full_fow_canonical_symmetry:21:fortsym-5457884' ]
+        'neort-cert-v1:full_fow_canonical_symmetry:21:fortsym-5457884', &
+        'neort-cert-v1:full_fow_cycle_frequency:6:fortsym-5457884', &
+        'neort-cert-v1:full_fow_resonance_scalar:2:fortsym-5457884', &
+        'neort-cert-v1:full_fow_cycle_average:4:fortsym-5457884', &
+        'neort-cert-v1:full_fow_mode_mapping:4:fortsym-5457884', &
+        'neort-cert-v1:full_fow_torque_assembly:1:fortsym-5457884' ]
     ! Fingerprints are provenance/arity manifests, not algebraic proofs.
     ! Root multiplicity and crossing counts require interval/theorem gates.
 contains

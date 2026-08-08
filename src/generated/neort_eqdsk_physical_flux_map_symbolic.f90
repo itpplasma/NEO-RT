@@ -22,4 +22,3 @@ contains
     end subroutine evaluate_neort_eqdsk_physical_flux_map
 
 end module neort_eqdsk_physical_flux_map_symbolic
-

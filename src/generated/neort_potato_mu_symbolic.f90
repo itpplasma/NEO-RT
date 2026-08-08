@@ -22,4 +22,3 @@ contains
     end subroutine evaluate_neort_potato_mu
 
 end module neort_potato_mu_symbolic
-

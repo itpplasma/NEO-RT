@@ -22,4 +22,3 @@ contains
     end subroutine evaluate_neort_eqdsk_allowed_axis_rho_chain
 
 end module neort_eqdsk_allowed_axis_rho_chain_symbolic
-

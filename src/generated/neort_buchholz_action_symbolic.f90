@@ -24,4 +24,3 @@ contains
     end subroutine evaluate_neort_buchholz_action
 
 end module neort_buchholz_action_symbolic
-

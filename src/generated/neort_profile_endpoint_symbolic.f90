@@ -35,4 +35,3 @@ contains
     end subroutine evaluate_neort_profile_endpoints
 
 end module neort_profile_endpoint_symbolic
-

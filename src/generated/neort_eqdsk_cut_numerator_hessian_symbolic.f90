@@ -62,4 +62,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_numerator_hessian
 
 end module neort_eqdsk_cut_numerator_hessian_symbolic
-

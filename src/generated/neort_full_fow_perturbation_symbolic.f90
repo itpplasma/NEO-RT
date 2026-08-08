@@ -33,4 +33,3 @@ contains
     end subroutine evaluate_neort_perturbation_coefficient
 
 end module neort_full_fow_perturbation_symbolic
-

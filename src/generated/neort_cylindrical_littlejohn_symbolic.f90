@@ -67,4 +67,3 @@ contains
     end subroutine evaluate_neort_cylindrical_littlejohn
 
 end module neort_cylindrical_littlejohn_symbolic
-

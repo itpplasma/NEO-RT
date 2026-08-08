@@ -21,4 +21,3 @@ contains
     end subroutine evaluate_neort_cylindrical_vparallel
 
 end module neort_cylindrical_vparallel_symbolic
-

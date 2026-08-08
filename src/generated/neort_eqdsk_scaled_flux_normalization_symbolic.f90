@@ -21,4 +21,3 @@ contains
     end subroutine evaluate_neort_eqdsk_scaled_flux_normalization
 
 end module neort_eqdsk_scaled_flux_normalization_symbolic
-

@@ -28,4 +28,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_r_flux_curvature
 
 end module neort_eqdsk_cut_r_flux_curvature_symbolic
-

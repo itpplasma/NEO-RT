@@ -32,4 +32,3 @@ contains
     end subroutine evaluate_neort_polynomial_cell_enclosure
 
 end module neort_polynomial_cell_enclosure_symbolic
-

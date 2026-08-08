@@ -22,4 +22,3 @@ contains
     end subroutine evaluate_neort_eqdsk_s_tor_to_rho_interval
 
 end module neort_eqdsk_s_tor_to_rho_interval_symbolic
-

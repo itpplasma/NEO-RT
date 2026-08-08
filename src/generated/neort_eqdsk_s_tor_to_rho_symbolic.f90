@@ -20,4 +20,3 @@ contains
     end subroutine evaluate_neort_eqdsk_s_tor_to_rho
 
 end module neort_eqdsk_s_tor_to_rho_symbolic
-

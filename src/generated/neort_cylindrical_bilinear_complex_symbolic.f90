@@ -49,4 +49,3 @@ contains
     end subroutine evaluate_neort_cylindrical_bilinear_complex
 
 end module neort_cylindrical_bilinear_complex_symbolic
-

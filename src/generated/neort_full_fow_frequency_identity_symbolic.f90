@@ -24,4 +24,3 @@ contains
     end subroutine evaluate_neort_frequency_phase_identity
 
 end module neort_full_fow_frequency_identity_symbolic
-

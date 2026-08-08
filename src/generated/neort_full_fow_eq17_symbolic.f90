@@ -22,4 +22,3 @@ contains
     end subroutine evaluate_neort_eq17_force
 
 end module neort_full_fow_eq17_symbolic
-

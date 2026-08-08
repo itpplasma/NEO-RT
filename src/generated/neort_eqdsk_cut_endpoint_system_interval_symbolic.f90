@@ -31,4 +31,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_endpoint_system_interval
 
 end module neort_eqdsk_cut_endpoint_system_interval_symbolic
-

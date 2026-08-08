@@ -26,4 +26,3 @@ contains
     end subroutine evaluate_neort_buchholz_cdot
 
 end module neort_buchholz_cdot_symbolic
-

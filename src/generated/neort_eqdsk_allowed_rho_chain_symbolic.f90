@@ -38,4 +38,3 @@ contains
     end subroutine evaluate_neort_eqdsk_allowed_rho_chain
 
 end module neort_eqdsk_allowed_rho_chain_symbolic
-

@@ -37,4 +37,3 @@ contains
     end subroutine evaluate_neort_section_reversal
 
 end module neort_full_fow_section_reversal_symbolic
-

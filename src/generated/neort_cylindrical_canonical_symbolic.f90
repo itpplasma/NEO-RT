@@ -24,4 +24,3 @@ contains
     end subroutine evaluate_neort_cylindrical_canonical
 
 end module neort_cylindrical_canonical_symbolic
-

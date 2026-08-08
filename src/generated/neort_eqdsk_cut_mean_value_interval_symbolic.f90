@@ -23,4 +23,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_mean_value_interval
 
 end module neort_eqdsk_cut_mean_value_interval_symbolic
-

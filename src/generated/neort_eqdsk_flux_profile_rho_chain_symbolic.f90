@@ -21,4 +21,3 @@ contains
     end subroutine evaluate_neort_eqdsk_flux_profile_rho_chain
 
 end module neort_eqdsk_flux_profile_rho_chain_symbolic
-

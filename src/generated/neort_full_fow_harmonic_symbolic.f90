@@ -40,4 +40,3 @@ contains
     end subroutine evaluate_neort_full_fow_harmonic_integrand
 
 end module neort_full_fow_harmonic_symbolic
-

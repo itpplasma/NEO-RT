@@ -46,4 +46,3 @@ contains
     end subroutine evaluate_neort_eqdsk_cut_endpoint_krawczyk_interval
 
 end module neort_eqdsk_cut_endpoint_krawczyk_interval_symbolic
-

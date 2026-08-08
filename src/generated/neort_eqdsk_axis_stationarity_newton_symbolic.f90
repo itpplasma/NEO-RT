@@ -32,4 +32,3 @@ contains
     end subroutine evaluate_neort_eqdsk_axis_stationarity_newton
 
 end module neort_eqdsk_axis_stationarity_newton_symbolic
-

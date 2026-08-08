@@ -23,4 +23,3 @@ contains
     end subroutine evaluate_neort_eqdsk_rho_tor_map_interval
 
 end module neort_eqdsk_rho_tor_map_interval_symbolic
-

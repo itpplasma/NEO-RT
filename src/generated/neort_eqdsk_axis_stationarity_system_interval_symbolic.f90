@@ -29,4 +29,3 @@ contains
     end subroutine evaluate_neort_eqdsk_axis_stationarity_system_interval
 
 end module neort_eqdsk_axis_stationarity_system_interval_symbolic
-
