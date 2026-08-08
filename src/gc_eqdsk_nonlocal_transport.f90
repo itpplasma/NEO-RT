@@ -2103,6 +2103,7 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
+                factory%last_return_status = 2500 + sigma
                 if (.not. factory%allowed_region_ready) return
                 call build_gc_eqdsk_certified_allowed_regions( &
                     factory%allowed_region_context, h0, jperp, sigma, regions, &
@@ -2135,6 +2136,7 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
+                factory%last_return_status = 3000 + sigma
                 if (.not. factory%allowed_region_ready) return
                 call verify_gc_eqdsk_certified_allowed_regions( &
                     factory%allowed_region_context, h0, jperp, sigma, rc_min, &
@@ -2191,6 +2193,7 @@ contains
                 status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
                 return
             end if
+            factory%last_return_status = 2300
             status = GC_EQDSK_NONLOCAL_SUCCESS
         class default
             status = GC_EQDSK_NONLOCAL_INVALID_INPUT
@@ -2634,6 +2637,7 @@ contains
 
         certified = .false.
         status = GC_CYL_CLASS_SPLITTER_FAILURE
+        factory%last_return_status = 4000 + sigma
         factory%topology_certification_attempts = &
             factory%topology_certification_attempts + 1
         factory%topology_ready = .false.
