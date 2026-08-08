@@ -12,13 +12,14 @@ contains
     pure subroutine evaluate_neort_gc_axisymmetric_physical_flow_jacobian(mass, charge, c_light, R, H0, &
             J_K, sigma, psi, psi_R, psi_Z, psi_RR, psi_RZ, psi_ZZ, psi_RRR, psi_RRZ, psi_RZZ, psi_ZZZ, psi_sep, &
             F, dF_dpsihat, d2F_dpsihat2, Phi, dPhi_dpsi, d2Phi_dpsi2, J_11, J_12, J_21, J_22, trace, &
-            determinant, discriminant)
+            determinant, discriminant, bmod, p_parallel, bparallel_star)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
         real(dp), intent(in) :: mass, charge, c_light, R, H0, J_K, sigma, psi, psi_R, psi_Z, psi_RR, &
             psi_RZ, psi_ZZ, psi_RRR, psi_RRZ, psi_RZZ, psi_ZZZ, psi_sep, F, dF_dpsihat, d2F_dpsihat2, Phi, &
             dPhi_dpsi, d2Phi_dpsi2
-        real(dp), intent(out) :: J_11, J_12, J_21, J_22, trace, determinant, discriminant
+        real(dp), intent(out) :: J_11, J_12, J_21, J_22, trace, determinant, discriminant, bmod, &
+            p_parallel, bparallel_star
         real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, &
             t19, t20, t21, t22, t23, t24, t25, t26, t27, t28, t29, t30, t31
 
@@ -89,6 +90,9 @@ contains
         trace = 0
         determinant = t31
         discriminant = -t31*4
+        bmod = t5
+        p_parallel = sigma*t6
+        bparallel_star = t12
 
     end subroutine evaluate_neort_gc_axisymmetric_physical_flow_jacobian
 
