@@ -59,6 +59,7 @@ set(generated_files
     neort_full_fow_refinement_symbolic.f90
     neort_gc_cut_topology_section_flow_symbolic.f90
     neort_gc_cut_topology_flow_jacobian_symbolic.f90
+    neort_gc_axisymmetric_physical_flow_jacobian_symbolic.f90
     neort_gc_cut_topology_partner_symbolic.f90
     neort_cylindrical_bilinear_complex_symbolic.f90
     neort_profile_endpoint_symbolic.f90
