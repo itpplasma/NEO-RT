@@ -291,6 +291,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_axis_inverse_limit_residual
     type(expr_t) :: eqcut_rho, eqcut_s_tor, eqcut_dpsihat_dstor
     type(expr_t) :: eqcut_dpsihat_drho, eqcut_dR_drho, eqcut_dZ_drho
+    type(expr_t) :: eqcut_coordinate_dpsihat_dR
+    type(expr_t) :: eqcut_coordinate_dZ_dR
     type(expr_t) :: eqcut_flux_coordinate_chain_residual
     type(expr_t) :: eqcut_flux_inverse_chain_residual
     type(expr_t) :: eqcut_axis_rho_dR, eqcut_axis_rho_dZ
@@ -786,13 +788,15 @@ program gen_full_fow_physics
     ! rho and 1/sqrt(psihat) cancel, leaving the finite branch limit below.
     eqcut_rho = sym(arena, "rho_tor")
     eqcut_dpsihat_dstor = sym(arena, "dpsihat_dstor")
+    eqcut_coordinate_dpsihat_dR = sym(arena, "dpsihat_dR")
+    eqcut_coordinate_dZ_dR = sym(arena, "dZ_dR")
     eqcut_s_tor = eqcut_rho**2
     eqcut_dpsihat_drho = 2*eqcut_rho*eqcut_dpsihat_dstor
-    eqcut_dR_drho = eqcut_dpsihat_drho/eqcut_r_chart_dpsihat
-    eqcut_dZ_drho = eqcut_r_chart_slope*eqcut_dR_drho
+    eqcut_dR_drho = eqcut_dpsihat_drho/eqcut_coordinate_dpsihat_dR
+    eqcut_dZ_drho = eqcut_coordinate_dZ_dR*eqcut_dR_drho
     eqcut_flux_coordinate_chain_residual = eqcut_dpsihat_drho &
         -2*eqcut_rho*eqcut_dpsihat_dstor
-    eqcut_flux_inverse_chain_residual = eqcut_r_chart_dpsihat &
+    eqcut_flux_inverse_chain_residual = eqcut_coordinate_dpsihat_dR &
         *eqcut_dR_drho-eqcut_dpsihat_drho
     eqcut_axis_rho_dR = eqcut_axis_branch_sign &
         *sqrt(2*eqcut_dpsihat_dstor/eqcut_axis_curvature)
