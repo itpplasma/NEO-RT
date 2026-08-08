@@ -197,7 +197,7 @@ program test_gc_eqdsk_allowed_region_cut_box
     do i = 1, 5
         radius = outboard_lo+(outboard_hi-outboard_lo)*real(i-1,dp)/4.0_dp
         inboard_radius = 2.0_dp*axis_R-radius
-        call map_eqdsk_cut_graph_atlas(outboard_atlas, radius, &
+        call map_eqdsk_cut_graph_atlas(atlas, radius, &
             outboard_position, outboard_tangent, &
             dpsihat_dR=outboard_dpsihat, status=local_status)
         call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
