@@ -1,5 +1,5 @@
 module neort_gc_eqdsk_allowed_region_cut_box
-    !! Certified runtime orchestration for one physical outboard R box.
+    !! Certified runtime orchestration for one monotone physical-R graph box.
     !!
     !! This module owns no magnetic, electric, energy, or canonical formula.
     !! It validates source certificates and explicit profile-node structure,
@@ -31,7 +31,11 @@ module neort_gc_eqdsk_allowed_region_cut_box
     integer, parameter, public :: EQDSK_CUT_BOX_INVALID_ATLAS = 2
     integer, parameter, public :: EQDSK_CUT_BOX_INVALID_PROFILE = 3
     integer, parameter, public :: EQDSK_CUT_BOX_OUT_OF_RANGE = 4
-    integer, parameter, public :: EQDSK_CUT_BOX_NOT_OUTBOARD = 5
+    integer, parameter, public :: EQDSK_CUT_BOX_NOT_MONOTONE = 5
+    ! Compatibility spelling retained for callers of the former outboard-only
+    ! API.  The accepted atlas orientation is now explicitly recorded below.
+    integer, parameter, public :: EQDSK_CUT_BOX_NOT_OUTBOARD = &
+        EQDSK_CUT_BOX_NOT_MONOTONE
     integer, parameter, public :: EQDSK_CUT_BOX_GRAPH_FAILURE = 6
     integer, parameter, public :: EQDSK_CUT_BOX_ALLOWED_FAILURE = 7
     integer, parameter, public :: EQDSK_CUT_BOX_NONFINITE = 8
@@ -48,6 +52,7 @@ module neort_gc_eqdsk_allowed_region_cut_box
         real(dp) :: field_scale = 0.0_dp
         real(dp) :: raw_psi_sep = 0.0_dp
         integer :: graph_certificate_id = 0
+        integer :: graph_flux_orientation_sign = 0
         logical :: profile_inputs_structurally_validated = .false.
         integer :: generated_profile_interpolation_certificate_id = 0
         integer :: generated_energy_certificate_id = 0
@@ -178,16 +183,22 @@ contains
             return
         end if
         if (.not. atlas%flux_monotonicity_certified) then
-            status = EQDSK_CUT_BOX_NOT_OUTBOARD
+            status = EQDSK_CUT_BOX_NOT_MONOTONE
             return
         end if
-        if (atlas%flux_monotonicity_sign /= 1) then
-            status = EQDSK_CUT_BOX_NOT_OUTBOARD
+        if (abs(atlas%flux_monotonicity_sign) /= 1) then
+            status = EQDSK_CUT_BOX_NOT_MONOTONE
             return
         end if
         do i = 1, size(atlas%strips)
-            if (atlas%strips(i)%dpsihat_dR_lo <= 0.0_dp) then
-                status = EQDSK_CUT_BOX_NOT_OUTBOARD
+            if (atlas%flux_monotonicity_sign > 0 .and. &
+                    atlas%strips(i)%dpsihat_dR_lo <= 0.0_dp) then
+                status = EQDSK_CUT_BOX_NOT_MONOTONE
+                return
+            end if
+            if (atlas%flux_monotonicity_sign < 0 .and. &
+                    atlas%strips(i)%dpsihat_dR_hi >= 0.0_dp) then
+                status = EQDSK_CUT_BOX_NOT_MONOTONE
                 return
             end if
         end do
@@ -228,6 +239,8 @@ contains
         provenance%field_scale = field_scale
         provenance%raw_psi_sep = raw_psi_sep
         provenance%graph_certificate_id = atlas%certificate_id
+        provenance%graph_flux_orientation_sign = &
+            atlas%flux_monotonicity_sign
         provenance%profile_inputs_structurally_validated = .true.
         provenance%nstrips = strip_count
 

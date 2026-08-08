@@ -5,7 +5,7 @@ program test_gc_eqdsk_allowed_region_cut_box
         evaluate_neort_eqdsk_physical_flux_map
     use neort_gc_eqdsk_allowed_region_cut_box, only: &
         EQDSK_CUT_BOX_INVALID_ATLAS, EQDSK_CUT_BOX_INVALID_PROFILE, &
-        EQDSK_CUT_BOX_NOT_OUTBOARD, EQDSK_CUT_BOX_OUT_OF_RANGE, &
+        EQDSK_CUT_BOX_NOT_MONOTONE, EQDSK_CUT_BOX_OUT_OF_RANGE, &
         EQDSK_CUT_BOX_SUCCESS, &
         eqdsk_allowed_region_cut_provenance_t, &
         eqdsk_potential_profile_nodes_t, &
@@ -36,7 +36,10 @@ program test_gc_eqdsk_allowed_region_cut_box
     character(len=1024) :: path
     real(dp) :: axis_R, outboard_lo, outboard_hi, inboard_lo, inboard_hi
     real(dp) :: radius, position(3), tangent(3), scalar_psi
-    real(dp) :: scalar_dpsi, query_width
+    real(dp) :: scalar_dpsi, query_width, inboard_radius
+    real(dp) :: outboard_position(3), inboard_position(3)
+    real(dp) :: outboard_tangent(3), inboard_tangent(3)
+    real(dp) :: outboard_dpsihat, inboard_dpsihat
     real(dp) :: profile_psi(2), profile_phi(2), profile_omega(2)
     type(eqdsk_cut_interval_result_t), allocatable :: enclosures(:)
     type(eqdsk_cut_jet_t) :: jet
@@ -101,6 +104,8 @@ program test_gc_eqdsk_allowed_region_cut_box
         provenance%n_graph_enclosures, 'leaf strip IDs were not retained')
     call require(provenance%profile_inputs_structurally_validated, &
         'profile input validation was not recorded separately')
+    call require(provenance%graph_flux_orientation_sign == 1, &
+        'outboard graph orientation was not recorded')
     ! This ID identifies the generated interpolation kernel only; it does
     ! not certify the supplied profile-node values.
     call require(provenance%generated_profile_interpolation_certificate_id > 0, &
@@ -178,8 +183,49 @@ program test_gc_eqdsk_allowed_region_cut_box
         gc_outward_interval(inboard_lo, inboard_hi), 1.0_dp, psi_sep, &
         profile, 1.0e6_dp, 0.0_dp, 2.0_dp, -1.0_dp, 1.0_dp, 1, result, &
         provenance, status)
-    call require(status == EQDSK_CUT_BOX_NOT_OUTBOARD, &
-        'inboard decreasing graph was accepted as outboard')
+    call require(status == EQDSK_CUT_BOX_SUCCESS, &
+        'certified inboard cut-box evaluation failed')
+    call require(provenance%certified, 'inboard cut-box was not certified')
+    call require(provenance%graph_flux_orientation_sign == -1, &
+        'inboard graph orientation was not recorded')
+    call require(result%dpsi_physical_dR%hi < 0.0_dp, &
+        'inboard physical flux derivative lost its orientation')
+
+    ! Independent circular oracle: the Eq.13 cut is the midplane on both
+    ! branches, and reflection around the magnetic axis reverses only the
+    ! R-orientation of the monotone flux coordinate.
+    do i = 1, 5
+        radius = outboard_lo+(outboard_hi-outboard_lo)*real(i-1,dp)/4.0_dp
+        inboard_radius = 2.0_dp*axis_R-radius
+        call map_eqdsk_cut_graph_atlas(outboard_atlas, radius, &
+            outboard_position, outboard_tangent, &
+            dpsihat_dR=outboard_dpsihat, status=local_status)
+        call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+            'outboard circular oracle map failed')
+        call map_eqdsk_cut_graph_atlas(inboard_atlas, inboard_radius, &
+            inboard_position, inboard_tangent, &
+            dpsihat_dR=inboard_dpsihat, status=local_status)
+        call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+            'inboard circular oracle map failed')
+        call require(abs(outboard_position(2)) <= 1.0e-9_dp .and. &
+            abs(inboard_position(2)) <= 1.0e-9_dp, &
+            'circular graph is not on its analytic midplane')
+        call require(abs(outboard_tangent(2)) <= 1.0e-8_dp .and. &
+            abs(inboard_tangent(2)) <= 1.0e-8_dp, &
+            'circular graph tangent is not its analytic midplane tangent')
+        call require(abs(inboard_dpsihat+outboard_dpsihat) <= &
+            1.0e-8_dp*max(1.0_dp, abs(outboard_dpsihat)), &
+            'circular reflection did not reverse flux orientation')
+    end do
+
+    mutated_atlas = atlas
+    mutated_atlas%flux_monotonicity_certified = .false.
+    mutated_atlas%flux_monotonicity_sign = 0
+    call evaluate_eqdsk_allowed_region_cut_box(mutated_atlas, query, 1.0_dp, &
+        psi_sep, profile, 1.0e6_dp, 0.0_dp, 2.0_dp, -1.0_dp, 1.0_dp, 1, &
+        result, provenance, status)
+    call require(status == EQDSK_CUT_BOX_NOT_MONOTONE, &
+        'uncertified monotonicity was accepted')
 
     bad_profile = profile
     bad_profile%psi(2) = bad_profile%psi(1)
