@@ -9,17 +9,16 @@ module neort_eqdsk_cut_flux_coordinate_symbolic
     public :: evaluate_neort_eqdsk_cut_flux_coordinate
 contains
 
-    pure subroutine evaluate_neort_eqdsk_cut_flux_coordinate(rho_tor, dpsihat_dstor, dpsihat_dR, dZ_dR, &
-            s_tor, dpsihat_drho_tor, dR_drho_tor, dZ_drho_tor)
+    pure subroutine evaluate_neort_eqdsk_cut_flux_coordinate(dstor_drho_tor, dpsihat_dstor, dpsihat_dR, &
+            dZ_dR, dpsihat_drho_tor, dR_drho_tor, dZ_drho_tor)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: rho_tor, dpsihat_dstor, dpsihat_dR, dZ_dR
-        real(dp), intent(out) :: s_tor, dpsihat_drho_tor, dR_drho_tor, dZ_drho_tor
+        real(dp), intent(in) :: dstor_drho_tor, dpsihat_dstor, dpsihat_dR, dZ_dR
+        real(dp), intent(out) :: dpsihat_drho_tor, dR_drho_tor, dZ_drho_tor
 
-        s_tor = rho_tor**2
-        dpsihat_drho_tor = dpsihat_dstor*rho_tor*2
-        dR_drho_tor = dpsihat_dstor*rho_tor*2/dpsihat_dR
-        dZ_drho_tor = dZ_dR*dpsihat_dstor*rho_tor*2/dpsihat_dR
+        dpsihat_drho_tor = dpsihat_dstor*dstor_drho_tor
+        dR_drho_tor = dpsihat_dstor*dstor_drho_tor/dpsihat_dR
+        dZ_drho_tor = dZ_dR*dpsihat_dstor*dstor_drho_tor/dpsihat_dR
 
     end subroutine evaluate_neort_eqdsk_cut_flux_coordinate
 
