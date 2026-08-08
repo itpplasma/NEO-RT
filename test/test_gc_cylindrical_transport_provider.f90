@@ -14,6 +14,7 @@ module gc_cylindrical_transport_provider_test_support
         make_gc_cylindrical_field_sample
     use neort_gc_cylindrical_topology, only: &
         gc_cylindrical_allowed_region_set_t
+    use neort_gc_certified_interval_roots, only: gc_interval_t
     use neort_gc_cylindrical_nonlocal_provider, only: &
         GC_CYL_NONLOCAL_ORBIT_VALID, GC_CYL_NONLOCAL_ORBIT_WALL, &
         GC_CYL_NONLOCAL_SUCCESS, GC_CYL_NONLOCAL_WALL_CLEAR, &
@@ -186,6 +187,20 @@ contains
             canonical_measure=state%width, &
             canonical_measure_lower=state%width, &
             canonical_measure_upper=state%width)
+        regions%components(1)%x_begin_enclosure = gc_interval_t( &
+            -0.5_dp*state%width, -0.5_dp*state%width)
+        regions%components(1)%x_end_enclosure = gc_interval_t( &
+            0.5_dp*state%width, 0.5_dp*state%width)
+        regions%components(1)%canonical_begin_enclosure = gc_interval_t( &
+            -0.5_dp*state%width, -0.5_dp*state%width)
+        regions%components(1)%canonical_end_enclosure = gc_interval_t( &
+            0.5_dp*state%width, 0.5_dp*state%width)
+        regions%components(1)%canonical_measure_enclosure = gc_interval_t( &
+            state%width, state%width)
+        regions%components(1)%canonical_measure_certificate_id = &
+            TRANSPORT_CERTIFICATE_ID
+        regions%components(1)%endpoint_evidence_certified = .true.
+        regions%components(1)%canonical_measure_certified = .true.
         regions%total_canonical_measure = state%width
         regions%total_canonical_measure_enclosure%lo = state%width
         regions%total_canonical_measure_enclosure%hi = state%width
