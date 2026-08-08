@@ -74,21 +74,23 @@ program test_gc_eqdsk_cut_graph_atlas
         'outboard cut flux was not certified strictly increasing')
     call check_regular_branch(outboard_atlas, outboard_lo, outboard_hi)
 
-    ! The public POTATO fixture clamps psi outside the LCFS before applying a
-    ! quintic spline.  That nonsmooth SOL transition creates a resolved pair of
-    ! off-midplane Eq.13 roots with psi_hat<1.  A physical-domain completeness
-    ! certificate must reject that extra topology rather than silently select
-    ! the symmetry branch.
+    ! The Fortsym-emitted continuation keeps psi and its first derivative
+    ! smooth and strictly increasing beyond the nominal LCFS.  The complete
+    ! closed-flux R domain must therefore contain one and only one Eq.13 graph;
+    ! this is the regression oracle for the removed clamped-SOL branches.
     full_options = options
     full_options%max_r_depth = 6
     full_options%max_z_depth = 6
     call build_eqdsk_cut_graph_atlas(full_atlas, field%domain_R_min, &
         field%domain_R_max, zet(1), zet(nzet), 0.0_dp, 1.0_dp, full_options, &
         status)
-    call require(status /= EQDSK_CUT_ATLAS_SUCCESS, &
-        'clamped-SOL extra cut branches were incorrectly certified away')
-    call require(.not. full_atlas%global_completeness_certified, &
-        'failed full-domain atlas retained a completeness claim')
+    call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
+        'smooth circular continuation did not close the full cut atlas')
+    call require(full_atlas%global_completeness_certified, &
+        'full circular cut atlas omitted its completeness certificate')
+    call validate_eqdsk_cut_graph_atlas(full_atlas, status)
+    call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
+        'full circular cut atlas failed structural validation')
 
     call clear_eqdsk_cut_graph_atlas(inboard_atlas)
     call validate_eqdsk_cut_graph_atlas(inboard_atlas, status)
