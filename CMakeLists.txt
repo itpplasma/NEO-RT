@@ -138,6 +138,8 @@ set(NEO_RT_SOURCES
     src/generated/neort_gc_homoclinic_coefficients_symbolic.f90
     src/generated/neort_gc_homoclinic_diagnostic_symbolic.f90
     src/generated/neort_gc_homoclinic_finite_part_symbolic.f90
+    src/generated/neort_gc_variational_event_symbolic.f90
+    src/generated/neort_gc_variational_event_diagnostic_symbolic.f90
     src/generated/neort_full_fow_normalization_symbolic.f90
     src/generated/neort_full_fow_quadrature_map_symbolic.f90
     src/generated/neort_gauss_legendre_interval_map_symbolic.f90
