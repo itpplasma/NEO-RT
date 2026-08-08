@@ -221,13 +221,13 @@ contains
         integer, intent(out) :: status
 
         call enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, r_lo, &
-            r_hi, 0, enclosures, status)
+            r_hi, enclosures, status)
     end subroutine enclose_eqdsk_cut_graph_strip
 
-    recursive subroutine enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, &
-            r_lo, r_hi, depth, enclosures, status)
+    subroutine enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, r_lo, &
+            r_hi, enclosures, status)
         type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
-        integer, intent(in) :: strip_index, depth
+        integer, intent(in) :: strip_index
         real(dp), intent(in) :: r_lo, r_hi
         type(eqdsk_cut_interval_result_t), allocatable, intent(out) :: &
             enclosures(:)
@@ -236,9 +236,7 @@ contains
         type(eqdsk_cut_graph_atlas_t) :: working
         type(eqdsk_cut_graph_atlas_strip_t) :: certified_strip
         type(candidate_leaf_t), allocatable :: candidates(:)
-        type(eqdsk_cut_interval_result_t), allocatable :: left(:), right(:)
         integer :: i, n_candidates, outcome, local_status
-        real(dp) :: midpoint
 
         if (allocated(enclosures)) deallocate(enclosures)
         status = EQDSK_CUT_ATLAS_INVALID_INPUT
@@ -265,47 +263,11 @@ contains
             end if
             return
         end if
-        do i = 1, n_candidates
-            ! The lower boundary is the magnetic-axis one-sided chart; its
-            ! interval halo may straddle psi=0 and is intersected with the
-            ! certified profile endpoint by the generated profile evaluator.
-            ! The edge has a regular endpoint chart and must be refined until
-            ! its upper enclosure is inside the requested surface.
-            if (candidates(i)%interval%psi_hat%hi > &
-                    atlas%requested_psihat_hi+1.0e-12_dp) then
-                write (*, '(a,6(1x,es24.16))') 'runtime enclosure diagnostic=', &
-                    candidates(i)%interval%psi_hat%lo, &
-                    candidates(i)%interval%psi_hat%hi, &
-                    atlas%requested_psihat_lo, atlas%requested_psihat_hi, &
-                    r_lo, r_hi
-                if (depth >= atlas%options%max_r_depth .or. &
-                        r_hi-r_lo <= atlas%options%minimum_r_width) then
-                    status = EQDSK_CUT_ATLAS_UNRESOLVED
-                    return
-                end if
-                midpoint = 0.5_dp*(r_lo+r_hi)
-                if (midpoint <= r_lo .or. midpoint >= r_hi) then
-                    status = EQDSK_CUT_ATLAS_UNRESOLVED
-                    return
-                end if
-                call enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, &
-                    r_lo, midpoint, depth+1, left, local_status)
-                if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
-                    status = local_status
-                    return
-                end if
-                call enclose_eqdsk_cut_graph_strip_depth(atlas, strip_index, &
-                    midpoint, r_hi, depth+1, right, local_status)
-                if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
-                    status = local_status
-                    return
-                end if
-                allocate(enclosures(size(left)+size(right)))
-                if (size(left) > 0) enclosures(1:size(left)) = left
-                if (size(right) > 0) enclosures(size(left)+1:) = right
-                return
-            end if
-        end do
+        ! The graph leaves enclose the physical cut root.  Their transverse
+        ! halo can cross a closed profile endpoint (most visibly at the
+        ! magnetic axis); the generated interval profile evaluator performs
+        ! the certified endpoint intersection.  Rebuilding and bisecting the
+        ! graph here would repeat the full Z cover for every energy query.
         call assemble_candidate_band(working, &
             atlas%strips(strip_index)%cell_R, r_lo, r_hi, candidates, &
             n_candidates, certified_strip, outcome, local_status)
