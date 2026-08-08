@@ -216,17 +216,17 @@ contains
         if (diagnostic) then
             allocate (spec%args(size(diagnostic_args)))
             do i = 1, size(diagnostic_args)
-                spec%args(i) = str(diagnostic_args(i))
+                spec%args(i) = str(trim(diagnostic_args(i)))
             end do
         else
             allocate (spec%args(size(regular_args)))
             do i = 1, size(regular_args)
-                spec%args(i) = str(regular_args(i))
+                spec%args(i) = str(trim(regular_args(i)))
             end do
         end if
         allocate (spec%outputs(size(roots)))
         do i = 1, size(roots)
-            spec%outputs(i) = str(outputs(i))
+            spec%outputs(i) = str(trim(outputs(i)))
         end do
         emitted = emit_kernel(roots, spec, ok)
         if (.not. ok) error stop 'variational event kernel emission failed'
