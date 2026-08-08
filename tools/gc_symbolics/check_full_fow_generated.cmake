@@ -56,15 +56,21 @@ set(generated_files
     neort_profile_potential_segment_symbolic.f90
     neort_eqdsk_quintic_cell_jet_symbolic.f90
     neort_eqdsk_quintic_cell_jet_interval_symbolic.f90
+    neort_eqdsk_quintic_cell_fourth_jet_symbolic.f90
+    neort_eqdsk_quintic_cell_fourth_jet_interval_symbolic.f90
     neort_eqdsk_quintic_profile_jet_symbolic.f90
     neort_eqdsk_quintic_profile_jet_interval_symbolic.f90
     neort_eqdsk_cut_jet_symbolic.f90
     neort_eqdsk_cut_numerator_symbolic.f90
     neort_eqdsk_cut_numerator_interval_symbolic.f90
+    neort_eqdsk_cut_numerator_hessian_symbolic.f90
+    neort_eqdsk_cut_numerator_hessian_interval_symbolic.f90
     neort_eqdsk_cut_r_chart_symbolic.f90
     neort_eqdsk_cut_z_chart_symbolic.f90
     neort_eqdsk_cut_r_flux_chart_symbolic.f90
     neort_eqdsk_cut_r_flux_chart_interval_symbolic.f90
+    neort_eqdsk_cut_r_flux_curvature_symbolic.f90
+    neort_eqdsk_cut_r_flux_curvature_interval_symbolic.f90
     neort_eqdsk_cut_mean_value_interval_symbolic.f90
     neort_eqdsk_cut_axis_curvature_interval_symbolic.f90
     neort_eqdsk_cut_axis_limit_symbolic.f90

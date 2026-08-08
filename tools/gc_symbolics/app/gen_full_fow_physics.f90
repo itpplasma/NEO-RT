@@ -174,12 +174,15 @@ program gen_full_fow_physics
     type(expr_t) :: interpolation_roots(9), endpoint_roots(8)
     type(expr_t) :: profile_potential_roots(3)
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
+    type(expr_t) :: eqdsk_cell_fourth_jet_roots(5)
     type(expr_t) :: eqdsk_cut_jet_roots(7)
     type(expr_t) :: eqdsk_cut_numerator_roots(3)
     type(expr_t) :: eqdsk_cut_interval_roots(4)
     type(expr_t) :: eqdsk_cut_r_chart_roots(2), eqdsk_cut_z_chart_roots(2)
     type(expr_t) :: eqdsk_cut_r_flux_chart_roots(2)
     type(expr_t) :: eqdsk_cut_mean_value_roots(1)
+    type(expr_t) :: eqdsk_cut_numerator_hessian_roots(3)
+    type(expr_t) :: eqdsk_cut_r_flux_curvature_roots(4)
     type(expr_t) :: eqdsk_cut_axis_curvature_roots(2)
     type(expr_t) :: eqdsk_cut_axis_limit_roots(3)
     type(expr_t) :: eq17_outer_roots(1)
@@ -213,6 +216,8 @@ program gen_full_fow_physics
     type(expr_t) :: cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr
     type(expr_t) :: cell_psi_rz, cell_psi_zz, cell_psi_rrr
     type(expr_t) :: cell_psi_rrz, cell_psi_rzz, cell_psi_zzz
+    type(expr_t) :: cell_psi_rrrr, cell_psi_rrrz, cell_psi_rrzz
+    type(expr_t) :: cell_psi_rzzz, cell_psi_zzzz
     type(expr_t) :: profile_coefficient(0:5), profile_delta
     type(expr_t) :: profile_value, profile_first, profile_second
     type(expr_t) :: profile_btf, profile_rtf, profile_vacuum_f
@@ -221,6 +226,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_psi_rr, eqcut_psi_rz, eqcut_psi_zz
     type(expr_t) :: eqcut_psi_rrr, eqcut_psi_rrz
     type(expr_t) :: eqcut_psi_rzz, eqcut_psi_zzz
+    type(expr_t) :: eqcut_psi_rrrr, eqcut_psi_rrrz, eqcut_psi_rrzz
+    type(expr_t) :: eqcut_psi_rzzz, eqcut_psi_zzzz
     type(expr_t) :: eqcut_f0, eqcut_f_hat_first, eqcut_f_hat_second
     type(expr_t) :: eqcut_psi_sep, eqcut_dr, eqcut_darc_phi, eqcut_dz
     type(expr_t) :: eqcut_local_radius, eqcut_local_psi, eqcut_delta_psi
@@ -229,6 +236,11 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_local_psi_zz, eqcut_local_g, eqcut_local_s
     type(expr_t) :: eqcut_local_k, eqcut_local_n
     type(expr_t) :: eqcut_n, eqcut_n_r, eqcut_n_z
+    type(expr_t) :: eqcut_n_rr, eqcut_n_rz, eqcut_n_zz
+    type(expr_t) :: eqcut_f_reversal_n_residual
+    type(expr_t) :: eqcut_f_reversal_n_rr_residual
+    type(expr_t) :: eqcut_f_reversal_n_rz_residual
+    type(expr_t) :: eqcut_f_reversal_n_zz_residual
     type(expr_t) :: eqcut_direct_grad_b_r, eqcut_direct_grad_b_z
     type(expr_t) :: eqcut_direct_c
     type(expr_t) :: eqcut_local_c, eqcut_c, eqcut_dc_dr
@@ -254,6 +266,15 @@ program gen_full_fow_physics
     type(expr_t) :: eqcut_r_chart_tangent_residual
     type(expr_t) :: eqcut_z_chart_tangent_residual
     type(expr_t) :: eqcut_r_chart_flux_residual
+    type(expr_t) :: eqcut_chart_n_rr, eqcut_chart_n_rz, eqcut_chart_n_zz
+    type(expr_t) :: eqcut_chart_psi_rr, eqcut_chart_psi_rz
+    type(expr_t) :: eqcut_chart_psi_zz, eqcut_r_chart_second
+    type(expr_t) :: eqcut_r_chart_d2psihat
+    type(expr_t) :: eqcut_r_chart_second_tangent_residual
+    type(expr_t) :: eqcut_r_chart_flux_second_residual
+    type(expr_t) :: eqcut_f2_hessian_contraction_residual
+    type(expr_t) :: eqcut_r_chart_slope_reversed
+    type(expr_t) :: eqcut_r_chart_second_reversed
     type(expr_t) :: eqcut_mean_n_mid, eqcut_mean_n_r, eqcut_mean_n_z
     type(expr_t) :: eqcut_mean_delta_r, eqcut_mean_delta_z
     type(expr_t) :: eqcut_mean_enclosure, eqcut_mean_center_residual
@@ -423,6 +444,11 @@ program gen_full_fow_physics
     cell_psi_rrz = diff(cell_psi_rr, cell_delta_z)
     cell_psi_rzz = diff(cell_psi_rz, cell_delta_z)
     cell_psi_zzz = diff(cell_psi_zz, cell_delta_z)
+    cell_psi_rrrr = diff(cell_psi_rrr, cell_delta_r)
+    cell_psi_rrrz = diff(cell_psi_rrr, cell_delta_z)
+    cell_psi_rrzz = diff(cell_psi_rrz, cell_delta_z)
+    cell_psi_rzzz = diff(cell_psi_rzz, cell_delta_z)
+    cell_psi_zzzz = diff(cell_psi_zzz, cell_delta_z)
 
     ! Exact quintic F(psihat) profile jet in the same coefficient convention.
     profile_delta = sym(arena, "profile_delta")
@@ -444,7 +470,7 @@ program gen_full_fow_physics
         [character(len=64) :: "vacuum_Bphi_reference", &
         "vacuum_radius_reference"]
 
-    ! Exact axisymmetric Eq. 13 cut jet from a third-order local psi jet.  For
+    ! Exact axisymmetric Eq. 13 cut jet from a fourth-order local psi jet.  For
     ! R>0, write |B|=field_scale*sqrt(G)/R with
     ! G=psi_R**2+psi_Z**2+F**2.  Reducing
     ! (grad(B) cross grad(psi)).grad(phi) before differentiating gives
@@ -471,6 +497,11 @@ program gen_full_fow_physics
     eqcut_psi_rrz = sym(arena, "psi_RRZ")
     eqcut_psi_rzz = sym(arena, "psi_RZZ")
     eqcut_psi_zzz = sym(arena, "psi_ZZZ")
+    eqcut_psi_rrrr = sym(arena, "psi_RRRR")
+    eqcut_psi_rrrz = sym(arena, "psi_RRRZ")
+    eqcut_psi_rrzz = sym(arena, "psi_RRZZ")
+    eqcut_psi_rzzz = sym(arena, "psi_RZZZ")
+    eqcut_psi_zzzz = sym(arena, "psi_ZZZZ")
     eqcut_f0 = sym(arena, "F")
     eqcut_f_hat_first = sym(arena, "dF_dpsihat")
     eqcut_f_hat_second = sym(arena, "d2F_dpsihat2")
@@ -492,7 +523,12 @@ program gen_full_fow_physics
         (eqcut_psi_rrr*eqcut_dr**3 + &
         3*eqcut_psi_rrz*eqcut_dr**2*eqcut_dz + &
         3*eqcut_psi_rzz*eqcut_dr*eqcut_dz**2 + &
-        eqcut_psi_zzz*eqcut_dz**3)/6
+        eqcut_psi_zzz*eqcut_dz**3)/6 + &
+        (eqcut_psi_rrrr*eqcut_dr**4 + &
+        4*eqcut_psi_rrrz*eqcut_dr**3*eqcut_dz + &
+        6*eqcut_psi_rrzz*eqcut_dr**2*eqcut_dz**2 + &
+        4*eqcut_psi_rzzz*eqcut_dr*eqcut_dz**3 + &
+        eqcut_psi_zzzz*eqcut_dz**4)/24
     eqcut_delta_psi = eqcut_local_psi-eqcut_psi0
     eqcut_local_f = eqcut_f0 + &
         eqcut_f_hat_first/eqcut_psi_sep*eqcut_delta_psi + &
@@ -534,6 +570,33 @@ program gen_full_fow_physics
         eqcut_dz, "EQDSK cut numerator vertical derivative"), &
         eqcut_dr, zero), eqcut_dz, zero), &
         "EQDSK cut numerator vertical jet")
+    eqcut_n_rr = exact_simplify(subs(subs(exact_derivative( &
+        exact_derivative(eqcut_local_n, eqcut_dr, &
+        "EQDSK cut numerator radial derivative for Hessian"), eqcut_dr, &
+        "EQDSK cut numerator RR derivative"), eqcut_dr, zero), &
+        eqcut_dz, zero), "EQDSK cut numerator RR jet")
+    eqcut_n_rz = exact_simplify(subs(subs(exact_derivative( &
+        exact_derivative(eqcut_local_n, eqcut_dr, &
+        "EQDSK cut numerator radial derivative for mixed Hessian"), &
+        eqcut_dz, "EQDSK cut numerator RZ derivative"), eqcut_dr, zero), &
+        eqcut_dz, zero), "EQDSK cut numerator RZ jet")
+    eqcut_n_zz = exact_simplify(subs(subs(exact_derivative( &
+        exact_derivative(eqcut_local_n, eqcut_dz, &
+        "EQDSK cut numerator vertical derivative for Hessian"), eqcut_dz, &
+        "EQDSK cut numerator ZZ derivative"), eqcut_dr, zero), &
+        eqcut_dz, zero), "EQDSK cut numerator ZZ jet")
+    eqcut_f_reversal_n_residual = subs(subs(subs(eqcut_n, &
+        eqcut_f0, -eqcut_f0), eqcut_f_hat_first, -eqcut_f_hat_first), &
+        eqcut_f_hat_second, -eqcut_f_hat_second)-eqcut_n
+    eqcut_f_reversal_n_rr_residual = subs(subs(subs(eqcut_n_rr, &
+        eqcut_f0, -eqcut_f0), eqcut_f_hat_first, -eqcut_f_hat_first), &
+        eqcut_f_hat_second, -eqcut_f_hat_second)-eqcut_n_rr
+    eqcut_f_reversal_n_rz_residual = subs(subs(subs(eqcut_n_rz, &
+        eqcut_f0, -eqcut_f0), eqcut_f_hat_first, -eqcut_f_hat_first), &
+        eqcut_f_hat_second, -eqcut_f_hat_second)-eqcut_n_rz
+    eqcut_f_reversal_n_zz_residual = subs(subs(subs(eqcut_n_zz, &
+        eqcut_f0, -eqcut_f0), eqcut_f_hat_first, -eqcut_f_hat_first), &
+        eqcut_f_hat_second, -eqcut_f_hat_second)-eqcut_n_zz
     eqcut_f1_n_residual = diff(eqcut_n, eqcut_f_hat_first)
     eqcut_f2_n_r_residual = diff(eqcut_n_r, eqcut_f_hat_second)
     eqcut_f2_n_z_residual = diff(eqcut_n_z, eqcut_f_hat_second)
@@ -628,6 +691,42 @@ program gen_full_fow_physics
     eqcut_r_chart_flux_residual = eqcut_chart_psi_sep* &
         eqcut_r_chart_dpsihat - (eqcut_chart_psi_r + &
         eqcut_chart_psi_z*eqcut_r_chart_slope)
+    eqcut_chart_n_rr = sym(arena, "N_RR")
+    eqcut_chart_n_rz = sym(arena, "N_RZ")
+    eqcut_chart_n_zz = sym(arena, "N_ZZ")
+    eqcut_chart_psi_rr = sym(arena, "psi_RR")
+    eqcut_chart_psi_rz = sym(arena, "psi_RZ")
+    eqcut_chart_psi_zz = sym(arena, "psi_ZZ")
+    eqcut_r_chart_second = -(eqcut_chart_n_rr + &
+        2*eqcut_chart_n_rz*eqcut_r_chart_slope + &
+        eqcut_chart_n_zz*eqcut_r_chart_slope**2)/eqcut_chart_n_z
+    eqcut_r_chart_d2psihat = (eqcut_chart_psi_rr + &
+        2*eqcut_chart_psi_rz*eqcut_r_chart_slope + &
+        eqcut_chart_psi_zz*eqcut_r_chart_slope**2 + &
+        eqcut_chart_psi_z*eqcut_r_chart_second)/eqcut_chart_psi_sep
+    eqcut_r_chart_second_tangent_residual = eqcut_chart_n_rr + &
+        2*eqcut_chart_n_rz*eqcut_r_chart_slope + &
+        eqcut_chart_n_zz*eqcut_r_chart_slope**2 + &
+        eqcut_chart_n_z*eqcut_r_chart_second
+    eqcut_r_chart_flux_second_residual = eqcut_chart_psi_sep &
+        *eqcut_r_chart_d2psihat-(eqcut_chart_psi_rr + &
+        2*eqcut_chart_psi_rz*eqcut_r_chart_slope + &
+        eqcut_chart_psi_zz*eqcut_r_chart_slope**2 + &
+        eqcut_chart_psi_z*eqcut_r_chart_second)
+    eqcut_f2_hessian_contraction_residual = diff(eqcut_n_rr + &
+        2*eqcut_n_rz*eqcut_r_chart_slope + &
+        eqcut_n_zz*eqcut_r_chart_slope**2, eqcut_f_hat_second) &
+        -2*eqcut_psi_z*eqcut_f0/eqcut_psi_sep**2 &
+        *(eqcut_psi_r+eqcut_psi_z*eqcut_r_chart_slope)**2
+    eqcut_r_chart_slope_reversed = subs(subs(eqcut_r_chart_slope, &
+        eqcut_chart_n_r, -eqcut_chart_n_r), &
+        eqcut_chart_n_z, -eqcut_chart_n_z)
+    eqcut_r_chart_second_reversed = subs(subs(subs(subs(subs( &
+        eqcut_r_chart_second, eqcut_chart_n_r, -eqcut_chart_n_r), &
+        eqcut_chart_n_z, -eqcut_chart_n_z), &
+        eqcut_chart_n_rr, -eqcut_chart_n_rr), &
+        eqcut_chart_n_rz, -eqcut_chart_n_rz), &
+        eqcut_chart_n_zz, -eqcut_chart_n_zz)
 
     ! Mean-value inclusion extension used by the certified atlas.  The
     ! runtime supplies outward enclosures of N_R and N_Z over the complete
@@ -1565,6 +1664,18 @@ program gen_full_fow_physics
         "EQDSK numerator Z derivative does not require second F derivative", &
         eqcut_f2_n_z_residual)
     call check_identity(proofs, proof_engine, &
+        "simultaneous F jet reversal preserves EQDSK numerator", &
+        eqcut_f_reversal_n_residual)
+    call check_identity(proofs, proof_engine, &
+        "simultaneous F jet reversal preserves EQDSK numerator RR", &
+        eqcut_f_reversal_n_rr_residual)
+    call check_identity(proofs, proof_engine, &
+        "simultaneous F jet reversal preserves EQDSK numerator RZ", &
+        eqcut_f_reversal_n_rz_residual)
+    call check_identity(proofs, proof_engine, &
+        "simultaneous F jet reversal preserves EQDSK numerator ZZ", &
+        eqcut_f_reversal_n_zz_residual)
+    call check_identity(proofs, proof_engine, &
         "EQDSK cut value is independent of first F derivative", &
         eqcut_f1_c_residual)
     call check_identity(proofs, proof_engine, &
@@ -1596,6 +1707,21 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "R-chart normalized-flux derivative is the cut chain rule", &
         eqcut_r_chart_flux_residual)
+    call check_identity(proofs, proof_engine, &
+        "R-chart second derivative satisfies implicit cut equation", &
+        eqcut_r_chart_second_tangent_residual)
+    call check_identity(proofs, proof_engine, &
+        "R-chart normalized-flux curvature is the second chain rule", &
+        eqcut_r_chart_flux_second_residual)
+    call check_identity(proofs, proof_engine, &
+        "profile F second derivative contribution to cut Hessian", &
+        eqcut_f2_hessian_contraction_residual)
+    call check_identity(proofs, proof_engine, &
+        "overall cut-numerator sign leaves R-chart slope unchanged", &
+        eqcut_r_chart_slope_reversed-eqcut_r_chart_slope)
+    call check_identity(proofs, proof_engine, &
+        "overall cut-numerator sign leaves R-chart curvature unchanged", &
+        eqcut_r_chart_second_reversed-eqcut_r_chart_second)
     call check_identity(proofs, proof_engine, &
         "EQDSK mean-value enclosure reproduces its center", &
         eqcut_mean_center_residual)
@@ -1743,6 +1869,8 @@ program gen_full_fow_physics
     eqdsk_cell_jet_roots = [cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr, &
         cell_psi_rz, cell_psi_zz, cell_psi_rrr, cell_psi_rrz, &
         cell_psi_rzz, cell_psi_zzz]
+    eqdsk_cell_fourth_jet_roots = [cell_psi_rrrr, cell_psi_rrrz, &
+        cell_psi_rrzz, cell_psi_rzzz, cell_psi_zzzz]
     eqdsk_profile_jet_roots = [profile_value, profile_first, profile_second, &
         profile_vacuum_f]
     eqdsk_cut_jet_roots = [eqcut_c, eqcut_dc_dr, eqcut_dc_darc_phi, &
@@ -1755,6 +1883,10 @@ program gen_full_fow_physics
     eqdsk_cut_r_flux_chart_roots = [eqcut_r_chart_slope, &
         eqcut_r_chart_dpsihat]
     eqdsk_cut_mean_value_roots = [eqcut_mean_enclosure]
+    eqdsk_cut_numerator_hessian_roots = [eqcut_n_rr, eqcut_n_rz, eqcut_n_zz]
+    eqdsk_cut_r_flux_curvature_roots = [eqcut_r_chart_slope, &
+        eqcut_r_chart_second, eqcut_r_chart_dpsihat, &
+        eqcut_r_chart_d2psihat]
     eqdsk_cut_axis_curvature_roots = [eqcut_axis_curvature, &
         eqcut_axis_hessian_determinant]
     eqdsk_cut_axis_limit_roots = [eqcut_axis_curvature, &
@@ -1826,6 +1958,7 @@ program gen_full_fow_physics
     call simplify_array(endpoint_roots)
     call simplify_array(profile_potential_roots)
     call simplify_array(eqdsk_cell_jet_roots)
+    call simplify_array(eqdsk_cell_fourth_jet_roots)
     call simplify_array(eqdsk_profile_jet_roots)
     call simplify_array(eqdsk_cut_jet_roots)
     call simplify_array(eqdsk_cut_numerator_roots)
@@ -1834,6 +1967,8 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eqdsk_cut_r_flux_chart_roots)
     call simplify_array(eqdsk_cut_mean_value_roots)
+    call simplify_array(eqdsk_cut_numerator_hessian_roots)
+    call simplify_array(eqdsk_cut_r_flux_curvature_roots)
     call simplify_array(eqdsk_cut_axis_curvature_roots)
     call simplify_array(eqdsk_cut_axis_limit_roots)
     call simplify_array(eq17_outer_roots)
@@ -2200,6 +2335,20 @@ program gen_full_fow_physics
         "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", "psi_RZZ", &
         "psi_ZZZ"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_quintic_cell_fourth_jet_symbolic.f90", &
+        "neort_eqdsk_quintic_cell_fourth_jet_symbolic", &
+        "evaluate_neort_eqdsk_quintic_cell_fourth_jet", &
+        eqdsk_cell_arg_names, eqdsk_cell_fourth_jet_roots, &
+        [character(len=64) :: "psi_RRRR", "psi_RRRZ", "psi_RRZZ", &
+        "psi_RZZZ", "psi_ZZZZ"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_quintic_cell_fourth_jet_interval_symbolic.f90", &
+        "neort_eqdsk_quintic_cell_fourth_jet_interval_symbolic", &
+        "evaluate_neort_eqdsk_quintic_cell_fourth_jet_interval", &
+        eqdsk_cell_arg_names, eqdsk_cell_fourth_jet_roots, &
+        [character(len=64) :: "psi_RRRR", "psi_RRRZ", "psi_RRZZ", &
+        "psi_RZZZ", "psi_ZZZZ"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_quintic_profile_jet_symbolic.f90", &
         "neort_eqdsk_quintic_profile_jet_symbolic", &
         "evaluate_neort_eqdsk_quintic_profile_jet", &
@@ -2243,6 +2392,27 @@ program gen_full_fow_physics
         eqdsk_cut_interval_roots, [character(len=64) :: "N", "N_R", &
         "N_Z", "Q"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_numerator_hessian_symbolic.f90", &
+        "neort_eqdsk_cut_numerator_hessian_symbolic", &
+        "evaluate_neort_eqdsk_cut_numerator_hessian", &
+        [character(len=64) :: "radius", "psi_R", "psi_Z", "psi_RR", &
+        "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", "psi_RZZ", &
+        "psi_ZZZ", "psi_RRRR", "psi_RRRZ", "psi_RRZZ", "psi_RZZZ", &
+        "psi_ZZZZ", "F", "dF_dpsihat", "d2F_dpsihat2", "psi_sep"], &
+        eqdsk_cut_numerator_hessian_roots, &
+        [character(len=64) :: "N_RR", "N_RZ", "N_ZZ"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_numerator_hessian_interval_symbolic.f90", &
+        "neort_eqdsk_cut_numerator_hessian_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_numerator_hessian_interval", &
+        [character(len=64) :: "radius", "psi_R", "psi_Z", "psi_RR", &
+        "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", "psi_RZZ", &
+        "psi_ZZZ", "psi_RRRR", "psi_RRRZ", "psi_RRZZ", "psi_RZZZ", &
+        "psi_ZZZZ", "F", "dF_dpsihat", "d2F_dpsihat2", "psi_sep"], &
+        eqdsk_cut_numerator_hessian_roots, &
+        [character(len=64) :: "N_RR", "N_RZ", "N_ZZ"], &
+        interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_r_chart_symbolic.f90", &
         "neort_eqdsk_cut_r_chart_symbolic", &
         "evaluate_neort_eqdsk_cut_r_chart", &
@@ -2269,6 +2439,24 @@ program gen_full_fow_physics
         "psi_sep"], eqdsk_cut_r_flux_chart_roots, &
         [character(len=64) :: "dZ_dR", "dpsihat_dR"], &
         interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_r_flux_curvature_symbolic.f90", &
+        "neort_eqdsk_cut_r_flux_curvature_symbolic", &
+        "evaluate_neort_eqdsk_cut_r_flux_curvature", &
+        [character(len=64) :: "N_R", "N_Z", "N_RR", "N_RZ", "N_ZZ", &
+        "psi_R", "psi_Z", "psi_RR", "psi_RZ", "psi_ZZ", "psi_sep"], &
+        eqdsk_cut_r_flux_curvature_roots, &
+        [character(len=64) :: "dZ_dR", "d2Z_dR2", "dpsihat_dR", &
+        "d2psihat_dR2"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_r_flux_curvature_interval_symbolic.f90", &
+        "neort_eqdsk_cut_r_flux_curvature_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_r_flux_curvature_interval", &
+        [character(len=64) :: "N_R", "N_Z", "N_RR", "N_RZ", "N_ZZ", &
+        "psi_R", "psi_Z", "psi_RR", "psi_RZ", "psi_ZZ", "psi_sep"], &
+        eqdsk_cut_r_flux_curvature_roots, &
+        [character(len=64) :: "dZ_dR", "d2Z_dR2", "dpsihat_dR", &
+        "d2psihat_dR2"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_mean_value_interval_symbolic.f90", &
         "neort_eqdsk_cut_mean_value_interval_symbolic", &
@@ -2524,15 +2712,18 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 20"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 23"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
         write (unit, "(a)") "        'refinement', 'harmonic_integrand', 'simple_root_force', &"
-        write (unit, "(a)") "        'eqdsk_cell_jet', 'eqdsk_profile_jet', 'eqdsk_cut_jet', &"
+        write (unit, "(a)") "        'eqdsk_cell_jet', 'eqdsk_cell_fourth_jet', &"
+        write (unit, "(a)") "        'eqdsk_profile_jet', 'eqdsk_cut_jet', &"
         write (unit, "(a)") "        'eqdsk_cut_numerator_jet', 'eqdsk_cut_r_chart', &"
         write (unit, "(a)") "        'eqdsk_cut_z_chart', 'eqdsk_cut_r_flux_chart', &"
-        write (unit, "(a)") "        'eqdsk_cut_mean_value', 'eqdsk_cut_axis_curvature', &"
+        write (unit, "(a)") "        'eqdsk_cut_numerator_hessian', &"
+        write (unit, "(a)") "        'eqdsk_cut_r_flux_curvature', 'eqdsk_cut_mean_value', &"
+        write (unit, "(a)") "        'eqdsk_cut_axis_curvature', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_limit' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
@@ -2546,12 +2737,15 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:harmonic_integrand:8:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:simple_root_force:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cell_jet:10:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cell_fourth_jet:5:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_profile_jet:4:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_jet:7:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_numerator_jet:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_chart:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_flux_chart:2:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_numerator_hessian:3:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_r_flux_curvature:4:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_mean_value:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884' ]"

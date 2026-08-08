@@ -22,6 +22,9 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_cell_jet', &
             'neort-cert-v1:eqdsk_cell_jet:10:fortsym-5457884')) error stop &
         'EQDSK cell-jet certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cell_fourth_jet', &
+            'neort-cert-v1:eqdsk_cell_fourth_jet:5:fortsym-5457884')) &
+        error stop 'EQDSK fourth-jet certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_profile_jet', &
             'neort-cert-v1:eqdsk_profile_jet:4:fortsym-5457884')) error stop &
         'EQDSK profile-jet certificate registry mismatch'
@@ -37,6 +40,12 @@ program test_gc_generated_certificates
     if (.not. certificate_matches('eqdsk_cut_z_chart', &
             'neort-cert-v1:eqdsk_cut_z_chart:2:fortsym-5457884')) error stop &
         'EQDSK Z-chart certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_numerator_hessian', &
+            'neort-cert-v1:eqdsk_cut_numerator_hessian:3:fortsym-5457884')) &
+        error stop 'EQDSK numerator-Hessian certificate registry mismatch'
+    if (.not. certificate_matches('eqdsk_cut_r_flux_curvature', &
+            'neort-cert-v1:eqdsk_cut_r_flux_curvature:4:fortsym-5457884')) &
+        error stop 'EQDSK flux-curvature certificate registry mismatch'
     if (.not. certificate_matches('eqdsk_cut_axis_curvature', &
             'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884')) &
         error stop 'EQDSK axis-curvature certificate registry mismatch'
