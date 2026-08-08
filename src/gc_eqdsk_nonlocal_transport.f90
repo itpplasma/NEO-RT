@@ -1622,7 +1622,7 @@ contains
 
         integer :: low, high, mid, n
         logical :: ascending
-        real(dp) :: tolerance, denominator
+        real(dp) :: tolerance, denominator, interpolation_value, axis_scale
 
         left = 0
         right = 0
@@ -1635,30 +1635,34 @@ contains
             return
         end if
         ascending = axis(n) > axis(1)
+        axis_scale = max(1.0_dp, maxval(abs([axis(1), axis(n), value])))
+        tolerance = 100.0_dp*epsilon(axis_scale)*axis_scale
         if (ascending) then
-            if (value < axis(1) .or. value > axis(n)) return
+            if (value < axis(1)-tolerance .or. value > axis(n)+tolerance) return
+            interpolation_value = min(axis(n), max(axis(1), value))
         else
-            if (value > axis(1) .or. value < axis(n)) return
+            if (value > axis(1)+tolerance .or. value < axis(n)-tolerance) return
+            interpolation_value = max(axis(n), min(axis(1), value))
         end if
         low = 1
         high = n
         do while (high - low > 1)
             mid = (low + high)/2
             if (ascending) then
-                if (axis(mid) <= value) then
+                if (axis(mid) <= interpolation_value) then
                     low = mid
                 else
                     high = mid
                 end if
             else
-                if (axis(mid) >= value) then
+                if (axis(mid) >= interpolation_value) then
                     low = mid
                 else
                     high = mid
                 end if
             end if
         end do
-        if (value == axis(n)) then
+        if (interpolation_value == axis(n)) then
             low = n - 1
             high = n
         end if
@@ -1670,7 +1674,7 @@ contains
         end if
         left = low
         right = high
-        weight = (value - axis(left))/denominator
+        weight = (interpolation_value - axis(left))/denominator
         weight = max(0.0_dp, min(1.0_dp, weight))
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine locate_monotonic
