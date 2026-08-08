@@ -872,12 +872,7 @@ contains
         if (self%c_light <= 0.0_dp) return
         psi = field%psi
         call interpolate_potential(self, psi, values, status)
-        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) then
-            write (*, '(a,1x,i0,3(1x,es24.16))') &
-                'potential interpolation diagnostic=', status, psi, &
-                self%psi_pol(1), self%psi_pol(size(self%psi_pol))
-            return
-        end if
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
         potential = values(1)
         gradient = values(2)*field%grad_psi
         if (.not. all(ieee_is_finite([potential, gradient]))) then
@@ -1445,22 +1440,7 @@ contains
             factory%options%field_scale, zet(1), zet(nzet), &
             factory%options%cut_atlas_options, &
             factory%certified_cut_atlas, local_status)
-        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
-            write (*, '(a,1x,i0,8(1x,i0),4(1x,es24.16))') 'cut atlas diagnostic=', local_status, &
-                factory%certified_cut_atlas%inboard_graph%failure_stage, &
-                factory%certified_cut_atlas%inboard_graph%failure_r_depth, &
-                factory%certified_cut_atlas%inboard_graph%failure_z_depth, &
-                factory%certified_cut_atlas%axis_graph%failure_stage, &
-                factory%certified_cut_atlas%axis_graph%failure_r_depth, &
-                factory%certified_cut_atlas%axis_graph%failure_z_depth, &
-                factory%certified_cut_atlas%outboard_graph%failure_stage, &
-                factory%certified_cut_atlas%outboard_graph%failure_r_depth, &
-                factory%certified_cut_atlas%inboard_graph%failure_r_lo, &
-                factory%certified_cut_atlas%inboard_graph%failure_r_hi, &
-                factory%certified_cut_atlas%inboard_graph%failure_z_lo, &
-                factory%certified_cut_atlas%inboard_graph%failure_z_hi
-            return
-        end if
+        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
         call build_eqdsk_composite_r_partition(factory%certified_cut_atlas, &
             factory%r_partition, local_status)
         if (local_status /= EQDSK_R_OWNERSHIP_SUCCESS) return
@@ -2127,18 +2107,12 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
-                factory%last_return_status = 2500 + sigma
                 if (.not. factory%allowed_region_ready) return
                 call build_gc_eqdsk_certified_allowed_regions( &
                     factory%allowed_region_context, h0, jperp, sigma, regions, &
                     local_status)
                 if (local_status == GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) then
                     status = GC_CYL_CLASS_SUCCESS
-                else
-                    ! Preserve the typed provider failure for the factory
-                    ! diagnostic; the adapter still exposes only its public
-                    ! class-contract status to the caller.
-                    factory%last_return_status = 2000 + local_status
                 end if
             class default
                 return
@@ -2160,7 +2134,6 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
-                factory%last_return_status = 3000 + sigma
                 if (.not. factory%allowed_region_ready) return
                 call verify_gc_eqdsk_certified_allowed_regions( &
                     factory%allowed_region_context, h0, jperp, sigma, rc_min, &
@@ -2169,7 +2142,6 @@ contains
                     status = GC_CYL_CLASS_SUCCESS
                 else
                     certificate_id = 0
-                    factory%last_return_status = 3000 + local_status
                 end if
             class default
                 return
@@ -2197,7 +2169,6 @@ contains
             call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
                 local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) then
-                factory%last_return_status = 2100 + local_status
                 status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
                 return
             end if
@@ -2213,11 +2184,9 @@ contains
                 required_return_crossings=2, &
                 user_data=factory)
             if (local_status /= GC_CYL_NONLOCAL_SUCCESS) then
-                factory%last_return_status = 2200 + local_status
                 status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
                 return
             end if
-            factory%last_return_status = 2300
             status = GC_EQDSK_NONLOCAL_SUCCESS
         class default
             status = GC_EQDSK_NONLOCAL_INVALID_INPUT
@@ -2430,20 +2399,16 @@ contains
             call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
                 local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) then
-                factory%last_return_status = 2400 + local_status
                 return
             end if
             call enumerate_gc_cylindrical_classes(adapter, classes, local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) then
-                factory%last_return_status = 2500 + local_status
                 return
             end if
             if (.not. classes%class_complete) then
-                factory%last_return_status = 2600
                 return
             end if
             if (classes%nclasses < 0) then
-                factory%last_return_status = 2601
                 return
             end if
             if (classes%nclasses == 0) then
@@ -2620,11 +2585,7 @@ contains
             call map_eqdsk_composite_cut_atlas_radius( &
                 factory%certified_cut_atlas, radius, position, &
                 dposition_dradius, local_status)
-            if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
-                write (*, '(a,1x,i0,1x,es24.16)') &
-                    'composite cut diagnostic=', local_status, radius
-                return
-            end if
+            if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
             status = GC_CYL_SUCCESS
         class default
             status = GC_CYL_EQUILIBRIUM_DOMAIN
@@ -2677,7 +2638,6 @@ contains
 
         certified = .false.
         status = GC_CYL_CLASS_SPLITTER_FAILURE
-        factory%last_return_status = 4000 + sigma
         factory%topology_certification_attempts = &
             factory%topology_certification_attempts + 1
         factory%topology_ready = .false.

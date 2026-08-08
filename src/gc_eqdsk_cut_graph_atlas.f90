@@ -56,6 +56,8 @@ module neort_gc_eqdsk_cut_graph_atlas
         integer :: cell_R = 0
         integer :: normal_sign = 0
         integer :: candidate_leaf_count = 0
+        integer, allocatable :: candidate_cell_Z(:)
+        real(dp), allocatable :: candidate_z_lo(:), candidate_z_hi(:)
     end type eqdsk_cut_graph_atlas_strip_t
 
     type, public :: eqdsk_cut_graph_atlas_t
@@ -73,15 +75,6 @@ module neort_gc_eqdsk_cut_graph_atlas
         logical :: global_completeness_certified = .false.
         integer :: flux_monotonicity_sign = 0
         logical :: flux_monotonicity_certified = .false.
-        integer :: failure_cell_R = 0
-        integer :: failure_cell_Z = 0
-        integer :: failure_r_depth = 0
-        integer :: failure_z_depth = 0
-        integer :: failure_stage = 0
-        real(dp) :: failure_r_lo = 0.0_dp
-        real(dp) :: failure_r_hi = 0.0_dp
-        real(dp) :: failure_z_lo = 0.0_dp
-        real(dp) :: failure_z_hi = 0.0_dp
     end type eqdsk_cut_graph_atlas_t
 
     public :: build_eqdsk_cut_graph_atlas
@@ -193,15 +186,6 @@ contains
         atlas%global_completeness_certified = .false.
         atlas%flux_monotonicity_sign = 0
         atlas%flux_monotonicity_certified = .false.
-        atlas%failure_cell_R = 0
-        atlas%failure_cell_Z = 0
-        atlas%failure_r_depth = 0
-        atlas%failure_z_depth = 0
-        atlas%failure_stage = 0
-        atlas%failure_r_lo = 0.0_dp
-        atlas%failure_r_hi = 0.0_dp
-        atlas%failure_z_lo = 0.0_dp
-        atlas%failure_z_hi = 0.0_dp
     end subroutine clear_eqdsk_cut_graph_atlas
 
     subroutine validate_eqdsk_cut_graph_atlas(atlas, status)
@@ -233,10 +217,9 @@ contains
             enclosures(:)
         integer, intent(out) :: status
 
-        type(eqdsk_cut_graph_atlas_t) :: working
-        type(eqdsk_cut_graph_atlas_strip_t) :: certified_strip
-        type(candidate_leaf_t), allocatable :: candidates(:)
-        integer :: i, n_candidates, outcome, local_status
+        type(eqdsk_cut_graph_atlas_strip_t) :: strip
+        type(eqdsk_cut_interval_result_t) :: enclosure
+        integer :: i, local_status
 
         if (allocated(enclosures)) deallocate(enclosures)
         status = EQDSK_CUT_ATLAS_INVALID_INPUT
@@ -252,35 +235,31 @@ contains
             return
         end if
 
-        working = atlas
-        call collect_slab_candidates(working, &
-            atlas%strips(strip_index)%cell_R, r_lo, r_hi, candidates, &
-            n_candidates, outcome, local_status)
-        if (outcome /= Z_COVER_SUCCESS) then
-            status = local_status
-            if (status == EQDSK_CUT_ATLAS_SUCCESS) then
-                status = EQDSK_CUT_ATLAS_UNRESOLVED
-            end if
+        strip = atlas%strips(strip_index)
+        if (.not. allocated(strip%candidate_cell_Z) .or. &
+                .not. allocated(strip%candidate_z_lo) .or. &
+                .not. allocated(strip%candidate_z_hi)) then
+            status = EQDSK_CUT_ATLAS_INVALID_CERTIFICATE
             return
         end if
-        ! The graph leaves enclose the physical cut root.  Their transverse
-        ! halo can cross a closed profile endpoint (most visibly at the
-        ! magnetic axis); the generated interval profile evaluator performs
-        ! the certified endpoint intersection.  Rebuilding and bisecting the
-        ! graph here would repeat the full Z cover for every energy query.
-        call assemble_candidate_band(working, &
-            atlas%strips(strip_index)%cell_R, r_lo, r_hi, candidates, &
-            n_candidates, certified_strip, outcome, local_status)
-        if (outcome /= Z_COVER_SUCCESS) then
-            status = local_status
-            if (status == EQDSK_CUT_ATLAS_SUCCESS) then
-                status = EQDSK_CUT_ATLAS_UNRESOLVED
-            end if
+        if (size(strip%candidate_cell_Z) /= strip%candidate_leaf_count .or. &
+                size(strip%candidate_z_lo) /= strip%candidate_leaf_count .or. &
+                size(strip%candidate_z_hi) /= strip%candidate_leaf_count) then
+            status = EQDSK_CUT_ATLAS_INVALID_CERTIFICATE
             return
         end if
-        allocate(enclosures(n_candidates))
-        do i = 1, n_candidates
-            enclosures(i) = candidates(i)%interval
+        allocate(enclosures(strip%candidate_leaf_count))
+        do i = 1, strip%candidate_leaf_count
+            call evaluate_eqdsk_cut_interval_box(strip%cell_R, &
+                strip%candidate_cell_Z(i), r_lo, r_hi, &
+                strip%candidate_z_lo(i), strip%candidate_z_hi(i), enclosure, &
+                local_status)
+            if (local_status /= EQDSK_CUT_INTERVAL_SUCCESS) then
+                deallocate(enclosures)
+                status = EQDSK_CUT_ATLAS_INTERVAL_FAILURE
+                return
+            end if
+            enclosures(i) = enclosure
         end do
         status = EQDSK_CUT_ATLAS_SUCCESS
     end subroutine enclose_eqdsk_cut_graph_strip_depth
@@ -521,10 +500,6 @@ contains
         end if
         if (depth >= atlas%options%max_r_depth .or. &
                 r_hi-r_lo <= atlas%options%minimum_r_width) then
-            atlas%failure_cell_R = cell_R
-            atlas%failure_r_depth = depth
-            atlas%failure_r_lo = r_lo
-            atlas%failure_r_hi = r_hi
             if (outcome == Z_COVER_MULTIPLE) then
                 status = EQDSK_CUT_ATLAS_MULTIPLE_BANDS
             else
@@ -598,7 +573,6 @@ contains
             end if
         end do
         if (n_candidates <= 0) then
-            atlas%failure_stage = 2
             return
         end if
         outcome = Z_COVER_SUCCESS
@@ -651,11 +625,6 @@ contains
         end if
         if (depth >= atlas%options%max_z_depth .or. &
                 z_hi-z_lo <= atlas%options%minimum_z_width) then
-            atlas%failure_cell_Z = cell_Z
-            atlas%failure_z_depth = depth
-            atlas%failure_stage = 1
-            atlas%failure_z_lo = z_lo
-            atlas%failure_z_hi = z_hi
             outcome = Z_COVER_UNRESOLVED
             return
         end if
@@ -691,7 +660,6 @@ contains
         band_hi = candidates(n_candidates)%z_hi
         do i = 2, n_candidates
             if (candidates(i)%z_lo /= candidates(i-1)%z_hi) then
-                atlas%failure_stage = 3
                 outcome = Z_COVER_MULTIPLE
                 return
             end if
@@ -701,7 +669,6 @@ contains
         else if (candidates(1)%interval%numerator_Z%hi < 0.0_dp) then
             normal_sign = -1
         else
-            atlas%failure_stage = 4
             outcome = Z_COVER_UNRESOLVED
             return
         end if
@@ -712,13 +679,11 @@ contains
             end if
             if (normal_sign > 0) then
                 if (candidates(i)%interval%numerator_Z%lo <= 0.0_dp) then
-                    atlas%failure_stage = 4
                     outcome = Z_COVER_UNRESOLVED
                     return
                 end if
             else
                 if (candidates(i)%interval%numerator_Z%hi >= 0.0_dp) then
-                    atlas%failure_stage = 4
                     outcome = Z_COVER_UNRESOLVED
                     return
                 end if
@@ -752,9 +717,6 @@ contains
         end if
         if (.not. opposite_face_signs(normal_sign, lower_face%numerator, &
                 upper_face%numerator)) then
-            atlas%failure_stage = 5
-            atlas%failure_z_lo = band_lo
-            atlas%failure_z_hi = band_hi
             outcome = Z_COVER_UNRESOLVED
             return
         end if
@@ -766,6 +728,8 @@ contains
         strip%cell_R = cell_R
         strip%normal_sign = normal_sign
         strip%candidate_leaf_count = n_candidates
+        allocate(strip%candidate_cell_Z(n_candidates), &
+            strip%candidate_z_lo(n_candidates), strip%candidate_z_hi(n_candidates))
         strip%dZ_dR_lo = candidates(1)%interval%dZ_dR%lo
         strip%dZ_dR_hi = candidates(1)%interval%dZ_dR%hi
         strip%dpsihat_dR_lo = candidates(1)%interval%dpsihat_dR%lo
@@ -779,6 +743,11 @@ contains
                 candidates(i)%interval%dpsihat_dR%lo)
             strip%dpsihat_dR_hi = max(strip%dpsihat_dR_hi, &
                 candidates(i)%interval%dpsihat_dR%hi)
+        end do
+        do i = 1, n_candidates
+            strip%candidate_cell_Z(i) = candidates(i)%interval%cell_Z
+            strip%candidate_z_lo(i) = candidates(i)%z_lo
+            strip%candidate_z_hi(i) = candidates(i)%z_hi
         end do
         outcome = Z_COVER_SUCCESS
     end subroutine assemble_candidate_band
@@ -868,12 +837,16 @@ contains
         type(eqdsk_cut_graph_atlas_t), intent(in) :: atlas
         real(dp), intent(in) :: radius
         integer :: i
+        real(dp) :: scale, tolerance
 
         locate_strip = 0
         if (.not. allocated(atlas%strips)) return
+        scale = max(1.0_dp, abs(radius), abs(atlas%requested_r_lo), &
+            abs(atlas%requested_r_hi))
+        tolerance = 100.0_dp*epsilon(scale)*scale
         do i = 1, size(atlas%strips)
-            if (radius >= atlas%strips(i)%r_lo .and. &
-                    radius <= atlas%strips(i)%r_hi) then
+            if (radius >= atlas%strips(i)%r_lo-tolerance .and. &
+                    radius <= atlas%strips(i)%r_hi+tolerance) then
                 locate_strip = i
                 return
             end if

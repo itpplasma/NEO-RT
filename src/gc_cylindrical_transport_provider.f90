@@ -691,9 +691,6 @@ contains
         call enumerate_gc_cylindrical_classes(candidate_adapter, candidate_classes, &
             class_status)
         if (class_status /= GC_CYL_CLASS_SUCCESS) then
-            write (*, '(a,1x,i0,2(1x,es24.16))') &
-                'class enumeration diagnostic=', class_status, &
-                candidate_adapter%rc_min, candidate_adapter%rc_max
             status = GC_CYL_TRANSPORT_CLASS_UNCERTIFIED
             return
         end if

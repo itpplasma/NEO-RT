@@ -1147,16 +1147,12 @@ contains
             call evaluate_gc_cylindrical_class_point(adapter, rc, 1, point, &
                 local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) then
-                write (*, '(a,1x,i0,2(1x,es24.16))') &
-                    'cut validation diagnostic=', local_status, rc, 1.0_dp
                 status = GC_CYL_CLASS_INTERIOR_INVALID
                 return
             end if
             call evaluate_gc_cylindrical_class_point(adapter, rc, -1, point, &
                 local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) then
-                write (*, '(a,1x,i0,2(1x,es24.16))') &
-                    'cut validation diagnostic=', local_status, rc, -1.0_dp
                 status = GC_CYL_CLASS_INTERIOR_INVALID
                 return
             end if

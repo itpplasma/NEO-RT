@@ -74,7 +74,7 @@ contains
 
         type(gc_outward_interval_t) :: query, bounded_psi, local_potential
         type(gc_outward_interval_t) :: local_first, local_second
-        integer :: i, node_count
+        integer :: i, node_count, first_segment, last_segment
         logical :: have_segment
 
         potential = gc_outward_interval(0.0_dp, 0.0_dp)
@@ -95,7 +95,11 @@ contains
             if (psi_nodes(i+1) <= psi_nodes(i)) return
         end do
         status = EQDSK_ALLOWED_INTERVAL_PROFILE_GAP
-        if (psi%hi < psi_nodes(1) .or. psi%lo > psi_nodes(node_count)) return
+        if (psi%hi < psi_nodes(1)) return
+        if (psi%hi == psi_nodes(1) .and. psi%lo < psi_nodes(1)) return
+        if (psi%lo > psi_nodes(node_count)) return
+        if (psi%lo == psi_nodes(node_count) .and. &
+                psi%hi > psi_nodes(node_count)) return
         ! The cut-box interval is an enclosure of a certified physical cut
         ! root.  Its off-root spatial halo can extend outside the closed
         ! profile domain, especially at the axis and edge.  Intersect that
@@ -105,8 +109,14 @@ contains
             min(psi%hi, psi_nodes(node_count)))
         if (.not. gc_outward_interval_is_valid(bounded_psi)) return
 
+        first_segment = locate_profile_segment(psi_nodes, bounded_psi%lo)
+        last_segment = locate_profile_segment(psi_nodes, bounded_psi%hi)
+        if (first_segment > 1 .and. bounded_psi%lo <= &
+                psi_nodes(first_segment)) first_segment = first_segment-1
+        if (first_segment < 1 .or. last_segment < first_segment .or. &
+                last_segment >= node_count) return
         have_segment = .false.
-        do i = 1, node_count-1
+        do i = first_segment, last_segment
             query = gc_outward_interval(max(bounded_psi%lo, psi_nodes(i)), &
                 min(bounded_psi%hi, psi_nodes(i+1)))
             if (query%hi < query%lo) cycle
@@ -136,6 +146,35 @@ contains
         if (.not. have_segment) return
         status = EQDSK_ALLOWED_INTERVAL_SUCCESS
     end subroutine evaluate_eqdsk_profile_potential_interval
+
+    integer function locate_profile_segment(nodes, value)
+        real(dp), intent(in) :: nodes(:), value
+
+        integer :: left, right, midpoint, count
+
+        count = size(nodes)
+        locate_profile_segment = 0
+        if (count < 2) return
+        if (value <= nodes(1)) then
+            locate_profile_segment = 1
+            return
+        end if
+        if (value >= nodes(count)) then
+            locate_profile_segment = count-1
+            return
+        end if
+        left = 1
+        right = count
+        do while (right-left > 1)
+            midpoint = (left+right)/2
+            if (value < nodes(midpoint)) then
+                right = midpoint
+            else
+                left = midpoint
+            end if
+        end do
+        locate_profile_segment = left
+    end function locate_profile_segment
 
     subroutine evaluate_eqdsk_allowed_region_interval(radius, field_scale, &
             separatrix_psi, cut_enclosures, psi_nodes, phi_nodes, omega_nodes, &
