@@ -196,6 +196,16 @@ add_test(NAME test_gc_eqdsk_cut_endpoint_krawczyk
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_eqdsk_cut_endpoint_certificate
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_endpoint_certificate.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gc_eqdsk_cut_endpoint_certificate PROPERTIES
+    ENVIRONMENT
+        "EQDSK_FILE=${CMAKE_SOURCE_DIR}/POTATO/test/golden_record_resonance/circ.eqdsk"
+    TIMEOUT 180
+)
+
 add_test(NAME test_gc_eqdsk_cut_flux_curvature
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_flux_curvature.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
