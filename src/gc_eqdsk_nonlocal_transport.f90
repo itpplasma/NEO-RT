@@ -2596,7 +2596,11 @@ contains
             call map_eqdsk_composite_cut_atlas_radius( &
                 factory%certified_cut_atlas, radius, position, &
                 dposition_dradius, local_status)
-            if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
+            if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
+                write (*, '(a,1x,i0,1x,es24.16)') &
+                    'composite cut diagnostic=', local_status, radius
+                return
+            end if
             status = GC_CYL_SUCCESS
         class default
             status = GC_CYL_EQUILIBRIUM_DOMAIN
