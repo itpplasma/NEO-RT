@@ -95,8 +95,16 @@ contains
             if (psi_nodes(i+1) <= psi_nodes(i)) return
         end do
         status = EQDSK_ALLOWED_INTERVAL_PROFILE_GAP
-        if (psi%lo < psi_nodes(1)) return
-        if (psi%hi > psi_nodes(node_count)) return
+        if (psi%lo < psi_nodes(1)) then
+            write (*, '(a,4(1x,es24.16))') 'profile gap diagnostic=', &
+                psi%lo, psi%hi, psi_nodes(1), psi_nodes(node_count)
+            return
+        end if
+        if (psi%hi > psi_nodes(node_count)) then
+            write (*, '(a,4(1x,es24.16))') 'profile gap diagnostic=', &
+                psi%lo, psi%hi, psi_nodes(1), psi_nodes(node_count)
+            return
+        end if
 
         have_segment = .false.
         do i = 1, node_count-1
