@@ -944,8 +944,8 @@ contains
         count = 0
         do i = 1, n
             if (count > 0) then
-                if (shared_endpoint_duplicate(ordered(count), ordered(i))) then
-                    call merge_shared_endpoint_root(ordered(count), ordered(i))
+                if (duplicate_certified_root(ordered(count), ordered(i))) then
+                    call merge_duplicate_root(ordered(count), ordered(i))
                     cycle
                 end if
                 if (ordered(i)%lo < ordered(count)%hi) then
@@ -972,16 +972,26 @@ contains
         result%nroots = count
     end subroutine order_and_validate_candidates
 
-    logical function shared_endpoint_duplicate(left, right)
+    logical function duplicate_certified_root(left, right)
         type(gc_interval_root_box_t), intent(in) :: left, right
-        shared_endpoint_duplicate = left%hi == right%lo .and. &
-            left%right_endpoint_root .and. right%left_endpoint_root .and. &
-            left%kind == right%kind .and. left%cut_id == right%cut_id .and. &
-            left%enclosure_certificate_id == right%enclosure_certificate_id .and. &
-            left%stationary_certificate_id == right%stationary_certificate_id
-    end function shared_endpoint_duplicate
+        logical :: same_provenance, shared_endpoint, same_singleton
 
-    subroutine merge_shared_endpoint_root(left, right)
+        same_provenance = left%kind == right%kind .and. left%cut_id == right%cut_id .and. &
+            left%enclosure_certificate_id == right%enclosure_certificate_id .and. &
+            left%stationary_certificate_id == right%stationary_certificate_id .and. &
+            left%classification_certified .and. right%classification_certified
+        shared_endpoint = left%hi == right%lo .and. left%right_endpoint_root .and. &
+            right%left_endpoint_root
+        same_singleton = left%lo == left%hi .and. right%lo == right%hi .and. &
+            left%lo == right%lo
+        !! Only exact certificate overlap is merged.  In particular, two
+        !! nonzero-width boxes that merely touch or overlap are retained as
+        !! unresolved evidence because they may contain distinct close roots.
+        duplicate_certified_root = same_provenance .and. &
+            (shared_endpoint .or. same_singleton)
+    end function duplicate_certified_root
+
+    subroutine merge_duplicate_root(left, right)
         type(gc_interval_root_box_t), intent(inout) :: left
         type(gc_interval_root_box_t), intent(in) :: right
         real(dp) :: point
@@ -1000,7 +1010,7 @@ contains
             right%classification_certified
         left%transversality_certified = left%transversality_certified .and. &
             right%transversality_certified
-    end subroutine merge_shared_endpoint_root
+    end subroutine merge_duplicate_root
 
     logical function root_precedes(left, right)
         type(gc_interval_root_box_t), intent(in) :: left, right

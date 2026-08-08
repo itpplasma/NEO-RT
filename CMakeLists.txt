@@ -231,6 +231,7 @@ set(NEO_RT_SOURCES
     src/gc_cylindrical_physical_return.f90
     src/gc_cylindrical_topology.f90
     src/gc_certified_interval_roots.f90
+    src/gc_certified_canonical_variation.f90
     src/gc_operational_scalar_roots.f90
     src/gc_operational_fixed_points.f90
     src/gc_operational_partner_crossings.f90
@@ -250,6 +251,7 @@ set(NEO_RT_SOURCES
     src/gc_eqdsk_axis_certificate.f90
     src/gc_eqdsk_cut_graph_atlas.f90
     src/gc_eqdsk_composite_cut_atlas.f90
+    src/gc_eqdsk_composite_r_ownership.f90
     src/gc_eqdsk_flux_profile_map.f90
     src/gc_eqdsk_radial_interval_map.f90
     src/gc_frequency_provider.f90

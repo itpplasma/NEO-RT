@@ -222,6 +222,11 @@ set_tests_properties(test_gc_eqdsk_composite_cut_atlas PROPERTIES
     TIMEOUT 180
 )
 
+add_test(NAME test_gc_eqdsk_composite_r_ownership
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_composite_r_ownership.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_gc_eqdsk_cut_flux_curvature
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_cut_flux_curvature.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -538,6 +543,10 @@ add_test(NAME test_gc_full_fow_runtime_algebra
 )
 add_test(NAME test_gc_certified_interval_roots
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_certified_interval_roots.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_gc_certified_canonical_variation
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_certified_canonical_variation.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_gc_poincare_cut_atlas

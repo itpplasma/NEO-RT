@@ -171,6 +171,17 @@ program test_gc_certified_interval_roots
     call require(result%status == GC_INTERVAL_ROOT_SUCCESS .and. result%nroots == 2, &
         'nearby simple roots were merged or missed')
 
+    !! Independent regression for duplicate singleton certificates generated
+    !! when a quadratic root is rediscovered from adjacent search boxes.  The
+    !! two exact roots must be retained as two roots; only the repeated
+    !! certificate at R=3 may be merged.
+    call run_case(20, 0.0_dp, 4.0_dp, result)
+    call require(result%status == GC_INTERVAL_ROOT_SUCCESS .and. result%nroots == 2 .and. &
+        result%coverage_certified, 'duplicate singleton evidence was not canonicalized')
+    call require(result%roots(1)%lo == 1.0_dp .and. result%roots(1)%hi == 1.0_dp .and. &
+        result%roots(2)%lo == 3.0_dp .and. result%roots(2)%hi == 3.0_dp, &
+        'singleton deduplication changed the distinct quadratic roots')
+
     options%max_depth = 8
     call run_case(5, -1.0_dp, 1.0_dp, result)
     call require(result%status == GC_INTERVAL_ROOT_UNRESOLVED .and. &
@@ -388,6 +399,11 @@ contains
             value%df = gc_interval_t(down(2.0_dp*lo - (a + b)), &
                 up(2.0_dp*hi - (a + b)))
             value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
+        case (20)
+            value%f = quadratic_interval(lo, hi, 1.0_dp, -4.0_dp, 3.0_dp)
+            value%df = gc_interval_t(down(2.0_dp*lo - 4.0_dp), &
+                up(2.0_dp*hi - 4.0_dp))
+            value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
         case (5)
             value%f = gc_interval_t(0.0_dp, 0.0_dp)
             value%df = gc_interval_t(0.0_dp, 0.0_dp)
@@ -449,6 +465,8 @@ contains
             case (4)
                 value%f = point_interval(x*x - (nearby_root_a + nearby_root_b)*x + &
                     nearby_root_a*nearby_root_b)
+            case (20)
+                value%f = point_interval(x*x - 4.0_dp*x + 3.0_dp)
             case (16)
                 value%f = point_interval(x)
             case (17:19)
@@ -522,6 +540,8 @@ contains
         case (4)
             value = reference_quadratic(lo, hi, 1.0_dp, &
                 -(nearby_root_a + nearby_root_b), nearby_root_a*nearby_root_b)
+        case (20)
+            value = reference_quadratic(lo, hi, 1.0_dp, -4.0_dp, 3.0_dp)
         case (5, 15)
             value = gc_interval_t(0.0_dp, 0.0_dp)
         case (7)
@@ -562,6 +582,8 @@ contains
         case (4)
             value = gc_interval_t(down(2.0_dp*lo - (nearby_root_a + nearby_root_b)), &
                 up(2.0_dp*hi - (nearby_root_a + nearby_root_b)))
+        case (20)
+            value = gc_interval_t(down(2.0_dp*lo - 4.0_dp), up(2.0_dp*hi - 4.0_dp))
         case (5, 7, 15)
             value = gc_interval_t(0.0_dp, 0.0_dp)
         case (16:19)
@@ -575,7 +597,7 @@ contains
         integer, intent(in) :: mode
         type(gc_interval_t) :: value
         select case (mode)
-        case (1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14)
+        case (1, 2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 20)
             value = gc_interval_t(2.0_dp, 2.0_dp)
         case default
             value = gc_interval_t(0.0_dp, 0.0_dp)
@@ -797,7 +819,10 @@ contains
     subroutine require(condition, message)
         logical, intent(in) :: condition
         character(len=*), intent(in) :: message
-        if (.not. condition) error stop message
+        if (.not. condition) then
+            write (*, '(A)') trim(message)
+            error stop 1
+        end if
     end subroutine require
 
 end program test_gc_certified_interval_roots
