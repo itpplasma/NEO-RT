@@ -4,7 +4,7 @@ module neort_generated_certificate_registry
         'fortsym@545788453a204d58705f735b519c3863c2f734c8'
     character(*), parameter :: regenerate_command = &
         'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'
-    integer, parameter :: certificate_count = 27
+    integer, parameter :: certificate_count = 28
     character(len=32), parameter :: certificate_id(certificate_count) = &
         [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &
         'root_enclosures', 'interpolation', 'profile_endpoints', &
@@ -18,6 +18,7 @@ module neort_generated_certificate_registry
         'eqdsk_cut_axis_curvature', &
         'eqdsk_cut_axis_limit', &
         'eqdsk_rho_tor_map', &
+        'eqdsk_flux_profile_rho_chain', &
         'eqdsk_cut_flux_coordinate', &
         'eqdsk_cut_axis_rho_limit', &
         'eqdsk_flux_profile_segment' ]
@@ -46,6 +47,7 @@ module neort_generated_certificate_registry
         'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_rho_tor_map:2:fortsym-5457884', &
+        'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &
         'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884' ]
