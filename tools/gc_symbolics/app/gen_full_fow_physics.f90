@@ -173,6 +173,7 @@ program gen_full_fow_physics
     type(expr_t) :: geom_dbz_dz
     type(expr_t) :: interpolation_roots(9), endpoint_roots(8)
     type(expr_t) :: profile_potential_roots(3)
+    type(expr_t) :: eqdsk_flux_profile_segment_roots(2)
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
     type(expr_t) :: eqdsk_cell_fourth_jet_roots(5)
     type(expr_t) :: eqdsk_cut_jet_roots(7)
@@ -214,6 +215,13 @@ program gen_full_fow_physics
     type(expr_t) :: potential_psi0, potential_psi1, potential_omega0
     type(expr_t) :: potential_omega1, potential_c, delta_phi_segment
     type(expr_t) :: delta_phi_reversed, omega_constant, delta_phi_constant
+    type(expr_t) :: flux_segment_s, flux_segment_s0, flux_segment_s1
+    type(expr_t) :: flux_segment_psi0, flux_segment_psi1
+    type(expr_t) :: flux_segment_field_scale, flux_segment_psi_sep
+    type(expr_t) :: flux_segment_weight, flux_segment_psihat
+    type(expr_t) :: flux_segment_dpsihat_dstor
+    type(expr_t) :: flux_segment_axis_residual, flux_segment_edge_residual
+    type(expr_t) :: flux_segment_derivative_residual
     type(expr_t) :: cell_coefficient(6,6), cell_delta_r, cell_delta_z
     type(expr_t) :: cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr
     type(expr_t) :: cell_psi_rz, cell_psi_zz, cell_psi_rrr
@@ -1429,6 +1437,34 @@ program gen_full_fow_physics
     delta_phi_constant = (potential_psi1-potential_psi0)*omega_constant/ &
         potential_c
 
+    ! Explicit piecewise-affine map from native toroidal flux s_tor to the
+    ! unscaled EQDSK normalized poloidal flux used by the cut atlas.  The
+    ! factory stores field_scale*psi at profile nodes, hence field_scale is
+    ! divided exactly once here and psi_hat is never identified with s_tor.
+    flux_segment_s = sym(arena, "s_tor")
+    flux_segment_s0 = sym(arena, "s_tor0")
+    flux_segment_s1 = sym(arena, "s_tor1")
+    flux_segment_psi0 = sym(arena, "scaled_psi0")
+    flux_segment_psi1 = sym(arena, "scaled_psi1")
+    flux_segment_field_scale = sym(arena, "field_scale")
+    flux_segment_psi_sep = sym(arena, "psi_sep")
+    flux_segment_weight = (flux_segment_s-flux_segment_s0) &
+        /(flux_segment_s1-flux_segment_s0)
+    flux_segment_psihat = ((one-flux_segment_weight)*flux_segment_psi0 &
+        +flux_segment_weight*flux_segment_psi1) &
+        /(flux_segment_field_scale*flux_segment_psi_sep)
+    flux_segment_dpsihat_dstor = (flux_segment_psi1-flux_segment_psi0) &
+        /((flux_segment_s1-flux_segment_s0)*flux_segment_field_scale &
+        *flux_segment_psi_sep)
+    flux_segment_axis_residual = subs(flux_segment_psihat, flux_segment_s, &
+        flux_segment_s0)-flux_segment_psi0 &
+        /(flux_segment_field_scale*flux_segment_psi_sep)
+    flux_segment_edge_residual = subs(flux_segment_psihat, flux_segment_s, &
+        flux_segment_s1)-flux_segment_psi1 &
+        /(flux_segment_field_scale*flux_segment_psi_sep)
+    flux_segment_derivative_residual = diff(flux_segment_psihat, &
+        flux_segment_s)-flux_segment_dpsihat_dstor
+
     ! Axisymmetric phase-space one-form and Noether construction.  The
     ! explicit convention is A_phi_cov=psi and b_phi_cov=R*b_phi.
     b_phi_cov = sym(arena, "b_phi_cov")
@@ -1858,6 +1894,15 @@ program gen_full_fow_physics
         ((potential_psi1-potential_psi0)* &
         (omega_constant+omega_constant)/(2*potential_c)) - &
         delta_phi_constant)
+    call check_identity(proofs, proof_engine, &
+        "flux segment reproduces axis-side endpoint", &
+        flux_segment_axis_residual)
+    call check_identity(proofs, proof_engine, &
+        "flux segment reproduces edge-side endpoint", &
+        flux_segment_edge_residual)
+    call check_identity(proofs, proof_engine, &
+        "flux segment normalized derivative is exact", &
+        flux_segment_derivative_residual)
     if (proofs%failed /= 0) error stop "full-FOW symbolic proof failed"
     call suite_end(proofs)
 
@@ -1910,6 +1955,8 @@ program gen_full_fow_physics
         endpoint_intercept, endpoint_dfd_rho, endpoint_axis_residual]
     profile_potential_roots = [delta_phi_segment, delta_phi_reversed, &
         delta_phi_constant]
+    eqdsk_flux_profile_segment_roots = [flux_segment_psihat, &
+        flux_segment_dpsihat_dstor]
     eqdsk_cell_jet_roots = [cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr, &
         cell_psi_rz, cell_psi_zz, cell_psi_rrr, cell_psi_rrz, &
         cell_psi_rzz, cell_psi_zzz]
@@ -2005,6 +2052,7 @@ program gen_full_fow_physics
     call simplify_array(interpolation_roots)
     call simplify_array(endpoint_roots)
     call simplify_array(profile_potential_roots)
+    call simplify_array(eqdsk_flux_profile_segment_roots)
     call simplify_array(eqdsk_cell_jet_roots)
     call simplify_array(eqdsk_cell_fourth_jet_roots)
     call simplify_array(eqdsk_profile_jet_roots)
@@ -2369,6 +2417,14 @@ program gen_full_fow_physics
         "Omega_E0", "Omega_E1", "Omega_E_constant", "c_light"], &
         profile_potential_roots, &
         [character(len=64) :: "delta_Phi", "delta_Phi_reversed", "delta_Phi_constant_limit"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_flux_profile_segment_symbolic.f90", &
+        "neort_eqdsk_flux_profile_segment_symbolic", &
+        "evaluate_neort_eqdsk_flux_profile_segment", &
+        [character(len=64) :: "s_tor", "s_tor0", "s_tor1", &
+        "scaled_psi0", "scaled_psi1", "field_scale", "psi_sep"], &
+        eqdsk_flux_profile_segment_roots, &
+        [character(len=64) :: "psihat", "dpsihat_dstor"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_quintic_cell_jet_symbolic.f90", &
         "neort_eqdsk_quintic_cell_jet_symbolic", &
@@ -2779,7 +2835,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 25"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 26"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -2793,7 +2849,8 @@ contains
         write (unit, "(a)") "        'eqdsk_cut_axis_curvature', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_limit', &"
         write (unit, "(a)") "        'eqdsk_cut_flux_coordinate', &"
-        write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit' ]"
+        write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit', &"
+        write (unit, "(a)") "        'eqdsk_flux_profile_segment' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -2819,7 +2876,8 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_curvature:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_limit:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_flux_coordinate:4:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884' ]"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &"
+        write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:2:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"
