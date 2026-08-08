@@ -464,6 +464,10 @@ add_test(NAME test_gc_full_fow_canonical_behavior
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_full_fow_canonical_behavior.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_homoclinic_limit
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_homoclinic_limit.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_certified_interval_roots
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_certified_interval_roots.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
