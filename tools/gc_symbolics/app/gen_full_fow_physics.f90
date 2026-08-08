@@ -187,6 +187,9 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_cut_jet_roots(7)
     type(expr_t) :: eqdsk_cut_numerator_roots(3)
     type(expr_t) :: eqdsk_cut_interval_roots(4)
+    type(expr_t) :: canonical_numerator_roots(3)
+    type(expr_t) :: canonical_turning_roots(2)
+    type(expr_t) :: canonical_symmetry_roots(21)
     type(expr_t) :: eqdsk_cut_r_chart_roots(2), eqdsk_cut_z_chart_roots(2)
     type(expr_t) :: eqdsk_cut_r_flux_chart_roots(2)
     type(expr_t) :: eqdsk_cut_mean_value_roots(1)
@@ -300,6 +303,48 @@ program gen_full_fow_physics
     type(expr_t) :: turning_psi_local, turning_ratio_local
     type(expr_t) :: turning_psi_star, turning_dpsi_star_dy
     type(expr_t) :: turning_root_derivative
+    type(expr_t) :: canonical_x, canonical_sigma, canonical_kappa
+    type(expr_t) :: canonical_f0, canonical_f1, canonical_f2, canonical_f3
+    type(expr_t) :: canonical_g0, canonical_g1, canonical_g2, canonical_g3
+    type(expr_t) :: canonical_p0, canonical_p1, canonical_p2
+    type(expr_t) :: canonical_f_local, canonical_g_local, canonical_p_local
+    type(expr_t) :: canonical_psi_local, canonical_psi_star_local
+    type(expr_t) :: canonical_n_local, canonical_n, canonical_n_r
+    type(expr_t) :: canonical_n_rr
+    type(expr_t) :: canonical_turning_f_local, canonical_turning_g_local
+    type(expr_t) :: canonical_turning_n_local
+    type(expr_t) :: canonical_turning_n_root, canonical_turning_n_y_root
+    type(expr_t) :: canonical_turning_n_root_residual
+    type(expr_t) :: canonical_turning_n_y_root_residual
+    type(expr_t) :: canonical_identity_residual
+    type(expr_t) :: canonical_n_coordinate, canonical_n_r_coordinate
+    type(expr_t) :: canonical_n_rr_coordinate
+    type(expr_t) :: canonical_time_phase, canonical_time_phase_reversed
+    type(expr_t) :: canonical_time_resonance
+    type(expr_t) :: canonical_time_resonance_reversed
+    type(expr_t) :: canonical_fourier_pair_phase
+    type(expr_t) :: canonical_fourier_pair_resonance
+    type(expr_t) :: canonical_combined_resonance
+    type(expr_t) :: canonical_toroidal_phase
+    type(expr_t) :: canonical_toroidal_phase_relabelled
+    type(expr_t) :: canonical_p_phi_covariant
+    type(expr_t) :: canonical_p_phi_covariant_relabelled
+    type(expr_t) :: canonical_sigma_difference
+    type(expr_t) :: canonical_sigma_identity_residual
+    type(expr_t) :: canonical_coordinate_residual
+    type(expr_t) :: canonical_coordinate_r_residual
+    type(expr_t) :: canonical_coordinate_rr_residual
+    type(expr_t) :: canonical_time_phase_residual
+    type(expr_t) :: canonical_time_resonance_residual
+    type(expr_t) :: canonical_fourier_pair_phase_residual
+    type(expr_t) :: canonical_fourier_pair_resonance_residual
+    type(expr_t) :: canonical_combined_resonance_residual
+    type(expr_t) :: canonical_toroidal_phase_residual
+    type(expr_t) :: canonical_toroidal_p_phi_residual
+    type(expr_t) :: canonical_endpoint_delta_01, canonical_endpoint_delta_12
+    type(expr_t) :: canonical_endpoint_variation
+    type(expr_t) :: canonical_endpoint_variation_reversed
+    type(expr_t) :: canonical_endpoint_variation_residual
     type(expr_t) :: cell_coefficient(6,6), cell_delta_r, cell_delta_z
     type(expr_t) :: cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr
     type(expr_t) :: cell_psi_rz, cell_psi_zz, cell_psi_rrr
@@ -2033,6 +2078,182 @@ program gen_full_fow_physics
     turning_dpsi_star_dy = diff(turning_psi_star, turning_y)
     turning_root_derivative = subs(turning_dpsi_star_dy, turning_y, zero)
 
+    ! Generic canonical-momentum derivative numerator.  Let
+    !
+    !   F = v_parallel**2,  G = R*B_phi/B,  P = d psi/dR,
+    !   kappa = mass*c_light*sigma/charge.
+    !
+    ! The local polynomials are only a symbolic jet device: Fortsym derives
+    ! the value and the first two R derivatives of
+    ! N = 2*sqrt(F)*P + kappa*(2*F*G' + F'*G).
+    ! F and G require three jets and P requires two.  No finite-turning-point
+    ! remainder is inferred here; the existing y chart above remains the
+    ! only turning-point limit emitted by this generator.
+    canonical_x = sym(arena, "canonical_R_offset")
+    canonical_sigma = sym(arena, "sigma")
+    canonical_kappa = mass*c_light*canonical_sigma/charge
+    canonical_f0 = sym(arena, "F")
+    canonical_f1 = sym(arena, "F_R")
+    canonical_f2 = sym(arena, "F_RR")
+    canonical_f3 = sym(arena, "F_RRR")
+    canonical_g0 = sym(arena, "G")
+    canonical_g1 = sym(arena, "G_R")
+    canonical_g2 = sym(arena, "G_RR")
+    canonical_g3 = sym(arena, "G_RRR")
+    canonical_p0 = sym(arena, "P")
+    canonical_p1 = sym(arena, "P_R")
+    canonical_p2 = sym(arena, "P_RR")
+    canonical_f_local = canonical_f0 + canonical_f1*canonical_x + &
+        canonical_f2*canonical_x**2/2 + canonical_f3*canonical_x**3/6
+    canonical_g_local = canonical_g0 + canonical_g1*canonical_x + &
+        canonical_g2*canonical_x**2/2 + canonical_g3*canonical_x**3/6
+    canonical_p_local = canonical_p0 + canonical_p1*canonical_x + &
+        canonical_p2*canonical_x**2/2
+    canonical_psi_local = psi + canonical_p0*canonical_x + &
+        canonical_p1*canonical_x**2/2 + canonical_p2*canonical_x**3/6
+    canonical_n_local = 2*sqrt(canonical_f_local)*canonical_p_local + &
+        canonical_kappa*(2*canonical_f_local*exact_derivative( &
+        canonical_g_local, canonical_x, "canonical G jet") + &
+        exact_derivative(canonical_f_local, canonical_x, &
+        "canonical F jet")*canonical_g_local)
+    canonical_n = exact_simplify(subs(canonical_n_local, canonical_x, zero), &
+        "canonical momentum numerator")
+    canonical_n_r = exact_simplify(subs(exact_derivative(canonical_n_local, &
+        canonical_x, "canonical numerator first jet"), canonical_x, zero), &
+        "canonical momentum numerator first jet")
+    canonical_n_rr = exact_simplify(subs(exact_derivative( &
+        exact_derivative(canonical_n_local, canonical_x, &
+        "canonical numerator first jet for second derivative"), &
+        canonical_x, "canonical numerator second jet"), canonical_x, zero), &
+        "canonical momentum numerator second jet")
+    canonical_psi_star_local = canonical_psi_local + canonical_kappa* &
+        sqrt(canonical_f_local)*canonical_g_local
+    canonical_identity_residual = exact_simplify(canonical_n - &
+        2*sqrt(canonical_f0)*subs(exact_derivative( &
+        canonical_psi_star_local, canonical_x, &
+        "canonical psi-star derivative"), canonical_x, zero), &
+        "canonical psi-star derivative identity")
+
+    ! Coordinate reversal changes only derivative orientation.  The scalar
+    ! canonical flux is unchanged, so N, N_R, N_RR have alternating parity.
+    canonical_n_coordinate = exact_simplify(-subs(canonical_n_local, &
+        canonical_x, -canonical_x), "coordinate-reversed canonical N")
+    canonical_n_r_coordinate = exact_simplify(subs( &
+        exact_derivative(canonical_n_coordinate, canonical_x, &
+        "coordinate-reversed canonical N first jet"), canonical_x, zero), &
+        "coordinate-reversed canonical N first jet")
+    canonical_n_rr_coordinate = exact_simplify(subs( &
+        exact_derivative(exact_derivative(canonical_n_coordinate, &
+        canonical_x, "coordinate-reversed canonical N first jet for second"), &
+        canonical_x, "coordinate-reversed canonical N second jet"), &
+        canonical_x, zero), "coordinate-reversed canonical N second jet")
+    canonical_coordinate_residual = subs(canonical_n_coordinate, &
+        canonical_x, zero)+canonical_n
+    canonical_coordinate_r_residual = canonical_n_r_coordinate-canonical_n_r
+    canonical_coordinate_rr_residual = &
+        canonical_n_rr_coordinate+canonical_n_rr
+    canonical_n_coordinate = subs(canonical_n_coordinate, canonical_x, zero)
+
+    ! Simultaneous reversal of the orbit-time parameter and both frequency
+    ! coordinates reverses the resonance scalar while preserving its zero
+    ! set.  This is an algebraic reparametrization, not a physical
+    ! time-reversal symmetry of fixed-B guiding-centre dynamics.
+    canonical_time_phase = (m_mode*harmonic_omega_b + &
+        n_mode*harmonic_omega_phi)*harmonic_time
+    canonical_time_phase_reversed = subs(subs(subs( &
+        canonical_time_phase, harmonic_omega_b, -harmonic_omega_b), &
+        harmonic_omega_phi, -harmonic_omega_phi), harmonic_time, -harmonic_time)
+    canonical_time_resonance = m_mode*harmonic_omega_b + &
+        n_mode*harmonic_omega_phi
+    canonical_time_resonance_reversed = subs(subs( &
+        canonical_time_resonance, harmonic_omega_b, -harmonic_omega_b), &
+        harmonic_omega_phi, -harmonic_omega_phi)
+    canonical_time_phase_residual = cos(canonical_time_phase_reversed)- &
+        cos(canonical_time_phase)
+    canonical_time_resonance_residual = &
+        canonical_time_resonance_reversed+canonical_time_resonance
+
+    ! The Fourier-pair relabelling is a distinct algebraic identity: it reverses
+    ! (m,n) and conjugates the complex amplitude at fixed orbit frequencies.
+    ! The scalar label changes sign, while the real field and zero set remain
+    ! the same.  Combining this relabelling with the orbit-time/frequency-
+    ! coordinate reparametrization restores the original signed label.
+    canonical_fourier_pair_phase = subs(subs( &
+        canonical_time_phase, m_mode, -m_mode), n_mode, -n_mode)
+    canonical_fourier_pair_resonance = subs(subs( &
+        canonical_time_resonance, m_mode, -m_mode), n_mode, -n_mode)
+    canonical_combined_resonance = subs(subs( &
+        canonical_fourier_pair_resonance, harmonic_omega_b, &
+        -harmonic_omega_b), harmonic_omega_phi, -harmonic_omega_phi)
+    canonical_fourier_pair_phase_residual = &
+        cos(canonical_fourier_pair_phase)-cos(canonical_time_phase)
+    canonical_fourier_pair_resonance_residual = &
+        canonical_fourier_pair_resonance+canonical_time_resonance
+    canonical_combined_resonance_residual = &
+        canonical_combined_resonance-canonical_time_resonance
+
+    ! Toroidal-angle reversal relabels every toroidal covariant together:
+    ! phi, n, omega_phi, psi_cov, and G.  The covariant one-form is the same
+    ! physical object after relabelling; its coordinate component P_phi changes
+    ! sign.
+    canonical_toroidal_phase = n_mode*phi - &
+        (m_mode*harmonic_omega_b+n_mode*harmonic_omega_phi)*harmonic_time
+    canonical_toroidal_phase_relabelled = subs(subs(subs( &
+        canonical_toroidal_phase, n_mode, -n_mode), phi, -phi), &
+        harmonic_omega_phi, -harmonic_omega_phi)
+    canonical_toroidal_phase_residual = &
+        canonical_toroidal_phase_relabelled-canonical_toroidal_phase
+    canonical_p_phi_covariant = charge/c_light*psi + &
+        p_parallel*canonical_g0
+    canonical_p_phi_covariant_relabelled = subs(subs( &
+        canonical_p_phi_covariant, psi, -psi), canonical_g0, -canonical_g0)
+    canonical_toroidal_p_phi_residual = &
+        canonical_p_phi_covariant_relabelled+canonical_p_phi_covariant
+
+    ! Coordinate reversal preserves the total variation, even though every
+    ! signed endpoint difference reverses orientation.
+    canonical_endpoint_delta_01 = sym(arena, "endpoint_delta_01")
+    canonical_endpoint_delta_12 = sym(arena, "endpoint_delta_12")
+    canonical_endpoint_variation = abs(canonical_endpoint_delta_01) + &
+        abs(canonical_endpoint_delta_12)
+    canonical_endpoint_variation_reversed = &
+        abs(-canonical_endpoint_delta_01) + abs(-canonical_endpoint_delta_12)
+    canonical_endpoint_variation_residual = &
+        canonical_endpoint_variation_reversed-canonical_endpoint_variation
+
+    ! Reversing sigma alone is not a symmetry: it reverses only the magnetic
+    ! canonical offset while leaving the flux-gradient term unchanged.
+    canonical_sigma_difference = subs(canonical_n, canonical_sigma, &
+        -canonical_sigma)-canonical_n
+    canonical_sigma_identity_residual = canonical_sigma_difference + &
+        2*canonical_kappa*(2*canonical_f0*canonical_g1 + &
+        canonical_f1*canonical_g0)
+
+    ! The existing simple-turning chart supplies F=a*y**2, P=P_t, and
+    ! G=G_t+G'_t*delta_R with delta_R=side*y**2.  It therefore proves the
+    ! finite value N_t and the y derivative at the root, but not a finite
+    ! R-derivative or a remainder.  Only those two exact limits are emitted.
+    canonical_turning_f_local = turning_direction*turning_dv2_dx* &
+        turning_y**2
+    canonical_turning_g_local = turning_ratio_root + &
+        turning_dratio_dx*turning_direction*turning_y**2
+    canonical_turning_n_local = 2*turning_y*sqrt(turning_direction* &
+        turning_dv2_dx)*turning_dpsi_dx + &
+        canonical_kappa*(2*canonical_turning_f_local*turning_dratio_dx + &
+        turning_dv2_dx*canonical_turning_g_local)
+    canonical_turning_n_root = exact_simplify(subs( &
+        canonical_turning_n_local, turning_y, zero), &
+        "simple-turn canonical N limit")
+    canonical_turning_n_y_root = exact_simplify(subs(exact_derivative( &
+        canonical_turning_n_local, turning_y, &
+        "simple-turn canonical N y derivative"), turning_y, zero), &
+        "simple-turn canonical N y-derivative limit")
+    canonical_turning_n_root_residual = canonical_turning_n_root - &
+        canonical_kappa*turning_dv2_dx*turning_ratio_root
+    canonical_turning_n_y_root_residual = canonical_turning_n_y_root - &
+        2*sqrt(turning_direction*turning_dv2_dx)* &
+        turning_dpsi_dx
+
     ! Axisymmetric phase-space one-form and Noether construction.  The
     ! explicit convention is A_phi_cov=psi and b_phi_cov=R*b_phi.
     b_phi_cov = sym(arena, "b_phi_cov")
@@ -2091,6 +2312,57 @@ program gen_full_fow_physics
         harmonic_shell_identity)
     call check_identity(proofs, proof_engine, "psi_star definition", &
         psi_star - c_light/charge*p_phi)
+    call check_identity(proofs, proof_engine, &
+        "canonical N is 2 sqrt(F) times d psi_star/dR", &
+        canonical_identity_residual)
+    call check_identity(proofs, proof_engine, &
+        "simple-turn canonical N has the exact finite limit", &
+        canonical_turning_n_root_residual)
+    call check_identity(proofs, proof_engine, &
+        "simple-turn canonical N y derivative has the exact limit", &
+        canonical_turning_n_y_root_residual)
+    call check_identity(proofs, proof_engine, &
+        "coordinate reversal changes canonical N orientation only", &
+        canonical_coordinate_residual)
+    call check_identity(proofs, proof_engine, &
+        "coordinate reversal preserves canonical N first derivative", &
+        canonical_coordinate_r_residual)
+    call check_identity(proofs, proof_engine, &
+        "coordinate reversal changes canonical N second derivative orientation", &
+        canonical_coordinate_rr_residual)
+    call check_identity(proofs, proof_engine, &
+        "orbit-time/frequency-coordinate reparametrization preserves phase", &
+        canonical_time_phase_residual)
+    call check_identity(proofs, proof_engine, &
+        "orbit-time/frequency-coordinate reparametrization reverses resonance", &
+        canonical_time_resonance_residual)
+    call check_identity(proofs, proof_engine, &
+        "Fourier-pair relabelling preserves the real phase", &
+        canonical_fourier_pair_phase_residual)
+    call check_identity(proofs, proof_engine, &
+        "Fourier-pair relabelling reverses the resonance scalar", &
+        canonical_fourier_pair_resonance_residual)
+    call check_identity(proofs, proof_engine, &
+        "orbit-time reparametrization plus Fourier-pair relabelling restores label", &
+        canonical_combined_resonance_residual)
+    call check_identity(proofs, proof_engine, &
+        "toroidal reversal relabels the harmonic phase", &
+        canonical_toroidal_phase_residual)
+    call check_identity(proofs, proof_engine, &
+        "toroidal reversal flips the covariant P_phi component", &
+        canonical_toroidal_p_phi_residual)
+    call check_identity(proofs, proof_engine, &
+        "sigma reversal has the exact signed canonical difference", &
+        canonical_sigma_identity_residual)
+    call check_identity(proofs, proof_engine, &
+        "coordinate reversal preserves endpoint total variation", &
+        canonical_endpoint_variation_residual)
+    call check_identity(proofs, proof_engine, &
+        "toroidal reversal preserves torque power", &
+        toroidal_power_residual)
+    call check_identity(proofs, proof_engine, &
+        "toroidal reversal flips the torque component", &
+        torque_component_difference+2*sign_torque_phi)
     call check_identity(proofs, proof_engine, "d psi_star / d p_phi", &
         dpsi_dp_phi - c_light/charge)
     call check_identity(proofs, proof_engine, &
@@ -2385,6 +2657,9 @@ program gen_full_fow_physics
         eqcut_s_tor_inverse_residual)
     call check_identity(proofs, proof_engine, &
         "rho_tor to normalized-flux derivative is the chain rule", &
+        eqcut_flux_coordinate_chain_residual)
+    call check_identity(proofs, proof_engine, &
+        "interval cut-flux coordinate uses the exact chain rule", &
         eqcut_flux_coordinate_chain_residual)
     call check_identity(proofs, proof_engine, &
         "inverse cut-flux chart preserves normalized-flux derivative", &
@@ -2729,6 +3004,23 @@ program gen_full_fow_physics
         eqcut_orientation_scalar]
     eqdsk_cut_numerator_roots = [eqcut_n, eqcut_n_r, eqcut_n_z]
     eqdsk_cut_interval_roots = [eqcut_n, eqcut_n_r, eqcut_n_z, eqcut_g]
+    canonical_numerator_roots = [canonical_n, canonical_n_r, canonical_n_rr]
+    canonical_turning_roots = [canonical_turning_n_root, &
+        canonical_turning_n_y_root]
+    canonical_symmetry_roots = [canonical_n_coordinate, &
+        canonical_n_r_coordinate, canonical_n_rr_coordinate, &
+        canonical_time_phase_reversed, canonical_time_resonance_reversed, &
+        canonical_fourier_pair_resonance, canonical_combined_resonance, &
+        canonical_toroidal_phase_relabelled, &
+        canonical_p_phi_covariant_relabelled, canonical_sigma_difference, &
+        canonical_time_phase_residual, canonical_time_resonance_residual, &
+        canonical_fourier_pair_phase_residual, &
+        canonical_fourier_pair_resonance_residual, &
+        canonical_combined_resonance_residual, &
+        canonical_endpoint_variation_residual, &
+        pair_field_residual, &
+        canonical_toroidal_phase_residual, canonical_toroidal_p_phi_residual, &
+        toroidal_power_residual, torque_component_difference]
     eqdsk_cut_r_chart_roots = [eqcut_r_chart_slope, eqcut_r_chart_ds]
     eqdsk_cut_z_chart_roots = [eqcut_z_chart_slope, eqcut_z_chart_ds]
     eqdsk_cut_r_flux_chart_roots = [eqcut_r_chart_slope, &
@@ -2851,6 +3143,9 @@ program gen_full_fow_physics
     call simplify_array(eqdsk_cut_jet_roots)
     call simplify_array(eqdsk_cut_numerator_roots)
     call simplify_array(eqdsk_cut_interval_roots)
+    call simplify_array(canonical_numerator_roots)
+    call simplify_array(canonical_turning_roots)
+    call simplify_array(canonical_symmetry_roots)
     call simplify_array(eqdsk_cut_r_chart_roots)
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eqdsk_cut_r_flux_chart_roots)
@@ -3317,6 +3612,64 @@ program gen_full_fow_physics
         [character(len=64) :: "delta_x", "v_parallel", "psi_star", &
         "dpsi_star_dy", "dpsi_star_dy_root"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_canonical_numerator_symbolic.f90", &
+        "neort_full_fow_canonical_numerator_symbolic", &
+        "evaluate_neort_full_fow_canonical_numerator", &
+        [character(len=64) :: "F", "F_R", "F_RR", "F_RRR", "G", "G_R", &
+        "G_RR", "G_RRR", "P", "P_R", "P_RR", "mass", "c_light", &
+        "sigma", "charge"], canonical_numerator_roots, &
+        [character(len=64) :: "N", "N_R", "N_RR"], line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_canonical_numerator_interval_symbolic.f90", &
+        "neort_full_fow_canonical_numerator_interval_symbolic", &
+        "evaluate_neort_full_fow_canonical_numerator_interval", &
+        [character(len=64) :: "F", "F_R", "F_RR", "F_RRR", "G", "G_R", &
+        "G_RR", "G_RRR", "P", "P_R", "P_RR", "mass", "c_light", &
+        "sigma", "charge"], canonical_numerator_roots, &
+        [character(len=64) :: "N", "N_R", "N_RR"], &
+        interval_kernel=.true., line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_canonical_turning_symbolic.f90", &
+        "neort_full_fow_canonical_turning_symbolic", &
+        "evaluate_neort_full_fow_canonical_turning", &
+        [character(len=64) :: "allowed_side_sign", &
+        "dvparallel_squared_dx_root", "bphi_covariant_root", &
+        "dbphi_covariant_dx_root", "dpsi_flux_dx_root", "mass", &
+        "c_light", "sigma", "charge"], &
+        canonical_turning_roots, [character(len=64) :: "N_turning", &
+        "dN_dy_turning"], line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_canonical_turning_interval_symbolic.f90", &
+        "neort_full_fow_canonical_turning_interval_symbolic", &
+        "evaluate_neort_full_fow_canonical_turning_interval", &
+        [character(len=64) :: "allowed_side_sign", &
+        "dvparallel_squared_dx_root", "bphi_covariant_root", &
+        "dbphi_covariant_dx_root", "dpsi_flux_dx_root", "mass", &
+        "c_light", "sigma", "charge"], &
+        canonical_turning_roots, [character(len=64) :: "N_turning", &
+        "dN_dy_turning"], interval_kernel=.true., line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_full_fow_canonical_symmetry_symbolic.f90", &
+        "neort_full_fow_canonical_symmetry_symbolic", &
+        "evaluate_neort_full_fow_canonical_symmetry", &
+        [character(len=64) :: "F", "F_R", "F_RR", "F_RRR", "G", "G_R", &
+        "G_RR", "G_RRR", "P", "P_R", "P_RR", "mass", "c_light", &
+        "sigma", "charge", "m_mode", "n_mode", "omega_b", "omega_phi", &
+        "orbit_time", "phi", "psi", "p_parallel", "theta", "a_real", &
+        "a_imag", "endpoint_delta_01", "endpoint_delta_12", &
+        "sign_torque_phi", "sign_rotation_phi"], &
+        canonical_symmetry_roots, [character(len=64) :: "N_coordinate", &
+        "N_R_coordinate", "N_RR_coordinate", "time_phase_reversed", &
+        "time_resonance_reversed", "fourier_pair_resonance", &
+        "combined_resonance", "toroidal_phase_relabelled", &
+        "P_phi_relabelled", "sigma_reversal_difference", &
+        "time_phase_residual", "time_resonance_residual", &
+        "fourier_pair_phase_residual", "fourier_pair_resonance_residual", &
+        "combined_resonance_residual", "endpoint_variation_residual", &
+        "fourier_pair_field_residual", "toroidal_phase_residual", &
+        "toroidal_P_phi_residual", "toroidal_power_residual", &
+        "torque_component_difference"], line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_flux_profile_segment_symbolic.f90", &
         "neort_eqdsk_flux_profile_segment_symbolic", &
         "evaluate_neort_eqdsk_flux_profile_segment", &
@@ -3575,6 +3928,14 @@ program gen_full_fow_physics
         [character(len=64) :: "dpsihat_drho_tor", "dR_drho_tor", &
         "dZ_drho_tor"])
     call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_cut_flux_coordinate_interval_symbolic.f90", &
+        "neort_eqdsk_cut_flux_coordinate_interval_symbolic", &
+        "evaluate_neort_eqdsk_cut_flux_coordinate_interval", &
+        [character(len=64) :: "dstor_drho_tor", "dpsihat_dstor", &
+        "dpsihat_dR", "dZ_dR"], eqdsk_cut_flux_coordinate_roots, &
+        [character(len=64) :: "dpsihat_drho_tor", "dR_drho_tor", &
+        "dZ_drho_tor"], interval_kernel=.true., line_limit=88)
+    call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_cut_axis_rho_limit_symbolic.f90", &
         "neort_eqdsk_cut_axis_rho_limit_symbolic", &
         "evaluate_neort_eqdsk_cut_axis_rho_limit", &
@@ -3810,15 +4171,16 @@ contains
     end subroutine simplify_array
 
     subroutine emit_kernel_file(path, module_name, procedure_name, arg_names, &
-            kernel_roots, output_names, interval_kernel)
+            kernel_roots, output_names, interval_kernel, line_limit)
         character(*), intent(in) :: path, module_name, procedure_name
         character(*), intent(in) :: arg_names(:), output_names(:)
         type(expr_t), intent(in) :: kernel_roots(:)
         logical, intent(in), optional :: interval_kernel
+        integer, intent(in), optional :: line_limit
         type(kernel_spec_t) :: kernel_spec
         type(str_t) :: emitted
         character(:), allocatable :: emitted_text
-        integer :: unit, ios, i, j
+        integer :: unit, ios, i, j, maximum_allowed_length
         logical :: ok, make_interval
 
         if (size(kernel_roots) /= size(output_names)) then
@@ -3875,7 +4237,11 @@ contains
         make_interval = .false.
         if (present(interval_kernel)) make_interval = interval_kernel
         if (make_interval) emitted_text = intervalize_kernel(emitted_text)
-        if (maximum_line_length(emitted_text) > 132) then
+        if (present(line_limit)) emitted_text = &
+            wrap_generated_lines(emitted_text, line_limit)
+        maximum_allowed_length = 132
+        if (present(line_limit)) maximum_allowed_length = line_limit
+        if (maximum_line_length(emitted_text) > maximum_allowed_length) then
             close (unit)
             error stop "fortsym emitted a nonconforming overlong line"
         end if
@@ -3923,6 +4289,77 @@ contains
         end do
     end function replace_all
 
+    function wrap_generated_lines(source, limit) result(wrapped)
+        character(*), intent(in) :: source
+        integer, intent(in) :: limit
+        character(:), allocatable :: wrapped
+        character(:), allocatable :: line
+        integer :: start, finish
+
+        wrapped = ''
+        start = 1
+        do while (start <= len(source))
+            finish = index(source(start:), new_line('a'))
+            if (finish == 0) then
+                line = source(start:)
+                start = len(source)+1
+            else
+                if (finish == 1) then
+                    line = ''
+                else
+                    line = source(start:start+finish-2)
+                end if
+                start = start+finish
+            end if
+            wrapped = wrapped//wrap_generated_line(line, limit)// &
+                new_line('a')
+        end do
+    end function wrap_generated_lines
+
+    function wrap_generated_line(line, limit) result(wrapped)
+        character(*), intent(in) :: line
+        integer, intent(in) :: limit
+        character(:), allocatable :: wrapped, rest
+        character(:), allocatable :: prefix
+        integer :: cut, available
+        logical :: comment_line
+
+        wrapped = ''
+        rest = line
+        comment_line = .false.
+        prefix = adjustl(rest)
+        if (len_trim(prefix) > 0) comment_line = prefix(1:1) == '!'
+        do while (len(rest) > limit)
+            available = limit-2
+            cut = generated_line_break(rest, available)
+            if (cut < 1) cut = available
+            if (comment_line) then
+                wrapped = wrapped//rest(:cut)//new_line('a')// &
+                    '! '
+            else
+                wrapped = wrapped//rest(:cut)//' &'//new_line('a')// &
+                    '            '
+            end if
+            rest = adjustl(rest(cut+1:))
+        end do
+        wrapped = wrapped//rest
+    end function wrap_generated_line
+
+    pure integer function generated_line_break(line, available) result(cut)
+        character(*), intent(in) :: line
+        integer, intent(in) :: available
+        integer :: i
+
+        cut = 0
+        do i = min(available, len(line)), 1, -1
+            if (line(i:i) == ' ' .or. line(i:i) == ',' .or. &
+                    line(i:i) == '*') then
+                cut = i
+                exit
+            end if
+        end do
+    end function generated_line_break
+
     pure integer function maximum_line_length(text) result(maximum_length)
         character(*), intent(in) :: text
         integer :: line_start, i
@@ -3950,7 +4387,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 45"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 49"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -3967,6 +4404,7 @@ contains
         write (unit, "(a)") "        'eqdsk_s_tor_to_rho', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_cut_flux_coordinate', &"
+        write (unit, "(a)") "        'eqdsk_flux_coordinate_interval', &"
         write (unit, "(a)") "        'eqdsk_cut_axis_rho_limit', &"
         write (unit, "(a)") "        'eqdsk_allowed_rho_chain', &"
         write (unit, "(a)") "        'eqdsk_allowed_axis_rho_chain', &"
@@ -3984,7 +4422,10 @@ contains
         write (unit, "(a)") "        'eqdsk_allowed_energy', &"
         write (unit, "(a)") "        'eqdsk_canonical_cut', &"
         write (unit, "(a)") "        'eqdsk_turning_chart', &"
-        write (unit, "(a)") "        'eqdsk_physical_flux_map' ]"
+        write (unit, "(a)") "        'eqdsk_physical_flux_map', &"
+        write (unit, "(a)") "        'full_fow_canonical_numerator', &"
+        write (unit, "(a)") "        'full_fow_canonical_turning', &"
+        write (unit, "(a)") "        'full_fow_canonical_symmetry' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -4014,6 +4455,8 @@ contains
             "        'neort-cert-v1:eqdsk_s_tor_to_rho:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_rho_chain:1:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_flux_coordinate:3:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_flux_coordinate_interval:3:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_cut_axis_rho_limit:3:fortsym-5457884', &"
         write (unit, "(a)") &
             "        'neort-cert-v1:eqdsk_allowed_rho_chain:7:fortsym-5457884', &"
@@ -4041,7 +4484,13 @@ contains
         write (unit, "(a)") &
             "        'neort-cert-v1:eqdsk_turning_chart:5:fortsym-5457884', &"
         write (unit, "(a)") &
-            "        'neort-cert-v1:eqdsk_physical_flux_map:2:fortsym-5457884' ]"
+            "        'neort-cert-v1:eqdsk_physical_flux_map:2:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_canonical_numerator:3:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_canonical_turning:2:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:full_fow_canonical_symmetry:21:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"
