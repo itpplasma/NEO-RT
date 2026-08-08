@@ -21,12 +21,15 @@ module neort_gc_eqdsk_certified_allowed_provider
         gc_interval_root_result_t, gc_interval_stationary_verifier_i, &
         gc_interval_t, isolate_gc_interval_roots
     use neort_gc_eqdsk_allowed_region_cut_box, only: &
-        EQDSK_CUT_BOX_SUCCESS, eqdsk_allowed_interval_result_t, &
-        eqdsk_allowed_region_cut_provenance_t, &
+        EQDSK_CUT_BOX_SUCCESS, eqdsk_allowed_region_cut_provenance_t, &
         eqdsk_potential_profile_nodes_t, &
         evaluate_eqdsk_allowed_region_cut_box
+    use neort_gc_eqdsk_allowed_region_interval, only: &
+        eqdsk_allowed_interval_result_t
     use neort_gc_eqdsk_composite_cut_atlas, only: &
         eqdsk_composite_cut_atlas_t
+    use neort_gc_eqdsk_cut_graph_atlas, only: &
+        eqdsk_cut_graph_atlas_t
     use neort_gc_eqdsk_composite_r_ownership, only: &
         EQDSK_R_OWNERSHIP_SUCCESS, eqdsk_composite_r_partition_t, &
         validate_eqdsk_composite_r_partition
