@@ -133,6 +133,8 @@ contains
         integer :: branch, local_status, root_count, component_count
         integer :: energy_certificate_id
         integer :: root_offset
+        integer :: active_branch, active_sigma
+        real(dp) :: active_h0, active_j_k, active_lo, active_hi
         type(gc_cylindrical_allowed_component_t), allocatable :: components(:)
         type(gc_interval_root_box_t), allocatable :: roots(:)
         type(gc_interval_t), allocatable :: root_canonical_enclosures(:)
@@ -164,8 +166,14 @@ contains
 
         root_count = 0
         do branch = 1, 3
-            call isolate_branch_roots(context, h0, j_k, sigma, branch, &
-                root_options, root_results(branch))
+            active_branch = branch
+            active_sigma = sigma
+            active_h0 = h0
+            active_j_k = j_k
+            call branch_domain(context, branch, active_lo, active_hi)
+            call isolate_gc_interval_roots(evaluate_energy, verify_energy, &
+                verify_energy_stationary, active_lo, active_hi, root_options, &
+                root_results(branch))
             if (root_results(branch)%status /= GC_INTERVAL_ROOT_SUCCESS .or. &
                     .not. root_results(branch)%coverage_certified) then
                 status = GC_EQDSK_ALLOWED_PROVIDER_ROOT_FAILURE
@@ -240,88 +248,6 @@ contains
 
     contains
 
-        subroutine isolate_branch_roots(ctx, energy, jk, sign, branch_id, options, result)
-            type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: ctx
-            real(dp), intent(in) :: energy, jk
-            integer, intent(in) :: sign, branch_id
-            type(gc_interval_root_options_t), intent(in) :: options
-            type(gc_interval_root_result_t), intent(out) :: result
-
-            real(dp) :: lo, hi
-
-            call branch_domain(ctx, branch_id, lo, hi)
-            if (hi <= lo) then
-                result = gc_interval_root_result_t()
-                return
-            end if
-            call isolate_gc_interval_roots(evaluate_energy, verify_energy, &
-                verify_energy_stationary, lo, hi, options, result)
-
-        contains
-
-            subroutine evaluate_energy(x_lo, x_hi, value)
-                real(dp), intent(in) :: x_lo, x_hi
-                type(gc_interval_callback_result_t), intent(out) :: value
-                type(eqdsk_allowed_interval_result_t) :: evaluated
-                type(eqdsk_allowed_region_cut_provenance_t) :: provenance
-                integer :: local_status
-
-                value = gc_interval_callback_result_t()
-                value%query_lo = x_lo
-                value%query_hi = x_hi
-                value%cut_id = branch_id
-                value%enclosure_certificate_id = options%expected_enclosure_certificate_id
-                value%stationary_certificate_id = 0
-                call evaluate_eqdsk_allowed_region_cut_box(ctx%graph(branch_id), &
-                    gc_outward_interval(x_lo, x_hi), ctx%field_scale, &
-                    ctx%raw_psi_sep, ctx%profile, energy, jk, ctx%mass, &
-                    ctx%charge, ctx%c_light, sign, evaluated, provenance, local_status)
-                if (local_status /= EQDSK_CUT_BOX_SUCCESS) then
-                    value%status = local_status
-                    return
-                end if
-                value%f = to_interval(evaluated%energy_margin)
-                value%df = to_interval(evaluated%denergy_margin_dR)
-                value%d2f = to_interval(evaluated%d2energy_margin_dR2)
-                value%status = 0
-                value%certified = provenance%certified
-            end subroutine evaluate_energy
-
-            subroutine verify_energy(x_lo, x_hi, value, expected_id, local_status)
-                real(dp), intent(in) :: x_lo, x_hi
-                type(gc_interval_callback_result_t), intent(in) :: value
-                integer, intent(in) :: expected_id
-                integer, intent(out) :: local_status
-                type(gc_interval_callback_result_t) :: expected
-
-                call evaluate_energy(x_lo, x_hi, expected)
-                local_status = 1
-                if (expected_id /= options%expected_enclosure_certificate_id) return
-                if (value%query_lo /= x_lo .or. value%query_hi /= x_hi) return
-                if (value%cut_id /= branch_id .or. &
-                        value%enclosure_certificate_id /= expected_id .or. &
-                        value%stationary_certificate_id /= 0) return
-                if (.not. encloses(value%f, expected%f) .or. &
-                        .not. encloses(value%df, expected%df) .or. &
-                        .not. encloses(value%d2f, expected%d2f)) return
-                local_status = 0
-            end subroutine verify_energy
-
-            subroutine verify_energy_stationary(x_lo, x_hi, point, value, &
-                    expected_enclosure_id, expected_stationary_id, local_status)
-                real(dp), intent(in) :: x_lo, x_hi, point
-                type(gc_interval_callback_result_t), intent(out) :: value
-                integer, intent(in) :: expected_enclosure_id, expected_stationary_id
-                integer, intent(out) :: local_status
-
-                value = gc_interval_callback_result_t()
-                local_status = 1
-                ! A fixed-(H0,J_K) stationary certificate is not available.
-                ! The explicit failure is part of the production contract.
-            end subroutine verify_energy_stationary
-
-        end subroutine isolate_branch_roots
-
         subroutine branch_domain(ctx, branch_id, lo, hi)
             type(gc_eqdsk_certified_allowed_provider_context_t), intent(in) :: ctx
             integer, intent(in) :: branch_id
@@ -331,6 +257,69 @@ contains
             hi = ctx%partition%branches(branch_id)%r_hi
             if (branch_id < 3) hi = ieee_next_after(hi, -huge(hi))
         end subroutine branch_domain
+
+        subroutine evaluate_energy(x_lo, x_hi, value)
+            real(dp), intent(in) :: x_lo, x_hi
+            type(gc_interval_callback_result_t), intent(out) :: value
+            type(eqdsk_allowed_interval_result_t) :: evaluated
+            type(eqdsk_allowed_region_cut_provenance_t) :: provenance
+            integer :: local_status
+
+            value = gc_interval_callback_result_t()
+            value%query_lo = x_lo
+            value%query_hi = x_hi
+            value%cut_id = active_branch
+            value%enclosure_certificate_id = &
+                root_options%expected_enclosure_certificate_id
+            value%stationary_certificate_id = 0
+            call evaluate_eqdsk_allowed_region_cut_box(context%graph(active_branch), &
+                gc_outward_interval(x_lo, x_hi), context%field_scale, &
+                context%raw_psi_sep, context%profile, active_h0, active_j_k, &
+                context%mass, context%charge, context%c_light, active_sigma, &
+                evaluated, provenance, local_status)
+            if (local_status /= EQDSK_CUT_BOX_SUCCESS) then
+                value%status = local_status
+                return
+            end if
+            value%f = to_interval(evaluated%energy_margin)
+            value%df = to_interval(evaluated%denergy_margin_dR)
+            value%d2f = to_interval(evaluated%d2energy_margin_dR2)
+            value%status = 0
+            value%certified = provenance%certified
+        end subroutine evaluate_energy
+
+        subroutine verify_energy(x_lo, x_hi, value, expected_id, local_status)
+            real(dp), intent(in) :: x_lo, x_hi
+            type(gc_interval_callback_result_t), intent(in) :: value
+            integer, intent(in) :: expected_id
+            integer, intent(out) :: local_status
+            type(gc_interval_callback_result_t) :: expected
+
+            call evaluate_energy(x_lo, x_hi, expected)
+            local_status = 1
+            if (expected_id /= root_options%expected_enclosure_certificate_id) return
+            if (value%query_lo /= x_lo .or. value%query_hi /= x_hi) return
+            if (value%cut_id /= active_branch .or. &
+                    value%enclosure_certificate_id /= expected_id .or. &
+                    value%stationary_certificate_id /= 0) return
+            if (.not. encloses(value%f, expected%f) .or. &
+                    .not. encloses(value%df, expected%df) .or. &
+                    .not. encloses(value%d2f, expected%d2f)) return
+            local_status = 0
+        end subroutine verify_energy
+
+        subroutine verify_energy_stationary(x_lo, x_hi, point, value, &
+                expected_enclosure_id, expected_stationary_id, local_status)
+            real(dp), intent(in) :: x_lo, x_hi, point
+            type(gc_interval_callback_result_t), intent(out) :: value
+            integer, intent(in) :: expected_enclosure_id, expected_stationary_id
+            integer, intent(out) :: local_status
+
+            value = gc_interval_callback_result_t()
+            local_status = 1
+            ! A fixed-(H0,J_K) stationary certificate is not available.
+            ! The explicit failure is part of the production contract.
+        end subroutine verify_energy_stationary
 
         subroutine copy_branch_roots(ctx, energy, jk, sign, branch_id, root_result, &
                 offset, root_boxes, coordinates, canonical, canonical_boxes, maps, &
