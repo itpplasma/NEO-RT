@@ -93,6 +93,7 @@ contains
         type(eqdsk_composite_cut_atlas_t), intent(out) :: atlas
         integer, intent(out) :: status
 
+        real(dp) :: graph_psihat_hi
         integer :: local_status
 
         atlas = eqdsk_composite_cut_atlas_t()
@@ -133,23 +134,32 @@ contains
             return
         end if
 
+        graph_psihat_hi = target_psihat+max( &
+            atlas%inboard_endpoint%flux_residual_hi, &
+            atlas%outboard_endpoint%flux_residual_hi)
+        if (.not. ieee_is_finite(graph_psihat_hi) .or. &
+                graph_psihat_hi <= target_psihat) then
+            status = EQDSK_COMPOSITE_ATLAS_ENDPOINT_FAILURE
+            return
+        end if
+
         call build_eqdsk_cut_graph_atlas(atlas%inboard_graph, &
-            inboard_box(1), axis_box(1), z_lo, z_hi, 0.0_dp, 1.0_dp, &
-            options%graph, local_status)
+            inboard_box(1), axis_box(1), z_lo, z_hi, 0.0_dp, &
+            graph_psihat_hi, options%graph, local_status)
         if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
             status = EQDSK_COMPOSITE_ATLAS_GRAPH_FAILURE
             return
         end if
         call build_eqdsk_cut_graph_atlas(atlas%axis_graph, axis_box(1), &
-            axis_box(2), z_lo, z_hi, 0.0_dp, 1.0_dp, options%graph, &
-            local_status)
+            axis_box(2), z_lo, z_hi, 0.0_dp, graph_psihat_hi, &
+            options%graph, local_status)
         if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
             status = EQDSK_COMPOSITE_ATLAS_GRAPH_FAILURE
             return
         end if
         call build_eqdsk_cut_graph_atlas(atlas%outboard_graph, axis_box(2), &
-            outboard_box(2), z_lo, z_hi, 0.0_dp, 1.0_dp, options%graph, &
-            local_status)
+            outboard_box(2), z_lo, z_hi, 0.0_dp, graph_psihat_hi, &
+            options%graph, local_status)
         if (local_status /= EQDSK_CUT_ATLAS_SUCCESS) then
             status = EQDSK_COMPOSITE_ATLAS_GRAPH_FAILURE
             return
@@ -224,6 +234,12 @@ contains
         if (atlas%axis_graph%requested_r_lo /= atlas%axis%r_lo .or. &
                 atlas%axis_graph%requested_r_hi /= atlas%axis%r_hi) return
         if (atlas%outboard_graph%requested_r_lo /= atlas%axis%r_hi) return
+        if (atlas%inboard_graph%requested_psihat_hi /= &
+                atlas%axis_graph%requested_psihat_hi .or. &
+                atlas%outboard_graph%requested_psihat_hi /= &
+                atlas%axis_graph%requested_psihat_hi) return
+        if (atlas%axis_graph%requested_psihat_hi <= &
+                atlas%target_psihat) return
         if (atlas%inboard_graph%requested_r_lo /= &
                 atlas%inboard_endpoint%r_lo) return
         if (atlas%outboard_graph%requested_r_hi /= &

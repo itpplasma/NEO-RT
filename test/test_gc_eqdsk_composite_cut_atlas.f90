@@ -111,6 +111,8 @@ program test_gc_eqdsk_composite_cut_atlas
     call require(atlas%inboard_graph%flux_monotonicity_sign == -1 .and. &
         atlas%outboard_graph%flux_monotonicity_sign == 1, &
         'composite branch flux orientations are wrong')
+    call require(atlas%axis_graph%requested_psihat_hi > target, &
+        'endpoint residual enclosure did not cover its outer proof box')
     call validate_eqdsk_composite_cut_atlas(atlas, status)
     call require(status == EQDSK_COMPOSITE_ATLAS_SUCCESS, &
         'fresh composite atlas failed validation')
