@@ -16,12 +16,31 @@ module neort_gc_cylindrical_topology
     implicit none
     private
 
+    type, public :: gc_cylindrical_root_coordinate_map_t
+        !! A root is isolated in the provider's source coordinate before it
+        !! is mapped into the class coordinate consumed by the adapter.  Keep
+        !! both certificates: a mapped interval is not itself a root proof.
+        type(gc_interval_root_box_t) :: source_root_certificate
+        type(gc_interval_t) :: source_domain_enclosure
+        type(gc_interval_t) :: mapped_class_enclosure
+        integer :: map_certificate_id = 0
+        integer :: monotonicity_sign = 0
+        logical :: strict_monotonicity_certified = .false.
+        logical :: mapping_enclosure_certified = .false.
+        character(len=64) :: source_coordinate = ''
+        character(len=64) :: source_units = ''
+        character(len=64) :: class_coordinate = ''
+        character(len=64) :: class_units = ''
+    end type gc_cylindrical_root_coordinate_map_t
+
     type, public :: gc_cylindrical_allowed_region_set_t
         integer :: nroots = 0
         integer :: ncomponents = 0
         real(dp), allocatable :: roots(:)
         real(dp), allocatable :: root_canonical(:)
         type(gc_interval_root_box_t), allocatable :: root_boxes(:)
+        type(gc_cylindrical_root_coordinate_map_t), allocatable :: &
+            root_coordinate_maps(:)
         type(gc_interval_t), allocatable :: root_canonical_enclosures(:)
         type(gc_cylindrical_allowed_component_t), allocatable :: components(:)
         real(dp) :: total_canonical_measure = 0.0_dp

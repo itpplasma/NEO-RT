@@ -29,7 +29,8 @@ module neort_gc_cylindrical_class_adapter
         gc_buchholz_jk_from_mu_phys, gc_mu_phys_from_buchholz_jk
     use neort_gc_cylindrical_topology, only: &
         find_gc_cylindrical_allowed_regions, &
-        gc_cylindrical_allowed_region_set_t
+        gc_cylindrical_allowed_region_set_t, &
+        gc_cylindrical_root_coordinate_map_t
     use neort_gc_certified_interval_roots, only: &
         GC_INTERVAL_ROOT_EXTREMAL, GC_INTERVAL_ROOT_SIMPLE, &
         GC_INTERVAL_ROOT_TANGENT, GC_INTERVAL_ROOT_TRANSVERSE, &
@@ -86,6 +87,10 @@ module neort_gc_cylindrical_class_adapter
         type(gc_interval_t) :: canonical_measure_enclosure
         type(gc_interval_root_box_t) :: lower_root_certificate
         type(gc_interval_root_box_t) :: upper_root_certificate
+        type(gc_cylindrical_root_coordinate_map_t) :: &
+            lower_root_coordinate_map
+        type(gc_cylindrical_root_coordinate_map_t) :: &
+            upper_root_coordinate_map
         logical :: lower_root = .false.
         logical :: upper_root = .false.
         logical :: lower_tangent = .false.
@@ -757,10 +762,12 @@ contains
             if (.not. allocated(regions%roots)) return
             if (.not. allocated(regions%root_canonical)) return
             if (.not. allocated(regions%root_boxes)) return
+            if (.not. allocated(regions%root_coordinate_maps)) return
             if (.not. allocated(regions%root_canonical_enclosures)) return
             if (size(regions%roots) /= regions%nroots) return
             if (size(regions%root_canonical) /= regions%nroots) return
             if (size(regions%root_boxes) /= regions%nroots) return
+            if (size(regions%root_coordinate_maps) /= regions%nroots) return
             if (size(regions%root_canonical_enclosures) /= regions%nroots) return
         else
             if (allocated(regions%roots)) then
@@ -772,6 +779,9 @@ contains
             if (allocated(regions%root_boxes)) then
                 if (size(regions%root_boxes) /= 0) return
             end if
+            if (allocated(regions%root_coordinate_maps)) then
+                if (size(regions%root_coordinate_maps) /= 0) return
+            end if
             if (allocated(regions%root_canonical_enclosures)) then
                 if (size(regions%root_canonical_enclosures) /= 0) return
             end if
@@ -782,6 +792,9 @@ contains
             do i = 1, regions%nroots
                 if (.not. valid_certified_root_box(regions%root_boxes(i), &
                         adapter%rc_min, adapter%rc_max)) return
+                if (.not. valid_root_coordinate_map( &
+                        regions%root_coordinate_maps(i), &
+                        regions%root_boxes(i), regions%roots(i))) return
                 if (.not. interval_contains(gc_interval_t( &
                         regions%root_boxes(i)%lo, regions%root_boxes(i)%hi), &
                         regions%roots(i))) return
@@ -794,6 +807,9 @@ contains
                     if (regions%roots(i) <= regions%roots(i - 1)) return
                     if (regions%root_boxes(i)%lo <= &
                             regions%root_boxes(i - 1)%hi) return
+                    if (.not. consistent_root_coordinate_maps( &
+                            regions%root_coordinate_maps(i - 1), &
+                            regions%root_coordinate_maps(i))) return
                 end if
             end do
         end if
@@ -1190,6 +1206,100 @@ contains
         valid_certified_root_box = .true.
     end function valid_certified_root_box
 
+    pure logical function valid_root_coordinate_map(mapping, class_root, &
+            class_representative)
+        type(gc_cylindrical_root_coordinate_map_t), intent(in) :: mapping
+        type(gc_interval_root_box_t), intent(in) :: class_root
+        real(dp), intent(in) :: class_representative
+
+        integer :: class_derivative_sign, source_derivative_sign
+        integer :: class_second_sign, source_second_sign
+
+        valid_root_coordinate_map = .false.
+        if (.not. valid_interval(mapping%source_domain_enclosure)) return
+        if (.not. valid_interval(mapping%mapped_class_enclosure)) return
+        if (.not. valid_certified_root_box(mapping%source_root_certificate, &
+                mapping%source_domain_enclosure%lo, &
+                mapping%source_domain_enclosure%hi)) return
+        if (mapping%map_certificate_id <= 0) return
+        if (abs(mapping%monotonicity_sign) /= 1) return
+        if (.not. mapping%strict_monotonicity_certified) return
+        if (.not. mapping%mapping_enclosure_certified) return
+        if (len_trim(mapping%source_coordinate) == 0) return
+        if (len_trim(mapping%source_units) == 0) return
+        if (len_trim(mapping%class_coordinate) == 0) return
+        if (len_trim(mapping%class_units) == 0) return
+        if (mapping%mapped_class_enclosure%lo /= class_root%lo) return
+        if (mapping%mapped_class_enclosure%hi /= class_root%hi) return
+        if (.not. interval_contains(mapping%mapped_class_enclosure, &
+                class_representative)) return
+        if (mapping%source_root_certificate%kind /= class_root%kind) return
+        if (mapping%source_root_certificate%multiplicity_lower /= &
+                class_root%multiplicity_lower) return
+        if (mapping%source_root_certificate%multiplicity_upper /= &
+                class_root%multiplicity_upper) return
+        if (mapping%source_root_certificate%transversality_kind /= &
+                class_root%transversality_kind) return
+
+        select case (class_root%kind)
+            case (GC_INTERVAL_ROOT_SIMPLE)
+                class_derivative_sign = interval_strict_sign( &
+                    class_root%derivative_enclosure)
+                source_derivative_sign = interval_strict_sign( &
+                    mapping%source_root_certificate%derivative_enclosure)
+                if (class_derivative_sign == 0) return
+                if (source_derivative_sign == 0) return
+                if (class_derivative_sign /= source_derivative_sign &
+                        *mapping%monotonicity_sign) return
+            case (GC_INTERVAL_ROOT_TANGENT)
+                class_second_sign = interval_strict_sign( &
+                    class_root%second_derivative_enclosure)
+                source_second_sign = interval_strict_sign( &
+                    mapping%source_root_certificate%second_derivative_enclosure)
+                if (class_second_sign == 0) return
+                if (source_second_sign == 0) return
+                if (class_second_sign /= source_second_sign) return
+            case default
+                return
+        end select
+        valid_root_coordinate_map = .true.
+    end function valid_root_coordinate_map
+
+    pure logical function consistent_root_coordinate_maps(previous, current)
+        type(gc_cylindrical_root_coordinate_map_t), intent(in) :: previous
+        type(gc_cylindrical_root_coordinate_map_t), intent(in) :: current
+
+        consistent_root_coordinate_maps = .false.
+        if (current%map_certificate_id /= previous%map_certificate_id) return
+        if (current%monotonicity_sign /= previous%monotonicity_sign) return
+        if (current%source_domain_enclosure%lo /= &
+                previous%source_domain_enclosure%lo) return
+        if (current%source_domain_enclosure%hi /= &
+                previous%source_domain_enclosure%hi) return
+        if (trim(current%source_coordinate) /= &
+                trim(previous%source_coordinate)) return
+        if (trim(current%source_units) /= trim(previous%source_units)) return
+        if (trim(current%class_coordinate) /= &
+                trim(previous%class_coordinate)) return
+        if (trim(current%class_units) /= trim(previous%class_units)) return
+        if (current%monotonicity_sign > 0) then
+            if (current%source_root_certificate%lo <= &
+                    previous%source_root_certificate%hi) return
+        else
+            if (current%source_root_certificate%hi >= &
+                    previous%source_root_certificate%lo) return
+        end if
+        consistent_root_coordinate_maps = .true.
+    end function consistent_root_coordinate_maps
+
+    pure integer function interval_strict_sign(value)
+        type(gc_interval_t), intent(in) :: value
+
+        interval_strict_sign = 0
+        if (value%lo > 0.0_dp) interval_strict_sign = 1
+        if (value%hi < 0.0_dp) interval_strict_sign = -1
+    end function interval_strict_sign
+
     subroutine interval_from_topology(regions, component, interval, status, &
             certified)
         type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
@@ -1234,6 +1344,8 @@ contains
                 root_index = component%lower_root_index
                 interval%lower_root_certificate = &
                     regions%root_boxes(root_index)
+                interval%lower_root_coordinate_map = &
+                    regions%root_coordinate_maps(root_index)
                 interval%rc_min_enclosure = gc_interval_t( &
                     regions%root_boxes(root_index)%lo, &
                     regions%root_boxes(root_index)%hi)
@@ -1253,6 +1365,8 @@ contains
                 root_index = component%upper_root_index
                 interval%upper_root_certificate = &
                     regions%root_boxes(root_index)
+                interval%upper_root_coordinate_map = &
+                    regions%root_coordinate_maps(root_index)
                 interval%rc_max_enclosure = gc_interval_t( &
                     regions%root_boxes(root_index)%lo, &
                     regions%root_boxes(root_index)%hi)
@@ -1365,6 +1479,22 @@ contains
         if (abs(measure_sum - candidate%canonical_measure) > measure_tolerance) return
         if (split(1)%lower_root .neqv. candidate%lower_root) return
         if (split(size(split))%upper_root .neqv. candidate%upper_root) return
+        if (candidate%lower_root) then
+            if (.not. same_root_coordinate_map( &
+                    split(1)%lower_root_coordinate_map, &
+                    candidate%lower_root_coordinate_map)) return
+        end if
+        if (candidate%upper_root) then
+            if (.not. same_root_coordinate_map( &
+                    split(size(split))%upper_root_coordinate_map, &
+                    candidate%upper_root_coordinate_map)) return
+        end if
+        do i = 2, size(split)
+            if (split(i)%lower_root) return
+        end do
+        do i = 1, size(split) - 1
+            if (split(i)%upper_root) return
+        end do
         do i = 1, size(split)
             split(i)%topology_certified = .true.
             split(i)%root_isolation_certified = candidate%root_isolation_certified
@@ -1372,6 +1502,89 @@ contains
         end do
         status = GC_CYL_CLASS_SUCCESS
     end subroutine validate_split
+
+    pure logical function same_root_coordinate_map(left, right)
+        type(gc_cylindrical_root_coordinate_map_t), intent(in) :: left, right
+
+        same_root_coordinate_map = same_root_box( &
+            left%source_root_certificate, right%source_root_certificate)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            same_interval(left%source_domain_enclosure, &
+                right%source_domain_enclosure)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            same_interval(left%mapped_class_enclosure, &
+                right%mapped_class_enclosure)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            left%map_certificate_id == right%map_certificate_id
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            left%monotonicity_sign == right%monotonicity_sign
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            (left%strict_monotonicity_certified .eqv. &
+                right%strict_monotonicity_certified)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            (left%mapping_enclosure_certified .eqv. &
+                right%mapping_enclosure_certified)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            trim(left%source_coordinate) == trim(right%source_coordinate)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            trim(left%source_units) == trim(right%source_units)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            trim(left%class_coordinate) == trim(right%class_coordinate)
+        same_root_coordinate_map = same_root_coordinate_map .and. &
+            trim(left%class_units) == trim(right%class_units)
+    end function same_root_coordinate_map
+
+    pure logical function same_root_box(left, right)
+        type(gc_interval_root_box_t), intent(in) :: left, right
+
+        same_root_box = left%lo == right%lo .and. left%hi == right%hi
+        same_root_box = same_root_box .and. left%kind == right%kind
+        same_root_box = same_root_box .and. left%cut_id == right%cut_id
+        same_root_box = same_root_box .and. &
+            left%boundary_role == right%boundary_role
+        same_root_box = same_root_box .and. &
+            left%multiplicity_lower == right%multiplicity_lower
+        same_root_box = same_root_box .and. &
+            left%multiplicity_upper == right%multiplicity_upper
+        same_root_box = same_root_box .and. &
+            (left%derivative_excludes_zero .eqv. &
+                right%derivative_excludes_zero)
+        same_root_box = same_root_box .and. &
+            (left%stationary_certified .eqv. right%stationary_certified)
+        same_root_box = same_root_box .and. &
+            (left%bracket_certified .eqv. right%bracket_certified)
+        same_root_box = same_root_box .and. &
+            (left%classification_certified .eqv. &
+                right%classification_certified)
+        same_root_box = same_root_box .and. &
+            (left%transversality_certified .eqv. &
+                right%transversality_certified)
+        same_root_box = same_root_box .and. &
+            left%transversality_kind == right%transversality_kind
+        same_root_box = same_root_box .and. &
+            (left%interval_newton_certified .eqv. &
+                right%interval_newton_certified)
+        same_root_box = same_root_box .and. &
+            (left%left_endpoint_root .eqv. right%left_endpoint_root)
+        same_root_box = same_root_box .and. &
+            (left%right_endpoint_root .eqv. right%right_endpoint_root)
+        same_root_box = same_root_box .and. &
+            left%enclosure_certificate_id == right%enclosure_certificate_id
+        same_root_box = same_root_box .and. &
+            left%stationary_certificate_id == right%stationary_certificate_id
+        same_root_box = same_root_box .and. &
+            same_interval(left%derivative_enclosure, &
+                right%derivative_enclosure)
+        same_root_box = same_root_box .and. &
+            same_interval(left%second_derivative_enclosure, &
+                right%second_derivative_enclosure)
+    end function same_root_box
+
+    pure logical function same_interval(left, right)
+        type(gc_interval_t), intent(in) :: left, right
+
+        same_interval = left%lo == right%lo .and. left%hi == right%hi
+    end function same_interval
 
     subroutine append_interval(intervals, count, interval, status)
         type(gc_cylindrical_class_interval_t), allocatable, intent(inout) :: &

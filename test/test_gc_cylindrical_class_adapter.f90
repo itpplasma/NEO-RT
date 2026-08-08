@@ -9,7 +9,8 @@ module gc_cylindrical_class_adapter_test_support
         gc_cylindrical_field_sample_t, gc_cylindrical_field_t, &
         gc_cylindrical_potential_t, make_gc_cylindrical_field_sample
     use neort_gc_cylindrical_topology, only: &
-        gc_cylindrical_allowed_region_set_t
+        gc_cylindrical_allowed_region_set_t, &
+        gc_cylindrical_root_coordinate_map_t
     use neort_gc_certified_interval_roots, only: &
         GC_INTERVAL_ROOT_EXTREMAL, GC_INTERVAL_ROOT_SIMPLE, &
         GC_INTERVAL_ROOT_TANGENT, GC_INTERVAL_ROOT_TRANSVERSE, &
@@ -176,12 +177,19 @@ contains
         regions%ncomponents = 2
         allocate(regions%roots(3), regions%root_canonical(3), &
             regions%root_boxes(3), &
+            regions%root_coordinate_maps(3), &
             regions%root_canonical_enclosures(3), regions%components(2))
         regions%roots = [0.5_dp, 1.0_dp, 2.0_dp]
         regions%root_canonical = [0.125_dp, 0.5_dp, 2.0_dp]
         regions%root_boxes(1) = manufactured_tangent_root(0.5_dp)
         regions%root_boxes(2) = manufactured_simple_root(0.99_dp, 1.01_dp)
         regions%root_boxes(3) = manufactured_simple_root(1.99_dp, 2.01_dp)
+        regions%root_coordinate_maps(1) = manufactured_identity_map( &
+            regions%root_boxes(1))
+        regions%root_coordinate_maps(2) = manufactured_identity_map( &
+            regions%root_boxes(2))
+        regions%root_coordinate_maps(3) = manufactured_identity_map( &
+            regions%root_boxes(3))
         regions%root_canonical_enclosures = [ &
             gc_interval_t(0.125_dp, 0.125_dp), &
             gc_interval_t(0.49_dp, 0.51_dp), &
@@ -234,12 +242,50 @@ contains
                     regions%root_boxes(2)%lo = 0.50_dp
                 case (23)
                     regions%root_canonical(1) = 0.2_dp
+                case (24)
+                    regions%root_coordinate_maps(2)%map_certificate_id = 0
+                case (25)
+                    regions%root_coordinate_maps(2)%mapped_class_enclosure%lo = &
+                        0.98_dp
+                case (26)
+                    regions%root_coordinate_maps(2)%monotonicity_sign = -1
+                case (27)
+                    regions%root_coordinate_maps(2)%source_root_certificate%lo = &
+                        0.50_dp
+                case (28)
+                    regions%root_coordinate_maps(2)%source_root_certificate &
+                        %derivative_enclosure = gc_interval_t(-2.0_dp, -1.0_dp)
+                case (29)
+                    regions%root_coordinate_maps(2)%source_coordinate = ''
+                case (30)
+                    regions%root_coordinate_maps(2)%source_domain_enclosure = &
+                        gc_interval_t(4.5_dp, 0.5_dp)
+                case (31)
+                    regions%root_coordinate_maps(2) &
+                        %mapping_enclosure_certified = .false.
                 case default
                     continue
             end select
         end if
         status = GC_CYL_SUCCESS
     end subroutine manufactured_allowed_region_provider
+
+    pure function manufactured_identity_map(root) result(mapping)
+        type(gc_interval_root_box_t), intent(in) :: root
+        type(gc_cylindrical_root_coordinate_map_t) :: mapping
+
+        mapping%source_root_certificate = root
+        mapping%source_domain_enclosure = gc_interval_t(0.5_dp, 4.5_dp)
+        mapping%mapped_class_enclosure = gc_interval_t(root%lo, root%hi)
+        mapping%map_certificate_id = 991
+        mapping%monotonicity_sign = 1
+        mapping%strict_monotonicity_certified = .true.
+        mapping%mapping_enclosure_certified = .true.
+        mapping%source_coordinate = 'manufactured-source-radius'
+        mapping%source_units = 'length'
+        mapping%class_coordinate = 'manufactured-class-coordinate'
+        mapping%class_units = 'length'
+    end function manufactured_identity_map
 
     subroutine manufactured_allowed_region_verifier(h0, jperp, sigma, rc_min, &
             rc_max, regions, user_data, certificate_id, status)
@@ -579,6 +625,12 @@ program test_gc_cylindrical_class_adapter
         'the endpoint tangency was not classified')
     call require(result%allowed_intervals(1)%root_isolation_certified, &
         'provider root certificate was not retained')
+    call require(result%allowed_intervals(1)%lower_root_coordinate_map &
+            %map_certificate_id == 991, &
+        'source-to-class root map certificate was not retained')
+    call require(result%allowed_intervals(1)%lower_root_coordinate_map &
+            %source_root_certificate%lo == 0.5_dp, &
+        'source-coordinate root certificate was not retained')
     call launch_gc_cylindrical_class(split_adapter, 0.75_dp, 1, 1, launch_plus, &
         status)
     call require(status == GC_CYL_CLASS_SPLITTER_UNAVAILABLE, &
@@ -856,7 +908,8 @@ contains
     end subroutine check_permissive_region_gate
 
     subroutine check_root_interval_provenance()
-        integer, parameter :: malformed_modes(4) = [20, 21, 22, 23]
+        integer, parameter :: malformed_modes(12) = [20, 21, 22, 23, &
+            24, 25, 26, 27, 28, 29, 30, 31]
         integer :: i
 
         ! The typed verifier below accepts every payload.  Each malformed
