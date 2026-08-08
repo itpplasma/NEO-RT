@@ -9,12 +9,16 @@ module neort_gc_eqdsk_flux_profile_map
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_eqdsk_flux_profile_segment_symbolic, only: &
         evaluate_neort_eqdsk_flux_profile_segment
+    use neort_eqdsk_flux_profile_segment_interval_symbolic, only: &
+        evaluate_neort_eqdsk_flux_profile_segment_interval
     use neort_eqdsk_flux_profile_rho_chain_symbolic, only: &
         evaluate_neort_eqdsk_flux_profile_rho_chain
     use neort_eqdsk_rho_tor_map_symbolic, only: &
         evaluate_neort_eqdsk_rho_tor_map
     use neort_eqdsk_scaled_flux_normalization_symbolic, only: &
         evaluate_neort_eqdsk_scaled_flux_normalization
+    use neort_gc_outward_interval, only: gc_outward_interval, &
+        gc_outward_interval_is_valid, gc_outward_interval_t
     implicit none
     private
 
@@ -49,6 +53,7 @@ module neort_gc_eqdsk_flux_profile_map
     public :: map_eqdsk_rho_tor_to_psihat
     public :: map_eqdsk_s_tor_to_psihat
     public :: map_eqdsk_psihat_to_s_tor
+    public :: map_eqdsk_psihat_interval_to_s_tor
     public :: map_eqdsk_scaled_psi_to_s_tor
 
 contains
@@ -157,6 +162,8 @@ contains
         type(eqdsk_flux_profile_map_t), intent(in) :: map
         integer, intent(out) :: status
 
+        real(dp) :: derivative, inverse_s, minimum_derivative
+        real(dp) :: psihat_axis, psihat_edge, segment_psihat
         integer :: i, count
 
         status = EQDSK_FLUX_MAP_INVALID_CERTIFICATE
@@ -178,8 +185,30 @@ contains
         if (map%s_tor(1) /= 0.0_dp .or. map%s_tor(count) /= 1.0_dp) return
         do i = 1, count-1
             if (map%s_tor(i+1) <= map%s_tor(i)) return
+            call evaluate_neort_eqdsk_flux_profile_segment(map%s_tor(i), &
+                0.0_dp, map%s_tor(i), map%s_tor(i+1), &
+                map%scaled_psi(i), map%scaled_psi(i+1), map%field_scale, &
+                map%psi_sep, segment_psihat, derivative, inverse_s)
+            if (.not. all(ieee_is_finite([segment_psihat, derivative, &
+                    inverse_s]))) return
+            if (derivative <= 0.0_dp) return
+            if (i == 1) then
+                minimum_derivative = derivative
+                psihat_axis = segment_psihat
+            else
+                minimum_derivative = min(minimum_derivative, derivative)
+            end if
         end do
         if (map%minimum_dpsihat_dstor <= 0.0_dp) return
+        if (map%minimum_dpsihat_dstor /= minimum_derivative) return
+        call evaluate_neort_eqdsk_flux_profile_segment(map%s_tor(count), &
+            1.0_dp, map%s_tor(count-1), map%s_tor(count), &
+            map%scaled_psi(count-1), map%scaled_psi(count), &
+            map%field_scale, map%psi_sep, psihat_edge, derivative, inverse_s)
+        if (.not. all(ieee_is_finite([psihat_axis, psihat_edge, &
+                derivative, inverse_s]))) return
+        if (map%psihat_axis /= psihat_axis) return
+        if (map%psihat_edge /= psihat_edge) return
         if (map%psihat_axis /= 0.0_dp .or. map%psihat_edge /= 1.0_dp) then
             if (abs(map%psihat_axis) > 256.0_dp*epsilon(1.0_dp) .or. &
                     abs(map%psihat_edge-1.0_dp) > &
@@ -271,6 +300,100 @@ contains
         end if
         status = EQDSK_FLUX_MAP_SUCCESS
     end subroutine map_eqdsk_psihat_to_s_tor
+
+    subroutine map_eqdsk_psihat_interval_to_s_tor(map, psihat, s_tor, &
+            segments_covered, status)
+        type(eqdsk_flux_profile_map_t), intent(in) :: map
+        type(gc_outward_interval_t), intent(in) :: psihat
+        type(gc_outward_interval_t), intent(out) :: s_tor
+        integer, intent(out) :: segments_covered
+        integer, intent(out) :: status
+
+        type(gc_outward_interval_t) :: segment_psihat, derivative
+        type(gc_outward_interval_t) :: inverse_s, overlap, unused_inverse
+        integer :: i, count
+        logical :: first_piece
+
+        s_tor = gc_outward_interval(0.0_dp, 0.0_dp)
+        segments_covered = 0
+        call validate_eqdsk_flux_profile_map(map, status)
+        if (status /= EQDSK_FLUX_MAP_SUCCESS) return
+        if (.not. gc_outward_interval_is_valid(psihat)) then
+            status = EQDSK_FLUX_MAP_NONFINITE
+            return
+        end if
+        if (psihat%lo < 0.0_dp .or. psihat%hi > 1.0_dp) then
+            status = EQDSK_FLUX_MAP_OUT_OF_RANGE
+            return
+        end if
+
+        count = size(map%s_tor)
+        first_piece = .true.
+        do i = 1, count-1
+            call evaluate_neort_eqdsk_flux_profile_segment_interval( &
+                gc_outward_interval(map%s_tor(i), map%s_tor(i+1)), &
+                gc_outward_interval(0.0_dp, 0.0_dp), &
+                gc_outward_interval(map%s_tor(i), map%s_tor(i)), &
+                gc_outward_interval(map%s_tor(i+1), map%s_tor(i+1)), &
+                gc_outward_interval(map%scaled_psi(i), &
+                    map%scaled_psi(i)), &
+                gc_outward_interval(map%scaled_psi(i+1), &
+                    map%scaled_psi(i+1)), &
+                gc_outward_interval(map%field_scale, map%field_scale), &
+                gc_outward_interval(map%psi_sep, map%psi_sep), &
+                segment_psihat, derivative, unused_inverse)
+            if (.not. gc_outward_interval_is_valid(segment_psihat)) then
+                status = EQDSK_FLUX_MAP_NONFINITE
+                return
+            end if
+            if (.not. gc_outward_interval_is_valid(derivative)) then
+                status = EQDSK_FLUX_MAP_NONFINITE
+                return
+            end if
+            if (derivative%lo <= 0.0_dp) then
+                status = EQDSK_FLUX_MAP_INVALID_CERTIFICATE
+                return
+            end if
+            overlap%lo = max(psihat%lo, segment_psihat%lo)
+            overlap%hi = min(psihat%hi, segment_psihat%hi)
+            if (overlap%hi < overlap%lo) cycle
+            call evaluate_neort_eqdsk_flux_profile_segment_interval( &
+                gc_outward_interval(map%s_tor(i), map%s_tor(i)), overlap, &
+                gc_outward_interval(map%s_tor(i), map%s_tor(i)), &
+                gc_outward_interval(map%s_tor(i+1), map%s_tor(i+1)), &
+                gc_outward_interval(map%scaled_psi(i), &
+                    map%scaled_psi(i)), &
+                gc_outward_interval(map%scaled_psi(i+1), &
+                    map%scaled_psi(i+1)), &
+                gc_outward_interval(map%field_scale, map%field_scale), &
+                gc_outward_interval(map%psi_sep, map%psi_sep), &
+                segment_psihat, derivative, inverse_s)
+            if (.not. gc_outward_interval_is_valid(inverse_s)) then
+                status = EQDSK_FLUX_MAP_NONFINITE
+                return
+            end if
+            inverse_s%lo = max(inverse_s%lo, map%s_tor(i))
+            inverse_s%hi = min(inverse_s%hi, map%s_tor(i+1))
+            if (inverse_s%hi < inverse_s%lo) cycle
+            if (first_piece) then
+                s_tor = inverse_s
+                first_piece = .false.
+            else
+                s_tor%lo = min(s_tor%lo, inverse_s%lo)
+                s_tor%hi = max(s_tor%hi, inverse_s%hi)
+            end if
+            segments_covered = segments_covered+1
+        end do
+        if (first_piece) then
+            status = EQDSK_FLUX_MAP_OUT_OF_RANGE
+            return
+        end if
+        if (s_tor%lo < 0.0_dp .or. s_tor%hi > 1.0_dp) then
+            status = EQDSK_FLUX_MAP_INVALID_CERTIFICATE
+            return
+        end if
+        status = EQDSK_FLUX_MAP_SUCCESS
+    end subroutine map_eqdsk_psihat_interval_to_s_tor
 
     subroutine map_eqdsk_scaled_psi_to_s_tor(map, scaled_psi, s_tor, status)
         type(eqdsk_flux_profile_map_t), intent(in) :: map
