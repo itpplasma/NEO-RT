@@ -141,6 +141,13 @@ set(NEO_RT_SOURCES
     src/generated/neort_cylindrical_bilinear_complex_symbolic.f90
     src/generated/neort_profile_endpoint_symbolic.f90
     src/generated/neort_profile_potential_segment_symbolic.f90
+    src/generated/neort_profile_potential_map_symbolic.f90
+    src/generated/neort_profile_potential_map_interval_symbolic.f90
+    src/generated/neort_eqdsk_allowed_energy_symbolic.f90
+    src/generated/neort_eqdsk_allowed_energy_interval_symbolic.f90
+    src/generated/neort_eqdsk_canonical_cut_symbolic.f90
+    src/generated/neort_eqdsk_canonical_cut_interval_symbolic.f90
+    src/generated/neort_eqdsk_turning_chart_symbolic.f90
     src/generated/neort_eqdsk_flux_profile_segment_symbolic.f90
     src/generated/neort_eqdsk_scaled_flux_normalization_symbolic.f90
     src/generated/neort_eqdsk_quintic_cell_jet_symbolic.f90

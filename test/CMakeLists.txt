@@ -415,6 +415,10 @@ add_test(NAME test_gc_generated_profile_potential_segment
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_generated_profile_potential_segment.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_gc_profile_potential_map
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_profile_potential_map.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_gc_eqdsk_flux_profile_map
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_eqdsk_flux_profile_map.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

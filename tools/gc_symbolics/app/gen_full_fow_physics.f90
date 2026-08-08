@@ -174,8 +174,12 @@ program gen_full_fow_physics
     type(expr_t) :: geom_dbz_dz
     type(expr_t) :: interpolation_roots(9), endpoint_roots(8)
     type(expr_t) :: profile_potential_roots(3)
+    type(expr_t) :: profile_potential_map_roots(3)
     type(expr_t) :: eqdsk_flux_profile_segment_roots(3)
     type(expr_t) :: eqdsk_scaled_flux_normalization_roots(1)
+    type(expr_t) :: eqdsk_allowed_energy_roots(15)
+    type(expr_t) :: eqdsk_canonical_cut_roots(4)
+    type(expr_t) :: eqdsk_turning_chart_roots(5)
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
     type(expr_t) :: eqdsk_cell_fourth_jet_roots(5)
     type(expr_t) :: eqdsk_cut_jet_roots(7)
@@ -225,6 +229,11 @@ program gen_full_fow_physics
     type(expr_t) :: potential_psi0, potential_psi1, potential_omega0
     type(expr_t) :: potential_omega1, potential_c, delta_phi_segment
     type(expr_t) :: delta_phi_reversed, omega_constant, delta_phi_constant
+    type(expr_t) :: potential_psi, potential_phi0, potential_delta_psi
+    type(expr_t) :: potential_omega_slope, potential_phi
+    type(expr_t) :: potential_dphi_dpsi, potential_d2phi_dpsi2
+    type(expr_t) :: potential_phi1, potential_phi_reversed
+    type(expr_t) :: potential_reversal_residual
     type(expr_t) :: flux_segment_s, flux_segment_s0, flux_segment_s1
     type(expr_t) :: flux_segment_psi0, flux_segment_psi1
     type(expr_t) :: flux_segment_field_scale, flux_segment_psi_sep
@@ -237,6 +246,43 @@ program gen_full_fow_physics
     type(expr_t) :: flux_segment_inverse_forward_residual
     type(expr_t) :: scaled_flux_value, scaled_flux_psihat
     type(expr_t) :: scaled_flux_round_trip_residual
+    type(expr_t) :: allowed_field_scale, allowed_dz_dr, allowed_d2z_dr2
+    type(expr_t) :: allowed_g, allowed_sqrt_g, allowed_dpsi_dr
+    type(expr_t) :: allowed_d2psi_dr2, allowed_dpsi_r_dr
+    type(expr_t) :: allowed_dpsi_z_dr, allowed_d2psi_r_dr2
+    type(expr_t) :: allowed_d2psi_z_dr2, allowed_df_dr, allowed_d2f_dr2
+    type(expr_t) :: allowed_dg_dr, allowed_d2g_dr2
+    type(expr_t) :: allowed_dsqrt_g_dr, allowed_d2sqrt_g_dr2
+    type(expr_t) :: allowed_bmod, allowed_dbmod_dr, allowed_d2bmod_dr2
+    type(expr_t) :: allowed_potential, allowed_dphi_dpsi
+    type(expr_t) :: allowed_d2phi_dpsi2
+    type(expr_t) :: allowed_omega_c, allowed_domega_c_dr
+    type(expr_t) :: allowed_d2omega_c_dr2
+    type(expr_t) :: allowed_energy_margin, allowed_denergy_dr
+    type(expr_t) :: allowed_d2energy_dr2
+    type(expr_t) :: allowed_vparallel_squared, allowed_dvparallel_squared_dr
+    type(expr_t) :: allowed_d2vparallel_squared_dr2
+    type(expr_t) :: allowed_bphi_covariant, allowed_dbphi_covariant_dr
+    type(expr_t) :: allowed_vparallel_squared_input
+    type(expr_t) :: allowed_dvparallel_squared_dr_input
+    type(expr_t) :: allowed_bphi_covariant_input
+    type(expr_t) :: allowed_dbphi_covariant_dr_input
+    type(expr_t) :: allowed_x, allowed_radius_local
+    type(expr_t) :: allowed_psi_r_local, allowed_psi_z_local
+    type(expr_t) :: allowed_f_local, allowed_g_local
+    type(expr_t) :: allowed_bmod_local, allowed_potential_local
+    type(expr_t) :: allowed_energy_local
+    type(expr_t) :: allowed_parallel_sign, allowed_vparallel
+    type(expr_t) :: allowed_dvparallel_dr, allowed_psi_physical
+    type(expr_t) :: allowed_dpsi_physical_dr, allowed_psi_star
+    type(expr_t) :: allowed_dpsi_star_dr
+    type(expr_t) :: turning_y, turning_direction, turning_dv2_dx
+    type(expr_t) :: turning_psi_root, turning_dpsi_dx
+    type(expr_t) :: turning_ratio_root, turning_dratio_dx
+    type(expr_t) :: turning_delta_x, turning_vparallel
+    type(expr_t) :: turning_psi_local, turning_ratio_local
+    type(expr_t) :: turning_psi_star, turning_dpsi_star_dy
+    type(expr_t) :: turning_root_derivative
     type(expr_t) :: cell_coefficient(6,6), cell_delta_r, cell_delta_z
     type(expr_t) :: cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr
     type(expr_t) :: cell_psi_rz, cell_psi_zz, cell_psi_rrr
@@ -1673,6 +1719,28 @@ program gen_full_fow_physics
     delta_phi_constant = (potential_psi1-potential_psi0)*omega_constant/ &
         potential_c
 
+    ! Exact potential and derivatives inside the same affine Omega_E segment.
+    ! Phi is quadratic when Omega_E is affine; interpolating the integrated
+    ! endpoint values linearly would replace the local electric field by its
+    ! segment average and is therefore not the same physical profile.
+    potential_psi = sym(arena, "psi")
+    potential_phi0 = sym(arena, "Phi0")
+    potential_delta_psi = potential_psi-potential_psi0
+    potential_omega_slope = (potential_omega1-potential_omega0)/ &
+        (potential_psi1-potential_psi0)
+    potential_phi = potential_phi0 + &
+        (potential_omega0*potential_delta_psi + &
+        potential_omega_slope*potential_delta_psi**2/2)/potential_c
+    potential_dphi_dpsi = diff(potential_phi, potential_psi)
+    potential_d2phi_dpsi2 = diff(potential_dphi_dpsi, potential_psi)
+    potential_phi1 = potential_phi0+delta_phi_segment
+    potential_phi_reversed = potential_phi1 + &
+        (potential_omega1*(potential_psi-potential_psi1) + &
+        (potential_omega0-potential_omega1)/ &
+        (potential_psi0-potential_psi1) * &
+        (potential_psi-potential_psi1)**2/2)/potential_c
+    potential_reversal_residual = potential_phi_reversed-potential_phi
+
     ! Explicit piecewise-affine map from native toroidal flux s_tor to the
     ! unscaled EQDSK normalized poloidal flux used by the cut atlas.  The
     ! factory stores field_scale*psi at profile nodes, hence field_scale is
@@ -1715,6 +1783,141 @@ program gen_full_fow_physics
         /(flux_segment_field_scale*flux_segment_psi_sep)
     scaled_flux_round_trip_residual = scaled_flux_psihat &
         *flux_segment_field_scale*flux_segment_psi_sep-scaled_flux_value
+
+    ! Physical B, allowed energy, and their derivatives on the regular R
+    ! chart of the Eq. 13 cut.  Raw EQDSK psi derivatives and F enter here;
+    ! field_scale is applied exactly once to B and physical psi.
+    allowed_field_scale = sym(arena, "field_scale")
+    allowed_dz_dr = sym(arena, "dZ_dR")
+    allowed_d2z_dr2 = sym(arena, "d2Z_dR2")
+    allowed_potential = sym(arena, "electrostatic_potential")
+    allowed_dphi_dpsi = sym(arena, "dPhi_dpsi")
+    allowed_d2phi_dpsi2 = sym(arena, "d2Phi_dpsi2")
+    allowed_dpsi_dr = eqcut_psi_r+eqcut_psi_z*allowed_dz_dr
+    allowed_d2psi_dr2 = eqcut_psi_rr + &
+        2*eqcut_psi_rz*allowed_dz_dr + &
+        eqcut_psi_zz*allowed_dz_dr**2 + &
+        eqcut_psi_z*allowed_d2z_dr2
+    allowed_dpsi_r_dr = eqcut_psi_rr+eqcut_psi_rz*allowed_dz_dr
+    allowed_dpsi_z_dr = eqcut_psi_rz+eqcut_psi_zz*allowed_dz_dr
+    allowed_d2psi_r_dr2 = eqcut_psi_rrr + &
+        2*eqcut_psi_rrz*allowed_dz_dr + &
+        eqcut_psi_rzz*allowed_dz_dr**2 + &
+        eqcut_psi_rz*allowed_d2z_dr2
+    allowed_d2psi_z_dr2 = eqcut_psi_rrz + &
+        2*eqcut_psi_rzz*allowed_dz_dr + &
+        eqcut_psi_zzz*allowed_dz_dr**2 + &
+        eqcut_psi_zz*allowed_d2z_dr2
+    allowed_df_dr = eqcut_f_hat_first/eqcut_psi_sep*allowed_dpsi_dr
+    allowed_d2f_dr2 = eqcut_f_hat_second/eqcut_psi_sep**2 * &
+        allowed_dpsi_dr**2 + eqcut_f_hat_first/eqcut_psi_sep* &
+        allowed_d2psi_dr2
+    allowed_g = eqcut_psi_r**2+eqcut_psi_z**2+eqcut_f0**2
+    allowed_sqrt_g = sqrt(allowed_g)
+    allowed_dg_dr = 2*eqcut_psi_r*allowed_dpsi_r_dr + &
+        2*eqcut_psi_z*allowed_dpsi_z_dr + &
+        2*eqcut_f0*allowed_df_dr
+    allowed_d2g_dr2 = 2*(allowed_dpsi_r_dr**2 + &
+        eqcut_psi_r*allowed_d2psi_r_dr2 + &
+        allowed_dpsi_z_dr**2 + &
+        eqcut_psi_z*allowed_d2psi_z_dr2 + allowed_df_dr**2 + &
+        eqcut_f0*allowed_d2f_dr2)
+    allowed_dsqrt_g_dr = allowed_dg_dr/(2*allowed_sqrt_g)
+    allowed_d2sqrt_g_dr2 = allowed_d2g_dr2/(2*allowed_sqrt_g) - &
+        allowed_dg_dr**2/(4*allowed_sqrt_g**3)
+    allowed_bmod = allowed_field_scale*allowed_sqrt_g/eqcut_radius
+    allowed_dbmod_dr = allowed_field_scale* &
+        (allowed_dsqrt_g_dr/eqcut_radius - &
+        allowed_sqrt_g/eqcut_radius**2)
+    allowed_d2bmod_dr2 = allowed_field_scale* &
+        (allowed_d2sqrt_g_dr2/eqcut_radius - &
+        2*allowed_dsqrt_g_dr/eqcut_radius**2 + &
+        2*allowed_sqrt_g/eqcut_radius**3)
+    allowed_omega_c = abs(charge)*allowed_bmod/(mass*c_light)
+    allowed_domega_c_dr = abs(charge)*allowed_dbmod_dr/(mass*c_light)
+    allowed_d2omega_c_dr2 = abs(charge)*allowed_d2bmod_dr2/ &
+        (mass*c_light)
+    allowed_energy_margin = h-jk*allowed_omega_c-charge*allowed_potential
+    allowed_denergy_dr = -jk*allowed_domega_c_dr - &
+        charge*allowed_dphi_dpsi*allowed_field_scale*allowed_dpsi_dr
+    allowed_d2energy_dr2 = -jk*allowed_d2omega_c_dr2 - charge* &
+        (allowed_d2phi_dpsi2*(allowed_field_scale*allowed_dpsi_dr)**2 + &
+        allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2)
+    allowed_vparallel_squared = 2*allowed_energy_margin/mass
+    allowed_dvparallel_squared_dr = 2*allowed_denergy_dr/mass
+    allowed_d2vparallel_squared_dr2 = 2*allowed_d2energy_dr2/mass
+    allowed_bphi_covariant = eqcut_radius*eqcut_f0/allowed_sqrt_g
+    allowed_dbphi_covariant_dr = &
+        (eqcut_f0+eqcut_radius*allowed_df_dr)/allowed_sqrt_g - &
+        eqcut_radius*eqcut_f0*allowed_dg_dr/(2*allowed_sqrt_g**3)
+
+    ! Independent local path model used only by the exact proof suite.  Its
+    ! first two derivatives at x=0 must reproduce the emitted R-chart jet.
+    allowed_x = sym(arena, "allowed_path_x")
+    allowed_radius_local = eqcut_radius+allowed_x
+    allowed_psi_r_local = eqcut_psi_r + &
+        allowed_dpsi_r_dr*allowed_x + &
+        allowed_d2psi_r_dr2*allowed_x**2/2
+    allowed_psi_z_local = eqcut_psi_z + &
+        allowed_dpsi_z_dr*allowed_x + &
+        allowed_d2psi_z_dr2*allowed_x**2/2
+    allowed_f_local = eqcut_f0+allowed_df_dr*allowed_x + &
+        allowed_d2f_dr2*allowed_x**2/2
+    allowed_g_local = allowed_psi_r_local**2 + &
+        allowed_psi_z_local**2+allowed_f_local**2
+    allowed_bmod_local = allowed_field_scale*sqrt(allowed_g_local)/ &
+        allowed_radius_local
+    allowed_potential_local = allowed_potential + &
+        allowed_dphi_dpsi*allowed_field_scale* &
+        (allowed_dpsi_dr*allowed_x + &
+        allowed_d2psi_dr2*allowed_x**2/2) + &
+        allowed_d2phi_dpsi2*(allowed_field_scale* &
+        allowed_dpsi_dr*allowed_x)**2/2
+    allowed_energy_local = h-jk*abs(charge)*allowed_bmod_local/ &
+        (mass*c_light)-charge*allowed_potential_local
+
+    ! The regular canonical chart is evaluated only where v_parallel^2>0.
+    ! Its square-root singularity at a simple turning point is replaced by
+    ! the generated y=sqrt(|x-x_t|) chart below.
+    allowed_parallel_sign = sym(arena, "parallel_sign")
+    allowed_psi_physical = sym(arena, "psi_physical")
+    allowed_dpsi_physical_dr = sym(arena, "dpsi_physical_dR")
+    allowed_vparallel_squared_input = sym(arena, "v_parallel_squared")
+    allowed_dvparallel_squared_dr_input = &
+        sym(arena, "dv_parallel_squared_dR")
+    allowed_bphi_covariant_input = sym(arena, "bphi_covariant")
+    allowed_dbphi_covariant_dr_input = &
+        sym(arena, "dbphi_covariant_dR")
+    allowed_vparallel = allowed_parallel_sign* &
+        sqrt(allowed_vparallel_squared_input)
+    allowed_dvparallel_dr = allowed_parallel_sign* &
+        allowed_dvparallel_squared_dr_input/ &
+        (2*sqrt(allowed_vparallel_squared_input))
+    allowed_psi_star = allowed_psi_physical + mass*c_light/charge* &
+        allowed_vparallel*allowed_bphi_covariant_input
+    allowed_dpsi_star_dr = allowed_dpsi_physical_dr + &
+        mass*c_light/charge*(allowed_dvparallel_dr* &
+        allowed_bphi_covariant_input + &
+        allowed_vparallel*allowed_dbphi_covariant_dr_input)
+
+    turning_y = sym(arena, "root_coordinate_y")
+    turning_direction = sym(arena, "allowed_side_sign")
+    turning_dv2_dx = sym(arena, "dvparallel_squared_dx_root")
+    turning_psi_root = sym(arena, "psi_star_flux_root")
+    turning_dpsi_dx = sym(arena, "dpsi_flux_dx_root")
+    turning_ratio_root = sym(arena, "bphi_covariant_root")
+    turning_dratio_dx = sym(arena, "dbphi_covariant_dx_root")
+    turning_delta_x = turning_direction*turning_y**2
+    turning_vparallel = allowed_parallel_sign*turning_y* &
+        sqrt(turning_direction*turning_dv2_dx)
+    turning_psi_local = turning_psi_root + &
+        turning_dpsi_dx*turning_delta_x
+    turning_ratio_local = turning_ratio_root + &
+        turning_dratio_dx*turning_delta_x
+    turning_psi_star = turning_psi_local + mass*c_light/charge* &
+        turning_vparallel*turning_ratio_local
+    turning_dpsi_star_dy = diff(turning_psi_star, turning_y)
+    turning_root_derivative = subs(turning_dpsi_star_dy, turning_y, zero)
 
     ! Axisymmetric phase-space one-form and Noether construction.  The
     ! explicit convention is A_phi_cov=psi and b_phi_cov=R*b_phi.
@@ -2212,6 +2415,23 @@ program gen_full_fow_physics
         (omega_constant+omega_constant)/(2*potential_c)) - &
         delta_phi_constant)
     call check_identity(proofs, proof_engine, &
+        "quadratic profile potential reproduces left endpoint", &
+        subs(potential_phi, potential_psi, potential_psi0)-potential_phi0)
+    call check_identity(proofs, proof_engine, &
+        "quadratic profile potential reproduces integrated right endpoint", &
+        subs(potential_phi, potential_psi, potential_psi1)-potential_phi1)
+    call check_identity(proofs, proof_engine, &
+        "profile potential derivative is local affine Omega_E over c", &
+        potential_dphi_dpsi - &
+        (potential_omega0+potential_omega_slope* &
+        potential_delta_psi)/potential_c)
+    call check_identity(proofs, proof_engine, &
+        "profile potential curvature is affine Omega_E slope over c", &
+        potential_d2phi_dpsi2-potential_omega_slope/potential_c)
+    call check_identity(proofs, proof_engine, &
+        "profile potential segment reversal leaves physical Phi unchanged", &
+        potential_reversal_residual)
+    call check_identity(proofs, proof_engine, &
         "flux segment reproduces axis-side endpoint", &
         flux_segment_axis_residual)
     call check_identity(proofs, proof_engine, &
@@ -2229,6 +2449,42 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "scaled equilibrium flux normalization round trip", &
         scaled_flux_round_trip_residual)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 path field magnitude value", &
+        subs(allowed_bmod_local, allowed_x, zero)-allowed_bmod)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 path field magnitude first derivative", &
+        subs(diff(allowed_bmod_local, allowed_x), allowed_x, zero) - &
+        allowed_dbmod_dr)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 path field magnitude second derivative", &
+        subs(diff(diff(allowed_bmod_local, allowed_x), allowed_x), &
+        allowed_x, zero)-allowed_d2bmod_dr2)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 allowed energy value", &
+        subs(allowed_energy_local, allowed_x, zero)-allowed_energy_margin)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 allowed energy first derivative", &
+        subs(diff(allowed_energy_local, allowed_x), allowed_x, zero) - &
+        allowed_denergy_dr)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 allowed energy second derivative", &
+        subs(diff(diff(allowed_energy_local, allowed_x), allowed_x), &
+        allowed_x, zero)-allowed_d2energy_dr2)
+    call check_identity(proofs, proof_engine, &
+        "simple-turn root coordinate has quadratic physical displacement", &
+        turning_delta_x-turning_direction*turning_y**2)
+    call check_identity(proofs, proof_engine, &
+        "simple-turn parallel speed squares to local vparallel squared", &
+        turning_vparallel**2-allowed_parallel_sign**2* &
+        turning_direction*turning_dv2_dx*turning_y**2)
+    call check_identity(proofs, proof_engine, &
+        "simple-turn canonical coordinate reaches flux root", &
+        subs(turning_psi_star, turning_y, zero)-turning_psi_root)
+    call check_identity(proofs, proof_engine, &
+        "simple-turn canonical root derivative is finite", &
+        turning_root_derivative-allowed_parallel_sign*mass*c_light/charge* &
+        turning_ratio_root*sqrt(turning_direction*turning_dv2_dx))
     if (proofs%failed /= 0) error stop "full-FOW symbolic proof failed"
     call suite_end(proofs)
 
@@ -2281,9 +2537,22 @@ program gen_full_fow_physics
         endpoint_intercept, endpoint_dfd_rho, endpoint_axis_residual]
     profile_potential_roots = [delta_phi_segment, delta_phi_reversed, &
         delta_phi_constant]
+    profile_potential_map_roots = [potential_phi, potential_dphi_dpsi, &
+        potential_d2phi_dpsi2]
     eqdsk_flux_profile_segment_roots = [flux_segment_psihat, &
         flux_segment_dpsihat_dstor, flux_segment_inverse_s]
     eqdsk_scaled_flux_normalization_roots = [scaled_flux_psihat]
+    eqdsk_allowed_energy_roots = [allowed_g, allowed_bmod, &
+        allowed_dbmod_dr, allowed_d2bmod_dr2, allowed_omega_c, &
+        allowed_domega_c_dr, allowed_d2omega_c_dr2, &
+        allowed_energy_margin, allowed_denergy_dr, &
+        allowed_d2energy_dr2, allowed_vparallel_squared, &
+        allowed_dvparallel_squared_dr, allowed_d2vparallel_squared_dr2, &
+        allowed_bphi_covariant, allowed_dbphi_covariant_dr]
+    eqdsk_canonical_cut_roots = [allowed_vparallel, &
+        allowed_dvparallel_dr, allowed_psi_star, allowed_dpsi_star_dr]
+    eqdsk_turning_chart_roots = [turning_delta_x, turning_vparallel, &
+        turning_psi_star, turning_dpsi_star_dy, turning_root_derivative]
     eqdsk_cell_jet_roots = [cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr, &
         cell_psi_rz, cell_psi_zz, cell_psi_rrr, cell_psi_rrz, &
         cell_psi_rzz, cell_psi_zzz]
@@ -2397,7 +2666,11 @@ program gen_full_fow_physics
     call simplify_array(interpolation_roots)
     call simplify_array(endpoint_roots)
     call simplify_array(profile_potential_roots)
+    call simplify_array(profile_potential_map_roots)
     call simplify_array(eqdsk_flux_profile_segment_roots)
+    call simplify_array(eqdsk_allowed_energy_roots)
+    call simplify_array(eqdsk_canonical_cut_roots)
+    call simplify_array(eqdsk_turning_chart_roots)
     call simplify_array(eqdsk_cell_jet_roots)
     call simplify_array(eqdsk_cell_fourth_jet_roots)
     call simplify_array(eqdsk_profile_jet_roots)
@@ -2777,6 +3050,90 @@ program gen_full_fow_physics
         "Omega_E0", "Omega_E1", "Omega_E_constant", "c_light"], &
         profile_potential_roots, &
         [character(len=64) :: "delta_Phi", "delta_Phi_reversed", "delta_Phi_constant_limit"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_profile_potential_map_symbolic.f90", &
+        "neort_profile_potential_map_symbolic", &
+        "evaluate_neort_profile_potential_map", &
+        [character(len=64) :: "psi", "psi0", "psi1", "Phi0", &
+        "Omega_E0", "Omega_E1", "c_light"], &
+        profile_potential_map_roots, &
+        [character(len=64) :: "Phi", "dPhi_dpsi", "d2Phi_dpsi2"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_profile_potential_map_interval_symbolic.f90", &
+        "neort_profile_potential_map_interval_symbolic", &
+        "evaluate_neort_profile_potential_map_interval", &
+        [character(len=64) :: "psi", "psi0", "psi1", "Phi0", &
+        "Omega_E0", "Omega_E1", "c_light"], &
+        profile_potential_map_roots, &
+        [character(len=64) :: "Phi", "dPhi_dpsi", "d2Phi_dpsi2"], &
+        interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_allowed_energy_symbolic.f90", &
+        "neort_eqdsk_allowed_energy_symbolic", &
+        "evaluate_neort_eqdsk_allowed_energy", &
+        [character(len=64) :: "radius", "field_scale", "psi_R", "psi_Z", &
+        "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
+        "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", &
+        "d2F_dpsihat2", "psi_sep", "dZ_dR", "d2Z_dR2", "h", &
+        "J_K", "mass", "charge", "c_light", &
+        "electrostatic_potential", "dPhi_dpsi", "d2Phi_dpsi2"], &
+        eqdsk_allowed_energy_roots, &
+        [character(len=64) :: "field_norm_squared", "bmod", "dbmod_dR", &
+        "d2bmod_dR2", "omega_c", "domega_c_dR", "d2omega_c_dR2", &
+        "energy_margin", "denergy_margin_dR", "d2energy_margin_dR2", &
+        "v_parallel_squared", "dv_parallel_squared_dR", &
+        "d2v_parallel_squared_dR2", "bphi_covariant", &
+        "dbphi_covariant_dR"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_allowed_energy_interval_symbolic.f90", &
+        "neort_eqdsk_allowed_energy_interval_symbolic", &
+        "evaluate_neort_eqdsk_allowed_energy_interval", &
+        [character(len=64) :: "radius", "field_scale", "psi_R", "psi_Z", &
+        "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
+        "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", &
+        "d2F_dpsihat2", "psi_sep", "dZ_dR", "d2Z_dR2", "h", &
+        "J_K", "mass", "charge", "c_light", &
+        "electrostatic_potential", "dPhi_dpsi", "d2Phi_dpsi2"], &
+        eqdsk_allowed_energy_roots, &
+        [character(len=64) :: "field_norm_squared", "bmod", "dbmod_dR", &
+        "d2bmod_dR2", "omega_c", "domega_c_dR", "d2omega_c_dR2", &
+        "energy_margin", "denergy_margin_dR", "d2energy_margin_dR2", &
+        "v_parallel_squared", "dv_parallel_squared_dR", &
+        "d2v_parallel_squared_dR2", "bphi_covariant", &
+        "dbphi_covariant_dR"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_canonical_cut_symbolic.f90", &
+        "neort_eqdsk_canonical_cut_symbolic", &
+        "evaluate_neort_eqdsk_canonical_cut", &
+        [character(len=64) :: "v_parallel_squared", &
+        "dv_parallel_squared_dR", "mass", "charge", "c_light", &
+        "parallel_sign", "psi_physical", "dpsi_physical_dR", &
+        "bphi_covariant", "dbphi_covariant_dR"], &
+        eqdsk_canonical_cut_roots, &
+        [character(len=64) :: "v_parallel", "dv_parallel_dR", &
+        "psi_star", "dpsi_star_dR"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_canonical_cut_interval_symbolic.f90", &
+        "neort_eqdsk_canonical_cut_interval_symbolic", &
+        "evaluate_neort_eqdsk_canonical_cut_interval", &
+        [character(len=64) :: "v_parallel_squared", &
+        "dv_parallel_squared_dR", "mass", "charge", "c_light", &
+        "parallel_sign", "psi_physical", "dpsi_physical_dR", &
+        "bphi_covariant", "dbphi_covariant_dR"], &
+        eqdsk_canonical_cut_roots, &
+        [character(len=64) :: "v_parallel", "dv_parallel_dR", &
+        "psi_star", "dpsi_star_dR"], interval_kernel=.true.)
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_turning_chart_symbolic.f90", &
+        "neort_eqdsk_turning_chart_symbolic", &
+        "evaluate_neort_eqdsk_turning_chart", &
+        [character(len=64) :: "root_coordinate_y", "allowed_side_sign", &
+        "dvparallel_squared_dx_root", "psi_star_flux_root", &
+        "dpsi_flux_dx_root", "bphi_covariant_root", &
+        "dbphi_covariant_dx_root", "mass", "charge", "c_light", &
+        "parallel_sign"], eqdsk_turning_chart_roots, &
+        [character(len=64) :: "delta_x", "v_parallel", "psi_star", &
+        "dpsi_star_dy", "dpsi_star_dy_root"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_flux_profile_segment_symbolic.f90", &
         "neort_eqdsk_flux_profile_segment_symbolic", &
@@ -3238,7 +3595,7 @@ contains
             "        use neort_gc_outward_interval, only: "// &
             "gc_outward_interval_t, &"//new_line('a')// &
             "            operator(+), operator(-), operator(*), "// &
-            "operator(/), operator(**)"//new_line('a')// &
+            "operator(/), operator(**), abs, sqrt"//new_line('a')// &
             "        implicit none"
 
         interval_source = replace_all(source, "        implicit none", &
@@ -3297,7 +3654,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 36"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 40"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -3322,7 +3679,11 @@ contains
         write (unit, "(a)") "        'eqdsk_axis_stationarity_krawczyk', &"
         write (unit, "(a)") "        'eqdsk_flux_profile_segment', &"
         write (unit, "(a)") "        'eqdsk_scaled_flux_normalization', &"
-        write (unit, "(a)") "        'gauss_interval_map' ]"
+        write (unit, "(a)") "        'gauss_interval_map', &"
+        write (unit, "(a)") "        'profile_potential_map', &"
+        write (unit, "(a)") "        'eqdsk_allowed_energy', &"
+        write (unit, "(a)") "        'eqdsk_canonical_cut', &"
+        write (unit, "(a)") "        'eqdsk_turning_chart' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -3358,8 +3719,18 @@ contains
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_axis_stationarity_newton:7:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_axis_stationarity_krawczyk:2:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:eqdsk_flux_profile_segment:3:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884', &"
-        write (unit, "(a)") "        'neort-cert-v1:gauss_interval_map:2:fortsym-5457884' ]"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_scaled_flux_normalization:1:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:gauss_interval_map:2:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:profile_potential_map:3:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_allowed_energy:15:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_canonical_cut:4:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_turning_chart:5:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"

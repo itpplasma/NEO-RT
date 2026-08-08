@@ -129,6 +129,8 @@ module neort_gc_eqdsk_nonlocal_transport
         evaluate_neort_profile_endpoints
     use neort_profile_potential_segment_symbolic, only: &
         evaluate_neort_profile_potential_segment
+    use neort_profile_potential_map_symbolic, only: &
+        evaluate_neort_profile_potential_map
     use neort_full_fow_harmonic_symbolic, only: &
         evaluate_neort_full_fow_harmonic_integrand
     use neort_profiles, only: A1, A2, M_t, Om_tE, Ti1, ni1, vth, &
@@ -1514,22 +1516,25 @@ contains
         integer, intent(out) :: status
 
         integer :: left, right
-        real(dp) :: weight, dpsi
+        real(dp) :: weight, dpsi, second_derivative
 
         values = 0.0_dp
         status = GC_EQDSK_NONLOCAL_PROFILE_UNAVAILABLE
         if (.not. potential%initialized) return
-        call locate_monotonic(potential%psi_pol, psi, left, right, weight, status)
+        call locate_monotonic(potential%psi_pol, psi, left, right, weight, &
+            status)
         if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
         dpsi = potential%psi_pol(right) - potential%psi_pol(left)
         if (abs(dpsi) <= tiny(dpsi)) then
             status = GC_EQDSK_NONLOCAL_DERIVATIVE_UNAVAILABLE
             return
         end if
-        values(1) = (1.0_dp - weight)*potential%phi(left) &
-            +weight*potential%phi(right)
-        values(2) = (potential%phi(right) - potential%phi(left))/dpsi
-        if (.not. all(ieee_is_finite(values))) then
+        call evaluate_neort_profile_potential_map(psi, &
+            potential%psi_pol(left), potential%psi_pol(right), &
+            potential%phi(left), potential%omega_e(left), &
+            potential%omega_e(right), potential%c_light, values(1), &
+            values(2), second_derivative)
+        if (.not. all(ieee_is_finite([values, second_derivative]))) then
             values = 0.0_dp
             status = GC_EQDSK_NONLOCAL_NONFINITE
             return

@@ -46,12 +46,19 @@ module neort_gc_outward_interval
     interface operator(**)
         module procedure power_interval_integer
     end interface
+    interface abs
+        module procedure absolute_interval
+    end interface
+    interface sqrt
+        module procedure square_root_interval
+    end interface
 
     public :: gc_outward_interval
     public :: gc_outward_interval_is_valid
     public :: gc_outward_interval_contains_zero
     public :: gc_outward_interval_intersects
     public :: operator(+), operator(-), operator(*), operator(/), operator(**)
+    public :: abs, sqrt
 
 contains
 
@@ -289,6 +296,39 @@ contains
             end do
         end if
     end function power_interval_integer
+
+    pure elemental function absolute_interval(argument) result(value)
+        type(gc_outward_interval_t), intent(in) :: argument
+        type(gc_outward_interval_t) :: value
+
+        if (.not. gc_outward_interval_is_valid(argument)) then
+            value = invalid_interval()
+        else if (argument%lo >= 0.0_dp) then
+            value = argument
+        else if (argument%hi <= 0.0_dp) then
+            value%lo = round_down(-argument%hi)
+            value%hi = round_up(-argument%lo)
+        else
+            value%lo = 0.0_dp
+            value%hi = round_up(max(-argument%lo, argument%hi))
+        end if
+    end function absolute_interval
+
+    pure elemental function square_root_interval(argument) result(value)
+        type(gc_outward_interval_t), intent(in) :: argument
+        type(gc_outward_interval_t) :: value
+
+        if (.not. gc_outward_interval_is_valid(argument) .or. &
+                argument%hi < 0.0_dp) then
+            value = invalid_interval()
+            return
+        end if
+        value%lo = 0.0_dp
+        if (argument%lo > 0.0_dp) then
+            value%lo = round_down(sqrt(argument%lo))
+        end if
+        value%hi = round_up(sqrt(max(0.0_dp, argument%hi)))
+    end function square_root_interval
 
     pure elemental function point_interval(value_in) result(value)
         real(dp), intent(in) :: value_in
