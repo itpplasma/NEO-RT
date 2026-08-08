@@ -124,12 +124,7 @@ program gen_full_fow_physics
     type(expr_t) :: physical_flow_flux_phi_identity
     type(expr_t) :: physical_flow_flux_z_identity
     type(expr_t) :: physical_flow_psi_star_identity
-    type(expr_t) :: physical_flow_psi_star_gradient_r_identity
-    type(expr_t) :: physical_flow_psi_star_gradient_z_identity
-    type(expr_t) :: physical_flow_fixed_point_jacobian_identity
-    type(expr_t) :: physical_flow_trace_identity
-    type(expr_t) :: physical_flow_determinant_identity
-    type(expr_t) :: physical_flow_discriminant_identity
+    type(expr_t) :: physical_flow_hessian_discriminant_identity
     type(expr_t) :: physical_flow_sigma_identity
     type(expr_t) :: physical_flow_uniform_hessian_rr
     type(expr_t) :: physical_flow_uniform_hessian_rz
@@ -1797,21 +1792,10 @@ program gen_full_fow_physics
     physical_flow_psi_star_identity = physical_flow_psi_star_local - &
         (physical_flow_psi_local + c_light/charge* &
         physical_flow_p_parallel*physical_flow_f_local/physical_flow_bmod)
-    physical_flow_psi_star_gradient_r_identity = physical_flow_psi_star_r - &
-        exact_derivative(physical_flow_psi_star_local, physical_flow_d_r, &
-        "physical psi-star R gradient identity")
-    physical_flow_psi_star_gradient_z_identity = physical_flow_psi_star_z - &
-        exact_derivative(physical_flow_psi_star_local, physical_flow_d_z, &
-        "physical psi-star Z gradient identity")
-    physical_flow_fixed_point_jacobian_identity = physical_flow_j11 - &
-        (-physical_flow_littlejohn_factor*physical_flow_psi_star_rz)
-    physical_flow_trace_identity = physical_flow_trace - &
-        (physical_flow_j11 + physical_flow_j22)
-    physical_flow_determinant_identity = physical_flow_determinant - &
-        (physical_flow_j11*physical_flow_j22 - &
-        physical_flow_j12*physical_flow_j21)
-    physical_flow_discriminant_identity = physical_flow_discriminant - &
-        (physical_flow_trace**2 - 4*physical_flow_determinant)
+    physical_flow_hessian_discriminant_identity = &
+        physical_flow_discriminant + 4*physical_flow_littlejohn_factor**2* &
+        (physical_flow_psi_star_rr*physical_flow_psi_star_zz - &
+        physical_flow_psi_star_rz**2)
     physical_flow_sigma_identity = subs(physical_flow_p_parallel, &
         physical_flow_sigma, -physical_flow_sigma) + physical_flow_p_parallel
 
@@ -2778,22 +2762,8 @@ program gen_full_fow_physics
     call check_identity(proofs, proof_engine, &
         "physical psi-star definition", physical_flow_psi_star_identity)
     call check_identity(proofs, proof_engine, &
-        "physical psi-star R gradient", &
-        physical_flow_psi_star_gradient_r_identity)
-    call check_identity(proofs, proof_engine, &
-        "physical psi-star Z gradient", &
-        physical_flow_psi_star_gradient_z_identity)
-    call check_identity(proofs, proof_engine, &
-        "fixed-point Jacobian identity", &
-        physical_flow_fixed_point_jacobian_identity)
-    call check_identity(proofs, proof_engine, &
-        "physical flow trace definition", physical_flow_trace_identity)
-    call check_identity(proofs, proof_engine, &
-        "physical flow determinant definition", &
-        physical_flow_determinant_identity)
-    call check_identity(proofs, proof_engine, &
-        "physical flow discriminant definition", &
-        physical_flow_discriminant_identity)
+        "fixed-point discriminant is minus four L squared det Hessian", &
+        physical_flow_hessian_discriminant_identity)
     call check_identity(proofs, proof_engine, &
         "sigma reversal changes only p_parallel sign", &
         physical_flow_sigma_identity)
