@@ -266,9 +266,12 @@ contains
             return
         end if
         do i = 1, n_candidates
-            if (candidates(i)%interval%psi_hat%lo < &
-                    atlas%requested_psihat_lo-1.0e-12_dp .or. &
-                    candidates(i)%interval%psi_hat%hi > &
+            ! The lower boundary is the magnetic-axis one-sided chart; its
+            ! interval halo may straddle psi=0 and is intersected with the
+            ! certified profile endpoint by the generated profile evaluator.
+            ! The edge has a regular endpoint chart and must be refined until
+            ! its upper enclosure is inside the requested surface.
+            if (candidates(i)%interval%psi_hat%hi > &
                     atlas%requested_psihat_hi+1.0e-12_dp) then
                 write (*, '(a,6(1x,es24.16))') 'runtime enclosure diagnostic=', &
                     candidates(i)%interval%psi_hat%lo, &
