@@ -302,6 +302,16 @@ add_test(NAME test_gc_operational_scalar_roots
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_gc_operational_fixed_points
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_operational_fixed_points.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gc_operational_partner_crossings
+    COMMAND ${CMAKE_BINARY_DIR}/test_gc_operational_partner_crossings.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_gc_cylindrical_orbit
     COMMAND ${CMAKE_BINARY_DIR}/test_gc_cylindrical_orbit.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
