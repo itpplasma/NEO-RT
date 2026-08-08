@@ -3955,7 +3955,7 @@ program gen_full_fow_physics
         "psi_sep", "F", "dF_dpsihat", "d2F_dpsihat2", "Phi", &
         "dPhi_dpsi", "d2Phi_dpsi2"], physical_flow_roots, &
         [character(len=64) :: "J_11", "J_12", "J_21", "J_22", "trace", &
-        "determinant", "discriminant"], line_limit=88)
+        "determinant", "discriminant"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_gc_cut_topology_partner_symbolic.f90", &
         "neort_gc_cut_topology_partner_symbolic", &
