@@ -7,9 +7,10 @@ module neort_gc_eqdsk_nonlocal_transport
     !! generic fixed-(H0,Jperp) cylindrical transport provider; it does not
     !! manufacture a field, a potential, a perturbation, or a frequency.
     !!
-    !! The class coordinate is an axis-safe monotone arclength/Rc parameter
-    !! on the complete certified Eq. 13 cut atlas.  No outboard-only branch
-    !! or flux-coordinate hole is a valid production chart.
+    !! The class coordinate is physical cylindrical R on the complete
+    !! certified Eq. 13 cut from its HFS endpoint to its LFS endpoint.  No
+    !! outboard-only branch or flux-coordinate hole is a valid production
+    !! chart.
     !!
     !!     (grad B cross grad psi) dot grad phi = 0.
     !!
@@ -37,7 +38,8 @@ module neort_gc_eqdsk_nonlocal_transport
     use geoflux_coordinates, only: geoflux_get_axis, &
         geoflux_get_flux_profiles
     use neort_gc_cylindrical_class_adapter, only: &
-        GC_CYL_CLASS_SPLITTER_FAILURE, GC_CYL_CLASS_SUCCESS, &
+        GC_CYL_CLASS_CUT_ERROR, GC_CYL_CLASS_SPLITTER_FAILURE, &
+        GC_CYL_CLASS_SUCCESS, &
         gc_cylindrical_class_adapter_t, &
         gc_cylindrical_class_interval_t, gc_cylindrical_class_options_t, &
         gc_cylindrical_class_launch_t, gc_cylindrical_class_point_t, &
@@ -89,7 +91,8 @@ module neort_gc_eqdsk_nonlocal_transport
         EQDSK_COMPOSITE_ATLAS_SUCCESS, EQDSK_COMPOSITE_CUT_INBOARD, &
         EQDSK_COMPOSITE_CUT_OUTBOARD, build_eqdsk_composite_cut_atlas, &
         eqdsk_composite_cut_atlas_options_t, &
-        eqdsk_composite_cut_atlas_t, &
+        eqdsk_composite_cut_atlas_t, get_eqdsk_composite_cut_radius_bounds, &
+        map_eqdsk_composite_cut_atlas_radius, &
         map_eqdsk_composite_cut_atlas_rho
     use neort_gc_eqdsk_cut_endpoint_certificate, only: &
         EQDSK_ENDPOINT_CERT_SUCCESS, build_eqdsk_cut_endpoint_certificate, &
@@ -2003,10 +2006,20 @@ contains
         type(gc_cylindrical_class_adapter_t), intent(out) :: adapter
         integer, intent(out) :: status
 
+        real(dp) :: radius_lo, radius_hi
+        integer :: local_status
+
+        adapter = gc_cylindrical_class_adapter_t()
+        call get_eqdsk_composite_cut_radius_bounds( &
+            factory%certified_cut_atlas, radius_lo, radius_hi, local_status)
+        if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) then
+            status = GC_CYL_CLASS_CUT_ERROR
+            return
+        end if
         call initialize_gc_cylindrical_class_adapter(factory%field, &
             factory%potential, h0, jperp, factory%species%mass_g, &
-            factory%species%charge_esu, c, factory%options%surface_min, &
-            factory%options%surface_max, physical_cut_map_callback, adapter, &
+            factory%species%charge_esu, c, radius_lo, radius_hi, &
+            physical_class_cut_map_callback, adapter, &
             status, options=factory%options%class_options, &
             splitter=certified_splitter_callback, user_data=factory)
     end subroutine initialize_factory_class_adapter
@@ -2422,25 +2435,30 @@ contains
         end select
     end subroutine factory_force_provider
 
-    subroutine physical_cut_map_callback(rc, user_data, position, dposition_drc, &
-            status)
-        real(dp), intent(in) :: rc
+    subroutine physical_class_cut_map_callback(radius, user_data, position, &
+            dposition_dradius, status)
+        real(dp), intent(in) :: radius
         class(gc_callback_context_t), pointer, intent(inout) :: user_data
-        real(dp), intent(out) :: position(3), dposition_drc(3)
+        real(dp), intent(out) :: position(3), dposition_dradius(3)
         integer, intent(out) :: status
 
+        integer :: local_status
+
         position = 0.0_dp
-        dposition_drc = 0.0_dp
-        status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
+        dposition_dradius = 0.0_dp
+        status = GC_CYL_EQUILIBRIUM_DOMAIN
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
-            call physical_cut_map(factory, rc, position, dposition_drc, status)
-            if (status /= GC_EQDSK_NONLOCAL_SUCCESS) status = GC_CYL_SUCCESS + 4
+            call map_eqdsk_composite_cut_atlas_radius( &
+                factory%certified_cut_atlas, radius, position, &
+                dposition_dradius, local_status)
+            if (local_status /= EQDSK_COMPOSITE_ATLAS_SUCCESS) return
+            status = GC_CYL_SUCCESS
         class default
-            status = GC_CYL_SUCCESS + 4
+            status = GC_CYL_EQUILIBRIUM_DOMAIN
         end select
-    end subroutine physical_cut_map_callback
+    end subroutine physical_class_cut_map_callback
 
     subroutine certified_splitter_callback(h0, jperp, sigma, candidate, user_data, &
             split_classes, certified, status)
