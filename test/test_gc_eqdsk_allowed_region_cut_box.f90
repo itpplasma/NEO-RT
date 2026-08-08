@@ -5,7 +5,7 @@ program test_gc_eqdsk_allowed_region_cut_box
         evaluate_neort_eqdsk_physical_flux_map
     use neort_gc_eqdsk_allowed_region_cut_box, only: &
         EQDSK_CUT_BOX_INVALID_ATLAS, EQDSK_CUT_BOX_INVALID_PROFILE, &
-        EQDSK_CUT_BOX_NOT_MONOTONE, EQDSK_CUT_BOX_OUT_OF_RANGE, &
+        EQDSK_CUT_BOX_OUT_OF_RANGE, &
         EQDSK_CUT_BOX_SUCCESS, &
         eqdsk_allowed_region_cut_provenance_t, &
         eqdsk_potential_profile_nodes_t, &
@@ -27,14 +27,16 @@ program test_gc_eqdsk_allowed_region_cut_box
     implicit none
 
     type(eqdsk_cylindrical_field_t) :: field
-    type(eqdsk_cut_graph_atlas_t) :: atlas, inboard_atlas, mutated_atlas
+    type(eqdsk_cut_graph_atlas_t) :: atlas, axis_atlas, inboard_atlas
+    type(eqdsk_cut_graph_atlas_t) :: mutated_atlas
     type(eqdsk_cut_graph_atlas_options_t) :: options
     type(eqdsk_potential_profile_nodes_t) :: profile, bad_profile
     type(eqdsk_allowed_interval_result_t) :: result
     type(eqdsk_allowed_region_cut_provenance_t) :: provenance
     type(gc_outward_interval_t) :: query
     character(len=1024) :: path
-    real(dp) :: axis_R, outboard_lo, outboard_hi, inboard_lo, inboard_hi
+    real(dp) :: axis_R, axis_lo, axis_hi
+    real(dp) :: outboard_lo, outboard_hi, inboard_lo, inboard_hi
     real(dp) :: radius, position(3), tangent(3), scalar_psi
     real(dp) :: scalar_dpsi, query_width, inboard_radius
     real(dp) :: outboard_position(3), inboard_position(3)
@@ -70,6 +72,8 @@ program test_gc_eqdsk_allowed_region_cut_box
     inboard_lo = field%domain_R_min+0.10_dp*( &
         field%domain_R_max-field%domain_R_min)
     inboard_hi = axis_R-0.10_dp*(field%domain_R_max-axis_R)
+    axis_lo = axis_R-0.025_dp*(field%domain_R_max-field%domain_R_min)
+    axis_hi = axis_R+0.025_dp*(field%domain_R_max-field%domain_R_min)
     call build_eqdsk_cut_graph_atlas(atlas, outboard_lo, outboard_hi, &
         -10.0_dp, 10.0_dp, 0.0_dp, 1.0_dp, options, status)
     call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
@@ -191,6 +195,27 @@ program test_gc_eqdsk_allowed_region_cut_box
     call require(result%dpsi_physical_dR%hi < 0.0_dp, &
         'inboard physical flux derivative lost its orientation')
 
+    call build_eqdsk_cut_graph_atlas(axis_atlas, axis_lo, axis_hi, &
+        -10.0_dp, 10.0_dp, 0.0_dp, 1.0_dp, options, status)
+    call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
+        'axis graph atlas was not certified')
+    call require(.not. axis_atlas%flux_monotonicity_certified .and. &
+        axis_atlas%flux_monotonicity_sign == 0, &
+        'axis fixture unexpectedly has a monotone flux orientation')
+    call evaluate_eqdsk_allowed_region_cut_box(axis_atlas, &
+        gc_outward_interval(axis_lo, axis_hi), 1.0_dp, psi_sep, profile, &
+        1.0e6_dp, 0.0_dp, 2.0_dp, -1.0_dp, 1.0_dp, 1, result, &
+        provenance, status)
+    call require(status == EQDSK_CUT_BOX_SUCCESS, &
+        'certified axis-crossing cut-box evaluation failed')
+    call require(provenance%certified, &
+        'axis-crossing cut-box result was not retained')
+    call require(provenance%graph_flux_orientation_sign == 0, &
+        'axis-changing flux orientation was not recorded explicitly')
+    call require(result%dpsi_physical_dR%lo < 0.0_dp .and. &
+        result%dpsi_physical_dR%hi > 0.0_dp, &
+        'axis cut box excluded one physical flux-derivative sign')
+
     ! Independent circular oracle: the Eq.13 cut is the midplane on both
     ! branches, and reflection around the magnetic axis reverses only the
     ! R-orientation of the monotone flux coordinate.
@@ -217,15 +242,6 @@ program test_gc_eqdsk_allowed_region_cut_box
             1.0e-8_dp*max(1.0_dp, abs(outboard_dpsihat)), &
             'circular reflection did not reverse flux orientation')
     end do
-
-    mutated_atlas = atlas
-    mutated_atlas%flux_monotonicity_certified = .false.
-    mutated_atlas%flux_monotonicity_sign = 0
-    call evaluate_eqdsk_allowed_region_cut_box(mutated_atlas, query, 1.0_dp, &
-        psi_sep, profile, 1.0e6_dp, 0.0_dp, 2.0_dp, -1.0_dp, 1.0_dp, 1, &
-        result, provenance, status)
-    call require(status == EQDSK_CUT_BOX_NOT_MONOTONE, &
-        'uncertified monotonicity was accepted')
 
     bad_profile = profile
     bad_profile%psi(2) = bad_profile%psi(1)

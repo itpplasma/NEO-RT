@@ -1,5 +1,5 @@
 module neort_gc_eqdsk_allowed_region_cut_box
-    !! Certified runtime orchestration for one monotone physical-R graph box.
+    !! Certified runtime orchestration for one physical-R graph box.
     !!
     !! This module owns no magnetic, electric, energy, or canonical formula.
     !! It validates source certificates and explicit profile-node structure,
@@ -182,26 +182,11 @@ contains
             status = EQDSK_CUT_BOX_INVALID_ATLAS
             return
         end if
-        if (.not. atlas%flux_monotonicity_certified) then
-            status = EQDSK_CUT_BOX_NOT_MONOTONE
-            return
-        end if
-        if (abs(atlas%flux_monotonicity_sign) /= 1) then
-            status = EQDSK_CUT_BOX_NOT_MONOTONE
-            return
-        end if
-        do i = 1, size(atlas%strips)
-            if (atlas%flux_monotonicity_sign > 0 .and. &
-                    atlas%strips(i)%dpsihat_dR_lo <= 0.0_dp) then
-                status = EQDSK_CUT_BOX_NOT_MONOTONE
-                return
-            end if
-            if (atlas%flux_monotonicity_sign < 0 .and. &
-                    atlas%strips(i)%dpsihat_dR_hi >= 0.0_dp) then
-                status = EQDSK_CUT_BOX_NOT_MONOTONE
-                return
-            end if
-        end do
+        ! Allowed energy and canonical momentum are evaluated in physical R.
+        ! They do not invert the flux coordinate, so the complete axis graph
+        ! (where d psi/dR changes sign) is a valid source box as well.  Retain
+        ! the graph orientation as provenance when one exists, but do not make
+        ! flux monotonicity an unstated physics precondition.
         if (radius%lo < atlas%requested_r_lo .or. &
                 radius%hi > atlas%requested_r_hi) then
             status = EQDSK_CUT_BOX_OUT_OF_RANGE
