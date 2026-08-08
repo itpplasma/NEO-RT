@@ -93,6 +93,7 @@ contains
 
         real(dp) :: bmod, bparallel_star, p_parallel, energy_margin
         real(dp) :: p_parallel_squared
+        real(dp) :: energy_scale
         real(dp) :: j11, j12, j21, j22, trace, determinant, discriminant
 
         result = gc_axisymmetric_physical_flow_result_t()
@@ -134,7 +135,11 @@ contains
             result%status = status
             return
         end if
-        if (energy_margin <= 0.0_dp .or. p_parallel_squared <= 0.0_dp) then
+        energy_scale = max(1.0_dp, abs(input%h0), &
+            abs(input%charge*input%phi), abs(input%h0-energy_margin))
+        if (energy_margin <= 64.0_dp*epsilon(1.0_dp)*energy_scale .or. &
+                p_parallel_squared <= 64.0_dp*epsilon(1.0_dp)* &
+                input%mass*energy_scale) then
             status = GC_PHYSICAL_FLOW_TURNING
             result%status = status
             return
