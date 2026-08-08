@@ -28,3 +28,8 @@ main = "gen_potato_kernels.f90"
 name = "gen_full_fow_physics"
 source-dir = "app"
 main = "gen_full_fow_physics.f90"
+
+[[executable]]
+name = "gen_circular_flux_continuation"
+source-dir = "app"
+main = "gen_circular_flux_continuation.f90"
