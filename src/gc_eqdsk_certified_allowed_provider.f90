@@ -77,8 +77,8 @@ module neort_gc_eqdsk_certified_allowed_provider
         integer :: measure_max_depth = 20
         !! Zero means that no generated fixed-(H0,J_K) stationary
         !! certificate is available.  A nonzero value is accepted only when
-        !! it is the existing generated energy-jet ID and the point query
-        !! below closes exact f=f'=0 evidence.
+        !! it is the distinct registered stationary-kernel ID and the point
+        !! query below closes exact f=f'=0 evidence.
         integer :: stationary_certificate_id = 0
         procedure(gc_eqdsk_stationary_root_certificate_i), pointer, nopass :: &
             stationary_root_certificate => null()
