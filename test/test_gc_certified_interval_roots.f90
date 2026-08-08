@@ -255,8 +255,12 @@ contains
         value%stationary_certificate_id = 404
         value%stationary_point = tangent_root
         value%f = manufactured_square_interval(lo, hi, tangent_root)
-        value%df = gc_interval_t(down(2.0_dp*(lo - tangent_root)), &
-            up(2.0_dp*(hi - tangent_root)))
+        if (lo == hi) then
+            value%df = point_interval(2.0_dp*(lo - tangent_root))
+        else
+            value%df = gc_interval_t(down(2.0_dp*(lo - tangent_root)), &
+                up(2.0_dp*(hi - tangent_root)))
+        end if
         value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
     end subroutine manufactured_tangent_callback
 
@@ -274,8 +278,12 @@ contains
             value%stationary_certificate_id /= 404 .or. &
             value%stationary_point /= tangent_root) return
         expected%f = manufactured_square_interval(lo, hi, tangent_root)
-        expected%df = gc_interval_t(down(2.0_dp*(lo - tangent_root)), &
-            up(2.0_dp*(hi - tangent_root)))
+        if (lo == hi) then
+            expected%df = point_interval(2.0_dp*(lo - tangent_root))
+        else
+            expected%df = gc_interval_t(down(2.0_dp*(lo - tangent_root)), &
+                up(2.0_dp*(hi - tangent_root)))
+        end if
         expected%d2f = gc_interval_t(2.0_dp, 2.0_dp)
         if (.not. contains_oracle_interval(value%f, expected%f) .or. &
             .not. contains_oracle_interval(value%df, expected%df) .or. &
