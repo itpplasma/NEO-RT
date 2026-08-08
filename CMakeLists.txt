@@ -194,6 +194,7 @@ set(NEO_RT_SOURCES
     src/gc_eqdsk_cut_endpoint_certificate.f90
     src/gc_eqdsk_axis_certificate.f90
     src/gc_eqdsk_cut_graph_atlas.f90
+    src/gc_eqdsk_composite_cut_atlas.f90
     src/gc_eqdsk_flux_profile_map.f90
     src/gc_frequency_provider.f90
     src/gc_full_resonance.f90
