@@ -90,7 +90,8 @@ program gen_full_fow_physics
     type(expr_t) :: cut_topology_j21, cut_topology_j22
     type(expr_t) :: cut_topology_trace, cut_topology_determinant
     type(expr_t) :: cut_topology_discriminant
-    type(expr_t) :: physical_flow_roots(7)
+    type(expr_t) :: physical_flow_domain_roots(3)
+    type(expr_t) :: physical_flow_roots(10)
     type(expr_t) :: physical_flow_d_r, physical_flow_d_z
     type(expr_t) :: physical_flow_radius, physical_flow_r_local
     type(expr_t) :: physical_flow_psi, physical_flow_f, physical_flow_phi
@@ -108,6 +109,8 @@ program gen_full_fow_physics
     type(expr_t) :: physical_flow_curl(3), physical_flow_bmod
     type(expr_t) :: physical_flow_h0, physical_flow_jk, physical_flow_sigma
     type(expr_t) :: physical_flow_mu, physical_flow_p_parallel
+    type(expr_t) :: physical_flow_energy_margin
+    type(expr_t) :: physical_flow_p_parallel_squared
     type(expr_t) :: physical_flow_psi_star_local
     type(expr_t) :: physical_flow_psi_star_r, physical_flow_psi_star_z
     type(expr_t) :: physical_flow_psi_star_rr
@@ -1732,9 +1735,11 @@ program gen_full_fow_physics
     physical_flow_curl(3) = exact_derivative(physical_flow_bhat(2), &
         physical_flow_d_r, "axisymmetric curl bhat Z") + &
         physical_flow_bhat(2)/physical_flow_r_local
-    physical_flow_p_parallel = physical_flow_sigma*sqrt(2*mass* &
-        (physical_flow_h0-physical_flow_mu*physical_flow_bmod- &
-        charge*physical_flow_phi_local))
+    physical_flow_energy_margin = physical_flow_h0 - &
+        physical_flow_mu*physical_flow_bmod - charge*physical_flow_phi_local
+    physical_flow_p_parallel_squared = 2*mass*physical_flow_energy_margin
+    physical_flow_p_parallel = physical_flow_sigma* &
+        sqrt(physical_flow_p_parallel_squared)
     physical_flow_psi_star_local = physical_flow_psi_local + c_light/charge* &
         physical_flow_p_parallel*physical_flow_f_local/physical_flow_bmod
     physical_flow_bparallel_star = instantiate_physical_bparallel(bparallel_star)
@@ -3716,10 +3721,23 @@ program gen_full_fow_physics
         cut_topology_determinant, cut_topology_discriminant]
     cut_topology_partner_roots = [cut_topology_partner_residual, &
         cut_topology_partner_derivative]
+    physical_flow_domain_roots = [ &
+        subs(subs(physical_flow_bmod, physical_flow_d_r, zero), &
+            physical_flow_d_z, zero), &
+        subs(subs(physical_flow_energy_margin, physical_flow_d_r, zero), &
+            physical_flow_d_z, zero), &
+        subs(subs(physical_flow_p_parallel_squared, physical_flow_d_r, zero), &
+            physical_flow_d_z, zero)]
     physical_flow_roots = [physical_flow_j11, physical_flow_j12, &
         physical_flow_j21, physical_flow_j22, physical_flow_trace, &
         physical_flow_determinant, &
-        physical_flow_discriminant]
+        physical_flow_discriminant, &
+        subs(subs(physical_flow_bmod, physical_flow_d_r, zero), &
+            physical_flow_d_z, zero), &
+        subs(subs(physical_flow_p_parallel, physical_flow_d_r, zero), &
+            physical_flow_d_z, zero), &
+        subs(subs(physical_flow_bparallel_star, physical_flow_d_r, zero), &
+            physical_flow_d_z, zero)]
 
     call simplify_array(eqdsk_cut_z_chart_roots)
     call simplify_array(eqdsk_cut_r_flux_chart_roots)
@@ -3771,6 +3789,7 @@ program gen_full_fow_physics
     call simplify_array(cut_topology_flow_roots)
     call simplify_array(cut_topology_jacobian_roots)
     call simplify_array(cut_topology_partner_roots)
+    call simplify_array(physical_flow_domain_roots)
     call simplify_array(physical_flow_roots)
 
     action_roots = roots(1:11)
@@ -3780,6 +3799,14 @@ program gen_full_fow_physics
     cylindrical_roots = roots(23:44)
     noether_roots = roots(45:48)
 
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_gc_axisymmetric_physical_flow_domain_symbolic.f90", &
+        "neort_gc_axisymmetric_physical_flow_domain_symbolic", &
+        "evaluate_neort_gc_axisymmetric_physical_flow_domain", &
+        [character(len=64) :: "mass", "charge", "c_light", "R", "H0", &
+        "J_K", "psi", "psi_R", "psi_Z", "psi_sep", "F", "Phi"], &
+        physical_flow_domain_roots, [character(len=64) :: "bmod", &
+        "energy_margin", "p_parallel_squared"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_full_fow_action_symbolic.f90", &
         "neort_full_fow_action_symbolic", "evaluate_neort_action_normalization", &
@@ -3955,7 +3982,8 @@ program gen_full_fow_physics
         "psi_sep", "F", "dF_dpsihat", "d2F_dpsihat2", "Phi", &
         "dPhi_dpsi", "d2Phi_dpsi2"], physical_flow_roots, &
         [character(len=64) :: "J_11", "J_12", "J_21", "J_22", "trace", &
-        "determinant", "discriminant"])
+        "determinant", "discriminant", "bmod", "p_parallel", &
+        "bparallel_star"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_gc_cut_topology_partner_symbolic.f90", &
         "neort_gc_cut_topology_partner_symbolic", &
