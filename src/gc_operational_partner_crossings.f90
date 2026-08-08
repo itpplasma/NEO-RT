@@ -75,7 +75,7 @@ contains
         type(gc_operational_partner_pair_t), allocatable :: pairs(:)
         type(gc_operational_separatrix_boundary_t), allocatable :: boundaries(:)
         real(dp) :: exclusion, level_tolerance, separation_tolerance
-        real(dp) :: target_x, target_level
+        real(dp) :: target_x, target_level, active_target_level
         integer :: i, j, pair_count, boundary_count, regular_count
         integer :: actual_x_count
         integer :: local_status
@@ -202,6 +202,7 @@ contains
 
             status = GC_PARTNER_SUCCESS
             if (segment_hi <= segment_lo) return
+            active_target_level = target
             call find_gc_operational_scalar_roots(partner_residual, segment_lo, &
                 segment_hi, options%root, roots)
             if (roots%status /= GC_OPERATIONAL_ROOT_SUCCESS .or. &
@@ -237,22 +238,19 @@ contains
                 if (status /= GC_PARTNER_SUCCESS) return
                 count = count+1
             end do
-
-        contains
-
-            subroutine partner_residual(x, value, derivative, callback_status)
-                real(dp), intent(in) :: x
-                real(dp), intent(out) :: value, derivative
-                integer, intent(out) :: callback_status
-                real(dp) :: canonical_momentum, second_derivative
-
-                call evaluate_canonical(x, canonical_momentum, derivative, &
-                    second_derivative, callback_status)
-                if (callback_status /= 0) return
-                value = canonical_momentum-target
-            end subroutine partner_residual
-
         end subroutine search_segment
+
+        subroutine partner_residual(x, value, derivative, callback_status)
+            real(dp), intent(in) :: x
+            real(dp), intent(out) :: value, derivative
+            integer, intent(out) :: callback_status
+            real(dp) :: canonical_momentum, second_derivative
+
+            call evaluate_canonical(x, canonical_momentum, derivative, &
+                second_derivative, callback_status)
+            if (callback_status /= 0) return
+            value = canonical_momentum-active_target_level
+        end subroutine partner_residual
 
     end subroutine find_gc_operational_partner_crossings
 
