@@ -30,7 +30,7 @@ module neort_gc_eqdsk_flux_profile_map
     integer, parameter, public :: EQDSK_FLUX_MAP_UNINITIALIZED = 5
     integer, parameter, public :: EQDSK_FLUX_MAP_OUT_OF_RANGE = 6
     integer, parameter, public :: EQDSK_FLUX_MAP_INVALID_CERTIFICATE = 7
-    integer, parameter, public :: EQDSK_FLUX_MAP_CERTIFICATE_ID = 130015
+    integer, parameter, public :: EQDSK_FLUX_MAP_CERTIFICATE_ID = 130017
 
     type, public :: eqdsk_flux_profile_map_t
         real(dp), allocatable :: s_tor(:)

@@ -3,11 +3,14 @@ program test_gc_eqdsk_flux_profile_map
     use neort_gc_eqdsk_flux_profile_map, only: &
         EQDSK_FLUX_MAP_ENDPOINT_MISMATCH, EQDSK_FLUX_MAP_NOT_MONOTONE, &
         EQDSK_FLUX_MAP_OUT_OF_RANGE, EQDSK_FLUX_MAP_SUCCESS, &
+        EQDSK_FLUX_MAP_CERTIFICATE_ID, &
         eqdsk_flux_profile_map_t, initialize_eqdsk_flux_profile_map, &
         map_eqdsk_psihat_interval_to_s_tor, map_eqdsk_psihat_to_s_tor, &
         map_eqdsk_rho_tor_to_psihat, map_eqdsk_s_tor_to_psihat, &
         map_eqdsk_scaled_psi_to_s_tor, &
         validate_eqdsk_flux_profile_map
+    use neort_gc_eqdsk_cut_endpoint_certificate, only: &
+        EQDSK_ENDPOINT_CERTIFICATE_ID
     use neort_gc_outward_interval, only: gc_outward_interval, &
         gc_outward_interval_t
     implicit none
@@ -28,6 +31,11 @@ program test_gc_eqdsk_flux_profile_map
     call validate_eqdsk_flux_profile_map(map, status)
     call require(status == EQDSK_FLUX_MAP_SUCCESS, &
         'fresh flux-map certificate failed validation')
+    call require(EQDSK_FLUX_MAP_CERTIFICATE_ID /= &
+        EQDSK_ENDPOINT_CERTIFICATE_ID, &
+        'flux-map and endpoint certificate IDs collide')
+    call require(map%certificate_id == EQDSK_FLUX_MAP_CERTIFICATE_ID, &
+        'flux-map certificate used the wrong named ID')
     call require_close(map%minimum_dpsihat_dstor, 0.4_dp, &
         'certified minimum profile slope')
 

@@ -5,6 +5,7 @@ program test_gc_eqdsk_cut_endpoint_certificate
         eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
     use neort_gc_eqdsk_cut_endpoint_certificate, only: &
         EQDSK_ENDPOINT_CERT_AXIS_REQUIRES_LIMIT, &
+        EQDSK_ENDPOINT_CERTIFICATE_ID, &
         EQDSK_ENDPOINT_CERT_SUCCESS, build_eqdsk_cut_endpoint_certificate, &
         eqdsk_cut_endpoint_certificate_t, eqdsk_cut_endpoint_options_t, &
         validate_eqdsk_cut_endpoint_certificate
@@ -14,6 +15,7 @@ program test_gc_eqdsk_cut_endpoint_certificate
         map_eqdsk_cut_graph_atlas, map_eqdsk_cut_graph_atlas_flux
     use neort_gc_eqdsk_cut_jet, only: EQDSK_CUT_JET_SUCCESS, &
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
+    use neort_gc_eqdsk_flux_profile_map, only: EQDSK_FLUX_MAP_CERTIFICATE_ID
     implicit none
 
     type(eqdsk_cylindrical_field_t) :: field
@@ -76,6 +78,11 @@ program test_gc_eqdsk_cut_endpoint_certificate
     call validate_eqdsk_cut_endpoint_certificate(certificate, status)
     call require(status == EQDSK_ENDPOINT_CERT_SUCCESS, &
         'fresh endpoint certificate failed validation')
+    call require(EQDSK_ENDPOINT_CERTIFICATE_ID /= &
+        EQDSK_FLUX_MAP_CERTIFICATE_ID, &
+        'endpoint and flux-map certificate IDs collide')
+    call require(certificate%certificate_id == EQDSK_ENDPOINT_CERTIFICATE_ID, &
+        'endpoint certificate used the wrong named ID')
 
     call evaluate_eqdsk_cut_jet([certificate%newton_point_R, &
         certificate%newton_point_Z, 0.0_dp], 1.0_dp, 1, &
