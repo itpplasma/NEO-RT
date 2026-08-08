@@ -177,6 +177,7 @@ program gen_full_fow_physics
     type(expr_t) :: profile_potential_map_roots(3)
     type(expr_t) :: eqdsk_flux_profile_segment_roots(3)
     type(expr_t) :: eqdsk_scaled_flux_normalization_roots(1)
+    type(expr_t) :: eqdsk_physical_flux_map_roots(2)
     type(expr_t) :: eqdsk_allowed_energy_roots(17)
     type(expr_t) :: eqdsk_canonical_cut_roots(4)
     type(expr_t) :: eqdsk_turning_chart_roots(5)
@@ -246,6 +247,9 @@ program gen_full_fow_physics
     type(expr_t) :: flux_segment_inverse_forward_residual
     type(expr_t) :: scaled_flux_value, scaled_flux_psihat
     type(expr_t) :: scaled_flux_round_trip_residual
+    type(expr_t) :: physical_flux_raw_psi, physical_flux_raw_dpsi_dr
+    type(expr_t) :: physical_flux_field_scale, physical_flux_psi
+    type(expr_t) :: physical_flux_dpsi_dr
     type(expr_t) :: allowed_field_scale, allowed_dz_dr, allowed_d2z_dr2
     type(expr_t) :: allowed_equilibrium_psi_physical
     type(expr_t) :: allowed_equilibrium_dpsi_physical_dr
@@ -1789,6 +1793,12 @@ program gen_full_fow_physics
         /(flux_segment_field_scale*flux_segment_psi_sep)
     scaled_flux_round_trip_residual = scaled_flux_psihat &
         *flux_segment_field_scale*flux_segment_psi_sep-scaled_flux_value
+    physical_flux_raw_psi = sym(arena, "psi")
+    physical_flux_raw_dpsi_dr = sym(arena, "dpsi_dR")
+    physical_flux_field_scale = sym(arena, "field_scale")
+    physical_flux_psi = physical_flux_field_scale*physical_flux_raw_psi
+    physical_flux_dpsi_dr = physical_flux_field_scale* &
+        physical_flux_raw_dpsi_dr
 
     ! Physical B, allowed energy, and their derivatives on the regular R
     ! chart of the Eq. 13 cut.  Raw EQDSK psi derivatives and F enter here;
@@ -2473,6 +2483,13 @@ program gen_full_fow_physics
         "scaled equilibrium flux normalization round trip", &
         scaled_flux_round_trip_residual)
     call check_identity(proofs, proof_engine, &
+        "physical equilibrium flux applies field scale exactly once", &
+        physical_flux_psi/physical_flux_field_scale-physical_flux_raw_psi)
+    call check_identity(proofs, proof_engine, &
+        "physical equilibrium flux derivative applies the same scale", &
+        physical_flux_dpsi_dr/physical_flux_field_scale - &
+        physical_flux_raw_dpsi_dr)
+    call check_identity(proofs, proof_engine, &
         "Eq13 path field magnitude value", &
         subs(allowed_bmod_local, allowed_x, zero)-allowed_bmod)
     call check_identity(proofs, proof_engine, &
@@ -2579,6 +2596,8 @@ program gen_full_fow_physics
     eqdsk_flux_profile_segment_roots = [flux_segment_psihat, &
         flux_segment_dpsihat_dstor, flux_segment_inverse_s]
     eqdsk_scaled_flux_normalization_roots = [scaled_flux_psihat]
+    eqdsk_physical_flux_map_roots = [physical_flux_psi, &
+        physical_flux_dpsi_dr]
     eqdsk_allowed_energy_roots = [allowed_g, &
         allowed_equilibrium_psi_physical, &
         allowed_equilibrium_dpsi_physical_dr, allowed_bmod, &
@@ -2707,6 +2726,7 @@ program gen_full_fow_physics
     call simplify_array(profile_potential_roots)
     call simplify_array(profile_potential_map_roots)
     call simplify_array(eqdsk_flux_profile_segment_roots)
+    call simplify_array(eqdsk_physical_flux_map_roots)
     call simplify_array(eqdsk_allowed_energy_roots)
     call simplify_array(eqdsk_canonical_cut_roots)
     call simplify_array(eqdsk_turning_chart_roots)
@@ -3193,6 +3213,21 @@ program gen_full_fow_physics
         [character(len=64) :: "scaled_psi", "field_scale", "psi_sep"], &
         eqdsk_scaled_flux_normalization_roots, &
         [character(len=64) :: "psihat"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_physical_flux_map_symbolic.f90", &
+        "neort_eqdsk_physical_flux_map_symbolic", &
+        "evaluate_neort_eqdsk_physical_flux_map", &
+        [character(len=64) :: "psi", "dpsi_dR", "field_scale"], &
+        eqdsk_physical_flux_map_roots, &
+        [character(len=64) :: "psi_physical", "dpsi_physical_dR"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_eqdsk_physical_flux_map_interval_symbolic.f90", &
+        "neort_eqdsk_physical_flux_map_interval_symbolic", &
+        "evaluate_neort_eqdsk_physical_flux_map_interval", &
+        [character(len=64) :: "psi", "dpsi_dR", "field_scale"], &
+        eqdsk_physical_flux_map_roots, &
+        [character(len=64) :: "psi_physical", "dpsi_physical_dR"], &
+        interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_quintic_cell_jet_symbolic.f90", &
         "neort_eqdsk_quintic_cell_jet_symbolic", &
@@ -3697,7 +3732,7 @@ contains
         write (unit, "(a)") "        'fortsym@545788453a204d58705f735b519c3863c2f734c8'"
         write (unit, "(a)") "    character(*), parameter :: regenerate_command = &"
         write (unit, "(a)") "        'cd tools/gc_symbolics && fo exec gen_full_fow_physics ../../src/generated'"
-        write (unit, "(a)") "    integer, parameter :: certificate_count = 40"
+        write (unit, "(a)") "    integer, parameter :: certificate_count = 41"
         write (unit, "(a)") "    character(len=32), parameter :: certificate_id(certificate_count) = &"
         write (unit, "(a)") "        [character(len=32) :: 'geometry', 'littlejohn', 'eq13_cdot', 'boundary_limits', &"
         write (unit, "(a)") "        'root_enclosures', 'interpolation', 'profile_endpoints', &"
@@ -3726,7 +3761,8 @@ contains
         write (unit, "(a)") "        'profile_potential_map', &"
         write (unit, "(a)") "        'eqdsk_allowed_energy', &"
         write (unit, "(a)") "        'eqdsk_canonical_cut', &"
-        write (unit, "(a)") "        'eqdsk_turning_chart' ]"
+        write (unit, "(a)") "        'eqdsk_turning_chart', &"
+        write (unit, "(a)") "        'eqdsk_physical_flux_map' ]"
         write (unit, "(a)") "    character(len=64), parameter :: certificate_fingerprint(certificate_count) = &"
         write (unit, "(a)") "        [character(len=64) :: 'neort-cert-v1:geometry:19:fortsym-5457884', &"
         write (unit, "(a)") "        'neort-cert-v1:littlejohn:22:fortsym-5457884', &"
@@ -3773,7 +3809,9 @@ contains
         write (unit, "(a)") &
             "        'neort-cert-v1:eqdsk_canonical_cut:4:fortsym-5457884', &"
         write (unit, "(a)") &
-            "        'neort-cert-v1:eqdsk_turning_chart:5:fortsym-5457884' ]"
+            "        'neort-cert-v1:eqdsk_turning_chart:5:fortsym-5457884', &"
+        write (unit, "(a)") &
+            "        'neort-cert-v1:eqdsk_physical_flux_map:2:fortsym-5457884' ]"
         write (unit, "(a)") "    ! Fingerprints are provenance/arity manifests, not algebraic proofs."
         write (unit, "(a)") "    ! Root multiplicity and crossing counts require interval/theorem gates."
         write (unit, "(a)") "contains"
