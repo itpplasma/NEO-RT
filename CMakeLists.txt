@@ -166,6 +166,8 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_flux_profile_rho_chain_symbolic.f90
     src/generated/neort_eqdsk_cut_flux_coordinate_symbolic.f90
     src/generated/neort_eqdsk_cut_axis_rho_limit_symbolic.f90
+    src/generated/neort_circular_flux_continuation_symbolic.f90
+    src/generated/neort_circular_flux_continuation_limit_symbolic.f90
     src/generated/neort_eqdsk_cut_endpoint_system_symbolic.f90
     src/generated/neort_eqdsk_cut_endpoint_system_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_endpoint_newton_symbolic.f90
@@ -243,6 +245,12 @@ add_custom_target(check_neort_full_fow_generated
         -P ${CMAKE_SOURCE_DIR}/tools/gc_symbolics/check_full_fow_generated.cmake
     USES_TERMINAL
     COMMENT "Regenerating and comparing Fortsym full-FOW kernels")
+
+add_custom_target(check_neort_circular_flux_continuation_generated
+    COMMAND ${CMAKE_COMMAND} -DNEORT_SOURCE_DIR=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_SOURCE_DIR}/tools/gc_symbolics/check_circular_flux_continuation_generated.cmake
+    USES_TERMINAL
+    COMMENT "Regenerating and comparing Fortsym circular continuation")
 
 if(USE_STANDALONE)
     find_or_fetch(libneo)

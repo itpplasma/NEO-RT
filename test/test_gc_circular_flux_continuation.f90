@@ -1,4 +1,5 @@
 program test_gc_circular_flux_continuation
+    !! Independent numerical oracle for the Fortsym-emitted continuation.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_circular_flux_continuation_limit_symbolic, only: &
         evaluate_neort_circular_flux_continuation_limit
