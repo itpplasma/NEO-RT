@@ -6,6 +6,10 @@ program test_gc_eqdsk_cut_axis_limit
         evaluate_neort_eqdsk_cut_axis_limit
     use neort_eqdsk_cut_axis_rho_limit_symbolic, only: &
         evaluate_neort_eqdsk_cut_axis_rho_limit
+    use neort_eqdsk_axis_stationarity_krawczyk_interval_symbolic, only: &
+        evaluate_neort_eqdsk_axis_stationarity_krawczyk_interval
+    use neort_eqdsk_axis_stationarity_newton_symbolic, only: &
+        evaluate_neort_eqdsk_axis_stationarity_newton
     use neort_eqdsk_cut_flux_coordinate_symbolic, only: &
         evaluate_neort_eqdsk_cut_flux_coordinate
     use neort_eqdsk_rho_tor_map_symbolic, only: &
@@ -25,7 +29,9 @@ program test_gc_eqdsk_cut_axis_limit
     real(dp) :: oracle_curvature, oracle_delta_r, oracle_derivative
     real(dp) :: s_tor, dstor_drho, dpsihat_drho, dR_drho, dZ_drho
     real(dp) :: oracle_dR_drho
+    real(dp) :: axis_determinant, axis_newton_R, axis_newton_Z, axis_inverse(4)
     type(gc_outward_interval_t) :: interval_curvature, interval_determinant
+    type(gc_outward_interval_t) :: axis_krawczyk_R, axis_krawczyk_Z
 
     ! Independent quadratic axis oracle.  Along Z=slope*R, evaluate
     ! psi_hat(R) directly and recover its second derivative from a centered
@@ -90,9 +96,41 @@ program test_gc_eqdsk_cut_axis_limit
     call require(interval_determinant%lo > 0.0_dp, &
         'positive-definite axis Hessian determinant was not certified')
 
+    ! Independent quadratic stationarity oracle.  The Hessian is
+    ! [[3,0.5],[0.5,2]] and the exact root is (1,2).  At (1.2,1.7),
+    ! grad(psi)=(0.45,-0.5), so one generated Newton step must reach the root.
+    call evaluate_neort_eqdsk_axis_stationarity_newton(1.2_dp, 1.7_dp, &
+        0.45_dp, -0.5_dp, 3.0_dp, 0.5_dp, 2.0_dp, axis_determinant, &
+        axis_newton_R, axis_newton_Z, axis_inverse(1), axis_inverse(2), &
+        axis_inverse(3), axis_inverse(4))
+    call require_close(axis_determinant, 5.75_dp, tolerance, &
+        'axis Hessian determinant')
+    call require_close(axis_newton_R, 1.0_dp, tolerance, 'axis Newton R')
+    call require_close(axis_newton_Z, 2.0_dp, tolerance, 'axis Newton Z')
+    call evaluate_neort_eqdsk_axis_stationarity_krawczyk_interval( &
+        point(1.2_dp), point(1.7_dp), point(0.45_dp), point(-0.5_dp), &
+        point(3.0_dp), point(0.5_dp), point(2.0_dp), point(3.0_dp), &
+        point(0.5_dp), point(2.0_dp), &
+        gc_outward_interval(-0.2_dp, 0.2_dp), &
+        gc_outward_interval(-0.3_dp, 0.3_dp), axis_krawczyk_R, &
+        axis_krawczyk_Z)
+    call require(axis_krawczyk_R%lo <= 1.0_dp .and. &
+        axis_krawczyk_R%hi >= 1.0_dp, &
+        'axis Krawczyk R enclosure excluded the exact root')
+    call require(axis_krawczyk_Z%lo <= 2.0_dp .and. &
+        axis_krawczyk_Z%hi >= 2.0_dp, &
+        'axis Krawczyk Z enclosure excluded the exact root')
+
     write (*, '(a)') 'test_gc_eqdsk_cut_axis_limit OK'
 
 contains
+
+    pure function point(value) result(interval)
+        real(dp), intent(in) :: value
+        type(gc_outward_interval_t) :: interval
+
+        interval = gc_outward_interval(value, value)
+    end function point
 
     pure real(dp) function quadratic_psihat(radius_offset)
         real(dp), intent(in) :: radius_offset

@@ -170,6 +170,10 @@ set(NEO_RT_SOURCES
     src/generated/neort_eqdsk_cut_endpoint_system_interval_symbolic.f90
     src/generated/neort_eqdsk_cut_endpoint_newton_symbolic.f90
     src/generated/neort_eqdsk_cut_endpoint_krawczyk_interval_symbolic.f90
+    src/generated/neort_eqdsk_axis_stationarity_system_symbolic.f90
+    src/generated/neort_eqdsk_axis_stationarity_system_interval_symbolic.f90
+    src/generated/neort_eqdsk_axis_stationarity_newton_symbolic.f90
+    src/generated/neort_eqdsk_axis_stationarity_krawczyk_interval_symbolic.f90
     src/generated/neort_cylindrical_hamiltonian_symbolic.f90
     src/generated/neort_cylindrical_canonical_symbolic.f90
     src/generated/neort_cylindrical_vparallel_symbolic.f90
