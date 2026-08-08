@@ -111,7 +111,9 @@ module neort_gc_eqdsk_nonlocal_transport
     use neort_gc_eqdsk_certified_allowed_provider, only: &
         GC_EQDSK_ALLOWED_PROVIDER_SUCCESS, &
         GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_ID, &
+        GC_EQDSK_LAUNCH_MULTIPLICITY_CERTIFICATE_ID, &
         build_gc_eqdsk_certified_allowed_regions, &
+        certify_gc_eqdsk_launch_cut_multiplicity, &
         gc_eqdsk_certified_allowed_provider_context_t, &
         initialize_gc_eqdsk_certified_allowed_provider, &
         verify_gc_eqdsk_certified_allowed_regions
@@ -236,7 +238,11 @@ module neort_gc_eqdsk_nonlocal_transport
         real(dp) :: invariant_relative_tolerance = 3.0e-8_dp
         real(dp) :: orbit_maximum_step = 0.0_dp
         logical :: require_step_refinement = .true.
-        real(dp) :: step_refinement_relative_tolerance = 1.0e-7_dp
+        ! The direct return map is event-located through the VODE dense output;
+        ! this is the default numerical agreement gate for that map.  Callers
+        ! needing a stricter gate can lower it after selecting a compatible
+        ! maximum step and event-time tolerance.
+        real(dp) :: step_refinement_relative_tolerance = 1.0e-5_dp
         real(dp) :: step_refinement_absolute_tolerance = 1.0e-12_dp
         real(dp) :: topology_probe_fraction = 0.125_dp
         integer :: topology_probe_count = 5
@@ -258,7 +264,7 @@ module neort_gc_eqdsk_nonlocal_transport
         type(gc_cylindrical_class_options_t) :: class_options = &
             gc_cylindrical_class_options_t()
         type(gc_cylindrical_orbit_options_t) :: orbit_options = &
-            gc_cylindrical_orbit_options_t()
+            gc_cylindrical_orbit_options_t(event_time_tolerance=1.0e-13_dp)
         type(eqdsk_composite_cut_atlas_options_t) :: cut_atlas_options
     end type gc_eqdsk_nonlocal_options_t
 
@@ -3008,6 +3014,7 @@ contains
         type(gc_cylindrical_physical_return_certificate_t) :: &
             multiplicity_certificate
         integer :: local_status
+        integer :: launch_certificate_id
         character(len=256) :: certificate_message
         logical :: behavior_requested, is_refinement_pass
         real(dp) :: base_step, refined_step, tolerance_factor
@@ -3053,6 +3060,21 @@ contains
         invariants%magnetic_moment = gc_mu_phys_from_buchholz_jk(launch%jperp, &
             factory%species%mass_g, factory%species%charge_esu, c)
         invariants%canonical_toroidal_momentum = launch%p_phi
+        ! Multiplicity is a launch/component theorem, not a global assertion
+        ! about overlapping disconnected canonical ranges.  Recompute the
+        ! small certificate before each physical return; the provider caches
+        ! the expensive fixed-(H0,J_K) component inventory.
+        factory%cut_atlas%two_cut_multiplicity_certified = .false.
+        factory%two_cut_multiplicity_certificate_id = 0
+        call certify_gc_eqdsk_launch_cut_multiplicity( &
+            factory%allowed_region_context, launch%h0, launch%jperp, &
+            launch%psi_star, launch%sigma, launch%component_id, &
+            launch_certificate_id, local_status)
+        if (local_status == GC_EQDSK_ALLOWED_PROVIDER_SUCCESS .and. &
+                launch_certificate_id == GC_EQDSK_LAUNCH_MULTIPLICITY_CERTIFICATE_ID) then
+            factory%cut_atlas%two_cut_multiplicity_certified = .true.
+            factory%two_cut_multiplicity_certificate_id = launch_certificate_id
+        end if
         call make_physical_return_options(factory, invariants, return_options, &
             base_step, tolerance_factor)
         call compute_gc_cylindrical_physical_return(factory%field, &
@@ -3063,7 +3085,9 @@ contains
             user_data=factory, return_event_rate=factory_physical_return_rate)
         if (factory%cut_atlas%two_cut_multiplicity_certified .and. &
                 factory%two_cut_multiplicity_certificate_id == &
-                    GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID) then
+                    GC_EQDSK_TWO_CUT_MULTIPLICITY_CERTIFICATE_ID .and. &
+                physical_return%status == GC_CYL_SUCCESS .and. &
+                physical_return%physical_return_found) then
             multiplicity_certificate = &
                 gc_cylindrical_physical_return_certificate_t()
             multiplicity_certificate%certificate_id = &
@@ -3131,7 +3155,8 @@ contains
         end if
         if (abs(omega_b) > tiny(omega_b)) then
             if (.not. refinement_observable_close(omega_b, pass_omega_b, &
-                    1.0e-10_dp, 1.0e-10_dp, &
+                    factory%options%step_refinement_absolute_tolerance, &
+                    factory%options%step_refinement_relative_tolerance, &
                     factory%refinement_frequency_scale)) then
                 result%status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
                 return
@@ -3139,7 +3164,8 @@ contains
         end if
         if (abs(omega_phi) > tiny(omega_phi)) then
             if (.not. refinement_observable_close(omega_phi, pass_omega_phi, &
-                    1.0e-10_dp, 1.0e-10_dp, &
+                    factory%options%step_refinement_absolute_tolerance, &
+                    factory%options%step_refinement_relative_tolerance, &
                     factory%refinement_frequency_scale)) then
                 result%status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
                 return
@@ -3309,7 +3335,12 @@ contains
         call evaluate_gc_full_fow_scaled_magnitude(first-second, &
             reference_scale, error_scaled, local_status, normalization_message)
         if (local_status /= GC_FULL_FOW_NORMALIZATION_SUCCESS) return
-        tolerance = atol+rtol*max(first_scaled, second_scaled)
+        ! The generated projection is dimensionless.  Use the declared
+        ! reference scale as the floor for a relative gate as well: a state
+        ! component may legitimately cross zero (the return Z is the common
+        ! case), so scaling relative to its instantaneous value would make
+        ! the gate depend on the coordinate origin.
+        tolerance = atol+rtol*max(1.0_dp, first_scaled, second_scaled)
         refinement_observable_close = error_scaled <= tolerance
     end function refinement_observable_close
 

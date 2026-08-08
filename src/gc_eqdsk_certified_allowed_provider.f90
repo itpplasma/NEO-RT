@@ -64,6 +64,8 @@ module neort_gc_eqdsk_certified_allowed_provider
     integer, parameter, public :: GC_EQDSK_ALLOWED_PROVIDER_MEASURE_FAILURE = 3
     integer, parameter, public :: GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE = 4
     integer, parameter, public :: GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_ID = 130031
+    integer, parameter, public :: GC_EQDSK_LAUNCH_MULTIPLICITY_CERTIFICATE_ID = &
+        130041
 
     type, public, extends(gc_callback_context_t) :: &
             gc_eqdsk_certified_allowed_provider_context_t
@@ -96,6 +98,12 @@ module neort_gc_eqdsk_certified_allowed_provider
         real(dp) :: region_cache_h0(2) = 0.0_dp
         real(dp) :: region_cache_jk(2) = 0.0_dp
         type(gc_cylindrical_allowed_region_set_t) :: region_cache(2)
+        logical :: launch_multiplicity_cache_valid = .false.
+        real(dp) :: launch_multiplicity_cache_h0 = 0.0_dp
+        real(dp) :: launch_multiplicity_cache_jk = 0.0_dp
+        real(dp) :: launch_multiplicity_cache_target = 0.0_dp
+        integer :: launch_multiplicity_cache_sigma = 0
+        integer :: launch_multiplicity_cache_component_id = 0
         logical :: initialized = .false.
     end type gc_eqdsk_certified_allowed_provider_context_t
 
@@ -104,6 +112,7 @@ module neort_gc_eqdsk_certified_allowed_provider
     public :: verify_gc_eqdsk_certified_allowed_regions
     public :: gc_eqdsk_stationary_root_certificate_i
     public :: verify_gc_eqdsk_fixed_invariant_stationary_certificate
+    public :: certify_gc_eqdsk_launch_cut_multiplicity
 
 contains
 
@@ -157,6 +166,209 @@ contains
                 .not. excludes_zero(point_value%d2f)) return
         status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
     end subroutine verify_gc_eqdsk_fixed_invariant_stationary_certificate
+
+    subroutine certify_gc_eqdsk_launch_cut_multiplicity(context, h0, j_k, &
+            target_psi_star, sigma, component_id, certificate_id, status)
+        !! Certify the two crossings of one connected fixed-invariant orbit.
+        !!
+        !! Canonical ranges belonging to disconnected physical-R branches may
+        !! overlap.  They therefore cannot be used as a global exactly-two
+        !! theorem.  This launch-specific certificate instead identifies the
+        !! allowed component containing the launch and its opposite-sign
+        !! turning partner, proves strict canonical monotonicity on both
+        !! components with generated interval jets, and checks that the target
+        !! canonical value lies strictly between both endpoint values.
+        type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: context
+        real(dp), intent(in) :: h0, j_k, target_psi_star
+        integer, intent(in) :: sigma, component_id
+        integer, intent(out) :: certificate_id, status
+
+        type(gc_cylindrical_allowed_region_set_t) :: same_regions
+        type(gc_cylindrical_allowed_region_set_t) :: opposite_regions
+        type(gc_cylindrical_allowed_component_t) :: candidate, partner
+        integer :: local_status
+        logical :: found_candidate, found_partner
+
+        certificate_id = 0
+        status = GC_EQDSK_ALLOWED_PROVIDER_CERTIFICATE_FAILURE
+        if (.not. context%initialized) return
+        if (.not. all(ieee_is_finite([h0, j_k, target_psi_star]))) return
+        if (j_k < 0.0_dp .or. abs(sigma) /= 1 .or. component_id < 1) return
+        if (context%launch_multiplicity_cache_valid .and. &
+                context%launch_multiplicity_cache_h0 == h0 .and. &
+                context%launch_multiplicity_cache_jk == j_k .and. &
+                context%launch_multiplicity_cache_target == target_psi_star .and. &
+                context%launch_multiplicity_cache_sigma == sigma .and. &
+                context%launch_multiplicity_cache_component_id == component_id) then
+            certificate_id = GC_EQDSK_LAUNCH_MULTIPLICITY_CERTIFICATE_ID
+            status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+            return
+        end if
+        call build_gc_eqdsk_certified_allowed_regions(context, h0, j_k, sigma, &
+            same_regions, local_status)
+        if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
+        call build_gc_eqdsk_certified_allowed_regions(context, h0, j_k, -sigma, &
+            opposite_regions, local_status)
+        if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) return
+        call find_component(same_regions, sigma, component_id, candidate, &
+            found_candidate)
+        if (.not. found_candidate) return
+        call find_partner(opposite_regions, candidate, partner, found_partner)
+        if (.not. found_partner) return
+        if (.not. endpoint_target_bracket(candidate, target_psi_star)) return
+        if (.not. endpoint_target_bracket(partner, target_psi_star)) return
+        if (.not. certify_component_monotonicity(context, h0, j_k, candidate)) return
+        if (.not. certify_component_monotonicity(context, h0, j_k, partner)) return
+        context%launch_multiplicity_cache_valid = .true.
+        context%launch_multiplicity_cache_h0 = h0
+        context%launch_multiplicity_cache_jk = j_k
+        context%launch_multiplicity_cache_target = target_psi_star
+        context%launch_multiplicity_cache_sigma = sigma
+        context%launch_multiplicity_cache_component_id = component_id
+        certificate_id = GC_EQDSK_LAUNCH_MULTIPLICITY_CERTIFICATE_ID
+        status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+
+    contains
+
+        subroutine find_component(regions, expected_sigma, expected_id, value, found)
+            type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+            integer, intent(in) :: expected_sigma, expected_id
+            type(gc_cylindrical_allowed_component_t), intent(out) :: value
+            logical, intent(out) :: found
+            integer :: i
+
+            value = gc_cylindrical_allowed_component_t()
+            found = .false.
+            if (.not. allocated(regions%components)) return
+            do i = 1, size(regions%components)
+                if (regions%components(i)%component_id /= expected_id .or. &
+                        regions%components(i)%sigma /= expected_sigma) cycle
+                value = regions%components(i)
+                found = .true.
+                return
+            end do
+        end subroutine find_component
+
+        subroutine find_partner(regions, candidate_value, value, found)
+            type(gc_cylindrical_allowed_region_set_t), intent(in) :: regions
+            type(gc_cylindrical_allowed_component_t), intent(in) :: candidate_value
+            type(gc_cylindrical_allowed_component_t), intent(out) :: value
+            logical, intent(out) :: found
+            integer :: i
+
+            value = gc_cylindrical_allowed_component_t()
+            found = .false.
+            if (.not. allocated(regions%components)) return
+            do i = 1, size(regions%components)
+                if (regions%components(i)%sigma /= -candidate_value%sigma) cycle
+                if (regions%components(i)%x_begin /= candidate_value%x_begin .or. &
+                        regions%components(i)%x_end /= candidate_value%x_end) cycle
+                value = regions%components(i)
+                found = .true.
+                return
+            end do
+        end subroutine find_partner
+
+        logical function endpoint_target_bracket(component, target)
+            type(gc_cylindrical_allowed_component_t), intent(in) :: component
+            real(dp), intent(in) :: target
+            type(gc_interval_t) :: left, right
+
+            endpoint_target_bracket = .false.
+            left = subtract_target(component%canonical_begin_enclosure, target)
+            right = subtract_target(component%canonical_end_enclosure, target)
+            if (.not. valid_interval(left) .or. .not. valid_interval(right)) return
+            endpoint_target_bracket = strict_sign_crossing(left, right)
+        end function endpoint_target_bracket
+
+        pure function subtract_target(value, target) result(result)
+            type(gc_interval_t), intent(in) :: value
+            real(dp), intent(in) :: target
+            type(gc_interval_t) :: result
+
+            result = gc_interval_t(ieee_next_after(value%lo-target, -huge(target)), &
+                ieee_next_after(value%hi-target, huge(target)))
+        end function subtract_target
+
+        logical function certify_component_monotonicity(ctx, energy, jk, component)
+            type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: ctx
+            real(dp), intent(in) :: energy, jk
+            type(gc_cylindrical_allowed_component_t), intent(in) :: component
+
+            integer :: i, branch_id, previous_sign, current_sign, local_status
+            real(dp) :: width, left, right
+            type(gc_interval_t) :: derivative
+
+            certify_component_monotonicity = .false.
+            if (component%x_end <= component%x_begin) return
+            branch_id = branch_for_interval(component%x_begin, component%x_end)
+            width = (component%x_end-component%x_begin)/16.0_dp
+            previous_sign = 0
+            do i = 1, 16
+                left = component%x_begin+real(i-1, dp)*width
+                right = component%x_begin+real(i, dp)*width
+                call evaluate_canonical_derivative(ctx, energy, jk, &
+                    component%sigma, branch_id, left, right, 0, derivative, &
+                    local_status)
+                if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS .or. &
+                        .not. excludes_zero(derivative)) then
+                    call evaluate_canonical_derivative(ctx, energy, jk, &
+                        component%sigma, branch_id, left, right, 3, derivative, &
+                        local_status)
+                end if
+                if (local_status /= GC_EQDSK_ALLOWED_PROVIDER_SUCCESS .or. &
+                        .not. excludes_zero(derivative)) return
+                current_sign = merge(1, -1, derivative%lo > 0.0_dp)
+                if (previous_sign /= 0 .and. current_sign /= previous_sign) return
+                previous_sign = current_sign
+            end do
+            certify_component_monotonicity = previous_sign /= 0
+        end function certify_component_monotonicity
+
+        subroutine evaluate_canonical_derivative(ctx, energy, jk, sign, branch_id, &
+                x_lo, x_hi, tighten_depth, value, local_status)
+            type(gc_eqdsk_certified_allowed_provider_context_t), intent(inout) :: ctx
+            real(dp), intent(in) :: energy, jk, x_lo, x_hi
+            integer, intent(in) :: sign, branch_id, tighten_depth
+            type(gc_interval_t), intent(out) :: value
+            integer, intent(out) :: local_status
+            type(eqdsk_allowed_interval_result_t) :: evaluated
+            type(eqdsk_allowed_region_cut_provenance_t) :: provenance
+            integer :: box_status
+
+            value = gc_interval_t()
+            local_status = GC_EQDSK_ALLOWED_PROVIDER_MEASURE_FAILURE
+            call evaluate_eqdsk_allowed_region_cut_box(ctx%graph(branch_id), &
+                gc_outward_interval(x_lo, x_hi), ctx%field_scale, ctx%raw_psi_sep, &
+                ctx%profile, energy, jk, ctx%mass, ctx%charge, ctx%c_light, sign, &
+                evaluated, provenance, box_status, tighten_z_depth=tighten_depth)
+            if (box_status /= EQDSK_CUT_BOX_SUCCESS) return
+            value = to_interval(evaluated%dpsi_star_dR)
+            if (.not. valid_interval(value)) return
+            local_status = GC_EQDSK_ALLOWED_PROVIDER_SUCCESS
+        end subroutine evaluate_canonical_derivative
+
+        integer function branch_for_interval(x_lo, x_hi) result(branch)
+            real(dp), intent(in) :: x_lo, x_hi
+            real(dp) :: midpoint_value
+
+            midpoint_value = 0.5_dp*(x_lo+x_hi)
+            branch = 1
+            if (midpoint_value > context%partition%branches(1)%r_hi .and. &
+                    midpoint_value <= context%partition%branches(2)%r_hi) branch = 2
+            if (midpoint_value > context%partition%branches(2)%r_hi) branch = 3
+        end function branch_for_interval
+
+        logical function strict_sign_crossing(left, right)
+            type(gc_interval_t), intent(in) :: left, right
+
+            strict_sign_crossing = .false.
+            if (.not. valid_interval(left) .or. .not. valid_interval(right)) return
+            strict_sign_crossing = (left%hi < 0.0_dp .and. right%lo > 0.0_dp) .or. &
+                (left%lo > 0.0_dp .and. right%hi < 0.0_dp)
+        end function strict_sign_crossing
+
+    end subroutine certify_gc_eqdsk_launch_cut_multiplicity
 
     subroutine initialize_gc_eqdsk_certified_allowed_provider(context, atlas, &
             partition, profile, field_scale, raw_psi_sep, mass, charge, &
