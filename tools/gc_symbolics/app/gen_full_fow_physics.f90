@@ -177,7 +177,7 @@ program gen_full_fow_physics
     type(expr_t) :: profile_potential_map_roots(3)
     type(expr_t) :: eqdsk_flux_profile_segment_roots(3)
     type(expr_t) :: eqdsk_scaled_flux_normalization_roots(1)
-    type(expr_t) :: eqdsk_allowed_energy_roots(15)
+    type(expr_t) :: eqdsk_allowed_energy_roots(17)
     type(expr_t) :: eqdsk_canonical_cut_roots(4)
     type(expr_t) :: eqdsk_turning_chart_roots(5)
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
@@ -247,6 +247,8 @@ program gen_full_fow_physics
     type(expr_t) :: scaled_flux_value, scaled_flux_psihat
     type(expr_t) :: scaled_flux_round_trip_residual
     type(expr_t) :: allowed_field_scale, allowed_dz_dr, allowed_d2z_dr2
+    type(expr_t) :: allowed_equilibrium_psi_physical
+    type(expr_t) :: allowed_equilibrium_dpsi_physical_dr
     type(expr_t) :: allowed_g, allowed_sqrt_g, allowed_dpsi_dr
     type(expr_t) :: allowed_d2psi_dr2, allowed_dpsi_r_dr
     type(expr_t) :: allowed_dpsi_z_dr, allowed_d2psi_r_dr2
@@ -1798,6 +1800,9 @@ program gen_full_fow_physics
     allowed_dphi_dpsi = sym(arena, "dPhi_dpsi")
     allowed_d2phi_dpsi2 = sym(arena, "d2Phi_dpsi2")
     allowed_dpsi_dr = eqcut_psi_r+eqcut_psi_z*allowed_dz_dr
+    allowed_equilibrium_psi_physical = allowed_field_scale*eqcut_psi0
+    allowed_equilibrium_dpsi_physical_dr = &
+        allowed_field_scale*allowed_dpsi_dr
     allowed_d2psi_dr2 = eqcut_psi_rr + &
         2*eqcut_psi_rz*allowed_dz_dr + &
         eqcut_psi_zz*allowed_dz_dr**2 + &
@@ -2574,7 +2579,9 @@ program gen_full_fow_physics
     eqdsk_flux_profile_segment_roots = [flux_segment_psihat, &
         flux_segment_dpsihat_dstor, flux_segment_inverse_s]
     eqdsk_scaled_flux_normalization_roots = [scaled_flux_psihat]
-    eqdsk_allowed_energy_roots = [allowed_g, allowed_bmod, &
+    eqdsk_allowed_energy_roots = [allowed_g, &
+        allowed_equilibrium_psi_physical, &
+        allowed_equilibrium_dpsi_physical_dr, allowed_bmod, &
         allowed_dbmod_dr, allowed_d2bmod_dr2, allowed_omega_c, &
         allowed_domega_c_dr, allowed_d2omega_c_dr2, &
         allowed_energy_margin, allowed_denergy_dr, &
@@ -3103,14 +3110,16 @@ program gen_full_fow_physics
         "/neort_eqdsk_allowed_energy_symbolic.f90", &
         "neort_eqdsk_allowed_energy_symbolic", &
         "evaluate_neort_eqdsk_allowed_energy", &
-        [character(len=64) :: "radius", "field_scale", "psi_R", "psi_Z", &
+        [character(len=64) :: "radius", "field_scale", "psi", &
+        "psi_R", "psi_Z", &
         "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
         "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", &
         "d2F_dpsihat2", "psi_sep", "dZ_dR", "d2Z_dR2", "h", &
         "J_K", "mass", "charge", "c_light", &
         "electrostatic_potential", "dPhi_dpsi", "d2Phi_dpsi2"], &
         eqdsk_allowed_energy_roots, &
-        [character(len=64) :: "field_norm_squared", "bmod", "dbmod_dR", &
+        [character(len=64) :: "field_norm_squared", "psi_physical", &
+        "dpsi_physical_dR", "bmod", "dbmod_dR", &
         "d2bmod_dR2", "omega_c", "domega_c_dR", "d2omega_c_dR2", &
         "energy_margin", "denergy_margin_dR", "d2energy_margin_dR2", &
         "v_parallel_squared", "dv_parallel_squared_dR", &
@@ -3120,14 +3129,16 @@ program gen_full_fow_physics
         "/neort_eqdsk_allowed_energy_interval_symbolic.f90", &
         "neort_eqdsk_allowed_energy_interval_symbolic", &
         "evaluate_neort_eqdsk_allowed_energy_interval", &
-        [character(len=64) :: "radius", "field_scale", "psi_R", "psi_Z", &
+        [character(len=64) :: "radius", "field_scale", "psi", &
+        "psi_R", "psi_Z", &
         "psi_RR", "psi_RZ", "psi_ZZ", "psi_RRR", "psi_RRZ", &
         "psi_RZZ", "psi_ZZZ", "F", "dF_dpsihat", &
         "d2F_dpsihat2", "psi_sep", "dZ_dR", "d2Z_dR2", "h", &
         "J_K", "mass", "charge", "c_light", &
         "electrostatic_potential", "dPhi_dpsi", "d2Phi_dpsi2"], &
         eqdsk_allowed_energy_roots, &
-        [character(len=64) :: "field_norm_squared", "bmod", "dbmod_dR", &
+        [character(len=64) :: "field_norm_squared", "psi_physical", &
+        "dpsi_physical_dR", "bmod", "dbmod_dR", &
         "d2bmod_dR2", "omega_c", "domega_c_dR", "d2omega_c_dR2", &
         "energy_margin", "denergy_margin_dR", "d2energy_margin_dR2", &
         "v_parallel_squared", "dv_parallel_squared_dR", &
@@ -3758,7 +3769,7 @@ contains
         write (unit, "(a)") &
             "        'neort-cert-v1:profile_potential_map:3:fortsym-5457884', &"
         write (unit, "(a)") &
-            "        'neort-cert-v1:eqdsk_allowed_energy:15:fortsym-5457884', &"
+            "        'neort-cert-v1:eqdsk_allowed_energy:17:fortsym-5457884', &"
         write (unit, "(a)") &
             "        'neort-cert-v1:eqdsk_canonical_cut:4:fortsym-5457884', &"
         write (unit, "(a)") &
