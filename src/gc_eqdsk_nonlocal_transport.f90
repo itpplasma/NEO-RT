@@ -2170,6 +2170,7 @@ contains
             call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
                 local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) then
+                factory%last_return_status = 2100 + local_status
                 status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
                 return
             end if
@@ -2185,6 +2186,7 @@ contains
                 required_return_crossings=2, &
                 user_data=factory)
             if (local_status /= GC_CYL_NONLOCAL_SUCCESS) then
+                factory%last_return_status = 2200 + local_status
                 status = GC_EQDSK_NONLOCAL_CERTIFICATION_FAILED
                 return
             end if
