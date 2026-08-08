@@ -11,22 +11,32 @@ contains
 
     pure subroutine evaluate_neort_eqdsk_canonical_cut_interval(v_parallel_squared, &
             dv_parallel_squared_dR, mass, charge, c_light, parallel_sign, psi_physical, dpsi_physical_dR, &
-            bphi_covariant, dbphi_covariant_dR, v_parallel, dv_parallel_dR, psi_star, dpsi_star_dR)
+            bphi_covariant, dbphi_covariant_dR, d2v_parallel_squared_dR2, d2psi_physical_dR2, &
+            d2bphi_covariant_dR2, v_parallel, dv_parallel_dR, psi_star, dpsi_star_dR, d2v_parallel_dR2, &
+            d2psi_star_dR2)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         use neort_gc_outward_interval, only: gc_outward_interval_t, &
             operator(+), operator(-), operator(*), operator(/), operator(**), abs, sqrt
         implicit none
         type(gc_outward_interval_t), intent(in) :: v_parallel_squared, dv_parallel_squared_dR, mass, charge, c_light, &
-            parallel_sign, psi_physical, dpsi_physical_dR, bphi_covariant, dbphi_covariant_dR
-        type(gc_outward_interval_t), intent(out) :: v_parallel, dv_parallel_dR, psi_star, dpsi_star_dR
-        type(gc_outward_interval_t) :: t1
+            parallel_sign, psi_physical, dpsi_physical_dR, bphi_covariant, dbphi_covariant_dR, &
+            d2v_parallel_squared_dR2, d2psi_physical_dR2, d2bphi_covariant_dR2
+        type(gc_outward_interval_t), intent(out) :: v_parallel, dv_parallel_dR, psi_star, dpsi_star_dR, d2v_parallel_dR2, &
+            d2psi_star_dR2
+        type(gc_outward_interval_t) :: t1, t2
 
         t1 = sqrt(v_parallel_squared)
+        t2 = d2v_parallel_squared_dR2*1.0_dp/2.0_dp/t1 - dv_parallel_squared_dR**2*1.0_dp/4.0_dp/ &
+            v_parallel_squared/t1
         v_parallel = parallel_sign*t1
         dv_parallel_dR = dv_parallel_squared_dR*parallel_sign*1.0_dp/2.0_dp/t1
         psi_star = psi_physical + bphi_covariant*c_light*mass*parallel_sign*t1/charge
         dpsi_star_dR = dpsi_physical_dR + c_light*mass*(bphi_covariant*dv_parallel_squared_dR* &
             parallel_sign*1.0_dp/2.0_dp/t1 + dbphi_covariant_dR*parallel_sign*t1)/charge
+        d2v_parallel_dR2 = parallel_sign*t2
+        d2psi_star_dR2 = d2psi_physical_dR2 + c_light*mass*(bphi_covariant*parallel_sign*t2 + &
+            d2bphi_covariant_dR2*parallel_sign*t1 + dbphi_covariant_dR*dv_parallel_squared_dR*parallel_sign/t1)/ &
+            charge
 
     end subroutine evaluate_neort_eqdsk_canonical_cut_interval
 

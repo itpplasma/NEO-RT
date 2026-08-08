@@ -15,7 +15,7 @@ contains
             field_norm_squared, psi_physical, dpsi_physical_dR, bmod, dbmod_dR, d2bmod_dR2, omega_c, &
             domega_c_dR, d2omega_c_dR2, energy_margin, denergy_margin_dR, d2energy_margin_dR2, &
             v_parallel_squared, dv_parallel_squared_dR, d2v_parallel_squared_dR2, bphi_covariant, &
-            dbphi_covariant_dR)
+            dbphi_covariant_dR, d2psi_physical_dR2, d2bphi_covariant_dR2)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
         real(dp), intent(in) :: radius, field_scale, psi, psi_R, psi_Z, psi_RR, psi_RZ, psi_ZZ, psi_RRR, &
@@ -24,8 +24,8 @@ contains
         real(dp), intent(out) :: field_norm_squared, psi_physical, dpsi_physical_dR, bmod, dbmod_dR, &
             d2bmod_dR2, omega_c, domega_c_dR, d2omega_c_dR2, energy_margin, denergy_margin_dR, &
             d2energy_margin_dR2, v_parallel_squared, dv_parallel_squared_dR, d2v_parallel_squared_dR2, &
-            bphi_covariant, dbphi_covariant_dR
-        real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15
+            bphi_covariant, dbphi_covariant_dR, d2psi_physical_dR2, d2bphi_covariant_dR2
+        real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19
 
         t1 = F**2 + psi_R**2 + psi_Z**2
         t2 = psi_R + dZ_dR*psi_Z
@@ -34,35 +34,40 @@ contains
         t5 = psi_RZ + dZ_dR*psi_ZZ
         t6 = F*dF_dpsihat*t2*2/psi_sep + psi_R*t4*2 + psi_Z*t5*2
         t7 = -t3/radius**2 + t6*1.0_dp/2.0_dp/radius/t3
-        t8 = t2**2
-        t9 = dZ_dR**2
-        t10 = psi_RR + d2Z_dR2*psi_Z + dZ_dR*psi_RZ*2 + psi_ZZ*t9
-        t11 = t3*2/radius**3 - t6/radius**2/t3 + (-t6**2*1.0_dp/4.0_dp/t3**3 + (t4**2 + t5**2 + F* &
-            (d2F_dpsihat2*t8/psi_sep**2 + dF_dpsihat*t10/psi_sep) + psi_R*(psi_RRR + d2Z_dR2*psi_RZ + dZ_dR* &
-            psi_RRZ*2 + psi_RZZ*t9) + psi_Z*(psi_RRZ + d2Z_dR2*psi_ZZ + dZ_dR*psi_RZZ*2 + psi_ZZZ*t9) + &
-            dF_dpsihat**2*t8/psi_sep**2)/t3)/radius
-        t12 = abs(charge)
-        t13 = h - J_K*field_scale*t12*t3/c_light/mass/radius - charge*electrostatic_potential
-        t14 = -J_K*field_scale*t12*t7/c_light/mass - charge*dPhi_dpsi*field_scale*t2
-        t15 = -J_K*field_scale*t12*t11/c_light/mass - charge*(d2Phi_dpsi2*field_scale**2*t8 + dPhi_dpsi* &
-            field_scale*t10)
+        t8 = t6**2
+        t9 = t2**2
+        t10 = dZ_dR**2
+        t11 = psi_RR + d2Z_dR2*psi_Z + dZ_dR*psi_RZ*2 + psi_ZZ*t10
+        t12 = d2F_dpsihat2*t9/psi_sep**2 + dF_dpsihat*t11/psi_sep
+        t13 = t4**2 + t5**2 + F*t12 + psi_R*(psi_RRR + d2Z_dR2*psi_RZ + dZ_dR*psi_RRZ*2 + psi_RZZ*t10) + &
+            psi_Z*(psi_RRZ + d2Z_dR2*psi_ZZ + dZ_dR*psi_RZZ*2 + psi_ZZZ*t10) + dF_dpsihat**2*t9/psi_sep**2
+        t14 = t3*2/radius**3 - t6/radius**2/t3 + (-t8*1.0_dp/4.0_dp/t3**3 + t13/t3)/radius
+        t15 = abs(charge)
+        t16 = h - J_K*field_scale*t15*t3/c_light/mass/radius - charge*electrostatic_potential
+        t17 = -J_K*field_scale*t15*t7/c_light/mass - charge*dPhi_dpsi*field_scale*t2
+        t18 = -J_K*field_scale*t15*t14/c_light/mass - charge*(d2Phi_dpsi2*field_scale**2*t9 + dPhi_dpsi* &
+            field_scale*t11)
+        t19 = F + dF_dpsihat*radius*t2/psi_sep
         field_norm_squared = t1
         psi_physical = field_scale*psi
         dpsi_physical_dR = field_scale*t2
         bmod = field_scale*t3/radius
         dbmod_dR = field_scale*t7
-        d2bmod_dR2 = field_scale*t11
-        omega_c = field_scale*t12*t3/c_light/mass/radius
-        domega_c_dR = field_scale*t12*t7/c_light/mass
-        d2omega_c_dR2 = field_scale*t12*t11/c_light/mass
-        energy_margin = t13
-        denergy_margin_dR = t14
-        d2energy_margin_dR2 = t15
-        v_parallel_squared = t13*2/mass
-        dv_parallel_squared_dR = t14*2/mass
-        d2v_parallel_squared_dR2 = t15*2/mass
+        d2bmod_dR2 = field_scale*t14
+        omega_c = field_scale*t15*t3/c_light/mass/radius
+        domega_c_dR = field_scale*t15*t7/c_light/mass
+        d2omega_c_dR2 = field_scale*t15*t14/c_light/mass
+        energy_margin = t16
+        denergy_margin_dR = t17
+        d2energy_margin_dR2 = t18
+        v_parallel_squared = t16*2/mass
+        dv_parallel_squared_dR = t17*2/mass
+        d2v_parallel_squared_dR2 = t18*2/mass
         bphi_covariant = F*radius/t3
-        dbphi_covariant_dR = -F*radius*t6*1.0_dp/2.0_dp/t3**3 + (F + dF_dpsihat*radius*t2/psi_sep)/t3
+        dbphi_covariant_dR = -F*radius*t6*1.0_dp/2.0_dp/t3**3 + t19/t3
+        d2psi_physical_dR2 = field_scale*t11
+        d2bphi_covariant_dR2 = F*radius*(t8*3.0_dp/4.0_dp/t3**5 - t13/t3**3) - t19*t6/t3**3 + &
+            (dF_dpsihat*t2*2/psi_sep + radius*t12)/t3
 
     end subroutine evaluate_neort_eqdsk_allowed_energy
 
