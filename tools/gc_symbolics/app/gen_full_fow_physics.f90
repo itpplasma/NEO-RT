@@ -72,6 +72,7 @@ program gen_full_fow_physics
     type(expr_t) :: buchholz_energy_roots(3), potato_velocity_roots(2)
     type(expr_t) :: potato_mu_roots(2), cylindrical_hamiltonian_roots(1)
     type(expr_t) :: cylindrical_canonical_roots(2)
+    type(expr_t) :: cylindrical_canonical_scale_roots(3)
     type(expr_t) :: cylindrical_launch_roots(3)
     type(expr_t) :: cylindrical_vparallel_roots(1)
     type(expr_t) :: buchholz_specific_energy_roots(1)
@@ -3666,6 +3667,11 @@ program gen_full_fow_physics
     cylindrical_canonical_roots = [ &
         subs(invariant_pphi, bhat2, cylindrical_bhat_phi), &
         subs(invariant_psistar, bhat2, cylindrical_bhat_phi)]
+    cylindrical_canonical_scale_roots = [ &
+        charge/c_light*psi, &
+        p_parallel*radius*cylindrical_bhat_phi, &
+        abs(charge/c_light*psi) + &
+            abs(p_parallel*radius*cylindrical_bhat_phi)]
     cylindrical_vparallel_roots = [invariant_vparallel_squared]
     cylindrical_launch_roots = [ &
         subs(invariant_vparallel_squared, bhat2, cylindrical_bhat_phi), &
@@ -3784,6 +3790,7 @@ program gen_full_fow_physics
     call simplify_array(potato_mu_roots)
     call simplify_array(cylindrical_hamiltonian_roots)
     call simplify_array(cylindrical_canonical_roots)
+    call simplify_array(cylindrical_canonical_scale_roots)
     call simplify_array(cylindrical_vparallel_roots)
     call simplify_array(cylindrical_launch_roots)
     call simplify_array(cut_topology_flow_roots)
@@ -4044,6 +4051,15 @@ program gen_full_fow_physics
         "evaluate_neort_cylindrical_canonical", [character(len=64) :: "charge", "c_light", &
         "radius", "p_parallel", "psi", "bhat_phi"], &
         cylindrical_canonical_roots, [character(len=64) :: "canonical_p_phi", "psi_star"])
+    call emit_kernel_file(trim(output_path)// &
+        "/neort_cylindrical_canonical_scale_symbolic.f90", &
+        "neort_cylindrical_canonical_scale_symbolic", &
+        "evaluate_neort_cylindrical_canonical_scale", &
+        [character(len=64) :: "charge", "c_light", "radius", &
+        "p_parallel", "psi", "bhat_phi"], &
+        cylindrical_canonical_scale_roots, &
+        [character(len=64) :: "flux_term", "parallel_term", &
+        "cancellation_safe_scale"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_cylindrical_vparallel_symbolic.f90", &
         "neort_cylindrical_vparallel_symbolic", &
