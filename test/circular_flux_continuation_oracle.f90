@@ -48,6 +48,8 @@ program test_gc_circular_flux_continuation
             2.0e-9_dp)
         psi_left = psi
     end do
+    call evaluate_neort_circular_flux_continuation(edge_radius, edge_radius, &
+        psi_edge, toroidal_flux, q_axis, delta_q, psi, dpsi, q)
     call require_close('defining LCFS slope', dpsi, &
         toroidal_flux*edge_radius/(q_axis+delta_q), 2.0e-13_dp)
 
