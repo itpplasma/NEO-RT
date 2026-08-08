@@ -11,6 +11,7 @@ program test_gc_eqdsk_flow_jacobian_symbolic
     real(dp), parameter :: sqrt_three = 1.7320508075688772935_dp
     real(dp), parameter :: tolerance = 2.0e-12_dp
     real(dp) :: j11, j12, j21, j22, trace, determinant, discriminant
+    real(dp) :: bmod, p_parallel, bparallel_star
     real(dp) :: hessian_rr, hessian_rz, hessian_zz, hessian_determinant
     real(dp) :: littlejohn_factor, discriminant_from_hessian
     real(dp) :: fixed_point_v_r, fixed_point_v_z
@@ -28,7 +29,7 @@ program test_gc_eqdsk_flow_jacobian_symbolic
         0.0_dp, 0.0_dp, 0.0_dp, 1.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
         1.0_dp, sqrt_three, 0.0_dp, 0.0_dp, 0.0_dp, 5.5_dp, 0.5_dp, &
         j11, j12, j21, j22, trace, determinant, &
-        discriminant)
+        discriminant, bmod, p_parallel, bparallel_star)
 
     hessian_rr = -119.0_dp/12.0_dp
     hessian_rz = 0.0_dp
@@ -51,6 +52,9 @@ program test_gc_eqdsk_flow_jacobian_symbolic
         determinant, littlejohn_factor**2*hessian_determinant)
     call require_close("Delta equals -4 L squared Hessian determinant", &
         discriminant, discriminant_from_hessian)
+    call require_close("physical B magnitude", bmod, 2.0_dp)
+    call require_close("mechanical parallel momentum", p_parallel, sqrt_three)
+    call require_close("physical B_parallel_star", bparallel_star, 2.0_dp)
     if (discriminant >= 0.0_dp) then
         error stop "manufactured elliptic fixed point was not classified O"
     end if
