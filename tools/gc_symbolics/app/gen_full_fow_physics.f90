@@ -198,8 +198,8 @@ program gen_full_fow_physics
     type(expr_t) :: eqdsk_scaled_flux_normalization_roots(1)
     type(expr_t) :: eqdsk_physical_flux_normalization_roots(1)
     type(expr_t) :: eqdsk_physical_flux_map_roots(2)
-    type(expr_t) :: eqdsk_allowed_energy_roots(17)
-    type(expr_t) :: eqdsk_canonical_cut_roots(4)
+    type(expr_t) :: eqdsk_allowed_energy_roots(19)
+    type(expr_t) :: eqdsk_canonical_cut_roots(6)
     type(expr_t) :: eqdsk_turning_chart_roots(5)
     type(expr_t) :: eqdsk_cell_jet_roots(10), eqdsk_profile_jet_roots(4)
     type(expr_t) :: eqdsk_cell_fourth_jet_roots(5)
@@ -286,6 +286,7 @@ program gen_full_fow_physics
     type(expr_t) :: allowed_field_scale, allowed_dz_dr, allowed_d2z_dr2
     type(expr_t) :: allowed_equilibrium_psi_physical
     type(expr_t) :: allowed_equilibrium_dpsi_physical_dr
+    type(expr_t) :: allowed_equilibrium_d2psi_physical_dr2
     type(expr_t) :: allowed_g, allowed_sqrt_g, allowed_dpsi_dr
     type(expr_t) :: allowed_d2psi_dr2, allowed_dpsi_r_dr
     type(expr_t) :: allowed_dpsi_z_dr, allowed_d2psi_r_dr2
@@ -303,21 +304,31 @@ program gen_full_fow_physics
     type(expr_t) :: allowed_vparallel_squared, allowed_dvparallel_squared_dr
     type(expr_t) :: allowed_d2vparallel_squared_dr2
     type(expr_t) :: allowed_bphi_covariant, allowed_dbphi_covariant_dr
+    type(expr_t) :: allowed_d2bphi_covariant_dr2
     type(expr_t) :: allowed_vparallel_squared_input
     type(expr_t) :: allowed_dvparallel_squared_dr_input
+    type(expr_t) :: allowed_d2vparallel_squared_dr2_input
     type(expr_t) :: allowed_bphi_covariant_input
     type(expr_t) :: allowed_dbphi_covariant_dr_input
+    type(expr_t) :: allowed_d2bphi_covariant_dr2_input
     type(expr_t) :: allowed_x, allowed_radius_local
     type(expr_t) :: allowed_psi_r_local, allowed_psi_z_local
     type(expr_t) :: allowed_f_local, allowed_g_local
-    type(expr_t) :: allowed_bmod_local, allowed_potential_local
+    type(expr_t) :: allowed_bmod_local, allowed_bphi_local
+    type(expr_t) :: allowed_potential_local
     type(expr_t) :: allowed_energy_local
     type(expr_t) :: allowed_g_second_series
     type(expr_t) :: allowed_potential_second_series
     type(expr_t) :: allowed_parallel_sign, allowed_vparallel
-    type(expr_t) :: allowed_dvparallel_dr, allowed_psi_physical
-    type(expr_t) :: allowed_dpsi_physical_dr, allowed_psi_star
-    type(expr_t) :: allowed_dpsi_star_dr
+    type(expr_t) :: allowed_dvparallel_dr, allowed_d2vparallel_dr2
+    type(expr_t) :: allowed_psi_physical, allowed_dpsi_physical_dr
+    type(expr_t) :: allowed_d2psi_physical_dr2
+    type(expr_t) :: allowed_psi_star, allowed_dpsi_star_dr
+    type(expr_t) :: allowed_d2psi_star_dr2
+    type(expr_t) :: allowed_vparallel_squared_local
+    type(expr_t) :: allowed_psi_physical_local
+    type(expr_t) :: allowed_bphi_covariant_local
+    type(expr_t) :: allowed_psi_star_local
     type(expr_t) :: turning_y, turning_direction, turning_dv2_dx
     type(expr_t) :: turning_psi_root, turning_dpsi_dx
     type(expr_t) :: turning_ratio_root, turning_dratio_dx
@@ -2138,6 +2149,8 @@ program gen_full_fow_physics
         2*eqcut_psi_rz*allowed_dz_dr + &
         eqcut_psi_zz*allowed_dz_dr**2 + &
         eqcut_psi_z*allowed_d2z_dr2
+    allowed_equilibrium_d2psi_physical_dr2 = &
+        allowed_field_scale*allowed_d2psi_dr2
     allowed_dpsi_r_dr = eqcut_psi_rr+eqcut_psi_rz*allowed_dz_dr
     allowed_dpsi_z_dr = eqcut_psi_rz+eqcut_psi_zz*allowed_dz_dr
     allowed_d2psi_r_dr2 = eqcut_psi_rrr + &
@@ -2191,6 +2204,12 @@ program gen_full_fow_physics
     allowed_dbphi_covariant_dr = &
         (eqcut_f0+eqcut_radius*allowed_df_dr)/allowed_sqrt_g - &
         eqcut_radius*eqcut_f0*allowed_dg_dr/(2*allowed_sqrt_g**3)
+    allowed_d2bphi_covariant_dr2 = &
+        (2*allowed_df_dr+eqcut_radius*allowed_d2f_dr2)/allowed_sqrt_g - &
+        (eqcut_f0+eqcut_radius*allowed_df_dr)*allowed_dg_dr/ &
+        allowed_sqrt_g**3 + eqcut_radius*eqcut_f0* &
+        (3*allowed_dg_dr**2/(4*allowed_sqrt_g**5) - &
+        allowed_d2g_dr2/(2*allowed_sqrt_g**3))
 
     ! Independent local path model used only by the exact proof suite.  Its
     ! first two derivatives at x=0 must reproduce the emitted R-chart jet.
@@ -2208,6 +2227,8 @@ program gen_full_fow_physics
         allowed_psi_z_local**2+allowed_f_local**2
     allowed_bmod_local = allowed_field_scale*sqrt(allowed_g_local)/ &
         allowed_radius_local
+    allowed_bphi_local = allowed_radius_local*allowed_f_local/ &
+        sqrt(allowed_g_local)
     allowed_potential_local = allowed_potential + &
         allowed_dphi_dpsi*allowed_field_scale* &
         (allowed_dpsi_dr*allowed_x + &
@@ -2237,23 +2258,51 @@ program gen_full_fow_physics
     allowed_parallel_sign = sym(arena, "parallel_sign")
     allowed_psi_physical = sym(arena, "psi_physical")
     allowed_dpsi_physical_dr = sym(arena, "dpsi_physical_dR")
+    allowed_d2psi_physical_dr2 = sym(arena, "d2psi_physical_dR2")
     allowed_vparallel_squared_input = sym(arena, "v_parallel_squared")
     allowed_dvparallel_squared_dr_input = &
         sym(arena, "dv_parallel_squared_dR")
+    allowed_d2vparallel_squared_dr2_input = &
+        sym(arena, "d2v_parallel_squared_dR2")
     allowed_bphi_covariant_input = sym(arena, "bphi_covariant")
     allowed_dbphi_covariant_dr_input = &
         sym(arena, "dbphi_covariant_dR")
+    allowed_d2bphi_covariant_dr2_input = &
+        sym(arena, "d2bphi_covariant_dR2")
     allowed_vparallel = allowed_parallel_sign* &
         sqrt(allowed_vparallel_squared_input)
     allowed_dvparallel_dr = allowed_parallel_sign* &
         allowed_dvparallel_squared_dr_input/ &
         (2*sqrt(allowed_vparallel_squared_input))
+    allowed_d2vparallel_dr2 = allowed_parallel_sign* &
+        (allowed_d2vparallel_squared_dr2_input/ &
+        (2*sqrt(allowed_vparallel_squared_input)) - &
+        allowed_dvparallel_squared_dr_input**2/ &
+        (4*allowed_vparallel_squared_input* &
+        sqrt(allowed_vparallel_squared_input)))
     allowed_psi_star = allowed_psi_physical + mass*c_light/charge* &
         allowed_vparallel*allowed_bphi_covariant_input
     allowed_dpsi_star_dr = allowed_dpsi_physical_dr + &
         mass*c_light/charge*(allowed_dvparallel_dr* &
         allowed_bphi_covariant_input + &
         allowed_vparallel*allowed_dbphi_covariant_dr_input)
+    allowed_d2psi_star_dr2 = allowed_d2psi_physical_dr2 + &
+        mass*c_light/charge*(allowed_d2vparallel_dr2* &
+        allowed_bphi_covariant_input + 2*allowed_dvparallel_dr* &
+        allowed_dbphi_covariant_dr_input + &
+        allowed_vparallel*allowed_d2bphi_covariant_dr2_input)
+    allowed_vparallel_squared_local = allowed_vparallel_squared_input + &
+        allowed_dvparallel_squared_dr_input*allowed_x + &
+        allowed_d2vparallel_squared_dr2_input*allowed_x**2/2
+    allowed_psi_physical_local = allowed_psi_physical + &
+        allowed_dpsi_physical_dr*allowed_x + &
+        allowed_d2psi_physical_dr2*allowed_x**2/2
+    allowed_bphi_covariant_local = allowed_bphi_covariant_input + &
+        allowed_dbphi_covariant_dr_input*allowed_x + &
+        allowed_d2bphi_covariant_dr2_input*allowed_x**2/2
+    allowed_psi_star_local = allowed_psi_physical_local + &
+        mass*c_light/charge*allowed_parallel_sign* &
+        sqrt(allowed_vparallel_squared_local)*allowed_bphi_covariant_local
 
     turning_y = sym(arena, "root_coordinate_y")
     turning_direction = sym(arena, "allowed_side_sign")
@@ -3141,6 +3190,20 @@ program gen_full_fow_physics
         eqcut_radius*allowed_d2bmod_dr2 + 2*allowed_dbmod_dr - &
         allowed_field_scale*allowed_d2sqrt_g_dr2)
     call check_identity(proofs, proof_engine, &
+        "Eq13 covariant toroidal field ratio value", &
+        subs(allowed_bphi_local, allowed_x, zero)-allowed_bphi_covariant)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 covariant toroidal field ratio first derivative", &
+        exact_simplify(subs(exact_derivative(allowed_bphi_local, &
+        allowed_x, "Eq13 bphi first path derivative"), allowed_x, zero), &
+        "Eq13 bphi first path jet")-allowed_dbphi_covariant_dr)
+    call check_identity(proofs, proof_engine, &
+        "Eq13 covariant toroidal field ratio second derivative", &
+        exact_simplify(subs(exact_derivative(exact_derivative( &
+        allowed_bphi_local, allowed_x, "Eq13 bphi first derivative"), &
+        allowed_x, "Eq13 bphi second derivative"), allowed_x, zero), &
+        "Eq13 bphi second path jet")-allowed_d2bphi_covariant_dr2)
+    call check_identity(proofs, proof_engine, &
         "Eq13 allowed energy value", &
         subs(allowed_energy_local, allowed_x, zero)-allowed_energy_margin)
     call check_identity(proofs, proof_engine, &
@@ -3158,6 +3221,13 @@ program gen_full_fow_physics
         charge*(allowed_d2phi_dpsi2* &
         (allowed_field_scale*allowed_dpsi_dr)**2 + &
         allowed_dphi_dpsi*allowed_field_scale*allowed_d2psi_dr2))
+    call check_identity(proofs, proof_engine, &
+        "regular canonical flux second derivative", &
+        exact_simplify(subs(exact_derivative(exact_derivative( &
+        allowed_psi_star_local, allowed_x, &
+        "regular canonical first derivative"), allowed_x, &
+        "regular canonical second derivative"), allowed_x, zero), &
+        "regular canonical second jet")-allowed_d2psi_star_dr2)
     call check_identity(proofs, proof_engine, &
         "simple-turn root coordinate has quadratic physical displacement", &
         turning_delta_x-turning_direction*turning_y**2)
@@ -3240,9 +3310,12 @@ program gen_full_fow_physics
         allowed_energy_margin, allowed_denergy_dr, &
         allowed_d2energy_dr2, allowed_vparallel_squared, &
         allowed_dvparallel_squared_dr, allowed_d2vparallel_squared_dr2, &
-        allowed_bphi_covariant, allowed_dbphi_covariant_dr]
+        allowed_bphi_covariant, allowed_dbphi_covariant_dr, &
+        allowed_equilibrium_d2psi_physical_dr2, &
+        allowed_d2bphi_covariant_dr2]
     eqdsk_canonical_cut_roots = [allowed_vparallel, &
-        allowed_dvparallel_dr, allowed_psi_star, allowed_dpsi_star_dr]
+        allowed_dvparallel_dr, allowed_psi_star, allowed_dpsi_star_dr, &
+        allowed_d2vparallel_dr2, allowed_d2psi_star_dr2]
     eqdsk_turning_chart_roots = [turning_delta_x, turning_vparallel, &
         turning_psi_star, turning_dpsi_star_dy, turning_root_derivative]
     eqdsk_cell_jet_roots = [cell_psi, cell_psi_r, cell_psi_z, cell_psi_rr, &
@@ -3890,7 +3963,8 @@ program gen_full_fow_physics
         "energy_margin", "denergy_margin_dR", "d2energy_margin_dR2", &
         "v_parallel_squared", "dv_parallel_squared_dR", &
         "d2v_parallel_squared_dR2", "bphi_covariant", &
-        "dbphi_covariant_dR"])
+        "dbphi_covariant_dR", "d2psi_physical_dR2", &
+        "d2bphi_covariant_dR2"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_allowed_energy_interval_symbolic.f90", &
         "neort_eqdsk_allowed_energy_interval_symbolic", &
@@ -3909,7 +3983,8 @@ program gen_full_fow_physics
         "energy_margin", "denergy_margin_dR", "d2energy_margin_dR2", &
         "v_parallel_squared", "dv_parallel_squared_dR", &
         "d2v_parallel_squared_dR2", "bphi_covariant", &
-        "dbphi_covariant_dR"], interval_kernel=.true.)
+        "dbphi_covariant_dR", "d2psi_physical_dR2", &
+        "d2bphi_covariant_dR2"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_canonical_cut_symbolic.f90", &
         "neort_eqdsk_canonical_cut_symbolic", &
@@ -3917,10 +3992,13 @@ program gen_full_fow_physics
         [character(len=64) :: "v_parallel_squared", &
         "dv_parallel_squared_dR", "mass", "charge", "c_light", &
         "parallel_sign", "psi_physical", "dpsi_physical_dR", &
-        "bphi_covariant", "dbphi_covariant_dR"], &
+        "bphi_covariant", "dbphi_covariant_dR", &
+        "d2v_parallel_squared_dR2", "d2psi_physical_dR2", &
+        "d2bphi_covariant_dR2"], &
         eqdsk_canonical_cut_roots, &
         [character(len=64) :: "v_parallel", "dv_parallel_dR", &
-        "psi_star", "dpsi_star_dR"])
+        "psi_star", "dpsi_star_dR", "d2v_parallel_dR2", &
+        "d2psi_star_dR2"])
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_canonical_cut_interval_symbolic.f90", &
         "neort_eqdsk_canonical_cut_interval_symbolic", &
@@ -3928,10 +4006,13 @@ program gen_full_fow_physics
         [character(len=64) :: "v_parallel_squared", &
         "dv_parallel_squared_dR", "mass", "charge", "c_light", &
         "parallel_sign", "psi_physical", "dpsi_physical_dR", &
-        "bphi_covariant", "dbphi_covariant_dR"], &
+        "bphi_covariant", "dbphi_covariant_dR", &
+        "d2v_parallel_squared_dR2", "d2psi_physical_dR2", &
+        "d2bphi_covariant_dR2"], &
         eqdsk_canonical_cut_roots, &
         [character(len=64) :: "v_parallel", "dv_parallel_dR", &
-        "psi_star", "dpsi_star_dR"], interval_kernel=.true.)
+        "psi_star", "dpsi_star_dR", "d2v_parallel_dR2", &
+        "d2psi_star_dR2"], interval_kernel=.true.)
     call emit_kernel_file(trim(output_path)// &
         "/neort_eqdsk_turning_chart_symbolic.f90", &
         "neort_eqdsk_turning_chart_symbolic", &
