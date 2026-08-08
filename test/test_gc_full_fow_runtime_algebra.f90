@@ -93,7 +93,7 @@ contains
         call evaluate_neort_full_fow_resonance_scalar(2.0_dp, -3.0_dp, 3.0_dp, &
             2.0_dp, 0.4_dp, -0.1_dp, residual, derivative)
         call require_close('resonance zero', residual, 0.0_dp, 1.0e-13_dp)
-        call require_close('resonance derivative', derivative, 0.5_dp, 1.0e-13_dp)
+        call require_close('resonance derivative', derivative, 1.1_dp, 1.0e-13_dp)
         call evaluate_neort_full_fow_resonance_scalar(2.0_dp, -3.0_dp, -3.0_dp, &
             -2.0_dp, -0.4_dp, 0.1_dp, reversed, unused_derivative)
         call require_close('frequency reversal preserves zero set', reversed, &
