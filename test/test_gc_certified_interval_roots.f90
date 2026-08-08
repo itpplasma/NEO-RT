@@ -7,6 +7,8 @@ program test_gc_certified_interval_roots
     type(gc_interval_root_options_t) :: options
     type(gc_interval_root_result_t) :: result, coarse, fine, repeat
     integer :: callback_mode, callback_calls
+    integer :: tangent_callback_calls
+    real(dp) :: tangent_root
     real(dp), parameter :: nearby_root_a = 0.2_dp
     real(dp), parameter :: nearby_root_b = 0.21_dp
 
@@ -101,6 +103,53 @@ program test_gc_certified_interval_roots
         result%roots(1)%right_endpoint_root, &
         'right domain endpoint evidence is wrong')
 
+    !! Independent manufactured tangent-root fixture.  These cases exercise
+    !! the existing stationary certificate contract at both physical domain
+    !! endpoints and at an initial-partition join.  The join case must produce
+    !! one canonical root after the two child certificates are reconciled.
+    options%expected_enclosure_certificate_id = 902
+    options%expected_stationary_certificate_id = 404
+    options%initial_partition = 1
+    call run_tangent_case(0.0_dp, 1.0_dp, 0.0_dp, result)
+    call require(result%status == GC_INTERVAL_ROOT_SUCCESS .and. result%nroots == 1 .and. &
+        result%coverage_certified, 'left endpoint tangent was not certified')
+    call require(result%roots(1)%kind == GC_INTERVAL_ROOT_TANGENT .and. &
+        result%roots(1)%lo == 0.0_dp .and. result%roots(1)%hi == 0.0_dp .and. &
+        result%roots(1)%left_endpoint_root .and. &
+        .not. result%roots(1)%right_endpoint_root .and. &
+        result%roots(1)%boundary_role == GC_INTERVAL_ROOT_LEFT_BOUNDARY .and. &
+        result%roots(1)%stationary_certified .and. &
+        result%roots(1)%stationary_certificate_id == 404, &
+        'left endpoint tangent evidence is wrong')
+
+    call run_tangent_case(0.0_dp, 1.0_dp, 1.0_dp, result)
+    call require(result%status == GC_INTERVAL_ROOT_SUCCESS .and. result%nroots == 1 .and. &
+        result%coverage_certified, 'right endpoint tangent was not certified')
+    call require(result%roots(1)%kind == GC_INTERVAL_ROOT_TANGENT .and. &
+        result%roots(1)%lo == 1.0_dp .and. result%roots(1)%hi == 1.0_dp .and. &
+        .not. result%roots(1)%left_endpoint_root .and. &
+        result%roots(1)%right_endpoint_root .and. &
+        result%roots(1)%boundary_role == GC_INTERVAL_ROOT_RIGHT_BOUNDARY .and. &
+        result%roots(1)%stationary_certified .and. &
+        result%roots(1)%stationary_certificate_id == 404, &
+        'right endpoint tangent evidence is wrong')
+
+    options%initial_partition = 2
+    call run_tangent_case(-1.0_dp, 1.0_dp, 0.0_dp, result)
+    call require(result%status == GC_INTERVAL_ROOT_SUCCESS .and. result%nroots == 1 .and. &
+        result%coverage_certified, 'partition-join tangent was not certified')
+    call require(result%roots(1)%kind == GC_INTERVAL_ROOT_TANGENT .and. &
+        result%roots(1)%lo == 0.0_dp .and. result%roots(1)%hi == 0.0_dp .and. &
+        result%roots(1)%left_endpoint_root .and. result%roots(1)%right_endpoint_root .and. &
+        result%roots(1)%boundary_role == GC_INTERVAL_ROOT_BOTH_BOUNDARIES .and. &
+        result%roots(1)%stationary_certified .and. &
+        result%roots(1)%stationary_certificate_id == 404, &
+        'partition-join tangent was not canonicalized')
+
+    options%expected_enclosure_certificate_id = 901
+    options%expected_stationary_certificate_id = 0
+    options%initial_partition = 1
+
     options%max_stationary_iterations = 1
     options%max_depth = 0
     call run_case(17, -1.0_dp, 1.0_dp, result)
@@ -178,6 +227,104 @@ contains
         call isolate_gc_interval_roots(analytic_callback, analytic_enclosure_verifier, &
             analytic_stationary_verifier, lo, hi, options, output)
     end subroutine run_case
+
+    subroutine run_tangent_case(lo, hi, root, output)
+        real(dp), intent(in) :: lo, hi, root
+        type(gc_interval_root_result_t), intent(out) :: output
+
+        tangent_root = root
+        tangent_callback_calls = 0
+        call isolate_gc_interval_roots(manufactured_tangent_callback, &
+            manufactured_tangent_enclosure_verifier, manufactured_tangent_stationary_verifier, &
+            lo, hi, options, output)
+        call require(tangent_callback_calls > 0, 'tangent fixture callback was not exercised')
+    end subroutine run_tangent_case
+
+    subroutine manufactured_tangent_callback(lo, hi, value)
+        real(dp), intent(in) :: lo, hi
+        type(gc_interval_callback_result_t), intent(out) :: value
+
+        tangent_callback_calls = tangent_callback_calls + 1
+        value = gc_interval_callback_result_t()
+        value%query_lo = lo
+        value%query_hi = hi
+        value%status = 0
+        value%certified = .true.
+        value%cut_id = 27
+        value%enclosure_certificate_id = 902
+        value%stationary_certificate_id = 404
+        value%stationary_point = tangent_root
+        value%f = manufactured_square_interval(lo, hi, tangent_root)
+        value%df = gc_interval_t(down(2.0_dp*(lo - tangent_root)), &
+            up(2.0_dp*(hi - tangent_root)))
+        value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
+    end subroutine manufactured_tangent_callback
+
+    subroutine manufactured_tangent_enclosure_verifier(lo, hi, value, expected_id, status)
+        real(dp), intent(in) :: lo, hi
+        type(gc_interval_callback_result_t), intent(in) :: value
+        integer, intent(in) :: expected_id
+        integer, intent(out) :: status
+        type(gc_interval_callback_result_t) :: expected
+
+        status = 1
+        if (expected_id /= 902) return
+        if (value%query_lo /= lo .or. value%query_hi /= hi) return
+        if (value%cut_id /= 27 .or. value%enclosure_certificate_id /= 902 .or. &
+            value%stationary_certificate_id /= 404 .or. &
+            value%stationary_point /= tangent_root) return
+        expected%f = manufactured_square_interval(lo, hi, tangent_root)
+        expected%df = gc_interval_t(down(2.0_dp*(lo - tangent_root)), &
+            up(2.0_dp*(hi - tangent_root)))
+        expected%d2f = gc_interval_t(2.0_dp, 2.0_dp)
+        if (.not. contains_oracle_interval(value%f, expected%f) .or. &
+            .not. contains_oracle_interval(value%df, expected%df) .or. &
+            .not. contains_oracle_interval(value%d2f, expected%d2f)) return
+        status = 0
+    end subroutine manufactured_tangent_enclosure_verifier
+
+    subroutine manufactured_tangent_stationary_verifier(lo, hi, point, value, &
+            expected_enclosure_id, expected_stationary_id, status)
+        real(dp), intent(in) :: lo, hi, point
+        type(gc_interval_callback_result_t), intent(out) :: value
+        integer, intent(in) :: expected_enclosure_id, expected_stationary_id
+        integer, intent(out) :: status
+
+        value = gc_interval_callback_result_t()
+        value%query_lo = point
+        value%query_hi = point
+        value%cut_id = 27
+        value%enclosure_certificate_id = expected_enclosure_id
+        value%stationary_certificate_id = expected_stationary_id
+        value%stationary_point = point
+        value%status = 1
+        status = 1
+        if (expected_enclosure_id /= 902 .or. expected_stationary_id /= 404) return
+        if (point /= tangent_root .or. point < lo .or. point > hi) return
+        value%f = gc_interval_t(0.0_dp, 0.0_dp)
+        value%df = gc_interval_t(0.0_dp, 0.0_dp)
+        value%d2f = gc_interval_t(2.0_dp, 2.0_dp)
+        value%status = 0
+        status = 0
+    end subroutine manufactured_tangent_stationary_verifier
+
+    function manufactured_square_interval(lo, hi, root) result(value)
+        real(dp), intent(in) :: lo, hi, root
+        type(gc_interval_t) :: value
+        real(dp) :: shifted_lo, shifted_hi, smallest, largest
+
+        shifted_lo = lo - root
+        shifted_hi = hi - root
+        if (lo == hi) then
+            value = point_interval(shifted_lo*shifted_lo)
+            return
+        end if
+        smallest = min(abs(shifted_lo), abs(shifted_hi))
+        largest = max(abs(shifted_lo), abs(shifted_hi))
+        if (shifted_lo <= 0.0_dp .and. shifted_hi >= 0.0_dp) smallest = 0.0_dp
+        value%lo = down(smallest*smallest)
+        value%hi = up(largest*largest)
+    end function manufactured_square_interval
 
     subroutine analytic_callback(lo, hi, value)
         real(dp), intent(in) :: lo, hi
