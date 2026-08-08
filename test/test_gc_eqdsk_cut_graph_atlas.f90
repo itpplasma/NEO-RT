@@ -13,6 +13,15 @@ program test_gc_eqdsk_cut_graph_atlas
     use neort_gc_eqdsk_cut_jet, only: EQDSK_CUT_JET_SUCCESS, &
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_gc_eqdsk_cut_interval, only: eqdsk_cut_interval_result_t
+    use neort_gc_eqdsk_flux_profile_map, only: &
+        EQDSK_FLUX_MAP_SUCCESS, eqdsk_flux_profile_map_t, &
+        initialize_eqdsk_flux_profile_map
+    use neort_gc_eqdsk_radial_interval_map, only: &
+        EQDSK_RADIAL_INTERVAL_NOT_MONOTONE, &
+        EQDSK_RADIAL_INTERVAL_SUCCESS, &
+        eqdsk_rho_interval_provenance_t, &
+        map_eqdsk_outboard_r_interval_to_rho_tor
+    use neort_gc_outward_interval, only: gc_outward_interval_t
     use neort_gc_eqdsk_axis_certificate, only: &
         EQDSK_AXIS_CERT_SUCCESS, build_eqdsk_axis_certificate, &
         eqdsk_axis_certificate_t, validate_eqdsk_axis_certificate
@@ -22,6 +31,9 @@ program test_gc_eqdsk_cut_graph_atlas
     type(eqdsk_cut_graph_atlas_t) :: inboard_atlas, outboard_atlas, full_atlas
     type(eqdsk_cut_graph_atlas_options_t) :: options, full_options
     type(eqdsk_axis_certificate_t) :: axis_certificate
+    type(eqdsk_flux_profile_map_t) :: flux_map
+    type(eqdsk_rho_interval_provenance_t) :: radial_provenance
+    type(gc_outward_interval_t) :: rho_interval
     character(len=1024) :: path
     real(dp) :: axis_R, inboard_lo, inboard_hi, outboard_lo, outboard_hi
     integer :: status, axis_R_index, axis_Z_index
@@ -75,6 +87,18 @@ program test_gc_eqdsk_cut_graph_atlas
         outboard_atlas%flux_monotonicity_sign == 1, &
         'outboard cut flux was not certified strictly increasing')
     call check_regular_branch(outboard_atlas, outboard_lo, outboard_hi)
+    call initialize_eqdsk_flux_profile_map([0.0_dp, 1.0_dp], &
+        [0.0_dp, 3.0_dp*psi_sep], 3.0_dp, psi_sep, flux_map, status)
+    call require(status == EQDSK_FLUX_MAP_SUCCESS, &
+        'scaled linear flux profile was not certified')
+    call check_radial_interval(outboard_atlas, flux_map, &
+        outboard_lo+0.3_dp*(outboard_hi-outboard_lo), &
+        outboard_lo+0.7_dp*(outboard_hi-outboard_lo), rho_interval, &
+        radial_provenance)
+    call map_eqdsk_outboard_r_interval_to_rho_tor(inboard_atlas, flux_map, &
+        inboard_lo, inboard_hi, rho_interval, radial_provenance, status)
+    call require(status == EQDSK_RADIAL_INTERVAL_NOT_MONOTONE, &
+        'decreasing inboard graph was accepted as the outboard rho map')
 
     ! The Fortsym-emitted continuation keeps psi and its first derivative
     ! smooth and strictly increasing beyond the nominal LCFS.  The complete
@@ -191,6 +215,49 @@ contains
             2.0e-10_dp*max(1.0_dp, abs(target_flux)), &
             'inverse branch map missed its normalized-flux target')
     end subroutine check_regular_branch
+
+    subroutine check_radial_interval(atlas, map, r_lo, r_hi, rho_box, &
+            provenance)
+        type(eqdsk_cut_graph_atlas_t), intent(inout) :: atlas
+        type(eqdsk_flux_profile_map_t), intent(in) :: map
+        real(dp), intent(in) :: r_lo, r_hi
+        type(gc_outward_interval_t), intent(out) :: rho_box
+        type(eqdsk_rho_interval_provenance_t), intent(out) :: provenance
+
+        type(eqdsk_cut_jet_t) :: jet
+        real(dp) :: position(3), tangent(3), expected_rho(2)
+        integer :: i, local_status, jet_status
+
+        call map_eqdsk_outboard_r_interval_to_rho_tor(atlas, map, r_lo, &
+            r_hi, rho_box, provenance, local_status)
+        call require(local_status == EQDSK_RADIAL_INTERVAL_SUCCESS, &
+            'regular outboard R interval did not map to rho_tor')
+        call require(provenance%mapping_certified, &
+            'radial interval omitted its completed certificate')
+        call require(provenance%nstrips >= 1, &
+            'radial interval retained no strip provenance')
+        call require(provenance%n_graph_enclosures >= provenance%nstrips, &
+            'radial interval lost graph enclosure provenance')
+        do i = 1, 2
+            call map_eqdsk_cut_graph_atlas(atlas, merge(r_lo, r_hi, i == 1), &
+                position, tangent, status=local_status)
+            call require(local_status == EQDSK_CUT_ATLAS_SUCCESS, &
+                'radial interval endpoint scalar map failed')
+            call evaluate_eqdsk_cut_jet(position, 1.0_dp, 1, &
+                [0.0_dp, 0.0_dp, 0.0_dp], jet, jet_status)
+            call require(jet_status == EQDSK_CUT_JET_SUCCESS, &
+                'radial interval endpoint scalar jet failed')
+            expected_rho(i) = sqrt(jet%psi_jet(1)/psi_sep)
+            call require(rho_box%lo <= expected_rho(i) .and. &
+                    rho_box%hi >= expected_rho(i), &
+                'radial interval excluded its scalar endpoint oracle')
+            call require(provenance%psi_physical%lo <= &
+                    3.0_dp*jet%psi_jet(1) .and. &
+                    provenance%psi_physical%hi >= &
+                    3.0_dp*jet%psi_jet(1), &
+                'physical flux did not retain exactly one field scale')
+        end do
+    end subroutine check_radial_interval
 
     logical function any_enclosure_contains(enclosures, jet)
         type(eqdsk_cut_interval_result_t), intent(in) :: enclosures(:)
