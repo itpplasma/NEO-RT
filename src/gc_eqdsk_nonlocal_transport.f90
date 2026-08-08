@@ -1986,6 +1986,27 @@ contains
         status = GC_EQDSK_NONLOCAL_SUCCESS
     end subroutine poincare_cut_value_position
 
+    subroutine initialize_factory_class_adapter(factory, h0, jperp, adapter, &
+            status)
+        !! Own the complete adapter contract for every factory callback seam.
+        !!
+        !! Keep future allowed-region provider, verifier, and certificate
+        !! associations here so the factory call sites cannot diverge.  The
+        !! splitter is borrowed by the adapter just like the factory context;
+        !! associating it does not participate in point evaluation.
+        type(gc_eqdsk_nonlocal_factory_t), target, intent(inout) :: factory
+        real(dp), intent(in) :: h0, jperp
+        type(gc_cylindrical_class_adapter_t), intent(out) :: adapter
+        integer, intent(out) :: status
+
+        call initialize_gc_cylindrical_class_adapter(factory%field, &
+            factory%potential, h0, jperp, factory%species%mass_g, &
+            factory%species%charge_esu, c, factory%options%surface_min, &
+            factory%options%surface_max, physical_cut_map_callback, adapter, &
+            status, options=factory%options%class_options, &
+            splitter=certified_splitter_callback, user_data=factory)
+    end subroutine initialize_factory_class_adapter
+
     subroutine factory_node_factory(h0, jperp, user_data, adapter, context, &
             status)
         real(dp), intent(in) :: h0, jperp
@@ -2004,12 +2025,8 @@ contains
             type is (gc_eqdsk_nonlocal_factory_t)
             if (.not. factory%field_ready .or. .not. factory%profile_ready) return
             if (.not. factory%wall_ready .or. .not. factory%cut_ready) return
-            call initialize_gc_cylindrical_class_adapter(factory%field, &
-                factory%potential, h0, jperp, factory%species%mass_g, &
-                factory%species%charge_esu, c, factory%options%surface_min, &
-                factory%options%surface_max, physical_cut_map_callback, adapter, &
-                local_status, options=factory%options%class_options, &
-                splitter=certified_splitter_callback, user_data=factory)
+            call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
+                local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) then
                 status = GC_EQDSK_NONLOCAL_TOPOLOGY_UNAVAILABLE
                 return
@@ -2102,12 +2119,8 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
-            call initialize_gc_cylindrical_class_adapter(factory%field, &
-                factory%potential, h0, jperp, factory%species%mass_g, &
-                factory%species%charge_esu, c, factory%options%surface_min, &
-                factory%options%surface_max, physical_cut_map_callback, adapter, &
-                local_status, options=factory%options%class_options, &
-                splitter=certified_splitter_callback, user_data=factory)
+            call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
+                local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) return
             call enumerate_gc_cylindrical_classes(adapter, classes, local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) return
@@ -2242,12 +2255,8 @@ contains
         if (.not. associated(user_data)) return
         select type (factory => user_data)
             type is (gc_eqdsk_nonlocal_factory_t)
-            call initialize_gc_cylindrical_class_adapter(factory%field, &
-                factory%potential, h0, jperp, factory%species%mass_g, &
-                factory%species%charge_esu, c, factory%options%surface_min, &
-                factory%options%surface_max, physical_cut_map_callback, adapter, &
-                local_status, options=factory%options%class_options, &
-                splitter=certified_splitter_callback, user_data=factory)
+            call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
+                local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) return
             call enumerate_gc_cylindrical_classes(adapter, classes, local_status)
             if (local_status /= GC_CYL_CLASS_SUCCESS) return
@@ -2506,12 +2515,8 @@ contains
         launch%sigma = sigma
         launch%component_id = component_id
         status = GC_EQDSK_NONLOCAL_ORBIT_ERROR
-        call initialize_gc_cylindrical_class_adapter(factory%field, &
-            factory%potential, h0, jperp, factory%species%mass_g, &
-            factory%species%charge_esu, c, factory%options%surface_min, &
-            factory%options%surface_max, physical_cut_map_callback, adapter, &
-            local_status, options=factory%options%class_options, &
-            user_data=factory)
+        call initialize_factory_class_adapter(factory, h0, jperp, adapter, &
+            local_status)
         if (local_status /= GC_CYL_CLASS_SUCCESS) return
         call evaluate_gc_cylindrical_class_point(adapter, x, sigma, point, &
             local_status)
