@@ -1,0 +1,10 @@
+name = "neort_full_fow_contracts"
+version = "0.1.0"
+defaultTargets = ["neort_full_fow_contracts"]
+
+[[lean_lib]]
+name = "NeortFullFow"
+
+[[lean_exe]]
+name = "neort_full_fow_contracts"
+root = "Main"
