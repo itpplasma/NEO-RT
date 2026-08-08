@@ -872,7 +872,12 @@ contains
         if (self%c_light <= 0.0_dp) return
         psi = field%psi
         call interpolate_potential(self, psi, values, status)
-        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) return
+        if (status /= GC_EQDSK_NONLOCAL_SUCCESS) then
+            write (*, '(a,1x,i0,3(1x,es24.16))') &
+                'potential interpolation diagnostic=', status, psi, &
+                self%psi_pol(1), self%psi_pol(size(self%psi_pol))
+            return
+        end if
         potential = values(1)
         gradient = values(2)*field%grad_psi
         if (.not. all(ieee_is_finite([potential, gradient]))) then
