@@ -35,7 +35,8 @@ program test_gc_eqdsk_allowed_region_signs
     real(dp), parameter :: expected_flip_energy = 24.0_dp
     real(dp), parameter :: expected_sigma_plus = 21.7_dp
     real(dp), parameter :: expected_sigma_minus = -16.7_dp
-    real(dp), parameter :: expected_zero_canonical_offset = 23.5153013442625_dp
+    real(dp), parameter :: expected_zero_canonical_offset = &
+        4.8_dp*sqrt(24.0_dp)
     integer :: status
 
     call make_manufactured_cut(cut(1))
