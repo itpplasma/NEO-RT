@@ -2102,6 +2102,11 @@ contains
                     local_status)
                 if (local_status == GC_EQDSK_ALLOWED_PROVIDER_SUCCESS) then
                     status = GC_CYL_CLASS_SUCCESS
+                else
+                    ! Preserve the typed provider failure for the factory
+                    ! diagnostic; the adapter still exposes only its public
+                    ! class-contract status to the caller.
+                    factory%last_return_status = 2000 + local_status
                 end if
             class default
                 return
