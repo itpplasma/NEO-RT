@@ -4453,8 +4453,10 @@ contains
     integer :: local_sigma,local_branch,local_i
     double precision :: local_mid,local_j,local_p,local_jl,local_jr, &
                         local_pl,local_pr,local_jq1,local_jq2, &
-                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width
-    logical :: local_ok,local_okl,local_okr,local_okq1,local_okq2
+                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width, &
+                        local_turning,local_turning_derivative,local_discriminant
+    logical :: local_ok,local_okl,local_okr,local_okq1,local_okq2, &
+               local_discriminant_ok
 
     nfp_segments=0
     do local_sigma=-1,1,2
@@ -4503,9 +4505,16 @@ contains
               local_sigma,local_branch,local_jq2,local_pq2,local_okq2)
           if(.not.local_okq1 .or. .not.local_okq2) then
             boundary_stage=43
+            call fixedpoint_turning_intersection( &
+                rpartition(local_i)+0.75d0*width,local_turning, &
+                local_turning_derivative)
+            call fixedpoint_discriminant_value( &
+                rpartition(local_i)+0.75d0*width,local_discriminant, &
+                local_discriminant_ok)
             print *,'find_jperp_topology_boundaries: branch quarter failure', &
                 local_i,local_sigma,local_branch,local_rlo,local_rhi, &
-                local_jl,local_j,local_jr,local_okq1,local_okq2
+                local_jl,local_j,local_jr,local_okq1,local_okq2, &
+                local_turning,local_discriminant,local_discriminant_ok
             ierr=2
             return
           endif
