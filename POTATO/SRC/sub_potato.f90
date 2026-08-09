@@ -3162,6 +3162,7 @@
   use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_orbit_failure, &
+                                matrix_eval_wall_loss, &
                                 matrix_boundary_error
   use get_matrix_mod, only : delphi_max,class_return_failure_reason
   use potato_input_mod, only : class_return_safety
@@ -3169,7 +3170,7 @@
   implicit none
 !
   integer :: iftype,ib_beg,ib_end
-  double precision :: xb,xe,xmid
+  double precision :: xb,xe,xmid,xcheck
   logical :: amat_was_alloc,empty_class,has_witness
 !
   external :: get_matrix_doublecount
@@ -3220,6 +3221,28 @@
     endif
   elseif(ib_beg.eq.1 .or. ib_beg.eq.2) then
     call trim_return(xmid,xb)
+  endif
+!
+! An endpoint trim can move the class midpoint into a non-returning tail.
+! Recheck that new midpoint and, if necessary, trim both open tails around a
+! fresh returning witness before the wall pass sees the class.
+  if(matrix_boundary_error.eq.matrix_eval_success .and. .not.empty_class) then
+    xcheck=0.5d0*(xb+xe)
+    if(orbit_return_invalid(xcheck)) then
+      if(matrix_boundary_error.eq.matrix_eval_success) then
+        call find_return_witness(xb,xe,xmid,has_witness)
+        if(has_witness) then
+          call trim_return(xmid,xb)
+          if(matrix_boundary_error.eq.matrix_eval_success .and. &
+             .not.empty_class) call trim_return(xmid,xe)
+        elseif(delphi_max.gt.0.d0) then
+          empty_class=.true.
+        else
+          class_return_failure_reason=4
+          matrix_boundary_error=matrix_eval_orbit_failure
+        endif
+      endif
+    endif
   endif
 !
   if(.not.amat_was_alloc) deallocate(amat)
@@ -3313,7 +3336,8 @@
   call get_matrix_doublecount
   orbit_return_invalid=(matrix_eval_error.eq.matrix_eval_orbit_failure)
   if(matrix_eval_error.ne.matrix_eval_success .and. &
-     matrix_eval_error.ne.matrix_eval_orbit_failure) then
+     matrix_eval_error.ne.matrix_eval_orbit_failure .and. &
+     matrix_eval_error.ne.matrix_eval_wall_loss) then
     matrix_boundary_error=matrix_eval_error
     orbit_return_invalid=.false.
   endif
