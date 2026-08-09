@@ -1841,59 +1841,8 @@
     do ireg=1,nregions
       if(all_regions(isig,ireg)%within_rhopol) then
         nsc=0
-!
-        do ixp_tot=1,nxp_tot
-          R_b=all_regions(isig,ireg)%R_b
-          R_e=all_regions(isig,ireg)%R_e
-!
-          if(ipoi_x_tot(1,ixp_tot).eq.isig .and. &
-             ipoi_x_tot(2,ixp_tot).eq.ireg) then
-! X-point belongs to this region, exclude it from the search:
-            if(R_b.lt.R_x_tot(ixp_tot)-delR_marg) then
-              relerr_allroots=1.d-12
-!
-              call find_return_map_roots_partitioned(sepcross, R_b, &
-                  R_x_tot(ixp_tot)-delR_marg,ierr)
-!
-              if(ierr.ne.0) then
-                print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 1, H,J,sigma,ireg,Rlo,Rhi,ierr = ', &
-                    toten,perpinv,sigma,ireg,R_b_in,R_x_tot(ixp_tot)-delR_marg,ierr
-                return
-              endif
-!
-              nsc=nsc+nroots
-            endif
-            if(R_x_tot(ixp_tot)+delR_marg.lt.R_e) then
-              relerr_allroots=1.d-12
-!
-              call find_return_map_roots_partitioned(sepcross, &
-                  R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
-!
-              if(ierr.ne.0) then
-                print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 2'
-                return
-              endif
-!
-              nsc=nsc+nroots
-            endif
-          else
-! X-point belongs to a different region:
-            relerr_allroots=1.d-12
-!
-            call find_return_map_roots_partitioned(sepcross,R_b,R_e,ierr)
-!
-            if(ierr.ne.0) then
-              print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 3'
-              return
-            endif
-!
-            nsc=nsc+nroots
-          endif
-        enddo
-!
         n_x=all_regions(isig,ireg)%n_x
-        nsc=nsc+n_x
-        allocate(rsc_tmp(nsc),ipoi_tmp(nsc))
+        allocate(rsc_tmp(max(1,n_x)),ipoi_tmp(max(1,n_x)))
         nsc=0
 !
         do ixp_tot=1,nxp_tot
@@ -1915,12 +1864,7 @@
               endif
 !
               if(nroots.gt.0) then
-                if(nsc+nroots.gt.size(rsc_tmp)) then
-                  print *,'find_bounds_fixpoints: separatrix root capacity mismatch 4, nsc,nroots,capacity = ', &
-                      nsc,nroots,size(rsc_tmp)
-                  ierr=3
-                  return
-                endif
+                call ensure_separatrix_capacity(nsc+nroots)
                 rsc_tmp(nsc+1:nsc+nroots)=roots
                 nsc=nsc+nroots
               endif
@@ -1937,12 +1881,7 @@
               endif
 !
               if(nroots.gt.0) then
-                if(nsc+nroots.gt.size(rsc_tmp)) then
-                  print *,'find_bounds_fixpoints: separatrix root capacity mismatch 5, nsc,nroots,capacity = ', &
-                      nsc,nroots,size(rsc_tmp)
-                  ierr=3
-                  return
-                endif
+                call ensure_separatrix_capacity(nsc+nroots)
                 rsc_tmp(nsc+1:nsc+nroots)=roots
                 nsc=nsc+nroots
               endif
@@ -1959,12 +1898,7 @@
             endif
 !
             if(nroots.gt.0) then
-              if(nsc+nroots.gt.size(rsc_tmp)) then
-                print *,'find_bounds_fixpoints: separatrix root capacity mismatch 6, nsc,nroots,capacity = ', &
-                    nsc,nroots,size(rsc_tmp)
-                ierr=3
-                return
-              endif
+              call ensure_separatrix_capacity(nsc+nroots)
               rsc_tmp(nsc+1:nsc+nroots)=roots
               nsc=nsc+nroots
             endif
@@ -1977,12 +1911,7 @@
 !
 ! add X-points:
         if(n_x.gt.0) then
-          if(nsc+n_x.gt.size(rsc_tmp)) then
-            print *,'find_bounds_fixpoints: X-point capacity mismatch, nsc,nx,capacity = ', &
-                nsc,n_x,size(rsc_tmp)
-            ierr=3
-            return
-          endif
+          call ensure_separatrix_capacity(nsc+n_x)
           rsc_tmp(nsc+1:nsc+n_x)=all_regions(isig,ireg)%R_x
           logdummy(nsc+1:nsc+n_x)=.true.
         endif
@@ -2057,6 +1986,25 @@
 !
   contains
 !
+!------------
+!
+  subroutine ensure_separatrix_capacity(required)
+      integer, intent(in) :: required
+      integer :: new_capacity
+      double precision, allocatable :: rsc_new(:)
+      integer, allocatable :: ipoi_new(:)
+
+      if(required.le.size(rsc_tmp)) return
+      new_capacity=max(required,2*max(1,size(rsc_tmp)))
+      allocate(rsc_new(new_capacity),ipoi_new(new_capacity))
+      if(nsc.gt.0) then
+        rsc_new(1:nsc)=rsc_tmp(1:nsc)
+        ipoi_new(1:nsc)=ipoi_tmp(1:nsc)
+      endif
+      call move_alloc(rsc_new,rsc_tmp)
+      call move_alloc(ipoi_new,ipoi_tmp)
+  end subroutine ensure_separatrix_capacity
+
 !------------
 !
   subroutine find_all_roots_certified(root_function,xlo,xhi,ierr_out)
