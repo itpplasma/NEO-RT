@@ -4441,6 +4441,9 @@ contains
     if(ok_value) then
       difference=pleft-pright
     else
+      print *,'fixedpoint_collision_value: inverse failure,J,left,right = ', &
+          jtest,okleft,okright,collision_segment_left,collision_segment_right, &
+          collision_boundary_segment
       difference=0.d0
     endif
   end subroutine fixedpoint_collision_value
@@ -4482,7 +4485,11 @@ contains
       rmid=0.5d0*(rlo_local+rhi_local)
       call fixedpoint_branch_value(rmid,fp_sigma(segment),fp_branch(segment), &
                                    jmid,pmid,okmid)
-      if(.not.okmid) return
+      if(.not.okmid) then
+        print *,'invert_fixedpoint_branch: branch unavailable,segment,J,R = ', &
+            segment,jtarget,rmid
+        return
+      endif
       if(abs(jmid-jtarget).le.tolerance) then
         rvalue=rmid
         pvalue=pmid
