@@ -877,7 +877,7 @@
 ! used as a Poincare cut.
 !
   use field_sub, only : psif,dpsidr,dpsidz
-  use field_eq_mod, only : psi_axis,psi_sep,rtf
+  use field_eq_mod, only : psi_axis,psi_sep,rtf,nzet,zet
   use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr
 !
   implicit none
@@ -887,15 +887,21 @@
   integer :: i,j,npline
   double precision :: rho_pol,psils,sigpsi
   double precision :: h_R,det,delR,delZ,stepfac,err_dist,stepmod
-  double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz
+  double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz,z_mid
   double precision :: Rb,Zb,Re,Ze
 !
   npc=npline
   allocate(rpc_arr(0:npc),zpc_arr(0:npc))
 !
 !
+  z_mid=0.d0
+  if(nzet.gt.0 .and. allocated(zet)) z_mid=0.5d0*(zet(1)+zet(nzet))
+
   R=1.d0
-  Z=0.d0
+! The EQDSK geometric midplane need not be Z=0.  Starting the cut search at
+! the actual grid midplane keeps the Newton seed inside the supplied
+! equilibrium for vertically shifted devices such as ITER.
+  Z=z_mid
 !
   call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
 !
@@ -904,6 +910,7 @@
   sigpsi=sign(1.d0,psi_sep-psi_axis)
   psils=psi_axis+rho_pol**2*(psi_sep-psi_axis)
   R=rtf
+  Z=z_mid
 !
   do i=2,nsplit
     R=R-h_R
@@ -931,6 +938,7 @@
   Zb=Z
 !
   R=rtf
+  Z=z_mid
 !
   do i=2,nsplit
     R=R+h_R
