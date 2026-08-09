@@ -903,7 +903,7 @@
 ! used as a Poincare cut.
 !
   use field_sub, only : psif,dpsidr,dpsidz
-  use field_eq_mod, only : psi_axis,psi_sep,rtf,nzet,zet
+  use field_eq_mod, only : psi_axis,psi_sep,nrad,rad,rmagaxis,zmagaxis
   use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr
 !
   implicit none
@@ -913,7 +913,7 @@
   integer :: i,j,npline
   double precision :: rho_pol,psils,sigpsi
   double precision :: h_R,det,delR,delZ,stepfac,err_dist,stepmod
-  double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz,z_mid
+  double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz
   double precision :: Rb,Zb,Re,Ze
   logical :: valid
 !
@@ -921,27 +921,26 @@
   allocate(rpc_arr(0:npc),zpc_arr(0:npc))
 !
 !
-  z_mid=0.d0
-  if(nzet.gt.0 .and. allocated(zet)) z_mid=0.5d0*(zet(1)+zet(nzet))
-
-! The EQDSK geometric midplane need not be Z=0.  Starting the cut search at
-! the actual grid midplane keeps the Newton seed inside the supplied
-! equilibrium for vertically shifted devices such as ITER.  Initialize at
-! the equilibrium axis rather than the historical R=1 sentinel: the latter
-! can lie outside the convex interpolation domain and was never a physical
-! cut point.
-  R=rtf
-  Z=z_mid
+! The EQDSK geometric midplane need not be Z=0.  Starting at the retained
+! magnetic axis keeps the Newton seed inside the supplied equilibrium and on
+! the physical cut.  rtf is only the vacuum/reference radius and may be
+! unset or unrelated to the axis.
+  if(nrad.le.1 .or. .not.allocated(rad)) then
+    error stop 'find_poicut: equilibrium radial grid is unavailable'
+  endif
+  R=rmagaxis
+  Z=zmagaxis
 !
   call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
   if (.not.valid) error stop 'find_poicut: cut seed is outside the convex computational boundary'
 !
-  err_dist=rtf*relerr
-  h_R=rtf/dble(nsplit)
+  err_dist=max(1.d0,abs(rad(nrad)-rad(1)),abs(R))*relerr
+  h_R=(rad(nrad)-rad(1))/dble(nsplit)
+  if(h_R.le.0.d0) error stop 'find_poicut: equilibrium radial grid is invalid'
   sigpsi=sign(1.d0,psi_sep-psi_axis)
   psils=psi_axis+rho_pol**2*(psi_sep-psi_axis)
-  R=rtf
-  Z=z_mid
+  R=rmagaxis
+  Z=zmagaxis
 !
   do i=2,nsplit
     R=R-h_R
@@ -970,8 +969,8 @@
   Rb=R
   Zb=Z
 !
-  R=rtf
-  Z=z_mid
+  R=rmagaxis
+  Z=zmagaxis
 !
   do i=2,nsplit
     R=R+h_R
