@@ -2818,7 +2818,8 @@
   use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relerror,relmargin,iclass,delphi_max
   use global_invariants, only : dtau,toten,perpinv,sigma
-  use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
+  use form_classes_doublecount_mod, only : ifuntype,sigma_class, &
+                                           R_class_beg,R_class_end
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
 !
@@ -2867,6 +2868,14 @@
   eps=relerror
 !
   call sample_matrix(get_matrix_doublecount,ierr)
+  if(ierr.ne.0) then
+    print '(A,I0,A,I0,A,ES16.8,A,2(ES16.8,1X),A,2(ES16.8,1X))', &
+      'sample_class_doublecount: class=',iclass, &
+      ' iftype=',ifuntype(iclass), &
+      ' sigma=',sigma_class(iclass), &
+      ' Rbeg,Rend=',R_class_beg(iclass),R_class_end(iclass), &
+      ' xbeg,xend=',xbeg,xend
+  endif
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
 ! so interpolate_class_doublecount never returns a value from the old grid.
