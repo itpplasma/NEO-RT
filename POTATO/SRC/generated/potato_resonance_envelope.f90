@@ -16,7 +16,7 @@ contains
         real(dp), intent(in) :: current_extent_envelope, harmonic_extent
         real(dp), intent(out) :: extent_envelope
 
-        extent_envelope = max(current_extent_envelope, abs(-mode_m*3.1415926535897931E+000_dp*2/mode_n))
+        extent_envelope = max(current_extent_envelope, harmonic_extent)
 
     end subroutine potato_resonance_extent_envelope_kernel
 

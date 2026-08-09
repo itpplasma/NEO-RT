@@ -47,7 +47,8 @@ program gen_potato_kernels
     type(expr_t) :: dpsiast_dR, dresonance_dR, root_jacobian
 
     type(expr_t) :: mode_m, mode_n, delta_phi
-    type(expr_t) :: harmonic_target, harmonic_extent, resonance_g
+    type(expr_t) :: harmonic_target, harmonic_extent, harmonic_extent_input
+    type(expr_t) :: resonance_g
     type(expr_t) :: no_root_margin, current_extent_envelope
     type(expr_t) :: extent_envelope
 
@@ -160,7 +161,14 @@ program gen_potato_kernels
     resonance_g = delta_phi + 2*pi_expr(arena)*mode_m/mode_n
     no_root_margin = abs(delta_phi) - harmonic_extent
     current_extent_envelope = sym(arena, 'current_extent_envelope')
-    extent_envelope = func('max', [current_extent_envelope, harmonic_extent])
+    ! The envelope kernel receives the already-derived scalar extent.  Keep
+    ! that ABI boundary explicit: otherwise the emitter can retain the
+    ! upstream mode_m/mode_n dependencies from harmonic_extent in a kernel
+    ! whose declared arguments are only (current_extent_envelope,
+    ! harmonic_extent).
+    harmonic_extent_input = sym(arena, 'harmonic_extent')
+    extent_envelope = func('max', [current_extent_envelope, &
+        harmonic_extent_input])
 
     ! ------------------------------------------------------------------
     ! Eq. (17) delta-root and torque weight.  The negative pi^(3/2)/4
@@ -290,7 +298,8 @@ program gen_potato_kernels
         no_root_margin - (abs(delta_phi) - harmonic_extent))
     call check_identity(proofs, proof_engine, &
         'finite harmonic extent envelope', &
-        extent_envelope - func('max', [current_extent_envelope, harmonic_extent]))
+        extent_envelope - func('max', [current_extent_envelope, &
+                                       harmonic_extent_input]))
     call check_identity(proofs, proof_engine, &
         'delta-root weight uses absolute mode number', &
         delta_root_weight - abs(mode_n)*root_jacobian)
