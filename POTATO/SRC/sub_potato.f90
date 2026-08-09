@@ -392,7 +392,7 @@
     ierr=2
     return
   endif
-  if(primary_steps.gt.10000 .or. abs(dtau_newt).gt.dtau) then
+  if(primary_steps.gt.10000 .or. abs(dtau_newt).gt.dtau .or. taub.gt.1.d6) then
     print *, 'find_bounce: large return correction, steps,dtau,dtau_newt,taub=', &
         primary_steps,dtau,dtau_newt,taub
   endif
