@@ -2986,6 +2986,10 @@
       ' delphi_max=',delphi_max, &
       ' sample_x,error,ierr,stage=',x,matrix_eval_error,ierr,orbit_failure_stage
     print *, 'sample_nodes npoi=',npoi
+    print *, 'class_segments n=',nsegments
+    do i=1,nsegments
+      print *, 'class_segment',i,segment_beg(i),segment_end(i)
+    enddo
   endif
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
