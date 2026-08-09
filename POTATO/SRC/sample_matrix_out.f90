@@ -599,7 +599,7 @@ contains
         ABS(candidates(i)),ABS(prev_bound),ABS(next_bound))
     IF(delta.LE.delta_resolution) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: unresolved root spacing H,J = ', &
-          topology_context_h,candidates(i),delta
+          topology_context_h,candidates(i),delta,prev_bound,next_bound,delta_resolution
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
