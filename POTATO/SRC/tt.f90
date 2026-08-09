@@ -8,6 +8,7 @@
   use global_invariants,            only : dtau,toten,perpinv,cE_ref,Phi_eff
   use bounds_fixpoints_mod,         only : region_set_t
   use form_classes_doublecount_mod, only : nclasses
+  use sample_class_status_mod,     only : sample_class_success
   use cc_mod,                       only : wrbounds,dowrite
   use resint_mod,                   only : nmodes,marr,narr,delint_mode
   use poicut_mod,                   only : npc,rpc_arr,zpc_arr
@@ -314,7 +315,14 @@
       close(iunit1)      !orbits
       close(1000+iclass) !sampled canonical frequencies and bounce integrals
 
-      call integrate_class_doublecount(2000+iclass,resint)
+      if(ierr.eq.sample_class_success) then
+        call integrate_class_doublecount(2000+iclass,resint)
+      else
+        ! A class with no resonant root has no interpolation grid to integrate.
+        ! Keep its zero contribution and continue with the next connected class.
+        close(2000+iclass)
+        close(3000+iclass)
+      endif
 !
       close(2000+iclass) !interpolated canonical frequencies and bounce integrals
       close(3000+iclass) !derivatives of interpolated canonical frequencies and bounce integrals
