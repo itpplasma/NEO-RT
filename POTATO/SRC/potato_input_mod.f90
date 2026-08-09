@@ -61,6 +61,9 @@ module potato_input_mod
     ! to the analytic endpoint; this only avoids starting the ODE at a
     ! machine-limited square-root singularity.
     double precision :: class_boundary_margin = 1d-4
+    ! Fraction of the detected orbit-return interval used to retreat a
+    ! numerically marginal endpoint toward a returning witness.
+    double precision :: class_return_safety = 1d-2
     logical :: clip_resonance_classes = .true.
     ! Certified outer-topology partition controls.  The first value is the
     ! active production tolerance; the refined value is recorded for a
@@ -131,7 +134,7 @@ module potato_input_mod
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, class_eps_sampling, class_itermax_sampling, &
         class_orbit_relerr, class_orbit_max_steps, &
-        class_boundary_margin, &
+        class_boundary_margin, class_return_safety, &
         clip_resonance_classes, topology_partition_tol, &
         topology_partition_tol_refined, topology_refinement_lane, &
         require_topology_contribution_bound, &
@@ -191,6 +194,10 @@ contains
            class_boundary_margin.le.0.d0 .or. class_boundary_margin.ge.0.5d0) then
             error stop 'class boundary margin must be finite and in (0,0.5)'
         endif
+        if(.not.ieee_is_finite(class_return_safety) .or. &
+           class_return_safety.le.0.d0 .or. class_return_safety.ge.1.d0) then
+            error stop 'class return safety must be finite and in (0,1)'
+        endif
         if(.not.ieee_is_finite(class_orbit_relerr) .or. &
            class_orbit_relerr.le.0.d0 .or. class_orbit_relerr.ge.1.d0) then
             error stop 'class orbit tolerance must be finite and in (0,1)'
@@ -243,6 +250,7 @@ contains
         write(iunit, '(A,ES12.5)') '  class_orbit_relerr = ', class_orbit_relerr
         write(iunit, '(A,I0)') '  class_orbit_max_steps = ', class_orbit_max_steps
         write(iunit, '(A,ES12.5)') '  class_boundary_margin = ', class_boundary_margin
+        write(iunit, '(A,ES12.5)') '  class_return_safety = ', class_return_safety
         write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
         write(iunit, '(A,ES12.5)') '  topology_partition_tol = ', topology_partition_tol
         write(iunit, '(A,ES12.5)') '  topology_partition_tol_refined = ', &

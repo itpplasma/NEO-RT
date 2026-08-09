@@ -3162,6 +3162,7 @@
                                 matrix_eval_orbit_failure, &
                                 matrix_boundary_error
   use get_matrix_mod, only : delphi_max
+  use potato_input_mod, only : class_return_safety
 !
   implicit none
 !
@@ -3239,7 +3240,11 @@
     endif
     if(abs(xinvalid-xvalid).lt.1.d-3*max(1.d0,abs(xdiv))) exit
   enddo
-  xdiv=xvalid
+  ! Do not place the adaptive grid exactly on the numerical return
+  ! separatrix.  Retreat toward the already verified returning point; the
+  ! class integral still reaches the original analytic endpoint through its
+  ! interpolation/extrapolation rule.
+  xdiv=xvalid+class_return_safety*(xsafe-xvalid)
   end subroutine trim_return
 
   subroutine find_return_witness(xleft,xright,xw,found)
