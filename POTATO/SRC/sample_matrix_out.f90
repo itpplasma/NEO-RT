@@ -412,6 +412,7 @@ contains
   INTEGER :: i,j,nfound,nunique,nactive,nsegments,n_total,nseg_points
   INTEGER :: npoi_request,n1_request,n2_request,ierr_local,ierr_certificate
   INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
+  INTEGER :: scan_signature
   DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol
   DOUBLE PRECISION :: candidate_merge_tol
   DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol, &
@@ -588,6 +589,7 @@ contains
 ! interpolation domains.  A harmless candidate whose side signatures agree is
 ! retained in the certificate count but creates no omitted bracket.
   nactive=0
+  scan_signature=left_endpoint_sig
   DO i=1,nunique
     prev_bound=xbeg_full
     IF(i.GT.1) prev_bound=candidates(i-1)
@@ -626,6 +628,11 @@ contains
       RETURN
     ENDIF
     sig_r=topology_signature
+    IF(sig_l.NE.scan_signature) THEN
+      PRINT *,'  topology probe discontinuity i,J,expected,left,right = ', &
+          i,candidates(i),scan_signature,sig_l,sig_r
+    ENDIF
+    scan_signature=sig_r
     IF(candidates(i).GT.7.1245d-5 .AND. candidates(i).LT.7.12475d-5 .AND. &
        topology_context_h.EQ.1.5d0) THEN
       PRINT *,'  probe candidate J,left,right = ',candidates(i),sig_l,sig_r
