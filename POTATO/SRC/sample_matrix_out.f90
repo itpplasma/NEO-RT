@@ -643,6 +643,9 @@ contains
       IF(sig_l.NE.scan_signature) THEN
         PRINT *,'sample_matrix_out_partitioned_certified: uncontracted left probe H,J = ', &
             topology_context_h,candidates(i)
+        DO j=MAX(1,i-3),MIN(nunique,i+3)
+          PRINT *,'  local candidate j,J = ',j,candidates(j)
+        ENDDO
         CALL fail_certified(sample_matrix_topology_unresolved)
         RETURN
       ENDIF
@@ -668,7 +671,7 @@ contains
           i,candidates(i),scan_signature,sig_l,sig_r
     ENDIF
     scan_signature=sig_r
-    IF(candidates(i).GT.7.1245d-5 .AND. candidates(i).LT.7.12475d-5 .AND. &
+    IF(candidates(i).GT.6.4d-5 .AND. candidates(i).LT.6.6d-5 .AND. &
        topology_context_h.EQ.1.5d0) THEN
       PRINT *,'  probe candidate J,left,right = ',candidates(i),sig_l,sig_r
     ENDIF
