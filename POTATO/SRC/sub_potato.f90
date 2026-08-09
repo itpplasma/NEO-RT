@@ -4078,6 +4078,9 @@ contains
     ! roots below zero are valid equation roots but cannot change the
     ! physical topology certificate.
     if(value.lt.0.d0) return
+    if(toten.eq.1.5d0 .and. value.gt.6.4d-5 .and. value.lt.6.6d-5) then
+      print *,'topology candidate diagnostic stage,J = ',boundary_stage,value
+    endif
     if(ncandidates.ge.nmax) then
       ierr=3
       return
