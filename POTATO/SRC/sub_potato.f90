@@ -1915,6 +1915,12 @@
               endif
 !
               if(nroots.gt.0) then
+                if(nsc+nroots.gt.size(rsc_tmp)) then
+                  print *,'find_bounds_fixpoints: separatrix root capacity mismatch 4, nsc,nroots,capacity = ', &
+                      nsc,nroots,size(rsc_tmp)
+                  ierr=3
+                  return
+                endif
                 rsc_tmp(nsc+1:nsc+nroots)=roots
                 nsc=nsc+nroots
               endif
@@ -1931,6 +1937,12 @@
               endif
 !
               if(nroots.gt.0) then
+                if(nsc+nroots.gt.size(rsc_tmp)) then
+                  print *,'find_bounds_fixpoints: separatrix root capacity mismatch 5, nsc,nroots,capacity = ', &
+                      nsc,nroots,size(rsc_tmp)
+                  ierr=3
+                  return
+                endif
                 rsc_tmp(nsc+1:nsc+nroots)=roots
                 nsc=nsc+nroots
               endif
@@ -1947,6 +1959,12 @@
             endif
 !
             if(nroots.gt.0) then
+              if(nsc+nroots.gt.size(rsc_tmp)) then
+                print *,'find_bounds_fixpoints: separatrix root capacity mismatch 6, nsc,nroots,capacity = ', &
+                    nsc,nroots,size(rsc_tmp)
+                ierr=3
+                return
+              endif
               rsc_tmp(nsc+1:nsc+nroots)=roots
               nsc=nsc+nroots
             endif
@@ -1959,6 +1977,12 @@
 !
 ! add X-points:
         if(n_x.gt.0) then
+          if(nsc+n_x.gt.size(rsc_tmp)) then
+            print *,'find_bounds_fixpoints: X-point capacity mismatch, nsc,nx,capacity = ', &
+                nsc,n_x,size(rsc_tmp)
+            ierr=3
+            return
+          endif
           rsc_tmp(nsc+1:nsc+n_x)=all_regions(isig,ireg)%R_x
           logdummy(nsc+1:nsc+n_x)=.true.
         endif
