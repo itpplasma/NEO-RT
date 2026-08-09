@@ -3852,6 +3852,11 @@
         fixedpoint_scan_right=rpartition(i+1)
         call find_all_roots_bracketed(fixedpoint_branch_stationary, &
                                       rpartition(i),rpartition(i+1),ierr_local)
+        if(toten.eq.2.5d0 .and. jvalue.gt.1.0d-4 .and. jvalue.lt.1.1d-4) then
+          print *,'branch diagnostic stage 30,sigma,branch,Rlo,Rhi,Jmid,nroots,ierr = ', &
+              fixedpoint_scan_sigma,fixedpoint_scan_branch,rpartition(i), &
+              rpartition(i+1),jvalue,nroots,ierr_local
+        endif
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -3990,8 +3995,10 @@
                                       collision_jlo,collision_jhi,ierr_local)
         if(toten.eq.2.5d0 .and. collision_jlo.lt.1.0665d-4 .and. &
            collision_jhi.gt.1.0664d-4) then
-          print *,'collision diagnostic stage 70,i,j,Jlo,Jhi,nroots,ierr = ', &
+          print *,'collision diagnostic stage 70,i,j,fs,fb,bs,bt,Jlo,Jhi,nroots,ierr = ', &
               boundary_stage,collision_segment_left,collision_boundary_segment, &
+              fp_sigma(collision_segment_left),fp_branch(collision_segment_left), &
+              bd_sigma(collision_boundary_segment),bd_type(collision_boundary_segment), &
               collision_jlo,collision_jhi,nroots,ierr_local
         endif
         if(ierr_local.ne.root_success) then
