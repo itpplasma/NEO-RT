@@ -13,7 +13,8 @@ program test_gc_eqdsk_composite_cut_atlas
         map_eqdsk_composite_cut_atlas_rho, &
         validate_eqdsk_composite_cut_atlas
     use neort_gc_eqdsk_cylindrical_adapter, only: &
-        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
+        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field, &
+        map_eqdsk_flux_position
     use neort_gc_eqdsk_cut_graph_atlas, only: &
         EQDSK_CUT_ATLAS_SUCCESS, build_eqdsk_cut_graph_atlas, &
         eqdsk_cut_graph_atlas_options_t, eqdsk_cut_graph_atlas_t, &
@@ -23,6 +24,7 @@ program test_gc_eqdsk_composite_cut_atlas
     use neort_gc_eqdsk_flux_profile_map, only: &
         EQDSK_FLUX_MAP_SUCCESS, eqdsk_flux_profile_map_t, &
         initialize_eqdsk_flux_profile_map
+    use util, only: pi
     implicit none
 
     type(eqdsk_cylindrical_field_t) :: field
@@ -46,6 +48,9 @@ program test_gc_eqdsk_composite_cut_atlas
     real(dp) :: tiny_position(3), tiny_derivative(3), rho_regular
     real(dp) :: full_cut_position(3), full_cut_derivative(3)
     real(dp) :: full_cut_radius_lo, full_cut_radius_hi, radius_probe(5)
+    real(dp), parameter :: branch_surface_lo = 0.25_dp
+    real(dp), parameter :: branch_surface_hi = 0.64_dp
+    real(dp) :: flux_position(3)
     integer :: axis_R_index, axis_Z_index, status, jet_status, i
 
     call get_environment_variable('EQDSK_FILE', path)
@@ -65,12 +70,22 @@ program test_gc_eqdsk_composite_cut_atlas
     axis_box = [rad(axis_R_index-1), rad(axis_R_index+1), &
         zet(axis_Z_index-1), zet(axis_Z_index+1)]
 
-    inboard_lo = field%domain_R_min+0.10_dp*(field%domain_R_max- &
-        field%domain_R_min)
-    inboard_hi = R0-0.10_dp*(field%domain_R_max-field%domain_R_min)
-    outboard_lo = R0+0.10_dp*(field%domain_R_max-field%domain_R_min)
-    outboard_hi = field%domain_R_max-0.10_dp*(field%domain_R_max- &
-        field%domain_R_min)
+    call map_eqdsk_flux_position(branch_surface_hi, pi, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map inboard branch surface')
+    inboard_lo = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_lo, pi, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map inboard branch surface')
+    inboard_hi = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_lo, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_lo = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_hi, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_hi = flux_position(1)
     seed_options%max_r_depth = 12
     seed_options%max_z_depth = 12
     seed_options%map_absolute_tolerance = 1.0e-12_dp
