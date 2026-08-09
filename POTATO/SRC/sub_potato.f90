@@ -1481,6 +1481,19 @@
     ierr=0
     return
   endif
+
+  if(toten.eq.2.5d0 .and. perpinv.gt.1.066d-4 .and. perpinv.lt.1.067d-4) then
+    print *,'bounds diagnostic H,J,pphi_min,pphi_max,nregions = ', &
+        toten,perpinv,pphi_min,pphi_max,nregions
+    do isig=1,2
+      do ireg=1,nregions
+        print *,'  bound diagnostic sigma,Rb,Re,psib,psie,within = ', &
+            2*isig-3,all_regions(isig,ireg)%R_b,all_regions(isig,ireg)%R_e, &
+            all_regions(isig,ireg)%psiast_b,all_regions(isig,ireg)%psiast_e, &
+            all_regions(isig,ireg)%within_rhopol
+      enddo
+    enddo
+  endif
 !
 ! End find minimum and maximum values of p_phi in the domain limited
 ! by the boundary flux surface with given rho_pol
