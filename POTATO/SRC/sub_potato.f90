@@ -590,6 +590,7 @@
 ! coordinates of alpha_lifetime
 !
   use field_sub, only : psif,dpsidr,dpsidz
+  use field_eq_mod, only : ierrfield
   use parmot_mod,   only : ro0
 !
   implicit none
@@ -802,7 +803,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+  subroutine gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
 !
 ! Computes phi component of the vector product of gradient psi with gradient
 ! of B and the numerical derivatives of this product over R and Z.
@@ -812,29 +813,35 @@
 !
   double precision :: epsdif=1.d-6
   double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz,RR,ZZ,hdif
+  logical :: valid
 !
+  valid=.true.
   hdif=R*epsdif
 !
   RR=R+hdif
   ZZ=Z
 !
   call gradpsi_times_gradb
+  if (.not.valid) return
 !
   dgpgb_dr=gpgb
   RR=R-hdif
 !
   call gradpsi_times_gradb
+  if (.not.valid) return
 !
   dgpgb_dr=(dgpgb_dr-gpgb)/(2.d0*hdif)
   RR=R
   ZZ=Z+hdif
 !
   call gradpsi_times_gradb
+  if (.not.valid) return
 !
   dgpgb_dz=gpgb
   ZZ=Z-hdif
 !
   call gradpsi_times_gradb
+  if (.not.valid) return
 !
   dgpgb_dz=(dgpgb_dz-gpgb)/(2.d0*hdif)
   ZZ=Z
@@ -848,6 +855,7 @@
   subroutine gradpsi_times_gradb
 !
   use field_sub, only : psif,dpsidr,dpsidz
+  use field_eq_mod, only : ierrfield
 !
   implicit none
 !
@@ -859,6 +867,11 @@
   x(3)=ZZ
 !
   call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
+  if (ierrfield.ne.0) then
+    valid=.false.
+    gpgb=0.d0
+    return
+  endif
 !
   gpgb=dpsidr*bder(3)-dpsidz*bder(1)
 !
@@ -889,6 +902,7 @@
   double precision :: h_R,det,delR,delZ,stepfac,err_dist,stepmod
   double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz,z_mid
   double precision :: Rb,Zb,Re,Ze
+  logical :: valid
 !
   npc=npline
   allocate(rpc_arr(0:npc),zpc_arr(0:npc))
@@ -897,13 +911,17 @@
   z_mid=0.d0
   if(nzet.gt.0 .and. allocated(zet)) z_mid=0.5d0*(zet(1)+zet(nzet))
 
-  R=1.d0
 ! The EQDSK geometric midplane need not be Z=0.  Starting the cut search at
 ! the actual grid midplane keeps the Newton seed inside the supplied
-! equilibrium for vertically shifted devices such as ITER.
+! equilibrium for vertically shifted devices such as ITER.  Initialize at
+! the equilibrium axis rather than the historical R=1 sentinel: the latter
+! can lie outside the convex interpolation domain and was never a physical
+! cut point.
+  R=rtf
   Z=z_mid
 !
-  call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+  call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
+  if (.not.valid) error stop 'find_poicut: cut seed is outside the convex computational boundary'
 !
   err_dist=rtf*relerr
   h_R=rtf/dble(nsplit)
@@ -915,14 +933,16 @@
   do i=2,nsplit
     R=R-h_R
 !
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
+    if (.not.valid) error stop 'find_poicut: left cut scan leaves the convex computational boundary'
 !
     if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) exit
   enddo
 !
   do i=1,niter
 !
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
+    if (.not.valid) error stop 'find_poicut: left cut Newton leaves the convex computational boundary'
 !
     det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
     delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
@@ -943,14 +963,16 @@
   do i=2,nsplit
     R=R+h_R
 !
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
+    if (.not.valid) error stop 'find_poicut: right cut scan leaves the convex computational boundary'
 !
     if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) exit
   enddo
 !
   do i=1,niter
 !
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
+    if (.not.valid) error stop 'find_poicut: right cut Newton leaves the convex computational boundary'
 !
     det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
     delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
@@ -980,7 +1002,8 @@
 !
     do i=1,niter
 !
-      call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+      call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
+      if (.not.valid) error stop 'find_poicut: cut continuation leaves the convex computational boundary'
 !
       delZ=gpgb/dgpgb_dz
       Z=Z-delZ
