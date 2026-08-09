@@ -2830,6 +2830,7 @@
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
                                 npoi,x,xarr,amat_arr,matrix_boundary_error, &
+                                matrix_boundary_missing_limit, &
                                 matrix_eval_error, &
                                 matrix_eval_success
   use sample_class_status_mod, only : sample_class_success, &
@@ -2899,6 +2900,19 @@
   call bound_class_wall(xbeg,xend)
   if(matrix_boundary_error.ne.matrix_eval_success) then
     ierr=matrix_boundary_error
+    return
+  endif
+  ! Endpoint trims can remove the entire open class interval.  A singleton
+  ! endpoint has zero measure and is a certified no-contribution class;
+  ! reversed bounds indicate an invalid chart and remain fail-closed.
+  if(xend.le.xbeg) then
+    if(xend.eq.xbeg) then
+      ierr=sample_class_no_resonance
+    else
+      matrix_boundary_error=matrix_boundary_missing_limit
+      ierr=matrix_boundary_error
+    endif
+    call interp_cache_reset
     return
   endif
 !
@@ -3031,6 +3045,13 @@
     endif
     if(abs(xnoroot-xroot).lt.1.d-3*max(1.d0,abs(xdiv))) exit
   enddo
+  ! The only resonant point can be the finite endpoint itself.  It has zero
+  ! measure in the class integral and must not be passed as a zero-width root
+  ! search interval.
+  if(xroot.eq.xsafe) then
+    empty_interval=.true.
+    return
+  endif
   ! The sampled interval ends on the resonant side of the bracket.  The
   ! no-root side is the X-point-facing numerical singularity we are excluding.
   xdiv=xroot
