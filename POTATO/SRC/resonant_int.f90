@@ -508,6 +508,8 @@ subroutine get_matrix_res
     use sample_matrix_out_mod,        only : n1,n2,x,amat,icount, &
         topology_signature,topology_error,topology_context_h, &
         topology_signature_of_classes,topology_probe_only
+    use sample_matrix_mod, only : sample_npoi => npoi, sample_x => x, &
+        sample_xbeg => xbeg, sample_xend => xend, matrix_eval_error
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class, &
         R_class_beg,R_class_end
@@ -610,12 +612,14 @@ subroutine get_matrix_res
             ! its initialized zero records remain part of the class topology.
             cycle
         else
-            write(msg, '(A,I0,A,I0,A,I0,A,F6.1,A,2ES14.6,A,2ES14.6,A,I0)') &
+            write(msg, '(A,I0,A,I0,A,I0,A,F6.1,A,2ES14.6,A,2ES14.6,A,ES14.6,A,I0,A,I0)') &
                 'get_matrix_res: sample_class error=',ierr, &
                 ' class=',iclass,' iftype=',ifuntype(iclass), &
                 ' sigma=',sigma_class(iclass), &
                 ' Rbeg,Rend=',R_class_beg(iclass),R_class_end(iclass), &
-                ' xbeg,xend=',xbeg,xend,' npoi=',npoi
+                ' xbeg,xend=',sample_xbeg,sample_xend, &
+                ' sample_x=',sample_x,' npoi=',sample_npoi, &
+                ' matrix_error=',matrix_eval_error
             call tee_message(trim(msg))
             topology_error=ierr
             deallocate(respoints_jp)
