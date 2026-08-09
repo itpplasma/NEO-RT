@@ -626,6 +626,10 @@ contains
       RETURN
     ENDIF
     sig_r=topology_signature
+    IF(candidates(i).GT.7.1245d-5 .AND. candidates(i).LT.7.12475d-5 .AND. &
+       topology_context_h.EQ.1.5d0) THEN
+      PRINT *,'  probe candidate J,left,right = ',candidates(i),sig_l,sig_r
+    ENDIF
     IF(sig_l.NE.sig_r) THEN
       nactive=nactive+1
       active_x(nactive)=candidates(i)
