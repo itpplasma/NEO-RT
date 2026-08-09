@@ -15,6 +15,7 @@ program potato_resonance_probe
         ntimstep, npoicut, profile_file, edge_extension, probe_rho_pol, &
         probe_ux, probe_eta, probe_m, probe_n
     use field_eq_mod, only : allow_sol, psi_axis, psi_sep
+    use orbit_dim_mod, only : write_orb, iunit1
     implicit none
 
     external :: get_matrix_doublecount
@@ -164,6 +165,17 @@ contains
                 write(iunit, '(A,I3,ES24.16,I4)') '# endpoint ', i, xprobe, ierr_local
             endif
         enddo
+        if (ifuntype(iclass) == 21) then
+            open(newunit=iunit1, file='endpoint_orbit.dat', status='replace', &
+                action='write')
+            write_orb = .true.
+            x = xend - 1.d-6
+            matrix_eval_valid = .true.
+            matrix_eval_error = matrix_eval_success
+            call get_matrix_doublecount
+            write_orb = .false.
+            close(iunit1)
+        endif
     end subroutine write_failed_endpoint_probe
 
     subroutine write_regions(iunit, regions_in)
