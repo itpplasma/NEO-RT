@@ -148,9 +148,10 @@ contains
     subroutine write_failed_endpoint_probe(iunit)
         integer, intent(in) :: iunit
         integer :: i, ierr_local
-        double precision :: distance, xprobe
+        double precision :: distance, xprobe, x_failure
 
         if (ifuntype(iclass) /= 21 .and. ifuntype(iclass) /= 41) return
+        x_failure = x
         write(iunit, '(A,I0,A,I0)') '# endpoint_probe iclass=', iclass, &
             ' iftype=', ifuntype(iclass)
         do i = 1, 15
@@ -168,7 +169,7 @@ contains
                 write(iunit, '(A,I3,ES24.16,I4)') '# endpoint ', i, xprobe, ierr_local
             endif
         enddo
-        xprobe = x
+        xprobe = x_failure
         matrix_eval_valid = .true.
         matrix_eval_error = matrix_eval_success
         call get_matrix_doublecount
