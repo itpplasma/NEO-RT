@@ -4483,6 +4483,12 @@ contains
             ierr=2
             return
           endif
+! A branch that is already negative at both certified endpoints and its
+! interior midpoint cannot contribute to the physical J_perp >= 0 domain.
+! Discard it before probing quarter points: outside the physical domain the
+! quadratic may legitimately have no branch root at a probe even though the
+! endpoint values were obtained from the neighbouring algebraic branch.
+          if(max(local_j,local_jl,local_jr).le.0.d0) cycle
           if(local_rhi-local_rlo.le.256.d0*epsilon(1.d0)* &
              max(1.d0,abs(local_rlo),abs(local_rhi))) then
             ! The endpoint contraction can leave a formally positive branch
