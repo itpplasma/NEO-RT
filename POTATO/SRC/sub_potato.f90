@@ -2959,7 +2959,7 @@
   contains
 !
   subroutine trim_endpoint(xsafe,xdiv,empty_interval)
-  double precision :: xsafe,xdiv,xlo,xhi,xm
+  double precision :: xsafe,xdiv,xroot,xnoroot,xm
   double precision :: delphi_safe,delphi_div,delphi_mid
   integer :: it,guard_ierr
   logical :: no_root,empty_interval
@@ -2986,10 +2986,12 @@
     return
   endif
 !
-  xlo=xsafe
-  xhi=xdiv
+  ! Keep the two sides named by their physical meaning.  Class coordinates
+  ! need not increase toward the divergent endpoint.
+  xroot=xsafe
+  xnoroot=xdiv
   do it=1,40
-    xm=0.5d0*(xlo+xhi)
+    xm=0.5d0*(xroot+ xnoroot)
     delphi_mid=eval_delphi(xm)
     if(matrix_boundary_error.ne.matrix_eval_success) return
     call resonance_no_root_for_any(delphi_mid,no_root,guard_ierr)
@@ -2998,13 +3000,13 @@
       return
     endif
     if(no_root) then
-      xlo=xm
+      xnoroot=xm
     else
-      xhi=xm
+      xroot=xm
     endif
-    if(abs(xhi-xlo).lt.1.d-3*max(1.d0,abs(xdiv))) exit
+    if(abs(xnoroot-xroot).lt.1.d-3*max(1.d0,abs(xdiv))) exit
   enddo
-  xdiv=xlo
+  xdiv=xnoroot
   end subroutine trim_endpoint
 !
   double precision function eval_delphi(xval)
