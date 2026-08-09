@@ -408,16 +408,18 @@ contains
   EXTERNAL :: get_matrix,get_boundaries,get_envelope
   INTEGER, PARAMETER :: topology_max_candidates=4096
   INTEGER, PARAMETER :: topology_max_endpoint_attempts=16
+  INTEGER, PARAMETER :: topology_trace_iterations=64
   DOUBLE PRECISION, PARAMETER :: topology_abs_tol=256.d0*EPSILON(1.d0)
   INTEGER :: i,j,nfound,nunique,nactive,nsegments,n_total,nseg_points
   INTEGER :: npoi_request,n1_request,n2_request,ierr_local,ierr_certificate
   INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
-  INTEGER :: scan_signature
+  INTEGER :: scan_signature,attempt
   DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol
   DOUBLE PRECISION :: candidate_merge_tol
   DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol, &
                       delta_resolution
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
+  DOUBLE PRECISION :: scan_point,low_point,high_point,mid_point
   DOUBLE PRECISION :: geometric_gap_bound
   DOUBLE PRECISION, ALLOCATABLE :: candidates(:),active_x(:),active_delta(:)
   INTEGER, ALLOCATABLE :: active_left_sig(:),active_right_sig(:)
@@ -590,6 +592,7 @@ contains
 ! retained in the certificate count but creates no omitted bracket.
   nactive=0
   scan_signature=left_endpoint_sig
+  scan_point=left_open
   DO i=1,nunique
     prev_bound=xbeg_full
     IF(i.GT.1) prev_bound=candidates(i-1)
@@ -622,6 +625,22 @@ contains
     IF(sig_l.NE.scan_signature) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch H,J = ', &
           topology_context_h,candidates(i)
+      low_point=scan_point
+      high_point=x
+      DO attempt=1,topology_trace_iterations
+        mid_point=0.5d0*(low_point+high_point)
+        IF(mid_point.EQ.low_point .OR. mid_point.EQ.high_point) EXIT
+        x=mid_point
+        CALL evaluate_matrix_callback(get_matrix,ierr_local)
+        IF(ierr_local.NE.sample_matrix_success) EXIT
+        IF(topology_signature.EQ.scan_signature) THEN
+          low_point=mid_point
+        ELSE
+          high_point=mid_point
+        ENDIF
+      ENDDO
+      PRINT *,'  transition bracket H,Jlo,Jhi = ', &
+          topology_context_h,low_point,high_point
       PRINT *,'  certified candidate count = ',nunique
       DO j=1,nunique
         PRINT *,'  certified candidate = ',j,candidates(j)
@@ -645,6 +664,7 @@ contains
     ENDIF
     sig_r=topology_signature
     scan_signature=sig_r
+    scan_point=x
     IF(sig_l.NE.sig_r) THEN
       nactive=nactive+1
       active_x(nactive)=candidates(i)
