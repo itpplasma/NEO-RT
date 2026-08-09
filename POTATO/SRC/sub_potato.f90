@@ -2144,6 +2144,7 @@
       call vparzero1D(rbad,vbad,dvbad)
       call vparzero1D(rlo,vlo,dvlo)
       call vparzero1D(rhi,vhi,dvhi)
+      print *, 'return-map invalid bracket R,vpar2 = ', rlo,vlo,rbad,vbad,rhi,vhi
       if(vbad.ge.0.d0 .or. vlo.lt.0.d0 .or. vhi.lt.0.d0) return
 
       call isolate_vpar_boundary(rlo,rbad,rleft_valid,ok_left)
