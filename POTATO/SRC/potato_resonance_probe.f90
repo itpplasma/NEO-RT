@@ -170,6 +170,7 @@ contains
             endif
         enddo
         xprobe = x_failure
+        x = xprobe
         matrix_eval_valid = .true.
         matrix_eval_error = matrix_eval_success
         call get_matrix_doublecount
