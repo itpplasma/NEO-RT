@@ -670,6 +670,7 @@ subroutine resonant_torque
     use get_matrix_mod,    only : iclass,delphi_max,relerror,relmargin
     use form_classes_doublecount_mod, only : nclasses
     use orbit_dim_mod,     only : numbasef,write_orb,next,orbit_wall_loss, &
+        orbit_failure_stage, &
         clip_resonance_classes
     use cc_mod,             only : dowrite,wrbounds
     use find_all_roots_mod, only : customgrid,ncustom,niter,nsearch_min, &
@@ -834,7 +835,8 @@ subroutine resonant_torque
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   copyin(dtau,toten,perpinv,sigma,relerror,relmargin,delphi_max,iclass, &
-    !$omp         write_orb,next,orbit_wall_loss,dowrite,wrbounds, &
+        !$omp         write_orb,next,orbit_wall_loss,orbit_failure_stage, &
+        !$omp         dowrite,wrbounds, &
     !$omp         customgrid,ncustom,niter,nsearch_min,relerr_allroots, &
     !$omp         root_eval_valid,root_eval_error,fixedpoint_scan_sigma, &
     !$omp         fixedpoint_scan_branch,fixedpoint_scan_left,fixedpoint_scan_right, &

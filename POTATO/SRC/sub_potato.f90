@@ -94,6 +94,7 @@
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
     logical             :: orbit_wall_loss=.false.
+    integer             :: orbit_failure_stage=0
 ! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
 ! it integrates.  next is the extra-integral count: in the parallel resonance
 ! mode loop pertham writes it (next=0 then next=3 for its two find_bounce calls)
@@ -102,7 +103,7 @@
 ! The grid-build regions never write next; they copyin the master value to keep
 ! the prior shared semantics.  numbasef is set before any parallel region and
 ! read only, so it stays shared.
-    !$omp threadprivate(write_orb,Rorb_max,next,orbit_wall_loss)
+    !$omp threadprivate(write_orb,Rorb_max,next,orbit_wall_loss,orbit_failure_stage)
   end module orbit_dim_mod
 !
 !------------------------------------------------------
@@ -181,7 +182,8 @@
 ! extraset(next) - extra integrals along the orbit (inout)
 ! ierr           - error flag, 0 = success, 1 = orbit left domain (output)
 !
-  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,orbit_wall_loss
+  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,orbit_wall_loss, &
+                            orbit_failure_stage
   use field_eq_mod, only : ierrfield
 !
   implicit none
@@ -222,6 +224,7 @@
   newton_converged=.false.
   primary_steps=0
   orbit_wall_loss=.false.
+  orbit_failure_stage=0
   ierrfield=0
 !
   z(1:neqm)=z_eqm
@@ -237,6 +240,7 @@
 !
   z_start=z
 !
+  orbit_failure_stage=1
   call velo_ext(dtau,z,vz)
   if(ierrfield.ne.0) then
     ierr = 1
@@ -263,6 +267,7 @@
 !
 ! first step:
 !
+  orbit_failure_stage=2
   call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
   if(ierrfield.ne.0) then
     ierr = 1
@@ -299,6 +304,7 @@
     r_prev=z(1)
     z_prev=z(3)
 !
+    orbit_failure_stage=3
     call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
     if(ierrfield.ne.0) then
       ierr = 1
@@ -352,6 +358,7 @@
 !
   do iter=1,niter
 !
+    orbit_failure_stage=4
     call velo_ext(dtau,z,vz)
 !
     vnorm=vz(1)*RNorm+vz(3)*ZNorm
@@ -370,6 +377,7 @@
       return
     endif
 !
+    orbit_failure_stage=5
     call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
     if(ierrfield.ne.0) then
       ierr = 1
@@ -2699,7 +2707,7 @@
                                 matrix_eval_orbit_failure,matrix_eval_wall_loss, &
                                 matrix_eval_nonfinite, &
                                 matrix_boundary_error
-  use orbit_dim_mod,     only : neqm,next,orbit_wall_loss
+  use orbit_dim_mod,     only : neqm,next,orbit_wall_loss,orbit_failure_stage
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
@@ -2897,14 +2905,13 @@
 !
   call sample_matrix(get_matrix_doublecount,ierr)
   if(ierr.ne.0) then
-    print '(A,I0,A,I0,A,ES16.8,A,2(ES16.8,1X),A,2(ES16.8,1X),A,ES16.8,A,ES16.8,I0)', &
-      'sample_class_doublecount: class=',iclass, &
+    print *, 'sample_class_doublecount: class=',iclass, &
       ' iftype=',ifuntype(iclass), &
       ' sigma=',sigma_class(iclass), &
       ' Rbeg,Rend=',R_class_beg(iclass),R_class_end(iclass), &
       ' xbeg,xend=',xbeg,xend, &
       ' delphi_max=',delphi_max, &
-      ' sample_x,error=',x,matrix_eval_error
+      ' sample_x,error,ierr,stage=',x,matrix_eval_error,ierr,orbit_failure_stage
   endif
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
