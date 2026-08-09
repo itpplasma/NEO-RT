@@ -3191,6 +3191,7 @@
         if(ib_end.eq.1 .or. ib_end.eq.2) then
           call trim_return(xmid,xe)
           if(matrix_boundary_error.eq.matrix_eval_success .and. &
+             .not.empty_class .and. &
              (ib_beg.eq.1 .or. ib_beg.eq.2)) then
             call trim_return(xmid,xb)
           endif
@@ -3209,6 +3210,7 @@
   elseif(ib_end.eq.1 .or. ib_end.eq.2) then
     call trim_return(xmid,xe)
     if(matrix_boundary_error.eq.matrix_eval_success .and. &
+       .not.empty_class .and. &
        (ib_beg.eq.1 .or. ib_beg.eq.2)) then
       call trim_return(xmid,xb)
     endif
@@ -3221,13 +3223,27 @@
   contains
 !
   subroutine trim_return(xsafe,xdiv)
-  double precision :: xsafe,xdiv,xvalid,xinvalid,xm
+  double precision :: xsafe,xdiv,xvalid,xinvalid,xm,xnew
   integer :: it
+  logical :: found
 !
   if(.not.orbit_return_invalid(xdiv)) return
   if(orbit_return_invalid(xsafe)) then
-    matrix_boundary_error=matrix_eval_orbit_failure
-    return
+    ! The first witness was marginal and failed on re-evaluation.  Search
+    ! the whole connected class again instead of treating that single trial
+    ! as a certified topology failure.
+    matrix_boundary_error=matrix_eval_success
+    call find_return_witness(xb,xe,xnew,found)
+    if(matrix_boundary_error.ne.matrix_eval_success) return
+    if(.not.found) then
+      if(delphi_max.gt.0.d0) then
+        empty_class=.true.
+      else
+        matrix_boundary_error=matrix_eval_orbit_failure
+      endif
+      return
+    endif
+    xsafe=xnew
   endif
   xvalid=xsafe
   xinvalid=xdiv
@@ -3245,6 +3261,18 @@
   ! class integral still reaches the original analytic endpoint through its
   ! interpolation/extrapolation rule.
   xdiv=xvalid+class_return_safety*(xsafe-xvalid)
+  if(orbit_return_invalid(xdiv)) then
+    matrix_boundary_error=matrix_eval_success
+    call find_return_witness(xb,xe,xnew,found)
+    if(matrix_boundary_error.ne.matrix_eval_success) return
+    if(found) then
+      xdiv=xnew
+    elseif(delphi_max.gt.0.d0) then
+      empty_class=.true.
+    else
+      matrix_boundary_error=matrix_eval_orbit_failure
+    endif
+  endif
   end subroutine trim_return
 
   subroutine find_return_witness(xleft,xright,xw,found)
