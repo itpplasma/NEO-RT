@@ -69,6 +69,9 @@ program gen_potato_kernels
     type(expr_t) :: topology_gap_measure, topology_contribution_error_bound
     type(expr_t) :: gap_boundary, gap_direction, gap_width, gap_parameter
     type(expr_t) :: gap_coordinate, gap_jacobian
+    type(expr_t) :: gap_sqrt_integrand, gap_sqrt_distance
+    type(expr_t) :: gap_sqrt_coefficient, gap_sqrt_coefficient_symbol
+    type(expr_t) :: gap_sqrt_width, gap_sqrt_integral
 
     type(expr_t) :: hessian_H_RR, hessian_H_Rp, hessian_H_pp
     type(expr_t) :: regular_tau_value, cut_linear_slope, xpoint_cut_curvature
@@ -240,6 +243,12 @@ program gen_potato_kernels
     gap_parameter = sym(arena, 'gap_parameter')
     gap_coordinate = gap_boundary + gap_direction*gap_width*gap_parameter**2
     gap_jacobian = 2*gap_width*gap_parameter
+    gap_sqrt_integrand = sym(arena, 'gap_sqrt_integrand')
+    gap_sqrt_distance = sym(arena, 'gap_sqrt_distance')
+    gap_sqrt_coefficient = gap_sqrt_integrand*sqrt(gap_sqrt_distance)
+    gap_sqrt_coefficient_symbol = sym(arena, 'gap_sqrt_coefficient')
+    gap_sqrt_width = sym(arena, 'gap_sqrt_width')
+    gap_sqrt_integral = 2*gap_sqrt_coefficient_symbol*sqrt(gap_sqrt_width)
 
     ! ------------------------------------------------------------------
     ! Limiting forms from the local one-degree-of-freedom Hamiltonian.  The
@@ -359,6 +368,12 @@ program gen_potato_kernels
         'quadratic topology gap Jacobian', &
         gap_jacobian - 2*gap_width*gap_parameter)
     call check_identity(proofs, proof_engine, &
+        'inverse-square-root gap limit integral', &
+        gap_sqrt_integral - 2*gap_sqrt_coefficient_symbol*sqrt(gap_sqrt_width))
+    call check_identity(proofs, proof_engine, &
+        'inverse-square-root gap coefficient', &
+        gap_sqrt_coefficient - gap_sqrt_integrand*sqrt(gap_sqrt_distance))
+    call check_identity(proofs, proof_engine, &
         'Hessian determinant defines the local saddle rate', &
         hessian_determinant - (hessian_H_RR*hessian_H_pp - hessian_H_Rp**2))
     call check_identity(proofs, proof_engine, &
@@ -439,6 +454,8 @@ program gen_potato_kernels
     call emit_gap_kernel(output_directory, topology_gap_measure, &
         topology_contribution_error_bound)
     call emit_gap_map_kernel(output_directory, gap_coordinate, gap_jacobian)
+    call emit_gap_sqrt_coefficient_kernel(output_directory, gap_sqrt_coefficient)
+    call emit_gap_sqrt_kernel(output_directory, gap_sqrt_integral)
     call emit_limiting_kernel(output_directory,hessian_determinant,lambda_local, &
         C_tau,regular_action_offset,regular_action_jacobian, &
         xpoint_action_offset,xpoint_action_jacobian,regular_tau_limit, &
@@ -645,6 +662,34 @@ contains
         call write_kernel(directory, 'potato_gap_square_map.f90', &
             [coordinate, jacobian], spec)
     end subroutine emit_gap_map_kernel
+
+    subroutine emit_gap_sqrt_kernel(directory, integral)
+        character(*), intent(in) :: directory
+        type(expr_t), intent(in) :: integral
+        type(kernel_spec_t) :: spec
+
+        call common_spec(spec, 'potato_gap_sqrt_integral_kernel', &
+            'potato_gap_sqrt_integral_generated_mod')
+        allocate (spec%args(2), spec%outputs(1))
+        spec%args = [str('gap_sqrt_coefficient'), str('gap_sqrt_width')]
+        spec%outputs = [str('gap_sqrt_integral')]
+        call write_kernel(directory, 'potato_gap_sqrt_integral.f90', &
+            [integral], spec)
+    end subroutine emit_gap_sqrt_kernel
+
+    subroutine emit_gap_sqrt_coefficient_kernel(directory, coefficient)
+        character(*), intent(in) :: directory
+        type(expr_t), intent(in) :: coefficient
+        type(kernel_spec_t) :: spec
+
+        call common_spec(spec, 'potato_gap_sqrt_coefficient_kernel', &
+            'potato_gap_sqrt_coefficient_generated_mod')
+        allocate (spec%args(2), spec%outputs(1))
+        spec%args = [str('gap_sqrt_integrand'), str('gap_sqrt_distance')]
+        spec%outputs = [str('gap_sqrt_coefficient')]
+        call write_kernel(directory, 'potato_gap_sqrt_coefficient.f90', &
+            [coefficient], spec)
+    end subroutine emit_gap_sqrt_coefficient_kernel
 
     subroutine emit_limiting_kernel(directory, hessian_determinant, lambda_local, &
         c_tau, regular_action_offset, regular_action_jacobian, &

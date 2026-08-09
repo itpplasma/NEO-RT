@@ -30,11 +30,13 @@ program test_endpoint_stationary_root
                                          potato_resonance_torque_kernel, &
                                          potato_gap_contribution_kernel, &
                                          potato_gap_square_map, &
+                                         potato_gap_sqrt_integral, &
+                                         potato_gap_sqrt_coefficient, &
                                          potato_limiting_kernel, &
                                          potato_limiting_kernel_checked, &
                                          potato_limiting_invalid_reference, &
                                          potato_limiting_invalid_distance
-  use topology_gap_quadrature_mod, only : integrate_topology_gap
+  use topology_gap_quadrature_mod, only : estimate_topology_gap_from_samples
   implicit none
 
   integer :: ierr,i,nopen
@@ -85,7 +87,7 @@ program test_endpoint_stationary_root
   call test_resonance_status
   call test_conjugate_mode_representation
   call test_gap_square_map
-  call test_gap_quadrature
+  call test_gap_sample_bound
   call test_symbolic_contract
 
   call require(.not.root_has_two_sided_neighborhood(0.d0,0.d0,1.d0,1.d-6), &
@@ -544,30 +546,39 @@ contains
                  'positive-direction quadratic gap map is wrong')
   end subroutine test_gap_square_map
 
-  subroutine test_gap_quadrature
-    double precision :: average
+  subroutine test_gap_sample_bound
+    double precision :: average,limit_integral,limit_coefficient
+    integer :: j
 
-! For f(x)=1/sqrt(x), the generated map makes f(x) dx/du constant on
-! [0,0.25].  The transformed midpoint rule therefore reproduces the exact
-! integral independently of the configured coarse/fine node counts.
+! The production provider must use the completed branch grid, not launch new
+! resonance solves.  A manufactured inverse-square-root branch gives the same
+! exact average as the limiting expression.
+    if(allocated(xarr)) deallocate(xarr)
+    if(allocated(amat_arr)) deallocate(amat_arr)
+    if(allocated(topology_arr)) deallocate(topology_arr)
     n1=1
     n2=1
+    npoi=4
     xbeg=0.d0
     xend=1.d0
-    call integrate_topology_gap(manufactured_singular_gap,0.d0,0.25d0, &
-                                average,ierr)
-    call require(ierr.eq.0,'transformed gap quadrature failed')
+    allocate(xarr(npoi),amat_arr(n1,n2,npoi),topology_arr(npoi))
+    xarr=(/0.25d0,0.5d0,0.75d0,1.d0/)
+    topology_arr=7
+    do j=1,npoi
+      amat_arr(1,1,j)=1.d0/sqrt(xarr(j))
+    enddo
+    call estimate_topology_gap_from_samples(0.d0,0.25d0,average,ierr)
+    call require(ierr.eq.0,'sampled branch gap bound failed')
     call require(abs(average-4.d0).lt.1.d-12, &
-                 'transformed square-root gap quadrature is not exact')
-  end subroutine test_gap_quadrature
-
-  subroutine manufactured_singular_gap
-    use sample_matrix_out_mod, only : x,amat,topology_error,topology_signature
-
-    topology_error=0
-    topology_signature=7
-    amat(1,1)=1.d0/sqrt(x)
-  end subroutine manufactured_singular_gap
+                 'sampled branch inverse-square-root bound is wrong')
+    call potato_gap_sqrt_integral(1.d0,0.25d0,limit_integral)
+    call require(abs(limit_integral-1.d0).lt.1.d-14, &
+                 'inverse-square-root limiting integral is wrong')
+    call potato_gap_sqrt_coefficient(2.d0,0.25d0,limit_coefficient)
+    call require(abs(limit_coefficient-1.d0).lt.1.d-14, &
+                 'inverse-square-root limiting coefficient is wrong')
+    deallocate(xarr,amat_arr,topology_arr)
+  end subroutine test_gap_sample_bound
 
   subroutine test_symbolic_contract
     double precision :: candidate,positive_bound,derivative

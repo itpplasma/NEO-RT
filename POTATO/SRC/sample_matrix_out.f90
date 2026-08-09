@@ -9,7 +9,6 @@
     integer :: topology_signature=0,topology_error=0
     double precision :: topology_context_h=0.d0
     logical :: topology_probe_only=.false.
-    logical :: topology_contribution_probe=.false.
     logical :: sample_matrix_preserve_history=.false.
     integer :: topology_candidate_count=0,topology_transition_count=0
     double precision :: topology_gap_measure=0.d0
@@ -30,7 +29,6 @@
     !$omp threadprivate(nlagr,n1,n2,npoi,itermax,icount,x,xbeg,xend,eps, &
     !$omp               topology_signature,topology_error,topology_context_h, &
     !$omp               topology_probe_only, &
-    !$omp               topology_contribution_probe, &
     !$omp               sample_matrix_preserve_history, &
     !$omp               topology_candidate_count,topology_transition_count, &
     !$omp               topology_gap_measure,topology_gap_geometric_bound, &
@@ -402,8 +400,9 @@ contains
 ! open boundaries and the finite numerical brackets are reported as an explicit
 ! geometric integration gap.  topology_gap_geometric_bound bounds only its
 ! coordinate measure.  When require_topology_contribution_bound is true,
-! get_envelope turns that measure into a certified contribution-error bound;
-! exploratory runs may disable that bound and retain the geometric accounting.
+! get_envelope turns that measure into a branch contribution bound after the
+! segment samples have been assembled; exploratory runs may disable that bound
+! and retain the geometric accounting.
 !
   USE sample_matrix_out_mod
   USE potato_symbolic_kernel_mod, ONLY : potato_gap_contribution_kernel
@@ -732,27 +731,6 @@ contains
     CALL fail_certified(sample_matrix_topology_unresolved)
     RETURN
   ENDIF
-  IF(require_topology_contribution_bound) THEN
-    topology_contribution_error_bound=0.d0
-    CALL accumulate_gap_envelope(xbeg_full,left_open,ierr_local)
-    IF(ierr_local.EQ.sample_matrix_success) THEN
-      CALL accumulate_gap_envelope(right_open,xend_full,ierr_local)
-    ENDIF
-    IF(ierr_local.EQ.sample_matrix_success) THEN
-      DO i=1,nactive
-        CALL accumulate_gap_envelope(candidates(i)-active_delta(i), &
-            candidates(i)+active_delta(i),ierr_local)
-        IF(ierr_local.NE.sample_matrix_success) EXIT
-      ENDDO
-    ENDIF
-    IF(ierr_local.NE.sample_matrix_success) THEN
-      PRINT *,'sample_matrix_out_partitioned_certified: contribution envelope failed H,ierr = ', &
-          topology_context_h,ierr_local
-      CALL fail_certified(sample_matrix_contribution_unresolved)
-      RETURN
-    ENDIF
-    topology_contribution_error_certified=.true.
-  ENDIF
 !
 ! Keep the callback history global across segments.  This is required for the
 ! respoints_all/ind_hist permutation consumed by resonant_torque.
@@ -802,6 +780,27 @@ contains
   xend=xend_full
   topology_probe_only=.false.
   sample_matrix_preserve_history=.false.
+  IF(require_topology_contribution_bound) THEN
+    topology_contribution_error_bound=0.d0
+    CALL accumulate_gap_envelope(xbeg_full,left_open,ierr_local)
+    IF(ierr_local.EQ.sample_matrix_success) THEN
+      CALL accumulate_gap_envelope(right_open,xend_full,ierr_local)
+    ENDIF
+    IF(ierr_local.EQ.sample_matrix_success) THEN
+      DO i=1,nactive
+        CALL accumulate_gap_envelope(candidates(i)-active_delta(i), &
+            candidates(i)+active_delta(i),ierr_local)
+        IF(ierr_local.NE.sample_matrix_success) EXIT
+      ENDDO
+    ENDIF
+    IF(ierr_local.NE.sample_matrix_success) THEN
+      PRINT *,'sample_matrix_out_partitioned_certified: contribution envelope failed H,ierr = ', &
+          topology_context_h,ierr_local
+      CALL fail_certified(sample_matrix_contribution_unresolved)
+      RETURN
+    ENDIF
+    topology_contribution_error_certified=.true.
+  ENDIF
   DEALLOCATE(candidates,active_x,active_delta,active_left_sig,active_right_sig)
   DEALLOCATE(segment_lo,segment_hi,segment_sig)
   PRINT *,'sample_matrix_out_partitioned_certified: ', &

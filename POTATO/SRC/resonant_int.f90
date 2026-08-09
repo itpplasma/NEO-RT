@@ -488,8 +488,7 @@ subroutine get_matrix_res
     !
     use sample_matrix_out_mod,        only : n1,n2,x,amat,icount, &
         topology_signature,topology_error,topology_context_h, &
-        topology_signature_of_classes,topology_probe_only, &
-        topology_contribution_probe
+        topology_signature_of_classes,topology_probe_only
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
     use get_matrix_mod,               only : iclass
@@ -600,10 +599,6 @@ subroutine get_matrix_res
         endif
     enddo
 
-    if(topology_contribution_probe) then
-        deallocate(respoints_jp)
-        return
-    endif
     !
     icount=icount+1
     if(icount.gt.nperp_max) then
@@ -647,18 +642,17 @@ end subroutine get_matrix_res_topology_boundaries
 !
 subroutine get_matrix_res_contribution_envelope(gap_lo,gap_hi,envelope,ierr)
     use sample_matrix_out_mod, only : sample_matrix_contribution_unresolved
-    use topology_gap_quadrature_mod, only : integrate_topology_gap
+    use topology_gap_quadrature_mod, only : estimate_topology_gap_from_samples
     implicit none
 
     double precision, intent(in) :: gap_lo,gap_hi
     double precision, intent(out) :: envelope
     integer, intent(out) :: ierr
-    external :: get_matrix_res
-
 ! The sampler consumes an average envelope, which is multiplied by the gap
-! width in its existing callback ABI.  The provider below obtains that
-! average from the transformed integral; it is not an endpoint maximum.
-    call integrate_topology_gap(get_matrix_res,gap_lo,gap_hi,envelope,ierr)
+! width in its existing callback ABI.  The provider uses the already sampled
+! one-sided branch data and the generated inverse-square-root limiting form;
+! it does not reintegrate the full resonance solver at new J_perp points.
+    call estimate_topology_gap_from_samples(gap_lo,gap_hi,envelope,ierr)
     if(ierr.ne.0 .and. ierr.ne.sample_matrix_contribution_unresolved) then
         ierr=sample_matrix_contribution_unresolved
     endif

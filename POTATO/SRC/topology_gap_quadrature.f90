@@ -1,100 +1,47 @@
 module topology_gap_quadrature_mod
     !! Evaluate a topology bracket with the generated square-root endpoint map.
     !!
-    !! The physical matrix callback is sampled only at open-side points.  A
-    !! coarse/fine pair is used because the transformed integrand is regular
-    !! at a reflecting U-turn, while the original x-coordinate integrand can
-    !! have an integrable inverse-square-root singularity.  The returned value
-    !! is an average contribution compatible with the existing sampler ABI;
-    !! the sampler multiplies it by the geometric gap width.
+    !! The physical matrix callback has already been sampled on each open
+    !! branch.  The returned value is an average contribution compatible with
+    !! the existing sampler ABI; the sampler multiplies it by the geometric
+    !! gap width.
     use, intrinsic :: iso_fortran_env, only : real64
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
-    use potato_input_mod, only : topology_gap_quadrature_coarse, &
-        topology_gap_quadrature_fine
-    use potato_symbolic_kernel_mod, only : potato_gap_square_map
-    use sample_matrix_out_mod, only : n1,n2,x,amat,topology_error, &
-        topology_signature,topology_probe_only,topology_contribution_probe, &
-        sample_matrix_success,sample_matrix_contribution_unresolved,xbeg,xend
+    use potato_input_mod, only : topology_gap_fit_points
+    use potato_symbolic_kernel_mod, only : potato_gap_square_map, &
+        potato_gap_sqrt_coefficient,potato_gap_sqrt_integral
+    use sample_matrix_out_mod, only : sample_matrix_success, &
+        sample_matrix_contribution_unresolved,xbeg,xend, &
+        npoi,xarr,amat_arr,topology_arr
     implicit none
     private
-    public :: integrate_topology_gap
+    public :: estimate_topology_gap_from_samples
 
-    abstract interface
-        subroutine matrix_callback()
-        end subroutine matrix_callback
-    end interface
+    integer, parameter :: minimum_gap_fit_points=2
 
 contains
 
-    subroutine integrate_topology_gap(get_matrix,gap_lo,gap_hi,average,ierr)
-        procedure(matrix_callback) :: get_matrix
+    subroutine estimate_topology_gap_from_samples(gap_lo,gap_hi,average,ierr)
+        !! Estimate the omitted contribution from already sampled branch data.
+        !!
+        !! On a reflecting boundary the matrix contribution has the leading
+        !! form C/sqrt(|x-x_b|).  The generated coefficient and integral
+        !! kernels integrate that limiting expression exactly.  The nearest
+        !! branch samples provide C, with the largest of the configured local
+        !! fit points used as the one-sided envelope.  No new orbit or
+        !! resonance solve is performed here.
         real(real64), intent(in) :: gap_lo,gap_hi
         real(real64), intent(out) :: average
         integer, intent(out) :: ierr
 
-        real(real64) :: coarse,fine,contribution,width
-        logical :: old_probe_only,old_contribution_probe
+        integer :: first_side,last_side,side
+        real(real64) :: width,total,side_contribution
 
         average=0.0_real64
         ierr=sample_matrix_success
         width=gap_hi-gap_lo
-        if(.not.ieee_is_finite(gap_lo) .or. .not.ieee_is_finite(gap_hi) .or. &
-           width.le.0.0_real64) then
-            ierr=sample_matrix_contribution_unresolved
-            return
-        endif
-
-        if(.not.allocated(amat)) allocate(amat(n1,n2))
-        if(size(amat,1).ne.n1 .or. size(amat,2).ne.n2) then
-            deallocate(amat)
-            allocate(amat(n1,n2))
-        endif
-
-        old_probe_only=topology_probe_only
-        old_contribution_probe=topology_contribution_probe
-        topology_probe_only=.false.
-        topology_contribution_probe=.true.
-
-        call integrate_with_nodes(get_matrix,gap_lo,gap_hi, &
-            topology_gap_quadrature_coarse,coarse,ierr)
-        if(ierr.eq.sample_matrix_success) then
-            call integrate_with_nodes(get_matrix,gap_lo,gap_hi, &
-                topology_gap_quadrature_fine,fine,ierr)
-        endif
-
-        topology_probe_only=old_probe_only
-        topology_contribution_probe=old_contribution_probe
-        if(ierr.ne.sample_matrix_success) return
-
-        ! The refinement difference is retained as a conservative numerical
-        ! enclosure of the unresolved bracket contribution.  It is deliberately
-        ! added before division so the callback remains compatible with the
-        ! sampler's existing average-times-width accounting.
-        contribution=max(coarse,fine)+abs(fine-coarse)
-        if(.not.ieee_is_finite(contribution) .or. contribution.lt.0.0_real64) then
-            ierr=sample_matrix_contribution_unresolved
-            return
-        endif
-        average=contribution/width
-        if(.not.ieee_is_finite(average)) then
-            ierr=sample_matrix_contribution_unresolved
-        endif
-    end subroutine integrate_topology_gap
-
-    subroutine integrate_with_nodes(get_matrix,gap_lo,gap_hi,node_count,integral,ierr)
-        procedure(matrix_callback) :: get_matrix
-        real(real64), intent(in) :: gap_lo,gap_hi
-        integer, intent(in) :: node_count
-        real(real64), intent(out) :: integral
-        integer, intent(out) :: ierr
-
-        integer :: node,side,first_side,last_side,side_signature
-        real(real64) :: boundary,direction,gap_width,parameter
-        real(real64) :: coordinate,jacobian,integrand
-
-        integral=0.0_real64
-        ierr=sample_matrix_success
-        if(node_count.le.0) then
+        if(width.le.0.0_real64 .or. .not.allocated(xarr) .or. &
+           .not.allocated(amat_arr) .or. npoi.le.0) then
             ierr=sample_matrix_contribution_unresolved
             return
         endif
@@ -110,35 +57,122 @@ contains
             last_side=2
         endif
 
+        total=0.0_real64
         do side=first_side,last_side
-            call side_geometry(gap_lo,gap_hi,side,boundary,direction,gap_width)
-            side_signature=0
-            do node=1,node_count
-                parameter=(real(node,real64)-0.5_real64)/real(node_count,real64)
-                call potato_gap_square_map(boundary,direction,gap_width,parameter, &
-                    coordinate,jacobian)
-                x=coordinate
-                call get_matrix()
-                if(topology_error.ne.0 .or. topology_signature.eq.0) then
-                    ierr=sample_matrix_contribution_unresolved
-                    return
-                endif
-                if(side_signature.eq.0) then
-                    side_signature=topology_signature
-                elseif(topology_signature.ne.side_signature) then
-                    ierr=sample_matrix_contribution_unresolved
-                    return
-                endif
-                integrand=sum(abs(amat))
-                if(.not.ieee_is_finite(integrand) .or. integrand.lt.0.0_real64 .or. &
-                   .not.ieee_is_finite(jacobian) .or. jacobian.lt.0.0_real64) then
-                    ierr=sample_matrix_contribution_unresolved
-                    return
-                endif
-                integral=integral+integrand*jacobian/real(node_count,real64)
-            enddo
+            call estimate_side_from_samples(gap_lo,gap_hi,side, &
+                side_contribution,ierr)
+            if(ierr.ne.sample_matrix_success) return
+            total=total+side_contribution
         enddo
-    end subroutine integrate_with_nodes
+
+        average=total/width
+        if(.not.ieee_is_finite(average) .or. average.lt.0.0_real64) then
+            ierr=sample_matrix_contribution_unresolved
+        endif
+    end subroutine estimate_topology_gap_from_samples
+
+    subroutine estimate_side_from_samples(gap_lo,gap_hi,side,contribution,ierr)
+        real(real64), intent(in) :: gap_lo,gap_hi
+        integer, intent(in) :: side
+        real(real64), intent(out) :: contribution
+        integer, intent(out) :: ierr
+
+        integer :: j,k,count,fit_count,side_signature
+        real(real64) :: boundary,direction,width,coordinate,jacobian
+        real(real64) :: distance,integrand,coefficient,limit_coefficient
+        real(real64), allocatable :: distances(:),coefficients(:)
+        integer, allocatable :: signatures(:)
+        logical :: belongs
+
+        contribution=0.0_real64
+        ierr=sample_matrix_success
+        call side_geometry(gap_lo,gap_hi,side,boundary,direction,width)
+        call potato_gap_square_map(boundary,direction,width,1.0_real64, &
+            coordinate,jacobian)
+        if(.not.ieee_is_finite(coordinate) .or. &
+           .not.ieee_is_finite(jacobian) .or. jacobian.le.0.0_real64 .or. &
+           width.le.0.0_real64) then
+            ierr=sample_matrix_contribution_unresolved
+            return
+        endif
+
+        allocate(distances(npoi),coefficients(npoi),signatures(npoi))
+        count=0
+        do j=1,npoi
+            if(side.eq.1) then
+                if(gap_lo.eq.xbeg) then
+                    belongs=xarr(j).ge.gap_hi
+                else
+                    belongs=xarr(j).le.gap_lo
+                endif
+            else
+                if(gap_hi.eq.xend) then
+                    belongs=xarr(j).le.gap_lo
+                else
+                    belongs=xarr(j).ge.gap_hi
+                endif
+            endif
+            if(.not.belongs) cycle
+            distance=abs(xarr(j)-boundary)
+            if(distance.le.0.0_real64) cycle
+            integrand=sum(abs(amat_arr(:,:,j)))
+            if(.not.ieee_is_finite(integrand) .or. integrand.lt.0.0_real64) then
+                ierr=sample_matrix_contribution_unresolved
+                deallocate(distances,coefficients,signatures)
+                return
+            endif
+            call potato_gap_sqrt_coefficient(integrand,distance,coefficient)
+            if(.not.ieee_is_finite(coefficient) .or. coefficient.lt.0.0_real64) then
+                ierr=sample_matrix_contribution_unresolved
+                deallocate(distances,coefficients,signatures)
+                return
+            endif
+            count=count+1
+            distances(count)=distance
+            coefficients(count)=coefficient
+            signatures(count)=topology_arr(j)
+        enddo
+        if(count.lt.minimum_gap_fit_points) then
+            ierr=sample_matrix_contribution_unresolved
+            deallocate(distances,coefficients,signatures)
+            return
+        endif
+
+        do j=2,count
+            distance=distances(j)
+            coefficient=coefficients(j)
+            side_signature=signatures(j)
+            k=j
+            do while(k.gt.1 .and. distances(k-1).gt.distance)
+                distances(k)=distances(k-1)
+                coefficients(k)=coefficients(k-1)
+                signatures(k)=signatures(k-1)
+                k=k-1
+            enddo
+            distances(k)=distance
+            coefficients(k)=coefficient
+            signatures(k)=side_signature
+        enddo
+
+        side_signature=signatures(1)
+        fit_count=0
+        do j=1,count
+            if(signatures(j).ne.side_signature) exit
+            fit_count=fit_count+1
+            if(fit_count.ge.topology_gap_fit_points) exit
+        enddo
+        if(fit_count.lt.minimum_gap_fit_points) then
+            ierr=sample_matrix_contribution_unresolved
+            deallocate(distances,coefficients,signatures)
+            return
+        endif
+        limit_coefficient=maxval(coefficients(1:fit_count))
+        call potato_gap_sqrt_integral(limit_coefficient,width,contribution)
+        if(.not.ieee_is_finite(contribution) .or. contribution.lt.0.0_real64) then
+            ierr=sample_matrix_contribution_unresolved
+        endif
+        deallocate(distances,coefficients,signatures)
+    end subroutine estimate_side_from_samples
 
     subroutine side_geometry(gap_lo,gap_hi,side,boundary,direction,gap_width)
         real(real64), intent(in) :: gap_lo,gap_hi

@@ -62,12 +62,7 @@ module potato_input_mod
     double precision :: topology_partition_tol_refined = 1d-10
     logical :: topology_refinement_lane = .false.
     logical :: require_topology_contribution_bound = .true.
-    ! Transformed quadrature for the finite contribution across topology
-    ! brackets.  The square-root endpoint map makes the U-turn integrand
-    ! smooth in its quadrature parameter; the fine/coarse pair is retained as
-    ! a convergence check in the runtime ledger.
-    integer :: topology_gap_quadrature_coarse = 4
-    integer :: topology_gap_quadrature_fine = 8
+    integer :: topology_gap_fit_points = 3
 
     ! Orbit plotting
     double precision :: toten_plot = 1d0
@@ -131,7 +126,7 @@ module potato_input_mod
         clip_resonance_classes, topology_partition_tol, &
         topology_partition_tol_refined, topology_refinement_lane, &
         require_topology_contribution_bound, &
-        topology_gap_quadrature_coarse, topology_gap_quadrature_fine, &
+        topology_gap_fit_points, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
@@ -183,9 +178,8 @@ contains
            class_eps_sampling.le.0.d0 .or. class_itermax_sampling.le.0) then
             error stop 'class sampler tolerance and iteration limit must be positive'
         endif
-        if(topology_gap_quadrature_coarse.le.0 .or. &
-           topology_gap_quadrature_fine.le.topology_gap_quadrature_coarse) then
-            error stop 'topology gap quadrature node counts are invalid'
+        if(topology_gap_fit_points.le.0) then
+            error stop 'topology gap fit point count is invalid'
         endif
 
         inquire(file='field_divB0.inp', exist=field_input_exists)
@@ -233,10 +227,7 @@ contains
         write(iunit, '(A,L1)') '  topology_refinement_lane = ', topology_refinement_lane
         write(iunit, '(A,L1)') '  require_topology_contribution_bound = ', &
             require_topology_contribution_bound
-        write(iunit, '(A,I0)') '  topology_gap_quadrature_coarse = ', &
-            topology_gap_quadrature_coarse
-        write(iunit, '(A,I0)') '  topology_gap_quadrature_fine = ', &
-            topology_gap_quadrature_fine
+        write(iunit, '(A,I0)') '  topology_gap_fit_points = ', topology_gap_fit_points
         write(iunit, '(A,ES12.5)') '  toten_plot       = ', toten_plot
         write(iunit, '(A,ES12.5)') '  perpinv_plot     = ', perpinv_plot
         write(iunit, '(A,ES12.5)') '  enkin_over_temp  = ', enkin_over_temp

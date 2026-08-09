@@ -10,6 +10,10 @@ module potato_symbolic_kernel_mod
         potato_gap_error_kernel
     use potato_gap_square_map_generated_mod, only : &
         potato_gap_square_map_kernel_generated => potato_gap_square_map_kernel
+    use potato_gap_sqrt_integral_generated_mod, only : &
+        potato_gap_sqrt_integral_kernel_generated => potato_gap_sqrt_integral_kernel
+    use potato_gap_sqrt_coefficient_generated_mod, only : &
+        potato_gap_sqrt_coefficient_kernel_generated => potato_gap_sqrt_coefficient_kernel
     use potato_hm_eq4_generated_mod, only : potato_hm_eq4_kernel_generated => &
         potato_hm_eq4_kernel
     use potato_jperp_domain_generated_mod, only : potato_jperp_domain_kernel_generated => &
@@ -41,6 +45,8 @@ module potato_symbolic_kernel_mod
     public :: potato_resonance_torque_kernel
     public :: potato_gap_contribution_kernel
     public :: potato_gap_square_map
+    public :: potato_gap_sqrt_integral
+    public :: potato_gap_sqrt_coefficient
     public :: potato_limiting_kernel
     public :: potato_limiting_kernel_checked
     public :: potato_limiting_success, potato_limiting_invalid_reference, &
@@ -170,6 +176,24 @@ contains
         call potato_gap_square_map_kernel_generated(gap_boundary, gap_direction, &
             gap_width, gap_parameter, gap_coordinate, gap_jacobian)
     end subroutine potato_gap_square_map
+
+    pure subroutine potato_gap_sqrt_integral(gap_sqrt_coefficient, &
+            gap_sqrt_width, gap_sqrt_integral)
+        real(real64), intent(in) :: gap_sqrt_coefficient,gap_sqrt_width
+        real(real64), intent(out) :: gap_sqrt_integral
+
+        call potato_gap_sqrt_integral_kernel_generated(gap_sqrt_coefficient, &
+            gap_sqrt_width, gap_sqrt_integral)
+    end subroutine potato_gap_sqrt_integral
+
+    pure subroutine potato_gap_sqrt_coefficient(gap_sqrt_integrand, &
+            gap_sqrt_distance, gap_sqrt_coefficient)
+        real(real64), intent(in) :: gap_sqrt_integrand,gap_sqrt_distance
+        real(real64), intent(out) :: gap_sqrt_coefficient
+
+        call potato_gap_sqrt_coefficient_kernel_generated(gap_sqrt_integrand, &
+            gap_sqrt_distance, gap_sqrt_coefficient)
+    end subroutine potato_gap_sqrt_coefficient
 
     subroutine potato_limiting_kernel(hessian_H_RR,hessian_H_Rp,hessian_H_pp, &
         regular_tau_value,cut_linear_slope,xpoint_cut_curvature,delta_R, &

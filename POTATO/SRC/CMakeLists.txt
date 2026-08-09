@@ -35,6 +35,8 @@ add_library(potato_base
   generated/potato_resonance_weight.f90
   generated/potato_gap_error.f90
   generated/potato_gap_square_map.f90
+  generated/potato_gap_sqrt_integral.f90
+  generated/potato_gap_sqrt_coefficient.f90
   generated/potato_limiting.f90
   potato_symbolic_kernels.f90
   topology_gap_quadrature.f90
