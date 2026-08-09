@@ -3386,6 +3386,7 @@
     call trim_lost(xmid,xe)
     call trim_lost(xmid,xb)
   elseif(matrix_boundary_error.eq.matrix_eval_success) then
+    print *, 'bound_class_wall: open midpoint x=',xmid, 'xb,xe=',xb,xe
     call find_open_witness(xb,xe,xnew,found)
     if(found) then
       call trim_lost(xnew,xe)
@@ -3406,6 +3407,7 @@
   integer :: it
 !
   if(.not.orbit_lost(xdiv)) return
+  print *, 'bound_class_wall: open endpoint x=',xdiv, 'safe=',xsafe
 !
   xlo=xsafe
   xhi=xdiv
