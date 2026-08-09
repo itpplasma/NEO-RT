@@ -2603,7 +2603,14 @@
   implicit none
 !
   integer :: ifuntype
-  double precision :: relmargin,widthclass,xbeg,xend
+  double precision :: relmargin,widthclass,xbeg,xend,turn_x,turn_margin
+
+  ! relmargin is a physical cut-coordinate margin.  The inner-boundary
+  ! charts use xi~x**2, so using relmargin directly in x would place the
+  ! orbit at relmargin**2 and make the ODE start indistinguishable from the
+  ! turning point.  These are the exact inverse chart coordinates.
+  turn_margin=sqrt(relmargin)
+  turn_x=atanh(turn_margin)
 !
   select case(ifuntype)
   case(11)
@@ -2613,7 +2620,7 @@
   case(12)
 ! left- rho_pol boundary, right - inner boundary, 0<x<1
     xbeg=0.d0
-    xend=1.d0-relmargin
+    xend=1.d0-turn_margin
   case(13)
 ! left- rho_pol boundary, right - X-point, 0<x<inf
     xbeg=0.d0
@@ -2624,19 +2631,20 @@
     xend=-0.5d0*log(relmargin/widthclass)*0.5d0
   case(21)
 ! left- inner boundary, right - rho_pol boundary, 0<x<1
-    xbeg=relmargin
+    xbeg=turn_margin
     xend=1.d0
   case(22)
 ! two inner boundaries, 0<x<1
-    xbeg=relmargin
-    xend=1.d0-relmargin
+    turn_x=acos(1.d0-2.d0*relmargin)/acos(-1.d0)
+    xbeg=turn_x
+    xend=1.d0-turn_x
   case(23)
 ! left- inner boundary, right - X-point, 0<x<inf
-    xbeg=relmargin
+    xbeg=turn_x
     xend=-0.5d0*log(relmargin/widthclass)
   case(24)
 ! left- inner boundary, right - X-point, 0<x<inf
-    xbeg=relmargin
+    xbeg=turn_x
     xend=-0.25d0*log(relmargin/widthclass)
   case(31)
 ! left- X-point, right - rho_pol boundary, -inf<x<0
@@ -2645,7 +2653,7 @@
   case(32)
 ! left- X-point, right - inner boundary, -inf<x<0
     xbeg=0.5d0*log(relmargin/widthclass)
-    xend=-relmargin
+    xend=-turn_x
   case(33)
 ! two X-points, -inf<x<inf
     xbeg=0.5d0*log(relmargin/widthclass)
@@ -2661,7 +2669,7 @@
   case(42)
 ! left- X-point, right - inner boundary, -inf<x<0
     xbeg=0.25d0*log(relmargin/widthclass)
-    xend=-relmargin
+    xend=-turn_x
   case(43)
 ! two X-points, -inf<x<inf
     xend=-0.5d0*log(relmargin/widthclass)
