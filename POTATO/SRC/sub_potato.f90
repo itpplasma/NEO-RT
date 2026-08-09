@@ -2869,12 +2869,13 @@
 !
   call sample_matrix(get_matrix_doublecount,ierr)
   if(ierr.ne.0) then
-    print '(A,I0,A,I0,A,ES16.8,A,2(ES16.8,1X),A,2(ES16.8,1X))', &
+    print '(A,I0,A,I0,A,ES16.8,A,2(ES16.8,1X),A,2(ES16.8,1X),A,ES16.8)', &
       'sample_class_doublecount: class=',iclass, &
       ' iftype=',ifuntype(iclass), &
       ' sigma=',sigma_class(iclass), &
       ' Rbeg,Rend=',R_class_beg(iclass),R_class_end(iclass), &
-      ' xbeg,xend=',xbeg,xend
+      ' xbeg,xend=',xbeg,xend, &
+      ' delphi_max=',delphi_max
   endif
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
