@@ -3893,7 +3893,7 @@
                                    fp_plo(:),fp_phi(:)
   integer, allocatable :: bd_type(:),bd_sigma(:)
   double precision, allocatable :: bd_rlo(:),bd_rhi(:),bd_jlo(:),bd_jhi(:)
-  logical :: ok,partition_refined,collision_debug_printed
+  logical :: ok,partition_refined
   external :: find_all_roots_bracketed,fixedpoint_discriminant, &
               fixedpoint_branch_stationary,fixedpoint_roots_at_R, &
               fixedpoint_branch_value,fixedpoint_turning_intersection
@@ -3909,7 +3909,6 @@
   collision_boundary_segment=0
   collision_boundary_left=0
   collision_boundary_right=0
-  collision_debug_printed=.false.
   nfp_segments=0
   nbd_segments=0
   npart=0
@@ -4768,25 +4767,6 @@ contains
     call fixedpoint_collision_value(jtest,difference,ok0)
     boundary_stage_j=jtest
     if(.not.ok0) then
-      if(.not.collision_debug_printed) then
-        print *,'find_jperp_topology_boundaries: collision inverse failure', &
-            collision_segment_left,collision_segment_right, &
-            collision_boundary_left,collision_boundary_right, &
-            collision_boundary_segment,collision_jlo,collision_jhi,jtest
-        if(collision_segment_left.gt.0) print *,' fixed segment:', &
-            fp_rlo(collision_segment_left),fp_rhi(collision_segment_left), &
-            fp_jlo(collision_segment_left),fp_jhi(collision_segment_left), &
-            fp_plo(collision_segment_left),fp_phi(collision_segment_left)
-        if(collision_segment_right.gt.0) print *,' fixed segment right:', &
-            fp_rlo(collision_segment_right),fp_rhi(collision_segment_right), &
-            fp_jlo(collision_segment_right),fp_jhi(collision_segment_right), &
-            fp_plo(collision_segment_right),fp_phi(collision_segment_right)
-        if(collision_boundary_right.gt.0) print *,' boundary segment:', &
-            bd_type(collision_boundary_right),bd_sigma(collision_boundary_right), &
-            bd_rlo(collision_boundary_right),bd_rhi(collision_boundary_right), &
-            bd_jlo(collision_boundary_right),bd_jhi(collision_boundary_right)
-        collision_debug_printed=.true.
-      endif
       root_eval_valid=.false.
       root_eval_error=root_invalid_domain
       difference=0.d0
@@ -4995,11 +4975,6 @@ contains
       call fixedpoint_branch_value(rmid,fp_sigma(segment),fp_branch(segment), &
                                    jmid,pmid,okmid)
       if(.not.okmid) then
-        if(.not.collision_debug_printed) then
-          print *,'find_jperp_topology_boundaries: inverse branch hole', &
-              segment,jtarget,rmid,rlo_local,rhi_local,jmid,pmid
-          collision_debug_printed=.true.
-        endif
         return
       endif
       if(abs(jmid-jtarget).le.tolerance) then
