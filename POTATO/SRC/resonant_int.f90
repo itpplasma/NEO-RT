@@ -774,6 +774,10 @@ subroutine get_matrix_res_contribution_envelope(gap_lo,gap_hi,envelope,ierr)
     if(ierr.ne.0 .and. ierr.ne.sample_matrix_contribution_unresolved) then
         ierr=sample_matrix_contribution_unresolved
     endif
+    if(ierr.ne.0) then
+        print *,'get_matrix_res_contribution_envelope: gap failed ', &
+            gap_lo,gap_hi,' ierr=',ierr
+    endif
 end subroutine get_matrix_res_contribution_envelope
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

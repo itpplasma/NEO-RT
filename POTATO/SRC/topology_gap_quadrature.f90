@@ -61,7 +61,11 @@ contains
         do side=first_side,last_side
             call estimate_side_from_samples(gap_lo,gap_hi,side, &
                 side_contribution,ierr)
-            if(ierr.ne.sample_matrix_success) return
+            if(ierr.ne.sample_matrix_success) then
+                print *,'topology gap side failed: gap,side,npoi,xbeg,xend = ', &
+                    gap_lo,gap_hi,side,npoi,xbeg,xend
+                return
+            endif
             total=total+side_contribution
         enddo
 
