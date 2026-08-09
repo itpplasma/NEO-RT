@@ -3680,7 +3680,7 @@
   integer :: npart_initial,nfp_segments,nbd_segments,ierr_local
   integer :: collision_segment_left,collision_segment_right,collision_boundary_segment
   integer :: boundary_stage
-  double precision :: relerr_save,q,range,midpoint,jvalue,pstar
+  double precision :: relerr_save,q,range,midpoint,jvalue,pstar,refined_root
   double precision :: collision_jlo,collision_jhi
   double precision :: boundary_stage_r,boundary_stage_j
   double precision, allocatable :: qroots(:),disc_roots(:),rpartition(:)
@@ -3894,10 +3894,6 @@
     call fail_boundary(ierr)
     return
   endif
-! Collision locations are subsequently certified with adjacent representable
-! J_perp probes.  Refine only these scalar collision roots to coordinate
-! resolution; the preceding broad scans retain the faster production setting.
-  relerr_allroots=min(relerr_allroots,1.d-14)
   do i=1,nfp_segments-1
     do j=i+1,nfp_segments
       boundary_stage=50
@@ -3933,7 +3929,12 @@
           return
         endif
         do k=1,nroots
-          call add_candidate(roots(k))
+          call refine_collision_candidate(roots(k),refined_root,ok)
+          if(ok) then
+            call add_candidate(refined_root)
+          else
+            call add_candidate(roots(k))
+          endif
           if(ierr.ne.0) then
             call fail_boundary(ierr)
             return
@@ -3986,7 +3987,12 @@
           return
         endif
         do k=1,nroots
-          call add_candidate(roots(k))
+          call refine_collision_candidate(roots(k),refined_root,ok)
+          if(ok) then
+            call add_candidate(refined_root)
+          else
+            call add_candidate(roots(k))
+          endif
           if(ierr.ne.0) then
             call fail_boundary(ierr)
             return
@@ -4511,6 +4517,63 @@ contains
       difference=0.d0
     endif
   end subroutine fixedpoint_collision_value
+
+  subroutine refine_collision_candidate(seed,refined,ok_refined)
+! Refine a collision root only after the broad all-roots scan has found it.
+! The refinement is bounded by the same certified overlap and is accepted
+! only when a valid sign bracket exists.  This removes the scan-scale root
+! error without turning an unrelated invalid branch endpoint into a guessed
+! topology boundary.
+    double precision, intent(in) :: seed
+    double precision, intent(out) :: refined
+    logical, intent(out) :: ok_refined
+    integer :: local_it,local_expand
+    double precision :: a,b,mid,fa,fb,fmid,step,scale
+    logical :: oka,okb,okmid
+
+    refined=seed
+    ok_refined=.false.
+    if(seed.lt.collision_jlo .or. seed.gt.collision_jhi) return
+    scale=max(1.d-300,abs(seed),abs(collision_jlo),abs(collision_jhi))
+    step=max(1024.d0*epsilon(1.d0)*scale, &
+             1.d-12*max(1.d-300,collision_jhi-collision_jlo))
+    do local_expand=1,32
+      a=max(collision_jlo,seed-step)
+      b=min(collision_jhi,seed+step)
+      if(a.ge.b) exit
+      call fixedpoint_collision_value(a,fa,oka)
+      call fixedpoint_collision_value(b,fb,okb)
+      if(oka .and. okb .and. (fa.eq.0.d0 .or. fb.eq.0.d0 .or. fa*fb.lt.0.d0)) exit
+      step=2.d0*step
+    enddo
+    if(.not.oka .or. .not.okb) return
+    if(fa.ne.0.d0 .and. fb.ne.0.d0 .and. fa*fb.gt.0.d0) return
+    do local_it=1,200
+      mid=0.5d0*(a+b)
+      if(mid.eq.a .or. mid.eq.b) exit
+      call fixedpoint_collision_value(mid,fmid,okmid)
+      if(.not.okmid) then
+        ok_refined=.false.
+        return
+      endif
+      if(fmid.eq.0.d0) then
+        a=mid
+        b=mid
+        exit
+      elseif(fa.eq.0.d0 .or. fa*fmid.le.0.d0) then
+        b=mid
+        fb=fmid
+      else
+        a=mid
+        fa=fmid
+      endif
+    enddo
+    ! Use the lower representable side of the bracket.  The sampler then
+    ! probes the open interval below the event instead of rounding the event
+    ! upward into the newly created class.
+    refined=min(a,b)
+    ok_refined=.true.
+  end subroutine refine_collision_candidate
 
   subroutine invert_fixedpoint_branch(segment,jtarget,rvalue,pvalue,ok_value)
     integer, intent(in) :: segment
