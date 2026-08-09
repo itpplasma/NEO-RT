@@ -2968,7 +2968,7 @@
       ! The ordinary path stays cheap.  Only a class whose actual sampler
       ! encounters an open orbit pays for the topology probe and bisection.
       matrix_boundary_error=matrix_eval_success
-      call bound_class_wall(xbeg,xend,empty_class)
+      call bound_class_wall(xbeg,xend,empty_class,x)
       if(matrix_boundary_error.eq.matrix_eval_success .and. nsegments.gt.0) then
         current_segment=1
         xbeg=segment_beg(current_segment)
@@ -3421,7 +3421,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine bound_class_wall(xb,xe,empty_class)
+  subroutine bound_class_wall(xb,xe,empty_class,xfailed)
 !
 ! Determine all connected pieces on which the full orbit returns without a
 ! wall loss.  A class is an interval in its transformed cut coordinate, but
@@ -3439,6 +3439,7 @@
   implicit none
 !
   double precision, intent(inout) :: xb,xe
+  double precision, intent(in) :: xfailed
   logical, intent(out) :: empty_class
   double precision, allocatable :: xprobe(:),raw_beg(:),raw_end(:), &
                                    final_beg(:),final_end(:)
@@ -3459,11 +3460,15 @@
   amat_was_alloc=allocated(amat)
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
   nprobe=max(4,2*nlagr+1)
-  npoints=nprobe+2
+  npoints=nprobe+3
   allocate(xprobe(npoints),valid(npoints),raw_beg(npoints),raw_end(npoints), &
            final_beg(npoints),final_end(npoints))
+  do i=1,npoints-1
+    xprobe(i)=xb+(xe-xb)*dble(i-1)/dble(npoints-2)
+  enddo
+  xprobe(npoints)=min(max(xfailed,xb),xe)
+  call sort_probe_points(xprobe)
   do i=1,npoints
-    xprobe(i)=xb+(xe-xb)*dble(i-1)/dble(npoints-1)
     valid(i)=.not.orbit_lost(xprobe(i))
     if(matrix_boundary_error.ne.matrix_eval_success) then
       deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
@@ -3552,6 +3557,23 @@
   enddo
   xboundary=xok
   end subroutine refine_open_transition
+
+  subroutine sort_probe_points(points)
+  double precision, intent(inout) :: points(:)
+  double precision :: key
+  integer :: i,j
+
+  do i=2,size(points)
+    key=points(i)
+    j=i-1
+    do while(j.ge.1)
+      if(points(j).le.key) exit
+      points(j+1)=points(j)
+      j=j-1
+    enddo
+    points(j+1)=key
+  enddo
+  end subroutine sort_probe_points
 !
   logical function orbit_lost(xval)
   double precision, intent(in) :: xval
