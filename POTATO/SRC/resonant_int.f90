@@ -300,7 +300,7 @@ subroutine integrate_class_resonances(ierr_out)
         call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
-            write(msg,'(A,I0,A,I0,A,I0,A,I0,A,ES14.6,A,ES14.6)') &
+            write(msg,'(A,I0,A,I0,A,I0,A,I0,A,I0,A,ES14.6,A,ES14.6)') &
                 'resonance root search failed ierr=',ierr, &
                 ' class=',iclass,' iftype=',ifuntype(iclass), &
                 ' mode=',marr(mode),'/',narr(mode), &
