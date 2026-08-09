@@ -556,14 +556,14 @@ subroutine get_matrix_res
         ! clipped rho_pol domain.  That is a certified zero contribution,
         ! not a callback failure or an unresolved topology transition.
         topology_signature=topology_signature_of_classes(0,ifuntype,sigma_class)
-        if(topology_probe_only .and. toten.eq.2.5d0 .and. perpinv.gt.1.0695d-4 .and. &
-            perpinv.lt.1.0696d-4) print *,'topology class diagnostic H,J,nclasses,sig = ', &
+        if(topology_probe_only .and. toten.eq.2.5d0 .and. perpinv.gt.1.02d-4 .and. &
+            perpinv.lt.1.071d-4) print *,'topology class diagnostic H,J,nclasses,sig = ', &
             toten,perpinv,nclasses,topology_signature
         return
     endif
     topology_signature=topology_signature_of_classes(nclasses,ifuntype,sigma_class)
-    if(topology_probe_only .and. toten.eq.2.5d0 .and. perpinv.gt.1.0695d-4 .and. &
-        perpinv.lt.1.0696d-4) then
+    if(topology_probe_only .and. toten.eq.2.5d0 .and. perpinv.gt.1.02d-4 .and. &
+        perpinv.lt.1.071d-4) then
         print *,'topology class diagnostic H,J,nclasses,sig = ',toten,perpinv, &
             nclasses,topology_signature
         print *,'  class types = ',ifuntype(1:nclasses)
