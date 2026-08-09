@@ -25,7 +25,7 @@ program test_gc_cylindrical_backend_entry
 
     implicit none
 
-    real(dp), parameter :: surface = 0.368_dp
+    real(dp) :: surface
     real(dp), parameter :: speed = 6.92e7_dp
     real(dp), parameter :: mass = 2.014_dp*mu
     type(gc_frequency_context_t) :: legacy_context, full_context
@@ -34,13 +34,28 @@ program test_gc_cylindrical_backend_entry
     type(gc_frequency_runtime_metadata_t) :: metadata
     type(gc_cylindrical_nonlocal_measure_result_t) :: measure
     character(len=1024) :: eqdsk_file
+    character(len=128) :: surface_text
     character(len=*), parameter :: large_wall_file = 'backend_entry_wall_large.dat'
     character(len=*), parameter :: narrow_wall_file = 'backend_entry_wall_narrow.dat'
     real(dp) :: eta, period_estimate
+    real(dp) :: eta_ratio
     integer :: status
+    character(len=128) :: eta_text
 
     call get_environment_variable('EQDSK_FILE', eqdsk_file)
     if (len_trim(eqdsk_file) == 0) error stop 'EQDSK_FILE is required'
+    call get_environment_variable('GC_TEST_SURFACE', surface_text)
+    surface = 0.368_dp
+    if (len_trim(surface_text) > 0) read(surface_text, *) surface
+    if (surface <= 0.0_dp .or. surface >= 1.0_dp) then
+        error stop 'GC_TEST_SURFACE must lie strictly between zero and one'
+    end if
+    call get_environment_variable('GC_TEST_ETA_RATIO', eta_text)
+    eta_ratio = 0.36_dp
+    if (len_trim(eta_text) > 0) read(eta_text, *) eta_ratio
+    if (eta_ratio <= 0.0_dp .or. eta_ratio >= 1.0_dp) then
+        error stop 'GC_TEST_ETA_RATIO must lie strictly between zero and one'
+    end if
     call reset_gc_frequency_runtime_metadata()
 
     inp_swi = 11
@@ -72,7 +87,7 @@ program test_gc_cylindrical_backend_entry
     call require(abs(full_context%cylindrical_backend%htheta_sign) == 1, &
         'physical htheta sign was not initialized')
 
-    eta = (1.0_dp - 0.8_dp**2)/full_context%reference_sample%bmod
+    eta = eta_ratio/full_context%reference_sample%bmod
     period_estimate = 12.0_dp*abs(full_context%q_fieldline)*R0/speed
     call evaluate_gc_full_orbit_frequency(full_context, eta, 1, GC_ORBIT_PASSING, &
         period_estimate, full, status)

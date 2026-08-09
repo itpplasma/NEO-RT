@@ -4,7 +4,7 @@ program probe_frequency_comparison
     !! table from the same EQDSK; plotting and root finding stay outside the
     !! production solver.
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use do_magfie_mod, only: inp_swi, read_boozer_file, set_s, init_magfie_at_s
+    use do_magfie_mod, only: inp_swi, read_boozer_file, set_s, init_magfie_at_s, R0
     use driftorbit, only: FREQUENCY_MODEL_LEGACY, frequency_model, magdrift, &
         magdrift_passing, sign_vpar, etatp, etadt
     use neort_freq, only: init_canon_freq_trapped_spline, &
@@ -22,7 +22,7 @@ program probe_frequency_comparison
 
     integer, parameter :: npoints = 180
     real(dp), parameter :: speed = 6.9199e7_dp ! 5 keV deuteron [cm/s]
-    real(dp), parameter :: mass = 2.0_dp*mu
+    real(dp), parameter :: mass = 2.014_dp*mu
     character(len=1024) :: chartmap, eqdsk, output, wall_file, argument
     type(gc_frequency_context_t) :: context
     type(gc_full_orbit_frequency_result_t) :: full
@@ -84,17 +84,27 @@ program probe_frequency_comparison
     call init_flux_surface_average(direct_surface)
     call initialize_gc_frequency_context(direct_surface, th0, 1.0_dp, 0.0_dp, &
         mass, qe, speed, context, status, selected_frequency_model=2, &
-        wall_file=trim(wall_file), wall_units='m')
+        wall_file=trim(wall_file), wall_units='cm')
     if (status /= GC_FREQUENCY_SUCCESS) error stop 'full-orbit context failed'
     write(unit, '(a,es20.12)') '# direct_surface_s_tor ', direct_surface
     write(unit, '(a,es20.12)') '# direct_eta_tp ', etatp
+    write(unit, '(a,es20.12)') '# direct_q_fieldline ', context%q_fieldline
     do class_index = 1, 2
         class_name = merge('passing ', 'trapped ', class_index == 1)
         orbit_class = merge(GC_ORBIT_PASSING, GC_ORBIT_TRAPPED, class_index == 1)
         do k = 1, npoints
             eta_ratio = class_eta_ratio(class_index, k)
             eta = eta_ratio*etatp
-            period_estimate = bounce_time(speed, eta)
+            ! The direct backend must not inherit the legacy chart's passing
+            ! period estimate.  Its physical q is computed from the same
+            ! EQDSK field that drives the return map.  Retain the legacy
+            ! estimate only as a conservative trapped-orbit timeout, where
+            ! the near-separatrix bounce period is singular in the thin
+            ! chart and a short transit estimate would truncate the return.
+            period_estimate = 12.0_dp*abs(context%q_fieldline)*R0/speed
+            if (orbit_class == GC_ORBIT_TRAPPED) then
+                period_estimate = max(period_estimate, bounce_time(speed, eta))
+            end if
             call evaluate_gc_full_orbit_frequency(context, eta, 1, orbit_class, &
                 abs(period_estimate), full, status)
             write(unit, '(a,1x,a,1x,3(es20.12,1x),2(i4,1x))') &
