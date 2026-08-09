@@ -616,6 +616,8 @@ end module resonance_status_mod
     do iroot=1,nroots
       if(x.eq.roots(iroot)) return
       if(abs(roots(iroot)-x).le.rootdist) then
+        print *,'find_all_roots: unresolved root separation,x,existing,delta = ', &
+            x,roots(iroot),abs(roots(iroot)-x),rootdist
         ! Two independently bracketed roots at floating-point separation are
         ! not a certified duplicate.  Keeping one would silently lose a
         ! narrow component or collapse a tangent topology transition.
