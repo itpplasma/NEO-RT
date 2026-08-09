@@ -7,19 +7,15 @@ program potato_resonance_probe
     use form_classes_doublecount_mod, only : nclasses, ifuntype, sigma_class, &
         R_class_beg, R_class_end
     use get_matrix_mod, only : iclass
-    use sample_matrix_mod, only : n1, npoi, xarr, x, xend, amat, &
-        matrix_eval_valid, matrix_eval_error, matrix_eval_success
+    use sample_matrix_mod, only : n1, npoi, xarr
     use phielec_of_psi_mod, only : polyphi, polydens, polytemp
     use potato_input_mod, only : read_potato_input, E_alpha, A_alpha, Z_alpha, &
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, Rmax_orbit, &
         ntimstep, npoicut, profile_file, edge_extension, probe_rho_pol, &
         probe_ux, probe_eta, probe_m, probe_n
     use field_eq_mod, only : allow_sol, psi_axis, psi_sep
-    use orbit_dim_mod, only : write_orb, iunit1
-    use cc_mod, only : wrbounds
     implicit none
 
-    external :: get_matrix_doublecount
 
     double precision, parameter :: c = 2.9979d10
     double precision, parameter :: e_charge = 4.8032d-10
@@ -59,9 +55,7 @@ program potato_resonance_probe
     toten = enkin + phi_elec
     perpinv = probe_eta*enkin
 
-    wrbounds = .true.
     call find_bounds_fixpoints(regions, ierr)
-    wrbounds = .false.
 
     open(newunit=unit_out, file="potato_resonance_probe.dat", &
         status="replace", action="write")
@@ -90,7 +84,6 @@ program potato_resonance_probe
         if (ierr /= 0) then
             write(unit_out, '(A,I0,A,I0)') "# class_error iclass=", iclass, &
                 " ierr=", ierr
-            call write_failed_endpoint_probe(unit_out)
             cycle
         endif
         call write_class_probe(unit_out)
@@ -141,59 +134,6 @@ contains
             have_prev = .true.
         enddo
     end subroutine write_class_probe
-
-    ! Diagnostic only: resolve the endpoint layer directly after the adaptive
-    ! sampler reports non-convergence.  This distinguishes a finite steep
-    ! endpoint from a genuine homoclinic logarithm without changing physics.
-    subroutine write_failed_endpoint_probe(iunit)
-        integer, intent(in) :: iunit
-        integer :: i, ierr_local
-        double precision :: distance, xprobe, x_failure
-
-        if (ifuntype(iclass) /= 21 .and. ifuntype(iclass) /= 41) return
-        x_failure = x
-        write(iunit, '(A,I0,A,I0)') '# endpoint_probe iclass=', iclass, &
-            ' iftype=', ifuntype(iclass)
-        do i = 1, 15
-            distance = 10.d0**(-dble(i))
-            xprobe = xend - distance
-            x = xprobe
-            matrix_eval_valid = .true.
-            matrix_eval_error = matrix_eval_success
-            call get_matrix_doublecount
-            ierr_local = matrix_eval_error
-            if (ierr_local == matrix_eval_success) then
-                write(iunit, '(A,I3,ES24.16,4ES24.16,I4)') '# endpoint ', i, &
-                    xprobe, amat(1,1), amat(2,1), amat(3,1), distance, ierr_local
-            else
-                write(iunit, '(A,I3,ES24.16,I4)') '# endpoint ', i, xprobe, ierr_local
-            endif
-        enddo
-        xprobe = x_failure
-        x = xprobe
-        matrix_eval_valid = .true.
-        matrix_eval_error = matrix_eval_success
-        call get_matrix_doublecount
-        if (matrix_eval_error == matrix_eval_success) then
-            write(iunit, '(A,ES24.16,4ES24.16,I4)') '# failing_midpoint ', &
-                xprobe, amat(1,1), amat(2,1), amat(3,1), &
-                xend-xprobe, matrix_eval_error
-        else
-            write(iunit, '(A,ES24.16,I4)') '# failing_midpoint ', xprobe, &
-                matrix_eval_error
-        endif
-        if (ifuntype(iclass) == 21) then
-            open(newunit=iunit1, file='endpoint_orbit.dat', status='replace', &
-                action='write')
-            write_orb = .true.
-            x = xend - 1.d-6
-            matrix_eval_valid = .true.
-            matrix_eval_error = matrix_eval_success
-            call get_matrix_doublecount
-            write_orb = .false.
-            close(iunit1)
-        endif
-    end subroutine write_failed_endpoint_probe
 
     subroutine write_regions(iunit, regions_in)
         integer, intent(in) :: iunit

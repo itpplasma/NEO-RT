@@ -392,10 +392,6 @@
     ierr=2
     return
   endif
-  if(primary_steps.gt.10000 .or. abs(dtau_newt).gt.dtau .or. taub.gt.1.d6) then
-    print *, 'find_bounce: large return correction, steps,dtau,dtau_newt,taub=', &
-        primary_steps,dtau,dtau_newt,taub
-  endif
 !
   if(next.gt.0) then
     extraset=z(neqm+1:ndim)
@@ -2845,6 +2841,7 @@
                                            R_class_beg,R_class_end
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
+  use potato_input_mod, only : class_eps_sampling, class_itermax_sampling
 !
   implicit none
 !
@@ -2854,10 +2851,10 @@
 !
   external :: get_matrix_doublecount
 !
-  nlagr=11        ! diagnostic stencil-order probe; not a production fix
-  relerror=1.d-3  !<= temporary place, should be moved out for centralized input
+  nlagr=7         ! Sixth-order class interpolation, as in the POTATO method.
+  relerror=class_eps_sampling
   relmargin=1.d-7 !<= temporary place, should be moved out for centralized input
-  itermax=80      ! diagnostic refinement ceiling; not a production fix
+  itermax=class_itermax_sampling
 !
   next=2*numbasef
   n1=3+next
@@ -2917,14 +2914,6 @@
       ' delphi_max=',delphi_max, &
       ' sample_x,error,ierr,stage=',x,matrix_eval_error,ierr,orbit_failure_stage
     print *, 'sample_nodes npoi=',npoi
-    i=minloc(abs(xarr-x),dim=1)
-    print *, 'sample_nearest index,x,dx=',i,xarr(i),x-xarr(i)
-    do i=max(1,i-4),min(npoi,i+4)
-      print *, 'sample_local=',i,xarr(i),amat_arr(:,1,i)
-    enddo
-    do i=max(1,npoi-8),npoi
-      print *, 'sample_node=',i,xarr(i),amat_arr(:,1,i)
-    enddo
   endif
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries

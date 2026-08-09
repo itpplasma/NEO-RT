@@ -49,6 +49,11 @@ module potato_input_mod
     integer :: nlagr_sampling = 3
     double precision :: eps_sampling = 1d-2
     integer :: itermax_sampling = 5
+    ! Class interpolation uses the sixth-order stencil from the POTATO
+    ! method.  The refinement ceiling is an input because near-separatrix
+    ! classes can need more passes than the outer J_perp grid.
+    double precision :: class_eps_sampling = 1d-3
+    integer :: class_itermax_sampling = 80
     logical :: clip_resonance_classes = .true.
     ! Certified outer-topology partition controls.  The first value is the
     ! active production tolerance; the refined value is recorded for a
@@ -116,7 +121,8 @@ module potato_input_mod
         m_min, m_max, n_tor, &
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
-        itermax_sampling, clip_resonance_classes, topology_partition_tol, &
+        itermax_sampling, class_eps_sampling, class_itermax_sampling, &
+        clip_resonance_classes, topology_partition_tol, &
         topology_partition_tol_refined, topology_refinement_lane, &
         require_topology_contribution_bound, &
         toten_plot, perpinv_plot, enkin_over_temp, &
@@ -166,6 +172,10 @@ contains
            topology_partition_tol_refined.le.0.d0) then
             error stop 'topology_partition_tol_refined must be finite and positive'
         endif
+        if(.not.ieee_is_finite(class_eps_sampling) .or. &
+           class_eps_sampling.le.0.d0 .or. class_itermax_sampling.le.0) then
+            error stop 'class sampler tolerance and iteration limit must be positive'
+        endif
 
         inquire(file='field_divB0.inp', exist=field_input_exists)
         if (field_input_exists) then
@@ -203,6 +213,8 @@ contains
         write(iunit, '(A,I0)') '  nlagr_sampling   = ', nlagr_sampling
         write(iunit, '(A,ES12.5)') '  eps_sampling     = ', eps_sampling
         write(iunit, '(A,I0)') '  itermax_sampling = ', itermax_sampling
+        write(iunit, '(A,ES12.5)') '  class_eps_sampling = ', class_eps_sampling
+        write(iunit, '(A,I0)') '  class_itermax_sampling = ', class_itermax_sampling
         write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
         write(iunit, '(A,ES12.5)') '  topology_partition_tol = ', topology_partition_tol
         write(iunit, '(A,ES12.5)') '  topology_partition_tol_refined = ', &
