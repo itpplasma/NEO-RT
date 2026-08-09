@@ -1515,6 +1515,12 @@
     do ireg=1,nregions
       R_b_in=all_regions(isig,ireg)%R_b
       R_e_in=all_regions(isig,ireg)%R_e
+
+      if(topology_probe_only) print *,'  cut input sigma,ireg,low_b,high_b,low_e,high_e = ', &
+          sigma,ireg,all_regions(isig,ireg)%psiast_b.lt.pphi_min, &
+          all_regions(isig,ireg)%psiast_b.gt.pphi_max, &
+          all_regions(isig,ireg)%psiast_e.lt.pphi_min, &
+          all_regions(isig,ireg)%psiast_e.gt.pphi_max
 !
 ! Left boundary:
 !
