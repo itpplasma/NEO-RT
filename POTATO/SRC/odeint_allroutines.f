@@ -62,6 +62,7 @@
 !
       use odeint_mod, only : kmax,kount,ialloc,dxsav,dydx,xp,y,yscal,yp
       use field_eq_mod, only : ierrfield
+      use orbit_dim_mod, only : write_orb
       use logging_mod, only : tee_message
 ! 18.07.2016
 !      use gbpi_mod
@@ -154,7 +155,7 @@
         h=hnext
 16    continue
 ! 17.07.2016      pause 'too many steps in odeint'
-      call tee_message('odeint: too many steps')
+      if(write_orb) call tee_message('odeint: too many steps')
       ierrfield = 1
 ! 17.07.2016 end
       ialloc=0
@@ -242,6 +243,7 @@ CU    USES derivs
 !
       use odeint_mod, only : yerr,ytemp1
       use field_eq_mod, only : ierrfield
+      use orbit_dim_mod, only : write_orb
       use logging_mod, only : tee_message
 !
       implicit double precision (a-h,o-z)
@@ -269,8 +271,8 @@ CU    USES derivs,rkck
         xnew=x+h
 !        if(xnew.eq.x) pause 'stepsize underflow in rkqs'
         if(xnew.eq.x) then
-          call tee_message(
-     *      'rkqs: stepsize underflow')
+          if(write_orb) call tee_message(
+     *        'rkqs: stepsize underflow')
           ierrfield = 1
           return
         endif
@@ -337,4 +339,3 @@ CU    USES derivs,rkck
       RETURN
       END
 ! 28.03.2016
-
