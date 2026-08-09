@@ -204,7 +204,7 @@ end subroutine pertham
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine integrate_class_resonances(ierr_out)
+subroutine integrate_class_resonances(ierr_out,append)
     !
     ! Computes sum over resonances $x=x^{res}_{(\bm,k)}$ in Eq.(104) for a given class $k$
     !
@@ -238,6 +238,8 @@ subroutine integrate_class_resonances(ierr_out)
     !
     integer          :: mode,iroot,ierr,ierr_pertham,status_weight
     integer, intent(out) :: ierr_out
+    logical, intent(in) :: append
+    integer :: old_nrespoi
     double precision :: xbeg,xend
     double precision :: rescond,dresconddx,dpsiastdx
     double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
@@ -246,6 +248,9 @@ subroutine integrate_class_resonances(ierr_out)
     double precision :: fmaxw,A1ast,A2ast,thermodynamic_force
     double precision :: delta_root_weight
     double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
+    double precision, allocatable :: old_w_res(:),old_z_res(:,:),old_taub(:)
+    double precision, allocatable :: combined_w_res(:),combined_z_res(:,:), &
+                                     combined_taub(:)
     double precision, dimension(neqm) :: z
     logical :: wall_zero
     character(len=256) :: msg
@@ -293,7 +298,23 @@ subroutine integrate_class_resonances(ierr_out)
         if(ierr_out.ne.resonance_status_success) exit
         twopim2=twopi*dble(marr(mode))
         rm3=dble(narr(mode))
-        delint_mode(mode)=0.d0
+        if(.not.append) delint_mode(mode)=0.d0
+        old_nrespoi=0
+        if(append) then
+            old_nrespoi=respoints_jp(mode,iclass)%nrespoi
+            if(old_nrespoi.gt.0) then
+                allocate(old_w_res(old_nrespoi),old_z_res(5,old_nrespoi), &
+                         old_taub(old_nrespoi))
+                old_w_res=respoints_jp(mode,iclass)%w_res
+                old_z_res=respoints_jp(mode,iclass)%z_res
+                old_taub=respoints_jp(mode,iclass)%taub
+            endif
+            if(allocated(respoints_jp(mode,iclass)%w_res)) then
+                deallocate(respoints_jp(mode,iclass)%w_res, &
+                           respoints_jp(mode,iclass)%z_res, &
+                           respoints_jp(mode,iclass)%taub)
+            endif
+        endif
         respoints_jp(mode,iclass)%nrespoi=0
         respoints_jp(mode,iclass)%scan_status=resonance_status_success
         !
@@ -315,6 +336,9 @@ subroutine integrate_class_resonances(ierr_out)
             respoints_jp(mode,iclass)%scan_status=ierr_out
             respoints_jp(mode,iclass)%toten_res=toten
             respoints_jp(mode,iclass)%perpinv_res=perpinv
+            if(allocated(old_w_res)) deallocate(old_w_res)
+            if(allocated(old_z_res)) deallocate(old_z_res)
+            if(allocated(old_taub)) deallocate(old_taub)
             exit
         endif
         !
@@ -323,6 +347,12 @@ subroutine integrate_class_resonances(ierr_out)
         respoints_jp(mode,iclass)%perpinv_res=perpinv
         if(nroots.eq.0) then
             ledger_searched_zero=ledger_searched_zero+1
+            if(old_nrespoi.gt.0) then
+                call move_alloc(old_w_res,respoints_jp(mode,iclass)%w_res)
+                call move_alloc(old_z_res,respoints_jp(mode,iclass)%z_res)
+                call move_alloc(old_taub,respoints_jp(mode,iclass)%taub)
+                respoints_jp(mode,iclass)%nrespoi=old_nrespoi
+            endif
             cycle
         endif
         ledger_root_count=ledger_root_count+nroots
@@ -464,6 +494,29 @@ subroutine integrate_class_resonances(ierr_out)
             respoints_jp(mode,iclass)%taub(iroot)=taub_res
             delint_mode(mode)=delint_mode(mode)+one_res
         enddo
+        if(ierr_out.eq.resonance_status_success) then
+            if(old_nrespoi.gt.0) then
+                allocate(combined_w_res(old_nrespoi+nroots), &
+                         combined_z_res(5,old_nrespoi+nroots), &
+                         combined_taub(old_nrespoi+nroots))
+                combined_w_res(1:old_nrespoi)=old_w_res
+                combined_z_res(:,1:old_nrespoi)=old_z_res
+                combined_taub(1:old_nrespoi)=old_taub
+                combined_w_res(old_nrespoi+1:)=respoints_jp(mode,iclass)%w_res
+                combined_z_res(:,old_nrespoi+1:)=respoints_jp(mode,iclass)%z_res
+                combined_taub(old_nrespoi+1:)=respoints_jp(mode,iclass)%taub
+                deallocate(respoints_jp(mode,iclass)%w_res, &
+                           respoints_jp(mode,iclass)%z_res, &
+                           respoints_jp(mode,iclass)%taub)
+                call move_alloc(combined_w_res,respoints_jp(mode,iclass)%w_res)
+                call move_alloc(combined_z_res,respoints_jp(mode,iclass)%z_res)
+                call move_alloc(combined_taub,respoints_jp(mode,iclass)%taub)
+                respoints_jp(mode,iclass)%nrespoi=old_nrespoi+nroots
+            endif
+        endif
+        if(allocated(old_w_res)) deallocate(old_w_res)
+        if(allocated(old_z_res)) deallocate(old_z_res)
+        if(allocated(old_taub)) deallocate(old_taub)
     enddo
     !
     customgrid=.false.
@@ -528,9 +581,11 @@ subroutine get_matrix_res
     !
     logical :: classes_talk
     !
-    integer :: ierr,mode,ierr_resonance
+    integer :: ierr,mode,ierr_resonance,ierr_segment
+    logical :: has_next
     character(len=256) :: msg
     type(region_set_t) :: regions
+    external :: sample_class_next_segment
     !
     wrbounds=.false.
     dowrite=.false.
@@ -593,7 +648,7 @@ subroutine get_matrix_res
         !
         if(ierr.eq.sample_class_success) then
             !
-            call integrate_class_resonances(ierr_resonance)
+            call integrate_class_resonances(ierr_resonance,.false.)
             if(ierr_resonance.ne.0) then
                 write(msg, '(A,I0)') &
                     'get_matrix_res: unresolved resonance status ',ierr_resonance
@@ -602,6 +657,28 @@ subroutine get_matrix_res
                 deallocate(respoints_jp)
                 return
             endif
+            do
+                call sample_class_next_segment(ierr_segment,has_next)
+                if(ierr_segment.ne.sample_class_success) then
+                    write(msg, '(A,I0,A,I0)') &
+                        'get_matrix_res: next class segment failed status=', &
+                        ierr_segment,' class=',iclass
+                    call tee_message(trim(msg))
+                    topology_error=ierr_segment
+                    deallocate(respoints_jp)
+                    return
+                endif
+                if(.not.has_next) exit
+                call integrate_class_resonances(ierr_resonance,.true.)
+                if(ierr_resonance.ne.0) then
+                    write(msg, '(A,I0)') &
+                        'get_matrix_res: unresolved resonance status ',ierr_resonance
+                    call tee_message(trim(msg))
+                    topology_error=ierr_resonance
+                    deallocate(respoints_jp)
+                    return
+                endif
+            enddo
             !
             do mode=1,nmodes
                 ! amat(:,1) - sum over classes and resonances within each class:

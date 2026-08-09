@@ -108,6 +108,16 @@ add_test(NAME test_class_parameter_bounds
    COMMAND test_class_parameter_bounds.x
 )
 
+add_executable(test_class_return_segments.x
+   SRC/test_class_return_segments.f90
+)
+target_link_libraries(test_class_return_segments.x
+   potato_base
+)
+add_test(NAME test_class_return_segments
+   COMMAND test_class_return_segments.x
+)
+
 add_executable(test_signed_toroidal_bound.x
    SRC/test_signed_toroidal_bound.f90
 )

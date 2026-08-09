@@ -2873,7 +2873,7 @@
                                 npoi,x,xarr,amat_arr,matrix_boundary_error, &
                                 matrix_boundary_missing_limit, &
                                 matrix_eval_error, &
-                                matrix_eval_success
+                                matrix_eval_success, matrix_failure_is_open_boundary
   use sample_class_status_mod, only : sample_class_success, &
                                       sample_class_no_resonance
   use orbit_dim_mod,     only : next,numbasef,orbit_failure_stage
@@ -2883,6 +2883,9 @@
   use form_classes_doublecount_mod, only : ifuntype,sigma_class, &
                                            R_class_beg,R_class_end
   use cc_mod, only : dowrite
+  use class_return_segments_mod, only : clear_class_segments, set_class_segments, &
+                                        nsegments, current_segment, segment_beg, &
+                                        segment_end
   use interp_cache_mod,  only : interp_cache_reset
   use potato_input_mod, only : class_eps_sampling, class_itermax_sampling, &
                                class_boundary_margin, class_orbit_relerr, &
@@ -2892,11 +2895,13 @@
 !
   integer :: iunit,ierr,i
   double precision :: psiastbeg,psiastend,widthclass
+  double precision :: nominal_beg(1),nominal_end(1)
   logical :: empty_class
   double precision :: orbit_relerr_save
   integer :: primary_step_limit_save
 !
   external :: get_matrix_doublecount
+  external :: sample_current_class_segment
 !
   nlagr=7         ! Sixth-order class interpolation, as in the POTATO method.
   relerror=class_eps_sampling
@@ -2909,6 +2914,7 @@
 !
   ierr=sample_class_success
   matrix_boundary_error=matrix_eval_success
+  call clear_class_segments()
   orbit_relerr_save=orbit_relerr
   primary_step_limit_save=primary_step_limit
   orbit_relerr=class_orbit_relerr
@@ -2947,54 +2953,30 @@
     return
   endif
 !
-  call bound_class_return(ifuntype(iclass),xbeg,xend,empty_class)
-  if(matrix_boundary_error.ne.matrix_eval_success) then
-    orbit_relerr=orbit_relerr_save
-    primary_step_limit=primary_step_limit_save
-    ierr=matrix_boundary_error
-    return
-  endif
-  if(empty_class) then
-    ierr=sample_class_no_resonance
-    call interp_cache_reset
-    orbit_relerr=orbit_relerr_save
-    primary_step_limit=primary_step_limit_save
-    return
-  endif
-!
-  call bound_class_wall(xbeg,xend,empty_class)
-  if(matrix_boundary_error.ne.matrix_eval_success) then
-    orbit_relerr=orbit_relerr_save
-    primary_step_limit=primary_step_limit_save
-    ierr=matrix_boundary_error
-    return
-  endif
-  if(empty_class) then
-    ierr=sample_class_no_resonance
-    call interp_cache_reset
-    orbit_relerr=orbit_relerr_save
-    primary_step_limit=primary_step_limit_save
-    return
-  endif
-  ! Endpoint trims can remove the entire open class interval.  A singleton
-  ! endpoint has zero measure and is a certified no-contribution class;
-  ! reversed bounds indicate an invalid chart and remain fail-closed.
-  if(xend.le.xbeg) then
-    if(xend.eq.xbeg) then
-      ierr=sample_class_no_resonance
-    else
-      matrix_boundary_error=matrix_boundary_missing_limit
-      ierr=matrix_boundary_error
-    endif
-    call interp_cache_reset
-    orbit_relerr=orbit_relerr_save
-    primary_step_limit=primary_step_limit_save
-    return
-  endif
+  nominal_beg(1)=xbeg
+  nominal_end(1)=xend
+  call set_class_segments(1,nominal_beg,nominal_end)
+  current_segment=1
+  xbeg=segment_beg(current_segment)
+  xend=segment_end(current_segment)
 !
   eps=relerror
 !
-  call sample_matrix(get_matrix_doublecount,ierr)
+  call sample_current_class_segment(ierr)
+  if(ierr.ne.sample_class_success) then
+    if(matrix_failure_is_open_boundary(ierr)) then
+      ! The ordinary path stays cheap.  Only a class whose actual sampler
+      ! encounters an open orbit pays for the topology probe and bisection.
+      matrix_boundary_error=matrix_eval_success
+      call bound_class_wall(xbeg,xend,empty_class)
+      if(matrix_boundary_error.eq.matrix_eval_success .and. nsegments.gt.0) then
+        current_segment=1
+        xbeg=segment_beg(current_segment)
+        xend=segment_end(current_segment)
+        call sample_current_class_segment(ierr)
+      endif
+    endif
+  endif
   if(ierr.ne.0) then
     print *, 'sample_class_doublecount: class=',iclass, &
       ' iftype=',ifuntype(iclass), &
@@ -3020,6 +3002,87 @@
   endif
 !
   end subroutine sample_class_doublecount
+
+!
+! Sample the current connected returning piece.  The class controls are set
+! by the caller and restored by sample_class_doublecount or
+! sample_class_next_segment.
+!
+  subroutine sample_current_class_segment(ierr)
+  use class_return_segments_mod, only : nsegments,current_segment,segment_beg,segment_end
+  use sample_matrix_mod, only : xbeg,xend,eps,matrix_boundary_error, &
+                                matrix_eval_success,matrix_boundary_missing_limit
+  use get_matrix_mod, only : relerror
+
+  implicit none
+
+  integer, intent(out) :: ierr
+  external :: get_matrix_doublecount
+
+  ierr=matrix_eval_success
+  matrix_boundary_error=matrix_eval_success
+  if(current_segment.lt.1 .or. current_segment.gt.nsegments) then
+    ierr=matrix_boundary_missing_limit
+    return
+  endif
+  xbeg=segment_beg(current_segment)
+  xend=segment_end(current_segment)
+  if(xend.le.xbeg) then
+    ierr=matrix_boundary_missing_limit
+    return
+  endif
+  eps=relerror
+  call sample_matrix(get_matrix_doublecount,ierr)
+  end subroutine sample_current_class_segment
+
+!
+! Advance to and sample the next connected returning piece.  Each piece gets
+! its own interpolation grid and resonance root search.
+!
+  subroutine sample_class_next_segment(ierr,has_next)
+  use class_return_segments_mod, only : nsegments,current_segment
+  use sample_class_status_mod, only : sample_class_success
+  use sample_matrix_mod, only : nlagr,n1,n2,itermax,xbeg,xend, &
+                                matrix_boundary_error,matrix_eval_success
+  use orbit_dim_mod, only : next,numbasef
+  use get_matrix_mod, only : relerror,relmargin,orbit_relerr,primary_step_limit
+  use potato_input_mod, only : class_eps_sampling,class_itermax_sampling, &
+                               class_boundary_margin,class_orbit_relerr, &
+                               class_orbit_max_steps
+  use interp_cache_mod, only : interp_cache_reset
+
+  implicit none
+
+  integer, intent(out) :: ierr
+  logical, intent(out) :: has_next
+  double precision :: orbit_relerr_save
+  integer :: primary_step_limit_save
+  external :: sample_current_class_segment
+
+  ierr=sample_class_success
+  has_next=.false.
+  if(current_segment.ge.nsegments) return
+
+  current_segment=current_segment+1
+  has_next=.true.
+  nlagr=7
+  relerror=class_eps_sampling
+  relmargin=class_boundary_margin
+  itermax=class_itermax_sampling
+  next=2*numbasef
+  n1=3+next
+  n2=1
+  orbit_relerr_save=orbit_relerr
+  primary_step_limit_save=primary_step_limit
+  orbit_relerr=class_orbit_relerr
+  primary_step_limit=class_orbit_max_steps
+  matrix_boundary_error=matrix_eval_success
+  call sample_current_class_segment(ierr)
+  call interp_cache_reset
+  orbit_relerr=orbit_relerr_save
+  primary_step_limit=primary_step_limit_save
+  if(ierr.ne.sample_class_success) has_next=.false.
+  end subroutine sample_class_next_segment
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -3356,97 +3419,138 @@
 !
   subroutine bound_class_wall(xb,xe,empty_class)
 !
-! Trim the class interval to where the orbit closes inside the limiter wall.
-! A wall-crossing orbit fails in get_matrix_doublecount (amat(3,1) left at the
-! huge sentinel); without this trim a single lost sample makes sample_matrix
-! exceed itermax and the whole class is dropped (ierr=2) instead of only the
-! lost orbits.  Trims both endpoints by bisection on orbit validity, so the
-! inside-wall part of the class is still sampled and its resonances kept.
+! Determine all connected pieces on which the full orbit returns without a
+! wall loss.  A class is an interval in its transformed cut coordinate, but
+! its returning subset need not be connected.  The adaptive interpolator must
+! never bridge an invalid interior gap, so each valid run gets its own grid.
 !
   use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_orbit_failure, &
                                 matrix_eval_wall_loss,matrix_boundary_error
-  use get_matrix_mod, only : delphi_max
+  use class_return_segments_mod, only : clear_class_segments, &
+                                        set_class_segments, &
+                                        partition_valid_samples
 !
   implicit none
 !
-  double precision :: xb,xe,xmid,xnew
-  logical :: amat_was_alloc,empty_class,found
+  double precision, intent(inout) :: xb,xe
+  logical, intent(out) :: empty_class
+  double precision, allocatable :: xprobe(:),raw_beg(:),raw_end(:), &
+                                   final_beg(:),final_end(:)
+  logical, allocatable :: valid(:)
+  double precision :: xleft,xright
+  integer :: nprobe,npoints,nraw,nkept,i,j,ibeg,iend
+  logical :: amat_was_alloc
 !
   external :: get_matrix_doublecount
 !
   empty_class=.false.
+  call clear_class_segments()
+  if(xe.le.xb) then
+    matrix_boundary_error=matrix_eval_orbit_failure
+    return
+  endif
 !
   amat_was_alloc=allocated(amat)
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
-!
-  xmid=0.5d0*(xb+xe)
-  if(.not.orbit_lost(xmid)) then
-    call trim_lost(xmid,xe)
-    call trim_lost(xmid,xb)
-  elseif(matrix_boundary_error.eq.matrix_eval_success) then
-    print *, 'bound_class_wall: open midpoint x=',xmid, 'xb,xe=',xb,xe
-    call find_open_witness(xb,xe,xnew,found)
-    if(found) then
-      call trim_lost(xnew,xe)
-      if(matrix_boundary_error.eq.matrix_eval_success) call trim_lost(xnew,xb)
-    elseif(delphi_max.gt.0.d0) then
-      empty_class=.true.
-    else
-      matrix_boundary_error=matrix_eval_orbit_failure
+  nprobe=max(4,2*nlagr+1)
+  npoints=nprobe+2
+  allocate(xprobe(npoints),valid(npoints),raw_beg(npoints),raw_end(npoints), &
+           final_beg(npoints),final_end(npoints))
+  do i=1,npoints
+    xprobe(i)=xb+(xe-xb)*dble(i-1)/dble(npoints-1)
+    valid(i)=.not.orbit_lost(xprobe(i))
+    if(matrix_boundary_error.ne.matrix_eval_success) then
+      deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
+      if(.not.amat_was_alloc) deallocate(amat)
+      return
     endif
+  enddo
+!
+  call partition_valid_samples(xprobe,valid,raw_beg,raw_end,nraw)
+  if(nraw.le.0) then
+    matrix_boundary_error=matrix_eval_orbit_failure
+    deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
+    if(.not.amat_was_alloc) deallocate(amat)
+    return
   endif
 !
+  nkept=0
+  do i=1,nraw
+    ibeg=0
+    iend=0
+    do j=1,npoints
+      if(xprobe(j).eq.raw_beg(i)) ibeg=j
+      if(xprobe(j).eq.raw_end(i)) iend=j
+    enddo
+    if(ibeg.le.0 .or. iend.le.0) then
+      matrix_boundary_error=matrix_eval_orbit_failure
+      deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
+      if(.not.amat_was_alloc) deallocate(amat)
+      return
+    endif
+    xleft=raw_beg(i)
+    xright=raw_end(i)
+    if(ibeg.gt.1) then
+      call refine_open_transition(xleft,xprobe(ibeg-1),xleft)
+      if(matrix_boundary_error.ne.matrix_eval_success) then
+        deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
+        if(.not.amat_was_alloc) deallocate(amat)
+        return
+      endif
+    endif
+    if(iend.lt.npoints) then
+      call refine_open_transition(xright,xprobe(iend+1),xright)
+      if(matrix_boundary_error.ne.matrix_eval_success) then
+        deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
+        if(.not.amat_was_alloc) deallocate(amat)
+        return
+      endif
+    endif
+    if(xright.gt.xleft) then
+      nkept=nkept+1
+      final_beg(nkept)=xleft
+      final_end(nkept)=xright
+    endif
+  enddo
+!
+  if(nkept.le.0) then
+    matrix_boundary_error=matrix_eval_orbit_failure
+  else
+    call set_class_segments(nkept,final_beg,final_end)
+    xb=final_beg(1)
+    xe=final_end(1)
+  endif
+!
+  deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
   if(.not.amat_was_alloc) deallocate(amat)
 !
   contains
 !
-  subroutine trim_lost(xsafe,xdiv)
-  double precision :: xsafe,xdiv,xlo,xhi,xm
+  subroutine refine_open_transition(xvalid,xinvalid,xboundary)
+  double precision, intent(in) :: xvalid,xinvalid
+  double precision, intent(out) :: xboundary
+  double precision :: xok,xbad,xmid
   integer :: it
 !
-  if(.not.orbit_lost(xdiv)) return
-  print *, 'bound_class_wall: open endpoint x=',xdiv, 'safe=',xsafe
-!
-  xlo=xsafe
-  xhi=xdiv
+  xok=xvalid
+  xbad=xinvalid
   do it=1,40
-    xm=0.5d0*(xlo+xhi)
-    if(orbit_lost(xm)) then
-      xhi=xm
+    xmid=0.5d0*(xok+xbad)
+    if(orbit_lost(xmid)) then
+      xbad=xmid
     else
-      xlo=xm
-    endif
-    if(abs(xhi-xlo).lt.1.d-3*max(1.d0,abs(xdiv))) exit
-  enddo
-  xdiv=xlo
-  end subroutine trim_lost
-
-  subroutine find_open_witness(xleft,xright,xw,found)
-  double precision, intent(in) :: xleft,xright
-  double precision, intent(out) :: xw
-  logical, intent(out) :: found
-  double precision :: xprobe
-  integer :: j,nprobe
-
-  found=.false.
-  xw=0.5d0*(xleft+xright)
-  nprobe=max(4,2*nlagr+1)
-  do j=1,nprobe
-    xprobe=xleft+(xright-xleft)*dble(j)/dble(nprobe+1)
-    if(.not.orbit_lost(xprobe)) then
-      if(matrix_boundary_error.ne.matrix_eval_success) return
-      found=.true.
-      xw=xprobe
-      return
+      xok=xmid
     endif
     if(matrix_boundary_error.ne.matrix_eval_success) return
+    if(abs(xbad-xok).lt.1.d-3*max(1.d0,abs(xinvalid))) exit
   enddo
-  end subroutine find_open_witness
+  xboundary=xok
+  end subroutine refine_open_transition
 !
   logical function orbit_lost(xval)
-  double precision :: xval
+  double precision, intent(in) :: xval
   matrix_eval_valid=.true.
   matrix_eval_error=matrix_eval_success
   x=xval
