@@ -109,7 +109,7 @@
 !------------------------------------------------------
 !
   module get_matrix_mod
-    double precision :: relerror=1.d-4, relmargin=1.d-4
+    double precision :: relerror=1.d-4, relmargin=1.d-4, orbit_relerr=1.d-10
 ! Class domain is trimmed to where |delphi_b| <= delphi_max: no resonance lives
 ! past 2*pi*m_max/n, and the divergent X-point endpoint beyond it defeats the
 ! adaptive sampler (sample_matrix ierr=2 -> class dropped).  delphi_max <= 0
@@ -118,7 +118,7 @@
     integer          :: iclass
 ! Relerror and relmargin are configured by sample_class_doublecount for each
 ! energy slice; they are not immutable global input once the torque loop starts.
-    !$omp threadprivate(relerror,relmargin,delphi_max,iclass)
+    !$omp threadprivate(relerror,relmargin,orbit_relerr,delphi_max,iclass)
   end module get_matrix_mod
 !
 !------------------------------------------------------
@@ -185,7 +185,7 @@
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,orbit_wall_loss, &
                             orbit_failure_stage
   use field_eq_mod, only : ierrfield
-  use get_matrix_mod, only : delphi_max,iclass
+  use get_matrix_mod, only : delphi_max,iclass,orbit_relerr
   use form_classes_doublecount_mod, only : ifuntype
 !
   implicit none
@@ -201,7 +201,7 @@
   integer, parameter :: max_primary_steps=100000
 !
 ! relative error of orbit integrator:
-  double precision, parameter :: relerr=1d-10 !8
+  double precision :: relerr
 
   integer, intent(in) :: next
   double precision, intent(in) :: dtau_in
@@ -223,6 +223,7 @@
 !
   ndim = neqm+next
   ierr = 0
+  relerr=orbit_relerr
   primary_closed=.false.
   newton_converged=.false.
   primary_steps=0
@@ -2873,20 +2874,21 @@
   use sample_class_status_mod, only : sample_class_success, &
                                       sample_class_no_resonance
   use orbit_dim_mod,     only : next,numbasef,orbit_failure_stage
-  use get_matrix_mod,    only : relerror,relmargin,iclass,delphi_max
+  use get_matrix_mod,    only : relerror,relmargin,orbit_relerr,iclass,delphi_max
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,sigma_class, &
                                            R_class_beg,R_class_end
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
   use potato_input_mod, only : class_eps_sampling, class_itermax_sampling, &
-                               class_boundary_margin
+                               class_boundary_margin, class_orbit_relerr
 !
   implicit none
 !
   integer :: iunit,ierr,i
   double precision :: psiastbeg,psiastend,widthclass
   logical :: empty_class
+  double precision :: orbit_relerr_save
 !
   external :: get_matrix_doublecount
 !
@@ -2901,11 +2903,14 @@
 !
   ierr=sample_class_success
   matrix_boundary_error=matrix_eval_success
+  orbit_relerr_save=orbit_relerr
+  orbit_relerr=class_orbit_relerr
 !
   widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
 !
   if(widthclass/relmargin.lt.1.d0) then
     print *,'ignore class'
+    orbit_relerr=orbit_relerr_save
     ierr=sample_class_no_resonance
     return
   endif
@@ -2918,6 +2923,7 @@
     call bound_class_delphi(ifuntype(iclass),xbeg,xend,empty_class)
   endif
   if(matrix_boundary_error.ne.matrix_eval_success) then
+    orbit_relerr=orbit_relerr_save
     ierr=matrix_boundary_error
     return
   endif
@@ -2926,17 +2932,20 @@
     ! a zero contribution, not an adaptive-sampler failure.
     ierr=sample_class_no_resonance
     call interp_cache_reset
+    orbit_relerr=orbit_relerr_save
     return
   endif
 !
   call bound_class_return(ifuntype(iclass),xbeg,xend)
   if(matrix_boundary_error.ne.matrix_eval_success) then
+    orbit_relerr=orbit_relerr_save
     ierr=matrix_boundary_error
     return
   endif
 !
   call bound_class_wall(xbeg,xend)
   if(matrix_boundary_error.ne.matrix_eval_success) then
+    orbit_relerr=orbit_relerr_save
     ierr=matrix_boundary_error
     return
   endif
@@ -2951,6 +2960,7 @@
       ierr=matrix_boundary_error
     endif
     call interp_cache_reset
+    orbit_relerr=orbit_relerr_save
     return
   endif
 !
@@ -2971,6 +2981,7 @@
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
 ! so interpolate_class_doublecount never returns a value from the old grid.
   call interp_cache_reset
+  orbit_relerr=orbit_relerr_save
 !
   if(dowrite) then
     print *,'npoi = ',npoi
