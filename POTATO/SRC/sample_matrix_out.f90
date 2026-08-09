@@ -622,6 +622,10 @@ contains
     IF(sig_l.NE.scan_signature) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch H,J = ', &
           topology_context_h,candidates(i)
+      PRINT *,'  certified candidate count = ',nunique
+      DO j=1,nunique
+        PRINT *,'  certified candidate = ',j,candidates(j)
+      ENDDO
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
