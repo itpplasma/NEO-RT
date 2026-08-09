@@ -248,6 +248,7 @@ subroutine integrate_class_resonances(ierr_out)
     double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
     double precision, dimension(neqm) :: z
     logical :: wall_zero
+    character(len=256) :: msg
     !
     ierr_out=resonance_status_success
     sigma=sigma_class(iclass)
@@ -293,9 +294,14 @@ subroutine integrate_class_resonances(ierr_out)
         call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
+            write(msg,'(A,I0,A,I0,A,I0,A,ES14.6,A,ES14.6)') &
+                'resonance root search failed ierr=',ierr, &
+                ' mode=',marr(mode),'/',narr(mode), &
+                ' xbeg=',xbeg,' xend=',xend
             !$omp critical (reslines_log)
             call tee_message( &
                 'integrate_class_resonances: error in find_all_roots')
+            call tee_message(trim(msg))
             !$omp end critical (reslines_log)
             ierr_out=resonance_status_from_root_error(ierr)
             ledger_failure_count=ledger_failure_count+1
