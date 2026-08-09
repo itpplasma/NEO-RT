@@ -2881,6 +2881,12 @@
     return
   endif
 !
+  call bound_class_return(ifuntype(iclass),xbeg,xend)
+  if(matrix_boundary_error.ne.matrix_eval_success) then
+    ierr=matrix_boundary_error
+    return
+  endif
+!
   call bound_class_wall(xbeg,xend)
   if(matrix_boundary_error.ne.matrix_eval_success) then
     ierr=matrix_boundary_error
@@ -3041,6 +3047,92 @@
   end function eval_delphi
 !
   end subroutine bound_class_delphi
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine bound_class_return(iftype,xb,xe)
+!
+! A type-1 cut endpoint is a computational rho boundary, not a guarantee
+! that a finite-width orbit closes.  Keep all endpoints whose full orbit
+! returns, and trim only an endpoint interval with an orbit-closure failure.
+! This also preserves SOL excursions when edge_extension is enabled: a
+! leaving-and-returning orbit evaluates successfully and is never trimmed.
+!
+  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+                                matrix_eval_error,matrix_eval_success, &
+                                matrix_eval_orbit_failure, &
+                                matrix_boundary_error
+!
+  implicit none
+!
+  integer :: iftype,ib_beg,ib_end
+  double precision :: xb,xe,xmid
+  logical :: amat_was_alloc
+!
+  external :: get_matrix_doublecount
+!
+  ib_beg=iftype/10
+  ib_end=mod(iftype,10)
+  if(ib_beg.ne.1 .and. ib_end.ne.1) return
+!
+  amat_was_alloc=allocated(amat)
+  if(.not.amat_was_alloc) allocate(amat(n1,n2))
+  xmid=0.5d0*(xb+xe)
+  if(orbit_return_invalid(xmid)) then
+    matrix_boundary_error=matrix_eval_orbit_failure
+  elseif(ib_end.eq.1) then
+    call trim_return(xmid,xe)
+    if(matrix_boundary_error.eq.matrix_eval_success .and. ib_beg.eq.1) then
+      call trim_return(xmid,xb)
+    endif
+  elseif(ib_beg.eq.1) then
+    call trim_return(xmid,xb)
+  endif
+!
+  if(.not.amat_was_alloc) deallocate(amat)
+!
+  contains
+!
+  subroutine trim_return(xsafe,xdiv)
+  double precision :: xsafe,xdiv,xvalid,xinvalid,xm
+  integer :: it
+!
+  if(.not.orbit_return_invalid(xdiv)) return
+  if(orbit_return_invalid(xsafe)) then
+    matrix_boundary_error=matrix_eval_orbit_failure
+    return
+  endif
+  xvalid=xsafe
+  xinvalid=xdiv
+  do it=1,40
+    xm=0.5d0*(xvalid+xinvalid)
+    if(orbit_return_invalid(xm)) then
+      xinvalid=xm
+    else
+      xvalid=xm
+    endif
+    if(abs(xinvalid-xvalid).lt.1.d-3*max(1.d0,abs(xdiv))) exit
+  enddo
+  xdiv=xvalid
+  end subroutine trim_return
+!
+  logical function orbit_return_invalid(xval)
+  double precision :: xval
+!
+  matrix_eval_valid=.true.
+  matrix_eval_error=matrix_eval_success
+  matrix_boundary_error=matrix_eval_success
+  x=xval
+  call get_matrix_doublecount
+  orbit_return_invalid=(matrix_eval_error.eq.matrix_eval_orbit_failure)
+  if(matrix_eval_error.ne.matrix_eval_success .and. &
+     matrix_eval_error.ne.matrix_eval_orbit_failure) then
+    matrix_boundary_error=matrix_eval_error
+    orbit_return_invalid=.false.
+  endif
+  end function orbit_return_invalid
+!
+  end subroutine bound_class_return
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
