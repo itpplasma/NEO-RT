@@ -654,6 +654,12 @@ contains
         PRINT *,'  active transition j,J,left,right = ',j,active_x(j), &
             active_left_sig(j),active_right_sig(j)
       ENDDO
+      DO j=1,nunique
+        IF(candidates(j).GT.active_x(1)-1.d-6 .AND. &
+           candidates(j).LT.active_x(1)+1.d-6) THEN
+          PRINT *,'  nearby candidate j,J = ',j,candidates(j)
+        ENDIF
+      ENDDO
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
