@@ -4717,7 +4717,10 @@ contains
     local_j=0.d0
     local_p=0.d0
     scale=max(1.d0,abs(endpoint),abs(rlo),abs(rhi))
-    max_distance=0.49d0*(rhi-rlo)
+! The caller has already established a valid branch midpoint.  Search through
+! that witness when an endpoint is invalid; stopping just short of it can
+! reject a narrow but genuine fixed-point island.
+    max_distance=0.5d0*(rhi-rlo)
     distance=max(1.d-8*(rhi-rlo),256.d0*epsilon(1.d0)*scale)
     do local_k=1,32
       if(distance.gt.max_distance) distance=max_distance
