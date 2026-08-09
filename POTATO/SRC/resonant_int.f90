@@ -503,7 +503,8 @@ subroutine get_matrix_res
         topology_signature,topology_error,topology_context_h, &
         topology_signature_of_classes,topology_probe_only
     use global_invariants,            only : toten,perpinv
-    use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
+    use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class, &
+        R_class_beg,R_class_end
     use get_matrix_mod,               only : iclass
     use resint_mod,                   only : nmodes,nperp_max,respoints_jp, &
         respoints_all,respoints_all_tmp,ledger_class_evaluations
@@ -567,6 +568,9 @@ subroutine get_matrix_res
         print *,'topology class diagnostic H,J,nclasses,sig = ',toten,perpinv, &
             nclasses,topology_signature
         print *,'  class types = ',ifuntype(1:nclasses)
+        print *,'  class sigma = ',sigma_class(1:nclasses)
+        print *,'  class Rbeg = ',R_class_beg(1:nclasses)
+        print *,'  class Rend = ',R_class_end(1:nclasses)
     endif
     if(topology_probe_only) return
     ledger_class_evaluations=ledger_class_evaluations+nclasses
