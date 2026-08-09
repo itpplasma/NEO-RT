@@ -2834,7 +2834,7 @@
                                 matrix_eval_success
   use sample_class_status_mod, only : sample_class_success, &
                                       sample_class_no_resonance
-  use orbit_dim_mod,     only : next,numbasef
+  use orbit_dim_mod,     only : next,numbasef,orbit_failure_stage
   use get_matrix_mod,    only : relerror,relmargin,iclass,delphi_max
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,sigma_class, &
