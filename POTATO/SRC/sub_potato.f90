@@ -1517,7 +1517,7 @@
         pphi_minmax=pphi_min
         relerr_allroots=1.d-11
 !
-        call find_all_roots(boucross,R_b_in,R_e_in,ierr)
+        call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 1'
@@ -1544,7 +1544,7 @@
         pphi_minmax=pphi_max
         relerr_allroots=1.d-11
 !
-        call find_all_roots(boucross,R_b_in,R_e_in,ierr)
+        call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 2'
@@ -1578,7 +1578,7 @@
           pphi_minmax=pphi_min
           relerr_allroots=1.d-11
 !
-          call find_all_roots(boucross,R_b_in,R_e_in,ierr)
+          call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 1'
@@ -1608,7 +1608,7 @@
           pphi_minmax=pphi_max
           relerr_allroots=1.d-11
 !
-          call find_all_roots(boucross,R_b_in,R_e_in,ierr)
+          call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 2'
@@ -2392,6 +2392,36 @@
   endif
 !
   end subroutine boucross
+!
+!------------
+!
+  subroutine boucross_with_endpoint_limit(Rst,delpphi,ddelpphi_dRst)
+!
+! At a turning endpoint starter_doublecount is undefined although psi^*
+! has a finite one-sided limit.  Supplying that limit keeps the clipping
+! root search continuous at the endpoint.
+!
+  implicit none
+  double precision :: Rst,delpphi,ddelpphi_dRst
+!
+  if(Rst.eq.R_b_in) then
+    delpphi=all_regions(isig,ireg)%psiast_b-pphi_minmax
+    ddelpphi_dRst=0.d0
+    root_eval_valid=.true.
+    root_eval_error=0
+    return
+  endif
+  if(Rst.eq.R_e_in) then
+    delpphi=all_regions(isig,ireg)%psiast_e-pphi_minmax
+    ddelpphi_dRst=0.d0
+    root_eval_valid=.true.
+    root_eval_error=0
+    return
+  endif
+!
+  call boucross(Rst,delpphi,ddelpphi_dRst)
+!
+  end subroutine boucross_with_endpoint_limit
 !
 !------------
 !
