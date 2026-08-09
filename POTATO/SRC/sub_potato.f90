@@ -909,6 +909,7 @@
   implicit none
 !
   integer, parameter :: nsplit=100,niter=100
+  double precision, parameter :: bootstrap_R=1.d0,bootstrap_Z=0.d0
   double precision, parameter :: relerr=1d-12
   integer :: i,j,npline
   double precision :: rho_pol,psils,sigpsi
@@ -925,6 +926,12 @@
 ! magnetic axis keeps the Newton seed inside the supplied equilibrium and on
 ! the physical cut.  rtf is only the vacuum/reference radius and may be
 ! unset or unrelated to the axis.
+! The libneo equilibrium reader is lazy.  Trigger it once before consulting
+! the retained axis; the bootstrap coordinate is only an initialization
+  ! probe, and its field-domain status is deliberately ignored.
+  if(nrad.le.1 .or. .not.allocated(rad)) then
+    call gpsigb_and_ders(bootstrap_R,bootstrap_Z,gpgb,dgpgb_dr,dgpgb_dz,valid)
+  endif
   if(nrad.le.1 .or. .not.allocated(rad)) then
     error stop 'find_poicut: equilibrium radial grid is unavailable'
   endif
