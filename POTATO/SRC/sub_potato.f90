@@ -4513,6 +4513,10 @@ contains
     rvalue=rmid
     pvalue=pmid
     ok_value=abs(jmid-jtarget).le.10.d0*tolerance
+    if(.not.ok_value) then
+      print *,'invert_fixedpoint_branch: no inverse convergence,segment,J,R,Jmid = ', &
+          segment,jtarget,rmid,jmid
+    endif
   end subroutine invert_fixedpoint_branch
 
   subroutine invert_boundary_segment(segment,jtarget,rvalue,pvalue,ok_value)
