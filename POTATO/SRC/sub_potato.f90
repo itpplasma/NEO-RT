@@ -1155,6 +1155,7 @@
   use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
   use orbit_dim_mod, only : clip_resonance_classes
+  use sample_matrix_out_mod, only : topology_probe_only
 !
   implicit none
 !
@@ -1503,6 +1504,12 @@
       R_b_in=all_regions(isig,ireg)%R_b
       R_e_in=all_regions(isig,ireg)%R_e
 
+      if(topology_probe_only) print *,'cut input sigma,low_b,high_b,low_e,high_e = ', &
+          sigma,all_regions(isig,ireg)%psiast_b.lt.pphi_min, &
+          all_regions(isig,ireg)%psiast_b.gt.pphi_max, &
+          all_regions(isig,ireg)%psiast_e.lt.pphi_min, &
+          all_regions(isig,ireg)%psiast_e.gt.pphi_max
+
 !
 ! Left boundary:
 !
@@ -1632,6 +1639,18 @@
       all_regions(isig,ireg)%within_rhopol=within_rhopol
     enddo
   enddo
+
+  if(topology_probe_only) then
+    print *,'bounds trace H,J,pphi_min,pphi_max = ',toten,perpinv,pphi_min,pphi_max
+    do isig=1,2
+      do ireg=1,nregions
+        print *,' bounds region sigma,Rb,Re,psib,psie,within = ',2*isig-3, &
+            all_regions(isig,ireg)%R_b,all_regions(isig,ireg)%R_e, &
+            all_regions(isig,ireg)%psiast_b,all_regions(isig,ireg)%psiast_e, &
+            all_regions(isig,ireg)%within_rhopol
+      enddo
+    enddo
+  endif
 
 !
 ! End cut out from the allowed regions the segments occupied by the orbits
