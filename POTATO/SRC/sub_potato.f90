@@ -2969,7 +2969,12 @@
       ! encounters an open orbit pays for the topology probe and bisection.
       matrix_boundary_error=matrix_eval_success
       call bound_class_wall(xbeg,xend,empty_class,x)
-      if(matrix_boundary_error.eq.matrix_eval_success .and. nsegments.gt.0) then
+      if(matrix_boundary_error.eq.matrix_eval_success .and. empty_class) then
+        ! A class with no returning piece at this exact parameter is a
+        ! certified zero contribution.  Keep it out of the interpolation
+        ! grid instead of promoting an open-end orbit loss to a hard error.
+        ierr=sample_class_no_resonance
+      elseif(matrix_boundary_error.eq.matrix_eval_success .and. nsegments.gt.0) then
         current_segment=1
         xbeg=segment_beg(current_segment)
         xend=segment_end(current_segment)
@@ -3479,7 +3484,8 @@
 !
   call partition_valid_samples(xprobe,valid,raw_beg,raw_end,nraw)
   if(nraw.le.0) then
-    matrix_boundary_error=matrix_eval_orbit_failure
+    empty_class=.true.
+    matrix_boundary_error=matrix_eval_success
     deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
     if(.not.amat_was_alloc) deallocate(amat)
     return
@@ -3525,7 +3531,8 @@
   enddo
 !
   if(nkept.le.0) then
-    matrix_boundary_error=matrix_eval_orbit_failure
+    empty_class=.true.
+    matrix_boundary_error=matrix_eval_success
   else
     call set_class_segments(nkept,final_beg,final_end)
     xb=final_beg(1)
