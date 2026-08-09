@@ -2852,7 +2852,7 @@
 !
   nlagr=7         !<= temporary place, should be moved out for centralized input
   relerror=1.d-3  !<= temporary place, should be moved out for centralized input
-  relmargin=1.d-7 !<= temporary place, should be moved out for centralized input
+  relmargin=1.d-4 !<= temporary place, should be moved out for centralized input
   itermax=20      !<= temporary place, should be moved out for centralized input
 !
   next=2*numbasef
