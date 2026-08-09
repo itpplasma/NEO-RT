@@ -2895,7 +2895,8 @@
   use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_wall_loss,matrix_eval_nonfinite, &
-                                matrix_boundary_error
+                                matrix_boundary_error, &
+                                matrix_failure_is_open_boundary
   use get_matrix_mod,    only : delphi_max
   use resonance_mode_bounds_mod, only : resonance_no_root_for_any, &
                                         harmonic_guard_success
@@ -2982,8 +2983,9 @@
   matrix_boundary_error=matrix_eval_success
   x=xval
   call get_matrix_doublecount
-  if(matrix_eval_error.eq.matrix_eval_wall_loss) then
-    ! Wall loss is the one expected invalid endpoint for this trim.
+  if(matrix_failure_is_open_boundary(matrix_eval_error)) then
+    ! An orbit-return or wall failure is the expected invalid side of a
+    ! separatrix-facing class endpoint.  Other failures remain fatal.
     eval_delphi=sign(huge(1.d0),1.d0)
   elseif(matrix_eval_error.ne.matrix_eval_success) then
     matrix_boundary_error=matrix_eval_error

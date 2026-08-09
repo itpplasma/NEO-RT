@@ -18,4 +18,14 @@
     !$omp threadprivate(nlagr,n1,n2,npoi,itermax,x,xbeg,xend,eps, &
     !$omp&                matrix_eval_valid,matrix_eval_error,     &
     !$omp&                matrix_boundary_error,xarr,amat,amat_arr)
+
+  contains
+
+    pure logical function matrix_failure_is_open_boundary(error_code)
+      integer, intent(in) :: error_code
+
+      matrix_failure_is_open_boundary = error_code == matrix_eval_orbit_failure .or. &
+                                        error_code == matrix_eval_wall_loss
+    end function matrix_failure_is_open_boundary
+
   end module sample_matrix_mod

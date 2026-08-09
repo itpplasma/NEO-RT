@@ -10,6 +10,10 @@ program test_endpoint_stationary_root
                                     topology_gap_bound,topology_partition_tol, &
                                     topology_transition_count, &
                                     topology_contribution_error_certified
+  use sample_matrix_mod, only : matrix_eval_starter_failure, &
+                                matrix_eval_orbit_failure, &
+                                matrix_eval_wall_loss, matrix_eval_nonfinite, &
+                                matrix_failure_is_open_boundary
   use potato_topology_mod, only : choose_two_sided_step, &
                                   root_has_two_sided_neighborhood,root_is_open_interval, &
                                   solve_fixedpoint_quadratic
@@ -74,6 +78,7 @@ program test_endpoint_stationary_root
   call test_partitioned_piecewise
   call test_certified_narrow_island
   call test_endpoint_contraction
+  call test_endpoint_failure_classification
   call test_fixedpoint_quadratic
   call test_resonance_status
   call test_conjugate_mode_representation
@@ -401,6 +406,17 @@ contains
     call require(abs(xarr(1)-0.1d0).lt.1.d-6, &
                  'endpoint contraction was not refined to the valid boundary')
   end subroutine test_endpoint_contraction
+
+  subroutine test_endpoint_failure_classification
+    call require(matrix_failure_is_open_boundary(matrix_eval_orbit_failure), &
+                 'orbit-return failure was not classified as an open endpoint')
+    call require(matrix_failure_is_open_boundary(matrix_eval_wall_loss), &
+                 'wall loss was not classified as an open endpoint')
+    call require(.not.matrix_failure_is_open_boundary(matrix_eval_starter_failure), &
+                 'starter failure was misclassified as an open endpoint')
+    call require(.not.matrix_failure_is_open_boundary(matrix_eval_nonfinite), &
+                 'nonfinite matrix was misclassified as an open endpoint')
+  end subroutine test_endpoint_failure_classification
 
   subroutine test_fixedpoint_quadratic
 ! Independent algebraic oracle for the exact fixed-point discriminant used by
