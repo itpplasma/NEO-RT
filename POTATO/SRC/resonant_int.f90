@@ -247,7 +247,6 @@ subroutine integrate_class_resonances(ierr_out)
     double precision :: dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi
     double precision, dimension(neqm) :: z
     logical :: wall_zero
-    character(len=256) :: msg
     !
     ierr_out=resonance_status_success
     sigma=sigma_class(iclass)
@@ -370,11 +369,8 @@ subroutine integrate_class_resonances(ierr_out)
                 call pertham(z,absHn2,ierr_pertham)
                 if(ierr_pertham.ne.0) then
                     !$omp critical (reslines_log)
-                    write(msg,'(A,I0,A,I0,A,I0,A,ES16.8,A,ES16.8,A,ES16.8)') &
-                        'integrate_class_resonances: bounce failure class=',iclass, &
-                        ' type=',ifuntype(iclass),' mode=',mode,' H=',toten, &
-                        ' J=',perpinv,' x=',roots(iroot)
-                    call tee_message(trim(msg))
+                    call tee_message( &
+                        'integrate_class_resonances: find_bounce/pertham failed')
                     !$omp end critical (reslines_log)
                     ierr_out=ierr_pertham
                     ledger_failure_count=ledger_failure_count+1
