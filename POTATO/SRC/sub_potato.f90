@@ -3701,6 +3701,7 @@
   integer :: ierr_roots,nsearch_save,i,j,k,nq,ndisc,npart,nsigma,branch
   integer :: npart_initial,nfp_segments,nbd_segments,ierr_local
   integer :: collision_segment_left,collision_segment_right,collision_boundary_segment
+  integer :: collision_boundary_left,collision_boundary_right
   integer :: boundary_stage
   double precision :: relerr_save,q,range,midpoint,jvalue,pstar,refined_root
   double precision :: collision_jlo,collision_jhi
@@ -3952,6 +3953,8 @@
       collision_segment_left=i
       collision_segment_right=j
       collision_boundary_segment=0
+      collision_boundary_left=0
+      collision_boundary_right=0
       collision_jlo=max(0.d0,max(min(fp_jlo(i),fp_jhi(i)), &
                                  min(fp_jlo(j),fp_jhi(j))))
       collision_jhi=min(max(fp_jlo(i),fp_jhi(i)), &
@@ -4003,6 +4006,61 @@
     call fail_boundary(ierr)
     return
   endif
+
+! Two turning-boundary branches can meet at the same canonical-momentum
+! level.  This is the limiting case of a separatrix entering or leaving the
+! clipped cut; it is a boundary-boundary collision, not a fixed-point root.
+  do i=1,nbd_segments-1
+    do j=i+1,nbd_segments
+      boundary_stage=65
+      collision_segment_left=0
+      collision_segment_right=0
+      collision_boundary_segment=0
+      collision_boundary_left=i
+      collision_boundary_right=j
+      collision_jlo=max(0.d0,max(min(bd_jlo(i),bd_jhi(i)), &
+                                 min(bd_jlo(j),bd_jhi(j))))
+      collision_jhi=min(max(bd_jlo(i),bd_jhi(i)), &
+                        max(bd_jlo(j),bd_jhi(j)))
+      if(collision_jhi.lt.collision_jlo) cycle
+      if(collision_jhi-collision_jlo.le.256.d0*epsilon(1.d0)* &
+         max(1.d0,abs(collision_jlo),abs(collision_jhi))) then
+        midpoint=0.5d0*(collision_jlo+collision_jhi)
+        call fixedpoint_collision_value(midpoint,jvalue,ok)
+        if(.not.ok) then
+          call fail_boundary(2)
+          return
+        endif
+        if(abs(jvalue).le.1.d-10*max(1.d0,abs(jvalue))) then
+          call add_candidate(midpoint)
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+        endif
+      else
+        call find_all_roots_bracketed(fixedpoint_collision, &
+                                      collision_jlo,collision_jhi,ierr_local)
+        if(ierr_local.ne.root_success) then
+          call fail_boundary(ierr_local)
+          return
+        endif
+        do k=1,nroots
+          call refine_collision_candidate(roots(k),refined_root,ok)
+          if(ok) then
+            call add_candidate(refined_root)
+          else
+            call add_candidate(roots(k))
+          endif
+          if(ierr.ne.0) then
+            call fail_boundary(ierr)
+            return
+          endif
+        enddo
+      endif
+    enddo
+  enddo
+
   do i=1,nfp_segments
     do j=1,nbd_segments
       boundary_stage=70
@@ -4010,6 +4068,8 @@
       collision_segment_left=i
       collision_segment_right=0
       collision_boundary_segment=j
+      collision_boundary_left=0
+      collision_boundary_right=j
       collision_jlo=max(0.d0,max(min(fp_jlo(i),fp_jhi(i)), &
                                  min(bd_jlo(j),bd_jhi(j))))
       collision_jhi=min(max(fp_jlo(i),fp_jhi(i)), &
@@ -4106,6 +4166,8 @@ contains
     collision_segment_left=0
     collision_segment_right=0
     collision_boundary_segment=0
+    collision_boundary_left=0
+    collision_boundary_right=0
   end subroutine restore_scan_state
 
   subroutine add_candidate(value)
@@ -4517,11 +4579,19 @@ contains
     double precision :: rleft,rright,pleft,pright
     logical :: okleft,okright
 
-    call invert_fixedpoint_branch(collision_segment_left,jtest,rleft,pleft,okleft)
-    if(collision_boundary_segment.eq.0) then
+    if(collision_boundary_left.gt.0) then
+      call invert_boundary_segment(collision_boundary_left,jtest,rleft,pleft,okleft)
+    else
+      call invert_fixedpoint_branch(collision_segment_left,jtest,rleft,pleft,okleft)
+    endif
+    if(collision_boundary_right.eq.0 .and. collision_boundary_segment.eq.0) then
       call invert_fixedpoint_branch(collision_segment_right,jtest,rright,pright,okright)
     else
-      call invert_boundary_segment(collision_boundary_segment,jtest,rright,pright,okright)
+      if(collision_boundary_right.gt.0) then
+        call invert_boundary_segment(collision_boundary_right,jtest,rright,pright,okright)
+      else
+        call invert_boundary_segment(collision_boundary_segment,jtest,rright,pright,okright)
+      endif
     endif
     ok_value=okleft .and. okright
     if(ok_value) then
