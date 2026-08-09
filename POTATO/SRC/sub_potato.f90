@@ -185,7 +185,8 @@
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,orbit_wall_loss, &
                             orbit_failure_stage
   use field_eq_mod, only : ierrfield
-  use get_matrix_mod, only : delphi_max
+  use get_matrix_mod, only : delphi_max,iclass
+  use form_classes_doublecount_mod, only : ifuntype
 !
   implicit none
 !
@@ -210,7 +211,8 @@
   integer, intent(out) :: ierr
 
   logical :: firstpass,primary_closed,newton_converged
-  integer :: ndim, iter,primary_steps
+  logical :: harmonic_guard_active
+  integer :: ndim, iter,primary_steps,current_class_type
   double precision :: dtau
   double precision :: dL2_pol,dL2_pol_start,dtau_newt,r_prev,z_prev
   double precision :: tau0,RNorm,ZNorm,vnorm,dnorm,vel_pol,dL2_pol_min
@@ -227,6 +229,20 @@
   orbit_wall_loss=.false.
   orbit_failure_stage=0
   ierrfield=0
+  harmonic_guard_active=.false.
+  current_class_type=0
+! A finite harmonic displacement guard is an open-end optimization, not a
+! replacement for a regular orbit return.  Keep completed type-1/type-2
+! classes fully integrable so an out-of-range Delta_phi_b is represented as
+! a genuine no-root value; use the guard only for classes touching a
+! separatrix/X-point endpoint.
+  if(delphi_max.gt.0.d0 .and. allocated(ifuntype)) then
+    if(iclass.ge.1 .and. iclass.le.size(ifuntype)) then
+      current_class_type=ifuntype(iclass)
+      harmonic_guard_active=current_class_type/10.ge.3 .or. &
+          mod(current_class_type,10).ge.3
+    endif
+  endif
 !
   z(1:neqm)=z_eqm
   if(next.gt.0) then
@@ -279,7 +295,8 @@
 ! satisfy any active Delta_phi_b + 2*pi*m/n = 0 root.  Stop such an open or
 ! near-separatrix trial before it spends the full ODE step budget.  With no
 ! resonance guard (the normal frequency/orbit path), retain the old behavior.
-  if(delphi_max.gt.0.d0 .and. abs(z(2)-z_start(2)).gt.delphi_max) then
+  if(harmonic_guard_active .and. &
+      abs(z(2)-z_start(2)).gt.delphi_max) then
     ierr=2
     return
   endif
@@ -320,7 +337,8 @@
       ierr = 1
       return
     endif
-    if(delphi_max.gt.0.d0 .and. abs(z(2)-z_start(2)).gt.delphi_max) then
+    if(harmonic_guard_active .and. &
+        abs(z(2)-z_start(2)).gt.delphi_max) then
       ierr=2
       return
     endif
@@ -398,7 +416,8 @@
       ierr = 1
       return
     endif
-    if(delphi_max.gt.0.d0 .and. abs(z(2)-z_start(2)).gt.delphi_max) then
+    if(harmonic_guard_active .and. &
+        abs(z(2)-z_start(2)).gt.delphi_max) then
       ierr=2
       return
     endif
