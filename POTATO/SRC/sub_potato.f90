@@ -4507,7 +4507,7 @@ contains
     integer :: local_it
     double precision :: rlo_local,rhi_local,jlo_local,jhi_local,rmid, &
                         jmid,pmid,tolerance,jlo_value,jhi_value, &
-                        plo_value,phi_value,radial_resolution,jwidth,weight
+                        plo_value,phi_value,radial_resolution,jwidth,weight,jscale
     logical :: okmid,increasing,bracketed
 
     rvalue=0.d0
@@ -4515,7 +4515,12 @@ contains
     ok_value=.false.
     jlo_local=fp_jlo(segment)
     jhi_local=fp_jhi(segment)
-    tolerance=1.d-10*max(1.d0,abs(jtarget),abs(jlo_local),abs(jhi_local))
+    ! The inverse is evaluated on J_perp itself.  An absolute tolerance
+    ! scaled by one is many orders too large for the small-J outer scan and
+    ! can move a fixed-point/boundary collision across its true topology
+    ! transition.  Keep the residual relative to this local J interval.
+    jscale=max(1.d-300,abs(jtarget),abs(jlo_local),abs(jhi_local))
+    tolerance=max(1024.d0*epsilon(1.d0)*jscale,1.d-12*jscale)
     if(jtarget.lt.min(jlo_local,jhi_local)-tolerance .or. &
        jtarget.gt.max(jlo_local,jhi_local)+tolerance) return
     if(abs(jtarget-jlo_local).le.tolerance) then
@@ -4622,7 +4627,11 @@ contains
     ok_value=.false.
     jlo_local=bd_jlo(segment)
     jhi_local=bd_jhi(segment)
-    tolerance=1.d-10*max(1.d0,abs(jtarget),abs(jlo_local),abs(jhi_local))
+    ! Match the fixed-point inverse: the boundary level must be resolved at
+    ! the scale of the local J_perp interval, not at an absolute unit scale.
+    tolerance=max(1024.d0*epsilon(1.d0)*max(1.d-300,abs(jtarget), &
+        abs(jlo_local),abs(jhi_local)),1.d-12*max(1.d-300,abs(jtarget), &
+        abs(jlo_local),abs(jhi_local)))
     if(jtarget.lt.min(jlo_local,jhi_local)-tolerance .or. &
        jtarget.gt.max(jlo_local,jhi_local)+tolerance) return
     if(bd_type(segment).eq.2) then
