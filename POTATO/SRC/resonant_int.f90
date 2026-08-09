@@ -210,7 +210,7 @@ subroutine integrate_class_resonances(ierr_out)
     !
     use find_all_roots_mod, only : customgrid,ncustom,niter,relerr_allroots, &
         xcustom,nroots,roots
-    use get_matrix_mod,     only : relmargin,iclass
+    use get_matrix_mod,     only : iclass
     use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
     use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
         psiast_res,taub_res,delphi_res,resline_unit, &
@@ -225,6 +225,7 @@ subroutine integrate_class_resonances(ierr_out)
     use field_eq_mod,       only : psi_axis,psi_sep
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
     use resonance_status_mod, only : resonance_status_success, &
+        resonance_status_root_failure, &
         resonance_status_starter_failure,resonance_status_from_root_error, &
         resonance_status_nonfinite_weight,classify_resonance_root, &
         resonance_is_finite
@@ -237,7 +238,7 @@ subroutine integrate_class_resonances(ierr_out)
     !
     integer          :: mode,iroot,ierr,ierr_pertham,status_weight
     integer, intent(out) :: ierr_out
-    double precision :: relmargin_loc,widthclass,xbeg,xend
+    double precision :: xbeg,xend
     double precision :: rescond,dresconddx,dpsiastdx
     double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
     double precision :: root_factor
@@ -251,12 +252,17 @@ subroutine integrate_class_resonances(ierr_out)
     ierr_out=resonance_status_success
     sigma=sigma_class(iclass)
     delta_R=R_class_end(iclass)-R_class_beg(iclass)
-    !old=>  relmargin_loc=1.d-8
-    !old=>  widthclass=1.d0
-    relmargin_loc=relmargin !<=new
-    widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0) !<=new
-    !
-    call classbounds(ifuntype(iclass),relmargin_loc,widthclass,xbeg,xend)
+    ! sample_class_doublecount may trim either class endpoint for a finite
+    ! harmonic guard, an orbit-return boundary, or wall closure.  Rebuilding
+    ! the nominal class chart here would reintroduce the excluded singular or
+    ! invalid endpoint into the resonance root search.  The completed class
+    ! grid is the authoritative physical domain for interpolation and roots.
+    if(npoi.le.1) then
+        ierr_out=resonance_status_root_failure
+        return
+    endif
+    xbeg=xarr(1)
+    xend=xarr(npoi)
     customgrid=.true.
     ncustom=npoi
     allocate(xcustom(ncustom))
