@@ -2857,7 +2857,7 @@
   nlagr=7         !<= temporary place, should be moved out for centralized input
   relerror=1.d-3  !<= temporary place, should be moved out for centralized input
   relmargin=1.d-7 !<= temporary place, should be moved out for centralized input
-  itermax=40      ! diagnostic refinement ceiling; not a production fix
+  itermax=80      ! diagnostic refinement ceiling; not a production fix
 !
   next=2*numbasef
   n1=3+next
