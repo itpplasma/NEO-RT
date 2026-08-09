@@ -4455,8 +4455,9 @@ contains
     logical, intent(out) :: ok_value
     integer :: local_it
     double precision :: rlo_local,rhi_local,jlo_local,jhi_local,rmid, &
-                        jmid,pmid,tolerance
-    logical :: okmid,increasing
+                        jmid,pmid,tolerance,jlo_value,jhi_value, &
+                        plo_value,phi_value,radial_resolution,jwidth,weight
+    logical :: okmid,increasing,bracketed
 
     rvalue=0.d0
     pvalue=0.d0
@@ -4480,6 +4481,10 @@ contains
     endif
     rlo_local=fp_rlo(segment)
     rhi_local=fp_rhi(segment)
+    jlo_value=jlo_local
+    jhi_value=jhi_local
+    plo_value=fp_plo(segment)
+    phi_value=fp_phi(segment)
     increasing=jhi_local.gt.jlo_local
     do local_it=1,100
       rmid=0.5d0*(rlo_local+rhi_local)
@@ -4499,14 +4504,22 @@ contains
       if(increasing) then
         if(jmid.lt.jtarget) then
           rlo_local=rmid
+          jlo_value=jmid
+          plo_value=pmid
         else
           rhi_local=rmid
+          jhi_value=jmid
+          phi_value=pmid
         endif
       else
         if(jmid.gt.jtarget) then
           rlo_local=rmid
+          jlo_value=jmid
+          plo_value=pmid
         else
           rhi_local=rmid
+          jhi_value=jmid
+          phi_value=pmid
         endif
       endif
     enddo
@@ -4514,6 +4527,30 @@ contains
     pvalue=pmid
     ok_value=abs(jmid-jtarget).le.10.d0*tolerance
     if(.not.ok_value) then
+      radial_resolution=256.d0*epsilon(1.d0)*max(1.d0,abs(rlo_local), &
+                                                   abs(rhi_local))
+      bracketed=.false.
+      if(abs(rhi_local-rlo_local).le.radial_resolution) then
+        if(jtarget.ge.min(jlo_value,jhi_value)-tolerance) then
+          if(jtarget.le.max(jlo_value,jhi_value)+tolerance) bracketed=.true.
+        endif
+      endif
+      if(bracketed) then
+        ! The continuous inverse lies between adjacent representable R values.
+        ! Interpolate the level value across that machine-resolution bracket;
+        ! a wider or unbracketed gap remains an invalid topology certificate.
+        jwidth=jhi_value-jlo_value
+        if(abs(jwidth).gt.tolerance) then
+          weight=(jtarget-jlo_value)/jwidth
+        else
+          weight=0.5d0
+        endif
+        weight=max(0.d0,min(1.d0,weight))
+        rvalue=rlo_local+weight*(rhi_local-rlo_local)
+        pvalue=plo_value+weight*(phi_value-plo_value)
+        ok_value=.true.
+        return
+      endif
       print *,'invert_fixedpoint_branch: no inverse convergence,segment,J,Rlo,Rhi,Jmid = ', &
           segment,jtarget,rlo_local,rhi_local,jmid
     endif
