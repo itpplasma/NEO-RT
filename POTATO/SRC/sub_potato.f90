@@ -3131,10 +3131,10 @@
 !
   subroutine bound_class_return(iftype,xb,xe)
 !
-! A type-1 cut endpoint is a computational rho boundary, not a guarantee
-! that a finite-width orbit closes.  Keep all endpoints whose full orbit
-! returns, and trim only an endpoint interval with an orbit-closure failure.
-! This also preserves SOL excursions when edge_extension is enabled: a
+! A type-1 or type-2 cut endpoint is not a guarantee that a finite-width
+! numerical orbit closes.  Keep all endpoints whose full orbit returns, and
+! trim only an endpoint interval with an orbit-closure failure.  This also
+! preserves SOL excursions when edge_extension is enabled: a
 ! leaving-and-returning orbit evaluates successfully and is never trimmed.
 !
   use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
@@ -3152,19 +3152,21 @@
 !
   ib_beg=iftype/10
   ib_end=mod(iftype,10)
-  if(ib_beg.ne.1 .and. ib_end.ne.1) return
+  if((ib_beg.ne.1 .and. ib_beg.ne.2) .and. &
+     (ib_end.ne.1 .and. ib_end.ne.2)) return
 !
   amat_was_alloc=allocated(amat)
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
   xmid=0.5d0*(xb+xe)
   if(orbit_return_invalid(xmid)) then
     matrix_boundary_error=matrix_eval_orbit_failure
-  elseif(ib_end.eq.1) then
+  elseif(ib_end.eq.1 .or. ib_end.eq.2) then
     call trim_return(xmid,xe)
-    if(matrix_boundary_error.eq.matrix_eval_success .and. ib_beg.eq.1) then
+    if(matrix_boundary_error.eq.matrix_eval_success .and. &
+       (ib_beg.eq.1 .or. ib_beg.eq.2)) then
       call trim_return(xmid,xb)
     endif
-  elseif(ib_beg.eq.1) then
+  elseif(ib_beg.eq.1 .or. ib_beg.eq.2) then
     call trim_return(xmid,xb)
   endif
 !
