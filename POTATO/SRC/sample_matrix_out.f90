@@ -412,11 +412,11 @@ contains
   INTEGER :: i,j,nfound,nunique,nactive,nsegments,n_total,nseg_points
   INTEGER :: npoi_request,n1_request,n2_request,ierr_local,ierr_certificate
   INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
-  INTEGER :: scan_signature
+  INTEGER :: scan_signature,attempt
   DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol
   DOUBLE PRECISION :: candidate_merge_tol
   DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol, &
-                      delta_resolution
+                      delta_resolution,probe_delta,probe_resolution
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
   DOUBLE PRECISION :: geometric_gap_bound
   DOUBLE PRECISION, ALLOCATABLE :: candidates(:),active_x(:),active_delta(:)
@@ -619,6 +619,41 @@ contains
       RETURN
     ENDIF
     sig_l=topology_signature
+    IF(sig_l.NE.scan_signature) THEN
+      ! A root can be returned with an error smaller than the nominal
+      ! partition probe.  Contract only the disagreeing side toward the
+      ! certified root; an unresolved interior gap still fails closed.
+      probe_delta=delta
+      probe_resolution=8.d0*EPSILON(1.d0)*MAX(1.d-300,ABS(candidates(i)))
+      DO attempt=1,32
+        IF(sig_l.EQ.scan_signature) EXIT
+        IF(probe_delta.LE.probe_resolution) EXIT
+        probe_delta=0.5d0*probe_delta
+        IF(candidates(i)-probe_delta.EQ.candidates(i)) EXIT
+        x=candidates(i)-probe_delta
+        CALL evaluate_matrix_callback(get_matrix,ierr_local)
+        IF(ierr_local.NE.sample_matrix_success) THEN
+          PRINT *,'sample_matrix_out_partitioned_certified: invalid contracted left side H,J = ', &
+              topology_context_h,x
+          CALL fail_certified(sample_matrix_topology_unresolved)
+          RETURN
+        ENDIF
+        sig_l=topology_signature
+      ENDDO
+      IF(sig_l.NE.scan_signature) THEN
+        PRINT *,'sample_matrix_out_partitioned_certified: uncontracted left probe H,J = ', &
+            topology_context_h,candidates(i)
+        CALL fail_certified(sample_matrix_topology_unresolved)
+        RETURN
+      ENDIF
+      delta=probe_delta
+    ENDIF
+    IF(candidates(i)+delta.EQ.candidates(i)) THEN
+      PRINT *,'sample_matrix_out_partitioned_certified: unrepresentable right probe H,J = ', &
+          topology_context_h,candidates(i)
+      CALL fail_certified(sample_matrix_topology_unresolved)
+      RETURN
+    ENDIF
     x=candidates(i)+delta
     CALL evaluate_matrix_callback(get_matrix,ierr_local)
     IF(ierr_local.NE.sample_matrix_success) THEN
