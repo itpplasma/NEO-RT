@@ -4552,8 +4552,9 @@ contains
       call fixedpoint_branch_value(rmid,fp_sigma(segment),fp_branch(segment), &
                                    jmid,pmid,okmid)
       if(.not.okmid) then
-        print *,'invert_fixedpoint_branch: branch unavailable,segment,J,R = ', &
-            segment,jtarget,rmid
+        print *,'invert_fixedpoint_branch: branch unavailable,segment,J,Rlo,Rhi,R = ', &
+            segment,jtarget,rlo_local,rhi_local,rmid
+        print *,'  inverse Jlo,Jhi,Jmid = ',jlo_local,jhi_local,jmid
         return
       endif
       if(abs(jmid-jtarget).le.tolerance) then
