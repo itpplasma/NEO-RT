@@ -4311,6 +4311,11 @@
     ierr=3
     return
   endif
+! The turning-intersection roots below are themselves R-partition
+! boundaries.  Allocate the partition before processing them; ITER cases can
+! reach that path even when circular smoke cases have no such roots.
+  allocate(rpartition(max_scan_roots))
+  npart=0
 !
 ! Endpoint roots are boundary candidates even when they are not stationary.
   call jperp_value(rpc_arr(0),q,ok)
@@ -4444,8 +4449,6 @@
   endif
 !
 ! Split the R_c scan at every allowed-region and fixed-point branch endpoint.
-  allocate(rpartition(max_scan_roots))
-  npart=0
   call add_rpartition(rpc_arr(0))
   call add_rpartition(rpc_arr(npc))
   do i=1,nq
