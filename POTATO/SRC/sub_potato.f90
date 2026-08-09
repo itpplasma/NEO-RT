@@ -3880,6 +3880,7 @@
   integer, parameter :: max_scan_roots=4096
   integer :: ierr_roots,nsearch_save,i,j,k,nq,ndisc,npart,nsigma,branch
   integer :: npart_initial,nfp_segments,nbd_segments,ierr_local
+  integer :: collection_pass
   integer :: collision_segment_left,collision_segment_right,collision_boundary_segment
   integer :: collision_boundary_left,collision_boundary_right
   integer :: boundary_stage
@@ -3892,7 +3893,7 @@
                                    fp_plo(:),fp_phi(:)
   integer, allocatable :: bd_type(:),bd_sigma(:)
   double precision, allocatable :: bd_rlo(:),bd_rhi(:),bd_jlo(:),bd_jhi(:)
-  logical :: ok
+  logical :: ok,partition_refined
   external :: find_all_roots_bracketed,fixedpoint_discriminant, &
               fixedpoint_branch_stationary,fixedpoint_roots_at_R, &
               fixedpoint_branch_value,fixedpoint_turning_intersection
@@ -4124,10 +4125,19 @@
       fp_rlo(max_scan_roots),fp_rhi(max_scan_roots), &
       fp_jlo(max_scan_roots),fp_jhi(max_scan_roots), &
       fp_plo(max_scan_roots),fp_phi(max_scan_roots))
-  boundary_stage=40
-  call collect_fixedpoint_segments
-  if(ierr.ne.0) then
-    call fail_boundary(ierr)
+  do collection_pass=1,max_scan_roots
+    partition_refined=.false.
+    boundary_stage=40
+    call collect_fixedpoint_segments
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+    if(.not.partition_refined) exit
+    call sort_rpartition
+  enddo
+  if(partition_refined) then
+    call fail_boundary(root_unresolved_separation)
     return
   endif
   do i=1,nfp_segments-1
@@ -4446,6 +4456,45 @@ contains
     enddo
   end subroutine sort_rpartition
 
+  subroutine refine_discriminant_transition(rvalid,rinvalid)
+! A very narrow positive discriminant island can lie between the global scan
+! nodes.  When a branch probe exposes one, refine the exact discriminant
+! equation on its valid/invalid bracket and add the resulting boundary to the
+! certified R partition.  This is a topology refinement, not an acceptance of
+! a failed branch sample.
+    double precision, intent(in) :: rvalid,rinvalid
+    integer :: local_it,local_npart
+    double precision :: rvalid_local,rinvalid_local,rmid,dvalid,dinvalid, &
+                        dmid,scale
+    logical :: oklo,okhi,okmid
+
+    call fixedpoint_discriminant_value(rvalid,dvalid,oklo)
+    call fixedpoint_discriminant_value(rinvalid,dinvalid,okhi)
+    if(.not.oklo .or. .not.okhi .or. dvalid.lt.0.d0 .or. dinvalid.ge.0.d0) return
+    rvalid_local=rvalid
+    rinvalid_local=rinvalid
+    do local_it=1,max_scan_roots
+      rmid=0.5d0*(rvalid_local+rinvalid_local)
+      if(rmid.eq.rvalid_local .or. rmid.eq.rinvalid_local) exit
+      call fixedpoint_discriminant_value(rmid,dmid,okmid)
+      if(.not.okmid) return
+      if(dmid.ge.0.d0) then
+        rvalid_local=rmid
+        dvalid=dmid
+      else
+        rinvalid_local=rmid
+        dinvalid=dmid
+      endif
+      scale=max(1.d0,abs(rvalid_local),abs(rinvalid_local))
+      if(abs(rinvalid_local-rvalid_local).le.256.d0*epsilon(1.d0)*scale) exit
+    enddo
+    rmid=0.5d0*(rvalid_local+rinvalid_local)
+    local_npart=npart
+    call add_rpartition(rmid)
+    if(ierr.ne.0) return
+    partition_refined=(npart.gt.local_npart)
+  end subroutine refine_discriminant_transition
+
   subroutine collect_fixedpoint_segments
 ! On each final R interval the quadratic branch is single-valued and its
 ! projection J_perp(R) has no stationary root.  Store its bounded endpoint
@@ -4453,10 +4502,8 @@ contains
     integer :: local_sigma,local_branch,local_i
     double precision :: local_mid,local_j,local_p,local_jl,local_jr, &
                         local_pl,local_pr,local_jq1,local_jq2, &
-                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width, &
-                        local_turning,local_turning_derivative,local_discriminant
-    logical :: local_ok,local_okl,local_okr,local_okq1,local_okq2, &
-               local_discriminant_ok
+                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width
+    logical :: local_ok,local_okl,local_okr,local_okq1,local_okq2
 
     nfp_segments=0
     do local_sigma=-1,1,2
@@ -4504,17 +4551,12 @@ contains
           call fixedpoint_branch_value(rpartition(local_i)+0.75d0*width, &
               local_sigma,local_branch,local_jq2,local_pq2,local_okq2)
           if(.not.local_okq1 .or. .not.local_okq2) then
+            if(.not.local_okq1) call refine_discriminant_transition( &
+                local_mid,rpartition(local_i)+0.25d0*width)
+            if(.not.local_okq2) call refine_discriminant_transition( &
+                local_mid,rpartition(local_i)+0.75d0*width)
+            if(partition_refined) return
             boundary_stage=43
-            call fixedpoint_turning_intersection( &
-                rpartition(local_i)+0.75d0*width,local_turning, &
-                local_turning_derivative)
-            call fixedpoint_discriminant_value( &
-                rpartition(local_i)+0.75d0*width,local_discriminant, &
-                local_discriminant_ok)
-            print *,'find_jperp_topology_boundaries: branch quarter failure', &
-                local_i,local_sigma,local_branch,local_rlo,local_rhi, &
-                local_jl,local_j,local_jr,local_okq1,local_okq2, &
-                local_turning,local_discriminant,local_discriminant_ok
             ierr=2
             return
           endif
