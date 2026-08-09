@@ -4207,6 +4207,8 @@ contains
 
   subroutine add_candidate(value)
     double precision, intent(in) :: value
+    integer :: local_i
+    double precision :: candidate_tolerance
 
     if(value.ne.value .or. abs(value).gt.huge(value)) then
       ierr=2
@@ -4217,6 +4219,12 @@ contains
     ! roots below zero are valid equation roots but cannot change the
     ! physical topology certificate.
     if(value.lt.0.d0) return
+    do local_i=1,ncandidates
+      candidate_tolerance=max(32.d0*epsilon(1.d0)* &
+          max(1.d-300,abs(value),abs(candidates(local_i))), &
+          relerr_allroots*max(abs(value),abs(candidates(local_i))))
+      if(abs(value-candidates(local_i)).le.candidate_tolerance) return
+    enddo
     if(ncandidates.ge.nmax) then
       ierr=3
       return
