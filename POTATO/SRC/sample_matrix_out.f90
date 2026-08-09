@@ -496,8 +496,8 @@ contains
         ABS(candidates(i)),ABS(xbeg_full))
     IF(candidates(i).LE.xbeg_full+endpoint_tol) THEN
       IF(ABS(candidates(i)-xbeg_full).LE.endpoint_tol) CYCLE
-      PRINT *,'sample_matrix_out_partitioned_certified: unresolved endpoint root H,J = ', &
-          topology_context_h,candidates(i)
+      PRINT *,'sample_matrix_out_partitioned_certified: unresolved endpoint root H,J,endpoint,tol = ', &
+          topology_context_h,candidates(i),xbeg_full,endpoint_tol
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
@@ -505,8 +505,8 @@ contains
         ABS(candidates(i)),ABS(xend_full))
     IF(candidates(i).GE.xend_full-endpoint_tol) THEN
       IF(ABS(candidates(i)-xend_full).LE.endpoint_tol) CYCLE
-      PRINT *,'sample_matrix_out_partitioned_certified: unresolved endpoint root H,J = ', &
-          topology_context_h,candidates(i)
+      PRINT *,'sample_matrix_out_partitioned_certified: unresolved endpoint root H,J,endpoint,tol = ', &
+          topology_context_h,candidates(i),xend_full,endpoint_tol
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
