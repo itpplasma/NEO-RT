@@ -1470,7 +1470,8 @@
   enddo
 !
   if(start_minmax) then
-    print *,'minimum and maximum values of p_phi are not determined'
+    print *,'minimum and maximum values of p_phi are not determined H,J = ', &
+        toten,perpinv
     ! Every allowed region lies outside the clipped rho_pol domain.  There is
     ! therefore no resonance class to construct at this J_perp; return the
     ! certified empty class set instead of continuing with uninitialized
@@ -1782,7 +1783,8 @@
               call find_all_roots(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
 !
               if(ierr.ne.0) then
-                print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 1'
+                print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 1, H,J,sigma,ireg,Rlo,Rhi,ierr = ', &
+                    toten,perpinv,sigma,ireg,R_b_in,R_x_tot(ixp_tot)-delR_marg,ierr
                 return
               endif
 !
