@@ -2302,6 +2302,9 @@
 ! at separatrix crossings with the Poincare cut. To be used as formal
 ! argument in subroutine find_all_roots.
 !
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
+  use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                 root_invalid_domain
   implicit none
 !
   integer :: ierr
@@ -2320,6 +2323,13 @@
   endif
 !
   delpphi=delpphi-psiast_x_tot(ixp_tot)
+  if(.not.ieee_is_finite(delpphi) .or. &
+     .not.ieee_is_finite(ddelpphi_dRst)) then
+    delpphi=0.d0
+    ddelpphi_dRst=0.d0
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+  endif
 !
   end subroutine sepcross
 !
@@ -2331,8 +2341,10 @@
 ! at the "most external with respect to rho_pol" orbit crossings with the
 ! Poincare cut. To be used as formal argument in subroutine find_all_roots.
 !
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
+  use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                 root_invalid_domain
   implicit none
-!
   integer :: ierr
   double precision :: Rst,delpphi,ddelpphi_dRst
   double precision, dimension(5) :: z
@@ -2349,6 +2361,13 @@
   endif
 !
   delpphi=delpphi-pphi_minmax
+  if(.not.ieee_is_finite(delpphi) .or. &
+     .not.ieee_is_finite(ddelpphi_dRst)) then
+    delpphi=0.d0
+    ddelpphi_dRst=0.d0
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+  endif
 !
   end subroutine boucross
 !
