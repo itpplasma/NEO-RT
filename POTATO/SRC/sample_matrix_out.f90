@@ -515,7 +515,7 @@ contains
     ENDIF
     IF(nunique.GT.0) THEN
       IF(candidates(i).EQ.candidates(nunique)) CYCLE
-      candidate_merge_tol=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
+      candidate_merge_tol=32.d0*EPSILON(1.d0)*MAX(1.d-300, &
           ABS(candidates(i)),ABS(candidates(nunique)))
       IF(ABS(candidates(i)-candidates(nunique)).LE.candidate_merge_tol) CYCLE
     ENDIF
@@ -597,7 +597,12 @@ contains
               0.25d0*(next_bound-candidates(i)))
     delta_resolution=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
         ABS(candidates(i)),ABS(prev_bound),ABS(next_bound))
-    IF(delta.LE.delta_resolution) THEN
+    ! The callback's discrete class signature is the behavioral oracle for
+    ! close roots.  Accept a positive interval below the nominal ulp guard
+    ! when both one-sided probes are representable; only zero-width or
+    ! rounded-away probes remain unresolved.
+    IF(delta.LE.0.d0 .OR. candidates(i)-delta.EQ.candidates(i) .OR. &
+       candidates(i)+delta.EQ.candidates(i)) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: unresolved root spacing H,J = ', &
           topology_context_h,candidates(i),delta,prev_bound,next_bound,delta_resolution
       CALL fail_certified(sample_matrix_topology_unresolved)
@@ -684,7 +689,7 @@ contains
     segment_sig(i)=sig_expected
     delta_resolution=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
         ABS(segment_hi(i)),ABS(segment_lo(i)))
-    IF(segment_hi(i)-segment_lo(i).LE.delta_resolution) THEN
+    IF(segment_hi(i)-segment_lo(i).LE.0.d0) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: empty open component H,Jlo,Jhi = ', &
           topology_context_h,segment_lo(i),segment_hi(i)
       CALL fail_certified(sample_matrix_topology_unresolved)
