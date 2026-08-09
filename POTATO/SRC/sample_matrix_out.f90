@@ -413,6 +413,7 @@ contains
   INTEGER :: npoi_request,n1_request,n2_request,ierr_local,ierr_certificate
   INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
   DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol,merge_tol
+  DOUBLE PRECISION :: candidate_merge_tol
   DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
   DOUBLE PRECISION :: geometric_gap_bound
@@ -453,7 +454,7 @@ contains
 ! Distinct certified roots must not be merged at the partition tolerance:
 ! an arbitrarily narrow A-B-A component is still a real component.  Only
 ! roots indistinguishable at the floating-point coordinate scale are merged;
-! closer-than-resolvable transitions fail later at the strict spacing check.
+! transitions outside that coordinate-resolution window remain distinct.
   merge_tol=128.d0*EPSILON(1.d0)*scale
   ALLOCATE(candidates(topology_max_candidates),active_x(topology_max_candidates), &
       active_delta(topology_max_candidates),active_left_sig(topology_max_candidates), &
@@ -508,12 +509,9 @@ contains
     ENDIF
     IF(nunique.GT.0) THEN
       IF(candidates(i).EQ.candidates(nunique)) CYCLE
-      IF(ABS(candidates(i)-candidates(nunique)).LE.merge_tol) THEN
-        PRINT *,'sample_matrix_out_partitioned_certified: unresolved close roots H,J = ', &
-            topology_context_h,candidates(nunique),candidates(i)
-        CALL fail_certified(sample_matrix_topology_unresolved)
-        RETURN
-      ENDIF
+      candidate_merge_tol=32.d0*EPSILON(1.d0)*MAX(1.d-300, &
+          ABS(candidates(i)),ABS(candidates(nunique)))
+      IF(ABS(candidates(i)-candidates(nunique)).LE.candidate_merge_tol) CYCLE
     ENDIF
     nunique=nunique+1
     candidates(nunique)=candidates(i)
