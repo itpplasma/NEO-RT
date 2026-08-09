@@ -1155,7 +1155,6 @@
   use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
   use orbit_dim_mod, only : clip_resonance_classes
-  use sample_matrix_out_mod, only : topology_probe_only
 !
   implicit none
 !
@@ -1483,18 +1482,6 @@
     return
   endif
 
-  if(toten.eq.2.5d0 .and. perpinv.gt.1.066d-4 .and. perpinv.lt.1.067d-4) then
-    print *,'bounds diagnostic H,J,pphi_min,pphi_max,nregions = ', &
-        toten,perpinv,pphi_min,pphi_max,nregions
-    do isig=1,2
-      do ireg=1,nregions
-        print *,'  bound diagnostic sigma,Rb,Re,psib,psie,within = ', &
-            2*isig-3,all_regions(isig,ireg)%R_b,all_regions(isig,ireg)%R_e, &
-            all_regions(isig,ireg)%psiast_b,all_regions(isig,ireg)%psiast_e, &
-            all_regions(isig,ireg)%within_rhopol
-      enddo
-    enddo
-  endif
 !
 ! End find minimum and maximum values of p_phi in the domain limited
 ! by the boundary flux surface with given rho_pol
@@ -1516,11 +1503,6 @@
       R_b_in=all_regions(isig,ireg)%R_b
       R_e_in=all_regions(isig,ireg)%R_e
 
-      if(topology_probe_only) print *,'  cut input sigma,ireg,low_b,high_b,low_e,high_e = ', &
-          sigma,ireg,all_regions(isig,ireg)%psiast_b.lt.pphi_min, &
-          all_regions(isig,ireg)%psiast_b.gt.pphi_max, &
-          all_regions(isig,ireg)%psiast_e.lt.pphi_min, &
-          all_regions(isig,ireg)%psiast_e.gt.pphi_max
 !
 ! Left boundary:
 !
@@ -1651,19 +1633,6 @@
     enddo
   enddo
 
-  if(topology_probe_only) then
-    print *,'bounds trace H,J,nregions,pphi_min,pphi_max = ', &
-        toten,perpinv,nregions,pphi_min,pphi_max
-    do isig=1,2
-      do ireg=1,nregions
-        print *,'  bounds trace sigma,ireg,Rb,Re,psib,psie,within = ', &
-            2*isig-3,ireg,all_regions(isig,ireg)%R_b, &
-            all_regions(isig,ireg)%R_e,all_regions(isig,ireg)%psiast_b, &
-            all_regions(isig,ireg)%psiast_e, &
-            all_regions(isig,ireg)%within_rhopol
-      enddo
-    enddo
-  endif
 !
 ! End cut out from the allowed regions the segments occupied by the orbits
 ! never visiting rho_pol domain.
@@ -3726,7 +3695,7 @@
   logical :: ok
   external :: find_all_roots_bracketed,fixedpoint_discriminant, &
               fixedpoint_branch_stationary,fixedpoint_roots_at_R, &
-              fixedpoint_branch_value
+              fixedpoint_branch_value,fixedpoint_turning_intersection
 !
   ncandidates=0
   ierr=root_success
@@ -3810,6 +3779,35 @@
       return
     endif
   enddo
+
+! A fixed-point branch can end on the turning boundary u=0.  Substituting
+! u=0 into the exact fixed-point equation a*u**2+b*u+c=0 gives c(R)=0.
+! These intersections are not fixed-point discriminants and need their own
+! R roots; their J_perp values are topology boundaries of the outer scan.
+  boundary_stage=15
+  call find_all_roots_bracketed(fixedpoint_turning_intersection, &
+                                rpc_arr(0),rpc_arr(npc),ierr_roots)
+  if(ierr_roots.ne.root_success) then
+    call fail_boundary(ierr_roots)
+    return
+  endif
+  do i=1,nroots
+    call jperp_value(roots(i),q,ok)
+    if(.not.ok) then
+      call fail_boundary(2)
+      return
+    endif
+    call add_candidate(q)
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+    call add_rpartition(roots(i))
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+  enddo
 !
 ! The discriminant of the exact fixed-point equation is a second physical
 ! boundary set.  With u=p_parallel (signed), psi*=psi+rho0*h_phi*u and
@@ -3886,11 +3884,6 @@
         fixedpoint_scan_right=rpartition(i+1)
         call find_all_roots_bracketed(fixedpoint_branch_stationary, &
                                       rpartition(i),rpartition(i+1),ierr_local)
-        if(toten.eq.2.5d0 .and. jvalue.gt.1.0d-4 .and. jvalue.lt.1.1d-4) then
-          print *,'branch diagnostic stage 30,sigma,branch,Rlo,Rhi,Jmid,nroots,ierr = ', &
-              fixedpoint_scan_sigma,fixedpoint_scan_branch,rpartition(i), &
-              rpartition(i+1),jvalue,nroots,ierr_local
-        endif
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -3963,12 +3956,6 @@
       else
         call find_all_roots_bracketed(fixedpoint_collision, &
                                       collision_jlo,collision_jhi,ierr_local)
-        if(toten.eq.2.5d0 .and. collision_jlo.lt.1.0665d-4 .and. &
-           collision_jhi.gt.1.0664d-4) then
-          print *,'collision diagnostic stage 50,i,j,Jlo,Jhi,nroots,ierr = ', &
-              boundary_stage,collision_segment_left,collision_segment_right, &
-              collision_jlo,collision_jhi,nroots,ierr_local
-        endif
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -4027,15 +4014,6 @@
       else
         call find_all_roots_bracketed(fixedpoint_collision, &
                                       collision_jlo,collision_jhi,ierr_local)
-        if(toten.eq.2.5d0 .and. collision_jlo.lt.1.0665d-4 .and. &
-           collision_jhi.gt.1.0664d-4) then
-          print *,'collision diagnostic stage 70,i,j,fs,fb,bs,bt,Jlo,Jhi,nroots,ierr = ', &
-              boundary_stage,collision_segment_left,collision_boundary_segment, &
-              fp_sigma(collision_segment_left),fp_branch(collision_segment_left), &
-              bd_sigma(collision_boundary_segment),bd_type(collision_boundary_segment), &
-              collision_jlo,collision_jhi,nroots,ierr_local
-          if(nroots.gt.0) print *,'  collision roots = ',roots(1:nroots)
-        endif
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -4089,25 +4067,6 @@ contains
     print *,'find_jperp_topology_boundaries: failure stage,H,R,J,npart,nfp,nbd,ierr = ', &
         boundary_stage,toten,boundary_stage_r,boundary_stage_j,npart, &
         nfp_segments,nbd_segments,status
-    if(boundary_stage.eq.50 .and. allocated(fp_sigma)) then
-      print *,'fixedpoint collision segments i,j,sigma,branch,rlo,rhi,jlo,jhi = ', &
-          collision_segment_left,collision_segment_right, &
-          fp_sigma(collision_segment_left),fp_branch(collision_segment_left), &
-          fp_rlo(collision_segment_left),fp_rhi(collision_segment_left), &
-          fp_jlo(collision_segment_left),fp_jhi(collision_segment_left), &
-          fp_sigma(collision_segment_right),fp_branch(collision_segment_right), &
-          fp_rlo(collision_segment_right),fp_rhi(collision_segment_right), &
-          fp_jlo(collision_segment_right),fp_jhi(collision_segment_right)
-    elseif(boundary_stage.eq.70 .and. allocated(fp_sigma) .and. allocated(bd_type)) then
-      print *,'fixedpoint-boundary segments i,j,sigma,branch,rlo,rhi,jlo,jhi,type,bsigma,brlo,brhi,bjlo,bjhi = ', &
-          collision_segment_left,collision_boundary_segment, &
-          fp_sigma(collision_segment_left),fp_branch(collision_segment_left), &
-          fp_rlo(collision_segment_left),fp_rhi(collision_segment_left), &
-          fp_jlo(collision_segment_left),fp_jhi(collision_segment_left), &
-          bd_type(collision_boundary_segment),bd_sigma(collision_boundary_segment), &
-          bd_rlo(collision_boundary_segment),bd_rhi(collision_boundary_segment), &
-          bd_jlo(collision_boundary_segment),bd_jhi(collision_boundary_segment)
-    endif
     ierr=status
     call restore_scan_state
     if(allocated(qroots)) deallocate(qroots)
@@ -4142,22 +4101,6 @@ contains
     ! roots below zero are valid equation roots but cannot change the
     ! physical topology certificate.
     if(value.lt.0.d0) return
-    if((toten.eq.1.5d0 .and. value.gt.6.4d-5 .and. value.lt.6.6d-5) .or. &
-       (toten.eq.2.5d0 .and. value.gt.1.0d-4 .and. value.lt.1.1d-4)) then
-      print *,'topology candidate diagnostic stage,J,fp,fp2,bd = ', &
-          boundary_stage,value,collision_segment_left,collision_segment_right, &
-          collision_boundary_segment
-      if(boundary_stage.eq.70 .and. allocated(fp_sigma) .and. allocated(bd_type)) then
-        print *,'  fp sigma branch Rlo Rhi Jlo Jhi = ',fp_sigma(collision_segment_left), &
-            fp_branch(collision_segment_left),fp_rlo(collision_segment_left), &
-            fp_rhi(collision_segment_left),fp_jlo(collision_segment_left), &
-            fp_jhi(collision_segment_left)
-        print *,'  bd type sigma Rlo Rhi Jlo Jhi = ',bd_type(collision_boundary_segment), &
-            bd_sigma(collision_boundary_segment),bd_rlo(collision_boundary_segment), &
-            bd_rhi(collision_boundary_segment),bd_jlo(collision_boundary_segment), &
-            bd_jhi(collision_boundary_segment)
-      endif
-    endif
     if(ncandidates.ge.nmax) then
       ierr=3
       return
@@ -4565,9 +4508,6 @@ contains
     if(ok_value) then
       difference=pleft-pright
     else
-      print *,'fixedpoint_collision_value: inverse failure,J,left,right = ', &
-          jtest,okleft,okright,collision_segment_left,collision_segment_right, &
-          collision_boundary_segment
       difference=0.d0
     endif
   end subroutine fixedpoint_collision_value
@@ -4677,9 +4617,6 @@ contains
       call fixedpoint_branch_value(rmid,fp_sigma(segment),fp_branch(segment), &
                                    jmid,pmid,okmid)
       if(.not.okmid) then
-        print *,'invert_fixedpoint_branch: branch unavailable,segment,J,Rlo,Rhi,R = ', &
-            segment,jtarget,rlo_local,rhi_local,rmid
-        print *,'  inverse Jlo,Jhi,Jmid = ',jlo_local,jhi_local,jmid
         return
       endif
       if(abs(jmid-jtarget).le.tolerance) then
@@ -4738,8 +4675,6 @@ contains
         ok_value=.true.
         return
       endif
-      print *,'invert_fixedpoint_branch: no inverse convergence,segment,J,Rlo,Rhi,Jmid = ', &
-          segment,jtarget,rlo_local,rhi_local,jmid
     endif
   end subroutine invert_fixedpoint_branch
 
@@ -5229,6 +5164,64 @@ contains
   endif
   discriminant=dcenter
   end subroutine fixedpoint_discriminant
+
+  subroutine fixedpoint_turning_intersection(R,intersection, &
+                                             dintersection_dR)
+  use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                 root_invalid_domain
+  use poicut_mod, only : npc,rpc_arr
+  implicit none
+  double precision, intent(in) :: R
+  double precision, intent(out) :: intersection,dintersection_dR
+  double precision :: acoef,bcoef,ccoef,energy_a,bfield,psistar,hphi
+  double precision :: cminus,cplus,unused_a,unused_b,unused_e,unused_bfield, &
+                      unused_psistar,unused_hphi,h,range
+  logical :: ok,okminus,okplus
+
+  root_eval_valid=.true.
+  root_eval_error=0
+  call fixedpoint_coefficients(R,acoef,bcoef,ccoef,energy_a,bfield, &
+                               psistar,hphi,ok)
+  if(.not.ok) then
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    intersection=0.d0
+    dintersection_dR=0.d0
+    return
+  endif
+  intersection=ccoef
+  range=rpc_arr(npc)-rpc_arr(0)
+  h=max(1.d-7*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+  if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
+    h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
+  else
+    h=min(h,0.25d0*range)
+  endif
+  okminus=.false.
+  okplus=.false.
+  if(R.gt.rpc_arr(0)) then
+    call fixedpoint_coefficients(R-h,unused_a,unused_b,cminus,unused_e, &
+                                 unused_bfield,unused_psistar,unused_hphi, &
+                                 okminus)
+  endif
+  if(R.lt.rpc_arr(npc)) then
+    call fixedpoint_coefficients(R+h,unused_a,unused_b,cplus,unused_e, &
+                                 unused_bfield,unused_psistar,unused_hphi, &
+                                 okplus)
+  endif
+  if(okminus .and. okplus) then
+    dintersection_dR=(cplus-cminus)/(2.d0*h)
+  elseif(okplus) then
+    dintersection_dR=(cplus-ccoef)/h
+  elseif(okminus) then
+    dintersection_dR=(ccoef-cminus)/h
+  else
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    intersection=0.d0
+    dintersection_dR=0.d0
+  endif
+  end subroutine fixedpoint_turning_intersection
 
   subroutine fixedpoint_discriminant_value(R,discriminant,ok)
   implicit none

@@ -412,13 +412,12 @@ contains
   INTEGER :: i,j,nfound,nunique,nactive,nsegments,n_total,nseg_points
   INTEGER :: npoi_request,n1_request,n2_request,ierr_local,ierr_certificate
   INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
-  INTEGER :: scan_signature,attempt
+  INTEGER :: scan_signature
   DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol
   DOUBLE PRECISION :: candidate_merge_tol
   DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol, &
-                      delta_resolution,probe_delta,probe_resolution
+                      delta_resolution
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
-  DOUBLE PRECISION :: scan_point,low_point,high_point,mid_point
   DOUBLE PRECISION :: geometric_gap_bound
   DOUBLE PRECISION, ALLOCATABLE :: candidates(:),active_x(:),active_delta(:)
   INTEGER, ALLOCATABLE :: active_left_sig(:),active_right_sig(:)
@@ -591,7 +590,6 @@ contains
 ! retained in the certificate count but creates no omitted bracket.
   nactive=0
   scan_signature=left_endpoint_sig
-  scan_point=left_open
   DO i=1,nunique
     prev_bound=xbeg_full
     IF(i.GT.1) prev_bound=candidates(i-1)
@@ -622,54 +620,10 @@ contains
     ENDIF
     sig_l=topology_signature
     IF(sig_l.NE.scan_signature) THEN
-      PRINT *,'  initial topology probe mismatch i,J,expected,left,delta = ', &
-          i,candidates(i),scan_signature,sig_l,delta
-      low_point=scan_point
-      high_point=x
-      DO attempt=1,64
-        mid_point=0.5d0*(low_point+high_point)
-        IF(mid_point.EQ.low_point .OR. mid_point.EQ.high_point) EXIT
-        x=mid_point
-        CALL evaluate_matrix_callback(get_matrix,ierr_local)
-        IF(ierr_local.NE.sample_matrix_success) EXIT
-        IF(topology_signature.EQ.scan_signature) THEN
-          low_point=mid_point
-        ELSE
-          high_point=mid_point
-        ENDIF
-      ENDDO
-      PRINT *,'  behavioral transition bracket Jlo,Jhi,old,new = ', &
-          low_point,high_point,scan_signature,sig_l
-      ! A root can be returned with an error smaller than the nominal
-      ! partition probe.  Contract only the disagreeing side toward the
-      ! certified root; an unresolved interior gap still fails closed.
-      probe_delta=delta
-      probe_resolution=8.d0*EPSILON(1.d0)*MAX(1.d-300,ABS(candidates(i)))
-      DO attempt=1,32
-        IF(sig_l.EQ.scan_signature) EXIT
-        IF(probe_delta.LE.probe_resolution) EXIT
-        probe_delta=0.5d0*probe_delta
-        IF(candidates(i)-probe_delta.EQ.candidates(i)) EXIT
-        x=candidates(i)-probe_delta
-        CALL evaluate_matrix_callback(get_matrix,ierr_local)
-        IF(ierr_local.NE.sample_matrix_success) THEN
-          PRINT *,'sample_matrix_out_partitioned_certified: invalid contracted left side H,J = ', &
-              topology_context_h,x
-          CALL fail_certified(sample_matrix_topology_unresolved)
-          RETURN
-        ENDIF
-        sig_l=topology_signature
-      ENDDO
-      IF(sig_l.NE.scan_signature) THEN
-        PRINT *,'sample_matrix_out_partitioned_certified: uncontracted left probe H,J = ', &
-            topology_context_h,candidates(i)
-        DO j=MAX(1,i-3),MIN(nunique,i+3)
-          PRINT *,'  local candidate j,J = ',j,candidates(j)
-        ENDDO
-        CALL fail_certified(sample_matrix_topology_unresolved)
-        RETURN
-      ENDIF
-      delta=probe_delta
+      PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch H,J = ', &
+          topology_context_h,candidates(i)
+      CALL fail_certified(sample_matrix_topology_unresolved)
+      RETURN
     ENDIF
     IF(candidates(i)+delta.EQ.candidates(i)) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: unrepresentable right probe H,J = ', &
@@ -686,16 +640,7 @@ contains
       RETURN
     ENDIF
     sig_r=topology_signature
-    IF(sig_l.NE.scan_signature) THEN
-      PRINT *,'  topology probe discontinuity i,J,expected,left,right = ', &
-          i,candidates(i),scan_signature,sig_l,sig_r
-    ENDIF
     scan_signature=sig_r
-    scan_point=x
-    IF(candidates(i).GT.6.4d-5 .AND. candidates(i).LT.6.6d-5 .AND. &
-       topology_context_h.EQ.1.5d0) THEN
-      PRINT *,'  probe candidate J,left,right = ',candidates(i),sig_l,sig_r
-    ENDIF
     IF(sig_l.NE.sig_r) THEN
       nactive=nactive+1
       active_x(nactive)=candidates(i)
@@ -720,16 +665,6 @@ contains
     IF(left_endpoint_sig.NE.active_left_sig(1)) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch H,left,first,nunique,nactive = ', &
           topology_context_h,left_endpoint_sig,active_left_sig(1),nunique,nactive
-      DO j=1,MIN(3,nactive)
-        PRINT *,'  active transition j,J,left,right = ',j,active_x(j), &
-            active_left_sig(j),active_right_sig(j)
-      ENDDO
-      DO j=1,nunique
-        IF(candidates(j).GT.active_x(1)-1.d-6 .AND. &
-           candidates(j).LT.active_x(1)+1.d-6) THEN
-          PRINT *,'  nearby candidate j,J = ',j,candidates(j)
-        ENDIF
-      ENDDO
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
