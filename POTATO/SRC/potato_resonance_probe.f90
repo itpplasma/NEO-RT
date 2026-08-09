@@ -16,6 +16,7 @@ program potato_resonance_probe
         probe_ux, probe_eta, probe_m, probe_n
     use field_eq_mod, only : allow_sol, psi_axis, psi_sep
     use orbit_dim_mod, only : write_orb, iunit1
+    use cc_mod, only : wrbounds
     implicit none
 
     external :: get_matrix_doublecount
@@ -58,7 +59,9 @@ program potato_resonance_probe
     toten = enkin + phi_elec
     perpinv = probe_eta*enkin
 
+    wrbounds = .true.
     call find_bounds_fixpoints(regions, ierr)
+    wrbounds = .false.
 
     open(newunit=unit_out, file="potato_resonance_probe.dat", &
         status="replace", action="write")
