@@ -229,11 +229,10 @@ subroutine integrate_class_resonances(ierr_out)
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_axis,psi_sep
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
-    use potato_limit_status_mod, only : limit_provider_status
     use resonance_status_mod, only : resonance_status_success, &
         resonance_status_starter_failure,resonance_status_from_root_error, &
         resonance_status_nonfinite_weight,classify_resonance_root, &
-        resonance_is_finite,resonance_status_missing_limit
+        resonance_is_finite
     use potato_symbolic_kernel_mod, only : potato_resonance_torque_kernel
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
@@ -263,13 +262,6 @@ subroutine integrate_class_resonances(ierr_out)
     widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0) !<=new
     !
     call classbounds(ifuntype(iclass),relmargin_loc,widthclass,xbeg,xend)
-    if(limit_provider_status.ne.0) then
-        ierr_out=resonance_status_missing_limit
-        call tee_message( &
-            'integrate_class_resonances: missing generated homoclinic limit provider')
-        return
-    endif
-    !
     customgrid=.true.
     ncustom=npoi
     allocate(xcustom(ncustom))
@@ -559,14 +551,6 @@ subroutine get_matrix_res
         return
     endif
     topology_signature=topology_signature_of_classes(nclasses,ifuntype,sigma_class)
-    if(topology_probe_only) then
-        print *,'topology trace H,J,nclasses,signature = ',toten,perpinv, &
-            nclasses,topology_signature
-        if(nclasses.gt.0) then
-            print *,' topology trace types = ',ifuntype(1:nclasses)
-            print *,' topology trace sigma = ',sigma_class(1:nclasses)
-        endif
-    endif
     if(topology_probe_only) return
     ledger_class_evaluations=ledger_class_evaluations+nclasses
     !

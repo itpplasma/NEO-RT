@@ -140,22 +140,6 @@
     !$omp&                jperpmax_witness,jperpmax_upper_bound)
   end module potato_boundary_scan_mod
 !
-!------------------------------------------------------
-!
-  module potato_limit_status_mod
-! A type-3/4 class has a homoclinic/X-point limiting contribution.  The
-! local saddle Hessian and cut-map coefficients are not exposed by the current
-! magfie/elefie seam, so such a class must fail closed until that provider is
-! supplied.  Type 1 remains the regular finite boundary and is represented by
-! the generated regular limit map.
-    integer, parameter :: limit_provider_available=0
-    integer, parameter :: limit_provider_missing_hessian=1
-    integer :: limit_provider_status=limit_provider_available
-    !$omp threadprivate(limit_provider_status)
-  end module potato_limit_status_mod
-!
-!------------------------------------------------------
-!
   module interp_cache_mod
 ! Exact memoization of interpolate_class_doublecount, keyed on the class
 ! coordinate x.  Within one integrate_class_resonances call the grid and iclass
@@ -1155,7 +1139,6 @@
   use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
   use orbit_dim_mod, only : clip_resonance_classes
-  use sample_matrix_out_mod, only : topology_probe_only
 !
   implicit none
 !
@@ -1168,11 +1151,12 @@
   double precision, parameter :: relerr=1d-12
   logical :: separin_b,separin_e,within_rhopol,start_minmax
   integer :: ierr,ireg0
-  integer :: i,k,iter,isig,ireg,n_o,n_x,nxp_tot,ixp_tot,nsc
+  integer :: i,k,iter,isig,ireg,n_o,n_x,nxp_tot,ixp_tot,nsc,nsc_raw
   double precision :: R,Z,vpar2,dvpar2_dR,dZ_dR,errdist2,R_b,R_e,dummy
   double precision :: R_b_in,R_e_in,p_phi,sigma_new,R_new,R_old,tau_fr,dphi_fr
   double precision :: gpgb,dgpgb_dr,dgpgb_dz,det,del_R,del_Z,delR_marg
   double precision :: pphi_b,pphi_e,pphi_min_reg,pphi_max_reg,pphi_min,pphi_max
+  double precision :: separatrix_root_tolerance
   double precision :: pphi_minmax
   double precision, dimension(2) :: gradvpar2,Rblfs,Rbhfs,Zblfs,Zbhfs
   logical,          dimension(:),   allocatable :: opoint_extr,logdummy
@@ -1504,12 +1488,6 @@
       R_b_in=all_regions(isig,ireg)%R_b
       R_e_in=all_regions(isig,ireg)%R_e
 
-      if(topology_probe_only) print *,'cut input sigma,low_b,high_b,low_e,high_e = ', &
-          sigma,all_regions(isig,ireg)%psiast_b.lt.pphi_min, &
-          all_regions(isig,ireg)%psiast_b.gt.pphi_max, &
-          all_regions(isig,ireg)%psiast_e.lt.pphi_min, &
-          all_regions(isig,ireg)%psiast_e.gt.pphi_max
-
 !
 ! Left boundary:
 !
@@ -1640,18 +1618,6 @@
     enddo
   enddo
 
-  if(topology_probe_only) then
-    print *,'bounds trace H,J,pphi_min,pphi_max = ',toten,perpinv,pphi_min,pphi_max
-    do isig=1,2
-      do ireg=1,nregions
-        print *,' bounds region sigma,Rb,Re,psib,psie,within = ',2*isig-3, &
-            all_regions(isig,ireg)%R_b,all_regions(isig,ireg)%R_e, &
-            all_regions(isig,ireg)%psiast_b,all_regions(isig,ireg)%psiast_e, &
-            all_regions(isig,ireg)%within_rhopol
-      enddo
-    enddo
-  endif
-
 !
 ! End cut out from the allowed regions the segments occupied by the orbits
 ! never visiting rho_pol domain.
@@ -1741,6 +1707,7 @@
   endif
 !
 ! End find and classify extremum points of psi^* within each region
+!
 !
 !...........................
 !
@@ -1911,6 +1878,25 @@
         nsc=nsc+n_x
 !
         call sortin(rsc_tmp,ipoi_tmp,nsc)
+
+! The same regular crossing can be returned by adjacent root brackets when it
+! is a double root.  Keep one copy, but never merge an X-point with a regular
+! crossing: those are different boundary types at the exact event.
+        separatrix_root_tolerance=max(relerr_allroots* &
+            (rpc_arr(npc)-rpc_arr(0)),256.d0*epsilon(1.d0)* &
+            max(1.d0,abs(rpc_arr(0)),abs(rpc_arr(npc))))
+        nsc_raw=nsc
+        nsc=0
+        do i=1,nsc_raw
+          ixp_tot=ipoi_tmp(i)
+          if(nsc.gt.0) then
+            if(logdummy(ixp_tot).eqv.logdummy(ipoi_tmp(nsc)) .and. &
+               abs(rsc_tmp(ixp_tot)-rsc_tmp(ipoi_tmp(nsc))).le. &
+               separatrix_root_tolerance) cycle
+          endif
+          nsc=nsc+1
+          ipoi_tmp(nsc)=ixp_tot
+        enddo
 !
         all_regions(isig,ireg)%n_sep=nsc
         allocate(all_regions(isig,ireg)%R_sep(nsc),all_regions(isig,ireg)%xpoint(nsc))
@@ -2614,20 +2600,10 @@
 !
 ! Sets the boundaries over class parameter x for
 !
-  use potato_limit_status_mod, only : limit_provider_status, &
-                                      limit_provider_missing_hessian
   implicit none
 !
   integer :: ifuntype
   double precision :: relmargin,widthclass,xbeg,xend
-!
-  limit_provider_status=0
-  if(ifuntype/10.ge.3 .or. mod(ifuntype,10).ge.3) then
-    limit_provider_status=limit_provider_missing_hessian
-    xbeg=0.d0
-    xend=0.d0
-    return
-  endif
 !
   select case(ifuntype)
   case(11)
@@ -2638,6 +2614,14 @@
 ! left- rho_pol boundary, right - inner boundary, 0<x<1
     xbeg=0.d0
     xend=1.d0-relmargin
+  case(13)
+! left- rho_pol boundary, right - X-point, 0<x<inf
+    xbeg=0.d0
+    xend=-0.5d0*log(relmargin/widthclass)
+  case(14)
+! left- rho_pol boundary, right - X-point, 0<x<inf
+    xbeg=0.d0
+    xend=-0.5d0*log(relmargin/widthclass)*0.5d0
   case(21)
 ! left- inner boundary, right - rho_pol boundary, 0<x<1
     xbeg=relmargin
@@ -2646,10 +2630,47 @@
 ! two inner boundaries, 0<x<1
     xbeg=relmargin
     xend=1.d0-relmargin
+  case(23)
+! left- inner boundary, right - X-point, 0<x<inf
+    xbeg=relmargin
+    xend=-0.5d0*log(relmargin/widthclass)
+  case(24)
+! left- inner boundary, right - X-point, 0<x<inf
+    xbeg=relmargin
+    xend=-0.25d0*log(relmargin/widthclass)
+  case(31)
+! left- X-point, right - rho_pol boundary, -inf<x<0
+    xbeg=0.5d0*log(relmargin/widthclass)
+    xend=0.d0
+  case(32)
+! left- X-point, right - inner boundary, -inf<x<0
+    xbeg=0.5d0*log(relmargin/widthclass)
+    xend=-relmargin
+  case(33)
+! two X-points, -inf<x<inf
+    xbeg=0.5d0*log(relmargin/widthclass)
+    xend=-xbeg
+  case(34)
+! two X-points, -inf<x<inf
+    xbeg=0.5d0*log(relmargin/widthclass)
+    xend=-xbeg*0.5d0
+  case(41)
+! left- X-point, right - rho_pol boundary, -inf<x<0
+    xbeg=0.25d0*log(relmargin/widthclass)
+    xend=0.d0
+  case(42)
+! left- X-point, right - inner boundary, -inf<x<0
+    xbeg=0.25d0*log(relmargin/widthclass)
+    xend=-relmargin
+  case(43)
+! two X-points, -inf<x<inf
+    xend=-0.5d0*log(relmargin/widthclass)
+    xbeg=-xend*0.5d0
+  case(44)
+! two X-points, -inf<x<inf
+    xbeg=0.25d0*log(relmargin/widthclass)
+    xend=-xbeg
   case default
-! Types containing a separatrix/X-point require the generated limiting map and
-! local Hamiltonian Hessian.  classbounds has already set the missing-provider
-! status and returned above; keep this branch closed if a new type is added.
     xbeg=0.d0
     xend=0.d0
   end select
@@ -2669,12 +2690,11 @@
                                 matrix_eval_starter_failure, &
                                 matrix_eval_orbit_failure,matrix_eval_wall_loss, &
                                 matrix_eval_nonfinite, &
-                                matrix_boundary_missing_limit,matrix_boundary_error
+                                matrix_boundary_error
   use orbit_dim_mod,     only : neqm,next,orbit_wall_loss
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
-  use potato_limit_status_mod, only : limit_provider_status
 !
   implicit none
 !
@@ -2695,16 +2715,6 @@
 !
   call xi_func(ifuntype(iclass),x,xi,dxi_dx)
 !
-  if(limit_provider_status.ne.0 .or. ifuntype(iclass)/10.ge.3 .or. &
-     mod(ifuntype(iclass),10).ge.3) then
-    matrix_eval_valid=.false.
-    matrix_eval_error=matrix_boundary_missing_limit
-    matrix_boundary_error=matrix_boundary_missing_limit
-    print *,'get_matrix_doublecount: missing local Hamiltonian Hessian/cut-map ', &
-        'provider for homoclinic limit; class type = ',ifuntype(iclass), &
-        ' status = ',limit_provider_status
-    return
-  endif
 !
   Rst=R_class_beg(iclass)+delta_R*xi
 !
@@ -2804,12 +2814,11 @@
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
                                 npoi,xarr,amat_arr,matrix_boundary_error, &
-                                matrix_eval_success,matrix_boundary_missing_limit
+                                matrix_eval_success
   use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relerror,relmargin,iclass,delphi_max
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
-  use potato_limit_status_mod, only : limit_provider_status
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
 !
@@ -2842,13 +2851,6 @@
 !
   call classbounds(ifuntype(iclass),relmargin,widthclass,xbeg,xend)
 !
-  if(limit_provider_status.ne.0) then
-    matrix_boundary_error=matrix_boundary_missing_limit
-    print *,'sample_class_doublecount: no Hessian/cut-map limit provider for ', &
-        'connected class type = ',ifuntype(iclass)
-    ierr=matrix_boundary_error
-    return
-  endif
 !
   if(delphi_max.gt.0.d0) call bound_class_delphi(ifuntype(iclass),xbeg,xend)
   if(matrix_boundary_error.ne.matrix_eval_success) then
@@ -3719,7 +3721,6 @@
                                  root_success,root_unresolved_separation
   use global_invariants, only : toten
   use poicut_mod, only : npc,rpc_arr,Rbou_hfs,Rbou_lfs
-  use sample_matrix_out_mod, only : topology_probe_only
   use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
                                        fixedpoint_scan_branch, &
                                        fixedpoint_scan_left, fixedpoint_scan_right
@@ -3965,7 +3966,6 @@
     enddo
   enddo
   call sort_rpartition
-!
 ! The separatrix root set also changes when two distinct fixed points have the
 ! same (J_perp,psi^*) value.  This critical-value collision is not a
 ! fixed-point birth/death: it is where a moving cut curve becomes tangent to
@@ -4031,7 +4031,7 @@
           endif
         enddo
       endif
-    enddo
+  enddo
   enddo
   allocate(bd_type(max_scan_roots),bd_sigma(max_scan_roots), &
       bd_rlo(max_scan_roots),bd_rhi(max_scan_roots), &
@@ -4042,11 +4042,6 @@
     call fail_boundary(ierr)
     return
   endif
-  do j=1,nbd_segments
-    print *,'boundary trace index,type,sigma,Rlo,Rhi,Jlo,Jhi = ',j,bd_type(j), &
-        bd_sigma(j),bd_rlo(j),bd_rhi(j),bd_jlo(j),bd_jhi(j)
-  enddo
-
 ! Two turning-boundary branches can meet at the same canonical-momentum
 ! level.  This is the limiting case of a separatrix entering or leaving the
 ! clipped cut; it is a boundary-boundary collision, not a fixed-point root.
@@ -4222,9 +4217,6 @@ contains
     ! roots below zero are valid equation roots but cannot change the
     ! physical topology certificate.
     if(value.lt.0.d0) return
-    print *,'candidate trace H,stage,index,value,fp,fp2,bd,bd2 = ', &
-        toten,boundary_stage,ncandidates+1,value,collision_segment_left, &
-        collision_segment_right,collision_boundary_left,collision_boundary_right
     if(ncandidates.ge.nmax) then
       ierr=3
       return
