@@ -58,7 +58,7 @@ module potato_input_mod
     ! a v_parallel=0 turning endpoint.  The class integral still extrapolates
     ! to the analytic endpoint; this only avoids starting the ODE at a
     ! machine-limited square-root singularity.
-    double precision :: class_boundary_margin = 1d-5
+    double precision :: class_boundary_margin = 1d-4
     logical :: clip_resonance_classes = .true.
     ! Certified outer-topology partition controls.  The first value is the
     ! active production tolerance; the refined value is recorded for a
