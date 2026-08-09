@@ -2879,7 +2879,8 @@
                                            R_class_beg,R_class_end
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
-  use potato_input_mod, only : class_eps_sampling, class_itermax_sampling
+  use potato_input_mod, only : class_eps_sampling, class_itermax_sampling, &
+                               class_boundary_margin
 !
   implicit none
 !
@@ -2891,7 +2892,7 @@
 !
   nlagr=7         ! Sixth-order class interpolation, as in the POTATO method.
   relerror=class_eps_sampling
-  relmargin=1.d-7 !<= temporary place, should be moved out for centralized input
+  relmargin=class_boundary_margin
   itermax=class_itermax_sampling
 !
   next=2*numbasef

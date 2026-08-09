@@ -54,6 +54,11 @@ module potato_input_mod
     ! classes can need more passes than the outer J_perp grid.
     double precision :: class_eps_sampling = 1d-3
     integer :: class_itermax_sampling = 80
+    ! Relative cut-coordinate distance used to launch orbit samples away from
+    ! a v_parallel=0 turning endpoint.  The class integral still extrapolates
+    ! to the analytic endpoint; this only avoids starting the ODE at a
+    ! machine-limited square-root singularity.
+    double precision :: class_boundary_margin = 1d-5
     logical :: clip_resonance_classes = .true.
     ! Certified outer-topology partition controls.  The first value is the
     ! active production tolerance; the refined value is recorded for a
@@ -123,6 +128,7 @@ module potato_input_mod
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, class_eps_sampling, class_itermax_sampling, &
+        class_boundary_margin, &
         clip_resonance_classes, topology_partition_tol, &
         topology_partition_tol_refined, topology_refinement_lane, &
         require_topology_contribution_bound, &
@@ -178,6 +184,10 @@ contains
            class_eps_sampling.le.0.d0 .or. class_itermax_sampling.le.0) then
             error stop 'class sampler tolerance and iteration limit must be positive'
         endif
+        if(.not.ieee_is_finite(class_boundary_margin) .or. &
+           class_boundary_margin.le.0.d0 .or. class_boundary_margin.ge.0.5d0) then
+            error stop 'class boundary margin must be finite and in (0,0.5)'
+        endif
         if(topology_gap_fit_points.le.0) then
             error stop 'topology gap fit point count is invalid'
         endif
@@ -220,6 +230,7 @@ contains
         write(iunit, '(A,I0)') '  itermax_sampling = ', itermax_sampling
         write(iunit, '(A,ES12.5)') '  class_eps_sampling = ', class_eps_sampling
         write(iunit, '(A,I0)') '  class_itermax_sampling = ', class_itermax_sampling
+        write(iunit, '(A,ES12.5)') '  class_boundary_margin = ', class_boundary_margin
         write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
         write(iunit, '(A,ES12.5)') '  topology_partition_tol = ', topology_partition_tol
         write(iunit, '(A,ES12.5)') '  topology_partition_tol_refined = ', &
