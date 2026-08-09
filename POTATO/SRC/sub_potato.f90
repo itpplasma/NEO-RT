@@ -4042,6 +4042,11 @@ contains
       ierr=2
       return
     endif
+    ! The outer integration variable is J_perp >= 0.  Fixed-point and
+    ! boundary level equations are evaluated on a wider algebraic domain;
+    ! roots below zero are valid equation roots but cannot change the
+    ! physical topology certificate.
+    if(value.lt.0.d0) return
     if(ncandidates.ge.nmax) then
       ierr=3
       return
