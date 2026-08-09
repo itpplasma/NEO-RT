@@ -617,6 +617,7 @@
 ! 2 - invalid perpendicular action or negative parallel kinetic energy
 !
   use pitch_boundary_mod, only : resolve_pitch_squared
+  use field_eq_mod, only : ierrfield
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 !
   implicit none
@@ -638,6 +639,10 @@
   endif
 !
   call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
+  if(ierrfield.ne.0) then
+    ierr=2
+    return
+  endif
 !
   p2=toten-phi_elec
   if(p2.le.0.d0) then
@@ -695,6 +700,7 @@
 ! fixed invariants of motion dpsiast_dRst.
 !
   use parmot_mod, only : gradpsiast,dpsiast_dR,dpsiast_dZ
+  use field_eq_mod, only : ierrfield
   use poicut_mod, only : npc,rpc_arr,h_rpc
 !
   implicit none
@@ -725,12 +731,20 @@
   if(ierr.ne.0) return
 !
   call get_tormom(z,psiast)
+  if(ierrfield.ne.0) then
+    ierr=2
+    return
+  endif
 !
   gradpsiast=.true.
 !
   call velo(dtau,z,vz)
 !
   gradpsiast=.false.
+  if(ierrfield.ne.0) then
+    ierr=2
+    return
+  endif
 !
   dpsiast_dRst=dpsiast_dR+dpsiast_dZ*dZ_dR
 !
@@ -2389,17 +2403,23 @@
 ! Computes the square of parallel velocity and
 ! its gradient
 !
+  use field_eq_mod, only : ierrfield
+
   implicit none
 !
   double precision :: bmod,sqrtg,phi_elec,R,Z,vpar2
   double precision, dimension(3) :: x,bder,hcovar,hctrvr,hcurl,derphi
   double precision, dimension(2) :: gradvpar2
+
+  vpar2=0.d0
+  gradvpar2=0.d0
 !
   x(1)=R
   x(2)=0.d0
   x(3)=Z
 !
   call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
+  if(ierrfield.ne.0) return
 !
   call elefie(x,phi_elec,derphi)
 !
@@ -2418,14 +2438,28 @@
 ! To be used as formal argument in subroutine find_all_roots
 ! for finding forbidden boundaries
 !
+  use field_eq_mod, only : ierrfield
+  use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                 root_invalid_domain
+
   implicit none
 !
   double precision :: R,Z,vpar2,dvpar2_dR,dZ_dR
   double precision, dimension(2) :: gradvpar2
+
+  root_eval_valid=.true.
+  root_eval_error=0
 !
   call get_poicut(R,Z,dZ_dR)
 !
   call vparzero_vec(R,Z,vpar2,gradvpar2)
+  if(ierrfield.ne.0) then
+    vpar2=0.d0
+    dvpar2_dR=0.d0
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    return
+  endif
 !
   dvpar2_dR=gradvpar2(1)+gradvpar2(2)*dZ_dR
 !
@@ -2440,6 +2474,7 @@
 !
   use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
                                   root_invalid_domain
+  use field_eq_mod, only : ierrfield
 
   implicit none
 !
@@ -2461,6 +2496,12 @@
     return
   endif
   call velo(dtau,z,vz)
+  if(ierrfield.ne.0) then
+    vvrt=0.d0
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    return
+  endif
 !
   vvrt=vz(3)-dZ_dR*vz(1)
 !
@@ -2502,6 +2543,7 @@
 ! opoint = .false.  - X-point
 !
   use potato_topology_mod, only : choose_two_sided_step
+  use field_eq_mod, only : ierrfield
   implicit none
 !
   double precision, parameter :: dtau=0.d0, hdiff=1.d-6, boundary_safety=0.5d0
@@ -2544,6 +2586,10 @@
     return
   endif
   call velo(dtau,z,vz)
+  if(ierrfield.ne.0) then
+    ierr_out=2
+    return
+  endif
   dvrdr=vz(1)
   dvzdr=vz(3)
 
@@ -2556,6 +2602,10 @@
     return
   endif
   call velo(dtau,z,vz)
+  if(ierrfield.ne.0) then
+    ierr_out=2
+    return
+  endif
   dvrdr=(vz(1)-dvrdr)/(2.d0*hstep)
   dvzdr=(vz(3)-dvzdr)/(2.d0*hstep)
 
@@ -2569,6 +2619,10 @@
     return
   endif
   call velo(dtau,z,vz)
+  if(ierrfield.ne.0) then
+    ierr_out=2
+    return
+  endif
   dvrdz=vz(1)
   dvzdz=vz(3)
 
@@ -2581,6 +2635,10 @@
     return
   endif
   call velo(dtau,z,vz)
+  if(ierrfield.ne.0) then
+    ierr_out=2
+    return
+  endif
   dvrdz=(vz(1)-dvrdz)/(2.d0*hstep)
   dvzdz=(vz(3)-dvzdz)/(2.d0*hstep)
 !
@@ -4414,6 +4472,7 @@
   subroutine evaluate_jperp(R,perpinv,ok_value)
 !
   use global_invariants, only : toten
+  use field_eq_mod, only : ierrfield
   use potato_symbolic_kernel_mod, only : potato_jperp_kernel
 !
   implicit none
@@ -4432,7 +4491,8 @@
   x(3)=Z
   call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
   call elefie(x,phi_elec,derphi)
-  ok_value=(bmod.gt.0.d0 .and. bmod.eq.bmod .and. abs(bmod).lt.huge(bmod))
+  ok_value=(ierrfield.eq.0 .and. bmod.gt.0.d0 .and. bmod.eq.bmod .and. &
+            abs(bmod).lt.huge(bmod))
   if(.not.ok_value) then
     perpinv=0.d0
     return
@@ -6055,6 +6115,7 @@ contains
 
   subroutine turning_boundary_level(local_r,local_p,local_ok)
     use field_sub, only : psif
+    use field_eq_mod, only : ierrfield
     double precision, intent(in) :: local_r
     double precision, intent(out) :: local_p
     logical, intent(out) :: local_ok
@@ -6067,7 +6128,8 @@ contains
     local_x(3)=local_z
     call get_bmod_and_Phi(local_x,local_bmod,local_phi)
     local_p=psif
-    local_ok=(local_p.eq.local_p .and. abs(local_p).lt.huge(local_p))
+    local_ok=(ierrfield.eq.0 .and. local_p.eq.local_p .and. &
+              abs(local_p).lt.huge(local_p))
   end subroutine turning_boundary_level
 
   subroutine fixed_boundary_level(local_r,local_j,local_sigma,local_p,local_ok)
@@ -6096,6 +6158,7 @@ contains
   end subroutine fixed_boundary_level
 
   subroutine jperp_value(R,value,ok_value)
+    use field_eq_mod, only : ierrfield
     use potato_symbolic_kernel_mod, only : potato_jperp_kernel
     double precision, intent(in) :: R
     double precision, intent(out) :: value
@@ -6111,7 +6174,8 @@ contains
     xx(3)=Z
     call magfie(xx,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
     call elefie(xx,phi_elec,derphi)
-    ok_value=(bmod.gt.0.d0 .and. bmod.eq.bmod .and. abs(bmod).lt.huge(bmod))
+    ok_value=(ierrfield.eq.0 .and. bmod.gt.0.d0 .and. bmod.eq.bmod .and. &
+              abs(bmod).lt.huge(bmod))
     if(.not.ok_value) then
       value=0.d0
       return
@@ -6131,6 +6195,7 @@ contains
 
   subroutine jperp_value_and_derivative(R,value,dvalue,ok_value)
     use global_invariants, only : toten
+    use field_eq_mod, only : ierrfield
     use potato_symbolic_kernel_mod, only : potato_jperp_kernel
     double precision, intent(in) :: R
     double precision, intent(out) :: value,dvalue
@@ -6146,7 +6211,8 @@ contains
     xx(3)=Z
     call magfie(xx,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
     call elefie(xx,phi_elec,derphi)
-    ok_value=(bmod.gt.0.d0 .and. bmod.eq.bmod .and. abs(bmod).lt.huge(bmod))
+    ok_value=(ierrfield.eq.0 .and. bmod.gt.0.d0 .and. bmod.eq.bmod .and. &
+              abs(bmod).lt.huge(bmod))
     if(.not.ok_value) then
       value=0.d0
       dvalue=0.d0
@@ -6225,6 +6291,7 @@ contains
 ! two-sided neighbourhood in determine_fixpoint_type.
 !
   use field_sub, only : psif,dpsidr,dpsidz
+  use field_eq_mod, only : ierrfield
   use global_invariants, only : toten
   use poicut_mod, only : npc,rpc_arr,h_rpc
   implicit none
@@ -6257,7 +6324,7 @@ contains
   xx(3)=Z
   call magfie(xx,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
   call elefie(xx,phi_elec,derphi)
-  if(bmod.le.0.d0) return
+  if(ierrfield.ne.0 .or. bmod.le.0.d0) return
 
   A=toten-phi_elec
   B=bmod
@@ -6298,6 +6365,7 @@ contains
 contains
 
   subroutine fixedpoint_hphi(Rin,hout,okout)
+    use field_eq_mod, only : ierrfield
     double precision, intent(in) :: Rin
     double precision, intent(out) :: hout
     logical, intent(out) :: okout
@@ -6313,7 +6381,7 @@ contains
     xin(3)=Zin
     call magfie(xin,bmodin,sqrtgin,bderin,hcovarin,hctrvrin,hcurlin)
     call elefie(xin,phiin,derphiin)
-    if(bmodin.le.0.d0) return
+    if(ierrfield.ne.0 .or. bmodin.le.0.d0) return
     hout=hcovarin(2)
     okout=.true.
   end subroutine fixedpoint_hphi
