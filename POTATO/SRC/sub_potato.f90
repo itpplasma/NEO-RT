@@ -2753,9 +2753,7 @@
     return
   endif
 !
-! Temporary A/B experiment: use the existing two-pass first-return map.
-! This commit is diagnostic only and will be reverted after the probe run.
-  fullbounce=.false.
+  fullbounce=.true.
 !
   if(next.eq.0) then
     if(fullbounce) then
