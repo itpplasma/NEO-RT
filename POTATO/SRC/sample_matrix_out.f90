@@ -412,9 +412,9 @@ contains
   INTEGER :: i,j,nfound,nunique,nactive,nsegments,n_total,nseg_points
   INTEGER :: npoi_request,n1_request,n2_request,ierr_local,ierr_certificate
   INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
-  DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol,merge_tol
+  DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol
   DOUBLE PRECISION :: candidate_merge_tol
-  DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta
+  DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
   DOUBLE PRECISION :: geometric_gap_bound
   DOUBLE PRECISION, ALLOCATABLE :: candidates(:),active_x(:),active_delta(:)
@@ -455,7 +455,6 @@ contains
 ! an arbitrarily narrow A-B-A component is still a real component.  Only
 ! roots indistinguishable at the floating-point coordinate scale are merged;
 ! transitions outside that coordinate-resolution window remain distinct.
-  merge_tol=128.d0*EPSILON(1.d0)*scale
   ALLOCATE(candidates(topology_max_candidates),active_x(topology_max_candidates), &
       active_delta(topology_max_candidates),active_left_sig(topology_max_candidates), &
       active_right_sig(topology_max_candidates))
@@ -493,15 +492,19 @@ contains
   ENDDO
   nunique=0
   DO i=1,nfound
-    IF(candidates(i).LE.xbeg_full+merge_tol) THEN
-      IF(candidates(i).EQ.xbeg_full) CYCLE
+    endpoint_tol=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
+        ABS(candidates(i)),ABS(xbeg_full))
+    IF(candidates(i).LE.xbeg_full+endpoint_tol) THEN
+      IF(ABS(candidates(i)-xbeg_full).LE.endpoint_tol) CYCLE
       PRINT *,'sample_matrix_out_partitioned_certified: unresolved endpoint root H,J = ', &
           topology_context_h,candidates(i)
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
-    IF(candidates(i).GE.xend_full-merge_tol) THEN
-      IF(candidates(i).EQ.xend_full) CYCLE
+    endpoint_tol=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
+        ABS(candidates(i)),ABS(xend_full))
+    IF(candidates(i).GE.xend_full-endpoint_tol) THEN
+      IF(ABS(candidates(i)-xend_full).LE.endpoint_tol) CYCLE
       PRINT *,'sample_matrix_out_partitioned_certified: unresolved endpoint root H,J = ', &
           topology_context_h,candidates(i)
       CALL fail_certified(sample_matrix_topology_unresolved)
