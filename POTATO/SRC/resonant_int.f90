@@ -492,6 +492,9 @@ subroutine get_matrix_res
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
     use get_matrix_mod,               only : iclass
+    use sample_class_status_mod,       only : sample_class_success, &
+        sample_class_no_resonance
+    use resonance_status_mod,          only : resonance_status_success
     use resint_mod,                   only : nmodes,nperp_max,respoints_jp, &
         respoints_all,respoints_all_tmp,ledger_class_evaluations
     use cc_mod,                       only : wrbounds,dowrite
@@ -551,12 +554,20 @@ subroutine get_matrix_res
     !
     allocate(respoints_jp(nmodes,nclasses))
     amat=0.d0
+    do iclass=1,nclasses
+        do mode=1,nmodes
+            respoints_jp(mode,iclass)%nrespoi=0
+            respoints_jp(mode,iclass)%scan_status=resonance_status_success
+            respoints_jp(mode,iclass)%toten_res=toten
+            respoints_jp(mode,iclass)%perpinv_res=perpinv
+        enddo
+    enddo
     !
     do iclass=1,nclasses
         !
         call sample_class_doublecount(1,ierr)
         !
-        if(ierr.eq.0) then
+        if(ierr.eq.sample_class_success) then
             !
             call integrate_class_resonances(ierr_resonance)
             if(ierr_resonance.ne.0) then
@@ -574,6 +585,10 @@ subroutine get_matrix_res
                     amat(mode,1)=amat(mode,1)+sum(respoints_jp(mode,iclass)%w_res)
                 endif
             enddo
+        else if(ierr.eq.sample_class_no_resonance) then
+            ! The harmonic guard proved that this class has no resonance;
+            ! its initialized zero records remain part of the class topology.
+            cycle
         else
             write(msg, '(A,I0)') &
                 'get_matrix_res: sample_class_doublecount error ', ierr

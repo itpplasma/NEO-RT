@@ -43,6 +43,7 @@ add_library(potato_base
   sample_matrix_mod.f90
   sample_matrix.f90
   sample_matrix_out.f90
+  sample_class_status_mod.f90
   sub_potato.f90
   equimoments.f90
   sorting.f90

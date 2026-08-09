@@ -2815,6 +2815,8 @@
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
                                 npoi,xarr,amat_arr,matrix_boundary_error, &
                                 matrix_eval_success
+  use sample_class_status_mod, only : sample_class_success, &
+                                      sample_class_no_resonance
   use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relerror,relmargin,iclass,delphi_max
   use global_invariants, only : dtau,toten,perpinv,sigma
@@ -2827,6 +2829,7 @@
 !
   integer :: iunit,ierr,i
   double precision :: psiastbeg,psiastend,widthclass
+  logical :: empty_class
 !
   external :: get_matrix_doublecount
 !
@@ -2839,23 +2842,33 @@
   n1=3+next
   n2=1
 !
-  ierr=0
+  ierr=sample_class_success
   matrix_boundary_error=matrix_eval_success
 !
   widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
 !
   if(widthclass/relmargin.lt.1.d0) then
     print *,'ignore class'
-    ierr=1
+    ierr=sample_class_no_resonance
     return
   endif
 !
   call classbounds(ifuntype(iclass),relmargin,widthclass,xbeg,xend)
 !
 !
-  if(delphi_max.gt.0.d0) call bound_class_delphi(ifuntype(iclass),xbeg,xend)
+  empty_class=.false.
+  if(delphi_max.gt.0.d0) then
+    call bound_class_delphi(ifuntype(iclass),xbeg,xend,empty_class)
+  endif
   if(matrix_boundary_error.ne.matrix_eval_success) then
     ierr=matrix_boundary_error
+    return
+  endif
+  if(empty_class) then
+    ! The finite harmonic guard certifies that this class has no roots.  It is
+    ! a zero contribution, not an adaptive-sampler failure.
+    ierr=sample_class_no_resonance
+    call interp_cache_reset
     return
   endif
 !
@@ -2893,7 +2906,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine bound_class_delphi(iftype,xb,xe)
+  subroutine bound_class_delphi(iftype,xb,xe,empty_class)
 !
 ! Trim the X-point side(s) of a class so the sampled domain stays where
 ! |delphi_b| <= delphi_max.  delphi_b diverges logarithmically toward the
@@ -2915,10 +2928,11 @@
 !
   integer :: iftype,ib_beg,ib_end
   double precision :: xb,xe,xmid
-  logical :: amat_was_alloc
+  logical :: amat_was_alloc,empty_class,empty_beg,empty_end
 !
   external :: get_matrix_doublecount
 !
+  empty_class=.false.
   amat_was_alloc=allocated(amat)
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
 !
@@ -2929,24 +2943,28 @@
 !
   if(ib_beg.ge.3 .and. ib_end.ge.3) then
     xmid=0.5d0*(xb+xe)
-    call trim_endpoint(xmid,xe)
-    call trim_endpoint(xmid,xb)
+    empty_end=.false.
+    empty_beg=.false.
+    call trim_endpoint(xmid,xe,empty_end)
+    call trim_endpoint(xmid,xb,empty_beg)
+    empty_class=empty_beg .and. empty_end
   elseif(ib_end.ge.3) then
-    call trim_endpoint(xb,xe)
+    call trim_endpoint(xb,xe,empty_class)
   elseif(ib_beg.ge.3) then
-    call trim_endpoint(xe,xb)
+    call trim_endpoint(xe,xb,empty_class)
   endif
 !
   if(.not.amat_was_alloc) deallocate(amat)
 !
   contains
 !
-  subroutine trim_endpoint(xsafe,xdiv)
+  subroutine trim_endpoint(xsafe,xdiv,empty_interval)
   double precision :: xsafe,xdiv,xlo,xhi,xm
   double precision :: delphi_safe,delphi_div,delphi_mid
   integer :: it,guard_ierr
-  logical :: no_root
+  logical :: no_root,empty_interval
   !
+  empty_interval=.false.
   delphi_div=eval_delphi(xdiv)
   if(matrix_boundary_error.ne.matrix_eval_success) return
   call resonance_no_root_for_any(delphi_div,no_root,guard_ierr)
@@ -2963,7 +2981,10 @@
     matrix_boundary_error=matrix_eval_nonfinite
     return
   endif
-  if(no_root) return
+  if(no_root) then
+    empty_interval=.true.
+    return
+  endif
 !
   xlo=xsafe
   xhi=xdiv
