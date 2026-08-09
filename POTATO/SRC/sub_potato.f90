@@ -1209,7 +1209,7 @@
   use find_all_roots_mod,   only : nroots,roots,relerr_allroots,          &
                                    root_eval_valid,root_eval_error,        &
                                    root_invalid_domain,root_no_intersection, &
-                                   customgrid,ncustom,xcustom
+                                   root_last_invalid_x,customgrid,ncustom,xcustom
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use field_sub, only : psif
@@ -1574,7 +1574,7 @@
         pphi_minmax=pphi_min
         relerr_allroots=1.d-11
 !
-        call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+        call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 1'
@@ -1601,7 +1601,7 @@
         pphi_minmax=pphi_max
         relerr_allroots=1.d-11
 !
-        call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+        call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 2'
@@ -1635,7 +1635,7 @@
           pphi_minmax=pphi_min
           relerr_allroots=1.d-11
 !
-          call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+          call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 1'
@@ -1665,7 +1665,7 @@
           pphi_minmax=pphi_max
           relerr_allroots=1.d-11
 !
-          call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+          call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 2'
@@ -2071,6 +2071,128 @@
     ncustom=ncustom_saved
     customgrid=customgrid_saved
   end subroutine find_all_roots_certified
+
+!------------
+!
+  subroutine find_boucross_roots_partitioned(xlo,xhi,ierr_out)
+! The return-map callback is defined only on the open allowed intervals.  A
+! missed, sub-cell v_parallel^2 hole therefore appears as an invalid interior
+! sample to find_all_roots.  Recover that physical interval split from the
+! primary v_parallel^2 equation, then search the two valid sides separately.
+    integer, intent(out) :: ierr_out
+    double precision, intent(in) :: xlo,xhi
+    integer, parameter :: max_recovered_roots=4096
+    double precision :: recovered_roots(max_recovered_roots)
+    integer :: nrecovered
+
+    nrecovered=0
+    call search_boucross_interval(xlo,xhi,recovered_roots,nrecovered,ierr_out)
+    if(ierr_out.ne.0) return
+    if(allocated(roots)) deallocate(roots)
+    nroots=nrecovered
+    if(nrecovered.gt.0) then
+      allocate(roots(nrecovered))
+      roots=recovered_roots(1:nrecovered)
+    endif
+  end subroutine find_boucross_roots_partitioned
+
+  recursive subroutine search_boucross_interval(rlo,rhi,accum,naccum,istat)
+      double precision, intent(in) :: rlo,rhi
+      double precision, intent(inout) :: accum(:)
+      integer, intent(inout) :: naccum
+      integer, intent(out) :: istat
+      double precision :: rbad,vbad,dvbad,vlo,dvlo,vhi,dvhi
+      double precision :: rleft_valid,rright_valid
+      logical :: ok_left,ok_right
+      integer :: iroot
+
+      call find_all_roots_certified(boucross_with_endpoint_limit,rlo,rhi,istat)
+      if(istat.eq.0) then
+        do iroot=1,nroots
+          if(naccum.ge.size(accum)) then
+            istat=3
+            return
+          endif
+          if(naccum.eq.0) then
+            naccum=1
+            accum(naccum)=roots(iroot)
+          elseif(all(abs(accum(1:naccum)-roots(iroot)).gt.128.d0* &
+                    epsilon(1.d0)*max(1.d-300,abs(accum(1:naccum)), &
+                    abs(roots(iroot))))) then
+            naccum=naccum+1
+            accum(naccum)=roots(iroot)
+          endif
+        enddo
+        return
+      endif
+      if(istat.ne.root_invalid_domain) return
+      rbad=root_last_invalid_x
+      if(rbad.le.rlo .or. rbad.ge.rhi) return
+
+      call vparzero1D(rbad,vbad,dvbad)
+      call vparzero1D(rlo,vlo,dvlo)
+      call vparzero1D(rhi,vhi,dvhi)
+      if(vbad.ge.0.d0 .or. vlo.lt.0.d0 .or. vhi.lt.0.d0) return
+
+      call isolate_vpar_boundary(rlo,rbad,rleft_valid,ok_left)
+      call isolate_vpar_boundary(rhi,rbad,rright_valid,ok_right)
+      if(.not.ok_left .or. .not.ok_right .or. &
+         rleft_valid.le.rlo .or. rright_valid.ge.rhi .or. &
+         rright_valid.le.rleft_valid) return
+
+! The recovered valid points are intentionally on the allowed side of each
+! root.  The zero itself is already an interval boundary and need not be
+! evaluated by the return-map callback.
+      call search_boucross_interval(rlo,rleft_valid,accum,naccum,istat)
+      if(istat.ne.0) return
+      call search_boucross_interval(rright_valid,rhi,accum,naccum,istat)
+  end subroutine search_boucross_interval
+
+  subroutine isolate_vpar_boundary(rvalid,rinvalid,rvalid_near,ok)
+      double precision, intent(in) :: rvalid,rinvalid
+      double precision, intent(out) :: rvalid_near
+      logical, intent(out) :: ok
+      double precision :: rlo_local,rhi_local,rmid,v2mid,dv2mid
+      double precision :: v2lo_local,v2hi_local,dv2lo,dv2hi,resolution
+
+      ok=.false.
+      rvalid_near=rvalid
+      if(rvalid.eq.rinvalid) return
+      call vparzero1D(rvalid,v2lo_local,dv2lo)
+      call vparzero1D(rinvalid,v2hi_local,dv2hi)
+      if(v2lo_local.lt.0.d0 .or. v2hi_local.ge.0.d0) return
+      resolution=256.d0*spacing(max(abs(rvalid),abs(rinvalid)))
+      resolution=max(resolution,relerr_allroots*abs(rvalid-rinvalid))
+      if(resolution.le.0.d0) return
+      if(rvalid.lt.rinvalid) then
+        rlo_local=rvalid
+        rhi_local=rinvalid
+        do while(rhi_local-rlo_local.gt.resolution)
+          rmid=0.5d0*(rlo_local+rhi_local)
+          call vparzero1D(rmid,v2mid,dv2mid)
+          if(v2mid.ge.0.d0) then
+            rlo_local=rmid
+          else
+            rhi_local=rmid
+          endif
+        enddo
+        rvalid_near=rlo_local
+      else
+        rlo_local=rinvalid
+        rhi_local=rvalid
+        do while(rhi_local-rlo_local.gt.resolution)
+          rmid=0.5d0*(rlo_local+rhi_local)
+          call vparzero1D(rmid,v2mid,dv2mid)
+          if(v2mid.ge.0.d0) then
+            rhi_local=rmid
+          else
+            rlo_local=rmid
+          endif
+        enddo
+        rvalid_near=rhi_local
+      endif
+      ok=.true.
+  end subroutine isolate_vpar_boundary
 
 !------------
 !
