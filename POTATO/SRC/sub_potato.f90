@@ -2570,9 +2570,9 @@
     xi=tanh(x)
     dxi_dx=1.d0/cosh(x)**2
   case(21)
-! left- inner boundary, right - rho_pol boundary, logit chart
-    xi=1.d0/(1.d0+exp(-x))
-    dxi_dx=xi*(1.d0-xi)
+! left- inner boundary, right - rho_pol boundary, 0<x<1
+    xi=x**2
+    dxi_dx=2.d0*x
   case(22)
 ! two inner boundaries, 0<x<1
     xi=0.5d0*(1.d0-cos(pi*x))
@@ -2582,9 +2582,9 @@
     xi=tanh(x)**2
     dxi_dx=2.d0*tanh(x)/cosh(x)**2
   case(31,41)
-! left- X-point, right - rho_pol boundary, logit chart
-    xi=1.d0/(1.d0+exp(-x))
-    dxi_dx=xi*(1.d0-xi)
+! left- X-point, right - rho_pol boundary, -inf<x<0
+    xi=tanh(x)+1.d0
+    dxi_dx=1.d0/cosh(x)**2
   case(32,42)
 ! left- X-point, right - inner boundary, -inf<x<0
     xi=1.d0-tanh(x)**2
@@ -2613,8 +2613,10 @@
   integer :: ifuntype
   double precision :: relmargin,widthclass,xbeg,xend,turn_x,turn_margin
 
-  ! relmargin is a physical cut-coordinate margin.  The logit charts place
-  ! both open endpoints at xi=relmargin and xi=1-relmargin exactly.
+  ! relmargin is a physical cut-coordinate margin.  The inner-boundary
+  ! charts use xi~x**2, so using relmargin directly in x would place the
+  ! orbit at relmargin**2 and make the ODE start indistinguishable from the
+  ! turning point.  These are the exact inverse chart coordinates.
   turn_margin=sqrt(relmargin)
   turn_x=atanh(turn_margin)
 !
@@ -2636,9 +2638,9 @@
     xbeg=atanh(relmargin)
     xend=-0.5d0*log(relmargin/widthclass)*0.5d0
   case(21)
-! left- inner boundary, right - rho_pol boundary, logit chart
-    xbeg=log(relmargin/(1.d0-relmargin))
-    xend=-xbeg
+! left- inner boundary, right - rho_pol boundary, 0<x<1
+    xbeg=turn_margin
+    xend=sqrt(1.d0-relmargin)
   case(22)
 ! two inner boundaries, 0<x<1
     turn_x=acos(1.d0-2.d0*relmargin)/acos(-1.d0)
@@ -2653,9 +2655,9 @@
     xbeg=turn_x
     xend=-0.25d0*log(relmargin/widthclass)
   case(31)
-! left- X-point, right - rho_pol boundary, logit chart
-    xbeg=log(relmargin/(1.d0-relmargin))
-    xend=-xbeg
+! left- X-point, right - rho_pol boundary, -inf<x<0
+    xbeg=0.5d0*log(relmargin/widthclass)
+    xend=-atanh(relmargin)
   case(32)
 ! left- X-point, right - inner boundary, -inf<x<0
     xbeg=0.5d0*log(relmargin/widthclass)
@@ -2669,9 +2671,9 @@
     xbeg=0.5d0*log(relmargin/widthclass)
     xend=-xbeg*0.5d0
   case(41)
-! left- X-point, right - rho_pol boundary, logit chart
-    xbeg=log(relmargin/(1.d0-relmargin))
-    xend=-xbeg
+! left- X-point, right - rho_pol boundary, -inf<x<0
+    xbeg=0.25d0*log(relmargin/widthclass)
+    xend=-atanh(relmargin)
   case(42)
 ! left- X-point, right - inner boundary, -inf<x<0
     xbeg=0.25d0*log(relmargin/widthclass)
@@ -2850,7 +2852,7 @@
 !
   nlagr=7         !<= temporary place, should be moved out for centralized input
   relerror=1.d-3  !<= temporary place, should be moved out for centralized input
-  relmargin=1.d-7 !<= temporary place, should be moved out for centralized input
+  relmargin=1.d-4 !<= temporary place, should be moved out for centralized input
   itermax=20      !<= temporary place, should be moved out for centralized input
 !
   next=2*numbasef
@@ -3489,9 +3491,9 @@
     xbeg=0.d0
     xend=-log(relmargin)
   case(21)
-! left- inner boundary, right - rho_pol boundary, logit chart
-    xbeg=log(relmargin/(1.d0-relmargin))
-    xend=-xbeg
+! left- inner boundary, right - rho_pol boundary, 0<x<1
+    xbeg=0.d0
+    xend=1.d0
   case(22)
 ! two inner boundaries, 0<x<1
     xbeg=0.d0
@@ -3501,9 +3503,9 @@
     xbeg=0.d0
     xend=-log(relmargin)
   case(31,41)
-! left- X-point, right - rho_pol boundary, logit chart
-    xbeg=log(relmargin/(1.d0-relmargin))
-    xend=-xbeg
+! left- X-point, right - rho_pol boundary, -inf<x<0
+    xbeg=log(relmargin)
+    xend=0.d0
   case(32,42)
 ! left- X-point, right - inner boundary, -inf<x<0
     xbeg=log(relmargin)
