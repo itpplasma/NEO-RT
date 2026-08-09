@@ -356,6 +356,7 @@
   endif
 ! Newton adjustment
 !
+  dtau_newt=0.d0
   do iter=1,niter
 !
     orbit_failure_stage=4
@@ -390,6 +391,10 @@
   if(.not.newton_converged) then
     ierr=2
     return
+  endif
+  if(primary_steps.gt.10000) then
+    print *, 'find_bounce: large primary return, steps,dtau,dtau_newt,taub=', &
+        primary_steps,dtau,dtau_newt,taub
   endif
 !
   if(next.gt.0) then
