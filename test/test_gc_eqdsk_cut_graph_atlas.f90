@@ -2,7 +2,8 @@ program test_gc_eqdsk_cut_graph_atlas
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use field_eq_mod, only: nrad, nzet, psi_sep, rad, zet
     use neort_gc_eqdsk_cylindrical_adapter, only: &
-        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
+        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field, &
+        map_eqdsk_flux_position
     use neort_gc_eqdsk_cut_graph_atlas, only: &
         EQDSK_CUT_ATLAS_INVALID_CERTIFICATE, &
         EQDSK_CUT_ATLAS_SUCCESS, EQDSK_CUT_GRAPH_CERTIFICATE_ID, &
@@ -29,6 +30,7 @@ program test_gc_eqdsk_cut_graph_atlas
     use neort_gc_eqdsk_axis_certificate, only: &
         EQDSK_AXIS_CERT_SUCCESS, build_eqdsk_axis_certificate, &
         eqdsk_axis_certificate_t, validate_eqdsk_axis_certificate
+    use util, only: pi
     implicit none
 
     type(eqdsk_cylindrical_field_t) :: field
@@ -46,6 +48,9 @@ program test_gc_eqdsk_cut_graph_atlas
     type(gc_outward_interval_t) :: mismatched_rho_interval
     character(len=1024) :: path
     real(dp) :: axis_R, inboard_lo, inboard_hi, outboard_lo, outboard_hi
+    real(dp), parameter :: branch_surface_lo = 0.25_dp
+    real(dp), parameter :: branch_surface_hi = 0.64_dp
+    real(dp) :: flux_position(3)
     real(dp) :: mismatched_psi_sep
     integer :: status, axis_R_index, axis_Z_index
 
@@ -74,14 +79,22 @@ program test_gc_eqdsk_cut_graph_atlas
     call validate_eqdsk_axis_certificate(axis_certificate, status)
     call require(status == EQDSK_AXIS_CERT_SUCCESS, &
         'fresh magnetic-axis certificate failed validation')
-    inboard_lo = field%domain_R_min+0.10_dp*(field%domain_R_max- &
-        field%domain_R_min)
-    inboard_hi = axis_R-0.10_dp*(field%domain_R_max- &
-        field%domain_R_min)
-    outboard_lo = axis_R+0.10_dp*(field%domain_R_max- &
-        field%domain_R_min)
-    outboard_hi = field%domain_R_max-0.10_dp*(field%domain_R_max- &
-        field%domain_R_min)
+    call map_eqdsk_flux_position(branch_surface_hi, pi, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map inboard branch surface')
+    inboard_lo = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_lo, pi, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map inboard branch surface')
+    inboard_hi = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_lo, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_lo = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_hi, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_hi = flux_position(1)
     call build_eqdsk_cut_graph_atlas(inboard_atlas, inboard_lo, inboard_hi, &
         -10.0_dp, 10.0_dp, 0.0_dp, 1.0_dp, options, status)
     call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
@@ -172,23 +185,19 @@ program test_gc_eqdsk_cut_graph_atlas
     call require(status == EQDSK_RADIAL_INTERVAL_NOT_MONOTONE, &
         'decreasing inboard graph was accepted as the outboard rho map')
 
-    ! The Fortsym-emitted continuation keeps psi and its first derivative
-    ! smooth and strictly increasing beyond the nominal LCFS.  The complete
-    ! closed-flux R domain must therefore contain one and only one Eq.13 graph;
-    ! this is the regression oracle for the removed clamped-SOL branches.
+    ! The rectangular EQDSK box includes the SOL, whereas this atlas was
+    ! requested for the closed-flux interval psi_hat in [0,1].  It must fail
+    ! closed rather than inventing a graph through the unrequested SOL.
     full_options = options
     full_options%max_r_depth = 6
     full_options%max_z_depth = 6
     call build_eqdsk_cut_graph_atlas(full_atlas, field%domain_R_min, &
         field%domain_R_max, zet(1), zet(nzet), 0.0_dp, 1.0_dp, full_options, &
         status)
-    call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
-        'smooth circular continuation did not close the full cut atlas')
-    call require(full_atlas%global_completeness_certified, &
-        'full circular cut atlas omitted its completeness certificate')
-    call validate_eqdsk_cut_graph_atlas(full_atlas, status)
-    call require(status == EQDSK_CUT_ATLAS_SUCCESS, &
-        'full circular cut atlas failed structural validation')
+    call require(status /= EQDSK_CUT_ATLAS_SUCCESS, &
+        'SOL-containing closed-flux atlas was incorrectly certified')
+    call require(.not. full_atlas%global_completeness_certified, &
+        'failed SOL-containing atlas retained a completeness certificate')
 
     call clear_eqdsk_cut_graph_atlas(inboard_atlas)
     call require(.not. inboard_atlas%raw_psi_sep_valid .and. &

@@ -12,7 +12,8 @@ program test_gc_eqdsk_allowed_region_cut_box
         evaluate_eqdsk_allowed_region_cut_box, &
         validate_eqdsk_potential_profile_nodes
     use neort_gc_eqdsk_cylindrical_adapter, only: &
-        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
+        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field, &
+        map_eqdsk_flux_position
     use neort_gc_eqdsk_cut_graph_atlas, only: &
         EQDSK_CUT_ATLAS_SUCCESS, build_eqdsk_cut_graph_atlas, &
         enclose_eqdsk_cut_graph_strip, eqdsk_cut_graph_atlas_options_t, &
@@ -24,6 +25,7 @@ program test_gc_eqdsk_allowed_region_cut_box
         eqdsk_allowed_interval_result_t
     use neort_gc_outward_interval, only: gc_outward_interval, &
         gc_outward_interval_t
+    use util, only: pi
     implicit none
 
     type(eqdsk_cylindrical_field_t) :: field
@@ -37,6 +39,10 @@ program test_gc_eqdsk_allowed_region_cut_box
     character(len=1024) :: path
     real(dp) :: axis_R, axis_lo, axis_hi
     real(dp) :: outboard_lo, outboard_hi, inboard_lo, inboard_hi
+    real(dp), parameter :: branch_surface_lo = 0.25_dp
+    real(dp), parameter :: branch_surface_hi = 0.64_dp
+    real(dp), parameter :: axis_window_fraction = 0.025_dp
+    real(dp) :: flux_position(3)
     real(dp) :: radius, position(3), tangent(3), scalar_psi
     real(dp) :: scalar_dpsi, query_width, inboard_radius
     real(dp) :: outboard_position(3), inboard_position(3)
@@ -66,14 +72,24 @@ program test_gc_eqdsk_allowed_region_cut_box
     call require(axis_Z_index > 1 .and. axis_Z_index < nzet, &
         'circular magnetic axis is not interior to the Z grid')
 
-    outboard_lo = axis_R+0.10_dp*(field%domain_R_max-axis_R)
-    outboard_hi = field%domain_R_max-0.10_dp*( &
-        field%domain_R_max-field%domain_R_min)
-    inboard_lo = field%domain_R_min+0.10_dp*( &
-        field%domain_R_max-field%domain_R_min)
-    inboard_hi = axis_R-0.10_dp*(field%domain_R_max-axis_R)
-    axis_lo = axis_R-0.025_dp*(field%domain_R_max-field%domain_R_min)
-    axis_hi = axis_R+0.025_dp*(field%domain_R_max-field%domain_R_min)
+    call map_eqdsk_flux_position(branch_surface_lo, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_lo = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_hi, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_hi = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_hi, pi, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map inboard branch surface')
+    inboard_lo = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_lo, pi, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map inboard branch surface')
+    inboard_hi = flux_position(1)
+    axis_lo = axis_R-axis_window_fraction*(field%domain_R_max-field%domain_R_min)
+    axis_hi = axis_R+axis_window_fraction*(field%domain_R_max-field%domain_R_min)
     call build_eqdsk_cut_graph_atlas(atlas, outboard_lo, outboard_hi, &
         -10.0_dp, 10.0_dp, 0.0_dp, 1.0_dp, options, status)
     call require(status == EQDSK_CUT_ATLAS_SUCCESS, &

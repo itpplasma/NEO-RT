@@ -2,7 +2,8 @@ program test_gc_eqdsk_cut_endpoint_certificate
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use field_eq_mod, only: nrad, nzet, psi_sep, rad, zet
     use neort_gc_eqdsk_cylindrical_adapter, only: &
-        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field
+        eqdsk_cylindrical_field_t, initialize_eqdsk_cylindrical_field, &
+        map_eqdsk_flux_position
     use neort_gc_eqdsk_cut_endpoint_certificate, only: &
         EQDSK_ENDPOINT_CERT_AXIS_REQUIRES_LIMIT, &
         EQDSK_ENDPOINT_CERTIFICATE_ID, &
@@ -16,6 +17,7 @@ program test_gc_eqdsk_cut_endpoint_certificate
     use neort_gc_eqdsk_cut_jet, only: EQDSK_CUT_JET_SUCCESS, &
         eqdsk_cut_jet_t, evaluate_eqdsk_cut_jet
     use neort_gc_eqdsk_flux_profile_map, only: EQDSK_FLUX_MAP_CERTIFICATE_ID
+    use util, only: pi
     implicit none
 
     type(eqdsk_cylindrical_field_t) :: field
@@ -25,7 +27,10 @@ program test_gc_eqdsk_cut_endpoint_certificate
     type(eqdsk_cut_endpoint_certificate_t) :: certificate, rejected
     type(eqdsk_cut_jet_t) :: jet
     character(len=1024) :: path
-    real(dp) :: axis_R, outboard_lo, outboard_hi
+    real(dp), parameter :: branch_surface_lo = 0.25_dp
+    real(dp), parameter :: branch_surface_hi = 0.64_dp
+    real(dp) :: outboard_lo, outboard_hi, inboard_lo
+    real(dp) :: flux_position(3)
     real(dp) :: endpoint_flux(2), target, seed(3), tangent(3)
     real(dp) :: half_R, half_Z, dZ_dR, dpsihat_dR
     integer :: status, jet_status
@@ -36,10 +41,18 @@ program test_gc_eqdsk_cut_endpoint_certificate
     call require(status == 0, 'failed to initialize circular EQDSK')
     call require(nrad >= 3 .and. nzet >= 3, 'EQDSK grid is too small')
 
-    axis_R = 0.5_dp*(field%domain_R_min+field%domain_R_max)
-    outboard_lo = axis_R+0.10_dp*(field%domain_R_max-field%domain_R_min)
-    outboard_hi = field%domain_R_max-0.10_dp*(field%domain_R_max- &
-        field%domain_R_min)
+    call map_eqdsk_flux_position(branch_surface_lo, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_lo = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_hi, 0.0_dp, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map outboard branch surface')
+    outboard_hi = flux_position(1)
+    call map_eqdsk_flux_position(branch_surface_hi, pi, 0.0_dp, &
+        flux_position, status)
+    call require(status == 0, 'failed to map inboard branch surface')
+    inboard_lo = flux_position(1)
     atlas_options%max_r_depth = 12
     atlas_options%max_z_depth = 12
     atlas_options%map_absolute_tolerance = 1.0e-12_dp
@@ -106,8 +119,7 @@ program test_gc_eqdsk_cut_endpoint_certificate
     ! This box spans both the inboard and outboard intersections at target.
     ! A one-root certificate must fail rather than selecting the supplied seed.
     call build_eqdsk_cut_endpoint_certificate( &
-        field%domain_R_min+0.10_dp*(field%domain_R_max-field%domain_R_min), &
-        outboard_hi, -half_Z, half_Z, target, 1.0_dp, seed(1), seed(2), &
+        inboard_lo, outboard_hi, -half_Z, half_Z, target, 1.0_dp, seed(1), seed(2), &
         endpoint_options, rejected, status)
     call require(status /= EQDSK_ENDPOINT_CERT_SUCCESS, &
         'two-endpoint box was incorrectly certified unique')
