@@ -147,7 +147,8 @@ contains
             coefficient=coefficients(j)
             side_signature=signatures(j)
             k=j
-            do while(k.gt.1 .and. distances(k-1).gt.distance)
+            do while(k.gt.1)
+                if(distances(k-1).le.distance) exit
                 distances(k)=distances(k-1)
                 coefficients(k)=coefficients(k-1)
                 signatures(k)=signatures(k-1)

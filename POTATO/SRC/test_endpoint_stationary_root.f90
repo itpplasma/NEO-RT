@@ -117,6 +117,15 @@ program test_endpoint_stationary_root
                'adaptive centered quadratic curvature is wrong')
   call require(curvature.gt.0.d0,'adaptive quadratic minimum was misclassified')
 
+! The same adaptive probe must work in a chart whose R coordinate is negative.
+  root=-3.3819244005704327d2
+  call choose_two_sided_step(root,-3.3819244984583725d2,-3.3799667783783626d2, &
+                             1.d-6*max(1.d0,abs(root)),0.5d0,h_adaptive,resolved_step)
+  call require(resolved_step,'negative-R adaptive step rejected')
+  call require(root-h_adaptive.gt.-3.3819244984583725d2 .and. &
+               root+h_adaptive.lt.-3.3799667783783626d2, &
+               'negative-R adaptive step is not strictly centered')
+
   h_adaptive=1.d0
   call choose_two_sided_step(1.d0,1.d0-1.d-15,2.d0,1.d-3,0.5d0,h_adaptive,resolved_step)
   call require(.not.resolved_step,'roundoff-scale interval was not failed closed')

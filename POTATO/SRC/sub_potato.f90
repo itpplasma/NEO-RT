@@ -139,10 +139,36 @@
     integer :: jperpmax_status=jperpmax_unresolved
     logical :: jperpmax_certified=.false.
     double precision :: jperpmax_witness=0.d0,jperpmax_upper_bound=huge(1.d0)
+    integer :: certified_partition_count=0
+    double precision :: certified_partition_energy=0.d0
+    double precision, allocatable :: certified_partition(:)
+    logical :: certified_partition_ready=.false.
     !$omp threadprivate(fixedpoint_scan_sigma,fixedpoint_scan_branch, &
     !$omp&                fixedpoint_scan_left,fixedpoint_scan_right)
     !$omp threadprivate(jperpmax_status,jperpmax_certified, &
     !$omp&                jperpmax_witness,jperpmax_upper_bound)
+    !$omp threadprivate(certified_partition_count,certified_partition_energy, &
+    !$omp&                certified_partition,certified_partition_ready)
+  contains
+    subroutine clear_certified_partition
+      certified_partition_count=0
+      certified_partition_energy=0.d0
+      certified_partition_ready=.false.
+      if(allocated(certified_partition)) deallocate(certified_partition)
+    end subroutine clear_certified_partition
+
+    subroutine store_certified_partition(values,count,energy)
+      integer, intent(in) :: count
+      double precision, intent(in) :: values(count),energy
+
+      call clear_certified_partition
+      if(count.le.0) return
+      allocate(certified_partition(count))
+      certified_partition=values
+      certified_partition_count=count
+      certified_partition_energy=energy
+      certified_partition_ready=.true.
+    end subroutine store_certified_partition
   end module potato_boundary_scan_mod
 !
   module interp_cache_mod
@@ -669,7 +695,7 @@
 ! fixed invariants of motion dpsiast_dRst.
 !
   use parmot_mod, only : gradpsiast,dpsiast_dR,dpsiast_dZ
-  use poicut_mod, only : npc,rpc_arr
+  use poicut_mod, only : npc,rpc_arr,h_rpc
 !
   implicit none
 !
@@ -1182,13 +1208,16 @@
   use global_invariants,    only : toten,perpinv,sigma
   use find_all_roots_mod,   only : nroots,roots,relerr_allroots,          &
                                    root_eval_valid,root_eval_error,        &
-                                   root_invalid_domain,root_no_intersection
+                                   root_invalid_domain,root_no_intersection, &
+                                   customgrid,ncustom,xcustom
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
   use field_sub, only : psif
   use bounds_fixpoints_mod, only : allowed_region,region_set_t
   use cc_mod, only : wrbounds
   use orbit_dim_mod, only : clip_resonance_classes
+  use potato_boundary_scan_mod, only : certified_partition_count, &
+      certified_partition_energy,certified_partition,certified_partition_ready
 !
   implicit none
 !
@@ -1214,6 +1243,9 @@
   integer,          dimension(:),   allocatable :: ipoi_tmp
   double precision, dimension(:),   allocatable :: R_extr,Z_extr,psiast_extr, &
                                                    psiast_x_tot,R_x_tot,rsc_tmp
+  double precision, allocatable :: xcustom_save(:)
+  logical :: customgrid_save,xcustom_save_allocated,topology_grid_active
+  integer :: ncustom_save
 !------------
 !
   ierr=0
@@ -1259,7 +1291,35 @@
 ! find inner boundaries of allowed regions:
   relerr_allroots=1.d-12
 !
+  topology_grid_active=.false.
+  customgrid_save=customgrid
+  ncustom_save=ncustom
+  xcustom_save_allocated=.false.
+  if(customgrid_save .and. allocated(xcustom)) then
+    allocate(xcustom_save(ncustom_save))
+    xcustom_save=xcustom
+    xcustom_save_allocated=.true.
+  endif
+  if(certified_partition_ready .and. certified_partition_count.gt.1 .and. &
+     certified_partition_energy.eq.toten) then
+    if(allocated(xcustom)) deallocate(xcustom)
+    allocate(xcustom(certified_partition_count))
+    xcustom=certified_partition
+    ncustom=certified_partition_count
+    customgrid=.true.
+    topology_grid_active=.true.
+  endif
   call find_all_roots(vparzero1D,rpc_arr(0),rpc_arr(npc),ierr)
+  if(topology_grid_active) then
+    deallocate(xcustom)
+    if(xcustom_save_allocated) then
+      allocate(xcustom(ncustom_save))
+      xcustom=xcustom_save
+    endif
+    ncustom=ncustom_save
+    customgrid=customgrid_save
+    if(allocated(xcustom_save)) deallocate(xcustom_save)
+  endif
 !
   if(ierr.ne.0) then
     print *,'find_bounds_fixpoints: error in find_all_roots, inner boundaries'
@@ -2006,7 +2066,7 @@
 ! and opoint_extr (logical array with .true. for O-points and .false. for X-points), respectively.
 ! Dimension of the arrays is nroots.
 !
-  use potato_topology_mod, only : root_has_two_sided_neighborhood,root_is_open_interval
+  use potato_topology_mod, only : root_is_open_interval
   implicit none
 !
   integer, intent(out) :: ierr_classify
@@ -2105,9 +2165,6 @@
 ! fixed-point classifier, whose finite differences would necessarily probe
 ! the forbidden side and report a false topology failure.
       if(.not.root_is_open_interval(R,R_b_in,R_e_in)) then
-        call get_poicut(R,Z,dZ_dR)
-        print *,'classify_extrema: endpoint stationary root H,J,sigma,Rlo,Rhi,R,Z = ', &
-                toten,perpinv,sigma,R_b_in,R_e_in,R,Z
         cycle
       endif
 
@@ -2285,7 +2342,10 @@
     ierr_out=ierr
     return
   endif
-  call choose_two_sided_step(R_in,R_lo,R_hi,hdiff*R_in,boundary_safety,hstep,resolved_step)
+! Cylindrical R can be negative in the local chart.  The finite-difference
+! scale is a length, so its nominal value must not inherit that sign.
+  call choose_two_sided_step(R_in,R_lo,R_hi,hdiff*max(1.d0,abs(R_in)), &
+                             boundary_safety,hstep,resolved_step)
   if(.not.resolved_step) then
     print *,'determine_fixpoint_type: root lacks strict two-sided neighborhood H,J,sigma,Rlo,Rhi,R,Z,h,ierr = ', &
             toten,perpinv,sigma,R_lo,R_hi,R_in,Z_in,hstep,2
@@ -4104,7 +4164,7 @@
   use potato_boundary_scan_mod, only : jperpmax_success, &
       jperpmax_unresolved,jperpmax_invalid_domain,jperpmax_status, &
       jperpmax_certified,jperpmax_witness,jperpmax_upper_bound
-  use poicut_mod, only : npc,rpc_arr
+  use poicut_mod, only : npc,rpc_arr,h_rpc
   use global_invariants, only : toten
 !
   implicit none
@@ -4250,25 +4310,31 @@
 !
   use find_all_roots_mod, only : nroots,roots,nsearch_min,relerr_allroots, &
                                  customgrid, &
-                                 root_success,root_unresolved_separation
+                                 root_success,root_invalid_domain, &
+                                 root_invalid_interval, &
+                                 root_unresolved_separation
   use global_invariants, only : toten
-  use poicut_mod, only : npc,rpc_arr,Rbou_hfs,Rbou_lfs
+  use poicut_mod, only : npc,rpc_arr,h_rpc,Rbou_hfs,Rbou_lfs
   use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
                                        fixedpoint_scan_branch, &
-                                       fixedpoint_scan_left, fixedpoint_scan_right
+                                       fixedpoint_scan_left, fixedpoint_scan_right, &
+                                       clear_certified_partition, &
+                                       store_certified_partition
   implicit none
 !
   integer, intent(in) :: nmax
   integer, intent(out) :: ncandidates,ierr
   double precision, intent(out) :: candidates(nmax)
   integer, parameter :: max_scan_roots=4096
-  integer :: ierr_roots,nsearch_save,i,j,k,nq,ndisc,npart,nsigma,branch
+  integer :: ierr_roots,nsearch_save,nsearch_collision_save,nsearch_collision
+  integer :: i,j,k,nq,ndisc,npart,nsigma,branch
   integer :: npart_initial,nfp_segments,nbd_segments,ierr_local
   integer :: collection_pass
   integer :: collision_segment_left,collision_segment_right,collision_boundary_segment
   integer :: collision_boundary_left,collision_boundary_right
   integer :: boundary_stage
   double precision :: relerr_save,q,range,midpoint,jvalue,pstar,refined_root
+  double precision :: jleft,jright,pleft,pright,rleft,rright
   double precision :: collision_jlo,collision_jhi
   double precision :: boundary_stage_r,boundary_stage_j
   double precision, allocatable :: qroots(:),disc_roots(:),rpartition(:)
@@ -4277,14 +4343,16 @@
                                    fp_plo(:),fp_phi(:)
   integer, allocatable :: bd_type(:),bd_sigma(:)
   double precision, allocatable :: bd_rlo(:),bd_rhi(:),bd_jlo(:),bd_jhi(:)
-  logical :: ok,partition_refined,customgrid_save
+  logical :: ok,okleft,okright,partition_refined,customgrid_save
   external :: find_all_roots_bracketed,fixedpoint_discriminant, &
               fixedpoint_branch_stationary,fixedpoint_roots_at_R, &
-              fixedpoint_branch_value,fixedpoint_turning_intersection
+              fixedpoint_branch_value,fixedpoint_turning_intersection, &
+              fixedpoint_leading_coefficient,fixedpoint_branch_zero
 !
   ncandidates=0
   ierr=root_success
   candidates=0.d0
+  call clear_certified_partition
 ! The topology certificate scans the physical cut independently of any
 ! interpolation grid left by a resonance root search in the caller.  Reusing
 ! that grid can feed nodes outside a narrow collision interval to the root
@@ -4409,6 +4477,30 @@
       return
     endif
   enddo
+
+! The quadratic fixed-point equation changes degree when its leading
+! coefficient vanishes.  That event is a branch boundary even when its
+! discriminant remains positive; without it, the signed-root filter can lose
+! a branch inside an apparently smooth R interval.
+  boundary_stage=17
+  call find_all_roots_bracketed(fixedpoint_leading_coefficient, &
+                                rpc_arr(0),rpc_arr(npc),ierr_roots)
+  if(ierr_roots.ne.root_success) then
+    call fail_boundary(ierr_roots)
+    return
+  endif
+  do i=1,nroots
+    call add_fixedpoint_candidates(roots(i))
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+    call add_rpartition(roots(i))
+    if(ierr.ne.0) then
+      call fail_boundary(ierr)
+      return
+    endif
+  enddo
 !
 ! The discriminant of the exact fixed-point equation is a second physical
 ! boundary set.  With u=p_parallel (signed), psi*=psi+rho0*h_phi*u and
@@ -4468,45 +4560,11 @@
   call sort_rpartition
 !
 ! Add the projection discriminants of both signed fixed-point branches.
-  npart_initial=npart
-  do nsigma=-1,1,2
-    fixedpoint_scan_sigma=nsigma
-    do branch=1,2
-      fixedpoint_scan_branch=branch
-      do i=1,npart_initial-1
-        boundary_stage=30
-        boundary_stage_r=0.5d0*(rpartition(i)+rpartition(i+1))
-        midpoint=0.5d0*(rpartition(i)+rpartition(i+1))
-        call fixedpoint_branch_value(midpoint,nsigma,branch,jvalue,pstar,ok)
-        if(.not.ok) cycle
-        fixedpoint_scan_left=rpartition(i)
-        fixedpoint_scan_right=rpartition(i+1)
-        call find_all_roots_bracketed(fixedpoint_branch_stationary, &
-                                      rpartition(i),rpartition(i+1),ierr_local)
-        if(ierr_local.ne.root_success) then
-          call fail_boundary(ierr_local)
-          return
-        endif
-        do j=1,nroots
-          call fixedpoint_branch_value(roots(j),nsigma,branch,jvalue,pstar,ok)
-          if(.not.ok) then
-            call fail_boundary(2)
-            return
-          endif
-          call add_candidate(jvalue)
-          if(ierr.ne.0) then
-            call fail_boundary(ierr)
-            return
-          endif
-          call add_rpartition(roots(j))
-          if(ierr.ne.0) then
-            call fail_boundary(ierr)
-            return
-          endif
-        enddo
-      enddo
-    enddo
-  enddo
+  call scan_fixedpoint_stationary_roots(ierr_local)
+  if(ierr_local.ne.root_success) then
+    call fail_boundary(ierr_local)
+    return
+  endif
   call sort_rpartition
 ! The separatrix root set also changes when two distinct fixed points have the
 ! same (J_perp,psi^*) value.  This critical-value collision is not a
@@ -4527,6 +4585,12 @@
       return
     endif
     if(.not.partition_refined) exit
+    call sort_rpartition
+    call scan_fixedpoint_stationary_roots(ierr_local)
+    if(ierr_local.ne.root_success) then
+      call fail_boundary(ierr_local)
+      return
+    endif
     call sort_rpartition
   enddo
   if(partition_refined) then
@@ -4563,8 +4627,13 @@
           endif
         endif
       else
+        nsearch_collision_save=nsearch_min
+        nsearch_collision=collision_scan_points( &
+            abs(fp_rhi(i)-fp_rlo(i)),abs(fp_rhi(j)-fp_rlo(j)))
+        nsearch_min=nsearch_collision
         call find_all_roots_bracketed(fixedpoint_collision, &
                                       collision_jlo,collision_jhi,ierr_local)
+        nsearch_min=nsearch_collision_save
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -4625,8 +4694,13 @@
           endif
         endif
       else
+        nsearch_collision_save=nsearch_min
+        nsearch_collision=collision_scan_points( &
+            abs(bd_rhi(i)-bd_rlo(i)),abs(bd_rhi(j)-bd_rlo(j)))
+        nsearch_min=nsearch_collision
         call find_all_roots_bracketed(fixedpoint_collision, &
                                       collision_jlo,collision_jhi,ierr_local)
+        nsearch_min=nsearch_collision_save
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -4677,8 +4751,13 @@
           endif
         endif
       else
+        nsearch_collision_save=nsearch_min
+        nsearch_collision=collision_scan_points( &
+            abs(fp_rhi(i)-fp_rlo(i)),abs(bd_rhi(j)-bd_rlo(j)))
+        nsearch_min=nsearch_collision
         call find_all_roots_bracketed(fixedpoint_collision, &
                                       collision_jlo,collision_jhi,ierr_local)
+        nsearch_min=nsearch_collision_save
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -4720,11 +4799,31 @@
   endif
 !
   call restore_scan_state
+  call store_certified_partition(rpartition(1:npart),npart,toten)
   deallocate(qroots,disc_roots,rpartition,fp_sigma,fp_branch,fp_rlo,fp_rhi, &
       fp_jlo,fp_jhi,fp_plo,fp_phi,bd_type,bd_sigma,bd_rlo,bd_rhi,bd_jlo,bd_jhi)
   return
 !
 contains
+
+  integer function collision_scan_points(width_left,width_right)
+! The collision observable is smooth on each certified branch interval.  Use
+! its represented cut-cell count when that is smaller, but never inherit the
+! much finer global stationary-root scan: the original caller resolution is
+! the configured upper bound for this bounded inversion search.
+    double precision, intent(in) :: width_left,width_right
+    double precision :: width
+
+    width=max(0.d0,width_left)+max(0.d0,width_right)
+    if(h_rpc.gt.0.d0) then
+      collision_scan_points=max(2,min(max_scan_roots, &
+          2+int(ceiling(width/h_rpc))))
+    else
+      collision_scan_points=max(2,nsearch_save)
+    endif
+    collision_scan_points=max(2,min(max(2,nsearch_save), &
+        collision_scan_points))
+  end function collision_scan_points
 
   subroutine fail_boundary(status)
     integer, intent(in) :: status
@@ -4733,6 +4832,7 @@ contains
         boundary_stage,toten,boundary_stage_r,boundary_stage_j,npart, &
         nfp_segments,nbd_segments,status
     ierr=status
+    call clear_certified_partition
     call restore_scan_state
     if(allocated(qroots)) deallocate(qroots)
     if(allocated(disc_roots)) deallocate(disc_roots)
@@ -4820,10 +4920,10 @@ contains
     do local_i=1,npart
       if(rpartition(local_i).eq.value) return
       if(abs(rpartition(local_i)-value).le.tolerance) then
-        ! Distinct boundary equations that collapse at floating-point scale
-        ! cannot be certified as one transition.  Merging them would omit a
-        ! possible narrow topology interval.
-        ierr=root_unresolved_separation
+        ! Boundary equations are solved independently and may return the same
+        ! physical R event at slightly different machine-resolution values.
+        ! There is no representable open interval between those values, so a
+        ! second partition point would only create a zero-width cell.
         return
       endif
     enddo
@@ -4835,6 +4935,120 @@ contains
     rpartition(npart)=value
   end subroutine add_rpartition
 
+  subroutine scan_fixedpoint_stationary_roots(ierr_scan)
+! Find projection stationary roots on the current certified R partition.  This
+! is also required after a local discriminant refinement: splitting an interval
+! can expose a stationary root that the coarser pre-refinement scan could not
+! classify on its branch.
+    integer, intent(out) :: ierr_scan
+    integer :: local_sigma,local_branch,local_i,local_j,local_npart,local_error
+    double precision :: local_mid,local_jvalue,local_pstar,local_jleft, &
+                        local_jright,local_pleft,local_pright,local_rleft, &
+                        local_rright
+    logical :: local_ok,local_okleft,local_okright
+
+    ierr_scan=root_success
+    local_npart=npart
+    do local_sigma=-1,1,2
+      fixedpoint_scan_sigma=local_sigma
+      do local_branch=1,2
+        fixedpoint_scan_branch=local_branch
+        do local_i=1,local_npart-1
+          boundary_stage=30
+          boundary_stage_r=0.5d0*(rpartition(local_i)+ &
+                                  rpartition(local_i+1))
+          local_mid=boundary_stage_r
+          call fixedpoint_branch_value(local_mid,local_sigma,local_branch, &
+                                       local_jvalue,local_pstar,local_ok)
+          if(.not.local_ok) cycle
+          call fixedpoint_branch_endpoint(rpartition(local_i), &
+              rpartition(local_i),rpartition(local_i+1),1.d0,local_sigma, &
+              local_branch,local_jleft,local_pleft,local_rleft,local_okleft)
+          call fixedpoint_branch_endpoint(rpartition(local_i+1), &
+              rpartition(local_i),rpartition(local_i+1),-1.d0,local_sigma, &
+              local_branch,local_jright,local_pright,local_rright, &
+              local_okright)
+          if(.not.local_okleft .or. .not.local_okright .or. &
+             local_rright.le.local_rleft) cycle
+          fixedpoint_scan_left=local_rleft
+          fixedpoint_scan_right=local_rright
+          call find_fixedpoint_stationary_roots(local_rleft,local_rright, &
+                                                local_error)
+          if(local_error.ne.root_success) then
+            ierr_scan=local_error
+            return
+          endif
+          do local_j=1,nroots
+            call fixedpoint_branch_value(roots(local_j),local_sigma, &
+                local_branch,local_jvalue,local_pstar,local_ok)
+            if(.not.local_ok) then
+              ierr_scan=root_invalid_domain
+              return
+            endif
+! Only stationary values on the physical outer domain can split the
+! J_perp scan.  A negative branch may still have a perfectly valid algebraic
+! stationary point, but it cannot contribute to the integral.  In particular,
+! retaining its ill-conditioned roots near a quadratic coalescence would turn
+! roundoff in an irrelevant branch into thousands of artificial cuts.
+            if(local_jvalue.lt.0.d0) cycle
+            call add_candidate(local_jvalue)
+            if(ierr.ne.0) then
+              ierr_scan=ierr
+              return
+            endif
+            call add_rpartition(roots(local_j))
+            if(ierr.ne.0) then
+              ierr_scan=ierr
+              return
+            endif
+          enddo
+        enddo
+      enddo
+    enddo
+  end subroutine scan_fixedpoint_stationary_roots
+
+  subroutine find_fixedpoint_stationary_roots(rlo,rhi,ierr_roots,permit_subcell)
+! The fixed-point coefficients are evaluated from the interpolated Poincare
+! cut.  Do not sample a cell far more finely than that representation: below
+! one cut-cell width the finite-difference jet is roundoff-dominated, while a
+! genuine stationary event is still refined by the bounded root solver after
+! its sign bracket is found.
+    double precision, intent(in) :: rlo,rhi
+    integer, intent(out) :: ierr_roots
+    logical, intent(in), optional :: permit_subcell
+    integer :: nsearch_save_local,nsearch_target
+    double precision :: width,ncut_cells
+    logical :: subcell_allowed
+
+    nsearch_save_local=nsearch_min
+    nsearch_target=nsearch_save_local
+    subcell_allowed=.false.
+    if(present(permit_subcell)) subcell_allowed=permit_subcell
+    width=rhi-rlo
+    if(width.le.0.d0) then
+      ierr_roots=root_invalid_interval
+      return
+    endif
+    if(h_rpc.gt.0.d0 .and. width.lt.h_rpc .and. .not.subcell_allowed) then
+! The coefficient/branch data come from a four-point local cut interpolant.
+! A sub-cell interval has no independent radial information for a stationary
+! projection root; exact algebraic event equations are still handled by the
+! neighbouring refiners.
+      nroots=0
+      ierr_roots=root_success
+      return
+    endif
+    if(h_rpc.gt.0.d0) then
+      ncut_cells=ceiling(width/h_rpc)
+      nsearch_target=max(8,min(nsearch_save_local, &
+                               int(ncut_cells)+1))
+    endif
+    nsearch_min=nsearch_target
+    call find_all_roots_bracketed(fixedpoint_branch_stationary, &
+                                  rlo,rhi,ierr_roots)
+    nsearch_min=nsearch_save_local
+  end subroutine find_fixedpoint_stationary_roots
+
   subroutine sort_rpartition
     integer :: local_i,local_j
     double precision :: local_key
@@ -4842,7 +5056,8 @@ contains
     do local_i=2,npart
       local_key=rpartition(local_i)
       local_j=local_i-1
-      do while(local_j.ge.1 .and. rpartition(local_j).gt.local_key)
+      do while(local_j.ge.1)
+        if(rpartition(local_j).le.local_key) exit
         rpartition(local_j+1)=rpartition(local_j)
         local_j=local_j-1
       enddo
@@ -4851,43 +5066,149 @@ contains
   end subroutine sort_rpartition
 
   subroutine refine_discriminant_transition(rvalid,rinvalid)
-! A very narrow positive discriminant island can lie between the global scan
-! nodes.  When a branch probe exposes one, refine the exact discriminant
-! equation on its valid/invalid bracket and add the resulting boundary to the
-! certified R partition.  This is a topology refinement, not an acceptance of
-! a failed branch sample.
+! A branch probe can expose a missed pair of discriminant roots even when the
+! discriminant has the same sign at the two probe points: the real-root island
+! may be narrower than the global cut scan.  Re-scan only this witnessed local
+! interval at the normal certified resolution and add every exact D=0 root.
     double precision, intent(in) :: rvalid,rinvalid
-    integer :: local_it,local_npart
-    double precision :: rvalid_local,rinvalid_local,rmid,dvalid,dinvalid, &
-                        dmid,scale
-    logical :: oklo,okhi,okmid
+    integer :: local_i,local_error,local_npart
+    double precision :: rlo,rhi
 
-    call fixedpoint_discriminant_value(rvalid,dvalid,oklo)
-    call fixedpoint_discriminant_value(rinvalid,dinvalid,okhi)
-    if(.not.oklo .or. .not.okhi .or. dvalid.lt.0.d0 .or. dinvalid.ge.0.d0) return
-    rvalid_local=rvalid
-    rinvalid_local=rinvalid
-    do local_it=1,max_scan_roots
-      rmid=0.5d0*(rvalid_local+rinvalid_local)
-      if(rmid.eq.rvalid_local .or. rmid.eq.rinvalid_local) exit
-      call fixedpoint_discriminant_value(rmid,dmid,okmid)
-      if(.not.okmid) return
-      if(dmid.ge.0.d0) then
-        rvalid_local=rmid
-        dvalid=dmid
-      else
-        rinvalid_local=rmid
-        dinvalid=dmid
-      endif
-      scale=max(1.d0,abs(rvalid_local),abs(rinvalid_local))
-      if(abs(rinvalid_local-rvalid_local).le.256.d0*epsilon(1.d0)*scale) exit
+    rlo=min(rvalid,rinvalid)
+    rhi=max(rvalid,rinvalid)
+    if(rhi.le.rlo) return
+    call find_all_roots_bracketed(fixedpoint_discriminant,rlo,rhi,local_error)
+    if(local_error.ne.root_success) then
+      ierr=local_error
+      return
+    endif
+    do local_i=1,nroots
+      call add_fixedpoint_candidates(roots(local_i))
+      if(ierr.ne.0) return
+      local_npart=npart
+      call add_rpartition(roots(local_i))
+      if(ierr.ne.0) return
+      if(npart.gt.local_npart) partition_refined=.true.
     enddo
-    rmid=0.5d0*(rvalid_local+rinvalid_local)
-    local_npart=npart
-    call add_rpartition(rmid)
-    if(ierr.ne.0) return
-    partition_refined=(npart.gt.local_npart)
   end subroutine refine_discriminant_transition
+
+  subroutine refine_turning_transition(rvalid,rinvalid)
+! A narrow c(R)=0 interval can be missed by the global cut scan even though a
+! fixed-point branch changes signed-parallel side across it.  Refine the
+! witnessed local interval with the exact turning-intersection callback.
+    double precision, intent(in) :: rvalid,rinvalid
+    integer :: local_i,local_error,local_npart,nsearch_save_local
+    double precision :: rlo,rhi,local_jvalue,local_c_lo,local_c_hi
+    double precision :: local_a,local_b,local_e,local_bfield,local_ps,local_h
+    logical :: local_ok,local_ok_lo,local_ok_hi
+
+    rlo=min(rvalid,rinvalid)
+    rhi=max(rvalid,rinvalid)
+    if(rhi.le.rlo) return
+    call fixedpoint_coefficients(rlo,local_a,local_b,local_c_lo,local_e, &
+        local_bfield,local_ps,local_h,local_ok_lo)
+    call fixedpoint_coefficients(rhi,local_a,local_b,local_c_hi,local_e, &
+        local_bfield,local_ps,local_h,local_ok_hi)
+    nsearch_save_local=nsearch_min
+    if(local_ok_lo .and. local_ok_hi .and. &
+       (local_c_lo.eq.0.d0 .or. local_c_hi.eq.0.d0 .or. &
+        local_c_lo*local_c_hi.lt.0.d0)) then
+      nsearch_min=2
+    endif
+    call find_all_roots_bracketed(fixedpoint_turning_intersection,rlo,rhi, &
+                                  local_error)
+    nsearch_min=nsearch_save_local
+    if(local_error.ne.root_success) then
+      ierr=local_error
+      return
+    endif
+    do local_i=1,nroots
+      call jperp_value(roots(local_i),local_jvalue,local_ok)
+      if(.not.local_ok) then
+        ierr=2
+        return
+      endif
+      call add_candidate(local_jvalue)
+      if(ierr.ne.0) return
+      local_npart=npart
+      call add_rpartition(roots(local_i))
+      if(ierr.ne.0) return
+      if(npart.gt.local_npart) partition_refined=.true.
+    enddo
+  end subroutine refine_turning_transition
+
+  subroutine refine_fixedpoint_stationary_transition(rlo,rhi,sigma_value, &
+                                                     branch)
+! A quarter-point monotonicity witness can expose a stationary projection root
+! that was hidden by a coarser R partition.  Re-scan only that certified
+! branch interval and restart the segment collection when a new root is found.
+    double precision, intent(in) :: rlo,rhi
+    integer, intent(in) :: sigma_value,branch
+    integer :: local_i,local_error,local_npart
+    double precision :: local_jvalue,local_pstar
+    logical :: local_ok
+
+    if(rhi.le.rlo) return
+    fixedpoint_scan_sigma=sigma_value
+    fixedpoint_scan_branch=branch
+    fixedpoint_scan_left=rlo
+    fixedpoint_scan_right=rhi
+    call find_fixedpoint_stationary_roots(rlo,rhi,local_error,.true.)
+    if(local_error.ne.root_success) then
+      ierr=local_error
+      return
+    endif
+    do local_i=1,nroots
+      call fixedpoint_branch_value(roots(local_i),sigma_value,branch, &
+                                   local_jvalue,local_pstar,local_ok)
+      if(.not.local_ok) then
+        ierr=root_invalid_domain
+        return
+      endif
+      call add_candidate(local_jvalue)
+      if(ierr.ne.0) return
+      local_npart=npart
+      call add_rpartition(roots(local_i))
+      if(ierr.ne.0) return
+      if(npart.gt.local_npart) partition_refined=.true.
+    enddo
+  end subroutine refine_fixedpoint_stationary_transition
+
+  subroutine refine_fixedpoint_zero_transition(rlo,rhi,sigma_value,branch)
+! J_perp=0 is the edge of the physical outer domain.  A branch can cross it
+! inside an R cell even though the algebraic fixed point continues smoothly;
+! split there before testing projection monotonicity.
+    double precision, intent(in) :: rlo,rhi
+    integer, intent(in) :: sigma_value,branch
+    integer :: local_i,local_error,local_npart
+    double precision :: local_jvalue,local_pstar
+    logical :: local_ok
+
+    if(rhi.le.rlo) return
+    fixedpoint_scan_sigma=sigma_value
+    fixedpoint_scan_branch=branch
+    fixedpoint_scan_left=rlo
+    fixedpoint_scan_right=rhi
+    call find_all_roots_bracketed(fixedpoint_branch_zero,rlo,rhi,local_error)
+    if(local_error.ne.root_success) then
+      ierr=local_error
+      return
+    endif
+    do local_i=1,nroots
+      call fixedpoint_branch_value(roots(local_i),sigma_value,branch, &
+                                   local_jvalue,local_pstar,local_ok)
+      if(.not.local_ok) then
+        ierr=root_invalid_domain
+        return
+      endif
+      call add_candidate(local_jvalue)
+      if(ierr.ne.0) return
+      local_npart=npart
+      call add_rpartition(roots(local_i))
+      if(ierr.ne.0) return
+      if(npart.gt.local_npart) partition_refined=.true.
+    enddo
+  end subroutine refine_fixedpoint_zero_transition
 
   subroutine collect_fixedpoint_segments
 ! On each final R interval the quadratic branch is single-valued and its
@@ -4896,7 +5217,8 @@ contains
     integer :: local_sigma,local_branch,local_i
     double precision :: local_mid,local_j,local_p,local_jl,local_jr, &
                         local_pl,local_pr,local_jq1,local_jq2, &
-                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width, &
+                        local_rlo,local_rhi,tolerance,width, &
+                        local_width, &
                         local_contracted_mid,local_contracted_discriminant
     logical :: local_ok,local_okl,local_okr,local_okq1,local_okq2
     logical :: local_contracted_discriminant_ok
@@ -4931,6 +5253,13 @@ contains
             ierr=2
             return
           endif
+          local_width=local_rhi-local_rlo
+          if((local_jl.le.0.d0 .and. local_jr.ge.0.d0) .or. &
+             (local_jl.ge.0.d0 .and. local_jr.le.0.d0)) then
+            call refine_fixedpoint_zero_transition(local_rlo,local_rhi, &
+                local_sigma,local_branch)
+            if(ierr.ne.0 .or. partition_refined) return
+          endif
 ! A branch that is already negative at both certified endpoints and its
 ! interior midpoint cannot contribute to the physical J_perp >= 0 domain.
 ! Discard it before probing quarter points: outside the physical domain the
@@ -4955,15 +5284,19 @@ contains
             ierr=2
             return
           endif
-          call fixedpoint_branch_value(rpartition(local_i)+0.25d0*width, &
-              local_sigma,local_branch,local_jq1,local_pq1,local_okq1)
-          call fixedpoint_branch_value(rpartition(local_i)+0.75d0*width, &
-              local_sigma,local_branch,local_jq2,local_pq2,local_okq2)
+          call fixedpoint_branch_value(local_rlo+0.25d0*local_width, &
+              local_sigma,local_branch,local_jq1,local_p,local_okq1)
+          call fixedpoint_branch_value(local_rlo+0.75d0*local_width, &
+              local_sigma,local_branch,local_jq2,local_p,local_okq2)
           if(.not.local_okq1 .or. .not.local_okq2) then
             if(.not.local_okq1) call refine_discriminant_transition( &
-                local_mid,rpartition(local_i)+0.25d0*width)
+                local_contracted_mid,local_rlo+0.25d0*local_width)
             if(.not.local_okq2) call refine_discriminant_transition( &
-                local_mid,rpartition(local_i)+0.75d0*width)
+                local_contracted_mid,local_rlo+0.75d0*local_width)
+            if(.not.local_okq1) call refine_turning_transition( &
+                local_contracted_mid,local_rlo+0.25d0*local_width)
+            if(.not.local_okq2) call refine_turning_transition( &
+                local_contracted_mid,local_rlo+0.75d0*local_width)
             if(partition_refined) return
             boundary_stage=43
             ierr=2
@@ -4980,6 +5313,11 @@ contains
              local_jq1.gt.max(local_jl,local_jr)+tolerance .or. &
              local_jq2.lt.min(local_jl,local_jr)-tolerance .or. &
              local_jq2.gt.max(local_jl,local_jr)+tolerance) then
+            fixedpoint_scan_left=local_rlo
+            fixedpoint_scan_right=local_rhi
+            call refine_fixedpoint_stationary_transition(local_rlo,local_rhi, &
+                local_sigma,local_branch)
+            if(ierr.ne.0 .or. partition_refined) return
             boundary_stage=44
             ierr=2
             return
@@ -5020,43 +5358,75 @@ contains
 ! level curves used by find_bounds_fixpoints: v_parallel=0 turning roots and
 ! fixed cut/rho_pol endpoints.  The q(R) projection is monotone on the same
 ! final R partition, so its inverse is bounded just like a fixed-point branch.
-    integer :: local_i
+    integer :: local_i,local_error,local_nsearch_save,local_root
+    integer :: local_npart_before
     double precision :: local_width,local_q0,local_q1,local_q25,local_q75, &
                         local_p,local_tolerance
     logical :: local_ok0,local_ok1,local_ok25,local_ok75
+    logical :: local_refined
 
-    nbd_segments=0
-    do local_i=1,npart-1
-      local_width=rpartition(local_i+1)-rpartition(local_i)
-      if(local_width.le.0.d0) then
-        ierr=3
-        return
-      endif
-      call jperp_value(rpartition(local_i),local_q0,local_ok0)
-      call jperp_value(rpartition(local_i+1),local_q1,local_ok1)
-      call jperp_value(rpartition(local_i)+0.25d0*local_width, &
-                       local_q25,local_ok25)
-      call jperp_value(rpartition(local_i)+0.75d0*local_width, &
-                       local_q75,local_ok75)
-      if(.not.local_ok0 .or. .not.local_ok1 .or. .not.local_ok25 .or. &
-         .not.local_ok75) then
-        ierr=2
-        return
-      endif
-      local_tolerance=1.d-10*max(1.d0,abs(local_q0),abs(local_q1), &
-                                  abs(local_q25),abs(local_q75))
-      if(local_q25.lt.min(local_q0,local_q1)-local_tolerance .or. &
-         local_q25.gt.max(local_q0,local_q1)+local_tolerance .or. &
-         local_q75.lt.min(local_q0,local_q1)-local_tolerance .or. &
-         local_q75.gt.max(local_q0,local_q1)+local_tolerance) then
-        ierr=2
-        return
-      endif
-      if(max(local_q0,local_q1).gt.0.d0) then
-        call add_boundary_segment(1,0,rpartition(local_i), &
-            rpartition(local_i+1),local_q0,local_q1)
-        if(ierr.ne.0) return
-      endif
+    do
+      local_refined=.false.
+      nbd_segments=0
+      do local_i=1,npart-1
+        local_width=rpartition(local_i+1)-rpartition(local_i)
+        if(local_width.le.0.d0) then
+          ierr=3
+          return
+        endif
+        call jperp_value(rpartition(local_i),local_q0,local_ok0)
+        call jperp_value(rpartition(local_i+1),local_q1,local_ok1)
+        call jperp_value(rpartition(local_i)+0.25d0*local_width, &
+                         local_q25,local_ok25)
+        call jperp_value(rpartition(local_i)+0.75d0*local_width, &
+                         local_q75,local_ok75)
+        if(.not.local_ok0 .or. .not.local_ok1 .or. .not.local_ok25 .or. &
+           .not.local_ok75) then
+          ierr=2
+          return
+        endif
+        local_tolerance=1.d-10*max(1.d0,abs(local_q0),abs(local_q1), &
+                                    abs(local_q25),abs(local_q75))
+        if(local_q25.lt.min(local_q0,local_q1)-local_tolerance .or. &
+           local_q25.gt.max(local_q0,local_q1)+local_tolerance .or. &
+           local_q75.lt.min(local_q0,local_q1)-local_tolerance .or. &
+           local_q75.gt.max(local_q0,local_q1)+local_tolerance) then
+          local_npart_before=npart
+          local_nsearch_save=nsearch_min
+          nsearch_min=4
+          call find_all_roots_bracketed(jperp_stationary, &
+              rpartition(local_i),rpartition(local_i+1),local_error)
+          nsearch_min=local_nsearch_save
+          if(local_error.ne.root_success .or. nroots.le.0) then
+            ierr=2
+            return
+          endif
+          do local_root=1,nroots
+            call jperp_value(roots(local_root),local_p,local_ok0)
+            if(.not.local_ok0) then
+              ierr=2
+              return
+            endif
+            call add_candidate(local_p)
+            if(ierr.ne.0) return
+            call add_rpartition(roots(local_root))
+            if(ierr.ne.0) return
+          enddo
+          call sort_rpartition
+          local_refined=(npart.gt.local_npart_before)
+          if(.not.local_refined) then
+            ierr=root_unresolved_separation
+            return
+          endif
+          exit
+        endif
+        if(max(local_q0,local_q1).gt.0.d0) then
+          call add_boundary_segment(1,0,rpartition(local_i), &
+              rpartition(local_i+1),local_q0,local_q1)
+          if(ierr.ne.0) return
+        endif
+      enddo
+      if(.not.local_refined) exit
     enddo
     call add_fixed_boundary_segment(rpc_arr(0))
     call add_fixed_boundary_segment(rpc_arr(npc))
@@ -5150,7 +5520,7 @@ contains
 ! all-roots scanner; all function evaluations remain inside certified branch
 ! intervals.
     use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
-                                   root_invalid_domain
+                                   root_success,root_invalid_domain
     double precision, intent(in) :: jtest
     double precision, intent(out) :: difference,ddifference_dj
     double precision :: h,dm,dp,scale
@@ -5167,7 +5537,7 @@ contains
       ddifference_dj=0.d0
       return
     endif
-    scale=max(1.d0,abs(jtest),abs(collision_jlo),abs(collision_jhi))
+    scale=max(1.d-300,abs(jtest),abs(collision_jlo),abs(collision_jhi))
 ! The overlap can be much narrower than the absolute J scale.  A nominal
 ! relative step then collapses to the roundoff floor even though a bounded
 ! two-sided quarter-interval is perfectly resolved.  Raise the provisional
@@ -5619,12 +5989,12 @@ contains
                                    root_invalid_domain
     double precision, intent(in) :: R
     double precision, intent(out) :: stationary,dstationary
-    double precision :: value,dvalue,value_m,dvalue_m,value_p,dvalue_p,h
-    logical :: ok_m,ok_p,ok
+    double precision :: value,value_m,value_p,value_m2,value_p2,h
+    logical :: ok_m,ok_p,ok_m2,ok_p2,ok
 
     root_eval_valid=.true.
     root_eval_error=0
-    call jperp_value_and_derivative(R,value,stationary,ok)
+    call jperp_value(R,value,ok)
     if(.not.ok) then
       root_eval_valid=.false.
       root_eval_error=root_invalid_domain
@@ -5633,21 +6003,24 @@ contains
       return
     endif
     h=max(1.d-8*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
-    h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
+    h=min(h,0.125d0*(R-rpc_arr(0)),0.125d0*(rpc_arr(npc)-R))
     if(h.le.0.d0) then
       dstationary=0.d0
       return
     endif
-    call jperp_value_and_derivative(R-h,value_m,dvalue_m,ok_m)
-    call jperp_value_and_derivative(R+h,value_p,dvalue_p,ok_p)
-    if(.not.ok_m .or. .not.ok_p) then
+    call jperp_value(R-h,value_m,ok_m)
+    call jperp_value(R+h,value_p,ok_p)
+    call jperp_value(R-2.d0*h,value_m2,ok_m2)
+    call jperp_value(R+2.d0*h,value_p2,ok_p2)
+    if(.not.ok_m .or. .not.ok_p .or. .not.ok_m2 .or. .not.ok_p2) then
       root_eval_valid=.false.
       root_eval_error=root_invalid_domain
       stationary=0.d0
       dstationary=0.d0
       return
     endif
-    dstationary=(dvalue_p-dvalue_m)/(2.d0*h)
+    stationary=(value_p-value_m)/(2.d0*h)
+    dstationary=(value_p2-2.d0*value+value_m2)/(4.d0*h*h)
   end subroutine jperp_stationary
 
   end subroutine find_jperp_topology_boundaries
@@ -5669,7 +6042,7 @@ contains
 !
   use field_sub, only : psif,dpsidr,dpsidz
   use global_invariants, only : toten
-  use poicut_mod, only : npc,rpc_arr
+  use poicut_mod, only : npc,rpc_arr,h_rpc
   implicit none
 !
   double precision, intent(in) :: R
@@ -5711,7 +6084,7 @@ contains
   hphi=hcovar(2)
 
   scale=max(1.d0,abs(R),abs(rpc_arr(0)),abs(rpc_arr(npc)))
-  hstep=max(1.d-7*range,256.d0*epsilon(1.d0)*scale)
+  hstep=max(h_rpc,256.d0*epsilon(1.d0)*scale)
   if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
     hstep=min(hstep,0.25d0*(R-rpc_arr(0)), &
                     0.25d0*(rpc_arr(npc)-R))
@@ -5809,7 +6182,6 @@ contains
   integer, intent(out) :: nfixed
   logical, intent(out) :: ok
   double precision :: acoef,bcoef,ccoef,energy_a,bfield,psistar,hphi
-  double precision :: u_tol
   double precision, dimension(2) :: all_u
   integer :: nall,i
   logical :: coeff_ok,quadratic_ok
@@ -5827,9 +6199,11 @@ contains
     ok=.false.
     return
   endif
-  u_tol=128.d0*epsilon(1.d0)*max(1.d0,sqrt(abs(energy_a)))
   do i=1,nall
-    if(dble(sigma_value)*all_u(i).le.u_tol) cycle
+! The branch exists on the signed open half-line sigma*u>0.  Do not impose a
+! numerical velocity floor: it would delete a valid branch before the exact
+! u=0 (c=0) turning boundary is reached.
+    if(dble(sigma_value)*all_u(i).le.0.d0) cycle
     if(nfixed.gt.0) then
       if(abs(all_u(i)-uroots(nfixed)).le.128.d0*epsilon(1.d0)* &
          max(1.d0,abs(all_u(i)))) cycle
@@ -5870,7 +6244,7 @@ contains
   subroutine fixedpoint_discriminant(R,discriminant,ddiscriminant_dR)
   use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
                                  root_invalid_domain
-  use poicut_mod, only : npc,rpc_arr
+  use poicut_mod, only : npc,rpc_arr,h_rpc
   implicit none
   double precision, intent(in) :: R
   double precision, intent(out) :: discriminant,ddiscriminant_dR
@@ -5888,7 +6262,7 @@ contains
     return
   endif
   range=rpc_arr(npc)-rpc_arr(0)
-  h=max(1.d-7*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+  h=max(h_rpc,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
   if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
     h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
   else
@@ -5921,7 +6295,7 @@ contains
                                              dintersection_dR)
   use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
                                  root_invalid_domain
-  use poicut_mod, only : npc,rpc_arr
+  use poicut_mod, only : npc,rpc_arr,h_rpc
   implicit none
   double precision, intent(in) :: R
   double precision, intent(out) :: intersection,dintersection_dR
@@ -5943,7 +6317,7 @@ contains
   endif
   intersection=ccoef
   range=rpc_arr(npc)-rpc_arr(0)
-  h=max(1.d-7*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+  h=max(h_rpc,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
   if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
     h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
   else
@@ -5975,6 +6349,65 @@ contains
   endif
   end subroutine fixedpoint_turning_intersection
 
+  subroutine fixedpoint_leading_coefficient(R,leading,dleading_dR)
+! A=0 is the degree-change boundary of the exact quadratic fixed-point
+! equation.  It is separate from c=0 (the turning intersection) and from the
+! discriminant: one quadratic branch can escape to infinity while the other
+! remains finite.
+  use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                 root_invalid_domain
+  use poicut_mod, only : npc,rpc_arr,h_rpc
+  implicit none
+  double precision, intent(in) :: R
+  double precision, intent(out) :: leading,dleading_dR
+  double precision :: acoef,bcoef,ccoef,energy_a,bfield,psistar,hphi
+  double precision :: aminus,aplus,unused_b,unused_c,unused_e,unused_bfield, &
+                      unused_psistar,unused_hphi,h,range
+  logical :: ok,okminus,okplus
+
+  root_eval_valid=.true.
+  root_eval_error=0
+  call fixedpoint_coefficients(R,acoef,bcoef,ccoef,energy_a,bfield, &
+                               psistar,hphi,ok)
+  if(.not.ok) then
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    leading=0.d0
+    dleading_dR=0.d0
+    return
+  endif
+  leading=acoef
+  range=rpc_arr(npc)-rpc_arr(0)
+  h=max(h_rpc,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+  if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
+    h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
+  else
+    h=min(h,0.25d0*range)
+  endif
+  okminus=.false.
+  okplus=.false.
+  if(R.gt.rpc_arr(0)) then
+    call fixedpoint_coefficients(R-h,aminus,unused_b,unused_c,unused_e, &
+                                 unused_bfield,unused_psistar,unused_hphi,okminus)
+  endif
+  if(R.lt.rpc_arr(npc)) then
+    call fixedpoint_coefficients(R+h,aplus,unused_b,unused_c,unused_e, &
+                                 unused_bfield,unused_psistar,unused_hphi,okplus)
+  endif
+  if(okminus .and. okplus) then
+    dleading_dR=(aplus-aminus)/(2.d0*h)
+  elseif(okplus) then
+    dleading_dR=(aplus-acoef)/h
+  elseif(okminus) then
+    dleading_dR=(acoef-aminus)/h
+  else
+    root_eval_valid=.false.
+    root_eval_error=root_invalid_domain
+    leading=0.d0
+    dleading_dR=0.d0
+  endif
+  end subroutine fixedpoint_leading_coefficient
+
   subroutine fixedpoint_discriminant_value(R,discriminant,ok)
   implicit none
   double precision, intent(in) :: R
@@ -5995,18 +6428,18 @@ contains
 
   subroutine fixedpoint_branch_stationary(R,stationary,dstationary)
     use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
-                                 root_invalid_domain,root_left_endpoint_contracted, &
-                                 root_right_endpoint_contracted,root_search_left, &
-                                 root_search_right
+                                   root_invalid_domain,root_left_endpoint_contracted, &
+                                   root_right_endpoint_contracted,root_search_left, &
+                                   root_search_right
   use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
                                        fixedpoint_scan_branch, &
                                        fixedpoint_scan_left, fixedpoint_scan_right
-  use poicut_mod, only : npc,rpc_arr
+    use poicut_mod, only : npc,rpc_arr,h_rpc
   implicit none
   double precision, intent(in) :: R
   double precision, intent(out) :: stationary,dstationary
-  double precision :: j0,jm,jp,j2,h,range,left,right
-  logical :: ok0,okm,okp,ok2
+  double precision :: left,right
+  logical :: ok
 
   root_eval_valid=.true.
   root_eval_error=0
@@ -6017,70 +6450,126 @@ contains
     right=rpc_arr(npc)
   endif
 ! find_all_roots may have contracted an invalid physical endpoint.  The
-! finite-difference classifier must use that certified open endpoint during
-! subsequent refinement; probing against the original forbidden boundary
-! would manufacture a second, spurious invalid-domain failure.
+! implicit stationary numerator must use that certified open interval.
   if(root_left_endpoint_contracted) left=max(left,root_search_left)
   if(root_right_endpoint_contracted) right=min(right,root_search_right)
-  if(right.le.left) then
+  call fixedpoint_branch_stationary_value_bounded(R,fixedpoint_scan_sigma, &
+      fixedpoint_scan_branch,left,right,stationary,ok)
+  if(.not.ok) then
     root_eval_valid=.false.
     root_eval_error=root_invalid_domain
     stationary=0.d0
     dstationary=0.d0
     return
   endif
-  range=right-left
-  call fixedpoint_branch_value(R,fixedpoint_scan_sigma,fixedpoint_scan_branch, &
-                               j0,stationary,ok0)
-  if(.not.ok0) then
-    root_eval_valid=.false.
-    root_eval_error=root_invalid_domain
-    stationary=0.d0
-    dstationary=0.d0
-    return
-  endif
-  h=max(1.d-7*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
-  h=min(h,0.25d0*range)
-  okm=.false.
-  okp=.false.
-  if(R.gt.left) then
-    h=min(h,0.25d0*(R-left))
-    call fixedpoint_branch_value(R-h,fixedpoint_scan_sigma, &
-                                 fixedpoint_scan_branch,jm,stationary,okm)
-  endif
-  if(R.lt.right) then
-    h=min(h,0.25d0*(right-R))
-    call fixedpoint_branch_value(R+h,fixedpoint_scan_sigma, &
-                                 fixedpoint_scan_branch,jp,stationary,okp)
-  endif
-  if(okm .and. okp) then
-    stationary=(jp-jm)/(2.d0*h)
-    dstationary=(jp-2.d0*j0+jm)/(h*h)
-    return
-  endif
-  if(okp) then
-    call fixedpoint_branch_value(R+2.d0*h,fixedpoint_scan_sigma, &
-                                 fixedpoint_scan_branch,j2,stationary,ok2)
-    if(ok2) then
-      stationary=(jp-j0)/h
-      dstationary=(j2-2.d0*jp+j0)/(h*h)
-      return
-    endif
-  endif
-  if(okm) then
-    call fixedpoint_branch_value(R-2.d0*h,fixedpoint_scan_sigma, &
-                                 fixedpoint_scan_branch,j2,stationary,ok2)
-    if(ok2) then
-      stationary=(j0-jm)/h
-      dstationary=(j0-2.d0*jm+j2)/(h*h)
-      return
-    endif
-  endif
-  root_eval_valid=.false.
-  root_eval_error=root_invalid_domain
-  stationary=0.d0
+! The root scanner only needs a certified sign-changing stationary function.
+! Supplying a finite-difference derivative here would reintroduce the false
+! extrema at a quadratic branch coalescence.
   dstationary=0.d0
   end subroutine fixedpoint_branch_stationary
+
+  subroutine fixedpoint_branch_zero(R,zero,dzero)
+    use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
+                                   root_success,root_invalid_domain
+    use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
+                                         fixedpoint_scan_branch
+    implicit none
+    double precision, intent(in) :: R
+    double precision, intent(out) :: zero,dzero
+    double precision :: pstar
+    logical :: ok
+
+    root_eval_valid=.true.
+    root_eval_error=root_success
+    call fixedpoint_branch_value(R,fixedpoint_scan_sigma, &
+                                 fixedpoint_scan_branch,zero,pstar,ok)
+    if(.not.ok) then
+      root_eval_valid=.false.
+      root_eval_error=root_invalid_domain
+      zero=0.d0
+      dzero=0.d0
+      return
+    endif
+! The caller uses this callback only to locate J_perp=0.  The root finder
+! needs a valid value, not a second numerical derivative of the branch.
+    dzero=0.d0
+  end subroutine fixedpoint_branch_zero
+
+  subroutine fixedpoint_branch_stationary_value_bounded(R,sigma_value,branch, &
+                                                        left,right,stationary,ok)
+    use potato_symbolic_kernel_mod, only : &
+        potato_fixedpoint_stationary_numerator
+    use poicut_mod, only : npc,rpc_arr,h_rpc
+    implicit none
+    double precision, intent(in) :: R
+    integer, intent(in) :: sigma_value,branch
+    double precision, intent(in) :: left,right
+    double precision, intent(out) :: stationary
+    logical, intent(out) :: ok
+    double precision :: uroots(2),jroots(2),proots(2),u
+    double precision :: acoef,bcoef,ccoef,energy_a,bfield,psistar,hphi
+    double precision :: aminus,bminus,cminus,energy_minus,field_minus, &
+        psistar_minus,hphi_minus
+    double precision :: aplus,bplus,cplus,energy_plus,field_plus, &
+        psistar_plus,hphi_plus
+    double precision :: da_dR,db_dR,dc_dR,denergy_dR,dfield_dR
+    double precision :: stationary_exact,jminus,jplus,pminus,pplus
+    double precision :: range,h
+    integer :: nfixed
+    logical :: coeff_ok,okminus,okplus,okjminus,okjplus
+
+    ok=.false.
+    stationary=0.d0
+    if(right.le.left .or. R.le.left .or. R.ge.right) return
+
+    call fixedpoint_roots_at_R(R,sigma_value,uroots,jroots,proots,nfixed,ok)
+    if(.not.ok .or. branch.lt.1 .or. branch.gt.nfixed) then
+        ok=.false.
+        return
+    endif
+    u=uroots(branch)
+    call fixedpoint_coefficients(R,acoef,bcoef,ccoef,energy_a,bfield, &
+                                 psistar,hphi,coeff_ok)
+    if(.not.coeff_ok) return
+
+    range=rpc_arr(npc)-rpc_arr(0)
+    h=max(h_rpc,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
+    h=min(h,0.25d0*(R-left),0.25d0*(right-R))
+    if(R.gt.rpc_arr(0) .and. R.lt.rpc_arr(npc)) then
+        h=min(h,0.25d0*(R-rpc_arr(0)), &
+                0.25d0*(rpc_arr(npc)-R))
+    else
+        h=min(h,0.25d0*range)
+    endif
+    if(h.le.0.d0) return
+    call fixedpoint_coefficients(R-h,aminus,bminus,cminus,energy_minus, &
+        field_minus,psistar_minus,hphi_minus,okminus)
+    call fixedpoint_coefficients(R+h,aplus,bplus,cplus,energy_plus, &
+        field_plus,psistar_plus,hphi_plus,okplus)
+    if(.not.okminus .or. .not.okplus) return
+    da_dR=(aplus-aminus)/(2.d0*h)
+    db_dR=(bplus-bminus)/(2.d0*h)
+    dc_dR=(cplus-cminus)/(2.d0*h)
+    denergy_dR=(energy_plus-energy_minus)/(2.d0*h)
+    dfield_dR=(field_plus-field_minus)/(2.d0*h)
+    call potato_fixedpoint_stationary_numerator(u,acoef,bcoef,da_dR, &
+        db_dR,dc_dR,energy_a,denergy_dR,bfield,dfield_dR,stationary_exact)
+! The generated numerator is the exact implicit limit.  For the numerical
+! root search, evaluate the same branch directly as a bounded observable: the
+! coefficient jet differentiates an interpolated first derivative and can
+! lose its sign below the cut-cell scale.  The direct slope remains inside the
+! certified branch interval and is therefore the stable root-search function.
+    call fixedpoint_branch_value(R-h,sigma_value,branch,jminus,pminus, &
+                                 okjminus)
+    call fixedpoint_branch_value(R+h,sigma_value,branch,jplus,pplus, &
+                                 okjplus)
+    if(okjminus .and. okjplus) then
+        stationary=(jplus-jminus)/(2.d0*h)
+    else
+        stationary=stationary_exact
+    endif
+    ok=.true.
+  end subroutine fixedpoint_branch_stationary_value_bounded
 
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc

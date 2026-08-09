@@ -18,6 +18,9 @@ module potato_symbolic_kernel_mod
         potato_hm_eq4_kernel
     use potato_jperp_domain_generated_mod, only : potato_jperp_domain_kernel_generated => &
         potato_jperp_domain_kernel
+    use potato_fixedpoint_stationary_generated_mod, only : &
+        potato_fixedpoint_stationary_numerator_generated => &
+        potato_fixedpoint_stationary_numerator
     use potato_limiting_generated_mod, only : potato_limiting_kernel_generated => &
         potato_limiting_kernel
     use potato_root_jacobian_generated_mod, only : potato_root_jacobian_kernel_generated => &
@@ -37,6 +40,7 @@ module potato_symbolic_kernel_mod
     private
 
     public :: potato_jperp_kernel
+    public :: potato_fixedpoint_stationary_numerator
     public :: potato_hm_kernel
     public :: potato_root_jacobian_kernel
     public :: potato_resonance_harmonic_kernel
@@ -58,6 +62,24 @@ module potato_symbolic_kernel_mod
     integer, parameter :: potato_limiting_invalid_output=3
 
 contains
+
+    pure subroutine potato_fixedpoint_stationary_numerator(fixedpoint_u, &
+        fixedpoint_a, fixedpoint_b, fixedpoint_a_prime, fixedpoint_b_prime, &
+        fixedpoint_c_prime, fixedpoint_energy, fixedpoint_energy_prime, &
+        fixedpoint_field, fixedpoint_field_prime, fixedpoint_j_numerator)
+        real(real64), intent(in) :: fixedpoint_u, fixedpoint_a, fixedpoint_b
+        real(real64), intent(in) :: fixedpoint_a_prime, fixedpoint_b_prime
+        real(real64), intent(in) :: fixedpoint_c_prime, fixedpoint_energy
+        real(real64), intent(in) :: fixedpoint_energy_prime
+        real(real64), intent(in) :: fixedpoint_field, fixedpoint_field_prime
+        real(real64), intent(out) :: fixedpoint_j_numerator
+
+        call potato_fixedpoint_stationary_numerator_generated( &
+            fixedpoint_u, fixedpoint_a, fixedpoint_b, fixedpoint_a_prime, &
+            fixedpoint_b_prime, fixedpoint_c_prime, fixedpoint_energy, &
+            fixedpoint_energy_prime, &
+            fixedpoint_field, fixedpoint_field_prime, fixedpoint_j_numerator)
+    end subroutine potato_fixedpoint_stationary_numerator
 
     subroutine potato_jperp_kernel(energy_H,qPhi,magnetic_field_B, &
         qPhi_prime,magnetic_field_B_prime,Jperp_candidate,Jperp_positive_bound, &

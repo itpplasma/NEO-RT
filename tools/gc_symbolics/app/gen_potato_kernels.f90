@@ -39,6 +39,14 @@ program gen_potato_kernels
     type(expr_t) :: Jperp_candidate, Jperp_positive_bound, dJperp_dR
     type(expr_t) :: qPhi_partial, B_partial, zero
 
+    type(expr_t) :: fixedpoint_u, fixedpoint_a, fixedpoint_b
+    type(expr_t) :: fixedpoint_a_prime, fixedpoint_b_prime, fixedpoint_c_prime
+    type(expr_t) :: fixedpoint_energy, fixedpoint_energy_prime
+    type(expr_t) :: fixedpoint_field, fixedpoint_field_prime
+    type(expr_t) :: fixedpoint_Fu, fixedpoint_FR
+    type(expr_t) :: fixedpoint_j_numerator, fixedpoint_j_explicit_derivative
+    type(expr_t) :: fixedpoint_u_derivative, fixedpoint_j_total_derivative
+
     type(expr_t) :: Jperp, deltaB_m_real, deltaB_m_imag, mode_phase
     type(expr_t) :: hamiltonian_coefficient, H_m_real, H_m_imag, H_m_squared
     type(expr_t) :: H_m_squared_sign, H_m_squared_twice, H_m_squared_paired
@@ -108,6 +116,38 @@ program gen_potato_kernels
     qPhi_partial = diff(Jperp_candidate, qPhi)
     B_partial = diff(Jperp_candidate, magnetic_field_B)
     dJperp_dR = qPhi_partial*qPhi_prime + B_partial*magnetic_field_B_prime
+
+    ! ------------------------------------------------------------------
+    ! Implicit stationary numerator for a fixed-point projection.  The
+    ! fixed-point equation is F(R,u)=a*u**2+b*u+c=0 and
+    ! J_perp(R,u)=(E-u**2)/B.  Along F=0, u'=-F_R/F_u.  Multiply
+    ! dJ_perp/dR by B**2*F_u before root-finding; this removes the false
+    ! singularity at a quadratic branch coalescence (F_u=0) without changing
+    ! the stationary roots on an open branch.
+    fixedpoint_u = sym(arena, 'fixedpoint_u')
+    fixedpoint_a = sym(arena, 'fixedpoint_a')
+    fixedpoint_b = sym(arena, 'fixedpoint_b')
+    fixedpoint_a_prime = sym(arena, 'fixedpoint_a_prime')
+    fixedpoint_b_prime = sym(arena, 'fixedpoint_b_prime')
+    fixedpoint_c_prime = sym(arena, 'fixedpoint_c_prime')
+    fixedpoint_energy = sym(arena, 'fixedpoint_energy')
+    fixedpoint_energy_prime = sym(arena, 'fixedpoint_energy_prime')
+    fixedpoint_field = sym(arena, 'fixedpoint_field')
+    fixedpoint_field_prime = sym(arena, 'fixedpoint_field_prime')
+    fixedpoint_Fu = 2*fixedpoint_a*fixedpoint_u + fixedpoint_b
+    fixedpoint_FR = fixedpoint_a_prime*fixedpoint_u**2 + &
+        fixedpoint_b_prime*fixedpoint_u + fixedpoint_c_prime
+    fixedpoint_j_explicit_derivative = &
+        (fixedpoint_energy_prime*fixedpoint_field - &
+         (fixedpoint_energy-fixedpoint_u**2)*fixedpoint_field_prime)/ &
+        fixedpoint_field**2
+    fixedpoint_u_derivative = -fixedpoint_FR/fixedpoint_Fu
+    fixedpoint_j_total_derivative = fixedpoint_j_explicit_derivative - &
+        2*fixedpoint_u/fixedpoint_field*fixedpoint_u_derivative
+    fixedpoint_j_numerator = &
+        (fixedpoint_energy_prime*fixedpoint_field - &
+         (fixedpoint_energy-fixedpoint_u**2)*fixedpoint_field_prime)* &
+        fixedpoint_Fu + 2*fixedpoint_u*fixedpoint_field*fixedpoint_FR
 
     ! ------------------------------------------------------------------
     ! POTATO's perturbed Hamiltonian coefficient.  The real/imaginary pair
@@ -286,6 +326,10 @@ program gen_potato_kernels
         dJperp_dR - (diff(Jperp_candidate, qPhi)*qPhi_prime + &
             diff(Jperp_candidate, magnetic_field_B)*magnetic_field_B_prime))
     call check_identity(proofs, proof_engine, &
+        'fixed-point stationary numerator clears the implicit denominator', &
+        fixedpoint_j_numerator - fixedpoint_field**2*fixedpoint_Fu* &
+            fixedpoint_j_total_derivative)
+    call check_identity(proofs, proof_engine, &
         'positive action bound is the positive part of Jperp candidate', &
         Jperp_positive_bound - func('max', [zero, Jperp_candidate]))
     call check_identity(proofs, proof_engine, &
@@ -405,6 +449,7 @@ program gen_potato_kernels
     call simplify_one(Jperp_candidate)
     call simplify_one(Jperp_positive_bound)
     call simplify_one(dJperp_dR)
+    call simplify_one(fixedpoint_j_numerator)
     call simplify_one(hamiltonian_coefficient)
     call simplify_one(H_m_real)
     call simplify_one(H_m_imag)
@@ -440,6 +485,8 @@ program gen_potato_kernels
 
     call emit_jperp_kernel(output_directory, Jperp_candidate, Jperp_positive_bound, &
         dJperp_dR)
+    call emit_fixedpoint_stationary_kernel(output_directory, &
+        fixedpoint_j_numerator)
     call emit_hamiltonian_kernel(output_directory, hamiltonian_coefficient, &
         H_m_real, H_m_imag, H_m_squared)
     call emit_root_kernel(output_directory, root_jacobian)
@@ -534,6 +581,25 @@ contains
         call write_kernel(directory, 'potato_jperp_domain.f90', &
             [candidate, positive_bound, derivative], spec)
     end subroutine emit_jperp_kernel
+
+    subroutine emit_fixedpoint_stationary_kernel(directory, numerator)
+        character(*), intent(in) :: directory
+        type(expr_t), intent(in) :: numerator
+        type(kernel_spec_t) :: spec
+
+        call common_spec(spec, 'potato_fixedpoint_stationary_numerator', &
+            'potato_fixedpoint_stationary_generated_mod')
+        allocate (spec%args(10), spec%outputs(1))
+        spec%args = [str('fixedpoint_u'), str('fixedpoint_a'), &
+            str('fixedpoint_b'), &
+            str('fixedpoint_a_prime'), str('fixedpoint_b_prime'), &
+            str('fixedpoint_c_prime'), str('fixedpoint_energy'), &
+            str('fixedpoint_energy_prime'), &
+            str('fixedpoint_field'), str('fixedpoint_field_prime')]
+        spec%outputs = [str('fixedpoint_j_numerator')]
+        call write_kernel(directory, 'potato_fixedpoint_stationary.f90', &
+            [numerator], spec)
+    end subroutine emit_fixedpoint_stationary_kernel
 
     subroutine emit_hamiltonian_kernel(directory, coefficient, hm_real, hm_imag, &
         hm_squared)

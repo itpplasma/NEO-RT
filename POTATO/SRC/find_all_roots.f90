@@ -328,7 +328,8 @@ end module resonance_status_mod
       kxc=kxc_first+1
     endif
     k=0
-    do while(kx.le.nsearch .and. kxc.le.kxc_last)
+    do while(kx.le.nsearch)
+      if(kxc.gt.kxc_last) exit
       if(xarr(kx).lt.xcustom(kxc)) then
         k=k+1
         dummy1d(k)=xarr(kx)
@@ -626,9 +627,11 @@ end module resonance_status_mod
   if(nroots.gt.0) then
     do iroot=1,nroots
       if(x.eq.roots(iroot)) return
-      ! A 32-ulp neighborhood is the resolvable duplicate window; roots
-      ! farther apart still fail closed as a potentially distinct pair.
-      rootdist=32.d0*epsilon(1.d0)*max(1.d-300,abs(x),abs(roots(iroot)))
+      ! Keep the duplicate window consistent with the topology partitioner.
+      ! The bounded refinement stops at a machine-resolution scale, so two
+      ! brackets inside this window are one representable root, not a second
+      ! physical interval.
+      rootdist=128.d0*epsilon(1.d0)*max(1.d-300,abs(x),abs(roots(iroot)))
       if(abs(roots(iroot)-x).le.rootdist) then
         ! Two brackets have converged to the same machine-resolvable root.
         ! Keep the first representative; roots outside this window are still

@@ -27,6 +27,7 @@ add_library(potato_base
   ${LIBNEO_SOURCE_DIR}/src/spl_three_to_five.f90
   ${LIBNEO_SOURCE_DIR}/src/magfie/spline5_RZ.f90
   generated/potato_jperp_domain.f90
+  generated/potato_fixedpoint_stationary.f90
   generated/potato_hm_eq4.f90
   generated/potato_root_jacobian.f90
   generated/potato_resonance_harmonic.f90
