@@ -620,6 +620,8 @@ contains
     ENDIF
     sig_l=topology_signature
     IF(sig_l.NE.scan_signature) THEN
+      PRINT *,'  initial topology probe mismatch i,J,expected,left,delta = ', &
+          i,candidates(i),scan_signature,sig_l,delta
       ! A root can be returned with an error smaller than the nominal
       ! partition probe.  Contract only the disagreeing side toward the
       ! certified root; an unresolved interior gap still fails closed.

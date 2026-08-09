@@ -4079,7 +4079,19 @@ contains
     ! physical topology certificate.
     if(value.lt.0.d0) return
     if(toten.eq.1.5d0 .and. value.gt.6.4d-5 .and. value.lt.6.6d-5) then
-      print *,'topology candidate diagnostic stage,J = ',boundary_stage,value
+      print *,'topology candidate diagnostic stage,J,fp,fp2,bd = ', &
+          boundary_stage,value,collision_segment_left,collision_segment_right, &
+          collision_boundary_segment
+      if(boundary_stage.eq.70 .and. allocated(fp_sigma) .and. allocated(bd_type)) then
+        print *,'  fp sigma branch Rlo Rhi Jlo Jhi = ',fp_sigma(collision_segment_left), &
+            fp_branch(collision_segment_left),fp_rlo(collision_segment_left), &
+            fp_rhi(collision_segment_left),fp_jlo(collision_segment_left), &
+            fp_jhi(collision_segment_left)
+        print *,'  bd type sigma Rlo Rhi Jlo Jhi = ',bd_type(collision_boundary_segment), &
+            bd_sigma(collision_boundary_segment),bd_rlo(collision_boundary_segment), &
+            bd_rhi(collision_boundary_segment),bd_jlo(collision_boundary_segment), &
+            bd_jhi(collision_boundary_segment)
+      endif
     endif
     if(ncandidates.ge.nmax) then
       ierr=3
