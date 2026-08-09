@@ -55,6 +55,7 @@ module potato_input_mod
     double precision :: class_eps_sampling = 1d-3
     integer :: class_itermax_sampling = 80
     double precision :: class_orbit_relerr = 1d-7
+    integer :: class_orbit_max_steps = 10000
     ! Relative cut-coordinate distance used to launch orbit samples away from
     ! a v_parallel=0 turning endpoint.  The class integral still extrapolates
     ! to the analytic endpoint; this only avoids starting the ODE at a
@@ -129,7 +130,7 @@ module potato_input_mod
         nenerg, thermen_max, enkin_min_over_temp, nbox, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, class_eps_sampling, class_itermax_sampling, &
-        class_orbit_relerr, &
+        class_orbit_relerr, class_orbit_max_steps, &
         class_boundary_margin, &
         clip_resonance_classes, topology_partition_tol, &
         topology_partition_tol_refined, topology_refinement_lane, &
@@ -194,6 +195,9 @@ contains
            class_orbit_relerr.le.0.d0 .or. class_orbit_relerr.ge.1.d0) then
             error stop 'class orbit tolerance must be finite and in (0,1)'
         endif
+        if(class_orbit_max_steps.le.0) then
+            error stop 'class orbit step budget must be positive'
+        endif
         if(topology_gap_fit_points.le.0) then
             error stop 'topology gap fit point count is invalid'
         endif
@@ -237,6 +241,7 @@ contains
         write(iunit, '(A,ES12.5)') '  class_eps_sampling = ', class_eps_sampling
         write(iunit, '(A,I0)') '  class_itermax_sampling = ', class_itermax_sampling
         write(iunit, '(A,ES12.5)') '  class_orbit_relerr = ', class_orbit_relerr
+        write(iunit, '(A,I0)') '  class_orbit_max_steps = ', class_orbit_max_steps
         write(iunit, '(A,ES12.5)') '  class_boundary_margin = ', class_boundary_margin
         write(iunit, '(A,L1)') '  clip_resonance_classes = ', clip_resonance_classes
         write(iunit, '(A,ES12.5)') '  topology_partition_tol = ', topology_partition_tol

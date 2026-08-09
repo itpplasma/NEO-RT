@@ -110,6 +110,7 @@
 !
   module get_matrix_mod
     double precision :: relerror=1.d-4, relmargin=1.d-4, orbit_relerr=1.d-10
+    integer          :: primary_step_limit=100000
 ! Class domain is trimmed to where |delphi_b| <= delphi_max: no resonance lives
 ! past 2*pi*m_max/n, and the divergent X-point endpoint beyond it defeats the
 ! adaptive sampler (sample_matrix ierr=2 -> class dropped).  delphi_max <= 0
@@ -118,7 +119,8 @@
     integer          :: iclass
 ! Relerror and relmargin are configured by sample_class_doublecount for each
 ! energy slice; they are not immutable global input once the torque loop starts.
-    !$omp threadprivate(relerror,relmargin,orbit_relerr,delphi_max,iclass)
+    !$omp threadprivate(relerror,relmargin,orbit_relerr,primary_step_limit, &
+    !$omp&              delphi_max,iclass)
   end module get_matrix_mod
 !
 !------------------------------------------------------
@@ -185,7 +187,7 @@
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,orbit_wall_loss, &
                             orbit_failure_stage
   use field_eq_mod, only : ierrfield
-  use get_matrix_mod, only : delphi_max,iclass,orbit_relerr
+  use get_matrix_mod, only : delphi_max,iclass,orbit_relerr,primary_step_limit
   use form_classes_doublecount_mod, only : ifuntype
 !
   implicit none
@@ -198,7 +200,6 @@
 !
 ! maximum number of Newton iterations for closing the orbit:
   integer, parameter :: niter=20
-  integer, parameter :: max_primary_steps=100000
 !
 ! relative error of orbit integrator:
   double precision :: relerr
@@ -325,7 +326,7 @@
 !
   do
     primary_steps=primary_steps+1
-    if(primary_steps.gt.max_primary_steps) then
+    if(primary_steps.gt.primary_step_limit) then
       ierr=2
       return
     endif
@@ -2874,14 +2875,16 @@
   use sample_class_status_mod, only : sample_class_success, &
                                       sample_class_no_resonance
   use orbit_dim_mod,     only : next,numbasef,orbit_failure_stage
-  use get_matrix_mod,    only : relerror,relmargin,orbit_relerr,iclass,delphi_max
+  use get_matrix_mod,    only : relerror,relmargin,orbit_relerr,iclass,delphi_max, &
+                                primary_step_limit
   use global_invariants, only : dtau,toten,perpinv,sigma
   use form_classes_doublecount_mod, only : ifuntype,sigma_class, &
                                            R_class_beg,R_class_end
   use cc_mod, only : dowrite
   use interp_cache_mod,  only : interp_cache_reset
   use potato_input_mod, only : class_eps_sampling, class_itermax_sampling, &
-                               class_boundary_margin, class_orbit_relerr
+                               class_boundary_margin, class_orbit_relerr, &
+                               class_orbit_max_steps
 !
   implicit none
 !
@@ -2889,6 +2892,7 @@
   double precision :: psiastbeg,psiastend,widthclass
   logical :: empty_class
   double precision :: orbit_relerr_save
+  integer :: primary_step_limit_save
 !
   external :: get_matrix_doublecount
 !
@@ -2904,13 +2908,16 @@
   ierr=sample_class_success
   matrix_boundary_error=matrix_eval_success
   orbit_relerr_save=orbit_relerr
+  primary_step_limit_save=primary_step_limit
   orbit_relerr=class_orbit_relerr
+  primary_step_limit=class_orbit_max_steps
 !
   widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
 !
   if(widthclass/relmargin.lt.1.d0) then
     print *,'ignore class'
     orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     ierr=sample_class_no_resonance
     return
   endif
@@ -2924,6 +2931,7 @@
   endif
   if(matrix_boundary_error.ne.matrix_eval_success) then
     orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     ierr=matrix_boundary_error
     return
   endif
@@ -2933,19 +2941,29 @@
     ierr=sample_class_no_resonance
     call interp_cache_reset
     orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     return
   endif
 !
-  call bound_class_return(ifuntype(iclass),xbeg,xend)
+  call bound_class_return(ifuntype(iclass),xbeg,xend,empty_class)
   if(matrix_boundary_error.ne.matrix_eval_success) then
     orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     ierr=matrix_boundary_error
+    return
+  endif
+  if(empty_class) then
+    ierr=sample_class_no_resonance
+    call interp_cache_reset
+    orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     return
   endif
 !
   call bound_class_wall(xbeg,xend)
   if(matrix_boundary_error.ne.matrix_eval_success) then
     orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     ierr=matrix_boundary_error
     return
   endif
@@ -2961,6 +2979,7 @@
     endif
     call interp_cache_reset
     orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     return
   endif
 !
@@ -2982,6 +3001,7 @@
 ! so interpolate_class_doublecount never returns a value from the old grid.
   call interp_cache_reset
   orbit_relerr=orbit_relerr_save
+  primary_step_limit=primary_step_limit_save
 !
   if(dowrite) then
     print *,'npoi = ',npoi
@@ -3129,7 +3149,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine bound_class_return(iftype,xb,xe)
+  subroutine bound_class_return(iftype,xb,xe,empty_class)
 !
 ! A type-1 or type-2 cut endpoint is not a guarantee that a finite-width
 ! numerical orbit closes.  Keep all endpoints whose full orbit returns, and
@@ -3137,19 +3157,21 @@
 ! preserves SOL excursions when edge_extension is enabled: a
 ! leaving-and-returning orbit evaluates successfully and is never trimmed.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+  use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_orbit_failure, &
                                 matrix_boundary_error
+  use get_matrix_mod, only : delphi_max
 !
   implicit none
 !
   integer :: iftype,ib_beg,ib_end
   double precision :: xb,xe,xmid
-  logical :: amat_was_alloc
+  logical :: amat_was_alloc,empty_class,has_witness
 !
   external :: get_matrix_doublecount
 !
+  empty_class=.false.
   ib_beg=iftype/10
   ib_end=mod(iftype,10)
   if((ib_beg.ne.1 .and. ib_beg.ne.2) .and. &
@@ -3159,7 +3181,30 @@
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
   xmid=0.5d0*(xb+xe)
   if(orbit_return_invalid(xmid)) then
-    matrix_boundary_error=matrix_eval_orbit_failure
+    ! A failed midpoint is not enough to discard a class: the valid part
+    ! can be a one-sided interval, in particular for a SOL excursion.  Find
+    ! an interior returning witness before trimming failed endpoint tails.
+    call find_return_witness(xb,xe,xmid,has_witness)
+    if(matrix_boundary_error.eq.matrix_eval_success) then
+      if(has_witness) then
+        if(ib_end.eq.1 .or. ib_end.eq.2) then
+          call trim_return(xmid,xe)
+          if(matrix_boundary_error.eq.matrix_eval_success .and. &
+             (ib_beg.eq.1 .or. ib_beg.eq.2)) then
+            call trim_return(xmid,xb)
+          endif
+        elseif(ib_beg.eq.1 .or. ib_beg.eq.2) then
+          call trim_return(xmid,xb)
+        endif
+      elseif(delphi_max.gt.0.d0) then
+        ! With the finite harmonic guard active, a class with no returning
+        ! interior point has no finite resonance contribution.  Keep this
+        ! distinct from an evaluator failure so the caller can skip it.
+        empty_class=.true.
+      else
+        matrix_boundary_error=matrix_eval_orbit_failure
+      endif
+    endif
   elseif(ib_end.eq.1 .or. ib_end.eq.2) then
     call trim_return(xmid,xe)
     if(matrix_boundary_error.eq.matrix_eval_success .and. &
@@ -3196,6 +3241,28 @@
   enddo
   xdiv=xvalid
   end subroutine trim_return
+
+  subroutine find_return_witness(xleft,xright,xw,found)
+  double precision, intent(in) :: xleft,xright
+  double precision, intent(out) :: xw
+  logical, intent(out) :: found
+  double precision :: xprobe
+  integer :: j,nprobe
+
+  found=.false.
+  xw=0.5d0*(xleft+xright)
+  nprobe=max(4,2*nlagr+1)
+  do j=1,nprobe
+    xprobe=xleft+(xright-xleft)*dble(j)/dble(nprobe+1)
+    if(.not.orbit_return_invalid(xprobe)) then
+      if(matrix_boundary_error.ne.matrix_eval_success) return
+      found=.true.
+      xw=xprobe
+      return
+    endif
+    if(matrix_boundary_error.ne.matrix_eval_success) return
+  enddo
+  end subroutine find_return_witness
 !
   logical function orbit_return_invalid(xval)
   double precision :: xval
