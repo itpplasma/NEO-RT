@@ -4012,6 +4012,10 @@
     call fail_boundary(ierr)
     return
   endif
+  do j=1,nbd_segments
+    print *,'boundary trace index,type,sigma,Rlo,Rhi,Jlo,Jhi = ',j,bd_type(j), &
+        bd_sigma(j),bd_rlo(j),bd_rhi(j),bd_jlo(j),bd_jhi(j)
+  enddo
 
 ! Two turning-boundary branches can meet at the same canonical-momentum
 ! level.  This is the limiting case of a separatrix entering or leaving the
