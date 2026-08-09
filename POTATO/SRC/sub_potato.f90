@@ -1940,8 +1940,10 @@
 !
         all_regions(isig,ireg)%n_sep=nsc
         allocate(all_regions(isig,ireg)%R_sep(nsc),all_regions(isig,ireg)%xpoint(nsc))
-        all_regions(isig,ireg)%R_sep=rsc_tmp(ipoi_tmp)
-        all_regions(isig,ireg)%xpoint=logdummy(ipoi_tmp)
+        if(nsc.gt.0) then
+          all_regions(isig,ireg)%R_sep=rsc_tmp(ipoi_tmp(1:nsc))
+          all_regions(isig,ireg)%xpoint=logdummy(ipoi_tmp(1:nsc))
+        endif
         deallocate(rsc_tmp,ipoi_tmp,logdummy)
       endif
     enddo
