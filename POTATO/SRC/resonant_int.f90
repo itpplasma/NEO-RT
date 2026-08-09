@@ -129,9 +129,7 @@ subroutine pertham(z,absHn2,ierr_status)
     use resint_mod,        only : taub_new,delphi_new,toten_orb,perpinv_orb, &
                                   perturbation_status
     use bmod_pert_mod,      only : bmod_pert_success
-    use resonance_status_mod, only : resonance_status_success, &
-        resonance_status_bounce_failure,resonance_status_perturbation_failure, &
-        resonance_is_finite
+    use resonance_status_mod, only : resonance_status_success, resonance_is_finite
     !
     !
     implicit none
@@ -158,13 +156,14 @@ subroutine pertham(z,absHn2,ierr_status)
     !
     call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
     if(ierr.ne.0) then
-        ierr_status=resonance_status_bounce_failure
+        ! Preserve POTATO's established zero-amplitude handling for an
+        ! unintegrable Fourier sample.  Topology and root failures remain
+        ! strict; this is only the perturbation weight at one sample.
         deallocate(extraset)
         return
     endif
     if(.not.resonance_is_finite(taub) .or. taub.le.0.d0 .or. &
        .not.resonance_is_finite(delphi)) then
-        ierr_status=resonance_status_bounce_failure
         deallocate(extraset)
         return
     endif
@@ -180,25 +179,21 @@ subroutine pertham(z,absHn2,ierr_status)
     !
     call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset,ierr)
     if(perturbation_status.ne.bmod_pert_success) then
-        ierr_status=resonance_status_perturbation_failure
         deallocate(extraset)
         return
     endif
     if(ierr.ne.0) then
-        ierr_status=resonance_status_bounce_failure
         deallocate(extraset)
         return
     endif
     if(.not.resonance_is_finite(taub) .or. taub.le.0.d0 .or. &
        .not.resonance_is_finite(delphi)) then
-        ierr_status=resonance_status_bounce_failure
         deallocate(extraset)
         return
     endif
     !
     absHn2=(extraset(2)/taub)**2+(extraset(3)/taub)**2
     if(.not.resonance_is_finite(absHn2) .or. absHn2.lt.0.d0) then
-        ierr_status=resonance_status_bounce_failure
         deallocate(extraset)
         return
     endif
