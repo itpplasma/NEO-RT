@@ -137,8 +137,6 @@ contains
             signatures(count)=topology_arr(j)
         enddo
         if(count.lt.minimum_gap_fit_points) then
-            print *,'topology gap side sample count: gap,side,count,npoi = ', &
-                gap_lo,gap_hi,side,count,npoi
             ierr=sample_matrix_contribution_unresolved
             deallocate(distances,coefficients,signatures)
             return
@@ -168,8 +166,6 @@ contains
             if(fit_count.ge.topology_gap_fit_points) exit
         enddo
         if(fit_count.lt.minimum_gap_fit_points) then
-            print *,'topology gap side signature run: gap,side,count,fit_count,signature = ', &
-                gap_lo,gap_hi,side,count,fit_count,side_signature
             ierr=sample_matrix_contribution_unresolved
             deallocate(distances,coefficients,signatures)
             return

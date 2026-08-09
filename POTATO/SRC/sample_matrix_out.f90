@@ -781,12 +781,6 @@ contains
   topology_probe_only=.false.
   sample_matrix_preserve_history=.false.
   IF(require_topology_contribution_bound) THEN
-    PRINT *,'sample_matrix_out_partitioned_certified: assembled H,nsegments,n_total,npoi_request = ', &
-        topology_context_h,nsegments,n_total,npoi_request
-    DO i=1,nsegments
-      PRINT *,'sample_matrix_out_partitioned_certified: segment H,i,Jlo,Jhi,sig = ', &
-          topology_context_h,i,segment_lo(i),segment_hi(i),segment_sig(i)
-    ENDDO
     topology_contribution_error_bound=0.d0
     CALL accumulate_gap_envelope(xbeg_full,left_open,ierr_local)
     IF(ierr_local.EQ.sample_matrix_success) THEN
