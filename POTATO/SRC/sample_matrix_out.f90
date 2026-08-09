@@ -515,7 +515,7 @@ contains
     ENDIF
     IF(nunique.GT.0) THEN
       IF(candidates(i).EQ.candidates(nunique)) CYCLE
-      candidate_merge_tol=32.d0*EPSILON(1.d0)*MAX(1.d-300, &
+      candidate_merge_tol=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
           ABS(candidates(i)),ABS(candidates(nunique)))
       IF(ABS(candidates(i)-candidates(nunique)).LE.candidate_merge_tol) CYCLE
     ENDIF
