@@ -4178,9 +4178,10 @@ contains
           endif
           if(abs(local_jr-local_jl).le.256.d0*epsilon(1.d0)* &
              max(1.d0,abs(local_jl),abs(local_jr))) then
-            boundary_stage=45
-            ierr=2
-            return
+            ! A branch whose projection has zero resolvable J_perp width
+            ! contributes no open interval to the outer partition.  It is a
+            ! degenerate endpoint, not an unresolved topology transition.
+            cycle
           endif
           if(nfp_segments.ge.max_scan_roots) then
             ierr=3
