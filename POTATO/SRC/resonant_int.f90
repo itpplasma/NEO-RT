@@ -514,7 +514,7 @@ subroutine get_matrix_res
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class, &
         R_class_beg,R_class_end
-    use get_matrix_mod,               only : iclass
+    use get_matrix_mod,               only : iclass,delphi_max
     use sample_class_status_mod,       only : sample_class_success, &
         sample_class_no_resonance
     use resonance_status_mod,          only : resonance_status_success
@@ -626,6 +626,9 @@ subroutine get_matrix_res
             call tee_message(trim(msg))
             write(msg, '(A,I0)') &
                 'get_matrix_res: sample_class boundary_error=', sample_boundary_error
+            call tee_message(trim(msg))
+            write(msg, '(A,ES14.6)') &
+                'get_matrix_res: worker delphi_max=', delphi_max
             call tee_message(trim(msg))
             topology_error=ierr
             deallocate(respoints_jp)
