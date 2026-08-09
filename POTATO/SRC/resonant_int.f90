@@ -552,8 +552,10 @@ subroutine get_matrix_res
         return
     endif
     if(nclasses.le.0) then
-        call tee_message('get_matrix_res: no certified resonance classes')
-        topology_error=2
+        ! The requested J_perp slice can have no orbit intersecting the
+        ! clipped rho_pol domain.  That is a certified zero contribution,
+        ! not a callback failure or an unresolved topology transition.
+        topology_signature=topology_signature_of_classes(0,ifuntype,sigma_class)
         return
     endif
     topology_signature=topology_signature_of_classes(nclasses,ifuntype,sigma_class)

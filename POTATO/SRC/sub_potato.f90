@@ -1280,7 +1280,9 @@
 ! vpar2<0 in the whole domain, no regions in the domain
       nregions=0
       regions%nregions=0
-      ierr=2
+      ! No allowed orbit at this J_perp is an empty physical class set, not
+      ! a topology failure.  The matrix callback records zero contribution.
+      ierr=0
       return
     endif
   elseif(modulo(nbounds,2).eq.0) then
@@ -1469,6 +1471,14 @@
 !
   if(start_minmax) then
     print *,'minimum and maximum values of p_phi are not determined'
+    ! Every allowed region lies outside the clipped rho_pol domain.  There is
+    ! therefore no resonance class to construct at this J_perp; return the
+    ! certified empty class set instead of continuing with uninitialized
+    ! p_phi limits.
+    regions%nregions=0
+    if(allocated(all_regions)) deallocate(all_regions)
+    ierr=0
+    return
   endif
 !
 ! End find minimum and maximum values of p_phi in the domain limited
