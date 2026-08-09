@@ -2912,6 +2912,10 @@
       ' xbeg,xend=',xbeg,xend, &
       ' delphi_max=',delphi_max, &
       ' sample_x,error,ierr,stage=',x,matrix_eval_error,ierr,orbit_failure_stage
+    print *, 'sample_nodes npoi=',npoi
+    do i=max(1,npoi-8),npoi
+      print *, 'sample_node=',i,xarr(i),amat_arr(:,1,i)
+    enddo
   endif
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
