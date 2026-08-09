@@ -3,7 +3,7 @@ module potato_input_mod
     use input_files, only: convexfile
     use iso_fortran_env, only: output_unit
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use wall_loss_mod, only: load_wall
+    use wall_loss_mod, only: clear_wall, load_wall, wall_loaded
     implicit none
 
     ! Calculation type: 1=orbits, 2=equilibrium profiles, 3=resonant torque
@@ -121,6 +121,12 @@ module potato_input_mod
     ! .false. explicitly for closed-flux-only runs.
     logical :: edge_extension = .true.
 
+    ! The convex file in field_divB0.inp bounds field interpolation.  A
+    ! separate wall file may be supplied for physical orbit-loss detection;
+    ! an empty name preserves the historical convexfile fallback.
+    character(len=256) :: wall_file = ''
+    logical :: wall_loss_enabled = .true.
+
     ! Accepted for old case files.
     logical :: plot_poicut = .false.
     logical :: plot_equilibrium = .false.
@@ -140,7 +146,7 @@ module potato_input_mod
         require_topology_contribution_bound, &
         topology_gap_fit_points, &
         toten_plot, perpinv_plot, enkin_over_temp, &
-        profile_file, edge_extension, &
+        profile_file, edge_extension, wall_file, wall_loss_enabled, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
         contour_rho_min, contour_rho_max, contour_nrho, &
@@ -212,9 +218,21 @@ contains
         inquire(file='field_divB0.inp', exist=field_input_exists)
         if (field_input_exists) then
             call read_field_input('field_divB0.inp')
-            call load_wall(trim(convexfile))
+        endif
+
+        if (wall_loss_enabled) then
+            if (len_trim(wall_file) > 0) then
+                call load_wall(trim(wall_file))
+                if (.not. wall_loaded) then
+                    error stop 'wall_file is enabled but could not be loaded'
+                endif
+            elseif (field_input_exists) then
+                call load_wall(trim(convexfile))
+            else
+                call load_wall('convexwall.dat')
+            endif
         else
-            call load_wall('convexwall.dat')
+            call clear_wall()
         endif
     end subroutine read_potato_input
 
@@ -264,6 +282,8 @@ contains
         write(iunit, '(A,ES12.5)') '  enkin_over_temp  = ', enkin_over_temp
         write(iunit, '(A,A)') '  profile_file     = ', trim(profile_file)
         write(iunit, '(A,L1)') '  edge_extension   = ', edge_extension
+        write(iunit, '(A,A)') '  wall_file        = ', trim(wall_file)
+        write(iunit, '(A,L1)') '  wall_loss_enabled = ', wall_loss_enabled
         write(iunit, '(A,ES12.5)') '  orbit_Rstart     = ', orbit_Rstart
         write(iunit, '(A,ES12.5)') '  orbit_Zstart     = ', orbit_Zstart
         write(iunit, '(A,ES12.5)') '  orbit_lambda     = ', orbit_lambda

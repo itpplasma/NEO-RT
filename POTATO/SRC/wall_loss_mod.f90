@@ -3,7 +3,7 @@ module wall_loss_mod
     implicit none
     private
 
-    public :: load_wall, outside_wall, outside_wall_exact, wall_loaded
+    public :: load_wall, clear_wall, outside_wall, outside_wall_exact, wall_loaded
     public :: fastpath_resolves_circle, fastpath_resolves_ellipse
 
     logical :: wall_loaded = .false.
@@ -13,12 +13,26 @@ module wall_loss_mod
 
 contains
 
+    subroutine clear_wall()
+        wall_loaded = .false.
+        if (allocated(rwall)) deallocate(rwall)
+        if (allocated(zwall)) deallocate(zwall)
+        rc = 0.0_dp
+        zc = 0.0_dp
+        sz = 1.0_dp
+        r_in2_c = 0.0_dp
+        r_out2_c = 0.0_dp
+        r_in2_e = 0.0_dp
+        r_out2_e = 0.0_dp
+    end subroutine clear_wall
+
     subroutine load_wall(filename)
         character(len=*), intent(in) :: filename
         integer :: iunit, ios, n
         real(dp) :: r, z
         logical :: exists
 
+        call clear_wall()
         inquire (file=filename, exist=exists)
         if (.not. exists) return
         open (newunit=iunit, file=filename, status='old', action='read', iostat=ios)

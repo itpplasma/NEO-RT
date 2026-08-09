@@ -22,12 +22,15 @@ cmake --build build -j
 The g-eqdsk and convex-wall file are a matched equilibrium pair. The convex
 wall is the outer boundary of the complete computational domain, not the
 separatrix, and must enclose the LCFS with enough margin for every orbit being
-traced. POTATO uses this one configured wall for both the field-coordinate
-mapping and orbit-loss detection; no second hard-coded `convexwall.dat` is
-needed. By default, `edge_extension = .true.` permits orbit integration across
-the LCFS into the scrape-off layer. Set it explicitly to `.false.` for a
-closed-flux-only run. Edge extension does not turn the convex wall into the
-LCFS or remove the outer-domain requirement.
+traced. It is used only for field-coordinate mapping. By default, POTATO keeps
+the historical behavior of using that same file for orbit-loss detection, but
+production cases should set `wall_file = 'physical-wall.dat'` in `potato.in` to
+name the actual limiter/wall separately. Set `wall_loss_enabled = .false.` for
+topology diagnostics with no physical loss wall. By default,
+`edge_extension = .true.` permits orbit integration across the LCFS into the
+scrape-off layer. Set it explicitly to `.false.` for a closed-flux-only run.
+Edge extension does not turn the convex wall into the LCFS, move the physical
+wall, or remove the outer-domain requirement.
 
 For a MARS field already converted to Boozer harmonics, generate POTATO's
 single-`n` cylindrical perturbation without the legacy converter's radial

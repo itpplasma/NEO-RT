@@ -57,6 +57,37 @@ program test_wall_loss
     if (.not. outside_wall(-1.0d0, 5.0d0)) ok = .false.
     if (.not. outside_wall(5.0d0, 11.0d0)) ok = .false.
 
+    ! The physical wall is independent of the convex field-interpolation
+    ! boundary.  Select the second fixture explicitly and verify that the
+    ! loss test follows it rather than the field_divB0.inp convexfile.
+    open (newunit=iunit, file='test_potato_wall.in', status='replace', &
+          action='write')
+    write (iunit, '(A)') '&potato_nml'
+    write (iunit, '(A)') " wall_file = 'convexwall.dat'"
+    write (iunit, '(A)') ' wall_loss_enabled = .true.'
+    write (iunit, '(A)') '/'
+    close (iunit)
+    call read_potato_input('test_potato_wall.in')
+
+    if (.not. wall_loaded) ok = .false.
+    if (.not. outside_wall(5.0d0, 5.0d0)) ok = .false.
+    if (outside_wall(105.0d0, 105.0d0)) ok = .false.
+
+    ! An explicit no-wall mode is useful for topology diagnostics where the
+    ! equilibrium boundary is not a physical limiter.  It must clear the
+    ! previously loaded wall rather than leave stale loss state active.
+    open (newunit=iunit, file='test_potato_wall.in', status='replace', &
+          action='write')
+    write (iunit, '(A)') '&potato_nml'
+    write (iunit, '(A)') " wall_file = 'convexwall.dat'"
+    write (iunit, '(A)') ' wall_loss_enabled = .false.'
+    write (iunit, '(A)') '/'
+    close (iunit)
+    call read_potato_input('test_potato_wall.in')
+
+    if (wall_loaded) ok = .false.
+    if (outside_wall(5.0d0, 5.0d0)) ok = .false.
+
     if (ok) then
         print *, 'test_wall_loss: PASSED'
     else
