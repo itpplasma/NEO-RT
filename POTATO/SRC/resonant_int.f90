@@ -559,6 +559,14 @@ subroutine get_matrix_res
         return
     endif
     topology_signature=topology_signature_of_classes(nclasses,ifuntype,sigma_class)
+    if(topology_probe_only) then
+        print *,'topology trace H,J,nclasses,signature = ',toten,perpinv, &
+            nclasses,topology_signature
+        if(nclasses.gt.0) then
+            print *,' topology trace types = ',ifuntype(1:nclasses)
+            print *,' topology trace sigma = ',sigma_class(1:nclasses)
+        endif
+    endif
     if(topology_probe_only) return
     ledger_class_evaluations=ledger_class_evaluations+nclasses
     !
