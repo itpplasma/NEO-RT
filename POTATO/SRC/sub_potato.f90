@@ -3924,6 +3924,12 @@
       else
         call find_all_roots_bracketed(fixedpoint_collision, &
                                       collision_jlo,collision_jhi,ierr_local)
+        if(toten.eq.2.5d0 .and. collision_jlo.lt.1.0665d-4 .and. &
+           collision_jhi.gt.1.0664d-4) then
+          print *,'collision diagnostic stage 50,i,j,Jlo,Jhi,nroots,ierr = ', &
+              boundary_stage,collision_segment_left,collision_segment_right, &
+              collision_jlo,collision_jhi,nroots,ierr_local
+        endif
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
@@ -3982,6 +3988,12 @@
       else
         call find_all_roots_bracketed(fixedpoint_collision, &
                                       collision_jlo,collision_jhi,ierr_local)
+        if(toten.eq.2.5d0 .and. collision_jlo.lt.1.0665d-4 .and. &
+           collision_jhi.gt.1.0664d-4) then
+          print *,'collision diagnostic stage 70,i,j,Jlo,Jhi,nroots,ierr = ', &
+              boundary_stage,collision_segment_left,collision_boundary_segment, &
+              collision_jlo,collision_jhi,nroots,ierr_local
+        endif
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
           return
