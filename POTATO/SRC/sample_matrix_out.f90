@@ -794,8 +794,8 @@ contains
     ENDIF
     IF(ierr_local.EQ.sample_matrix_success) THEN
       DO i=1,nactive
-        CALL accumulate_gap_envelope(candidates(i)-active_delta(i), &
-            candidates(i)+active_delta(i),ierr_local)
+        CALL accumulate_gap_envelope(active_x(i)-active_delta(i), &
+            active_x(i)+active_delta(i),ierr_local)
         IF(ierr_local.NE.sample_matrix_success) EXIT
       ENDDO
     ENDIF

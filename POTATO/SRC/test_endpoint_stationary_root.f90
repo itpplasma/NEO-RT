@@ -339,10 +339,14 @@ contains
     integer, intent(out) :: nfound,local_ierr
     double precision, intent(out) :: boundaries(nmax)
 
-    nfound=1
+    nfound=2
     local_ierr=0
     boundaries=0.d0
-    boundaries(1)=0.5d0
+    ! This first certified root is topology-inert: both open-side signatures
+    ! remain 7.  It must not create a contribution gap because the sampler
+    ! does not split the matrix interval there.
+    boundaries(1)=1.d-8
+    boundaries(2)=0.5d0
   end subroutine manufactured_piecewise_boundaries
 
   subroutine manufactured_narrow_matrix
