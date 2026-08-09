@@ -168,6 +168,18 @@ contains
                 write(iunit, '(A,I3,ES24.16,I4)') '# endpoint ', i, xprobe, ierr_local
             endif
         enddo
+        xprobe = x
+        matrix_eval_valid = .true.
+        matrix_eval_error = matrix_eval_success
+        call get_matrix_doublecount
+        if (matrix_eval_error == matrix_eval_success) then
+            write(iunit, '(A,ES24.16,4ES24.16,I4)') '# failing_midpoint ', &
+                xprobe, amat(1,1), amat(2,1), amat(3,1), &
+                xend-xprobe, matrix_eval_error
+        else
+            write(iunit, '(A,ES24.16,I4)') '# failing_midpoint ', xprobe, &
+                matrix_eval_error
+        endif
         if (ifuntype(iclass) == 21) then
             open(newunit=iunit1, file='endpoint_orbit.dat', status='replace', &
                 action='write')
