@@ -21,13 +21,13 @@ program probe_frequency_comparison
     implicit none
 
     integer, parameter :: npoints = 180
-    real(dp), parameter :: speed = 6.9199e7_dp ! 5 keV deuteron [cm/s]
+    real(dp), parameter :: reference_speed = 6.9199e7_dp ! 5 keV D [cm/s]
     real(dp), parameter :: mass = 2.014_dp*mu
     character(len=1024) :: chartmap, eqdsk, output, wall_file, argument
     type(gc_frequency_context_t) :: context
     type(gc_full_orbit_frequency_result_t) :: full
     real(dp) :: boozer_surface, direct_surface, eta_ratio, eta
-    real(dp) :: omega_b, omega_phi, d1, d2, period_estimate
+    real(dp) :: omega_b, omega_phi, d1, d2, period_estimate, speed, energy_kev
     integer :: unit, class_index, k, status, orbit_class
     character(len=8) :: class_name
 
@@ -43,6 +43,11 @@ program probe_frequency_comparison
         .or. len_trim(output) == 0 .or. len_trim(wall_file) == 0) then
         error stop 'six arguments are required: chartmap eqdsk boozer_s direct_s output wall_file'
     end if
+    energy_kev = 5.0_dp
+    call get_command_argument(7, argument)
+    if (len_trim(argument) > 0) read(argument, *) energy_kev
+    if (energy_kev <= 0.0_dp) error stop 'energy_kev must be positive'
+    speed = reference_speed*sqrt(energy_kev/5.0_dp)
 
     qi = qe
     mi = mass
@@ -54,6 +59,7 @@ program probe_frequency_comparison
     frequency_model = FREQUENCY_MODEL_LEGACY
     open(newunit=unit, file=trim(output), status='replace', action='write')
     write(unit, '(a)') '# model class eta_over_etatp omega_b omega_phi status orbit_status'
+    write(unit, '(a,es20.12)') '# energy_kev ', energy_kev
 
     inp_swi = 10
     call read_boozer_file(trim(chartmap))

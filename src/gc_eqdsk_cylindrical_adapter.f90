@@ -60,8 +60,14 @@ contains
         if (size(rad) < 2 .or. size(zet) < 2) return
         if (.not. all(ieee_is_finite([rad, zet]))) return
         if (rad(size(rad)) <= rad(1) .or. zet(size(zet)) <= zet(1)) return
-        field%domain_R_min = max(R0-a, rad(1))
-        field%domain_R_max = min(R0+a, rad(size(rad)))
+        ! A finite-width guiding-centre orbit is allowed to leave the LCFS.
+        ! The EQDSK interpolation box, not the nominal plasma boundary, is
+        ! therefore the numerical field domain.  The wall/loss event remains
+        ! the physical confinement boundary supplied by the caller.  Using
+        ! R0 +/- a here silently turned finite-orbit excursions into radial
+        ! domain failures before the wall could be evaluated.
+        field%domain_R_min = rad(1)
+        field%domain_R_max = rad(size(rad))
         field%domain_Z_min = zet(1)
         field%domain_Z_max = zet(size(zet))
         if (field%domain_R_min <= 0.0_dp .or. &
