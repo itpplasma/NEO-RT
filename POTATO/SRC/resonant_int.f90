@@ -520,7 +520,7 @@ subroutine get_matrix_res
     use resint_mod,                   only : nmodes,nperp_max,respoints_jp, &
         respoints_all,respoints_all_tmp,ledger_class_evaluations
     use cc_mod,                       only : wrbounds,dowrite
-    use orbit_dim_mod,                only : write_orb
+    use orbit_dim_mod,                only : write_orb,orbit_failure_stage,orbit_wall_loss
     use logging_mod,                  only : tee_message
     use bounds_fixpoints_mod,         only : region_set_t
     !
@@ -612,14 +612,16 @@ subroutine get_matrix_res
             ! its initialized zero records remain part of the class topology.
             cycle
         else
-            write(msg, '(A,I0,A,I0,A,I0,A,F6.1,A,2ES14.6,A,2ES14.6,A,ES14.6,A,I0,A,I0)') &
+            write(msg, '(A,I0,A,I0,A,I0,A,F6.1,A,2ES14.6,A,2ES14.6,A,ES14.6,A,I0,A,I0,A,I0,A,L1)') &
                 'get_matrix_res: sample_class error=',ierr, &
                 ' class=',iclass,' iftype=',ifuntype(iclass), &
                 ' sigma=',sigma_class(iclass), &
                 ' Rbeg,Rend=',R_class_beg(iclass),R_class_end(iclass), &
                 ' xbeg,xend=',sample_xbeg,sample_xend, &
                 ' sample_x=',sample_x,' npoi=',sample_npoi, &
-                ' matrix_error=',matrix_eval_error
+                ' matrix_error=',matrix_eval_error, &
+                ' orbit_stage=',orbit_failure_stage, &
+                ' wall_loss=',orbit_wall_loss
             call tee_message(trim(msg))
             topology_error=ierr
             deallocate(respoints_jp)
