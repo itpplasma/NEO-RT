@@ -2821,7 +2821,8 @@
 ! toroidal displacement per bounce time and bounce integrals
 !
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
-                                npoi,xarr,amat_arr,matrix_boundary_error, &
+                                npoi,x,xarr,amat_arr,matrix_boundary_error, &
+                                matrix_eval_error, &
                                 matrix_eval_success
   use sample_class_status_mod, only : sample_class_success, &
                                       sample_class_no_resonance
@@ -2890,13 +2891,14 @@
 !
   call sample_matrix(get_matrix_doublecount,ierr)
   if(ierr.ne.0) then
-    print '(A,I0,A,I0,A,ES16.8,A,2(ES16.8,1X),A,2(ES16.8,1X),A,ES16.8)', &
+    print '(A,I0,A,I0,A,ES16.8,A,2(ES16.8,1X),A,2(ES16.8,1X),A,ES16.8,A,ES16.8,A,I0)', &
       'sample_class_doublecount: class=',iclass, &
       ' iftype=',ifuntype(iclass), &
       ' sigma=',sigma_class(iclass), &
       ' Rbeg,Rend=',R_class_beg(iclass),R_class_end(iclass), &
       ' xbeg,xend=',xbeg,xend, &
-      ' delphi_max=',delphi_max
+      ' delphi_max=',delphi_max, &
+      ' sample_x,error=',x,matrix_eval_error
   endif
 !
 ! The grid (xarr,amat_arr,npoi) and iclass just changed; drop memoized entries
