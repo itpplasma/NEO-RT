@@ -31,15 +31,18 @@ program test_gc_full_fow_runtime_metadata
     end interface
 
     type(gc_full_fow_runtime_backend_state_t) :: state
-    character(len=4096) :: base_path, wall_path, output_path
+    character(len=4096) :: base_path, wall_path, output_path, temp_root
     character(len=64) :: expected_frequency
     character(len=256) :: message
-    integer :: status, parse_status
+    integer :: status, parse_status, temp_status
     integer(int64) :: clock_count
     logical :: exists
 
     call system_clock(count=clock_count)
-    write (base_path, '(A,I0)') '/var/tmp/ert/full-fow-runtime-metadata-test-', &
+    call get_environment_variable('TMPDIR', value=temp_root, status=temp_status)
+    if (temp_status /= 0 .or. len_trim(temp_root) == 0) temp_root = '.'
+    write (base_path, '(A,A,I0)') trim(temp_root), &
+        '/full-fow-runtime-metadata-test-', &
         clock_count
     wall_path = trim(base_path)//'.wall'
     output_path = trim(base_path)//'.valid'
