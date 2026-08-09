@@ -418,6 +418,7 @@ contains
   DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol, &
                       delta_resolution,probe_delta,probe_resolution
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
+  DOUBLE PRECISION :: scan_point,low_point,high_point,mid_point
   DOUBLE PRECISION :: geometric_gap_bound
   DOUBLE PRECISION, ALLOCATABLE :: candidates(:),active_x(:),active_delta(:)
   INTEGER, ALLOCATABLE :: active_left_sig(:),active_right_sig(:)
@@ -590,6 +591,7 @@ contains
 ! retained in the certificate count but creates no omitted bracket.
   nactive=0
   scan_signature=left_endpoint_sig
+  scan_point=left_open
   DO i=1,nunique
     prev_bound=xbeg_full
     IF(i.GT.1) prev_bound=candidates(i-1)
@@ -622,6 +624,22 @@ contains
     IF(sig_l.NE.scan_signature) THEN
       PRINT *,'  initial topology probe mismatch i,J,expected,left,delta = ', &
           i,candidates(i),scan_signature,sig_l,delta
+      low_point=scan_point
+      high_point=x
+      DO attempt=1,64
+        mid_point=0.5d0*(low_point+high_point)
+        IF(mid_point.EQ.low_point .OR. mid_point.EQ.high_point) EXIT
+        x=mid_point
+        CALL evaluate_matrix_callback(get_matrix,ierr_local)
+        IF(ierr_local.NE.sample_matrix_success) EXIT
+        IF(topology_signature.EQ.scan_signature) THEN
+          low_point=mid_point
+        ELSE
+          high_point=mid_point
+        ENDIF
+      ENDDO
+      PRINT *,'  behavioral transition bracket Jlo,Jhi,old,new = ', &
+          low_point,high_point,scan_signature,sig_l
       ! A root can be returned with an error smaller than the nominal
       ! partition probe.  Contract only the disagreeing side toward the
       ! certified root; an unresolved interior gap still fails closed.
@@ -673,6 +691,7 @@ contains
           i,candidates(i),scan_signature,sig_l,sig_r
     ENDIF
     scan_signature=sig_r
+    scan_point=x
     IF(candidates(i).GT.6.4d-5 .AND. candidates(i).LT.6.6d-5 .AND. &
        topology_context_h.EQ.1.5d0) THEN
       PRINT *,'  probe candidate J,left,right = ',candidates(i),sig_l,sig_r
