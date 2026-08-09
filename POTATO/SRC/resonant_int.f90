@@ -259,6 +259,12 @@ subroutine integrate_class_resonances(ierr_out)
     ! invalid endpoint into the resonance root search.  The completed class
     ! grid is the authoritative physical domain for interpolation and roots.
     if(npoi.le.1) then
+        write(msg,'(A,I0,A,I0,A,I0)') &
+            'resonance root search has no class interval class=',iclass, &
+            ' iftype=',ifuntype(iclass),' npoi=',npoi
+        !$omp critical (reslines_log)
+        call tee_message(trim(msg))
+        !$omp end critical (reslines_log)
         ierr_out=resonance_status_root_failure
         return
     endif
@@ -294,8 +300,9 @@ subroutine integrate_class_resonances(ierr_out)
         call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
-            write(msg,'(A,I0,A,I0,A,I0,A,ES14.6,A,ES14.6)') &
+            write(msg,'(A,I0,A,I0,A,I0,A,I0,A,ES14.6,A,ES14.6)') &
                 'resonance root search failed ierr=',ierr, &
+                ' class=',iclass,' iftype=',ifuntype(iclass), &
                 ' mode=',marr(mode),'/',narr(mode), &
                 ' xbeg=',xbeg,' xend=',xend
             !$omp critical (reslines_log)
