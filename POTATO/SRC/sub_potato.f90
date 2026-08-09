@@ -3006,7 +3006,9 @@
     endif
     if(abs(xnoroot-xroot).lt.1.d-3*max(1.d0,abs(xdiv))) exit
   enddo
-  xdiv=xnoroot
+  ! The sampled interval ends on the resonant side of the bracket.  The
+  ! no-root side is the X-point-facing numerical singularity we are excluding.
+  xdiv=xroot
   end subroutine trim_endpoint
 !
   double precision function eval_delphi(xval)
