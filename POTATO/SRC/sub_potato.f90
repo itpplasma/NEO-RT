@@ -1243,9 +1243,6 @@
   integer,          dimension(:),   allocatable :: ipoi_tmp
   double precision, dimension(:),   allocatable :: R_extr,Z_extr,psiast_extr, &
                                                    psiast_x_tot,R_x_tot,rsc_tmp
-  double precision, allocatable :: xcustom_save(:)
-  logical :: customgrid_save,xcustom_save_allocated,topology_grid_active
-  integer :: ncustom_save
 !------------
 !
   ierr=0
@@ -1291,35 +1288,7 @@
 ! find inner boundaries of allowed regions:
   relerr_allroots=1.d-12
 !
-  topology_grid_active=.false.
-  customgrid_save=customgrid
-  ncustom_save=ncustom
-  xcustom_save_allocated=.false.
-  if(customgrid_save .and. allocated(xcustom)) then
-    allocate(xcustom_save(ncustom_save))
-    xcustom_save=xcustom
-    xcustom_save_allocated=.true.
-  endif
-  if(certified_partition_ready .and. certified_partition_count.gt.1 .and. &
-     certified_partition_energy.eq.toten) then
-    if(allocated(xcustom)) deallocate(xcustom)
-    allocate(xcustom(certified_partition_count))
-    xcustom=certified_partition
-    ncustom=certified_partition_count
-    customgrid=.true.
-    topology_grid_active=.true.
-  endif
-  call find_all_roots(vparzero1D,rpc_arr(0),rpc_arr(npc),ierr)
-  if(topology_grid_active) then
-    deallocate(xcustom)
-    if(xcustom_save_allocated) then
-      allocate(xcustom(ncustom_save))
-      xcustom=xcustom_save
-    endif
-    ncustom=ncustom_save
-    customgrid=customgrid_save
-    if(allocated(xcustom_save)) deallocate(xcustom_save)
-  endif
+  call find_all_roots_certified(vparzero1D,rpc_arr(0),rpc_arr(npc),ierr)
 !
   if(ierr.ne.0) then
     print *,'find_bounds_fixpoints: error in find_all_roots, inner boundaries'
@@ -1605,7 +1574,7 @@
         pphi_minmax=pphi_min
         relerr_allroots=1.d-11
 !
-        call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+        call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 1'
@@ -1632,7 +1601,7 @@
         pphi_minmax=pphi_max
         relerr_allroots=1.d-11
 !
-        call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+        call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 2'
@@ -1666,7 +1635,7 @@
           pphi_minmax=pphi_min
           relerr_allroots=1.d-11
 !
-          call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+          call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 1'
@@ -1696,7 +1665,7 @@
           pphi_minmax=pphi_max
           relerr_allroots=1.d-11
 !
-          call find_all_roots(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
+          call find_all_roots_certified(boucross_with_endpoint_limit,R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 2'
@@ -1879,7 +1848,7 @@
             if(R_b.lt.R_x_tot(ixp_tot)-delR_marg) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
+              call find_all_roots_certified(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 1, H,J,sigma,ireg,Rlo,Rhi,ierr = ', &
@@ -1892,7 +1861,7 @@
             if(R_x_tot(ixp_tot)+delR_marg.lt.R_e) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
+              call find_all_roots_certified(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 2'
@@ -1905,7 +1874,7 @@
 ! X-point belongs to a different region:
             relerr_allroots=1.d-12
 !
-            call find_all_roots(sepcross,R_b,R_e,ierr)
+            call find_all_roots_certified(sepcross,R_b,R_e,ierr)
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 3'
@@ -1931,7 +1900,7 @@
             if(R_b.lt.R_x_tot(ixp_tot)-delR_marg) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
+              call find_all_roots_certified(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 4'
@@ -1946,7 +1915,7 @@
             if(R_x_tot(ixp_tot)+delR_marg.lt.R_e) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
+              call find_all_roots_certified(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 5'
@@ -1962,7 +1931,7 @@
 ! X-point belongs to a different region:
             relerr_allroots=1.d-12
 !
-            call find_all_roots(sepcross,R_b,R_e,ierr)
+            call find_all_roots_certified(sepcross,R_b,R_e,ierr)
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 6'
@@ -2058,6 +2027,53 @@
 !
 !------------
 !
+  subroutine find_all_roots_certified(root_function,xlo,xhi,ierr_out)
+! Apply the topology partition to every root search made while classifying a
+! fixed (H,J) class.  The partition is the independent certificate produced
+! by find_jperp_topology_boundaries; retaining it here prevents a later
+! callback, such as boucross or sepcross, from probing across a narrow
+! forbidden interval that the uniform root scan cannot resolve.
+    external :: root_function
+    integer, intent(out) :: ierr_out
+    double precision, intent(in) :: xlo,xhi
+    double precision, allocatable :: xcustom_saved(:)
+    logical :: customgrid_saved,saved_grid_allocated,active
+    integer :: ncustom_saved
+
+    active=certified_partition_ready .and. certified_partition_count.gt.1 .and. &
+           certified_partition_energy.eq.toten
+    if(.not.active) then
+      call find_all_roots(root_function,xlo,xhi,ierr_out)
+      return
+    endif
+
+    customgrid_saved=customgrid
+    ncustom_saved=ncustom
+    saved_grid_allocated=customgrid_saved .and. allocated(xcustom)
+    if(saved_grid_allocated) then
+      allocate(xcustom_saved(ncustom_saved))
+      xcustom_saved=xcustom
+    endif
+    if(allocated(xcustom)) deallocate(xcustom)
+    allocate(xcustom(certified_partition_count))
+    xcustom=certified_partition
+    ncustom=certified_partition_count
+    customgrid=.true.
+
+    call find_all_roots(root_function,xlo,xhi,ierr_out)
+
+    deallocate(xcustom)
+    if(saved_grid_allocated) then
+      allocate(xcustom(ncustom_saved))
+      xcustom=xcustom_saved
+      deallocate(xcustom_saved)
+    endif
+    ncustom=ncustom_saved
+    customgrid=customgrid_saved
+  end subroutine find_all_roots_certified
+
+!------------
+!
   subroutine classify_extrema(R_b_in,R_e_in,ierr_classify)
 !
 ! Find all extremum points of psi^* on the Poincare cut in the interval R_b_in < R < R_e_in,
@@ -2088,7 +2104,7 @@
   R_b=R_b_in
   relerr_allroots=1.d-8
 !
-  call find_all_roots(get_vvert,0.d0,1.d0,ierr)
+  call find_all_roots_certified(get_vvert,0.d0,1.d0,ierr)
 !
   if(ierr.ne.0) then
     ierr_classify=ierr
@@ -2115,7 +2131,7 @@
   R_b=R_e_in
   relerr_allroots=1.d-8
 !
-  call find_all_roots(get_vvert,0.d0,1.d0,ierr)
+  call find_all_roots_certified(get_vvert,0.d0,1.d0,ierr)
 !
   if(ierr.ne.0) then
     if(allocated(R_tmp1)) deallocate(R_tmp1)
