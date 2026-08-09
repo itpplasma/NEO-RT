@@ -4440,7 +4440,11 @@
 ! endpoint values were already added explicitly above.
   nsearch_save=nsearch_min
   relerr_save=relerr_allroots
-  nsearch_min=max(nsearch_min,4096)
+! The Poincare cut is the represented function on npc cells.  Scan at least
+! one point per cell so a q(R)-J_perp forbidden island cannot fit between two
+! topology samples; the cost is paid once per energy, when this certificate is
+! built, rather than once per adaptive J_perp class.
+  nsearch_min=max(nsearch_min,npc)
   relerr_allroots=1.d-11
   boundary_stage=10
   call find_all_roots_bracketed(jperp_stationary,rpc_arr(0),rpc_arr(npc),ierr_roots)
