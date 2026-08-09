@@ -4503,6 +4503,9 @@ contains
               local_sigma,local_branch,local_jq2,local_pq2,local_okq2)
           if(.not.local_okq1 .or. .not.local_okq2) then
             boundary_stage=43
+            print *,'find_jperp_topology_boundaries: branch quarter failure', &
+                local_i,local_sigma,local_branch,local_rlo,local_rhi, &
+                local_jl,local_j,local_jr,local_okq1,local_okq2
             ierr=2
             return
           endif
