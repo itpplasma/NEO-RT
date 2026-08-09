@@ -4503,8 +4503,10 @@ contains
     integer :: local_sigma,local_branch,local_i
     double precision :: local_mid,local_j,local_p,local_jl,local_jr, &
                         local_pl,local_pr,local_jq1,local_jq2, &
-                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width
+                        local_pq1,local_pq2,local_rlo,local_rhi,tolerance,width, &
+                        local_contracted_mid,local_contracted_discriminant
     logical :: local_ok,local_okl,local_okr,local_okq1,local_okq2
+    logical :: local_contracted_discriminant_ok
 
     nfp_segments=0
     do local_sigma=-1,1,2
@@ -4548,6 +4550,17 @@ contains
             ! phase-space interval on which a collision can occur; retaining
             ! it would make its inverse callback fail at every midpoint.
             cycle
+          endif
+          local_contracted_mid=0.5d0*(local_rlo+local_rhi)
+          call fixedpoint_discriminant_value(local_contracted_mid, &
+              local_contracted_discriminant,local_contracted_discriminant_ok)
+          if(local_contracted_discriminant_ok .and. &
+             local_contracted_discriminant.lt.0.d0) then
+            call refine_discriminant_transition(local_rlo,local_contracted_mid)
+            call refine_discriminant_transition(local_rhi,local_contracted_mid)
+            if(partition_refined) return
+            ierr=2
+            return
           endif
           call fixedpoint_branch_value(rpartition(local_i)+0.25d0*width, &
               local_sigma,local_branch,local_jq1,local_pq1,local_okq1)
