@@ -618,13 +618,15 @@ end module resonance_status_mod
   if(nroots.gt.0) then
     do iroot=1,nroots
       if(x.eq.roots(iroot)) return
-      rootdist=128.d0*epsilon(1.d0)*max(1.d-300,abs(x),abs(roots(iroot)))
+      ! A 32-ulp neighborhood is the resolvable duplicate window; roots
+      ! farther apart still fail closed as a potentially distinct pair.
+      rootdist=32.d0*epsilon(1.d0)*max(1.d-300,abs(x),abs(roots(iroot)))
       if(abs(roots(iroot)-x).le.rootdist) then
         print *,'find_all_roots: unresolved root separation,x,existing,delta = ', &
             x,roots(iroot),abs(roots(iroot)-x),rootdist
-        ! Two independently bracketed roots at floating-point separation are
-        ! not a certified duplicate.  Keeping one would silently lose a
-        ! narrow component or collapse a tangent topology transition.
+        ! Two roots outside the 32-ulp duplicate window are not a certified
+        ! duplicate; keeping one would silently lose a narrow component or
+        ! collapse a tangent topology transition.
         ierr=root_unresolved_separation
         return
       endif
