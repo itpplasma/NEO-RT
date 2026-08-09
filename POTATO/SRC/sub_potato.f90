@@ -2746,6 +2746,8 @@
         else
           matrix_eval_error=matrix_eval_orbit_failure
         endif
+        print *,'get_matrix_doublecount: orbit failure type,H,J,x,ierr = ', &
+            ifuntype(iclass),toten,perpinv,x,ierr
         return
       endif
 !
