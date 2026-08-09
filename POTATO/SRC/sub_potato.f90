@@ -4982,6 +4982,11 @@ contains
       call fixedpoint_branch_value(rmid,fp_sigma(segment),fp_branch(segment), &
                                    jmid,pmid,okmid)
       if(.not.okmid) then
+        if(.not.collision_debug_printed) then
+          print *,'find_jperp_topology_boundaries: inverse branch hole', &
+              segment,jtarget,rmid,rlo_local,rhi_local,jmid,pmid
+          collision_debug_printed=.true.
+        endif
         return
       endif
       if(abs(jmid-jtarget).le.tolerance) then
