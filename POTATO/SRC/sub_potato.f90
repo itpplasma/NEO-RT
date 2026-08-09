@@ -1574,7 +1574,8 @@
         pphi_minmax=pphi_min
         relerr_allroots=1.d-11
 !
-        call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
+        call find_return_map_roots_partitioned(boucross_with_endpoint_limit, &
+                                               R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 1'
@@ -1601,7 +1602,8 @@
         pphi_minmax=pphi_max
         relerr_allroots=1.d-11
 !
-        call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
+        call find_return_map_roots_partitioned(boucross_with_endpoint_limit, &
+                                               R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut left boundary 2'
@@ -1635,7 +1637,8 @@
           pphi_minmax=pphi_min
           relerr_allroots=1.d-11
 !
-          call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
+          call find_return_map_roots_partitioned(boucross_with_endpoint_limit, &
+                                                 R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 1'
@@ -1665,7 +1668,8 @@
           pphi_minmax=pphi_max
           relerr_allroots=1.d-11
 !
-          call find_boucross_roots_partitioned(R_b_in,R_e_in,ierr)
+          call find_return_map_roots_partitioned(boucross_with_endpoint_limit, &
+                                                 R_b_in,R_e_in,ierr)
 !
           if(ierr.ne.0) then
             print *,'find_bounds_fixpoints: error in find_all_roots, cut right boundary 2'
@@ -1848,7 +1852,8 @@
             if(R_b.lt.R_x_tot(ixp_tot)-delR_marg) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots_certified(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
+              call find_return_map_roots_partitioned(sepcross, R_b, &
+                  R_x_tot(ixp_tot)-delR_marg,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 1, H,J,sigma,ireg,Rlo,Rhi,ierr = ', &
@@ -1861,7 +1866,8 @@
             if(R_x_tot(ixp_tot)+delR_marg.lt.R_e) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots_certified(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
+              call find_return_map_roots_partitioned(sepcross, &
+                  R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 2'
@@ -1874,7 +1880,7 @@
 ! X-point belongs to a different region:
             relerr_allroots=1.d-12
 !
-            call find_all_roots_certified(sepcross,R_b,R_e,ierr)
+            call find_return_map_roots_partitioned(sepcross,R_b,R_e,ierr)
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 3'
@@ -1900,7 +1906,8 @@
             if(R_b.lt.R_x_tot(ixp_tot)-delR_marg) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots_certified(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
+              call find_return_map_roots_partitioned(sepcross, R_b, &
+                  R_x_tot(ixp_tot)-delR_marg,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 4'
@@ -1915,7 +1922,8 @@
             if(R_x_tot(ixp_tot)+delR_marg.lt.R_e) then
               relerr_allroots=1.d-12
 !
-              call find_all_roots_certified(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
+              call find_return_map_roots_partitioned(sepcross, &
+                  R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 5'
@@ -1931,7 +1939,7 @@
 ! X-point belongs to a different region:
             relerr_allroots=1.d-12
 !
-            call find_all_roots_certified(sepcross,R_b,R_e,ierr)
+            call find_return_map_roots_partitioned(sepcross,R_b,R_e,ierr)
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 6'
@@ -2074,11 +2082,12 @@
 
 !------------
 !
-  subroutine find_boucross_roots_partitioned(xlo,xhi,ierr_out)
+  subroutine find_return_map_roots_partitioned(root_function,xlo,xhi,ierr_out)
 ! The return-map callback is defined only on the open allowed intervals.  A
 ! missed, sub-cell v_parallel^2 hole therefore appears as an invalid interior
 ! sample to find_all_roots.  Recover that physical interval split from the
 ! primary v_parallel^2 equation, then search the two valid sides separately.
+    external :: root_function
     integer, intent(out) :: ierr_out
     double precision, intent(in) :: xlo,xhi
     integer, parameter :: max_recovered_roots=4096
@@ -2086,7 +2095,8 @@
     integer :: nrecovered
 
     nrecovered=0
-    call search_boucross_interval(xlo,xhi,recovered_roots,nrecovered,ierr_out)
+    call search_return_map_interval(root_function,xlo,xhi,recovered_roots, &
+                                    nrecovered,ierr_out)
     if(ierr_out.ne.0) return
     if(allocated(roots)) deallocate(roots)
     nroots=nrecovered
@@ -2094,9 +2104,11 @@
       allocate(roots(nrecovered))
       roots=recovered_roots(1:nrecovered)
     endif
-  end subroutine find_boucross_roots_partitioned
+  end subroutine find_return_map_roots_partitioned
 
-  recursive subroutine search_boucross_interval(rlo,rhi,accum,naccum,istat)
+  recursive subroutine search_return_map_interval(root_function,rlo,rhi, &
+                                                  accum,naccum,istat)
+      external :: root_function
       double precision, intent(in) :: rlo,rhi
       double precision, intent(inout) :: accum(:)
       integer, intent(inout) :: naccum
@@ -2106,7 +2118,7 @@
       logical :: ok_left,ok_right
       integer :: iroot
 
-      call find_all_roots_certified(boucross_with_endpoint_limit,rlo,rhi,istat)
+      call find_all_roots_certified(root_function,rlo,rhi,istat)
       if(istat.eq.0) then
         do iroot=1,nroots
           if(naccum.ge.size(accum)) then
@@ -2143,10 +2155,12 @@
 ! The recovered valid points are intentionally on the allowed side of each
 ! root.  The zero itself is already an interval boundary and need not be
 ! evaluated by the return-map callback.
-      call search_boucross_interval(rlo,rleft_valid,accum,naccum,istat)
+      call search_return_map_interval(root_function,rlo,rleft_valid, &
+                                      accum,naccum,istat)
       if(istat.ne.0) return
-      call search_boucross_interval(rright_valid,rhi,accum,naccum,istat)
-  end subroutine search_boucross_interval
+      call search_return_map_interval(root_function,rright_valid,rhi, &
+                                      accum,naccum,istat)
+  end subroutine search_return_map_interval
 
   subroutine isolate_vpar_boundary(rvalid,rinvalid,rvalid_near,ok)
       double precision, intent(in) :: rvalid,rinvalid
