@@ -2114,6 +2114,7 @@
       integer, intent(inout) :: naccum
       integer, intent(out) :: istat
       double precision :: rbad,vbad,dvbad,vlo,dvlo,vhi,dvhi
+      double precision :: vtol_lo,vtol_hi
       double precision :: rleft_valid,rright_valid
       logical :: ok_left,ok_right
       integer :: iroot
@@ -2144,8 +2145,11 @@
       call vparzero1D(rbad,vbad,dvbad)
       call vparzero1D(rlo,vlo,dvlo)
       call vparzero1D(rhi,vhi,dvhi)
-      print *, 'return-map invalid bracket R,vpar2 = ', rlo,vlo,rbad,vbad,rhi,vhi
-      if(vbad.ge.0.d0 .or. vlo.lt.0.d0 .or. vhi.lt.0.d0) return
+      vtol_lo=vpar_boundary_tolerance(rlo,dvlo)
+      vtol_hi=vpar_boundary_tolerance(rhi,dvhi)
+      print *, 'return-map invalid bracket R,vpar2,tol = ', &
+          rlo,vlo,rbad,vbad,rhi,vhi,vtol_lo,vtol_hi
+      if(vbad.ge.0.d0 .or. vlo.lt.-vtol_lo .or. vhi.lt.-vtol_hi) return
 
       call isolate_vpar_boundary(rlo,rbad,rleft_valid,ok_left)
       call isolate_vpar_boundary(rhi,rbad,rright_valid,ok_right)
@@ -2175,7 +2179,8 @@
       if(rvalid.eq.rinvalid) return
       call vparzero1D(rvalid,v2lo_local,dv2lo)
       call vparzero1D(rinvalid,v2hi_local,dv2hi)
-      if(v2lo_local.lt.0.d0 .or. v2hi_local.ge.0.d0) return
+      if(v2lo_local.lt.-vpar_boundary_tolerance(rvalid,dv2lo) .or. &
+         v2hi_local.ge.0.d0) return
       resolution=256.d0*spacing(max(abs(rvalid),abs(rinvalid)))
       resolution=max(resolution,relerr_allroots*abs(rvalid-rinvalid))
       if(resolution.le.0.d0) return
@@ -2208,6 +2213,26 @@
       endif
       ok=.true.
   end subroutine isolate_vpar_boundary
+
+  function vpar_boundary_tolerance(R,dvpar2_dR) result(tolerance)
+      use poicut_mod, only : npc,rpc_arr
+      implicit none
+      double precision, intent(in) :: R,dvpar2_dR
+      double precision :: tolerance,coordinate_error,energy_scale
+      double precision :: Z,dZ_dR,bmod,phi_elec
+      double precision :: x(3)
+
+      call get_poicut(R,Z,dZ_dR)
+      x(1)=R
+      x(2)=0.d0
+      x(3)=Z
+      call get_bmod_and_Phi(x,bmod,phi_elec)
+      coordinate_error=max(256.d0*spacing(max(1.d0,abs(R))), &
+          relerr_allroots*max(1.d0,abs(rpc_arr(npc)-rpc_arr(0))))
+      energy_scale=max(1.d0,abs(toten),abs(phi_elec),abs(perpinv*bmod))
+      tolerance=abs(dvpar2_dR)*coordinate_error + &
+          256.d0*epsilon(1.d0)*energy_scale
+  end function vpar_boundary_tolerance
 
 !------------
 !
