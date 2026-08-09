@@ -4242,6 +4242,7 @@
 ! sampler must not infer them from finite midpoint signatures.
 !
   use find_all_roots_mod, only : nroots,roots,nsearch_min,relerr_allroots, &
+                                 customgrid, &
                                  root_success,root_unresolved_separation
   use global_invariants, only : toten
   use poicut_mod, only : npc,rpc_arr,Rbou_hfs,Rbou_lfs
@@ -4269,7 +4270,7 @@
                                    fp_plo(:),fp_phi(:)
   integer, allocatable :: bd_type(:),bd_sigma(:)
   double precision, allocatable :: bd_rlo(:),bd_rhi(:),bd_jlo(:),bd_jhi(:)
-  logical :: ok,partition_refined
+  logical :: ok,partition_refined,customgrid_save
   external :: find_all_roots_bracketed,fixedpoint_discriminant, &
               fixedpoint_branch_stationary,fixedpoint_roots_at_R, &
               fixedpoint_branch_value,fixedpoint_turning_intersection
@@ -4277,6 +4278,12 @@
   ncandidates=0
   ierr=root_success
   candidates=0.d0
+! The topology certificate scans the physical cut independently of any
+! interpolation grid left by a resonance root search in the caller.  Reusing
+! that grid can feed nodes outside a narrow collision interval to the root
+! finder and split an otherwise valid component.
+  customgrid_save=customgrid
+  customgrid=.false.
   boundary_stage=0
   boundary_stage_r=0.d0
   boundary_stage_j=0.d0
@@ -4728,6 +4735,7 @@ contains
   subroutine restore_scan_state
     nsearch_min=nsearch_save
     relerr_allroots=relerr_save
+    customgrid=customgrid_save
     fixedpoint_scan_sigma=1
     fixedpoint_scan_branch=1
     fixedpoint_scan_left=0.d0

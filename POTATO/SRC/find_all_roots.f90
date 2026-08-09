@@ -250,7 +250,7 @@ end module resonance_status_mod
   double precision, intent(in) :: x1in,x2in
   integer :: i,iter,nsearch,ndummy,kx,kxc,k,kxc_first,kxc_last
   integer :: ncustom_inside,first_valid,last_valid
-  double precision :: x,hx,errdist,xb,xe,dfb,xext,fext
+  double precision :: x,hx,errdist,coordinate_resolution,xb,xe,dfb,xext,fext
   double precision, dimension(:), allocatable :: xarr,farr,dfarr,dummy1d
   logical, dimension(:), allocatable :: validarr
   logical :: valid,ok
@@ -277,8 +277,16 @@ end module resonance_status_mod
     return
   endif
 
-  errdist=relerr_allroots*abs(x2in-x1in)
-  if(errdist.le.0.d0) errdist=epsilon(1.d0)*abs(x2in-x1in)
+! Do not request a bisection tolerance below the coordinate's representable
+! spacing.  This matters for narrow physical overlaps in J_perp: the old
+! interval-relative tolerance could be smaller than one ULP, so a legitimate
+! root search ended after niter with root_nonconverged.
+  coordinate_resolution=spacing(max(abs(x1in),abs(x2in)))
+  if(coordinate_resolution.le.0.d0) then
+    coordinate_resolution=epsilon(1.d0)*max(abs(x1in),abs(x2in))
+  endif
+  errdist=max(relerr_allroots*abs(x2in-x1in), &
+             256.d0*coordinate_resolution)
 
   nsearch=nsearch_min
   if(nsearch.lt.1) nsearch=1

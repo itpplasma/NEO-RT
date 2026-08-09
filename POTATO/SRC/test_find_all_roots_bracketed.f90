@@ -70,6 +70,13 @@ program test_find_all_roots_bracketed
   call require(nroots.eq.1,'flat derivative nroots')
   call require(abs(roots(1)-0.5d0).lt.1.d-10,'flat derivative root')
 
+  call find_all_roots_bracketed(narrow_root, &
+      4.7508467039090417d-6,4.7508555518658768d-6,ierr)
+  call require(ierr.eq.0,'narrow coordinate root ierr')
+  call require(nroots.eq.1,'narrow coordinate root count')
+  call require(abs(roots(1)-4.7508511278874593d-6).lt.1.d-18, &
+               'narrow coordinate root value')
+
   nsearch_min=8
   call find_all_roots_bracketed(left_endpoint_invalid,0.d0,1.d0,ierr)
   call require(ierr.eq.0,'left endpoint contraction ierr')
@@ -172,6 +179,14 @@ contains
     f=(x-0.5d0)**3
     df=3.d0*(x-0.5d0)**2
   end subroutine flat_derivative_root
+
+  subroutine narrow_root(x,f,df)
+    double precision, intent(in) :: x
+    double precision, intent(out) :: f,df
+
+    f=x-4.7508511278874593d-6
+    df=1.d0
+  end subroutine narrow_root
 
   subroutine left_endpoint_invalid(x,f,df)
     double precision, intent(in) :: x
