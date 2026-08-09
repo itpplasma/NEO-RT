@@ -4519,6 +4519,9 @@ contains
           call fixedpoint_branch_value(local_mid,local_sigma,local_branch, &
                                        local_j,local_p,local_ok)
           if(.not.local_ok) cycle
+! A branch whose interior sample is already outside the physical
+! J_perp >= 0 domain cannot contribute to the outer topology partition.
+          if(local_j.le.0.d0) cycle
           boundary_stage=41
           boundary_stage_j=local_j
           call fixedpoint_branch_endpoint(rpartition(local_i), &
@@ -4537,7 +4540,6 @@ contains
 ! Discard it before probing quarter points: outside the physical domain the
 ! quadratic may legitimately have no branch root at a probe even though the
 ! endpoint values were obtained from the neighbouring algebraic branch.
-          if(max(local_j,local_jl,local_jr).le.0.d0) cycle
           if(local_rhi-local_rlo.le.256.d0*epsilon(1.d0)* &
              max(1.d0,abs(local_rlo),abs(local_rhi))) then
             ! The endpoint contraction can leave a formally positive branch
