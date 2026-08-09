@@ -645,6 +645,10 @@ contains
     IF(left_endpoint_sig.NE.active_left_sig(1)) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch H,left,first,nunique,nactive = ', &
           topology_context_h,left_endpoint_sig,active_left_sig(1),nunique,nactive
+      DO j=1,MIN(3,nactive)
+        PRINT *,'  active transition j,J,left,right = ',j,active_x(j), &
+            active_left_sig(j),active_right_sig(j)
+      ENDDO
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
