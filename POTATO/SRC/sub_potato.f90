@@ -4754,6 +4754,10 @@ contains
     call fixedpoint_collision_value(jtest,difference,ok0)
     boundary_stage_j=jtest
     if(.not.ok0) then
+      print *,'find_jperp_topology_boundaries: collision inverse failure', &
+          collision_segment_left,collision_segment_right, &
+          collision_boundary_left,collision_boundary_right, &
+          collision_boundary_segment,collision_jlo,collision_jhi,jtest
       root_eval_valid=.false.
       root_eval_error=root_invalid_domain
       difference=0.d0
