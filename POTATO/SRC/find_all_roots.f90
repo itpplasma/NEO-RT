@@ -610,11 +610,15 @@ end module resonance_status_mod
     ierr=root_invalid_interval
     return
   endif
-  scale=max(1.d0,abs(x))
+  ! Root separation is measured in the coordinate being scanned.  A unit
+  ! floor makes the absolute tolerance far too large for small-J scans and
+  ! misclassifies an endpoint root found by two brackets as unresolved.
+  scale=max(1.d-300,abs(x))
   rootdist=128.d0*epsilon(1.d0)*scale
   if(nroots.gt.0) then
     do iroot=1,nroots
       if(x.eq.roots(iroot)) return
+      rootdist=128.d0*epsilon(1.d0)*max(1.d-300,abs(x),abs(roots(iroot)))
       if(abs(roots(iroot)-x).le.rootdist) then
         print *,'find_all_roots: unresolved root separation,x,existing,delta = ', &
             x,roots(iroot),abs(roots(iroot)-x),rootdist
