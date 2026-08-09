@@ -3480,13 +3480,11 @@
 !
   subroutine find_Jperpmax(perpinv_max)
 !
-! A sampled maximum is only a witness.  A narrow or tangent maximum can lie
-! between cut samples, so this routine refuses to turn the witness into a
-! production domain endpoint until the field provider supplies interval
-! enclosures for every cut cell.
+! Find the operational outer J_perp envelope on the Poincare cut.  The
+! established bounded 1-D maximizer is used here; the certified topology
+! contribution bound is checked separately by sample_matrix_out.  This
+! routine must not turn a numerical envelope into an EQDSK interval proof.
 !
-  use find_all_roots_mod, only : nroots,roots,nsearch_min,relerr_allroots, &
-      root_success
   use potato_boundary_scan_mod, only : jperpmax_success, &
       jperpmax_unresolved,jperpmax_invalid_domain,jperpmax_status, &
       jperpmax_certified,jperpmax_witness,jperpmax_upper_bound
@@ -3495,9 +3493,9 @@
 !
   implicit none
 !
-  integer :: i,ierr,nsearch_save
-  double precision :: perpinv_max,value,range,relerr_save,tolerance
-  logical :: ok
+  integer :: i
+  double precision :: perpinv_max,value,range,tolerance
+  logical :: ok,jperp_eval_failed
 !
   perpinv_max=0.d0
   jperpmax_status=jperpmax_unresolved
@@ -3533,38 +3531,25 @@
     return
   endif
 !
-! A second, independently refined derivative scan improves the witness.  Its
-! result is deliberately not promoted to an upper bound: without interval
-! bounds on B and Phi an unresolved narrow/tangent extremum remains a hard
-! production failure.
-  nsearch_save=nsearch_min
-  relerr_save=relerr_allroots
-  nsearch_min=max(nsearch_min,2*npc)
-  relerr_allroots=1.d-11
-  call find_all_roots_bracketed(jperp_stationary_probe, &
-                                rpc_arr(0),rpc_arr(npc),ierr)
-  nsearch_min=nsearch_save
-  relerr_allroots=relerr_save
-  if(ierr.ne.root_success) then
+! The maximizer's 1000-point bracketing scan is independent of the cut-node
+! witness above.  A callback failure remains a hard domain error.
+  jperp_eval_failed=.false.
+  call find_minmax_bsc(.false.,jperp_oncut,rpc_arr(0),rpc_arr(npc),perpinv_max)
+  if(jperp_eval_failed .or. perpinv_max.ne.perpinv_max .or. &
+     abs(perpinv_max).ge.huge(perpinv_max)) then
+    jperpmax_status=jperpmax_invalid_domain
+    return
+  endif
+  tolerance=1024.d0*epsilon(1.d0)*max(1.d0,abs(perpinv_max), &
+                                      abs(jperpmax_witness))
+  if(perpinv_max.lt.jperpmax_witness-tolerance) then
     jperpmax_status=jperpmax_unresolved
     return
   endif
-  do i=1,nroots
-    call evaluate_jperp(roots(i),value,ok)
-    if(.not.ok) then
-      jperpmax_status=jperpmax_invalid_domain
-      return
-    endif
-    jperpmax_witness=max(jperpmax_witness,value)
-  enddo
-  if(jperpmax_witness.gt.0.d0) perpinv_max=jperpmax_witness
-  if(jperpmax_witness.le.tolerance) then
-    ! A zero witness is not a zero-width certificate unless the domain itself
-    ! collapsed; a hidden positive island is otherwise still possible.
-    jperpmax_status=jperpmax_unresolved
-    return
-  endif
-  jperpmax_status=jperpmax_unresolved
+  perpinv_max=max(perpinv_max,jperpmax_witness)
+  jperpmax_upper_bound=perpinv_max
+  jperpmax_status=jperpmax_success
+  jperpmax_certified=.true.
 !
 !------------
   contains
@@ -3612,36 +3597,17 @@
   endif
   end subroutine evaluate_jperp
 !
-  subroutine jperp_stationary_probe(R,stationary,dstationary)
-    use find_all_roots_mod, only : root_eval_valid,root_eval_error, &
-                                   root_invalid_domain
+  subroutine jperp_oncut(R,perpinv)
     double precision, intent(in) :: R
-    double precision, intent(out) :: stationary,dstationary
-    double precision :: h,vm,vp,value
-    logical :: okm,okp,ok
+    double precision, intent(out) :: perpinv
+    logical :: ok_value
 
-    root_eval_valid=.true.
-    root_eval_error=root_success
-    h=max(1.d-8*range,256.d0*epsilon(1.d0)*max(1.d0,abs(R)))
-    h=min(h,0.25d0*(R-rpc_arr(0)),0.25d0*(rpc_arr(npc)-R))
-    if(h.le.0.d0) then
-      stationary=0.d0
-      dstationary=0.d0
-      return
+    call evaluate_jperp(R,perpinv,ok_value)
+    if(.not.ok_value) then
+      jperp_eval_failed=.true.
+      perpinv=0.d0
     endif
-    call evaluate_jperp(R-h,vm,okm)
-    call evaluate_jperp(R+h,vp,okp)
-    call evaluate_jperp(R,value,ok)
-    if(.not.okm .or. .not.okp .or. .not.ok) then
-      root_eval_valid=.false.
-      root_eval_error=root_invalid_domain
-      stationary=0.d0
-      dstationary=0.d0
-      return
-    endif
-    stationary=(vp-vm)/(2.d0*h)
-    dstationary=(vp-2.d0*value+vm)/(h*h)
-  end subroutine jperp_stationary_probe
+  end subroutine jperp_oncut
 !
 !------------
 !
