@@ -111,6 +111,7 @@
   module get_matrix_mod
     double precision :: relerror=1.d-4, relmargin=1.d-4, orbit_relerr=1.d-10
     integer          :: primary_step_limit=100000
+    integer          :: class_return_failure_reason=0
 ! Class domain is trimmed to where |delphi_b| <= delphi_max: no resonance lives
 ! past 2*pi*m_max/n, and the divergent X-point endpoint beyond it defeats the
 ! adaptive sampler (sample_matrix ierr=2 -> class dropped).  delphi_max <= 0
@@ -120,6 +121,7 @@
 ! Relerror and relmargin are configured by sample_class_doublecount for each
 ! energy slice; they are not immutable global input once the torque loop starts.
     !$omp threadprivate(relerror,relmargin,orbit_relerr,primary_step_limit, &
+    !$omp&              class_return_failure_reason, &
     !$omp&              delphi_max,iclass)
   end module get_matrix_mod
 !
@@ -3161,7 +3163,7 @@
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_orbit_failure, &
                                 matrix_boundary_error
-  use get_matrix_mod, only : delphi_max
+  use get_matrix_mod, only : delphi_max,class_return_failure_reason
   use potato_input_mod, only : class_return_safety
 !
   implicit none
@@ -3173,6 +3175,7 @@
   external :: get_matrix_doublecount
 !
   empty_class=.false.
+  class_return_failure_reason=0
   ib_beg=iftype/10
   ib_end=mod(iftype,10)
   if((ib_beg.ne.1 .and. ib_beg.ne.2) .and. &
@@ -3204,6 +3207,7 @@
         ! distinct from an evaluator failure so the caller can skip it.
         empty_class=.true.
       else
+        class_return_failure_reason=1
         matrix_boundary_error=matrix_eval_orbit_failure
       endif
     endif
@@ -3239,6 +3243,7 @@
       if(delphi_max.gt.0.d0) then
         empty_class=.true.
       else
+        class_return_failure_reason=2
         matrix_boundary_error=matrix_eval_orbit_failure
       endif
       return
@@ -3270,6 +3275,7 @@
     elseif(delphi_max.gt.0.d0) then
       empty_class=.true.
     else
+      class_return_failure_reason=3
       matrix_boundary_error=matrix_eval_orbit_failure
     endif
   endif
