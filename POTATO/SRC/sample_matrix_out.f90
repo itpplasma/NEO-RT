@@ -643,7 +643,8 @@ contains
     ENDIF
   ELSE
     IF(left_endpoint_sig.NE.active_left_sig(1)) THEN
-      PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch'
+      PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch H,left,first,nunique,nactive = ', &
+          topology_context_h,left_endpoint_sig,active_left_sig(1),nunique,nactive
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
