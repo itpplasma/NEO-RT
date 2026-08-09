@@ -590,7 +590,6 @@
 ! coordinates of alpha_lifetime
 !
   use field_sub, only : psif,dpsidr,dpsidz
-  use field_eq_mod, only : ierrfield
   use parmot_mod,   only : ro0
 !
   implicit none
