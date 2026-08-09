@@ -4514,8 +4514,8 @@ contains
     pvalue=pmid
     ok_value=abs(jmid-jtarget).le.10.d0*tolerance
     if(.not.ok_value) then
-      print *,'invert_fixedpoint_branch: no inverse convergence,segment,J,R,Jmid = ', &
-          segment,jtarget,rmid,jmid
+      print *,'invert_fixedpoint_branch: no inverse convergence,segment,J,Rlo,Rhi,Jmid = ', &
+          segment,jtarget,rlo_local,rhi_local,jmid
     endif
   end subroutine invert_fixedpoint_branch
 
