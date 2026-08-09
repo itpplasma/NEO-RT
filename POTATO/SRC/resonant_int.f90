@@ -509,7 +509,8 @@ subroutine get_matrix_res
         topology_signature,topology_error,topology_context_h, &
         topology_signature_of_classes,topology_probe_only
     use global_invariants,            only : toten,perpinv
-    use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
+    use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class, &
+        R_class_beg,R_class_end
     use get_matrix_mod,               only : iclass
     use sample_class_status_mod,       only : sample_class_success, &
         sample_class_no_resonance
@@ -609,8 +610,12 @@ subroutine get_matrix_res
             ! its initialized zero records remain part of the class topology.
             cycle
         else
-            write(msg, '(A,I0)') &
-                'get_matrix_res: sample_class_doublecount error ', ierr
+            write(msg, '(A,I0,A,I0,A,I0,A,F6.1,A,2ES14.6,A,2ES14.6,A,I0)') &
+                'get_matrix_res: sample_class error=',ierr, &
+                ' class=',iclass,' iftype=',ifuntype(iclass), &
+                ' sigma=',sigma_class(iclass), &
+                ' Rbeg,Rend=',R_class_beg(iclass),R_class_end(iclass), &
+                ' xbeg,xend=',xbeg,xend,' npoi=',npoi
             call tee_message(trim(msg))
             topology_error=ierr
             deallocate(respoints_jp)
