@@ -75,7 +75,7 @@ contains
             H_m_squared,hamiltonian_coefficient)
     end subroutine potato_hm_kernel
 
-    subroutine potato_root_jacobian_kernel(dpsiast_dR,dresonance_dR, &
+    pure subroutine potato_root_jacobian_kernel(dpsiast_dR,dresonance_dR, &
         root_jacobian)
         real(real64), intent(in) :: dpsiast_dR,dresonance_dR
         real(real64), intent(out) :: root_jacobian

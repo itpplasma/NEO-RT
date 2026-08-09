@@ -401,6 +401,7 @@ contains
 ! measure into a certified contribution-error bound; omission fails closed.
 !
   USE sample_matrix_out_mod
+  USE potato_symbolic_kernel_mod, ONLY : potato_gap_contribution_kernel
   IMPLICIT NONE
 !
   INTEGER, INTENT(OUT) :: ierr

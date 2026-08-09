@@ -682,11 +682,15 @@ subroutine resonant_torque
         ledger_class_evaluations,ledger_harmonic_scans,ledger_searched_zero, &
         ledger_root_count,ledger_failure_count,ledger_jperp_samples
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
-        ind_hist,xarr,amat_arr,topology_arr,topology_error,topology_partition_tol, &
+        ind_hist,xarr,amat_arr,topology_arr,topology_error,topology_signature, &
+        topology_partition_tol, &
+        topology_context_h,topology_probe_only,sample_matrix_preserve_history, &
+        topology_candidate_count,topology_transition_count,topology_gap_bound, &
         topology_gap_measure,topology_gap_geometric_bound, &
         topology_contribution_error_bound,topology_contribution_error_certified
     use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
+        adaptive_jperp, npoi_init, nlagr_sampling, &
         eps_sampling, itermax_sampling, &
         topology_partition_tol_input => topology_partition_tol, &
         topology_partition_tol_refined, topology_refinement_lane, &

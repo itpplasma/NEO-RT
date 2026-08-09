@@ -117,7 +117,7 @@
     integer          :: iclass
 ! Relerror and relmargin are configured by sample_class_doublecount for each
 ! energy slice; they are not immutable global input once the torque loop starts.
-    !$omp threadprivate(relerror,relmargin,iclass)
+    !$omp threadprivate(relerror,relmargin,delphi_max,iclass)
   end module get_matrix_mod
 !
 !------------------------------------------------------
@@ -3485,7 +3485,8 @@
 ! production domain endpoint until the field provider supplies interval
 ! enclosures for every cut cell.
 !
-  use find_all_roots_mod, only : nroots,nsearch_min,relerr_allroots,root_success
+  use find_all_roots_mod, only : nroots,roots,nsearch_min,relerr_allroots, &
+      root_success
   use potato_boundary_scan_mod, only : jperpmax_success, &
       jperpmax_unresolved,jperpmax_invalid_domain,jperpmax_status, &
       jperpmax_certified,jperpmax_witness,jperpmax_upper_bound

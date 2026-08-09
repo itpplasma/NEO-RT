@@ -106,7 +106,7 @@ end module resonance_status_mod
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
     !$omp threadprivate(customgrid,root_eval_valid,root_eval_error,root_scan_complete, &
-    !$omp&                ncustom,niter, &
+    !$omp&                nsearch_min,ncustom,niter, &
     !$omp&                relerr_allroots,xcustom,nroots,roots,              &
     !$omp&                root_left_endpoint_contracted,                    &
     !$omp&                root_right_endpoint_contracted,root_search_left,  &
@@ -234,7 +234,10 @@ end module resonance_status_mod
                                  root_eval_error,root_success,            &
                                  root_nonconverged,root_invalid_domain,   &
                                  root_invalid_interval,                    &
+                                 root_nonfinite_value,                     &
+                                 root_unresolved_separation,               &
                                  root_left_endpoint_contracted,            &
+                                 root_scan_complete,                       &
                                  root_right_endpoint_contracted,root_search_left, &
                                  root_search_right,root_left_invalid_bracket,      &
                                  root_right_invalid_bracket,root_last_invalid_x,  &
