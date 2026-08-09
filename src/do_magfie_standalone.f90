@@ -292,10 +292,10 @@ contains
         real(dp), dimension(size(x)), intent(out) :: hcurl
 
         real(dp) :: spl_val(3), rho1, s1, dAphi_ds
-        real(dp) :: bmod0, bmod1, dBmod_drho, dBmod_dth
+        real(dp) :: dBmod_drho, dBmod_dth
         real(dp) :: sqgbmod, sqgbmod2
         real(dp) :: alpha, th_shift
-        integer :: k_th, k_th1
+        integer :: k_th
 
         s1 = max(cm_s_aphi(1), x(1))
         s1 = min(cm_s_aphi(size(cm_s_aphi)), s1)
@@ -331,33 +331,23 @@ contains
         ! Bmod on (rho, theta) grid: wrap theta to [0, 2*pi) then interpolate.
         th_shift = x(3) - floor(x(3) / (2.0_dp * pi)) * 2.0_dp * pi
         k_th = max(0, min(cm_n_theta - 1, int(th_shift / cm_h_theta)))
-        k_th1 = mod(k_th + 1, cm_n_theta)
         alpha = (th_shift - real(k_th, dp) * cm_h_theta) / cm_h_theta
 
-        ! Spline in rho at k_th grid point (1-based index k_th+1).
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
-        bmod0 = spl_val(1) * bfac
-        dBmod_drho = spl_val(2) * bfac
-
-        ! Spline in rho at next theta grid point (periodic wrap).
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
-        bmod1 = spl_val(1) * bfac
-
-        bmod = (1.0_dp - alpha) * bmod0 + alpha * bmod1
+        ! The chartmap theta planes are periodic samples of a smooth field.
+        ! A linear blend here creates a cusp at a sampled B minimum; its
+        ! deep-trapped bounce frequency then diverges like the inverse square
+        ! root of the distance to the minimum.  Use a periodic C1 cubic
+        ! Hermite segment instead.  The radial spline is still evaluated only
+        ! at the four theta nodes needed by that local segment.
+        call chartmap_bmod_theta(rho1, k_th, alpha, bfac, bmod, dBmod_drho, dBmod_dth)
         B0h = bmod
 
         ! dBmod/ds via chain rule through rho.
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
-        dBmod_drho = (1.0_dp - alpha) * spl_val(2) * bfac
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
-        dBmod_drho = dBmod_drho + alpha * spl_val(2) * bfac
         bder(1) = dBmod_drho / (2.0_dp * rho1 * bmod)
         ! x(2) is the toroidal angle phi; Bmod has no phi dependence in axisymmetric
         ! (nfp=1, phi=0 slice) Boozer coordinates, so bder(2)=0 is exact.
         bder(2) = 0.0_dp
-        ! dBmod/dtheta by finite difference across the theta grid cell.
-        dBmod_dth = (bmod1 - bmod0) / (cm_h_theta * bmod)
-        bder(3) = dBmod_dth
+        bder(3) = dBmod_dth / bmod
 
         sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
         sqgbmod = sqgbmod2 / bmod
@@ -376,6 +366,54 @@ contains
         hcurl(2) = 0.0_dp
 
     end subroutine do_magfie_chartmap
+
+    subroutine chartmap_bmod_theta(rho, interval, alpha, scale, value, dvalue_drho, &
+            dvalue_dtheta)
+        real(dp), intent(in) :: rho, alpha, scale
+        integer, intent(in) :: interval
+        real(dp), intent(out) :: value, dvalue_drho, dvalue_dtheta
+        real(dp) :: bnode(4), brnode(4), b0, b1, br0, br1
+        real(dp) :: db0, db1, dbr0, dbr1
+        real(dp) :: h00, h10, h01, h11, dh00, dh10, dh01, dh11
+        real(dp) :: spl_val(3)
+        integer :: j, node, periodic_nodes
+
+        ! libneo appends the theta=2*pi plane to the endpoint-excluded
+        ! periodic samples.  It is a storage duplicate, not another periodic
+        ! node for centered derivatives.
+        periodic_nodes = cm_n_theta - 1
+
+        do j = 1, 4
+            node = 1 + modulo(interval + j - 2, periodic_nodes)
+            spl_val = spline_val_0(cm_spl_bmod(:, :, node), rho)
+            bnode(j) = scale*spl_val(1)
+            brnode(j) = scale*spl_val(2)
+        end do
+
+        b0 = bnode(2)
+        b1 = bnode(3)
+        br0 = brnode(2)
+        br1 = brnode(3)
+        db0 = (bnode(3) - bnode(1))/(2.0_dp*cm_h_theta)
+        db1 = (bnode(4) - bnode(2))/(2.0_dp*cm_h_theta)
+        dbr0 = (brnode(3) - brnode(1))/(2.0_dp*cm_h_theta)
+        dbr1 = (brnode(4) - brnode(2))/(2.0_dp*cm_h_theta)
+
+        h00 = 2.0_dp*alpha**3 - 3.0_dp*alpha**2 + 1.0_dp
+        h10 = alpha**3 - 2.0_dp*alpha**2 + alpha
+        h01 = -2.0_dp*alpha**3 + 3.0_dp*alpha**2
+        h11 = alpha**3 - alpha**2
+        dh00 = 6.0_dp*alpha**2 - 6.0_dp*alpha
+        dh10 = 3.0_dp*alpha**2 - 4.0_dp*alpha + 1.0_dp
+        dh01 = -6.0_dp*alpha**2 + 6.0_dp*alpha
+        dh11 = 3.0_dp*alpha**2 - 2.0_dp*alpha
+
+        value = h00*b0 + h10*cm_h_theta*db0 + h01*b1 + h11*cm_h_theta*db1
+        dvalue_dtheta = (dh00*b0 + dh10*cm_h_theta*db0 + dh01*b1 + &
+            dh11*cm_h_theta*db1)/cm_h_theta
+        dvalue_drho = h00*br0 + h10*cm_h_theta*dbr0 + h01*br1 + &
+            h11*cm_h_theta*dbr1
+    end subroutine chartmap_bmod_theta
 
     subroutine read_eqdsk_file(path)
         use field_eq_mod, only: reset_field_eq_state, use_fpol, nwindow_r, nwindow_z

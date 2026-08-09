@@ -17,7 +17,7 @@ program test_chartmap_input
     use iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: inp_swi, bfac, read_boozer_file, set_s, &
         init_magfie_at_s, magfie_thread_init, do_magfie, &
-        iota, Bthcov, Bphcov, psi_pr, a, dBthcovds, dBphcovds
+        iota, Bthcov, Bphcov, psi_pr, a, dBthcovds, dBphcovds, cm_h_theta
     use util, only: pi
     use logger, only: set_log_level
 
@@ -28,9 +28,10 @@ program test_chartmap_input
     real(dp) :: x(3), bmod_cm, sqrtg_cm
     real(dp) :: bder_cm(3), hcovar_cm(3), hctrvr_cm(3), hcurl_cm(3)
     real(dp) :: iota_cm, Bth_cm, Bph_cm, psip_cm, a_cm
-    real(dp) :: bmod_bc, sqrtg_bc
+    real(dp) :: bmod_bc, sqrtg_bc, bmod_minus, bmod_plus
     real(dp) :: bder_bc(3), hcovar_bc(3), hctrvr_bc(3), hcurl_bc(3)
     real(dp) :: iota_bc, Bth_bc, Bph_bc, psip_bc
+    real(dp) :: seam_bder_zero, seam_derivative, seam_derivative_error
     real(dp), parameter :: tol_rel = 1.0e-4_dp ! tightened: FP-accurate fixture from libneo #347
     logical :: run_crosscheck
 
@@ -102,6 +103,26 @@ program test_chartmap_input
         print *, "ERROR: chartmap hctrvr(3) <= 0 (sqrtg sign bug), got", hctrvr_cm(3)
         error stop "test_chartmap_input phase 1 failed: hctrvr sign"
     end if
+
+    ! The chartmap stores an endpoint-excluded periodic theta grid plus a
+    ! duplicated 2*pi plane.  The field derivative at theta=0 must therefore
+    ! agree with the centered derivative across the periodic seam.  This also
+    ! guards the smooth deep-trapped limit against reintroducing a one-sided
+    ! interpolation cusp.
+    seam_bder_zero = bder_cm(3)
+    call do_magfie([x(1), x(2), -cm_h_theta], bmod_minus, sqrtg_cm, &
+        bder_cm, hcovar_cm, hctrvr_cm, hcurl_cm)
+    call do_magfie([x(1), x(2), cm_h_theta], bmod_plus, sqrtg_cm, &
+        bder_cm, hcovar_cm, hctrvr_cm, hcurl_cm)
+    seam_derivative = (bmod_plus - bmod_minus)/(2.0_dp*cm_h_theta*bmod_cm)
+    seam_derivative_error = abs(seam_derivative - seam_bder_zero)
+    if (seam_derivative_error > 1.0e-10_dp * (1.0_dp + abs(seam_derivative))) then
+        print *, "ERROR: chartmap theta seam derivative is not centered:", &
+            seam_derivative, seam_bder_zero, seam_derivative_error
+        error stop "test_chartmap_input phase 1 failed: theta seam"
+    end if
+    x(3) = 0.0_dp
+    call do_magfie(x, bmod_cm, sqrtg_cm, bder_cm, hcovar_cm, hctrvr_cm, hcurl_cm)
 
     print *, "Phase 1 OK: chartmap bmod=", bmod_cm, " iota=", iota_cm
 
