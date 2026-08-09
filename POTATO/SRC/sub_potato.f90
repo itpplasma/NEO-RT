@@ -3689,6 +3689,7 @@
                                  root_success,root_unresolved_separation
   use global_invariants, only : toten
   use poicut_mod, only : npc,rpc_arr,Rbou_hfs,Rbou_lfs
+  use sample_matrix_out_mod, only : topology_probe_only
   use potato_boundary_scan_mod, only : fixedpoint_scan_sigma, &
                                        fixedpoint_scan_branch, &
                                        fixedpoint_scan_left, fixedpoint_scan_right
@@ -3723,6 +3724,11 @@
   boundary_stage=0
   boundary_stage_r=0.d0
   boundary_stage_j=0.d0
+  collision_segment_left=0
+  collision_segment_right=0
+  collision_boundary_segment=0
+  collision_boundary_left=0
+  collision_boundary_right=0
   nfp_segments=0
   nbd_segments=0
   npart=0
@@ -4182,6 +4188,9 @@ contains
     ! roots below zero are valid equation roots but cannot change the
     ! physical topology certificate.
     if(value.lt.0.d0) return
+    if(topology_probe_only) print *,'candidate trace H,stage,index,value,fp,fp2,bd,bd2 = ', &
+        toten,boundary_stage,ncandidates+1,value,collision_segment_left, &
+        collision_segment_right,collision_boundary_left,collision_boundary_right
     if(ncandidates.ge.nmax) then
       ierr=3
       return
