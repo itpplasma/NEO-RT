@@ -4208,6 +4208,14 @@ contains
             ierr=2
             return
           endif
+          if(local_rhi-local_rlo.le.256.d0*epsilon(1.d0)* &
+             max(1.d0,abs(local_rlo),abs(local_rhi))) then
+            ! The endpoint contraction can leave a formally positive branch
+            ! interval below the representable R resolution.  It has no open
+            ! phase-space interval on which a collision can occur; retaining
+            ! it would make its inverse callback fail at every midpoint.
+            cycle
+          endif
           call fixedpoint_branch_value(rpartition(local_i)+0.25d0*width, &
               local_sigma,local_branch,local_jq1,local_pq1,local_okq1)
           call fixedpoint_branch_value(rpartition(local_i)+0.75d0*width, &
