@@ -2240,7 +2240,7 @@
   R_b=R_b_in
   relerr_allroots=1.d-8
 !
-  call find_all_roots_certified(get_vvert,0.d0,1.d0,ierr)
+  call find_all_roots(get_vvert,0.d0,1.d0,ierr)
 !
   if(ierr.ne.0) then
     ierr_classify=ierr
@@ -2267,7 +2267,7 @@
   R_b=R_e_in
   relerr_allroots=1.d-8
 !
-  call find_all_roots_certified(get_vvert,0.d0,1.d0,ierr)
+  call find_all_roots(get_vvert,0.d0,1.d0,ierr)
 !
   if(ierr.ne.0) then
     if(allocated(R_tmp1)) deallocate(R_tmp1)
