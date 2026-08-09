@@ -2129,8 +2129,6 @@
       call vparzero1D(rhi,vhi,dvhi)
       vtol_lo=vpar_boundary_tolerance(rlo,dvlo)
       vtol_hi=vpar_boundary_tolerance(rhi,dvhi)
-      print *, 'return-map invalid bracket R,vpar2,tol = ', &
-          rlo,vlo,rbad,vbad,rhi,vhi,vtol_lo,vtol_hi
       if(vbad.ge.0.d0 .or. vlo.lt.-vtol_lo .or. vhi.lt.-vtol_hi) return
 
       call isolate_vpar_boundary(rlo,rbad,rleft_valid,ok_left)
