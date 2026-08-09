@@ -29,6 +29,7 @@ program test_endpoint_stationary_root
                                          potato_frequency_reduction_kernel, &
                                          potato_resonance_torque_kernel, &
                                          potato_gap_contribution_kernel, &
+                                         potato_gap_square_map, &
                                          potato_limiting_kernel, &
                                          potato_limiting_kernel_checked, &
                                          potato_limiting_invalid_reference, &
@@ -82,6 +83,7 @@ program test_endpoint_stationary_root
   call test_fixedpoint_quadratic
   call test_resonance_status
   call test_conjugate_mode_representation
+  call test_gap_square_map
   call test_symbolic_contract
 
   call require(.not.root_has_two_sided_neighborhood(0.d0,0.d0,1.d0,1.d-6), &
@@ -523,6 +525,22 @@ contains
     call require(abs(resonance+resonance_conjugate).lt.1.d-14, &
                  'conjugate Fourier representation changed resonance zero set')
   end subroutine test_conjugate_mode_representation
+
+  subroutine test_gap_square_map
+    double precision :: coordinate,jacobian
+
+! The transformed coordinate resolves an integrable square-root endpoint:
+! x = x_b + s*d*u^2, dx/du = 2*s*d*u.  These values are an independent
+! behavioral oracle for the generated map, including both orientations.
+    call potato_gap_square_map(1.5d0,-1.d0,0.4d0,0.5d0,coordinate,jacobian)
+    call require(abs(coordinate-1.4d0).lt.1.d-14 .and. &
+                 abs(jacobian-0.4d0).lt.1.d-14, &
+                 'negative-direction quadratic gap map is wrong')
+    call potato_gap_square_map(1.5d0,1.d0,0.4d0,0.5d0,coordinate,jacobian)
+    call require(abs(coordinate-1.6d0).lt.1.d-14 .and. &
+                 abs(jacobian-0.4d0).lt.1.d-14, &
+                 'positive-direction quadratic gap map is wrong')
+  end subroutine test_gap_square_map
 
   subroutine test_symbolic_contract
     double precision :: candidate,positive_bound,derivative

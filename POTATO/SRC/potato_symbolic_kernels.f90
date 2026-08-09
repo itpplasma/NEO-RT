@@ -8,6 +8,8 @@ module potato_symbolic_kernel_mod
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     use potato_gap_error_generated_mod, only : potato_gap_error_kernel_generated => &
         potato_gap_error_kernel
+    use potato_gap_square_map_generated_mod, only : &
+        potato_gap_square_map_kernel_generated => potato_gap_square_map_kernel
     use potato_hm_eq4_generated_mod, only : potato_hm_eq4_kernel_generated => &
         potato_hm_eq4_kernel
     use potato_jperp_domain_generated_mod, only : potato_jperp_domain_kernel_generated => &
@@ -38,6 +40,7 @@ module potato_symbolic_kernel_mod
     public :: potato_frequency_reduction_kernel
     public :: potato_resonance_torque_kernel
     public :: potato_gap_contribution_kernel
+    public :: potato_gap_square_map
     public :: potato_limiting_kernel
     public :: potato_limiting_kernel_checked
     public :: potato_limiting_success, potato_limiting_invalid_reference, &
@@ -157,6 +160,16 @@ contains
             Jperp_gap_hi,topology_gap_measure, &
             topology_contribution_error_bound)
     end subroutine potato_gap_contribution_kernel
+
+    pure subroutine potato_gap_square_map(gap_boundary, gap_direction, &
+            gap_width, gap_parameter, gap_coordinate, gap_jacobian)
+        real(real64), intent(in) :: gap_boundary, gap_direction, gap_width
+        real(real64), intent(in) :: gap_parameter
+        real(real64), intent(out) :: gap_coordinate, gap_jacobian
+
+        call potato_gap_square_map_kernel_generated(gap_boundary, gap_direction, &
+            gap_width, gap_parameter, gap_coordinate, gap_jacobian)
+    end subroutine potato_gap_square_map
 
     subroutine potato_limiting_kernel(hessian_H_RR,hessian_H_Rp,hessian_H_pp, &
         regular_tau_value,cut_linear_slope,xpoint_cut_curvature,delta_R, &

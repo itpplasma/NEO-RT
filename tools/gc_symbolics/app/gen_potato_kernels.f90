@@ -67,6 +67,8 @@ program gen_potato_kernels
 
     type(expr_t) :: integrand_envelope, Jperp_gap_lo, Jperp_gap_hi
     type(expr_t) :: topology_gap_measure, topology_contribution_error_bound
+    type(expr_t) :: gap_boundary, gap_direction, gap_width, gap_parameter
+    type(expr_t) :: gap_coordinate, gap_jacobian
 
     type(expr_t) :: hessian_H_RR, hessian_H_Rp, hessian_H_pp
     type(expr_t) :: regular_tau_value, cut_linear_slope, xpoint_cut_curvature
@@ -228,6 +230,17 @@ program gen_potato_kernels
     topology_contribution_error_bound = &
         integrand_envelope*topology_gap_measure
 
+    ! A topology bracket is integrated one side at a time.  The quadratic
+    ! endpoint map removes the square-root U-turn singularity described in
+    ! POTATO/TEX/equilmaxw.tex: x = x_b + s*d*u**2, 0 < u < 1.  Runtime
+    ! code supplies the signed side and uses the generated Jacobian.
+    gap_boundary = sym(arena, 'gap_boundary')
+    gap_direction = sym(arena, 'gap_direction')
+    gap_width = sym(arena, 'gap_width')
+    gap_parameter = sym(arena, 'gap_parameter')
+    gap_coordinate = gap_boundary + gap_direction*gap_width*gap_parameter**2
+    gap_jacobian = 2*gap_width*gap_parameter
+
     ! ------------------------------------------------------------------
     ! Limiting forms from the local one-degree-of-freedom Hamiltonian.  The
     ! Hessian is supplied in one explicitly selected physical/normalised-time
@@ -339,6 +352,13 @@ program gen_potato_kernels
         topology_contribution_error_bound - integrand_envelope* &
             (Jperp_gap_hi - Jperp_gap_lo))
     call check_identity(proofs, proof_engine, &
+        'quadratic topology gap coordinate map', &
+        gap_coordinate - (gap_boundary + gap_direction*gap_width* &
+                          gap_parameter**2))
+    call check_identity(proofs, proof_engine, &
+        'quadratic topology gap Jacobian', &
+        gap_jacobian - 2*gap_width*gap_parameter)
+    call check_identity(proofs, proof_engine, &
         'Hessian determinant defines the local saddle rate', &
         hessian_determinant - (hessian_H_RR*hessian_H_pp - hessian_H_Rp**2))
     call check_identity(proofs, proof_engine, &
@@ -418,6 +438,7 @@ program gen_potato_kernels
         resonance_torque_weight)
     call emit_gap_kernel(output_directory, topology_gap_measure, &
         topology_contribution_error_bound)
+    call emit_gap_map_kernel(output_directory, gap_coordinate, gap_jacobian)
     call emit_limiting_kernel(output_directory,hessian_determinant,lambda_local, &
         C_tau,regular_action_offset,regular_action_jacobian, &
         xpoint_action_offset,xpoint_action_jacobian,regular_tau_limit, &
@@ -609,6 +630,21 @@ contains
         call write_kernel(directory, 'potato_gap_error.f90', &
             [gap_measure, contribution_bound], spec)
     end subroutine emit_gap_kernel
+
+    subroutine emit_gap_map_kernel(directory, coordinate, jacobian)
+        character(*), intent(in) :: directory
+        type(expr_t), intent(in) :: coordinate, jacobian
+        type(kernel_spec_t) :: spec
+
+        call common_spec(spec, 'potato_gap_square_map_kernel', &
+            'potato_gap_square_map_generated_mod')
+        allocate (spec%args(4), spec%outputs(2))
+        spec%args = [str('gap_boundary'), str('gap_direction'), &
+            str('gap_width'), str('gap_parameter')]
+        spec%outputs = [str('gap_coordinate'), str('gap_jacobian')]
+        call write_kernel(directory, 'potato_gap_square_map.f90', &
+            [coordinate, jacobian], spec)
+    end subroutine emit_gap_map_kernel
 
     subroutine emit_limiting_kernel(directory, hessian_determinant, lambda_local, &
         c_tau, regular_action_offset, regular_action_jacobian, &
