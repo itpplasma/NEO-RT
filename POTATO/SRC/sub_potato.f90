@@ -185,6 +185,7 @@
   use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,orbit_wall_loss, &
                             orbit_failure_stage
   use field_eq_mod, only : ierrfield
+  use get_matrix_mod, only : delphi_max
 !
   implicit none
 !
@@ -273,6 +274,15 @@
     ierr = 1
     return
   endif
+! The resonance path has already supplied the exact finite harmonic guard.
+! An orbit whose accumulated toroidal displacement has passed it cannot
+! satisfy any active Delta_phi_b + 2*pi*m/n = 0 root.  Stop such an open or
+! near-separatrix trial before it spends the full ODE step budget.  With no
+! resonance guard (the normal frequency/orbit path), retain the old behavior.
+  if(delphi_max.gt.0.d0 .and. abs(z(2)-z_start(2)).gt.delphi_max) then
+    ierr=2
+    return
+  endif
 !
   taub=dtau
   if(nousecut) then
@@ -308,6 +318,10 @@
     call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
     if(ierrfield.ne.0) then
       ierr = 1
+      return
+    endif
+    if(delphi_max.gt.0.d0 .and. abs(z(2)-z_start(2)).gt.delphi_max) then
+      ierr=2
       return
     endif
 !
@@ -382,6 +396,10 @@
     call odeint_allroutines(z,ndim,tau0,dtau_newt,relerr,velo_ext)
     if(ierrfield.ne.0) then
       ierr = 1
+      return
+    endif
+    if(delphi_max.gt.0.d0 .and. abs(z(2)-z_start(2)).gt.delphi_max) then
+      ierr=2
       return
     endif
 !
