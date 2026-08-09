@@ -4764,6 +4764,10 @@ contains
             fp_rlo(collision_segment_left),fp_rhi(collision_segment_left), &
             fp_jlo(collision_segment_left),fp_jhi(collision_segment_left), &
             fp_plo(collision_segment_left),fp_phi(collision_segment_left)
+        if(collision_segment_right.gt.0) print *,' fixed segment right:', &
+            fp_rlo(collision_segment_right),fp_rhi(collision_segment_right), &
+            fp_jlo(collision_segment_right),fp_jhi(collision_segment_right), &
+            fp_plo(collision_segment_right),fp_phi(collision_segment_right)
         if(collision_boundary_right.gt.0) print *,' boundary segment:', &
             bd_type(collision_boundary_right),bd_sigma(collision_boundary_right), &
             bd_rlo(collision_boundary_right),bd_rhi(collision_boundary_right), &
