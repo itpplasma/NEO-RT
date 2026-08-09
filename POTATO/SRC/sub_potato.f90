@@ -3897,7 +3897,7 @@
 ! Collision locations are subsequently certified with adjacent representable
 ! J_perp probes.  Refine only these scalar collision roots to coordinate
 ! resolution; the preceding broad scans retain the faster production setting.
-  relerr_allroots=min(relerr_allroots,1.d-15)
+  relerr_allroots=min(relerr_allroots,1.d-14)
   do i=1,nfp_segments-1
     do j=i+1,nfp_segments
       boundary_stage=50
