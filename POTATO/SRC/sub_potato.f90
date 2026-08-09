@@ -392,8 +392,8 @@
     ierr=2
     return
   endif
-  if(primary_steps.gt.10000) then
-    print *, 'find_bounce: large primary return, steps,dtau,dtau_newt,taub=', &
+  if(primary_steps.gt.10000 .or. abs(dtau_newt).gt.dtau) then
+    print *, 'find_bounce: large return correction, steps,dtau,dtau_newt,taub=', &
         primary_steps,dtau,dtau_newt,taub
   endif
 !
