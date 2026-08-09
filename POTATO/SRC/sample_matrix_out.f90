@@ -414,7 +414,8 @@ contains
   INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
   DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol
   DOUBLE PRECISION :: candidate_merge_tol
-  DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol
+  DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol, &
+                      delta_resolution
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
   DOUBLE PRECISION :: geometric_gap_bound
   DOUBLE PRECISION, ALLOCATABLE :: candidates(:),active_x(:),active_delta(:)
@@ -594,7 +595,9 @@ contains
     IF(i.LT.nunique) next_bound=candidates(i+1)
     delta=MIN(topology_tol,0.25d0*(candidates(i)-prev_bound), &
               0.25d0*(next_bound-candidates(i)))
-    IF(delta.LE.128.d0*EPSILON(1.d0)*scale) THEN
+    delta_resolution=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
+        ABS(candidates(i)),ABS(prev_bound),ABS(next_bound))
+    IF(delta.LE.delta_resolution) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: unresolved root spacing H,J = ', &
           topology_context_h,candidates(i),delta
       CALL fail_certified(sample_matrix_topology_unresolved)
@@ -674,7 +677,9 @@ contains
       segment_hi(i)=active_x(i)-active_delta(i)
     ENDIF
     segment_sig(i)=sig_expected
-    IF(segment_hi(i)-segment_lo(i).LE.128.d0*EPSILON(1.d0)*scale) THEN
+    delta_resolution=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
+        ABS(segment_hi(i)),ABS(segment_lo(i)))
+    IF(segment_hi(i)-segment_lo(i).LE.delta_resolution) THEN
       PRINT *,'sample_matrix_out_partitioned_certified: empty open component H,Jlo,Jhi = ', &
           topology_context_h,segment_lo(i),segment_hi(i)
       CALL fail_certified(sample_matrix_topology_unresolved)
