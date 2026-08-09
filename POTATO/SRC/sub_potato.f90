@@ -3368,7 +3368,6 @@
                                 matrix_eval_orbit_failure, &
                                 matrix_eval_wall_loss,matrix_boundary_error
   use get_matrix_mod, only : delphi_max
-  use wall_loss_mod,     only : wall_loaded
 !
   implicit none
 !
@@ -3377,8 +3376,6 @@
 !
   external :: get_matrix_doublecount
 !
-  if(.not.wall_loaded) return
-
   empty_class=.false.
 !
   amat_was_alloc=allocated(amat)
