@@ -2623,24 +2623,24 @@
   select case(ifuntype)
   case(11)
 ! two rho_pol boundaries, 0<x<1
-    xbeg=0.d0
-    xend=1.d0
+    xbeg=relmargin
+    xend=1.d0-relmargin
   case(12)
 ! left- rho_pol boundary, right - inner boundary, 0<x<1
-    xbeg=0.d0
+    xbeg=relmargin
     xend=1.d0-turn_margin
   case(13)
 ! left- rho_pol boundary, right - X-point, 0<x<inf
-    xbeg=0.d0
+    xbeg=atanh(relmargin)
     xend=-0.5d0*log(relmargin/widthclass)
   case(14)
 ! left- rho_pol boundary, right - X-point, 0<x<inf
-    xbeg=0.d0
+    xbeg=atanh(relmargin)
     xend=-0.5d0*log(relmargin/widthclass)*0.5d0
   case(21)
 ! left- inner boundary, right - rho_pol boundary, 0<x<1
     xbeg=turn_margin
-    xend=1.d0
+    xend=sqrt(1.d0-relmargin)
   case(22)
 ! two inner boundaries, 0<x<1
     turn_x=acos(1.d0-2.d0*relmargin)/acos(-1.d0)
@@ -2657,7 +2657,7 @@
   case(31)
 ! left- X-point, right - rho_pol boundary, -inf<x<0
     xbeg=0.5d0*log(relmargin/widthclass)
-    xend=0.d0
+    xend=-atanh(relmargin)
   case(32)
 ! left- X-point, right - inner boundary, -inf<x<0
     xbeg=0.5d0*log(relmargin/widthclass)
@@ -2673,7 +2673,7 @@
   case(41)
 ! left- X-point, right - rho_pol boundary, -inf<x<0
     xbeg=0.25d0*log(relmargin/widthclass)
-    xend=0.d0
+    xend=-atanh(relmargin)
   case(42)
 ! left- X-point, right - inner boundary, -inf<x<0
     xbeg=0.25d0*log(relmargin/widthclass)
