@@ -4188,7 +4188,7 @@ contains
     ! roots below zero are valid equation roots but cannot change the
     ! physical topology certificate.
     if(value.lt.0.d0) return
-    if(topology_probe_only) print *,'candidate trace H,stage,index,value,fp,fp2,bd,bd2 = ', &
+    print *,'candidate trace H,stage,index,value,fp,fp2,bd,bd2 = ', &
         toten,boundary_stage,ncandidates+1,value,collision_segment_left, &
         collision_segment_right,collision_boundary_left,collision_boundary_right
     if(ncandidates.ge.nmax) then
