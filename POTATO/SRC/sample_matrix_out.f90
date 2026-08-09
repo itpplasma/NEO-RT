@@ -9,6 +9,7 @@
     integer :: topology_signature=0,topology_error=0
     double precision :: topology_context_h=0.d0
     logical :: topology_probe_only=.false.
+    logical :: topology_contribution_probe=.false.
     logical :: sample_matrix_preserve_history=.false.
     integer :: topology_candidate_count=0,topology_transition_count=0
     double precision :: topology_gap_measure=0.d0
@@ -29,6 +30,7 @@
     !$omp threadprivate(nlagr,n1,n2,npoi,itermax,icount,x,xbeg,xend,eps, &
     !$omp               topology_signature,topology_error,topology_context_h, &
     !$omp               topology_probe_only, &
+    !$omp               topology_contribution_probe, &
     !$omp               sample_matrix_preserve_history, &
     !$omp               topology_candidate_count,topology_transition_count, &
     !$omp               topology_gap_measure,topology_gap_geometric_bound, &
@@ -151,9 +153,11 @@
   h=(xend-xbeg)/dble(npoi-1)/(1.d0+symm_break)
   hh=symm_break*h/dble(npoi-1)
 !
-  if(allocated(amat)) then
-    DEALLOCATE(amat,xarr,amat_arr,ind_hist,topology_arr)
-  endif
+  if(allocated(amat)) deallocate(amat)
+  if(allocated(xarr)) deallocate(xarr)
+  if(allocated(amat_arr)) deallocate(amat_arr)
+  if(allocated(ind_hist)) deallocate(ind_hist)
+  if(allocated(topology_arr)) deallocate(topology_arr)
   !
   ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi),ind_hist(npoi), &
       topology_arr(npoi))

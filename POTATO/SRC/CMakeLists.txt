@@ -37,6 +37,7 @@ add_library(potato_base
   generated/potato_gap_square_map.f90
   generated/potato_limiting.f90
   potato_symbolic_kernels.f90
+  topology_gap_quadrature.f90
   velo.f90
   odeint_allroutines.f
   plag_coeff.f90

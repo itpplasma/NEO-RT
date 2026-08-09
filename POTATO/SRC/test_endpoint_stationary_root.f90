@@ -34,6 +34,7 @@ program test_endpoint_stationary_root
                                          potato_limiting_kernel_checked, &
                                          potato_limiting_invalid_reference, &
                                          potato_limiting_invalid_distance
+  use topology_gap_quadrature_mod, only : integrate_topology_gap
   implicit none
 
   integer :: ierr,i,nopen
@@ -84,6 +85,7 @@ program test_endpoint_stationary_root
   call test_resonance_status
   call test_conjugate_mode_representation
   call test_gap_square_map
+  call test_gap_quadrature
   call test_symbolic_contract
 
   call require(.not.root_has_two_sided_neighborhood(0.d0,0.d0,1.d0,1.d-6), &
@@ -541,6 +543,31 @@ contains
                  abs(jacobian-0.4d0).lt.1.d-14, &
                  'positive-direction quadratic gap map is wrong')
   end subroutine test_gap_square_map
+
+  subroutine test_gap_quadrature
+    double precision :: average
+
+! For f(x)=1/sqrt(x), the generated map makes f(x) dx/du constant on
+! [0,0.25].  The transformed midpoint rule therefore reproduces the exact
+! integral independently of the configured coarse/fine node counts.
+    n1=1
+    n2=1
+    xbeg=0.d0
+    xend=1.d0
+    call integrate_topology_gap(manufactured_singular_gap,0.d0,0.25d0, &
+                                average,ierr)
+    call require(ierr.eq.0,'transformed gap quadrature failed')
+    call require(abs(average-4.d0).lt.1.d-12, &
+                 'transformed square-root gap quadrature is not exact')
+  end subroutine test_gap_quadrature
+
+  subroutine manufactured_singular_gap
+    use sample_matrix_out_mod, only : x,amat,topology_error,topology_signature
+
+    topology_error=0
+    topology_signature=7
+    amat(1,1)=1.d0/sqrt(x)
+  end subroutine manufactured_singular_gap
 
   subroutine test_symbolic_contract
     double precision :: candidate,positive_bound,derivative

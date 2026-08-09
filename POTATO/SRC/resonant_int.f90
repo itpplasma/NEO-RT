@@ -488,7 +488,8 @@ subroutine get_matrix_res
     !
     use sample_matrix_out_mod,        only : n1,n2,x,amat,icount, &
         topology_signature,topology_error,topology_context_h, &
-        topology_signature_of_classes,topology_probe_only
+        topology_signature_of_classes,topology_probe_only, &
+        topology_contribution_probe
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class
     use get_matrix_mod,               only : iclass
@@ -598,6 +599,11 @@ subroutine get_matrix_res
             return
         endif
     enddo
+
+    if(topology_contribution_probe) then
+        deallocate(respoints_jp)
+        return
+    endif
     !
     icount=icount+1
     if(icount.gt.nperp_max) then
@@ -641,20 +647,21 @@ end subroutine get_matrix_res_topology_boundaries
 !
 subroutine get_matrix_res_contribution_envelope(gap_lo,gap_hi,envelope,ierr)
     use sample_matrix_out_mod, only : sample_matrix_contribution_unresolved
-    use logging_mod, only : tee_message
+    use topology_gap_quadrature_mod, only : integrate_topology_gap
     implicit none
 
     double precision, intent(in) :: gap_lo,gap_hi
     double precision, intent(out) :: envelope
     integer, intent(out) :: ierr
+    external :: get_matrix_res
 
-! No certified envelope provider is exposed by the present POTATO matrix
-! interface.  A sampled endpoint maximum would be a heuristic, especially
-! near a separatrix, so keep the production path explicitly fail-closed until
-! the physical limiting/envelope seam is supplied.
-    envelope=0.d0
-    ierr=sample_matrix_contribution_unresolved
-    call tee_message('POTATO: missing certified J_perp contribution envelope')
+! The sampler consumes an average envelope, which is multiplied by the gap
+! width in its existing callback ABI.  The provider below obtains that
+! average from the transformed integral; it is not an endpoint maximum.
+    call integrate_topology_gap(get_matrix_res,gap_lo,gap_hi,envelope,ierr)
+    if(ierr.ne.0 .and. ierr.ne.sample_matrix_contribution_unresolved) then
+        ierr=sample_matrix_contribution_unresolved
+    endif
 end subroutine get_matrix_res_contribution_envelope
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
