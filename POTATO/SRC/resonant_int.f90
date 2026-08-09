@@ -509,7 +509,8 @@ subroutine get_matrix_res
         topology_signature,topology_error,topology_context_h, &
         topology_signature_of_classes,topology_probe_only
     use sample_matrix_mod, only : sample_npoi => npoi, sample_x => x, &
-        sample_xbeg => xbeg, sample_xend => xend, matrix_eval_error
+        sample_xbeg => xbeg, sample_xend => xend, matrix_eval_error, &
+        sample_boundary_error => matrix_boundary_error
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses,ifuntype,sigma_class, &
         R_class_beg,R_class_end
@@ -622,6 +623,9 @@ subroutine get_matrix_res
                 ' matrix_error=',matrix_eval_error, &
                 ' orbit_stage=',orbit_failure_stage, &
                 ' wall_loss=',orbit_wall_loss
+            call tee_message(trim(msg))
+            write(msg, '(A,I0)') &
+                'get_matrix_res: sample_class boundary_error=', sample_boundary_error
             call tee_message(trim(msg))
             topology_error=ierr
             deallocate(respoints_jp)
