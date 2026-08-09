@@ -2743,7 +2743,7 @@
 ! toroidal displacement per bounce time and bounce integrals as functions
 ! of class parameter x for adaptive refinement of interpolation grid over x
 !
-  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+  use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_starter_failure, &
                                 matrix_eval_orbit_failure,matrix_eval_wall_loss, &
@@ -2962,11 +2962,18 @@
     return
   endif
 !
-  call bound_class_wall(xbeg,xend)
+  call bound_class_wall(xbeg,xend,empty_class)
   if(matrix_boundary_error.ne.matrix_eval_success) then
     orbit_relerr=orbit_relerr_save
     primary_step_limit=primary_step_limit_save
     ierr=matrix_boundary_error
+    return
+  endif
+  if(empty_class) then
+    ierr=sample_class_no_resonance
+    call interp_cache_reset
+    orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
     return
   endif
   ! Endpoint trims can remove the entire open class interval.  A singleton
@@ -3025,7 +3032,7 @@
 ! the root search with non-physical dense roots.  The endpoint is located by
 ! bisection on |delphi_b(x)| using get_matrix_doublecount as the orbit evaluator.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+  use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_wall_loss,matrix_eval_nonfinite, &
                                 matrix_boundary_error, &
@@ -3347,7 +3354,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine bound_class_wall(xb,xe)
+  subroutine bound_class_wall(xb,xe,empty_class)
 !
 ! Trim the class interval to where the orbit closes inside the limiter wall.
 ! A wall-crossing orbit fails in get_matrix_doublecount (amat(3,1) left at the
@@ -3356,19 +3363,23 @@
 ! lost orbits.  Trims both endpoints by bisection on orbit validity, so the
 ! inside-wall part of the class is still sampled and its resonances kept.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat,matrix_eval_valid, &
+  use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
+                                matrix_eval_orbit_failure, &
                                 matrix_eval_wall_loss,matrix_boundary_error
+  use get_matrix_mod, only : delphi_max
   use wall_loss_mod,     only : wall_loaded
 !
   implicit none
 !
-  double precision :: xb,xe,xmid
-  logical :: amat_was_alloc
+  double precision :: xb,xe,xmid,xnew
+  logical :: amat_was_alloc,empty_class,found
 !
   external :: get_matrix_doublecount
 !
   if(.not.wall_loaded) return
+
+  empty_class=.false.
 !
   amat_was_alloc=allocated(amat)
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
@@ -3377,6 +3388,16 @@
   if(.not.orbit_lost(xmid)) then
     call trim_lost(xmid,xe)
     call trim_lost(xmid,xb)
+  elseif(matrix_boundary_error.eq.matrix_eval_success) then
+    call find_open_witness(xb,xe,xnew,found)
+    if(found) then
+      call trim_lost(xnew,xe)
+      if(matrix_boundary_error.eq.matrix_eval_success) call trim_lost(xnew,xb)
+    elseif(delphi_max.gt.0.d0) then
+      empty_class=.true.
+    else
+      matrix_boundary_error=matrix_eval_orbit_failure
+    endif
   endif
 !
   if(.not.amat_was_alloc) deallocate(amat)
@@ -3402,6 +3423,28 @@
   enddo
   xdiv=xlo
   end subroutine trim_lost
+
+  subroutine find_open_witness(xleft,xright,xw,found)
+  double precision, intent(in) :: xleft,xright
+  double precision, intent(out) :: xw
+  logical, intent(out) :: found
+  double precision :: xprobe
+  integer :: j,nprobe
+
+  found=.false.
+  xw=0.5d0*(xleft+xright)
+  nprobe=max(4,2*nlagr+1)
+  do j=1,nprobe
+    xprobe=xleft+(xright-xleft)*dble(j)/dble(nprobe+1)
+    if(.not.orbit_lost(xprobe)) then
+      if(matrix_boundary_error.ne.matrix_eval_success) return
+      found=.true.
+      xw=xprobe
+      return
+    endif
+    if(matrix_boundary_error.ne.matrix_eval_success) return
+  enddo
+  end subroutine find_open_witness
 !
   logical function orbit_lost(xval)
   double precision :: xval
@@ -3409,9 +3452,11 @@
   matrix_eval_error=matrix_eval_success
   x=xval
   call get_matrix_doublecount
-  orbit_lost=(matrix_eval_error.eq.matrix_eval_wall_loss)
+  orbit_lost=(matrix_eval_error.eq.matrix_eval_wall_loss .or. &
+              matrix_eval_error.eq.matrix_eval_orbit_failure)
   if(matrix_eval_error.ne.matrix_eval_success .and. &
-     matrix_eval_error.ne.matrix_eval_wall_loss) then
+     matrix_eval_error.ne.matrix_eval_wall_loss .and. &
+     matrix_eval_error.ne.matrix_eval_orbit_failure) then
     matrix_boundary_error=matrix_eval_error
     orbit_lost=.false.
   endif
