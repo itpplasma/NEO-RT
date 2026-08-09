@@ -4000,6 +4000,7 @@
               fp_sigma(collision_segment_left),fp_branch(collision_segment_left), &
               bd_sigma(collision_boundary_segment),bd_type(collision_boundary_segment), &
               collision_jlo,collision_jhi,nroots,ierr_local
+          if(nroots.gt.0) print *,'  collision roots = ',roots(1:nroots)
         endif
         if(ierr_local.ne.root_success) then
           call fail_boundary(ierr_local)
