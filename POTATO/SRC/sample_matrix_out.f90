@@ -494,6 +494,8 @@ contains
   DO i=1,nfound
     endpoint_tol=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
         ABS(candidates(i)),ABS(xbeg_full))
+    IF(candidates(i).LT.xbeg_full-endpoint_tol .OR. &
+       candidates(i).GT.xend_full+endpoint_tol) CYCLE
     IF(candidates(i).LE.xbeg_full+endpoint_tol) THEN
       IF(ABS(candidates(i)-xbeg_full).LE.endpoint_tol) CYCLE
       PRINT *,'sample_matrix_out_partitioned_certified: unresolved endpoint root H,J,endpoint,tol = ', &
