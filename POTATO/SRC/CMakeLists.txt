@@ -45,6 +45,7 @@ add_library(potato_base
   ${CMAKE_SOURCE_DIR}/../src/generated/neort_gc_class_coordinate_map_symbolic.f90
   ${CMAKE_SOURCE_DIR}/../src/gc_potato_class_coordinate_map.f90
   topology_gap_quadrature.f90
+  potato_ledger_summary.f90
   velo.f90
   odeint_allroutines.f
   plag_coeff.f90

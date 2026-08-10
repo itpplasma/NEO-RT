@@ -98,6 +98,16 @@ add_test(NAME test_endpoint_stationary_root
    COMMAND test_endpoint_stationary_root.x
 )
 
+add_executable(test_ledger_summary.x
+   SRC/test_ledger_summary.f90
+)
+target_link_libraries(test_ledger_summary.x
+   potato_base
+)
+add_test(NAME test_ledger_summary
+   COMMAND test_ledger_summary.x
+)
+
 add_executable(test_class_parameter_bounds.x
    SRC/test_class_parameter_bounds.f90
 )

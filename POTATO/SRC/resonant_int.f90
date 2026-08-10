@@ -833,6 +833,7 @@ subroutine resonant_torque
         topology_partition_tol_input => topology_partition_tol, &
         topology_partition_tol_refined, topology_refinement_lane, &
         require_topology_contribution_bound
+    use potato_ledger_summary_mod, only : summarize_processed_ledger
     use logging_mod,       only : tee_message
     !$ use omp_lib, only : omp_set_max_active_levels, omp_set_num_threads
 
@@ -1359,6 +1360,8 @@ contains
     subroutine write_run_manifest
         implicit none
         integer :: manifest_unit,io,harmonic_ierr
+        double precision :: maximum_contribution_bound
+        logical :: all_contribution_bounds_certified
 
         open(newunit=manifest_unit,file='potato_run_manifest.dat', &
             status='replace',action='write',iostat=io)
@@ -1376,15 +1379,18 @@ contains
         write(manifest_unit,'(A,L1)') 'clip_resonance_classes = ', &
             clip_resonance_classes
         call write_resonance_harmonic_set(manifest_unit,harmonic_ierr)
+        call summarize_processed_ledger(ienerg_begin,nenerg, &
+            ledger_contribution_bound_energy,ledger_contribution_certified_energy, &
+            maximum_contribution_bound,all_contribution_bounds_certified)
         write(manifest_unit,'(A,I0)') 'harmonic_guard_status = ',harmonic_ierr
         write(manifest_unit,'(A,ES24.16)') 'max_geometric_gap = ', &
             maxval(ledger_gap_energy)
         write(manifest_unit,'(A,ES24.16)') 'max_geometric_gap_bound = ', &
             maxval(ledger_gap_bound_energy)
         write(manifest_unit,'(A,ES24.16)') 'max_contribution_error_bound = ', &
-            maxval(ledger_contribution_bound_energy)
+            maximum_contribution_bound
         write(manifest_unit,'(A,L1)') 'all_contribution_bounds_certified = ', &
-            all(ledger_contribution_certified_energy)
+            all_contribution_bounds_certified
         write(manifest_unit,'(A,I0)') 'total_class_evaluations = ', &
             sum(ledger_classes_energy)
         write(manifest_unit,'(A,I0)') 'total_harmonic_scans = ', &
