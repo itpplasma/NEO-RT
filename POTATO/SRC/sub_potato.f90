@@ -3295,7 +3295,7 @@
       ! The ordinary path stays cheap.  Only a class whose actual sampler
       ! encounters an open orbit pays for the topology probe and bisection.
       matrix_boundary_error=matrix_eval_success
-      call bound_class_wall(xbeg,xend,empty_class,x)
+      call bound_class_wall(ifuntype(iclass),xbeg,xend,empty_class,x)
       if(matrix_boundary_error.eq.matrix_eval_success .and. empty_class) then
         ! A class with no returning piece at this exact parameter is a
         ! certified zero contribution.  Keep it out of the interpolation
@@ -3754,7 +3754,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine bound_class_wall(xb,xe,empty_class,xfailed)
+  subroutine bound_class_wall(iftype,xb,xe,empty_class,xfailed)
 !
 ! Determine all connected pieces on which the full orbit returns without a
 ! wall loss.  A class is an interval in its transformed cut coordinate, but
@@ -3773,6 +3773,7 @@
 !
   implicit none
 !
+  integer, intent(in) :: iftype
   double precision, intent(inout) :: xb,xe
   double precision, intent(in) :: xfailed
   logical, intent(out) :: empty_class
@@ -3780,7 +3781,7 @@
                                    final_beg(:),final_end(:)
   logical, allocatable :: valid(:)
   double precision :: xleft,xright,xboundary,xfailed_value
-  integer :: nprobe,npoints,nraw,nkept,i,j,ibeg,iend
+  integer :: nprobe,npoints,nraw,nkept,i,j,ibeg,iend,boundary_beg,boundary_end
   logical :: amat_was_alloc
 !
   external :: get_matrix_doublecount
@@ -3792,10 +3793,18 @@
     return
   endif
   xfailed_value=xfailed
+  boundary_beg=iftype/10
+  boundary_end=mod(iftype,10)
 !
   amat_was_alloc=allocated(amat)
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
-  nprobe=max(4,2*nlagr+1)
+  if(boundary_beg.ge.3 .or. boundary_end.ge.3) then
+! The singular endpoint tail is represented by the class chart limit below;
+! keep only one interpolation stencil of verified interior orbit probes.
+    nprobe=max(4,nlagr+1)
+  else
+    nprobe=max(4,2*nlagr+1)
+  endif
   npoints=nprobe+3
   allocate(xprobe(npoints),valid(npoints),raw_beg(npoints),raw_end(npoints), &
            final_beg(npoints),final_end(npoints))
@@ -3838,7 +3847,11 @@
     endif
     xleft=raw_beg(i)
     xright=raw_end(i)
-    if(ibeg.gt.1) then
+! The class interpolator has a generated chart limit for a separatrix/X-point
+! endpoint.  Its first verified interior node is therefore the numerical
+! endpoint; do not bisect back into the homoclinic tail.  Interior gaps and
+! regular/turning endpoints still use the full orbit-validity bisection.
+    if(ibeg.gt.1 .and. (i.ne.1 .or. boundary_beg.lt.3)) then
       call refine_open_transition(xleft,xprobe(ibeg-1),xboundary)
       xleft=xboundary
       if(matrix_boundary_error.ne.matrix_eval_success) then
@@ -3848,7 +3861,7 @@
       endif
       xleft=xleft+class_return_safety*(xright-xleft)
     endif
-    if(iend.lt.npoints) then
+    if(iend.lt.npoints .and. (i.ne.nraw .or. boundary_end.lt.3)) then
       call refine_open_transition(xright,xprobe(iend+1),xboundary)
       xright=xboundary
       if(matrix_boundary_error.ne.matrix_eval_success) then
