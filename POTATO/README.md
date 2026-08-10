@@ -29,6 +29,51 @@ the LCFS into the scrape-off layer. Set it explicitly to `.false.` for a
 closed-flux-only run. Edge extension does not turn the convex wall into the
 LCFS or remove the outer-domain requirement.
 
+For a MARS field already converted to Boozer harmonics, generate POTATO's
+single-`n` cylindrical perturbation without the legacy converter's radial
+Gaussian filter:
+
+```bash
+python tools/boozer_npz_to_bmod_n.py chartmap.nc components.npz bmod_n.dat \
+    --component total --n-tor=+3 --s-max=0.95
+```
+
+Here `chartmap.nc` supplies the accepted Boozer-surface geometry and
+`components.npz` is the provenance product from `rmp_torque mars_to_boozer`.
+The signed `n` must also be used as `n_tor` in `potato.in`. The converter writes
+a JSON sidecar, performs no smoothing or fit, uses `s_tor` explicitly, writes
+zero outside the outer mapped surface, and adds a zero-valued rectangular
+margin so the POTATO spline is not normally evaluated at a clamped nonzero
+boundary. Production target orbits must remain inside that mapped surface.
+The displayed `n=+3` is the current TC24 MARS-to-CCW result:
+`phi_CCW=-phi_MARS` and `n_CCW=-RNTOR=+3`. It is not a universal MARS
+default; another field must supply its own signed laboratory-coordinate map.
+
+The matching profile converter also keeps the coordinate and electric-field
+conventions explicit:
+
+```bash
+python tools/neo_rt_profiles_to_potato.py profile.in plasma.in components.npz \
+    profile_poly.in --r0-cm=641.0903942 --psi-span-tm2=11.88279543 \
+    --relation-sign=1
+```
+
+It selects the physical ion using charge and nonzero density, maps
+`s_tor -> s_pol=rho_pol^2`, and records the polynomial residuals. The JSON
+sidecar also records the signed relation
+`dPhi/dpsi_pol = relation_sign*Omega_E/c`; opposite signs are separate
+convention diagnostics, never an unrecorded curve flip. For the displayed
+right-handed direct-EQDSK chart, the native field equations give
+`Omega_phi,E=c*dPhi/dpsi_pol`, so `relation_sign=+1` maps an already-CCW
+`Omega_E` profile. The current TC24 NEO profile has first been serialized as
+`Omega_E,CCW=-Omega_E,MARS`; the converter does not apply that MARS-to-CCW
+change a second time. The first value in the NEO `plasma.in` header is a
+validated radial-row count, not a required value of 50. The compiled NEO-RT
+profile schema needs only `s_tor,M_t`; the converter derives
+`v_th=sqrt(2*T_i/m_i)` from the charge-selected `plasma.in` species. If a
+legacy third `v_th` column is present, it is checked against that source rather
+than used as an independent temperature profile.
+
 ## Running with OpenMP
 
 The grid build and the per-mode root search run in parallel with OpenMP. Use one
