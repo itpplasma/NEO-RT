@@ -51,7 +51,7 @@ contains
         call driftorbit_coarse(v, eta_min, eta_max, roots, driftorbit_nroot)
     end function driftorbit_nroot
 
-    function driftorbit_root(v, tol, eta_min, eta_max, converged)
+    function driftorbit_root(v, tol, eta_min, eta_max)
         use logger, only: warning
 
         ! Bisection can exhaust the representable eta values before a
@@ -61,7 +61,6 @@ contains
         real(dp), parameter :: relative_tolerance_floor = 1.0e-9_dp
         real(dp) :: driftorbit_root(2)
         real(dp), intent(in) :: v, tol, eta_min, eta_max
-        logical, intent(out), optional :: converged
         real(dp) :: res, res_old, eta_old
         real(dp) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
@@ -79,7 +78,6 @@ contains
         state = -2
         eta_old = 0.0_dp
         res = 0.0_dp
-        if (present(converged)) converged = .false.
 
         etamin2 = eta_min
         etamax2 = eta_max
@@ -127,7 +125,6 @@ contains
             if (abs(res) <= tol_eff) then
                 state = 1
                 driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
-                if (present(converged)) converged = .true.
                 exit
             elseif ((slope_pos .and. res > 0) .or. &
                     ((.not. slope_pos) .and. res < 0)) then

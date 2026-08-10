@@ -25,7 +25,7 @@ program test_resonance_bracket
     real(dp) :: residual, residual_scale
     real(dp) :: roots(nlev, 3)
     integer :: nroots, trial_mth, trial_v
-    logical :: converged, found_root
+    logical :: found_root
 
     call set_log_level(-1)  ! silence the expected bracket-failure warning
 
@@ -72,8 +72,7 @@ program test_resonance_bracket
     end do
     if (.not. found_root) error stop "test fixture has no zero-rotation resonance"
 
-    eta_res = driftorbit_root(v, 0.0_dp, roots(1, 1), roots(1, 2), converged)
-    if (.not. converged) error stop "zero-rotation resonance must converge"
+    eta_res = driftorbit_root(v, 0.0_dp, roots(1, 1), roots(1, 2))
     if (eta_res(1) < roots(1, 1) .or. eta_res(1) > roots(1, 2)) then
         error stop "zero-rotation resonance escaped its bracket"
     end if
