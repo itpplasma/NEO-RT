@@ -74,6 +74,10 @@ add_test(NAME test_resonance_bracket
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_bracket.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_resonance_spline_bounds
+    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_spline_bounds.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
