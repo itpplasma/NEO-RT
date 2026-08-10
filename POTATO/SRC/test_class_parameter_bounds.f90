@@ -3,6 +3,7 @@ program test_class_parameter_bounds
 
     double precision, parameter :: relmargin=1.d-7
     double precision :: xbeg,xend,xi,dxi_dx
+    integer :: map_status
     external :: classbounds,xi_func
 
     call check_margin(12,1.d0)
@@ -20,23 +21,29 @@ contains
         double precision, intent(in) :: widthclass
         double precision :: xleft,xright
 
-        call classbounds(ifuntype,relmargin,widthclass,xleft,xright)
+        call classbounds(ifuntype,relmargin,widthclass,xleft,xright, &
+                         map_status)
+        if(map_status.ne.0) error stop 'generated class bounds rejected valid input'
         if(ifuntype.eq.12 .or. ifuntype.eq.32 .or. ifuntype.eq.42) then
-            call xi_func(ifuntype,xright,xi,dxi_dx)
+            call xi_func(ifuntype,xright,xi,dxi_dx,relmargin,widthclass, &
+                         map_status)
             if(abs(1.d0-xi-relmargin).gt.1.d-12) then
                 error stop 'inner endpoint margin is not physical for chart'
             endif
         elseif(ifuntype.eq.22) then
-            call xi_func(ifuntype,xleft,xi,dxi_dx)
+            call xi_func(ifuntype,xleft,xi,dxi_dx,relmargin,widthclass, &
+                         map_status)
             if(abs(xi-relmargin).gt.1.d-12) then
                 error stop 'left inner endpoint margin is not physical for chart'
             endif
-            call xi_func(ifuntype,xright,xi,dxi_dx)
+            call xi_func(ifuntype,xright,xi,dxi_dx,relmargin,widthclass, &
+                         map_status)
             if(abs(1.d0-xi-relmargin).gt.1.d-12) then
                 error stop 'right inner endpoint margin is not physical for chart'
             endif
         else
-            call xi_func(ifuntype,xleft,xi,dxi_dx)
+            call xi_func(ifuntype,xleft,xi,dxi_dx,relmargin,widthclass, &
+                         map_status)
             if(abs(xi-relmargin).gt.1.d-12) then
                 error stop 'inner endpoint margin is not physical for chart'
             endif

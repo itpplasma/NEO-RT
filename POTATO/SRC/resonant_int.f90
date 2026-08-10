@@ -210,7 +210,7 @@ subroutine integrate_class_resonances(ierr_out,append)
     !
     use find_all_roots_mod, only : customgrid,ncustom,niter,relerr_allroots, &
         xcustom,nroots,roots
-    use get_matrix_mod,     only : iclass
+    use get_matrix_mod,     only : iclass,relmargin
     use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
     use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
         psiast_res,taub_res,delphi_res,resline_unit, &
@@ -236,13 +236,14 @@ subroutine integrate_class_resonances(ierr_out,append)
     !
     double precision, parameter :: pi=3.14159265358979d0, twopi=2.d0*pi
     !
-    integer          :: mode,iroot,ierr,ierr_pertham,status_weight
+    integer          :: mode,iroot,ierr,ierr_pertham,status_weight,map_status
     integer, intent(out) :: ierr_out
     logical, intent(in) :: append
     integer :: old_nrespoi
     double precision :: xbeg,xend
     double precision :: rescond,dresconddx,dpsiastdx
     double precision :: one_res,sigma,delta_R,Rst,xi,dxi_dx,dpsiast_dRst,absHn2
+    double precision :: widthclass
     double precision :: root_factor
     double precision :: bmod_st,phi_elec_st
     double precision :: fmaxw,A1ast,A2ast,thermodynamic_force
@@ -258,6 +259,7 @@ subroutine integrate_class_resonances(ierr_out,append)
     ierr_out=resonance_status_success
     sigma=sigma_class(iclass)
     delta_R=R_class_end(iclass)-R_class_beg(iclass)
+    widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
     ! sample_class_doublecount may trim either class endpoint for a finite
     ! harmonic guard, an orbit-return boundary, or wall closure.  Rebuilding
     ! the nominal class chart here would reintroduce the excluded singular or
@@ -363,7 +365,15 @@ subroutine integrate_class_resonances(ierr_out,append)
         do iroot=1,nroots
             !
             call get_rescond(roots(iroot),rescond,dresconddx)
-            call xi_func(ifuntype(iclass),roots(iroot),xi,dxi_dx)
+            call xi_func(ifuntype(iclass),roots(iroot),xi,dxi_dx,relmargin, &
+                         widthclass,map_status)
+            if(map_status.ne.0) then
+                call tee_message( &
+                    'integrate_class_resonances: invalid generated class map')
+                ierr_out=resonance_status_starter_failure
+                ledger_failure_count=ledger_failure_count+1
+                exit
+            endif
             !
             Rst=R_class_beg(iclass)+delta_R*xi
             !

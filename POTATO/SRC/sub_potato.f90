@@ -2910,152 +2910,50 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine xi_func(ifuntype,x,xi,dxi_dx)
+  subroutine xi_func(ifuntype,x,xi,dxi_dx,relmargin,widthclass,map_status)
 !
 ! Class parameterization functions $\xi_{ij}$, Eq.(57)
 !
+  use gc_potato_class_coordinate_map, only : &
+    evaluate_gc_potato_class_coordinate_map, GC_POTATO_CLASS_MAP_OK
   implicit none
 !
-  double precision, parameter :: pi=3.14159265358979d0
-!
-  integer :: ifuntype
-  double precision :: x,xi,dxi_dx
-!
-  select case(ifuntype)
-  case(11)
-! two rho_pol boundaries, 0<x<1
-    xi=x
-    dxi_dx=1.d0
-  case(12)
-! left- rho_pol boundary, right - inner boundary, 0<x<1
-    xi=1.d0-(1.d0-x)**2
-    dxi_dx=2.d0*(1.d0-x)
-  case(13,14)
-! left- rho_pol boundary, right - X-point, 0<x<inf
-    xi=tanh(x)
-    dxi_dx=1.d0/cosh(x)**2
-  case(21)
-! left- inner boundary, right - rho_pol boundary, 0<x<1
-    xi=x**2
-    dxi_dx=2.d0*x
-  case(22)
-! two inner boundaries, 0<x<1
-    xi=0.5d0*(1.d0-cos(pi*x))
-    dxi_dx=0.5d0*pi*sin(pi*x)
-  case(23,24)
-! left- inner boundary, right - X-point, 0<x<inf
-    xi=tanh(x)**2
-    dxi_dx=2.d0*tanh(x)/cosh(x)**2
-  case(31,41)
-! left- X-point, right - rho_pol boundary, -inf<x<0
-    xi=tanh(x)+1.d0
-    dxi_dx=1.d0/cosh(x)**2
-  case(32,42)
-! left- X-point, right - inner boundary, -inf<x<0
-    xi=1.d0-tanh(x)**2
-    dxi_dx=-2.d0*tanh(x)/cosh(x)**2
-  case(33,34,43,44)
-! two X-points, -inf<x<inf
-    xi=0.5d0*(1.d0+tanh(x))
-    dxi_dx=0.5d0/cosh(x)**2
-  case default
-    print *,'xi_func: wrong function type'
-    stop
-  end select
-!
-  return
-!
+  integer, intent(in) :: ifuntype
+  double precision, intent(in) :: x,relmargin,widthclass
+  double precision, intent(out) :: xi,dxi_dx
+  integer, intent(out) :: map_status
+  double precision :: xbeg_unused,xend_unused
+
+  call evaluate_gc_potato_class_coordinate_map(ifuntype,x,relmargin, &
+      widthclass,xi,dxi_dx,xbeg_unused,xend_unused,map_status)
+  if(map_status.ne.GC_POTATO_CLASS_MAP_OK) then
+    xi=0.d0
+    dxi_dx=0.d0
+  endif
+
   end subroutine xi_func
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine classbounds(ifuntype,relmargin,widthclass,xbeg,xend)
+  subroutine classbounds(ifuntype,relmargin,widthclass,xbeg,xend,map_status)
 !
 ! Sets the boundaries over class parameter x for
 !
+  use gc_potato_class_coordinate_map, only : &
+    evaluate_gc_potato_class_bounds, GC_POTATO_CLASS_MAP_OK
   implicit none
 !
-  integer :: ifuntype
-  double precision :: relmargin,widthclass,xbeg,xend,turn_x,turn_margin
+  integer, intent(in) :: ifuntype
+  double precision, intent(in) :: relmargin,widthclass
+  double precision, intent(out) :: xbeg,xend
+  integer, intent(out) :: map_status
+  call evaluate_gc_potato_class_bounds(ifuntype,relmargin,widthclass,xbeg, &
+      xend,map_status)
+  if(map_status.ne.GC_POTATO_CLASS_MAP_OK) then
+    xbeg=0.d0
+    xend=0.d0
+  endif
 
-  ! relmargin is a physical cut-coordinate margin.  The inner-boundary
-  ! charts use xi~x**2, so using relmargin directly in x would place the
-  ! orbit at relmargin**2 and make the ODE start indistinguishable from the
-  ! turning point.  These are the exact inverse chart coordinates.
-  turn_margin=sqrt(relmargin)
-  turn_x=atanh(turn_margin)
-!
-  select case(ifuntype)
-  case(11)
-! two rho_pol boundaries, 0<x<1
-    xbeg=0.d0
-    xend=1.d0
-  case(12)
-! left- rho_pol boundary, right - inner boundary, 0<x<1
-    xbeg=0.d0
-    xend=1.d0-turn_margin
-  case(13)
-! left- rho_pol boundary, right - X-point, 0<x<inf
-    xbeg=0.d0
-    xend=-0.5d0*log(relmargin/widthclass)
-  case(14)
-! left- rho_pol boundary, right - X-point, 0<x<inf
-    xbeg=0.d0
-    xend=-0.5d0*log(relmargin/widthclass)*0.5d0
-  case(21)
-! left- inner boundary, right - rho_pol boundary, 0<x<1
-    xbeg=turn_margin
-    xend=1.d0
-  case(22)
-! two inner boundaries, 0<x<1
-    turn_x=acos(1.d0-2.d0*relmargin)/acos(-1.d0)
-    xbeg=turn_x
-    xend=1.d0-turn_x
-  case(23)
-! left- inner boundary, right - X-point, 0<x<inf
-    xbeg=turn_x
-    xend=-0.5d0*log(relmargin/widthclass)
-  case(24)
-! left- inner boundary, right - X-point, 0<x<inf
-    xbeg=turn_x
-    xend=-0.25d0*log(relmargin/widthclass)
-  case(31)
-! left- X-point, right - rho_pol boundary, -inf<x<0
-    xbeg=0.5d0*log(relmargin/widthclass)
-    xend=0.d0
-  case(32)
-! left- X-point, right - inner boundary, -inf<x<0
-    xbeg=0.5d0*log(relmargin/widthclass)
-    xend=-turn_x
-  case(33)
-! two X-points, -inf<x<inf
-    xbeg=0.5d0*log(relmargin/widthclass)
-    xend=-xbeg
-  case(34)
-! two X-points, -inf<x<inf
-    xbeg=0.5d0*log(relmargin/widthclass)
-    xend=-xbeg*0.5d0
-  case(41)
-! left- X-point, right - rho_pol boundary, -inf<x<0
-    xbeg=0.25d0*log(relmargin/widthclass)
-    xend=0.d0
-  case(42)
-! left- X-point, right - inner boundary, -inf<x<0
-    xbeg=0.25d0*log(relmargin/widthclass)
-    xend=-turn_x
-  case(43)
-! two X-points, -inf<x<inf
-    xend=-0.5d0*log(relmargin/widthclass)
-    xbeg=-xend*0.5d0
-  case(44)
-! two X-points, -inf<x<inf
-    xbeg=0.25d0*log(relmargin/widthclass)
-    xend=-xbeg
-  case default
-    xbeg=0.d0
-    xend=0.d0
-  end select
-!
   end subroutine classbounds
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -3069,13 +2967,14 @@
   use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_starter_failure,matrix_eval_cut_domain, &
+                                matrix_eval_coordinate_map_failure, &
                                 matrix_eval_orbit_failure,matrix_eval_wall_loss, &
                                 matrix_eval_nonfinite, &
                                 matrix_boundary_error
   use orbit_dim_mod,     only : neqm,next,orbit_wall_loss,orbit_failure_stage
   use starter_status_mod, only : starter_kinetic_domain,starter_pitch_domain, &
                                   starter_cut_below,starter_cut_above
-  use get_matrix_mod,    only : iclass
+  use get_matrix_mod,    only : iclass,relmargin
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
 !
@@ -3084,7 +2983,8 @@
   logical :: fullbounce
   integer :: ierr,k
   double precision :: psiast,dpsiast_dRst,taub,delphi,xi,dxi_dx,Rst,sigma,delta_R, &
-                      tau_fr,dphi_fr
+                      tau_fr,dphi_fr,widthclass
+  integer :: map_status
   double precision, dimension(neqm) :: z
   double precision, dimension(next) :: extraset
 !
@@ -3095,8 +2995,14 @@
 !
   sigma=sigma_class(iclass)
   delta_R=R_class_end(iclass)-R_class_beg(iclass)
+  widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
 !
-  call xi_func(ifuntype(iclass),x,xi,dxi_dx)
+  call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass,map_status)
+  if(map_status.ne.0) then
+    matrix_eval_valid=.false.
+    matrix_eval_error=matrix_eval_coordinate_map_failure
+    return
+  endif
 !
 !
   Rst=R_class_beg(iclass)+delta_R*xi
@@ -3200,6 +3106,7 @@
   use sample_matrix_mod, only : nlagr,n1,n2,itermax,eps,xbeg,xend,  &
                                 npoi,x,xarr,amat_arr,matrix_boundary_error, &
                                 matrix_boundary_missing_limit, &
+                                matrix_eval_coordinate_map_failure, &
                                 matrix_eval_error, &
                                 matrix_eval_success, matrix_failure_is_open_boundary
   use sample_class_status_mod, only : sample_class_success, &
@@ -3221,7 +3128,7 @@
 !
   implicit none
 !
-  integer :: iunit,ierr,i
+  integer :: iunit,ierr,i,class_map_status
   double precision :: psiastbeg,psiastend,widthclass
   double precision :: nominal_beg(1),nominal_end(1)
   logical :: empty_class
@@ -3258,7 +3165,15 @@
     return
   endif
 !
-  call classbounds(ifuntype(iclass),relmargin,widthclass,xbeg,xend)
+  call classbounds(ifuntype(iclass),relmargin,widthclass,xbeg,xend, &
+                   class_map_status)
+  if(class_map_status.ne.0) then
+    matrix_boundary_error=matrix_eval_coordinate_map_failure
+    orbit_relerr=orbit_relerr_save
+    primary_step_limit=primary_step_limit_save
+    ierr=matrix_boundary_error
+    return
+  endif
 !
 !
   empty_class=.false.

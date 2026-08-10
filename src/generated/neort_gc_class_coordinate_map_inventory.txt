@@ -1,10 +1,11 @@
-# neort_gc_class_coordinate_map_inventory_v1
+# neort_gc_class_coordinate_map_inventory_v2
 generator=tools/gc_symbolics/app/gen_gc_class_coordinate_map.f90
 fortsym_revision=fortsym@545788453a204d58705f735b519c3863c2f734c8
 kernel=neort_gc_class_coordinate_map_generated:evaluate_neort_gc_class_coordinate_map
 boundary_convention=1:rho;2:inner;3:separatrix;4:xpoint
 orientation=ifuntype=10*left+right;34 and 43 use the same increasing 1/2*(1+tanh(x)) map
 log_truncation=type3:0.5*log(margin/width);type4:0.25*log(margin/width)
+inner_margin=quadratic maps use exact inverse sqrt/acos/atanh charts
 outputs=xi,dxi_dx,xbeg,xend for all 16 pairs
 pair=1:1:ifuntype=11
 pair=1:2:ifuntype=12

@@ -6,6 +6,7 @@
     integer, parameter :: matrix_eval_nonfinite=4
     integer, parameter :: matrix_boundary_missing_limit=5
     integer, parameter :: matrix_eval_cut_domain=6
+    integer, parameter :: matrix_eval_coordinate_map_failure=7
     integer :: nlagr,n1,n2,npoi,itermax,nstiff,i_int
     double precision :: x,xbeg,xend,eps
     logical :: matrix_eval_valid=.true.

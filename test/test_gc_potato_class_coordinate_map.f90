@@ -90,18 +90,21 @@ contains
         call evaluate_gc_potato_class_coordinate_map(12, 0.41_dp, 0.07_dp, &
             0.30_dp, xi, dxi, xbeg, xend, status)
         call require(status == GC_POTATO_CLASS_MAP_OK, '12 margin status')
-        call require_close(xend, 0.93_dp, 2.0e-14_dp, '12 right margin')
+        call require_close(xend, 1.0_dp-sqrt(0.07_dp), 2.0e-14_dp, &
+            '12 right margin')
 
         call evaluate_gc_potato_class_coordinate_map(21, 0.41_dp, 0.07_dp, &
             0.30_dp, xi, dxi, xbeg, xend, status)
         call require(status == GC_POTATO_CLASS_MAP_OK, '21 margin status')
-        call require_close(xbeg, 0.07_dp, 2.0e-14_dp, '21 left margin')
+        call require_close(xbeg, sqrt(0.07_dp), 2.0e-14_dp, '21 left margin')
 
         call evaluate_gc_potato_class_coordinate_map(22, 0.41_dp, 0.07_dp, &
             0.30_dp, xi, dxi, xbeg, xend, status)
         call require(status == GC_POTATO_CLASS_MAP_OK, '22 margin status')
-        call require_close(xbeg, 0.07_dp, 2.0e-14_dp, '22 left margin')
-        call require_close(xend, 0.93_dp, 2.0e-14_dp, '22 right margin')
+        call require_close(xbeg, acos(1.0_dp-2.0_dp*0.07_dp)/pi_value, &
+            2.0e-14_dp, '22 left margin')
+        call require_close(xend, 1.0_dp-acos(1.0_dp-2.0_dp*0.07_dp)/pi_value, &
+            2.0e-14_dp, '22 right margin')
     end subroutine test_endpoint_margin
 
     subroutine test_logarithmic_tendencies()
@@ -289,20 +292,30 @@ contains
         right_kind = mod(ifuntype, 10)
         log_ratio = log(relative_margin/relative_width)
         select case (left_kind)
-        case (1); xbeg = 0.0_dp
-        case (2); xbeg = relative_margin
+        case (1)
+            xbeg = 0.0_dp
+        case (2)
+            select case (right_kind)
+            case (1); xbeg = sqrt(relative_margin)
+            case (2); xbeg = acos(1.0_dp-2.0_dp*relative_margin)/pi_value
+            case default; xbeg = atanh(sqrt(relative_margin))
+            end select
         case (3); xbeg = 0.5_dp*log_ratio
         case (4); xbeg = 0.25_dp*log_ratio
         end select
         if (right_kind >= 3) then
             if (right_kind == 3) xend = -0.5_dp*log_ratio
             if (right_kind == 4) xend = -0.25_dp*log_ratio
+        else if (right_kind == 2) then
+            select case (left_kind)
+            case (1); xend = 1.0_dp-sqrt(relative_margin)
+            case (2); xend = 1.0_dp-acos(1.0_dp-2.0_dp*relative_margin)/pi_value
+            case default; xend = -atanh(sqrt(relative_margin))
+            end select
         else if (left_kind >= 3) then
-            if (right_kind == 1) xend = 0.0_dp
-            if (right_kind == 2) xend = -relative_margin
+            xend = 0.0_dp
         else
-            if (right_kind == 1) xend = 1.0_dp
-            if (right_kind == 2) xend = 1.0_dp-relative_margin
+            xend = 1.0_dp
         end if
     end subroutine oracle_bounds
 

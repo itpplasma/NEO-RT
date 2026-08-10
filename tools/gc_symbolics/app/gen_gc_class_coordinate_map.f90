@@ -12,8 +12,9 @@ program gen_gc_class_coordinate_map
     use fortsym_engine, only: engine_result_t
     use fortsym_engine_native, only: make_native_engine, native_engine_t
     use fortsym_engine_symengine, only: make_symengine_engine, symengine_engine_t
-    use fortsym_expr, only: cos, expr_t, log, num, operator(+), operator(-), &
-        operator(*), operator(/), operator(**), pi_expr, rat, sym, tanh
+    use fortsym_expr, only: acos, cos, expr_t, log, num, operator(+), &
+        operator(-), operator(*), operator(/), operator(**), pi_expr, rat, &
+        sqrt, sym, tanh, atanh
     use fortsym_kernel, only: emit_kernel, kernel_spec_t, KERNEL_SUBROUTINE
     use fortsym_string, only: chars, str
     implicit none
@@ -66,7 +67,7 @@ program gen_gc_class_coordinate_map
                 right_type, x)
             dxi(left_type, right_type) = diff(xi(left_type, right_type), x)
             xbeg(left_type, right_type) = left_bound(arena, left_type, &
-                relmargin, log_ratio)
+                right_type, relmargin, log_ratio)
             xend(left_type, right_type) = right_bound(arena, left_type, &
                 right_type, relmargin, log_ratio)
         end do
@@ -120,15 +121,20 @@ contains
         end select
     end function map_expression
 
-    function left_bound(arena, boundary_type, margin, log_ratio) result(value)
+    function left_bound(arena, left_type, right_type, margin, log_ratio) result(value)
         type(arena_t), target, intent(inout) :: arena
-        integer, intent(in) :: boundary_type
+        integer, intent(in) :: left_type, right_type
         type(expr_t), intent(in) :: margin, log_ratio
         type(expr_t) :: value
 
-        select case (boundary_type)
+        select case (left_type)
         case (1); value = num(arena, 0)
-        case (2); value = margin
+        case (2)
+            select case (right_type)
+            case (1); value = sqrt(margin)
+            case (2); value = acos(1-2*margin)/pi_expr(arena)
+            case default; value = atanh(sqrt(margin))
+            end select
         case (3); value = rat(arena, 1_int64, 2_int64)*log_ratio
         case (4); value = rat(arena, 1_int64, 4_int64)*log_ratio
         end select
@@ -146,15 +152,18 @@ contains
             case (3); value = -rat(arena, 1_int64, 2_int64)*log_ratio
             case (4); value = -rat(arena, 1_int64, 4_int64)*log_ratio
             end select
-        else if (left_type >= 3) then
-            select case (boundary_type)
-            case (1); value = num(arena, 0)
-            case (2); value = -margin
+        else if (boundary_type == 2) then
+            select case (left_type)
+            case (1); value = 1-sqrt(margin)
+            case (2); value = 1-acos(1-2*margin)/pi_expr(arena)
+            case default; value = -atanh(sqrt(margin))
             end select
+        else if (left_type >= 3) then
+            value = num(arena, 0)
         else
             select case (boundary_type)
             case (1); value = num(arena, 1)
-            case (2); value = 1-margin
+            case default; value = num(arena, 0)
             end select
         end if
     end function right_bound
@@ -174,7 +183,8 @@ contains
             do right_type = 1, 4
                 call check_identity(checks, engine, 'map derivative', &
                     dxi(left_type, right_type)-diff(xi(left_type, right_type), x))
-                expected_left = left_bound(arena, left_type, margin, log_ratio)
+                expected_left = left_bound(arena, left_type, right_type, &
+                    margin, log_ratio)
                 expected_right = right_bound(arena, left_type, right_type, &
                     margin, log_ratio)
                 call check_identity(checks, engine, 'left bound', &
@@ -259,7 +269,7 @@ contains
         open (newunit=unit, file=trim(path), status='replace', action='write', &
             iostat=ios)
         if (ios /= 0) error stop 'cannot open class-map inventory'
-        write (unit, '(a)') '# neort_gc_class_coordinate_map_inventory_v1'
+        write (unit, '(a)') '# neort_gc_class_coordinate_map_inventory_v2'
         write (unit, '(a)') 'generator=tools/gc_symbolics/app/'// &
             'gen_gc_class_coordinate_map.f90'
         write (unit, '(a)') 'fortsym_revision='//FORTSYM_REVISION
@@ -271,6 +281,8 @@ contains
             'use the same increasing 1/2*(1+tanh(x)) map'
         write (unit, '(a)') 'log_truncation=type3:0.5*log(margin/width);'// &
             'type4:0.25*log(margin/width)'
+        write (unit, '(a)') 'inner_margin=quadratic maps use exact inverse '// &
+            'sqrt/acos/atanh charts'
         write (unit, '(a)') 'outputs=xi,dxi_dx,xbeg,xend for all 16 pairs'
         do left_type = 1, 4
             do right_type = 1, 4

@@ -23,7 +23,7 @@ contains
             dxi34, dxi41, dxi42, dxi43, dxi44, xbeg11, xbeg12, xbeg13, xbeg14, xbeg21, xbeg22, xbeg23, xbeg24, &
             xbeg31, xbeg32, xbeg33, xbeg34, xbeg41, xbeg42, xbeg43, xbeg44, xend11, xend12, xend13, xend14, &
             xend21, xend22, xend23, xend24, xend31, xend32, xend33, xend34, xend41, xend42, xend43, xend44
-        real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17
+        real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19
 
         t1 = -class_coordinate + 1
         t2 = tanh(class_coordinate)
@@ -35,13 +35,15 @@ contains
         t8 = t2*2/cosh(class_coordinate)**2
         t9 = -t2*2/cosh(class_coordinate)**2
         t10 = 1.0_dp/2.0_dp/cosh(class_coordinate)**2
-        t11 = log(relative_margin/relative_class_width)
-        t12 = t11*1.0_dp/2.0_dp
-        t13 = t11*1.0_dp/4.0_dp
-        t14 = -relative_margin
-        t15 = t14 + 1
-        t16 = -t11*1.0_dp/2.0_dp
-        t17 = -t11*1.0_dp/4.0_dp
+        t11 = sqrt(relative_margin)
+        t12 = acos(-relative_margin*2 + 1)
+        t13 = atanh(t11)
+        t14 = log(relative_margin/relative_class_width)
+        t15 = t14*1.0_dp/2.0_dp
+        t16 = t14*1.0_dp/4.0_dp
+        t17 = -t14*1.0_dp/2.0_dp
+        t18 = -t14*1.0_dp/4.0_dp
+        t19 = -t13
         xi11 = class_coordinate
         xi12 = -t1**2 + 1
         xi13 = t2
@@ -78,34 +80,34 @@ contains
         xbeg12 = 0
         xbeg13 = 0
         xbeg14 = 0
-        xbeg21 = relative_margin
-        xbeg22 = relative_margin
-        xbeg23 = relative_margin
-        xbeg24 = relative_margin
-        xbeg31 = t12
-        xbeg32 = t12
-        xbeg33 = t12
-        xbeg34 = t12
-        xbeg41 = t13
-        xbeg42 = t13
-        xbeg43 = t13
-        xbeg44 = t13
+        xbeg21 = t11
+        xbeg22 = t12/3.1415926535897931E+000_dp
+        xbeg23 = t13
+        xbeg24 = t13
+        xbeg31 = t15
+        xbeg32 = t15
+        xbeg33 = t15
+        xbeg34 = t15
+        xbeg41 = t16
+        xbeg42 = t16
+        xbeg43 = t16
+        xbeg44 = t16
         xend11 = 1
-        xend12 = t15
-        xend13 = t16
-        xend14 = t17
+        xend12 = -t11 + 1
+        xend13 = t17
+        xend14 = t18
         xend21 = 1
-        xend22 = t15
-        xend23 = t16
-        xend24 = t17
+        xend22 = -t12/3.1415926535897931E+000_dp + 1
+        xend23 = t17
+        xend24 = t18
         xend31 = 0
-        xend32 = t14
-        xend33 = t16
-        xend34 = t17
+        xend32 = t19
+        xend33 = t17
+        xend34 = t18
         xend41 = 0
-        xend42 = t14
-        xend43 = t16
-        xend44 = t17
+        xend42 = t19
+        xend43 = t17
+        xend44 = t18
 
     end subroutine evaluate_neort_gc_class_coordinate_map
 

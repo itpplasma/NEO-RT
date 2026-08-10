@@ -21,6 +21,7 @@ module gc_potato_class_coordinate_map
     integer, parameter, public :: GC_POTATO_CLASS_MAP_NONFINITE_OUTPUT = 4
 
     public :: evaluate_gc_potato_class_coordinate_map
+    public :: evaluate_gc_potato_class_bounds
 
 contains
 
@@ -117,5 +118,21 @@ contains
             return
         end if
     end subroutine evaluate_gc_potato_class_coordinate_map
+
+    subroutine evaluate_gc_potato_class_bounds(ifuntype, relative_margin, &
+            relative_class_width, xbeg, xend, status)
+        integer, intent(in) :: ifuntype
+        real(dp), intent(in) :: relative_margin, relative_class_width
+        real(dp), intent(out) :: xbeg, xend
+        integer, intent(out) :: status
+        real(dp) :: xi_unused, dxi_dx_unused
+
+        ! The generated table is shared with the coordinate evaluator.  Its
+        ! bounds are independent of class_coordinate; this finite probe only
+        ! avoids exposing that implementation detail to callers.
+        call evaluate_gc_potato_class_coordinate_map(ifuntype, 0.0_dp, &
+            relative_margin, relative_class_width, xi_unused, &
+            dxi_dx_unused, xbeg, xend, status)
+    end subroutine evaluate_gc_potato_class_bounds
 
 end module gc_potato_class_coordinate_map
