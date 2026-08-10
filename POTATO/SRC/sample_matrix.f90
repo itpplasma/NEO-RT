@@ -25,7 +25,7 @@
 !
   external :: get_matrix
 !
-  ierr=0
+  ierr=sample_matrix_success
 !
   npoilag=nlagr+1
   nshift=nlagr/2
@@ -114,13 +114,12 @@
   DO
     iter=iter+1
     IF(iter.GT.itermax) THEN
-! Accept the last grid instead of failing (same rationale as the npmax cap
-! below): the grid from the completed pass is consistent, the root search is
-! cheap interpolation on it, and dropping the caller's class loses all its
-! resonances.  Classes hitting this path refine slowly (few splits per pass,
-! e.g. bounce-integration noise), so the unresolved error is local.
-      PRINT *,'sample_matrix : itermax exceeded, accepting grid with npoi=',npoi
-      ierr=0
+! Keep the last completed grid instead of dropping the caller's class.  The
+! root search is cheap interpolation on it, but the grid remains explicitly
+! marked nonconverged so callers can account for the local unresolved error.
+      PRINT *,'sample_matrix : itermax exceeded, accepting grid with npoi=',npoi, &
+          ' unresolved intervals=',COUNT(isplit.EQ.1)
+      ierr=sample_matrix_nonconverged
       RETURN
     ENDIF
 !

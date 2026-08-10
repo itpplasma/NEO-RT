@@ -1,4 +1,7 @@
   module sample_matrix_out_mod
+    integer, parameter :: sample_matrix_success=0
+    integer, parameter :: sample_matrix_nonconverged=2
+
     integer :: nlagr,n1,n2,npoi=0,itermax=0,icount
     double precision :: x,xbeg,xend,eps
     integer,          dimension(:),     allocatable :: ind_hist
@@ -55,7 +58,7 @@
 !
   external :: get_matrix
 !
-  ierr=0
+  ierr=sample_matrix_success
 !
   npoilag=nlagr+1
   nshift=nlagr/2
@@ -141,7 +144,7 @@
   DO
     iter=iter+1
     IF(iter.GT.itermax) THEN
-      ierr=2
+      ierr=sample_matrix_nonconverged
       PRINT *,'sample_matrix_out : maximum number of iterations exceeded'
       RETURN
     ENDIF

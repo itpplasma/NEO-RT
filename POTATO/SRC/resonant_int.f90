@@ -379,6 +379,8 @@ end subroutine integrate_class_resonances
 subroutine get_matrix_res
     !
     use sample_matrix_out_mod,        only : n1,n2,x,amat,icount
+    use sample_matrix_mod,            only : sample_matrix_grid_usable, &
+        sample_matrix_nonconverged
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses
     use get_matrix_mod,               only : iclass
@@ -429,7 +431,12 @@ subroutine get_matrix_res
         !
         call sample_class_doublecount(1,ierr)
         !
-        if(ierr.eq.0) then
+        if(sample_matrix_grid_usable(ierr)) then
+            if(ierr.eq.sample_matrix_nonconverged) then
+                write(msg, '(A,I0)') &
+                    'get_matrix_res: accepting nonconverged class sample, class=', iclass
+                call tee_message(trim(msg))
+            endif
             !
             call integrate_class_resonances
             !
