@@ -1,5 +1,5 @@
 add_library(potato_base
-  ${LIBNEO_SOURCE_DIR}/src/libneo_kinds.f90
+  ${LIBNEO_SOURCE_DIR}/src/util/libneo_kinds.f90
   logging_mod.f90
   wall_loss_mod.f90
   potato_input_mod.f90
