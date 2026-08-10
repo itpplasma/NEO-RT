@@ -54,6 +54,11 @@ contains
     function driftorbit_root(v, tol, eta_min, eta_max)
         use logger, only: warning
 
+        ! Bisection can exhaust the representable eta values before a
+        ! zero-frequency lane reaches an absolute residual of exactly zero.
+        ! Keep the fallback well below the transport quadrature accuracy while
+        ! acknowledging the conditioning of the separatrix frequency splines.
+        real(dp), parameter :: relative_tolerance_floor = 1.0e-9_dp
         real(dp) :: driftorbit_root(2)
         real(dp), intent(in) :: v, tol, eta_min, eta_max
         real(dp) :: res, res_old, eta_old
@@ -62,7 +67,7 @@ contains
         integer :: maxit, k, state
         real(dp) :: etamin2, etamax2
         logical :: slope_pos
-        real(dp) :: resmin, resmax
+        real(dp) :: resmin, resmax, tol_eff
         real(dp) :: eta
 
         character(len=1024) :: msg
@@ -87,6 +92,8 @@ contains
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         resmax = mph*Omph + mth*Omth
+        tol_eff = max(abs(tol), relative_tolerance_floor * &
+            max(1.0_dp, abs(resmin), abs(resmax)))
         if (resmax - resmin > 0) then
             slope_pos = .true.
         else
@@ -115,7 +122,7 @@ contains
 
             driftorbit_root(1) = eta
 
-            if (abs(res) < tol) then
+            if (abs(res) <= tol_eff) then
                 state = 1
                 driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
                 exit
