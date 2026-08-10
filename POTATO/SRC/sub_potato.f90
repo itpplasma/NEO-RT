@@ -3875,15 +3875,16 @@
 ! integrals (vec) and their derivatives (dvec)
 !
   use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr
-  use get_matrix_mod,    only : iclass
-  use form_classes_doublecount_mod, only : ifuntype
+  use get_matrix_mod,    only : iclass,relmargin
+  use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
   use interp_cache_mod,  only : ncache,xcache,veccache,dveccache
 !
   implicit none
 !
   integer, parameter :: nder=1
-  integer            :: k,npoilag,nshift,ibeg,iend,ic
+  integer            :: k,npoilag,nshift,ibeg,iend,ic,map_status
   double precision   :: x,xin,xi,xib,dxi_dx,dxi_dxb,dpphi_dxib,xi_inf,a,b
+  double precision   :: widthclass
 !
   double precision, dimension(n1)             :: vec,dvec
   double precision, dimension(0:nder,nlagr+1) :: coef
@@ -3900,6 +3901,8 @@
 !
   npoilag=nlagr+1
   nshift=nlagr/2
+  widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
+  map_status=0
 !
   call binsrc(xarr,1,npoi,x,k)
 !
@@ -3920,19 +3923,19 @@
     select case(ifuntype(iclass))
     case(31)
 ! left- separatrix, right - rho_pol boundary, -inf<x<0
-      xi=tanh(x)+1.d0
-      xib=tanh(xarr(1))+1.d0
-      dxi_dx=1.d0/cosh(x)**2
-      dxi_dxb=1.d0/cosh(xarr(1))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       dpphi_dxib=dvec(1)/dxi_dxb
       vec(1)=amat_arr(1,1,1)+dpphi_dxib*(xi-xib)
       dvec(1)=dpphi_dxib*dxi_dx
     case(41)
 ! left- X-point, right - rho_pol boundary, -inf<x<0
-      xi=tanh(x)+1.d0
-      xib=tanh(xarr(1))+1.d0
-      dxi_dx=1.d0/cosh(x)**2
-      dxi_dxb=1.d0/cosh(xarr(1))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       xi_inf=0.d0
       b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
       a=amat_arr(1,1,1)-b*(xib-xi_inf)**2
@@ -3940,19 +3943,19 @@
       dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
     case(32)
 ! left- separatrix, right - inner boundary, -inf<x<0
-      xi=1.d0-tanh(x)**2
-      xib=1.d0-tanh(xarr(1))**2
-      dxi_dx=-2.d0*tanh(x)/cosh(x)**2
-      dxi_dxb=-2.d0*tanh(xarr(1))/cosh(xarr(1))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       dpphi_dxib=dvec(1)/dxi_dxb
       vec(1)=amat_arr(1,1,1)+dpphi_dxib*(xi-xib)
       dvec(1)=dpphi_dxib*dxi_dx
     case(42)
 ! left- X-point, right - inner boundary, -inf<x<0
-      xi=1.d0-tanh(x)**2
-      xib=1.d0-tanh(xarr(1))**2
-      dxi_dx=-2.d0*tanh(x)/cosh(x)**2
-      dxi_dxb=-2.d0*tanh(xarr(1))/cosh(xarr(1))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       xi_inf=0.d0
       b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
       a=amat_arr(1,1,1)-b*(xib-xi_inf)**2
@@ -3960,19 +3963,19 @@
       dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
     case(33,34)
 ! left - separatrix, right - separatrix or X-point, -inf<x<inf
-      xi=0.5d0*(1.d0+tanh(x))
-      xib=0.5d0*(1.d0+tanh(xarr(1)))
-      dxi_dx=0.5d0/cosh(x)**2
-      dxi_dxb=0.5d0/cosh(xarr(1))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       dpphi_dxib=dvec(1)/dxi_dxb
       vec(1)=amat_arr(1,1,1)+dpphi_dxib*(xi-xib)
       dvec(1)=dpphi_dxib*dxi_dx
     case(43,44)
 ! left - X-point, right - separatrix or X-point, -inf<x<inf
-      xi=0.5d0*(1.d0+tanh(x))
-      xib=0.5d0*(1.d0+tanh(xarr(1)))
-      dxi_dx=0.5d0/cosh(x)**2
-      dxi_dxb=0.5d0/cosh(xarr(1))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       xi_inf=0.d0
       b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
       a=amat_arr(1,1,1)-b*(xib-xi_inf)**2
@@ -3985,19 +3988,19 @@
     select case(ifuntype(iclass))
     case(13)
 ! left- rho_pol boundary, right - separatrix, 0<x<inf
-      xi=tanh(x)
-      xib=tanh(xarr(npoi))
-      dxi_dx=1.d0/cosh(x)**2
-      dxi_dxb=1.d0/cosh(xarr(npoi))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       dpphi_dxib=dvec(1)/dxi_dxb
       vec(1)=amat_arr(1,1,npoi)+dpphi_dxib*(xi-xib)
       dvec(1)=dpphi_dxib*dxi_dx
     case(14)
 ! left- rho_pol boundary, right - X-point, 0<x<inf
-      xi=tanh(x)
-      xib=tanh(xarr(npoi))
-      dxi_dx=1.d0/cosh(x)**2
-      dxi_dxb=1.d0/cosh(xarr(npoi))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       xi_inf=1.d0
       b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
       a=amat_arr(1,1,npoi)-b*(xib-xi_inf)**2
@@ -4005,19 +4008,19 @@
       dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
     case(23)
 ! left- inner boundary, right - separatrix, 0<x<inf
-      xi=tanh(x)**2
-      xib=tanh(xarr(npoi))**2
-      dxi_dx=2.d0*tanh(x)/cosh(x)**2
-      dxi_dxb=2.d0*tanh(xarr(npoi))/cosh(xarr(npoi))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       dpphi_dxib=dvec(1)/dxi_dxb
       vec(1)=amat_arr(1,1,npoi)+dpphi_dxib*(xi-xib)
       dvec(1)=dpphi_dxib*dxi_dx
     case(24)
 ! left- inner boundary, right - X-point, 0<x<inf
-      xi=tanh(x)**2
-      xib=tanh(xarr(npoi))**2
-      dxi_dx=2.d0*tanh(x)/cosh(x)**2
-      dxi_dxb=2.d0*tanh(xarr(npoi))/cosh(xarr(npoi))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       xi_inf=1.d0
       b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
       a=amat_arr(1,1,npoi)-b*(xib-xi_inf)**2
@@ -4025,19 +4028,19 @@
       dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
     case(33,43)
 ! left - separatrix or X-point, right -separatrix, -inf<x<inf
-      xi=0.5d0*(1.d0+tanh(x))
-      xib=0.5d0*(1.d0+tanh(xarr(npoi)))
-      dxi_dx=0.5d0/cosh(x)**2
-      dxi_dxb=0.5d0/cosh(xarr(npoi))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       dpphi_dxib=dvec(1)/dxi_dxb
       vec(1)=amat_arr(1,1,npoi)+dpphi_dxib*(xi-xib)
       dvec(1)=dpphi_dxib*dxi_dx
     case(34,44)
 ! left - separatrix or X-point, right -X-point, -inf<x<inf
-      xi=0.5d0*(1.d0+tanh(x))
-      xib=0.5d0*(1.d0+tanh(xarr(npoi)))
-      dxi_dx=0.5d0/cosh(x)**2
-      dxi_dxb=0.5d0/cosh(xarr(npoi))**2
+      call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
+                   map_status)
+      call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
+                   widthclass,map_status)
       xi_inf=1.d0
       b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
       a=amat_arr(1,1,npoi)-b*(xib-xi_inf)**2
@@ -4046,6 +4049,7 @@
     end select
   endif
 !
+  if(map_status.ne.0) error stop 'interpolation requested an invalid class map'
 ! Store this (x,vec,dvec) for reuse by later modes at the same x.
   call interp_cache_store(x,vec,dvec)
 !
