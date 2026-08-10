@@ -500,7 +500,7 @@ subroutine resonant_torque
         resline_unit_is_private,resline_diag_unit_is_private
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
         ind_hist,xarr,amat_arr
-    use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
+    use potato_input_mod,  only : nbox, unif_rho_pol, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
         eps_sampling, itermax_sampling
@@ -540,7 +540,7 @@ subroutine resonant_torque
     allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
     !
     numbasef=0 !no extra integrals sampled, pure orbit integration
-    call linspace(1d0/nbox, 1d0, nbox, sbox)
+    call set_radial_boxes(nbox, unif_rho_pol, sbox)
     !
     ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
     ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin
