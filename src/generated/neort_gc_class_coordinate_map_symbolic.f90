@@ -14,7 +14,11 @@ contains
             xi42, xi43, xi44, dxi11, dxi12, dxi13, dxi14, dxi21, dxi22, dxi23, dxi24, dxi31, dxi32, dxi33, &
             dxi34, dxi41, dxi42, dxi43, dxi44, xbeg11, xbeg12, xbeg13, xbeg14, xbeg21, xbeg22, xbeg23, xbeg24, &
             xbeg31, xbeg32, xbeg33, xbeg34, xbeg41, xbeg42, xbeg43, xbeg44, xend11, xend12, xend13, xend14, &
-            xend21, xend22, xend23, xend24, xend31, xend32, xend33, xend34, xend41, xend42, xend43, xend44)
+            xend21, xend22, xend23, xend24, xend31, xend32, xend33, xend34, xend41, xend42, xend43, xend44, &
+            xpoint_l11, xpoint_l12, xpoint_l13, xpoint_l14, xpoint_l21, xpoint_l22, xpoint_l23, xpoint_l24, &
+            xpoint_l31, xpoint_l32, xpoint_l33, xpoint_l34, xpoint_l41, xpoint_l42, xpoint_l43, xpoint_l44, &
+            xpoint_r11, xpoint_r12, xpoint_r13, xpoint_r14, xpoint_r21, xpoint_r22, xpoint_r23, xpoint_r24, &
+            xpoint_r31, xpoint_r32, xpoint_r33, xpoint_r34, xpoint_r41, xpoint_r42, xpoint_r43, xpoint_r44)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
         real(dp), intent(in) :: class_coordinate, relative_margin, relative_class_width
@@ -22,7 +26,11 @@ contains
             xi41, xi42, xi43, xi44, dxi11, dxi12, dxi13, dxi14, dxi21, dxi22, dxi23, dxi24, dxi31, dxi32, dxi33, &
             dxi34, dxi41, dxi42, dxi43, dxi44, xbeg11, xbeg12, xbeg13, xbeg14, xbeg21, xbeg22, xbeg23, xbeg24, &
             xbeg31, xbeg32, xbeg33, xbeg34, xbeg41, xbeg42, xbeg43, xbeg44, xend11, xend12, xend13, xend14, &
-            xend21, xend22, xend23, xend24, xend31, xend32, xend33, xend34, xend41, xend42, xend43, xend44
+            xend21, xend22, xend23, xend24, xend31, xend32, xend33, xend34, xend41, xend42, xend43, xend44, &
+            xpoint_l11, xpoint_l12, xpoint_l13, xpoint_l14, xpoint_l21, xpoint_l22, xpoint_l23, xpoint_l24, &
+            xpoint_l31, xpoint_l32, xpoint_l33, xpoint_l34, xpoint_l41, xpoint_l42, xpoint_l43, xpoint_l44, &
+            xpoint_r11, xpoint_r12, xpoint_r13, xpoint_r14, xpoint_r21, xpoint_r22, xpoint_r23, xpoint_r24, &
+            xpoint_r31, xpoint_r32, xpoint_r33, xpoint_r34, xpoint_r41, xpoint_r42, xpoint_r43, xpoint_r44
         real(dp) :: t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19
 
         t1 = -class_coordinate + 1
@@ -108,6 +116,38 @@ contains
         xend42 = t19
         xend43 = t17
         xend44 = t18
+        xpoint_l11 = 0
+        xpoint_l12 = 0
+        xpoint_l13 = 0
+        xpoint_l14 = 0
+        xpoint_l21 = 0
+        xpoint_l22 = 0
+        xpoint_l23 = 0
+        xpoint_l24 = 0
+        xpoint_l31 = 0
+        xpoint_l32 = 0
+        xpoint_l33 = 0
+        xpoint_l34 = 0
+        xpoint_l41 = 0
+        xpoint_l42 = 0
+        xpoint_l43 = 0
+        xpoint_l44 = 0
+        xpoint_r11 = 1
+        xpoint_r12 = 1
+        xpoint_r13 = 1
+        xpoint_r14 = 1
+        xpoint_r21 = 1
+        xpoint_r22 = 1
+        xpoint_r23 = 1
+        xpoint_r24 = 1
+        xpoint_r31 = 1
+        xpoint_r32 = 1
+        xpoint_r33 = 1
+        xpoint_r34 = 1
+        xpoint_r41 = 1
+        xpoint_r42 = 1
+        xpoint_r43 = 1
+        xpoint_r44 = 1
 
     end subroutine evaluate_neort_gc_class_coordinate_map
 

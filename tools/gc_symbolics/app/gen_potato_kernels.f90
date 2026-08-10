@@ -80,6 +80,14 @@ program gen_potato_kernels
     type(expr_t) :: gap_sqrt_integrand, gap_sqrt_distance
     type(expr_t) :: gap_sqrt_coefficient, gap_sqrt_coefficient_symbol
     type(expr_t) :: gap_sqrt_width, gap_sqrt_integral
+    type(expr_t) :: endpoint_value, endpoint_derivative, endpoint_xi
+    type(expr_t) :: endpoint_query_xi
+    type(expr_t) :: endpoint_xi_derivative, endpoint_query_xi_derivative
+    type(expr_t) :: endpoint_xi_limit
+    type(expr_t) :: endpoint_linear_slope, endpoint_linear_value
+    type(expr_t) :: endpoint_linear_derivative
+    type(expr_t) :: endpoint_quadratic_coefficient, endpoint_quadratic_intercept
+    type(expr_t) :: endpoint_quadratic_value, endpoint_quadratic_derivative
 
     type(expr_t) :: hessian_H_RR, hessian_H_Rp, hessian_H_pp
     type(expr_t) :: regular_tau_value, cut_linear_slope, xpoint_cut_curvature
@@ -291,6 +299,32 @@ program gen_potato_kernels
     gap_sqrt_integral = 2*gap_sqrt_coefficient_symbol*sqrt(gap_sqrt_width)
 
     ! ------------------------------------------------------------------
+    ! Class-endpoint interpolation.  The orbit sampler owns the decision
+    ! whether an endpoint is regular or an X-point; Fortsym owns the two
+    ! coordinate-chain formulas used to continue the first invariant across
+    ! the finite numerical seam.
+    endpoint_value = sym(arena, 'endpoint_value')
+    endpoint_derivative = sym(arena, 'endpoint_derivative')
+    endpoint_xi = sym(arena, 'endpoint_xi')
+    endpoint_query_xi = sym(arena, 'endpoint_query_xi')
+    endpoint_xi_derivative = sym(arena, 'endpoint_xi_derivative')
+    endpoint_query_xi_derivative = sym(arena, 'endpoint_query_xi_derivative')
+    endpoint_xi_limit = sym(arena, 'endpoint_xi_limit')
+    endpoint_linear_slope = endpoint_derivative/endpoint_xi_derivative
+    endpoint_linear_value = endpoint_value + endpoint_linear_slope * &
+        (endpoint_query_xi-endpoint_xi)
+    endpoint_linear_derivative = endpoint_linear_slope * &
+        endpoint_query_xi_derivative
+    endpoint_quadratic_coefficient = endpoint_derivative / &
+        (2*(endpoint_xi-endpoint_xi_limit)*endpoint_xi_derivative)
+    endpoint_quadratic_intercept = endpoint_value - &
+        endpoint_quadratic_coefficient*(endpoint_xi-endpoint_xi_limit)**2
+    endpoint_quadratic_value = endpoint_quadratic_intercept + &
+        endpoint_quadratic_coefficient*(endpoint_query_xi-endpoint_xi_limit)**2
+    endpoint_quadratic_derivative = 2*endpoint_quadratic_coefficient * &
+        (endpoint_query_xi-endpoint_xi_limit)*endpoint_query_xi_derivative
+
+    ! ------------------------------------------------------------------
     ! Limiting forms from the local one-degree-of-freedom Hamiltonian.  The
     ! Hessian is supplied in one explicitly selected physical/normalised-time
     ! convention; no fitted C is accepted.  Runtime code must reject the
@@ -418,6 +452,22 @@ program gen_potato_kernels
         'inverse-square-root gap coefficient', &
         gap_sqrt_coefficient - gap_sqrt_integrand*sqrt(gap_sqrt_distance))
     call check_identity(proofs, proof_engine, &
+        'linear endpoint continuation', endpoint_linear_value - &
+        (endpoint_value+endpoint_linear_slope*(endpoint_query_xi- &
+        endpoint_xi)))
+    call check_identity(proofs, proof_engine, &
+        'linear endpoint derivative follows the coordinate chain', &
+        endpoint_linear_derivative - endpoint_linear_slope* &
+            endpoint_query_xi_derivative)
+    call check_identity(proofs, proof_engine, &
+        'quadratic endpoint continuation', endpoint_quadratic_value - &
+        (endpoint_quadratic_intercept+endpoint_quadratic_coefficient* &
+        (endpoint_query_xi-endpoint_xi_limit)**2))
+    call check_identity(proofs, proof_engine, &
+        'quadratic endpoint derivative follows the coordinate chain', &
+        endpoint_quadratic_derivative - 2*endpoint_quadratic_coefficient* &
+            (endpoint_query_xi-endpoint_xi_limit)*endpoint_query_xi_derivative)
+    call check_identity(proofs, proof_engine, &
         'Hessian determinant defines the local saddle rate', &
         hessian_determinant - (hessian_H_RR*hessian_H_pp - hessian_H_Rp**2))
     call check_identity(proofs, proof_engine, &
@@ -472,6 +522,13 @@ program gen_potato_kernels
     call simplify_one(resonance_torque_weight)
     call simplify_one(topology_gap_measure)
     call simplify_one(topology_contribution_error_bound)
+    call simplify_one(endpoint_linear_slope)
+    call simplify_one(endpoint_linear_value)
+    call simplify_one(endpoint_linear_derivative)
+    call simplify_one(endpoint_quadratic_coefficient)
+    call simplify_one(endpoint_quadratic_intercept)
+    call simplify_one(endpoint_quadratic_value)
+    call simplify_one(endpoint_quadratic_derivative)
     call simplify_one(hessian_determinant)
     call simplify_one(lambda_local)
     call simplify_one(C_tau)
@@ -503,6 +560,10 @@ program gen_potato_kernels
     call emit_gap_map_kernel(output_directory, gap_coordinate, gap_jacobian)
     call emit_gap_sqrt_coefficient_kernel(output_directory, gap_sqrt_coefficient)
     call emit_gap_sqrt_kernel(output_directory, gap_sqrt_integral)
+    call emit_endpoint_linear_kernel(output_directory, endpoint_linear_value, &
+        endpoint_linear_derivative)
+    call emit_endpoint_quadratic_kernel(output_directory, endpoint_quadratic_value, &
+        endpoint_quadratic_derivative)
     call emit_limiting_kernel(output_directory,hessian_determinant,lambda_local, &
         C_tau,regular_action_offset,regular_action_jacobian, &
         xpoint_action_offset,xpoint_action_jacobian,regular_tau_limit, &
@@ -756,6 +817,41 @@ contains
         call write_kernel(directory, 'potato_gap_sqrt_coefficient.f90', &
             [coefficient], spec)
     end subroutine emit_gap_sqrt_coefficient_kernel
+
+    subroutine emit_endpoint_linear_kernel(directory, value, derivative)
+        character(*), intent(in) :: directory
+        type(expr_t), intent(in) :: value, derivative
+        type(kernel_spec_t) :: spec
+
+        call common_spec(spec, 'potato_class_linear_extrapolation', &
+            'potato_class_linear_extrapolation_generated_mod')
+        allocate (spec%args(6), spec%outputs(2))
+        spec%args = [str('endpoint_value'), str('endpoint_derivative'), &
+            str('endpoint_xi'), str('endpoint_query_xi'), &
+            str('endpoint_xi_derivative'), str('endpoint_query_xi_derivative')]
+        spec%outputs = [str('extrapolated_value'), &
+            str('extrapolated_derivative')]
+        call write_kernel(directory, 'potato_class_linear_extrapolation.f90', &
+            [value, derivative], spec)
+    end subroutine emit_endpoint_linear_kernel
+
+    subroutine emit_endpoint_quadratic_kernel(directory, value, derivative)
+        character(*), intent(in) :: directory
+        type(expr_t), intent(in) :: value, derivative
+        type(kernel_spec_t) :: spec
+
+        call common_spec(spec, 'potato_class_quadratic_extrapolation', &
+            'potato_class_quadratic_extrapolation_generated_mod')
+        allocate (spec%args(7), spec%outputs(2))
+        spec%args = [str('endpoint_value'), str('endpoint_derivative'), &
+            str('endpoint_xi'), str('endpoint_query_xi'), &
+            str('endpoint_xi_derivative'), str('endpoint_query_xi_derivative'), &
+            str('endpoint_xi_limit')]
+        spec%outputs = [str('extrapolated_value'), &
+            str('extrapolated_derivative')]
+        call write_kernel(directory, 'potato_class_quadratic_extrapolation.f90', &
+            [value, derivative], spec)
+    end subroutine emit_endpoint_quadratic_kernel
 
     subroutine emit_limiting_kernel(directory, hessian_determinant, lambda_local, &
         c_tau, regular_action_offset, regular_action_jacobian, &

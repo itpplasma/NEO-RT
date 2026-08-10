@@ -14,6 +14,12 @@ module potato_symbolic_kernel_mod
         potato_gap_sqrt_integral_kernel_generated => potato_gap_sqrt_integral_kernel
     use potato_gap_sqrt_coefficient_generated_mod, only : &
         potato_gap_sqrt_coefficient_kernel_generated => potato_gap_sqrt_coefficient_kernel
+    use potato_class_linear_extrapolation_generated_mod, only : &
+        potato_class_linear_extrapolation_generated => &
+            potato_class_linear_extrapolation
+    use potato_class_quadratic_extrapolation_generated_mod, only : &
+        potato_class_quadratic_extrapolation_generated => &
+            potato_class_quadratic_extrapolation
     use potato_hm_eq4_generated_mod, only : potato_hm_eq4_kernel_generated => &
         potato_hm_eq4_kernel
     use potato_jperp_domain_generated_mod, only : potato_jperp_domain_kernel_generated => &
@@ -51,6 +57,8 @@ module potato_symbolic_kernel_mod
     public :: potato_gap_square_map
     public :: potato_gap_sqrt_integral
     public :: potato_gap_sqrt_coefficient
+    public :: potato_class_linear_extrapolation
+    public :: potato_class_quadratic_extrapolation
     public :: potato_limiting_kernel
     public :: potato_limiting_kernel_checked
     public :: potato_limiting_success, potato_limiting_invalid_reference, &
@@ -216,6 +224,41 @@ contains
         call potato_gap_sqrt_coefficient_kernel_generated(gap_sqrt_integrand, &
             gap_sqrt_distance, gap_sqrt_coefficient)
     end subroutine potato_gap_sqrt_coefficient
+
+    pure subroutine potato_class_linear_extrapolation(endpoint_value, &
+            endpoint_derivative,endpoint_xi,endpoint_query_xi, &
+            endpoint_xi_derivative,endpoint_query_xi_derivative, &
+            extrapolated_value,extrapolated_derivative)
+        real(real64), intent(in) :: endpoint_value,endpoint_derivative
+        real(real64), intent(in) :: endpoint_xi,endpoint_query_xi
+        real(real64), intent(in) :: endpoint_xi_derivative
+        real(real64), intent(in) :: endpoint_query_xi_derivative
+        real(real64), intent(out) :: extrapolated_value
+        real(real64), intent(out) :: extrapolated_derivative
+
+        call potato_class_linear_extrapolation_generated(endpoint_value, &
+            endpoint_derivative,endpoint_xi,endpoint_query_xi, &
+            endpoint_xi_derivative,endpoint_query_xi_derivative, &
+            extrapolated_value,extrapolated_derivative)
+    end subroutine potato_class_linear_extrapolation
+
+    pure subroutine potato_class_quadratic_extrapolation(endpoint_value, &
+            endpoint_derivative,endpoint_xi,endpoint_query_xi, &
+            endpoint_xi_derivative,endpoint_query_xi_derivative, &
+            endpoint_xi_limit,extrapolated_value,extrapolated_derivative)
+        real(real64), intent(in) :: endpoint_value,endpoint_derivative
+        real(real64), intent(in) :: endpoint_xi,endpoint_query_xi
+        real(real64), intent(in) :: endpoint_xi_derivative
+        real(real64), intent(in) :: endpoint_query_xi_derivative
+        real(real64), intent(in) :: endpoint_xi_limit
+        real(real64), intent(out) :: extrapolated_value
+        real(real64), intent(out) :: extrapolated_derivative
+
+        call potato_class_quadratic_extrapolation_generated(endpoint_value, &
+            endpoint_derivative,endpoint_xi,endpoint_query_xi, &
+            endpoint_xi_derivative,endpoint_query_xi_derivative, &
+            endpoint_xi_limit,extrapolated_value,extrapolated_derivative)
+    end subroutine potato_class_quadratic_extrapolation
 
     subroutine potato_limiting_kernel(hessian_H_RR,hessian_H_Rp,hessian_H_pp, &
         regular_tau_value,cut_linear_slope,xpoint_cut_curvature,delta_R, &

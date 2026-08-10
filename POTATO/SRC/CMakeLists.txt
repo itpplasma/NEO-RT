@@ -38,6 +38,8 @@ add_library(potato_base
   generated/potato_gap_square_map.f90
   generated/potato_gap_sqrt_integral.f90
   generated/potato_gap_sqrt_coefficient.f90
+  generated/potato_class_linear_extrapolation.f90
+  generated/potato_class_quadratic_extrapolation.f90
   generated/potato_limiting.f90
   potato_symbolic_kernels.f90
   ${CMAKE_SOURCE_DIR}/../src/generated/neort_gc_class_coordinate_map_symbolic.f90

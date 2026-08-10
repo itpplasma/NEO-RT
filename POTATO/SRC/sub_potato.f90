@@ -3878,12 +3878,17 @@
   use get_matrix_mod,    only : iclass,relmargin
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end
   use interp_cache_mod,  only : ncache,xcache,veccache,dveccache
+  use potato_symbolic_kernel_mod, only : potato_class_linear_extrapolation, &
+                                         potato_class_quadratic_extrapolation
+  use gc_potato_class_coordinate_map, only : &
+      evaluate_gc_potato_class_xpoint_limits, GC_POTATO_CLASS_MAP_OK
 !
   implicit none
 !
   integer, parameter :: nder=1
   integer            :: k,npoilag,nshift,ibeg,iend,ic,map_status
-  double precision   :: x,xin,xi,xib,dxi_dx,dxi_dxb,dpphi_dxib,xi_inf,a,b
+  double precision   :: x,xin,xi,xib,dxi_dx,dxi_dxb
+  double precision   :: xi_left_xpoint_limit,xi_right_xpoint_limit
   double precision   :: widthclass
 !
   double precision, dimension(n1)             :: vec,dvec
@@ -3903,6 +3908,13 @@
   nshift=nlagr/2
   widthclass=abs(R_class_end(iclass)/R_class_beg(iclass)-1.d0)
   map_status=0
+  if(x.lt.xarr(1) .or. x.gt.xarr(npoi)) then
+    call evaluate_gc_potato_class_xpoint_limits(ifuntype(iclass),relmargin, &
+        widthclass,xi_left_xpoint_limit,xi_right_xpoint_limit,map_status)
+    if(map_status.ne.GC_POTATO_CLASS_MAP_OK) then
+      error stop 'interpolation requested invalid X-point limits'
+    endif
+  endif
 !
   call binsrc(xarr,1,npoi,x,k)
 !
@@ -3927,60 +3939,48 @@
                    map_status)
       call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      dpphi_dxib=dvec(1)/dxi_dxb
-      vec(1)=amat_arr(1,1,1)+dpphi_dxib*(xi-xib)
-      dvec(1)=dpphi_dxib*dxi_dx
+      call potato_class_linear_extrapolation(amat_arr(1,1,1),dvec(1),xib, &
+          xi,dxi_dxb,dxi_dx,vec(1),dvec(1))
     case(41)
 ! left- X-point, right - rho_pol boundary, -inf<x<0
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      xi_inf=0.d0
-      b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
-      a=amat_arr(1,1,1)-b*(xib-xi_inf)**2
-      vec(1)=a+b*(xi-xi_inf)**2
-      dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
+      call potato_class_quadratic_extrapolation(amat_arr(1,1,1),dvec(1), &
+          xib,xi,dxi_dxb,dxi_dx,xi_left_xpoint_limit,vec(1),dvec(1))
     case(32)
 ! left- separatrix, right - inner boundary, -inf<x<0
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      dpphi_dxib=dvec(1)/dxi_dxb
-      vec(1)=amat_arr(1,1,1)+dpphi_dxib*(xi-xib)
-      dvec(1)=dpphi_dxib*dxi_dx
+      call potato_class_linear_extrapolation(amat_arr(1,1,1),dvec(1),xib, &
+          xi,dxi_dxb,dxi_dx,vec(1),dvec(1))
     case(42)
 ! left- X-point, right - inner boundary, -inf<x<0
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      xi_inf=0.d0
-      b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
-      a=amat_arr(1,1,1)-b*(xib-xi_inf)**2
-      vec(1)=a+b*(xi-xi_inf)**2
-      dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
+      call potato_class_quadratic_extrapolation(amat_arr(1,1,1),dvec(1), &
+          xib,xi,dxi_dxb,dxi_dx,xi_left_xpoint_limit,vec(1),dvec(1))
     case(33,34)
 ! left - separatrix, right - separatrix or X-point, -inf<x<inf
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      dpphi_dxib=dvec(1)/dxi_dxb
-      vec(1)=amat_arr(1,1,1)+dpphi_dxib*(xi-xib)
-      dvec(1)=dpphi_dxib*dxi_dx
+      call potato_class_linear_extrapolation(amat_arr(1,1,1),dvec(1),xib, &
+          xi,dxi_dxb,dxi_dx,vec(1),dvec(1))
     case(43,44)
 ! left - X-point, right - separatrix or X-point, -inf<x<inf
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(1),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      xi_inf=0.d0
-      b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
-      a=amat_arr(1,1,1)-b*(xib-xi_inf)**2
-      vec(1)=a+b*(xi-xi_inf)**2
-      dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
+      call potato_class_quadratic_extrapolation(amat_arr(1,1,1),dvec(1), &
+          xib,xi,dxi_dxb,dxi_dx,xi_left_xpoint_limit,vec(1),dvec(1))
     end select
   elseif(x.gt.xarr(npoi)) then
     vec=amat_arr(:,1,npoi)+(x-xarr(npoi))*dvec
@@ -3992,60 +3992,48 @@
                    map_status)
       call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      dpphi_dxib=dvec(1)/dxi_dxb
-      vec(1)=amat_arr(1,1,npoi)+dpphi_dxib*(xi-xib)
-      dvec(1)=dpphi_dxib*dxi_dx
+      call potato_class_linear_extrapolation(amat_arr(1,1,npoi),dvec(1),xib, &
+          xi,dxi_dxb,dxi_dx,vec(1),dvec(1))
     case(14)
 ! left- rho_pol boundary, right - X-point, 0<x<inf
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      xi_inf=1.d0
-      b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
-      a=amat_arr(1,1,npoi)-b*(xib-xi_inf)**2
-      vec(1)=a+b*(xi-xi_inf)**2
-      dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
+      call potato_class_quadratic_extrapolation(amat_arr(1,1,npoi),dvec(1), &
+          xib,xi,dxi_dxb,dxi_dx,xi_right_xpoint_limit,vec(1),dvec(1))
     case(23)
 ! left- inner boundary, right - separatrix, 0<x<inf
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      dpphi_dxib=dvec(1)/dxi_dxb
-      vec(1)=amat_arr(1,1,npoi)+dpphi_dxib*(xi-xib)
-      dvec(1)=dpphi_dxib*dxi_dx
+      call potato_class_linear_extrapolation(amat_arr(1,1,npoi),dvec(1),xib, &
+          xi,dxi_dxb,dxi_dx,vec(1),dvec(1))
     case(24)
 ! left- inner boundary, right - X-point, 0<x<inf
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      xi_inf=1.d0
-      b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
-      a=amat_arr(1,1,npoi)-b*(xib-xi_inf)**2
-      vec(1)=a+b*(xi-xi_inf)**2
-      dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
+      call potato_class_quadratic_extrapolation(amat_arr(1,1,npoi),dvec(1), &
+          xib,xi,dxi_dxb,dxi_dx,xi_right_xpoint_limit,vec(1),dvec(1))
     case(33,43)
 ! left - separatrix or X-point, right -separatrix, -inf<x<inf
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      dpphi_dxib=dvec(1)/dxi_dxb
-      vec(1)=amat_arr(1,1,npoi)+dpphi_dxib*(xi-xib)
-      dvec(1)=dpphi_dxib*dxi_dx
+      call potato_class_linear_extrapolation(amat_arr(1,1,npoi),dvec(1),xib, &
+          xi,dxi_dxb,dxi_dx,vec(1),dvec(1))
     case(34,44)
 ! left - separatrix or X-point, right -X-point, -inf<x<inf
       call xi_func(ifuntype(iclass),x,xi,dxi_dx,relmargin,widthclass, &
                    map_status)
       call xi_func(ifuntype(iclass),xarr(npoi),xib,dxi_dxb,relmargin, &
                    widthclass,map_status)
-      xi_inf=1.d0
-      b=dvec(1)/(2.d0*(xib-xi_inf)*dxi_dxb)
-      a=amat_arr(1,1,npoi)-b*(xib-xi_inf)**2
-      vec(1)=a+b*(xi-xi_inf)**2
-      dvec(1)=2.d0*b*(xi-xi_inf)*dxi_dx
+      call potato_class_quadratic_extrapolation(amat_arr(1,1,npoi),dvec(1), &
+          xib,xi,dxi_dxb,dxi_dx,xi_right_xpoint_limit,vec(1),dvec(1))
     end select
   endif
 !

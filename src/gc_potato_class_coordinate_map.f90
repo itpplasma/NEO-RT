@@ -22,18 +22,22 @@ module gc_potato_class_coordinate_map
 
     public :: evaluate_gc_potato_class_coordinate_map
     public :: evaluate_gc_potato_class_bounds
+    public :: evaluate_gc_potato_class_xpoint_limits
 
 contains
 
     subroutine evaluate_gc_potato_class_coordinate_map(ifuntype, x, &
             relative_margin, relative_class_width, xi, dxi_dx, xbeg, xend, &
-            status)
+            status, xi_left_xpoint_limit, xi_right_xpoint_limit)
         integer, intent(in) :: ifuntype
         real(dp), intent(in) :: x, relative_margin, relative_class_width
         real(dp), intent(out) :: xi, dxi_dx, xbeg, xend
+        real(dp), intent(out), optional :: xi_left_xpoint_limit, &
+            xi_right_xpoint_limit
         integer, intent(out) :: status
         integer :: left_kind, right_kind
         real(dp) :: all_xi(4, 4), all_dxi(4, 4), all_xbeg(4, 4), all_xend(4, 4)
+        real(dp) :: all_xpoint_left(4, 4), all_xpoint_right(4, 4)
         real(dp) :: nan_value
 
         nan_value = ieee_value(0.0_dp, ieee_quiet_nan)
@@ -91,12 +95,34 @@ contains
             all_xend(1, 1), all_xend(1, 2), all_xend(1, 3), all_xend(1, 4), &
             all_xend(2, 1), all_xend(2, 2), all_xend(2, 3), all_xend(2, 4), &
             all_xend(3, 1), all_xend(3, 2), all_xend(3, 3), all_xend(3, 4), &
-            all_xend(4, 1), all_xend(4, 2), all_xend(4, 3), all_xend(4, 4))
+            all_xend(4, 1), all_xend(4, 2), all_xend(4, 3), all_xend(4, 4), &
+            all_xpoint_left(1, 1), all_xpoint_left(1, 2), &
+            all_xpoint_left(1, 3), all_xpoint_left(1, 4), &
+            all_xpoint_left(2, 1), all_xpoint_left(2, 2), &
+            all_xpoint_left(2, 3), all_xpoint_left(2, 4), &
+            all_xpoint_left(3, 1), all_xpoint_left(3, 2), &
+            all_xpoint_left(3, 3), all_xpoint_left(3, 4), &
+            all_xpoint_left(4, 1), all_xpoint_left(4, 2), &
+            all_xpoint_left(4, 3), all_xpoint_left(4, 4), &
+            all_xpoint_right(1, 1), all_xpoint_right(1, 2), &
+            all_xpoint_right(1, 3), all_xpoint_right(1, 4), &
+            all_xpoint_right(2, 1), all_xpoint_right(2, 2), &
+            all_xpoint_right(2, 3), all_xpoint_right(2, 4), &
+            all_xpoint_right(3, 1), all_xpoint_right(3, 2), &
+            all_xpoint_right(3, 3), all_xpoint_right(3, 4), &
+            all_xpoint_right(4, 1), all_xpoint_right(4, 2), &
+            all_xpoint_right(4, 3), all_xpoint_right(4, 4))
 
         xi = all_xi(left_kind, right_kind)
         dxi_dx = all_dxi(left_kind, right_kind)
         xbeg = all_xbeg(left_kind, right_kind)
         xend = all_xend(left_kind, right_kind)
+        if (present(xi_left_xpoint_limit)) then
+            xi_left_xpoint_limit = all_xpoint_left(left_kind, right_kind)
+        end if
+        if (present(xi_right_xpoint_limit)) then
+            xi_right_xpoint_limit = all_xpoint_right(left_kind, right_kind)
+        end if
         if (.not. ieee_is_finite(xi)) then
             status = GC_POTATO_CLASS_MAP_NONFINITE_OUTPUT
             return
@@ -118,6 +144,21 @@ contains
             return
         end if
     end subroutine evaluate_gc_potato_class_coordinate_map
+
+    subroutine evaluate_gc_potato_class_xpoint_limits(ifuntype, relative_margin, &
+            relative_class_width, xi_left_xpoint_limit, xi_right_xpoint_limit, &
+            status)
+        integer, intent(in) :: ifuntype
+        real(dp), intent(in) :: relative_margin, relative_class_width
+        real(dp), intent(out) :: xi_left_xpoint_limit, xi_right_xpoint_limit
+        integer, intent(out) :: status
+        real(dp) :: xi_unused, dxi_dx_unused, xbeg_unused, xend_unused
+
+        call evaluate_gc_potato_class_coordinate_map(ifuntype, 0.0_dp, &
+            relative_margin, relative_class_width, xi_unused, dxi_dx_unused, &
+            xbeg_unused, xend_unused, status, xi_left_xpoint_limit, &
+            xi_right_xpoint_limit)
+    end subroutine evaluate_gc_potato_class_xpoint_limits
 
     subroutine evaluate_gc_potato_class_bounds(ifuntype, relative_margin, &
             relative_class_width, xbeg, xend, status)

@@ -33,6 +33,8 @@ program test_endpoint_stationary_root
                                          potato_gap_square_map, &
                                          potato_gap_sqrt_integral, &
                                          potato_gap_sqrt_coefficient, &
+                                         potato_class_linear_extrapolation, &
+                                         potato_class_quadratic_extrapolation, &
                                          potato_limiting_kernel, &
                                          potato_limiting_kernel_checked, &
                                          potato_limiting_invalid_reference, &
@@ -615,6 +617,7 @@ contains
     double precision :: frequency,frequency_prime,frequency_prime_root
     double precision :: frequency_remainder,frequency_delta_n2
     double precision :: collapsed_n_tau2
+    double precision :: extrapolated_value,extrapolated_derivative
     integer :: limit_ierr
 
 ! Independent action-domain oracle with both qPhi' and B' nonzero.  elefie
@@ -684,6 +687,18 @@ contains
     call require(abs(gap_measure-0.3d0).lt.1.d-14 .and. &
                  abs(gap_bound-0.9d0).lt.1.d-14, &
                  'generated topology contribution bound is wrong')
+
+    call potato_class_linear_extrapolation(7.d0,4.d0,0.5d0,0.25d0,2.d0,3.d0, &
+                                           extrapolated_value,extrapolated_derivative)
+    call require(abs(extrapolated_value-6.5d0).lt.1.d-14 .and. &
+                 abs(extrapolated_derivative-6.d0).lt.1.d-14, &
+                 'generated linear class endpoint continuation is wrong')
+    call potato_class_quadratic_extrapolation(7.d0,4.d0,0.75d0,0.25d0,2.d0,3.d0, &
+                                              1.d0,extrapolated_value, &
+                                              extrapolated_derivative)
+    call require(abs(extrapolated_value-5.d0).lt.1.d-14 .and. &
+                 abs(extrapolated_derivative-18.d0).lt.1.d-14, &
+                 'generated quadratic class endpoint continuation is wrong')
 
 ! q=Delta_phi+2*pi*m/n and F_freq=n*q/tau.  At q=0 the q*tau' term
 ! vanishes, so the original n^2 delta factor reduces before the transport tau

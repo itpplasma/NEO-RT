@@ -33,6 +33,7 @@ program gen_gc_class_coordinate_map
     type(suite_t) :: proofs
     type(expr_t) :: x, relmargin, widthclass, log_ratio
     type(expr_t) :: xi(4, 4), dxi(4, 4), xbeg(4, 4), xend(4, 4)
+    type(expr_t) :: xpoint_left_limit(4, 4), xpoint_right_limit(4, 4)
     type(expr_t), allocatable :: roots(:)
     integer :: left_type, right_type, cursor
 
@@ -70,22 +71,29 @@ program gen_gc_class_coordinate_map
                 right_type, relmargin, log_ratio)
             xend(left_type, right_type) = right_bound(arena, left_type, &
                 right_type, relmargin, log_ratio)
+            xpoint_left_limit(left_type, right_type) = num(arena, 0)
+            xpoint_right_limit(left_type, right_type) = num(arena, 1)
         end do
     end do
 
     call prove_contracts(arena, proof_engine, proofs, x, relmargin, &
-        widthclass, log_ratio, xi, dxi, xbeg, xend)
+        widthclass, log_ratio, xi, dxi, xbeg, xend, xpoint_left_limit, &
+        xpoint_right_limit)
     call simplify_all(simplify_engine, xi)
     call simplify_all(simplify_engine, dxi)
     call simplify_all(simplify_engine, xbeg)
     call simplify_all(simplify_engine, xend)
+    call simplify_all(simplify_engine, xpoint_left_limit)
+    call simplify_all(simplify_engine, xpoint_right_limit)
 
-    allocate (roots(4*4*4))
+    allocate (roots(6*4*4))
     cursor = 0
     call append_table(roots, cursor, xi)
     call append_table(roots, cursor, dxi)
     call append_table(roots, cursor, xbeg)
     call append_table(roots, cursor, xend)
+    call append_table(roots, cursor, xpoint_left_limit)
+    call append_table(roots, cursor, xpoint_right_limit)
     call emit_fortran(trim(output_fortran), roots)
     call emit_inventory(trim(output_inventory))
 
@@ -169,12 +177,15 @@ contains
     end function right_bound
 
     subroutine prove_contracts(arena, engine, checks, x, margin, width, &
-            log_ratio, xi, dxi, xbeg, xend)
+            log_ratio, xi, dxi, xbeg, xend, xpoint_left_limit, &
+            xpoint_right_limit)
         type(arena_t), target, intent(inout) :: arena
         type(symengine_engine_t) :: engine
         type(suite_t), intent(out) :: checks
         type(expr_t), intent(in) :: x, margin, width, log_ratio
         type(expr_t), intent(in) :: xi(4, 4), dxi(4, 4), xbeg(4, 4), xend(4, 4)
+        type(expr_t), intent(in) :: xpoint_left_limit(4, 4), &
+            xpoint_right_limit(4, 4)
         integer :: left_type, right_type
         type(expr_t) :: expected_left, expected_right
 
@@ -191,6 +202,10 @@ contains
                     xbeg(left_type, right_type)-expected_left)
                 call check_identity(checks, engine, 'right bound', &
                     xend(left_type, right_type)-expected_right)
+                call check_identity(checks, engine, 'left X-point limit', &
+                    xpoint_left_limit(left_type, right_type)-num(arena, 0))
+                call check_identity(checks, engine, 'right X-point limit', &
+                    xpoint_right_limit(left_type, right_type)-num(arena, 1))
             end do
         end do
         if (checks%failed /= 0) error stop 'class-coordinate proof failed'
@@ -245,7 +260,7 @@ contains
         kernel%args = [str('class_coordinate'), str('relative_margin'), &
             str('relative_class_width')]
         cursor = 0
-        do group = 1, 4
+        do group = 1, 6
             do i = 1, 4
                 do j = 1, 4
                     cursor = cursor+1
@@ -283,7 +298,8 @@ contains
             'type4:0.25*log(margin/width)'
         write (unit, '(a)') 'inner_margin=quadratic maps use exact inverse '// &
             'sqrt/acos/atanh charts'
-        write (unit, '(a)') 'outputs=xi,dxi_dx,xbeg,xend for all 16 pairs'
+        write (unit, '(a)') 'xpoint_limits=generated left=0;right=1 coordinate limits'
+        write (unit, '(a)') 'outputs=xi,dxi_dx,xbeg,xend,xpoint_limits for all 16 pairs'
         do left_type = 1, 4
             do right_type = 1, 4
                 write (unit, '(a,i1,a,i1,a,i2)') 'pair=', left_type, ':', &
@@ -302,6 +318,8 @@ contains
         case (2); table_prefix = 'dxi'
         case (3); table_prefix = 'xbeg'
         case (4); table_prefix = 'xend'
+        case (5); table_prefix = 'xpoint_left'
+        case (6); table_prefix = 'xpoint_right'
         end select
     end function table_prefix
 

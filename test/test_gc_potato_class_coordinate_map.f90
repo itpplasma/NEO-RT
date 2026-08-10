@@ -4,6 +4,7 @@ program test_gc_potato_class_coordinate_map
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use gc_potato_class_coordinate_map, only: &
         evaluate_gc_potato_class_coordinate_map, &
+        evaluate_gc_potato_class_xpoint_limits, &
         GC_POTATO_CLASS_MAP_INVALID_BOUNDS, &
         GC_POTATO_CLASS_MAP_INVALID_IFUNTYPE, &
         GC_POTATO_CLASS_MAP_INVALID_INPUT, GC_POTATO_CLASS_MAP_OK
@@ -15,6 +16,7 @@ program test_gc_potato_class_coordinate_map
     call test_representative_oracles()
     call test_all_boundary_pairs()
     call test_endpoint_margin()
+    call test_xpoint_limits()
     call test_logarithmic_tendencies()
     call test_orientation_reversal()
     call test_invalid_inputs()
@@ -106,6 +108,25 @@ contains
         call require_close(xend, 1.0_dp-acos(1.0_dp-2.0_dp*0.07_dp)/pi_value, &
             2.0e-14_dp, '22 right margin')
     end subroutine test_endpoint_margin
+
+    subroutine test_xpoint_limits()
+        integer :: left_kind, right_kind, ifuntype, status
+        real(dp) :: left_limit, right_limit
+
+        do left_kind = 1, 4
+            do right_kind = 1, 4
+                ifuntype = 10*left_kind+right_kind
+                call evaluate_gc_potato_class_xpoint_limits(ifuntype, 0.07_dp, &
+                    0.30_dp, left_limit, right_limit, status)
+                call require(status == GC_POTATO_CLASS_MAP_OK, &
+                    'X-point limit status')
+                call require_close(left_limit, 0.0_dp, 0.0_dp, &
+                    'left X-point limit')
+                call require_close(right_limit, 1.0_dp, 0.0_dp, &
+                    'right X-point limit')
+            end do
+        end do
+    end subroutine test_xpoint_limits
 
     subroutine test_logarithmic_tendencies()
         integer, parameter :: singular_pairs(6) = [31, 32, 34, 41, 43, 44]

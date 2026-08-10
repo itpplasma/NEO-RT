@@ -6,7 +6,8 @@ boundary_convention=1:rho;2:inner;3:separatrix;4:xpoint
 orientation=ifuntype=10*left+right;34 and 43 use the same increasing 1/2*(1+tanh(x)) map
 log_truncation=type3:0.5*log(margin/width);type4:0.25*log(margin/width)
 inner_margin=quadratic maps use exact inverse sqrt/acos/atanh charts
-outputs=xi,dxi_dx,xbeg,xend for all 16 pairs
+xpoint_limits=generated left=0;right=1 coordinate limits
+outputs=xi,dxi_dx,xbeg,xend,xpoint_limits for all 16 pairs
 pair=1:1:ifuntype=11
 pair=1:2:ifuntype=12
 pair=1:3:ifuntype=13
