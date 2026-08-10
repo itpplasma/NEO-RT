@@ -286,11 +286,15 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            if(psiast_res.lt.psi_sep) then
+            if(psiast_res/psi_sep.gt.1.d0) then
                 ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
                 ! so pertham/find_bounce cannot close it and would only grind to
                 ! the integrator cap before returning zero.  It is also outside
                 ! the comparison domain, so weight it zero without the integration.
+                ! Compared as normalized flux - psif is splined with the axis at
+                ! zero, but psi_sep is negative for AUG and positive for the ITER
+                ! CHEASE files, so a bare psiast_res < psi_sep test is inverted
+                ! for one of them and zeroes the whole torque.
                 absHn2=0.d0
             else
                 call pertham(z,absHn2)
