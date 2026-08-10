@@ -5,6 +5,7 @@
     integer, parameter :: matrix_eval_wall_loss=3
     integer, parameter :: matrix_eval_nonfinite=4
     integer, parameter :: matrix_boundary_missing_limit=5
+    integer, parameter :: matrix_eval_cut_domain=6
     integer :: nlagr,n1,n2,npoi,itermax,nstiff,i_int
     double precision :: x,xbeg,xend,eps
     logical :: matrix_eval_valid=.true.
@@ -25,7 +26,8 @@
       integer, intent(in) :: error_code
 
       matrix_failure_is_open_boundary = error_code == matrix_eval_orbit_failure .or. &
-                                        error_code == matrix_eval_wall_loss
+                                        error_code == matrix_eval_wall_loss .or. &
+                                        error_code == matrix_eval_cut_domain
     end function matrix_failure_is_open_boundary
 
   end module sample_matrix_mod

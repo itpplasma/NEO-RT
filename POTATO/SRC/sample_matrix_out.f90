@@ -263,7 +263,7 @@
       IF(isplit(iold).EQ.1) npoi=npoi+1
     ENDDO
     IF(ALLOCATED(xarr)) THEN
-      DEALLOCATE(xarr,amat_arr,ind_hist)
+      DEALLOCATE(xarr,amat_arr,ind_hist,topology_arr)
     ENDIF
     ALLOCATE(xarr(npoi),amat_arr(n1,n2,npoi),ind_hist(npoi),topology_arr(npoi))
 !
@@ -414,14 +414,16 @@ contains
   INTEGER, PARAMETER :: topology_max_candidates=4096
   INTEGER, PARAMETER :: topology_max_endpoint_attempts=16
   DOUBLE PRECISION, PARAMETER :: topology_abs_tol=256.d0*EPSILON(1.d0)
-  INTEGER :: i,j,nfound,nunique,nactive,nsegments,n_total,nseg_points
+  INTEGER :: i,j,nfound,nunique,nvalid,nactive,nsegments,n_total,nseg_points
+  INTEGER :: probe_attempt
   INTEGER :: npoi_request,n1_request,n2_request,ierr_local,ierr_certificate
-  INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_expected
+  INTEGER :: left_endpoint_sig,right_endpoint_sig,sig_l,sig_r,sig_l_outer, &
+             sig_r_outer,sig_expected
   INTEGER :: scan_signature
   DOUBLE PRECISION :: xbeg_full,xend_full,scale,topology_tol
   DOUBLE PRECISION :: candidate_merge_tol
-  DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,endpoint_tol, &
-                      delta_resolution
+  DOUBLE PRECISION :: key,val,prev_bound,next_bound,delta,max_delta,delta_outer, &
+                      endpoint_tol,delta_resolution
   DOUBLE PRECISION :: left_open,right_open,left_gap,right_gap,covered
   DOUBLE PRECISION :: geometric_gap_bound
   DOUBLE PRECISION, ALLOCATABLE :: candidates(:),active_x(:),active_delta(:)
@@ -531,14 +533,17 @@ contains
   topology_candidate_count=nunique
 !
 ! Establish valid one-sided endpoint samples.  An exact endpoint is used only
-! when its signature agrees with the open-side probe; otherwise it is contracted
-! and the contraction is charged to the explicit gap.
+! when its signature agrees with an interior probe; otherwise it is contracted
+! and the contraction is charged to the explicit gap.  The interior probe is
+! deliberately not taken at the topology tolerance: fixed-point and turning
+! limits are singular at the boundary and their class solver has a finite
+! numerical seam there.
   topology_probe_only=.true.
   x=xbeg_full
   CALL evaluate_matrix_callback(get_matrix,ierr_local)
   IF(ierr_local.EQ.sample_matrix_success) THEN
     left_endpoint_sig=topology_signature
-    delta=MIN(topology_tol,0.25d0*(xend_full-xbeg_full))
+    delta=0.25d0*(xend_full-xbeg_full)
     x=xbeg_full+delta
     CALL evaluate_matrix_callback(get_matrix,ierr_local)
     IF(ierr_local.NE.sample_matrix_success) THEN
@@ -565,7 +570,7 @@ contains
   CALL evaluate_matrix_callback(get_matrix,ierr_local)
   IF(ierr_local.EQ.sample_matrix_success) THEN
     right_endpoint_sig=topology_signature
-    delta=MIN(topology_tol,0.25d0*(xend_full-xbeg_full))
+    delta=0.25d0*(xend_full-xbeg_full)
     x=xend_full-delta
     CALL evaluate_matrix_callback(get_matrix,ierr_local)
     IF(ierr_local.NE.sample_matrix_success) THEN
@@ -588,20 +593,39 @@ contains
       RETURN
     ENDIF
   ENDIF
+! Endpoint contraction defines the actually valid open integration domain.  A
+! boundary certificate may also contain algebraic roots in a contracted invalid
+! tail; those roots cannot split a matrix that is not defined there and must not
+! be allowed to reorder the valid topology sequence.
+  nvalid=0
+  DO i=1,nunique
+    endpoint_tol=128.d0*EPSILON(1.d0)*MAX(1.d-300,ABS(candidates(i)), &
+        ABS(left_open),ABS(right_open))
+    IF(candidates(i).LE.left_open+endpoint_tol .OR. &
+       candidates(i).GE.right_open-endpoint_tol) CYCLE
+    nvalid=nvalid+1
+    candidates(nvalid)=candidates(i)
+  ENDDO
+  nunique=nvalid
+  topology_candidate_count=nunique
 !
 ! Probe both sides of each candidate.  The candidate itself is not evaluated:
 ! it is a certified topology boundary, and its two open sides are the physical
-! interpolation domains.  A harmless candidate whose side signatures agree is
-! retained in the certificate count but creates no omitted bracket.
+! interpolation domains.  Start at the configured partition tolerance and
+! enlarge the probe geometrically only when the callback is still on its
+! finite-resolution seam.  The largest allowed probe is the midpoint of the
+! neighboring certified bounds, so separate transition brackets cannot overlap.
   nactive=0
   scan_signature=left_endpoint_sig
   DO i=1,nunique
-    prev_bound=xbeg_full
+    prev_bound=left_open
     IF(i.GT.1) prev_bound=candidates(i-1)
-    next_bound=xend_full
+    next_bound=right_open
     IF(i.LT.nunique) next_bound=candidates(i+1)
-    delta=MIN(topology_tol,0.25d0*(candidates(i)-prev_bound), &
-              0.25d0*(next_bound-candidates(i)))
+    delta=MIN(topology_tol,0.5d0*MIN(candidates(i)-prev_bound, &
+                                    next_bound-candidates(i)))
+    max_delta=0.5d0*MIN(candidates(i)-prev_bound, &
+                        next_bound-candidates(i))
     delta_resolution=128.d0*EPSILON(1.d0)*MAX(1.d-300, &
         ABS(candidates(i)),ABS(prev_bound),ABS(next_bound))
     ! The callback's discrete class signature is the behavioral oracle for
@@ -615,36 +639,77 @@ contains
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF
-    x=candidates(i)-delta
-    CALL evaluate_matrix_callback(get_matrix,ierr_local)
-    IF(ierr_local.NE.sample_matrix_success) THEN
-      PRINT *,'sample_matrix_out_partitioned_certified: invalid left side H,J = ', &
-          topology_context_h,x
-      CALL fail_certified(sample_matrix_topology_unresolved)
-      RETURN
-    ENDIF
-    sig_l=topology_signature
-    IF(sig_l.NE.scan_signature) THEN
-      PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch H,J = ', &
-          topology_context_h,candidates(i)
-      CALL fail_certified(sample_matrix_topology_unresolved)
-      RETURN
-    ENDIF
-    IF(candidates(i)+delta.EQ.candidates(i)) THEN
-      PRINT *,'sample_matrix_out_partitioned_certified: unrepresentable right probe H,J = ', &
-          topology_context_h,candidates(i)
-      CALL fail_certified(sample_matrix_topology_unresolved)
-      RETURN
-    ENDIF
-    x=candidates(i)+delta
-    CALL evaluate_matrix_callback(get_matrix,ierr_local)
-    IF(ierr_local.NE.sample_matrix_success) THEN
-      PRINT *,'sample_matrix_out_partitioned_certified: invalid right side H,J = ', &
-          topology_context_h,x
-      CALL fail_certified(sample_matrix_topology_unresolved)
-      RETURN
-    ENDIF
-    sig_r=topology_signature
+    DO probe_attempt=1,topology_max_endpoint_attempts
+      x=candidates(i)-delta
+      CALL evaluate_matrix_callback(get_matrix,ierr_local)
+      IF(ierr_local.EQ.sample_matrix_success) THEN
+        sig_l=topology_signature
+        IF(sig_l.EQ.scan_signature .AND. candidates(i)-delta.NE.candidates(i)) THEN
+          x=candidates(i)+delta
+          CALL evaluate_matrix_callback(get_matrix,ierr_local)
+          IF(ierr_local.EQ.sample_matrix_success .AND. &
+             candidates(i)+delta.NE.candidates(i)) THEN
+            sig_r=topology_signature
+            IF(delta.GE.max_delta) EXIT
+            delta_outer=MIN(2.d0*delta,max_delta)
+            x=candidates(i)-delta_outer
+            CALL evaluate_matrix_callback(get_matrix,ierr_local)
+            IF(ierr_local.NE.sample_matrix_success) THEN
+              PRINT *,'sample_matrix_out_partitioned_certified: invalid outer left side ', &
+                  'H,J,i,delta = ',topology_context_h,candidates(i),i,delta_outer
+              CALL fail_certified(sample_matrix_topology_unresolved)
+              RETURN
+            ENDIF
+            sig_l_outer=topology_signature
+            IF(sig_l_outer.NE.scan_signature) THEN
+              PRINT *,'sample_matrix_out_partitioned_certified: outer left certificate mismatch ', &
+                  'H,J,i,delta,sig,expected = ',topology_context_h,candidates(i),i, &
+                  delta_outer,sig_l_outer,scan_signature
+              CALL fail_certified(sample_matrix_topology_unresolved)
+              RETURN
+            ENDIF
+            x=candidates(i)+delta_outer
+            CALL evaluate_matrix_callback(get_matrix,ierr_local)
+            IF(ierr_local.NE.sample_matrix_success) THEN
+              PRINT *,'sample_matrix_out_partitioned_certified: invalid outer right side ', &
+                  'H,J,i,delta = ',topology_context_h,candidates(i),i,delta_outer
+              CALL fail_certified(sample_matrix_topology_unresolved)
+              RETURN
+            ENDIF
+            sig_r_outer=topology_signature
+            IF(sig_r_outer.EQ.sig_r) THEN
+              delta=delta_outer
+              sig_l=sig_l_outer
+              sig_r=sig_r_outer
+              EXIT
+            ENDIF
+            delta=delta_outer
+            IF(delta.GE.max_delta) THEN
+              PRINT *,'sample_matrix_out_partitioned_certified: right certificate seam ', &
+                  'H,J,i,delta,sig,outer_sig = ',topology_context_h,candidates(i),i, &
+                  delta,sig_r,sig_r_outer
+              CALL fail_certified(sample_matrix_topology_unresolved)
+              RETURN
+            ENDIF
+            CYCLE
+          ENDIF
+        ENDIF
+      ENDIF
+      IF(delta.GE.max_delta .OR. 2.d0*delta.EQ.delta) THEN
+        IF(ierr_local.NE.sample_matrix_success) THEN
+          PRINT *,'sample_matrix_out_partitioned_certified: invalid certified side ', &
+              'H,J,i,delta = ',topology_context_h,candidates(i),i,delta
+        ELSE
+          PRINT *,'sample_matrix_out_partitioned_certified: left certificate mismatch ', &
+              'H,J,i,nunique,previous,next,delta,x,sig_l,expected = ', &
+              topology_context_h,candidates(i),i,nunique,prev_bound,next_bound,delta,x, &
+              sig_l,scan_signature
+        ENDIF
+        CALL fail_certified(sample_matrix_topology_unresolved)
+        RETURN
+      ENDIF
+      delta=MIN(2.d0*delta,max_delta)
+    ENDDO
     scan_signature=sig_r
     IF(sig_l.NE.sig_r) THEN
       nactive=nactive+1
@@ -675,13 +740,19 @@ contains
     ENDIF
     DO i=1,nactive-1
       IF(active_right_sig(i).NE.active_left_sig(i+1)) THEN
-        PRINT *,'sample_matrix_out_partitioned_certified: adjacent certificate mismatch'
+        PRINT *,'sample_matrix_out_partitioned_certified: adjacent certificate mismatch ', &
+            'H,i,leftJ,rightJ,leftRightSig,nextLeftSig,leftDelta,nextDelta = ', &
+            topology_context_h,i,active_x(i),active_x(i+1),active_right_sig(i), &
+            active_left_sig(i+1),active_delta(i),active_delta(i+1)
         CALL fail_certified(sample_matrix_topology_unresolved)
         RETURN
       ENDIF
     ENDDO
     IF(active_right_sig(nactive).NE.right_endpoint_sig) THEN
-      PRINT *,'sample_matrix_out_partitioned_certified: right certificate mismatch'
+      PRINT *,'sample_matrix_out_partitioned_certified: right certificate mismatch ', &
+          'H,lastJ,lastLeft,lastRight,rightEndpoint,rightOpen,nunique,nactive = ', &
+          topology_context_h,active_x(nactive),active_left_sig(nactive), &
+          active_right_sig(nactive),right_endpoint_sig,right_open,nunique,nactive
       CALL fail_certified(sample_matrix_topology_unresolved)
       RETURN
     ENDIF

@@ -30,6 +30,19 @@
     !$omp threadprivate(dtau,toten,perpinv,sigma)
   end module global_invariants
 !
+  module starter_status_mod
+! Status values returned while constructing the phase-space starter.  The
+! domain statuses are safe to use as open-endpoint brackets; an unclassified
+! starter error must remain fatal.
+    integer, parameter :: starter_success=0
+    integer, parameter :: starter_kinetic_domain=1
+    integer, parameter :: starter_pitch_domain=2
+    integer, parameter :: starter_field_failure=3
+    integer, parameter :: starter_invalid_action=4
+    integer, parameter :: starter_cut_below=11
+    integer, parameter :: starter_cut_above=12
+  end module starter_status_mod
+!
   module poicut_mod
 ! number of points for Poincare cut:
     integer :: npc
@@ -617,6 +630,8 @@
 ! 2 - invalid perpendicular action or negative parallel kinetic energy
 !
   use pitch_boundary_mod, only : resolve_pitch_squared
+  use starter_status_mod, only : starter_kinetic_domain,starter_pitch_domain, &
+                                 starter_field_failure,starter_invalid_action
   use field_eq_mod, only : ierrfield
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 !
@@ -634,25 +649,28 @@
 ! reserved for the outer domain envelope; it must never turn a negative
 ! physical sample into a class/orbit by clamping it to zero.
   if(.not.ieee_is_finite(perpinv) .or. perpinv.lt.0.d0) then
-    ierr=2
+    ierr=starter_invalid_action
     return
   endif
 !
   call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
   if(ierrfield.ne.0) then
-    ierr=2
+    ierr=starter_field_failure
     return
   endif
 !
   p2=toten-phi_elec
   if(p2.le.0.d0) then
-    ierr=1
+    ierr=starter_kinetic_domain
     return
   endif
   z(4)=sqrt(p2)
 !
   call resolve_pitch_squared(perpinv*bmod/p2,alam2,ierr)
-  if(ierr.ne.0) return
+  if(ierr.ne.0) then
+    ierr=starter_pitch_domain
+    return
+  endif
   z(5)=sign(sqrt(alam2),sigma)
 !
   end subroutine get_z45
@@ -702,6 +720,7 @@
   use parmot_mod, only : gradpsiast,dpsiast_dR,dpsiast_dZ
   use field_eq_mod, only : ierrfield
   use poicut_mod, only : npc,rpc_arr,h_rpc
+  use starter_status_mod, only : starter_success,starter_cut_below,starter_cut_above
 !
   implicit none
 !
@@ -712,13 +731,13 @@
   double precision, dimension(neqm) :: z,vz
 !
   if(Rst.lt.rpc_arr(0)) then
-    ierr=11
+    ierr=starter_cut_below
     return
   elseif(Rst.gt.rpc_arr(npc)) then
-    ierr=12
+    ierr=starter_cut_above
     return
   else
-    ierr=0
+    ierr=starter_success
   endif
 !
   z(1)=Rst
@@ -3049,11 +3068,13 @@
 !
   use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
-                                matrix_eval_starter_failure, &
+                                matrix_eval_starter_failure,matrix_eval_cut_domain, &
                                 matrix_eval_orbit_failure,matrix_eval_wall_loss, &
                                 matrix_eval_nonfinite, &
                                 matrix_boundary_error
   use orbit_dim_mod,     only : neqm,next,orbit_wall_loss,orbit_failure_stage
+  use starter_status_mod, only : starter_kinetic_domain,starter_pitch_domain, &
+                                  starter_cut_below,starter_cut_above
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
   use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
@@ -3085,7 +3106,10 @@
 !
   if(ierr.ne.0) then
     matrix_eval_valid=.false.
-    if(orbit_wall_loss) then
+    if(ierr.eq.starter_kinetic_domain .or. ierr.eq.starter_pitch_domain .or. &
+       ierr.eq.starter_cut_below .or. ierr.eq.starter_cut_above) then
+      matrix_eval_error=matrix_eval_cut_domain
+    elseif(orbit_wall_loss) then
       matrix_eval_error=matrix_eval_wall_loss
     else
       matrix_eval_error=matrix_eval_starter_failure
@@ -3256,7 +3280,6 @@
     primary_step_limit=primary_step_limit_save
     return
   endif
-!
   nominal_beg(1)=xbeg
   nominal_end(1)=xend
   call set_class_segments(1,nominal_beg,nominal_end)
@@ -3548,7 +3571,7 @@
                                 matrix_eval_wall_loss, &
                                 matrix_boundary_error
   use get_matrix_mod, only : delphi_max,class_return_failure_reason
-  use potato_input_mod, only : class_return_safety
+  use potato_input_mod, only : class_eps_sampling, class_return_safety
 !
   implicit none
 !
@@ -3665,7 +3688,8 @@
     else
       xvalid=xm
     endif
-    if(abs(xinvalid-xvalid).lt.1.d-3*max(1.d0,abs(xdiv))) exit
+    if(abs(xinvalid-xvalid).le.class_eps_sampling*max(256.d0*epsilon(1.d0)* &
+        max(1.d0,abs(xinvalid),abs(xvalid)),abs(xe-xb))) exit
   enddo
   ! Do not place the adaptive grid exactly on the numerical return
   ! separatrix.  Retreat toward the already verified returning point; the
@@ -3740,10 +3764,12 @@
   use sample_matrix_mod, only : nlagr,n1,n2,x,amat,matrix_eval_valid, &
                                 matrix_eval_error,matrix_eval_success, &
                                 matrix_eval_orbit_failure, &
-                                matrix_eval_wall_loss,matrix_boundary_error
+                                matrix_eval_wall_loss,matrix_eval_cut_domain, &
+                                matrix_boundary_error
   use class_return_segments_mod, only : clear_class_segments, &
                                         set_class_segments, &
                                         partition_valid_samples
+  use potato_input_mod, only : class_eps_sampling, class_return_safety
 !
   implicit none
 !
@@ -3753,7 +3779,7 @@
   double precision, allocatable :: xprobe(:),raw_beg(:),raw_end(:), &
                                    final_beg(:),final_end(:)
   logical, allocatable :: valid(:)
-  double precision :: xleft,xright
+  double precision :: xleft,xright,xboundary,xfailed_value
   integer :: nprobe,npoints,nraw,nkept,i,j,ibeg,iend
   logical :: amat_was_alloc
 !
@@ -3765,6 +3791,7 @@
     matrix_boundary_error=matrix_eval_orbit_failure
     return
   endif
+  xfailed_value=xfailed
 !
   amat_was_alloc=allocated(amat)
   if(.not.amat_was_alloc) allocate(amat(n1,n2))
@@ -3775,7 +3802,7 @@
   do i=1,npoints-1
     xprobe(i)=xb+(xe-xb)*dble(i-1)/dble(npoints-2)
   enddo
-  xprobe(npoints)=min(max(xfailed,xb),xe)
+  xprobe(npoints)=min(max(xfailed_value,xb),xe)
   call sort_probe_points(xprobe)
   do i=1,npoints
     valid(i)=.not.orbit_lost(xprobe(i))
@@ -3812,20 +3839,24 @@
     xleft=raw_beg(i)
     xright=raw_end(i)
     if(ibeg.gt.1) then
-      call refine_open_transition(xleft,xprobe(ibeg-1),xleft)
+      call refine_open_transition(xleft,xprobe(ibeg-1),xboundary)
+      xleft=xboundary
       if(matrix_boundary_error.ne.matrix_eval_success) then
         deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
         if(.not.amat_was_alloc) deallocate(amat)
         return
       endif
+      xleft=xleft+class_return_safety*(xright-xleft)
     endif
     if(iend.lt.npoints) then
-      call refine_open_transition(xright,xprobe(iend+1),xright)
+      call refine_open_transition(xright,xprobe(iend+1),xboundary)
+      xright=xboundary
       if(matrix_boundary_error.ne.matrix_eval_success) then
         deallocate(xprobe,valid,raw_beg,raw_end,final_beg,final_end)
         if(.not.amat_was_alloc) deallocate(amat)
         return
       endif
+      xright=xright+class_return_safety*(xleft-xright)
     endif
     if(xright.gt.xleft) then
       nkept=nkept+1
@@ -3864,7 +3895,8 @@
       xok=xmid
     endif
     if(matrix_boundary_error.ne.matrix_eval_success) return
-    if(abs(xbad-xok).lt.1.d-3*max(1.d0,abs(xinvalid))) exit
+    if(abs(xbad-xok).le.class_eps_sampling*max(256.d0*epsilon(1.d0)* &
+        max(1.d0,abs(xbad),abs(xok)),abs(xe-xb))) exit
   enddo
   xboundary=xok
   end subroutine refine_open_transition
@@ -3893,10 +3925,12 @@
   x=xval
   call get_matrix_doublecount
   orbit_lost=(matrix_eval_error.eq.matrix_eval_wall_loss .or. &
-              matrix_eval_error.eq.matrix_eval_orbit_failure)
+              matrix_eval_error.eq.matrix_eval_orbit_failure .or. &
+              matrix_eval_error.eq.matrix_eval_cut_domain)
   if(matrix_eval_error.ne.matrix_eval_success .and. &
      matrix_eval_error.ne.matrix_eval_wall_loss .and. &
-     matrix_eval_error.ne.matrix_eval_orbit_failure) then
+     matrix_eval_error.ne.matrix_eval_orbit_failure .and. &
+     matrix_eval_error.ne.matrix_eval_cut_domain) then
     matrix_boundary_error=matrix_eval_error
     orbit_lost=.false.
   endif
@@ -4808,6 +4842,7 @@
     return
   endif
   call sort_rpartition
+
 !
 ! Add the projection discriminants of both signed fixed-point branches.
   call scan_fixedpoint_stationary_roots(ierr_local)
@@ -4849,6 +4884,12 @@
   endif
   do i=1,nfp_segments-1
     do j=i+1,nfp_segments
+      if(fp_sigma(i).eq.fp_sigma(j) .and. fp_branch(i).eq.fp_branch(j)) then
+        if(abs(fp_rhi(i)-fp_rlo(j)).le.256.d0*epsilon(1.d0)* &
+           max(1.d0,abs(fp_rhi(i)),abs(fp_rlo(j))) .or. &
+           abs(fp_rhi(j)-fp_rlo(i)).le.256.d0*epsilon(1.d0)* &
+           max(1.d0,abs(fp_rhi(j)),abs(fp_rlo(i)))) cycle
+      endif
       boundary_stage=50
       boundary_stage_r=0.5d0*(fp_rlo(i)+fp_rhi(i))
       collision_segment_left=i
@@ -4859,7 +4900,7 @@
       collision_jlo=max(0.d0,max(min(fp_jlo(i),fp_jhi(i)), &
                                  min(fp_jlo(j),fp_jhi(j))))
       collision_jhi=min(max(fp_jlo(i),fp_jhi(i)), &
-                        max(fp_jlo(j),fp_jhi(j)))
+                         max(fp_jlo(j),fp_jhi(j)))
       if(collision_jhi.lt.collision_jlo) cycle
       if(collision_jhi-collision_jlo.le.256.d0*epsilon(1.d0)* &
          max(1.d0,abs(collision_jlo),abs(collision_jhi))) then
@@ -4917,6 +4958,7 @@
 ! clipped cut; it is a boundary-boundary collision, not a fixed-point root.
   do i=1,nbd_segments-1
     do j=i+1,nbd_segments
+      if(bd_type(i).eq.1 .and. bd_type(j).eq.1) cycle
       boundary_stage=65
       collision_segment_left=0
       collision_segment_right=0
@@ -4926,7 +4968,7 @@
       collision_jlo=max(0.d0,max(min(bd_jlo(i),bd_jhi(i)), &
                                  min(bd_jlo(j),bd_jhi(j))))
       collision_jhi=min(max(bd_jlo(i),bd_jhi(i)), &
-                        max(bd_jlo(j),bd_jhi(j)))
+                         max(bd_jlo(j),bd_jhi(j)))
       if(collision_jhi.lt.collision_jlo) cycle
       if(collision_jhi-collision_jlo.le.256.d0*epsilon(1.d0)* &
          max(1.d0,abs(collision_jlo),abs(collision_jhi))) then
@@ -5194,7 +5236,7 @@ contains
     integer :: local_sigma,local_branch,local_i,local_j,local_npart,local_error
     double precision :: local_mid,local_jvalue,local_pstar,local_jleft, &
                         local_jright,local_pleft,local_pright,local_rleft, &
-                        local_rright
+                        local_rright,local_endpoint_tol
     logical :: local_ok,local_okleft,local_okright
 
     ierr_scan=root_success
@@ -5229,6 +5271,11 @@ contains
             return
           endif
           do local_j=1,nroots
+            local_endpoint_tol=max(256.d0*epsilon(1.d0)*max(1.d0, &
+                abs(local_rleft),abs(local_rright)), &
+                relerr_allroots*max(1.d0,abs(local_rright-local_rleft)))
+            if(roots(local_j).le.local_rleft+local_endpoint_tol .or. &
+               roots(local_j).ge.local_rright-local_endpoint_tol) cycle
             call fixedpoint_branch_value(roots(local_j),local_sigma, &
                 local_branch,local_jvalue,local_pstar,local_ok)
             if(.not.local_ok) then
@@ -5242,11 +5289,6 @@ contains
 ! roundoff in an irrelevant branch into thousands of artificial cuts.
             if(local_jvalue.lt.0.d0) cycle
             call add_candidate(local_jvalue)
-            if(ierr.ne.0) then
-              ierr_scan=ierr
-              return
-            endif
-            call add_rpartition(roots(local_j))
             if(ierr.ne.0) then
               ierr_scan=ierr
               return
@@ -5396,6 +5438,7 @@ contains
     integer, intent(in) :: sigma_value,branch
     integer :: local_i,local_error,local_npart
     double precision :: local_jvalue,local_pstar
+    double precision :: local_endpoint_tol
     logical :: local_ok
 
     if(rhi.le.rlo) return
@@ -5409,6 +5452,10 @@ contains
       return
     endif
     do local_i=1,nroots
+      local_endpoint_tol=max(256.d0*epsilon(1.d0)*max(1.d0,abs(rlo),abs(rhi)), &
+          relerr_allroots*max(1.d0,abs(rhi-rlo)))
+      if(roots(local_i).le.rlo+local_endpoint_tol .or. &
+         roots(local_i).ge.rhi-local_endpoint_tol) cycle
       call fixedpoint_branch_value(roots(local_i),sigma_value,branch, &
                                    local_jvalue,local_pstar,local_ok)
       if(.not.local_ok) then
@@ -5451,7 +5498,11 @@ contains
         ierr=root_invalid_domain
         return
       endif
-      call add_candidate(local_jvalue)
+! The defining event is exactly the physical outer endpoint J_perp=0.
+! The radial root solver returns a nearby point whose evaluated branch value
+! carries its coordinate residual; using that residual as a positive candidate
+! would manufacture a tiny interior interval and probe the invalid side.
+      call add_candidate(0.d0)
       if(ierr.ne.0) return
       local_npart=npart
       call add_rpartition(roots(local_i))
@@ -5486,12 +5537,8 @@ contains
           boundary_stage_r=local_mid
           call fixedpoint_branch_value(local_mid,local_sigma,local_branch, &
                                        local_j,local_p,local_ok)
-          if(.not.local_ok) cycle
-! A branch whose interior sample is already outside the physical
-! J_perp >= 0 domain cannot contribute to the outer topology partition.
-          if(local_j.le.0.d0) cycle
           boundary_stage=41
-          boundary_stage_j=local_j
+          if(local_ok) boundary_stage_j=local_j
           call fixedpoint_branch_endpoint(rpartition(local_i), &
               rpartition(local_i),rpartition(local_i+1),1.d0,local_sigma, &
               local_branch,local_jl,local_pl,local_rlo,local_okl)
@@ -5499,6 +5546,7 @@ contains
               rpartition(local_i),rpartition(local_i+1),-1.d0,local_sigma, &
               local_branch,local_jr,local_pr,local_rhi,local_okr)
           if(.not.local_okl .or. .not.local_okr) then
+            if(.not.local_ok) cycle
             boundary_stage=42
             ierr=2
             return
@@ -5510,6 +5558,16 @@ contains
                 local_sigma,local_branch)
             if(ierr.ne.0 .or. partition_refined) return
           endif
+! A branch with no valid interior witness cannot be inverted on this interval.
+! Endpoint sign changes have already been refined above, so this is a genuine
+! nonphysical or unresolved branch rather than a reason to retain the whole
+! interval.
+          if(.not.local_ok) cycle
+! A branch whose interior sample is already outside the physical
+! J_perp >= 0 domain cannot contribute to the outer topology partition.  This
+! check follows endpoint processing so a positive branch lobe next to an
+! endpoint is split at its exact J_perp=0 crossing instead of being discarded.
+          if(local_j.le.0.d0 .and. local_jl.le.0.d0 .and. local_jr.le.0.d0) cycle
 ! A branch that is already negative at both certified endpoints and its
 ! interior midpoint cannot contribute to the physical J_perp >= 0 domain.
 ! Discard it before probing quarter points: outside the physical domain the
@@ -6812,20 +6870,10 @@ contains
     dfield_dR=(field_plus-field_minus)/(2.d0*h)
     call potato_fixedpoint_stationary_numerator(u,acoef,bcoef,da_dR, &
         db_dR,dc_dR,energy_a,denergy_dR,bfield,dfield_dR,stationary_exact)
-! The generated numerator is the exact implicit limit.  For the numerical
-! root search, evaluate the same branch directly as a bounded observable: the
-! coefficient jet differentiates an interpolated first derivative and can
-! lose its sign below the cut-cell scale.  The direct slope remains inside the
-! certified branch interval and is therefore the stable root-search function.
-    call fixedpoint_branch_value(R-h,sigma_value,branch,jminus,pminus, &
-                                 okjminus)
-    call fixedpoint_branch_value(R+h,sigma_value,branch,jplus,pplus, &
-                                 okjplus)
-    if(okjminus .and. okjplus) then
-        stationary=(jplus-jminus)/(2.d0*h)
-    else
-        stationary=stationary_exact
-    endif
+! The generated numerator is the exact implicit limit of dJ_perp/dR.  Keep
+! the root search on this same Fortsym-generated expression; a second
+! finite-difference slope would create a resolution-dependent topology.
+    stationary=stationary_exact
     ok=.true.
   end subroutine fixedpoint_branch_stationary_value_bounded
 

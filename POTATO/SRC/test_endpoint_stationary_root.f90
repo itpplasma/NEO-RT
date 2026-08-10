@@ -13,6 +13,7 @@ program test_endpoint_stationary_root
   use sample_matrix_mod, only : matrix_eval_starter_failure, &
                                 matrix_eval_orbit_failure, &
                                 matrix_eval_wall_loss, matrix_eval_nonfinite, &
+                                matrix_eval_cut_domain, &
                                 matrix_failure_is_open_boundary
   use potato_topology_mod, only : choose_two_sided_step, &
                                   root_has_two_sided_neighborhood,root_is_open_interval, &
@@ -431,6 +432,8 @@ contains
                  'orbit-return failure was not classified as an open endpoint')
     call require(matrix_failure_is_open_boundary(matrix_eval_wall_loss), &
                  'wall loss was not classified as an open endpoint')
+    call require(matrix_failure_is_open_boundary(matrix_eval_cut_domain), &
+                 'physical cut/kinetic domain was not classified as an open endpoint')
     call require(.not.matrix_failure_is_open_boundary(matrix_eval_starter_failure), &
                  'starter failure was misclassified as an open endpoint')
     call require(.not.matrix_failure_is_open_boundary(matrix_eval_nonfinite), &
