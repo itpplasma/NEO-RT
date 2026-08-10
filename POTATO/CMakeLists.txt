@@ -88,6 +88,19 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_poicut_midplane.x
+   SRC/test_poicut_midplane.f90
+)
+target_link_libraries(test_poicut_midplane.x
+   potato_base
+   potato
+)
+add_test(NAME test_poicut_midplane
+   COMMAND test_poicut_midplane.x
+   ${CMAKE_CURRENT_BINARY_DIR}/shifted_convexwall.dat
+   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )
