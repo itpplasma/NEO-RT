@@ -29,6 +29,51 @@ the LCFS into the scrape-off layer. Set it explicitly to `.false.` for a
 closed-flux-only run. Edge extension does not turn the convex wall into the
 LCFS or remove the outer-domain requirement.
 
+For a MARS field already converted to Boozer harmonics, generate POTATO's
+single-`n` cylindrical perturbation without the legacy converter's radial
+Gaussian filter:
+
+```bash
+python tools/boozer_npz_to_bmod_n.py chartmap.nc components.npz bmod_n.dat \
+    --component total --n-tor=+3 --s-max=0.95
+```
+
+Here `chartmap.nc` supplies the accepted Boozer-surface geometry and
+`components.npz` is the provenance product from `rmp_torque mars_to_boozer`.
+The signed `n` must also be used as `n_tor` in `potato.in`. The converter writes
+a JSON sidecar, performs no smoothing or fit, uses `s_tor` explicitly, writes
+zero outside the outer mapped surface, and adds a zero-valued rectangular
+margin so the POTATO spline is not normally evaluated at a clamped nonzero
+boundary. Production target orbits must remain inside that mapped surface.
+The displayed `n=+3` is the current TC24 MARS-to-CCW result:
+`phi_CCW=-phi_MARS` and `n_CCW=-RNTOR=+3`. It is not a universal MARS
+default; another field must supply its own signed laboratory-coordinate map.
+
+The matching profile converter also keeps the coordinate and electric-field
+conventions explicit:
+
+```bash
+python tools/neo_rt_profiles_to_potato.py profile.in plasma.in components.npz \
+    profile_poly.in --r0-cm=641.0903942 --psi-span-tm2=11.88279543 \
+    --relation-sign=1
+```
+
+It selects the physical ion using charge and nonzero density, maps
+`s_tor -> s_pol=rho_pol^2`, and records the polynomial residuals. The JSON
+sidecar also records the signed relation
+`dPhi/dpsi_pol = relation_sign*Omega_E/c`; opposite signs are separate
+convention diagnostics, never an unrecorded curve flip. For the displayed
+right-handed direct-EQDSK chart, the native field equations give
+`Omega_phi,E=c*dPhi/dpsi_pol`, so `relation_sign=+1` maps an already-CCW
+`Omega_E` profile. The current TC24 NEO profile has first been serialized as
+`Omega_E,CCW=-Omega_E,MARS`; the converter does not apply that MARS-to-CCW
+change a second time. The first value in the NEO `plasma.in` header is a
+validated radial-row count, not a required value of 50. The compiled NEO-RT
+profile schema needs only `s_tor,M_t`; the converter derives
+`v_th=sqrt(2*T_i/m_i)` from the charge-selected `plasma.in` species. If a
+legacy third `v_th` column is present, it is checked against that source rather
+than used as an independent temperature profile.
+
 ## Running with OpenMP
 
 The grid build and the per-mode root search run in parallel with OpenMP. Use one
@@ -83,3 +128,32 @@ For a scan, rows retain the requested increasing-`R` order (HFS to LFS when
 the input bounds are ordered that way), matching POTATO's `R_c` convention.
 No `rho_pol`/`rho_tor` identification or outer/inner orbit selection is
 implied by the handoff.
+
+## Fixed-energy invariant contour scan
+
+`potato_resonance_contour.x` scans a rectangular `(rho_pol, J_perp)` grid at
+fixed kinetic energy. For a 5 keV deuteron scan, set `E_alpha = 5d3` and
+`contour_enkin = 1d0`; `contour_enkin` is normalized to `E_alpha`.
+
+```text
+contour_rho_min = 0.05d0
+contour_rho_max = 0.95d0
+contour_nrho = 21
+contour_jperp_min = 1d-6
+contour_jperp_max = 8d-5
+contour_njperp = 21
+contour_enkin = 1d0
+contour_sigma = 1
+```
+
+Run it from a directory containing the normal POTATO equilibrium, wall, profile,
+and `potato.in` inputs:
+
+```bash
+fo exec --cwd /path/to/run potato_resonance_contour.x
+```
+
+The resulting `potato_resonance_contour.dat` retains every requested grid point
+and contains `H0`, `J_perp`, `psi_star`, the guiding-centre start, `taub`,
+`delphi`, physical angular frequencies, and `ierr`. Keep failed rows for the
+rectangular grid and mask them using `ierr`; do not interpolate across them.

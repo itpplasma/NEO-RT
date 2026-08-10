@@ -1,5 +1,6 @@
 module neo2_reader
-    use hdf5
+    use hdf5_tools, only: HID_T, h5_close, h5_deinit, h5_get, h5_get_bounds, &
+        h5_init, h5_open
     implicit none
 
     integer, parameter :: dp = kind(1.0d0)
@@ -30,11 +31,10 @@ module neo2_reader
         character(len=*), intent(in) :: neo2_file
         type(neo2_data_t), intent(out) :: neo2_data
 
-        integer(hid_t) :: file_id
-        integer :: hdferr
+        integer(HID_T) :: file_id
         
-        call h5open_f(hdferr)
-        call h5fopen_f(neo2_file, H5F_ACC_RDONLY_F, file_id, hdferr)
+        call h5_init()
+        call h5_open(neo2_file, file_id)
         
         call h5read(file_id, "boozer_s", neo2_data%stor)
         call h5read(file_id, "aiota", neo2_data%q)
@@ -48,8 +48,8 @@ module neo2_reader
         call h5read(file_id, "Er", neo2_data%Er)
         call h5read(file_id, "MtOvR", neo2_data%MtOvR)
         
-        call h5fclose_f(file_id, hdferr)
-        call h5close_f(hdferr)
+        call h5_close(file_id)
+        call h5_deinit()
         
     end subroutine read_neo2_data
     
@@ -171,39 +171,25 @@ module neo2_reader
     end subroutine polyint
     
     subroutine h5_read_1d(file_id, name, array)
-        integer(hid_t), intent(in) :: file_id
+        integer(HID_T), intent(in) :: file_id
         character(len=*), intent(in) :: name
         real(dp), allocatable, intent(out) :: array(:)
+        integer :: lower, upper
         
-        integer(hid_t) :: dset_id, space_id
-        integer(hsize_t) :: dims(1)
-        integer :: hdferr
-        
-        call h5dopen_f(file_id, name, dset_id, hdferr)
-        call h5dget_space_f(dset_id, space_id, hdferr)
-        call h5sget_simple_extent_dims_f(space_id, dims, dims, hdferr)
-        allocate(array(dims(1)))
-        call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, array, dims, hdferr)
-        call h5dclose_f(dset_id, hdferr)
-        call h5sclose_f(space_id, hdferr)
+        call h5_get_bounds(file_id, name, lower, upper)
+        allocate(array(lower:upper))
+        call h5_get(file_id, name, array)
     end subroutine h5_read_1d
     
     subroutine h5_read_2d(file_id, name, array)
-        integer(hid_t), intent(in) :: file_id
+        integer(HID_T), intent(in) :: file_id
         character(len=*), intent(in) :: name
         real(dp), allocatable, intent(out) :: array(:,:)
+        integer :: lower_1, lower_2, upper_1, upper_2
         
-        integer(hid_t) :: dset_id, space_id
-        integer(hsize_t) :: dims(2)
-        integer :: hdferr
-        
-        call h5dopen_f(file_id, name, dset_id, hdferr)
-        call h5dget_space_f(dset_id, space_id, hdferr)
-        call h5sget_simple_extent_dims_f(space_id, dims, dims, hdferr)
-        allocate(array(dims(1), dims(2)))
-        call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, array, dims, hdferr)
-        call h5dclose_f(dset_id, hdferr)
-        call h5sclose_f(space_id, hdferr)
+        call h5_get_bounds(file_id, name, lower_1, lower_2, upper_1, upper_2)
+        allocate(array(lower_1:upper_1, lower_2:upper_2))
+        call h5_get(file_id, name, array)
     end subroutine h5_read_2d
 
 end module neo2_reader

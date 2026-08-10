@@ -14,6 +14,9 @@ else ()
 endif ()
 
 include(Util)
+if(NOT DEFINED LIBNEO_REF)
+    set(LIBNEO_REF 8d58a5eb55a376d6b5d8ae1c160ab7e2c9190b2c)
+endif()
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
@@ -26,7 +29,6 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFIN
 endif()
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-find_package(HDF5 REQUIRED COMPONENTS Fortran)
 # OpenMP parallelizes the find_bounce-heavy resonance grid build
 # (SRC/sample_matrix.f90) and the per-mode resonance root search
 # (SRC/resonant_int.f90).  Linked to potato_base so -fopenmp reaches POTATO's own
@@ -140,6 +142,27 @@ target_link_libraries(potato_resonance_probe.x
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    set(_neo2_reader_fixture "${CMAKE_CURRENT_BINARY_DIR}/neo2-reader-oracle.h5")
+    add_test(NAME generate_neo2_reader_oracle
+        COMMAND ${Python3_EXECUTABLE}
+            "${CMAKE_CURRENT_SOURCE_DIR}/test/make_neo2_reader_oracle.py"
+            "${_neo2_reader_fixture}")
+    add_executable(test_neo2_reader.x test/test_neo2_reader.f90)
+    target_link_libraries(test_neo2_reader.x PRIVATE potato_base)
+    add_test(NAME test_neo2_reader
+        COMMAND test_neo2_reader.x "${_neo2_reader_fixture}")
+    set_tests_properties(test_neo2_reader PROPERTIES
+        DEPENDS generate_neo2_reader_oracle)
+    add_test(NAME potato_bmod_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_bmod_converter.py
+    )
+    set_tests_properties(potato_bmod_converter PROPERTIES TIMEOUT 60)
+    add_test(NAME potato_profile_converter
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_profile_converter.py
+    )
+    set_tests_properties(potato_profile_converter PROPERTIES TIMEOUT 60)
     add_test(NAME potato_invariant_handoff
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py
@@ -147,6 +170,14 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
+    add_test(NAME potato_fixed_energy_contour
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/fixed_energy_contour/test_fixed_energy_contour.py
+            $<TARGET_FILE:potato_resonance_contour.x>
+            $<TARGET_FILE:potato.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+    )
+    set_tests_properties(potato_fixed_energy_contour PROPERTIES TIMEOUT 150)
     add_test(NAME potato_golden_displacement
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py

@@ -9,12 +9,12 @@ module potato_input_mod
     integer :: itest_type = 3
 
     ! Species parameters
-    double precision :: E_alpha = 5d3       ! Reference energy [eV]
-    double precision :: A_alpha = 2d0       ! Mass number
-    double precision :: Z_alpha = 1d0       ! Charge number
+    double precision :: E_alpha = 5d3 ! Reference energy [eV]
+    double precision :: A_alpha = 2d0 ! Mass number
+    double precision :: Z_alpha = 1d0 ! Charge number
 
     ! Flux surface
-    double precision :: rho_pol = 0.6d0     ! Poloidal radius
+    double precision :: rho_pol = 0.6d0 ! Poloidal radius
     double precision :: rho_pol_max = 0.9d0 ! Max rho_pol for Poincare cut
 
     ! Scaling factors
@@ -22,8 +22,8 @@ module potato_input_mod
     double precision :: scalfac_efield = 1d0
 
     ! Orbit integration
-    double precision :: Rmax_orbit = 200d0  ! Max R for orbit integration
-    integer :: ntimstep = 30                ! Number of time steps
+    double precision :: Rmax_orbit = 200d0 ! Max R for orbit integration
+    integer :: ntimstep = 30 ! Number of time steps
 
     ! Poincare cut
     integer :: npoicut = 10000
@@ -35,7 +35,7 @@ module potato_input_mod
 
     ! Energy grid
     integer :: nenerg = 60
-    double precision :: thermen_max = 6d0   ! Max kinetic energy [T units]
+    double precision :: thermen_max = 6d0 ! Max kinetic energy [T units]
     ! Lowest slice starts at this kinetic energy [T units] when set.
     double precision :: enkin_min_over_temp = 0d0
 
@@ -56,16 +56,26 @@ module potato_input_mod
 
     ! Single-orbit trace (itest_type=4): start point on the poloidal plane and
     ! pitch cosine of one guiding-center orbit, traced over one bounce period.
-    double precision :: orbit_Rstart = 210d0   ! start major radius [cm]
-    double precision :: orbit_Zstart = 0d0     ! start height [cm]
-    double precision :: orbit_lambda = 0.4d0   ! pitch cosine v_par/v at start
+    double precision :: orbit_Rstart = 210d0 ! start major radius [cm]
+    double precision :: orbit_Zstart = 0d0 ! start height [cm]
+    double precision :: orbit_lambda = 0.4d0 ! pitch cosine v_par/v at start
 
     ! Frequency radial scan (itest_type=5): trace one bounce at each of freq_n
     ! midplane start radii from freq_Rmin to freq_Rmax (pitch orbit_lambda),
     ! and write rho_pol, omega_b, omega_phi to freq_scan.dat.
-    double precision :: freq_Rmin = 178d0      ! inner start radius [cm]
-    double precision :: freq_Rmax = 221d0      ! outer start radius [cm], into SOL
-    integer          :: freq_n = 40            ! number of surfaces
+    double precision :: freq_Rmin = 178d0 ! inner start radius [cm]
+    double precision :: freq_Rmax = 221d0 ! outer start radius [cm], into SOL
+    integer          :: freq_n = 40 ! number of surfaces
+
+    ! Fixed-energy invariant contour scan (potato_resonance_contour.x).
+    double precision :: contour_rho_min = 0.05d0
+    double precision :: contour_rho_max = 0.95d0
+    integer :: contour_nrho = 21
+    double precision :: contour_jperp_min = 1d-6
+    double precision :: contour_jperp_max = 8d-5
+    integer :: contour_njperp = 21
+    double precision :: contour_enkin = 1d0
+    integer :: contour_sigma = 1
 
     ! Resonance probe diagnostic
     double precision :: probe_rho_pol = 0.9d0
@@ -103,6 +113,9 @@ module potato_input_mod
         profile_file, edge_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
+        contour_rho_min, contour_rho_max, contour_nrho, &
+        contour_jperp_min, contour_jperp_max, contour_njperp, &
+        contour_enkin, contour_sigma, &
         probe_rho_pol, probe_ux, probe_eta, probe_m, probe_n
 
 contains
@@ -183,6 +196,14 @@ contains
         write(iunit, '(A,ES12.5)') '  freq_Rmin        = ', freq_Rmin
         write(iunit, '(A,ES12.5)') '  freq_Rmax        = ', freq_Rmax
         write(iunit, '(A,I0)') '  freq_n           = ', freq_n
+        write(iunit, '(A,ES12.5)') '  contour_rho_min  = ', contour_rho_min
+        write(iunit, '(A,ES12.5)') '  contour_rho_max  = ', contour_rho_max
+        write(iunit, '(A,I0)') '  contour_nrho     = ', contour_nrho
+        write(iunit, '(A,ES12.5)') '  contour_jperp_min = ', contour_jperp_min
+        write(iunit, '(A,ES12.5)') '  contour_jperp_max = ', contour_jperp_max
+        write(iunit, '(A,I0)') '  contour_njperp   = ', contour_njperp
+        write(iunit, '(A,ES12.5)') '  contour_enkin    = ', contour_enkin
+        write(iunit, '(A,I0)') '  contour_sigma    = ', contour_sigma
         write(iunit, '(A,ES12.5)') '  probe_rho_pol    = ', probe_rho_pol
         write(iunit, '(A,ES12.5)') '  probe_ux         = ', probe_ux
         write(iunit, '(A,ES12.5)') '  probe_eta        = ', probe_eta
