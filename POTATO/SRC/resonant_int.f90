@@ -286,11 +286,15 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            if(psiast_res.lt.psi_sep) then
+            if(psiast_res/psi_sep.gt.1.d0) then
                 ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
                 ! so pertham/find_bounce cannot close it and would only grind to
                 ! the integrator cap before returning zero.  It is also outside
                 ! the comparison domain, so weight it zero without the integration.
+                ! Compared as normalized flux - psif is splined with the axis at
+                ! zero, but psi_sep is negative for AUG and positive for the ITER
+                ! CHEASE files, so a bare psiast_res < psi_sep test is inverted
+                ! for one of them and zeroes the whole torque.
                 absHn2=0.d0
             else
                 call pertham(z,absHn2)
@@ -375,6 +379,8 @@ end subroutine integrate_class_resonances
 subroutine get_matrix_res
     !
     use sample_matrix_out_mod,        only : n1,n2,x,amat,icount
+    use sample_matrix_mod,            only : sample_matrix_grid_usable, &
+        sample_matrix_nonconverged
     use global_invariants,            only : toten,perpinv
     use form_classes_doublecount_mod, only : nclasses
     use get_matrix_mod,               only : iclass
@@ -425,7 +431,12 @@ subroutine get_matrix_res
         !
         call sample_class_doublecount(1,ierr)
         !
-        if(ierr.eq.0) then
+        if(sample_matrix_grid_usable(ierr)) then
+            if(ierr.eq.sample_matrix_nonconverged) then
+                write(msg, '(A,I0)') &
+                    'get_matrix_res: accepting nonconverged class sample, class=', iclass
+                call tee_message(trim(msg))
+            endif
             !
             call integrate_class_resonances
             !
@@ -489,7 +500,7 @@ subroutine resonant_torque
         resline_unit_is_private,resline_diag_unit_is_private
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
         ind_hist,xarr,amat_arr
-    use potato_input_mod,  only : nbox, nenerg_input => nenerg, &
+    use potato_input_mod,  only : nbox, unif_rho_pol, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
         enkin_min_over_temp, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
@@ -530,7 +541,7 @@ subroutine resonant_torque
     allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
     !
     numbasef=0 !no extra integrals sampled, pure orbit integration
-    call linspace(1d0/nbox, 1d0, nbox, sbox)
+    call set_radial_boxes(nbox, unif_rho_pol, sbox)
     !
     ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
     ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin

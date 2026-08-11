@@ -720,86 +720,38 @@
 ! (O and X) points of the flow as well as the magnetic axis and can be
 ! used as a Poincare cut.
 !
-  use field_sub, only : psif,dpsidr,dpsidz
-  use field_eq_mod, only : psi_axis,psi_sep,rtf
-  use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr
+  use field_eq_mod, only : psi_sep,rtf
+  use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr, &
+                           rmagaxis,zmagaxis,psimagaxis
 !
   implicit none
 !
-  integer, parameter :: nsplit=100,niter=100
+  integer, parameter :: nsplit=100
   double precision, parameter :: relerr=1d-12
-  integer :: i,j,npline
+  integer :: j,npline
   double precision :: rho_pol,psils,sigpsi
-  double precision :: h_R,det,delR,delZ,stepfac,err_dist,stepmod
-  double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz
+  double precision :: h_R,err_dist
+  double precision :: R,Z
   double precision :: Rb,Zb,Re,Ze
 !
   npc=npline
   allocate(rpc_arr(0:npc),zpc_arr(0:npc))
 !
+! The cut passes through the magnetic axis and is traced starting from there.
+! Seeding the search at Z=0 instead only works for up-down symmetric
+! equilibria - with the axis tens of centimeters off the midplane (ITER) the
+! Newton iterations below start on the wrong side of the curve and never
+! converge.
 !
-  R=1.d0
-  Z=0.d0
-!
-  call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+  call find_magaxis
 !
   err_dist=rtf*relerr
-  h_R=rtf/dble(nsplit)
-  sigpsi=sign(1.d0,psi_sep-psi_axis)
-  psils=psi_axis+rho_pol**2*(psi_sep-psi_axis)
-  R=rtf
+  h_R=rmagaxis/dble(nsplit)
+  sigpsi=sign(1.d0,psi_sep-psimagaxis)
+  psils=psimagaxis+rho_pol**2*(psi_sep-psimagaxis)
 !
-  do i=2,nsplit
-    R=R-h_R
-!
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-    if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) exit
-  enddo
-!
-  do i=1,niter
-!
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-    det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
-    delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
-    delZ=(dpsidr*gpgb-(psif-psils)*dgpgb_dr)/det
-    stepmod=sqrt(delR**2+delZ**2)
-    stepfac=h_R/max(h_R,stepmod)
-    R=R-delR*stepfac
-    Z=Z-delZ*stepfac
-    if(stepmod.lt.err_dist) exit
-  enddo
-!
-  Rb=R
-  Zb=Z
-!
-  R=rtf
-!
-  do i=2,nsplit
-    R=R+h_R
-!
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-    if((psif-psils)*(psi_sep-psi_axis).gt.0.d0) exit
-  enddo
-!
-  do i=1,niter
-!
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-    det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
-    delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
-    delZ=(dpsidr*gpgb-(psif-psils)*dgpgb_dr)/det
-    stepmod=sqrt(delR**2+delZ**2)
-    stepfac=h_R/max(h_R,stepmod)
-    R=R-delR*stepfac
-    Z=Z-delZ*stepfac
-    if(stepmod.lt.err_dist) exit
-  enddo
-!
-  Re=R
-  Ze=Z
+  call trace_poicut_end(-h_R,psils,sigpsi,err_dist,Rb,Zb)
+  call trace_poicut_end( h_R,psils,sigpsi,err_dist,Re,Ze)
 !
   rpc_beg=Rb
   h_rpc=(Re-Rb)/dble(npc)
@@ -814,26 +766,100 @@
   do j=1,npline-1
     R=R+h_rpc
 !
-    do i=1,niter
-!
-      call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-      delZ=gpgb/dgpgb_dz
-      Z=Z-delZ
-      if(abs(delZ).lt.err_dist) exit
-    enddo
+    call poicut_z_of_R(R,Z,err_dist)
 !
     rpc_arr(j)=R
     zpc_arr(j)=Z
   enddo
 !
-  call find_magaxis
-!
-  if(.true.) then
-    print *,'cut range:',rpc_arr(0),rpc_arr(npc)
-  endif
+  print *,'cut range:',rpc_arr(0),rpc_arr(npc)
 !
   end subroutine find_poicut
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine poicut_z_of_R(R,Z,err_dist)
+!
+! Newton iterations in Z bringing the point (R,Z) onto the line
+! $\nabla \psi \times \nabla B = 0$. Z enters as the starting guess, which must
+! be close enough to stay on the branch through the magnetic axis.
+! On return the field module state belongs to the converged point.
+!
+  implicit none
+!
+  integer, parameter :: niter=100
+  integer :: i
+  double precision :: R,Z,err_dist
+  double precision :: delZ,gpgb,dgpgb_dr,dgpgb_dz
+!
+  do i=1,niter
+!
+    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+!
+    delZ=gpgb/dgpgb_dz
+    Z=Z-delZ
+    if(abs(delZ).lt.err_dist) exit
+  enddo
+!
+  if(i.gt.niter) error stop 'poicut_z_of_R: Newton iterations did not converge'
+!
+  call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+!
+  end subroutine poicut_z_of_R
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine trace_poicut_end(h_R,psils,sigpsi,err_dist,Rend,Zend)
+!
+! Traces the line $\nabla \psi \times \nabla B = 0$ from the magnetic axis in
+! steps h_R over R (negative towards the HFS) until the flux surface psils is
+! crossed, and refines that crossing by Newton iterations on both conditions.
+!
+  use field_sub,  only : psif,dpsidr,dpsidz
+  use poicut_mod, only : rmagaxis,zmagaxis
+!
+  implicit none
+!
+  integer, parameter :: nsplit=100,niter=100
+  integer :: i
+  double precision :: h_R,psils,sigpsi,err_dist,Rend,Zend
+  double precision :: R,Z,det,delR,delZ,stepfac,stepmod
+  double precision :: gpgb,dgpgb_dr,dgpgb_dz
+!
+  R=rmagaxis
+  Z=zmagaxis
+!
+  do i=1,nsplit
+    R=R+h_R
+!
+    call poicut_z_of_R(R,Z,err_dist)
+!
+    if((psif-psils)*sigpsi.gt.0.d0) exit
+  enddo
+!
+  if(i.gt.nsplit) error stop 'trace_poicut_end: flux surface rho_pol_max not '// &
+    'reached - check convex wall coverage and equilibrium box size'
+!
+  do i=1,niter
+!
+    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+!
+    det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
+    delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
+    delZ=(dpsidr*gpgb-(psif-psils)*dgpgb_dr)/det
+    stepmod=sqrt(delR**2+delZ**2)
+    stepfac=abs(h_R)/max(abs(h_R),stepmod)
+    R=R-delR*stepfac
+    Z=Z-delZ*stepfac
+    if(stepmod.lt.err_dist) exit
+  enddo
+!
+  if(i.gt.niter) error stop 'trace_poicut_end: Newton iterations did not converge'
+!
+  Rend=R
+  Zend=Z
+!
+  end subroutine trace_poicut_end
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
@@ -870,48 +896,40 @@
 !
   subroutine find_magaxis
 !
-! Find cylindrical coordinates of the magnetic axis
+! Find cylindrical coordinates of the magnetic axis by Newton iterations on
+! $\nabla \psi = 0$, started from the extremum node of the splined poloidal
+! flux. Independent of the Poincare cut, which is traced starting here.
 !
   use field_sub, only : psif,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
-  use poicut_mod, only   : npc,rpc_arr,rmagaxis,zmagaxis,psimagaxis
+  use field_eq_mod, only : rad,zet,psi,psi_axis,psi_sep,rtf
+  use poicut_mod, only   : rmagaxis,zmagaxis,psimagaxis
 !
   implicit none
 !
-  integer, parameter :: nsplit=100,niter=100
+  integer, parameter :: niter=100
   double precision, parameter :: relerr=1d-12
-  integer :: i,iter
-  double precision :: R,Z,dZ_dR,bmod,phi_elec
-  double precision :: errdist2,h_R,dpsi_dl,dpsi_dl_prev,del_R,del_Z,det
+  integer :: iter
+  integer, dimension(2) :: iext
+  double precision :: R,Z,bmod,phi_elec,sigpsi
+  double precision :: errdist2,del_R,del_Z,det
   double precision,dimension(3) :: x
 !
-  errdist2=(relerr*rpc_arr(npc))**2
-  h_R=(rpc_arr(npc)-rpc_arr(0))/dble(nsplit)
-  R=rpc_arr(0)
-!
-  call get_poicut(R,Z,dZ_dR)
-!
-  x(1)=R
+! First field evaluation of the run - it reads the equilibrium and so allocates
+! rad, zet, psi and sets rtf, all used below. No machine dimension is known
+! before it, hence the probe at R = 1 cm: the flux there is clamped to the grid
+! edge and the returned values are discarded. Probing at rtf instead divides by
+! an rtf that is still zero inside magfie.
+  x(1)=1.d0
   x(2)=0.d0
-  x(3)=Z
+  x(3)=0.d0
 !
   call get_bmod_and_Phi(x,bmod,phi_elec)
 !
-  dpsi_dl=dpsidr+dpsidz*dZ_dR
-!
-  do i=1,nsplit
-    dpsi_dl_prev=dpsi_dl
-    R=rpc_arr(0)+h_R*dble(i)
-!
-    call get_poicut(R,Z,dZ_dR)
-!
-    x(1)=R
-    x(3)=Z
-!
-    call get_bmod_and_Phi(x,bmod,phi_elec)
-!
-    dpsi_dl=dpsidr+dpsidz*dZ_dR
-    if(dpsi_dl_prev*dpsi_dl.lt.0.d0) exit
-  enddo
+  sigpsi=sign(1.d0,psi_sep-psi_axis)
+  iext=minloc(sigpsi*psi)
+  R=rad(iext(1))
+  Z=zet(iext(2))
+  errdist2=(relerr*rtf)**2
 !
   do iter=1,niter
     x(1)=R
@@ -927,14 +945,19 @@
     if(del_R**2+del_Z**2.lt.errdist2) exit
   enddo
 !
+  if(iter.gt.niter) error stop 'find_magaxis: Newton iterations did not converge'
+!
+  x(1)=R
+  x(3)=Z
+!
+  call get_bmod_and_Phi(x,bmod,phi_elec)
+!
   rmagaxis=R
   zmagaxis=Z
   psimagaxis=psif
 !
-  if(.true.) then
-    print *,'magnetic axis:'
-    print *,rmagaxis,zmagaxis
-  endif
+  print *,'magnetic axis:'
+  print *,rmagaxis,zmagaxis
 !
   end subroutine find_magaxis
 !
@@ -980,9 +1003,13 @@
 !
     dpsi_dl=dpsidr+dpsidz*dZ_dR
     del_R=(psi_bou-psif)/dpsi_dl
-    Rbou_lfs=Rbou_lfs+del_R
+! The solution lies on the cut, which ends at rho_pol_max >= rho_pol. Keeping
+! the iterate there bounds the Lagrange interpolation in get_poicut:
+    Rbou_lfs=min(rpc_arr(npc),max(rpc_arr(0),Rbou_lfs+del_R))
     if(abs(del_R).lt.errdist) exit
   enddo
+!
+  if(iter.gt.niter) error stop 'rhopol_boundary: LFS Newton iterations did not converge'
 !
   call get_poicut(Rbou_lfs,Zbou_lfs,dZ_dR)
 !
@@ -999,9 +1026,11 @@
 !
     dpsi_dl=dpsidr+dpsidz*dZ_dR
     del_R=(psi_bou-psif)/dpsi_dl
-    Rbou_hfs=Rbou_hfs+del_R
+    Rbou_hfs=min(rpc_arr(npc),max(rpc_arr(0),Rbou_hfs+del_R))
     if(abs(del_R).lt.errdist) exit
   enddo
+!
+  if(iter.gt.niter) error stop 'rhopol_boundary: HFS Newton iterations did not converge'
 !
   call get_poicut(Rbou_hfs,Zbou_hfs,dZ_dR)
 !
