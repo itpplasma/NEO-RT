@@ -47,6 +47,7 @@ contains
         call debug('init')
         call init_flux_surface_average(s)
         call select_global_passing()
+        sign_vpar = 1
         if (.not. nopassing) call init_canon_freq_passing_spline
         call select_orbit_class(1)
         call init_canon_freq_trapped_spline
@@ -57,21 +58,31 @@ contains
     end subroutine init
 
     pure subroutine set_to_trapped_region(eta_min, eta_max)
-        use driftorbit, only: epst, etatp, etadt
+        use, intrinsic :: ieee_arithmetic, only: ieee_next_after
+        use driftorbit, only: etatp, etadt
 
         real(dp), intent(out) :: eta_min, eta_max
 
-        eta_min = (1 + epst)*etatp
-        eta_max = (1 - epst)*etadt
+        ! The trapped-passing endpoint is open, but it has no physical
+        ! exclusion layer.  Use the adjacent representable values so the
+        ! asymptotic frequency model can search all the way to the boundary
+        ! without ever evaluating its logarithmic singularity at x=0.
+        eta_min = ieee_next_after(etatp, huge(etatp))
+        eta_max = ieee_next_after(etadt, etatp)
     end subroutine set_to_trapped_region
 
     pure subroutine set_to_passing_region(eta_min, eta_max)
-        use driftorbit, only: epsp, etatp
+        use, intrinsic :: ieee_arithmetic, only: ieee_next_after
+        use driftorbit, only: etatp
 
         real(dp), intent(out) :: eta_min, eta_max
 
-        eta_min = epsp*etatp
-        eta_max = (1 - epsp)*etatp
+        ! eta=0 and eta=etatp are both open endpoints.  Use the smallest
+        ! normal positive pitch at the unrelated eta=0 end so IEEE underflow
+        ! trapping is not triggered; the upper endpoint is the adjacent value
+        ! below the trapped-passing boundary.
+        eta_min = ieee_next_after(tiny(1.0_dp), etatp)
+        eta_max = ieee_next_after(etatp, 0.0_dp)
     end subroutine set_to_passing_region
 
     subroutine check_magfie(data)

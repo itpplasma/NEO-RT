@@ -7,7 +7,7 @@ module neort_freq
     use neort_separatrix, only: separatrix_model_t, fit_separatrix_model, &
         evaluate_separatrix_model
     use neort_profiles, only: vth, Om_tE, dOm_tEds
-    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
         magdrift_passing, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin, supban
     use shaing, only: omph_shaing

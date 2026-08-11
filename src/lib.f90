@@ -139,6 +139,7 @@ contains
 
         call init_flux_surface_average(s_val)
         call select_global_passing()
+        sign_vpar = 1
         if (.not. nopassing) call init_canon_freq_passing_spline()
         call select_orbit_class(1)
         call init_canon_freq_trapped_spline() ! sets etamin and etamax
@@ -179,6 +180,7 @@ contains
 
         call init_flux_surface_average(s)
         call select_global_passing()
+        sign_vpar = 1
         if (.not. nopassing) call init_canon_freq_passing_spline()
         call select_orbit_class(1)
         call init_canon_freq_trapped_spline()
