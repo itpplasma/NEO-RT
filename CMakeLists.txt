@@ -158,6 +158,10 @@ target_link_libraries(neo_rt PUBLIC
     LAPACK::LAPACK
 )
 
+target_compile_options(neo_rt PRIVATE
+    $<$<COMPILE_LANGUAGE:Fortran>:-cpp>
+)
+
 if(USE_STANDALONE)
     target_link_libraries(neo_rt PUBLIC
         LIBNEO::boozer
