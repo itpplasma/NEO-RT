@@ -54,6 +54,11 @@ contains
     function driftorbit_root(v, tol, eta_min, eta_max)
         use logger, only: warning
 
+        ! Bisection can exhaust the representable eta values before a
+        ! zero-frequency lane reaches an absolute residual of exactly zero.
+        ! Keep the fallback well below the transport quadrature accuracy while
+        ! acknowledging the conditioning of the separatrix frequency splines.
+        real(dp), parameter :: relative_tolerance_floor = 1.0e-9_dp
         real(dp) :: driftorbit_root(2)
         real(dp), intent(in) :: v, tol, eta_min, eta_max
         real(dp) :: res, res_old, eta_old
@@ -62,7 +67,7 @@ contains
         integer :: maxit, k, state
         real(dp) :: etamin2, etamax2
         logical :: slope_pos
-        real(dp) :: resmin, resmax
+        real(dp) :: resmin, resmax, tol_eff
         real(dp) :: eta
 
         character(len=1024) :: msg
@@ -87,6 +92,8 @@ contains
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         resmax = mph*Omph + mth*Omth
+        tol_eff = max(abs(tol), relative_tolerance_floor * &
+            max(1.0_dp, abs(resmin), abs(resmax)))
         if (resmax - resmin > 0) then
             slope_pos = .true.
         else
@@ -95,8 +102,8 @@ contains
 
         if (driftorbit_nroot(v, etamin2, etamax2) == 0) then
             write (msg, "(a,g0,a,g0,a,g0)") &
-                  "driftorbit_root couldn't bracket 0 for v/vth = ", v / vth, LF // &
-                  TAB // "etamin = ", etamin2, ", etamax = ", etamax2
+                "driftorbit_root couldn't bracket 0 for v/vth = ", v / vth, LF // &
+                TAB // "etamin = ", etamin2, ", etamax = ", etamax2
             call warning(msg)
             ! Defined sentinel: eta is a non-negative pitch parameter, so a
             ! negative root position flags "no resonance in this bracket".
@@ -115,7 +122,7 @@ contains
 
             driftorbit_root(1) = eta
 
-            if (abs(res) < tol) then
+            if (abs(res) <= tol_eff) then
                 state = 1
                 driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
                 exit
@@ -131,14 +138,15 @@ contains
             end if
         end do
         if (state < 0) then
-            driftorbit_root(2) = mph * dOmphdeta + mth * dOmthdeta
-            write (msg, "(a,i0,a,g0,a,i0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0,a,g0)") &
-                  "driftorbit_root: did not converge within ", maxit, " iterations" // LF // &
-                  TAB // "v/vth = ", v / vth, ", mth = ", mth, ", sign_vpar = ", sign_vpar, LF // &
-                  TAB // "etamin = ", eta_min, ", etamax = ", eta_max, ", eta = ", eta, LF // &
-                  TAB // "resmin = ", resmin, ", resmax = ", resmax, ", res = ", res, LF // &
-                  TAB // "resold = ", res_old, ", res = ", res, LF // &
-                  TAB // "tol = ", tol
+            driftorbit_root(1) = -2.0_dp
+            driftorbit_root(2) = 0.0_dp
+            write (msg, "(*(g0))") &
+                "driftorbit_root: did not converge within ", maxit, " iterations" // LF // &
+                TAB // "v/vth = ", v / vth, ", mth = ", mth, ", sign_vpar = ", sign_vpar, LF // &
+                TAB // "etamin = ", eta_min, ", etamax = ", eta_max, ", eta = ", eta, LF // &
+                TAB // "resmin = ", resmin, ", resmax = ", resmax, ", res = ", res, LF // &
+                TAB // "resold = ", res_old, ", res = ", res, LF // &
+                TAB // "requested tol = ", tol, ", effective tol = ", tol_eff
             call warning(msg)
         end if
     end function driftorbit_root
