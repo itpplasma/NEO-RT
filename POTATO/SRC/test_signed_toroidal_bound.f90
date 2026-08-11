@@ -13,7 +13,7 @@ program test_signed_toroidal_bound
 
     if (positive_bound <= 0.d0) error stop "positive n produced nonpositive bound"
     if (negative_bound <= 0.d0) error stop "negative n produced nonpositive bound"
-    if (positive_bound /= negative_bound) &
+    if (abs(positive_bound-negative_bound) > 1d-14) &
         error stop "search bound depends on toroidal-mode sign"
 
     if (canonical_flux_outside_lcfs(0.5d0, 0.d0, 1.d0)) &
