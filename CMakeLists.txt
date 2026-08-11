@@ -109,6 +109,7 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
+    src/output.f90
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
@@ -166,6 +167,14 @@ if(USE_STANDALONE)
         LIBNEO::boozer
     )
 endif()
+
+# HDF5 output. libneo's hdf5_tools forwards to fortio, which implements the
+# required HDF5 subset without linking the system HDF5 library.
+if(NOT TARGET LIBNEO::hdf5_tools)
+    message(FATAL_ERROR "LIBNEO::hdf5_tools not found; it is required for HDF5 output")
+endif()
+
+target_link_libraries(neo_rt PUBLIC LIBNEO::hdf5_tools)
 
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 

@@ -8,9 +8,11 @@ contains
 
     subroutine main
         use do_magfie_mod, only: s
-        use neort, only: check_magfie, write_magfie_data_to_files, write_transport_data_to_files
+        use neort, only: check_magfie
+        use neort_config, only: output_format
         use neort_datatypes, only: magfie_data_t
         use neort_lib
+        use neort_output, only: write_output
         use util, only: files_exist
 
         character(len=*), parameter :: boozer_file = "in_file"
@@ -34,8 +36,7 @@ contains
 
         call check_magfie(magfie_data)  ! diagnostics
 
-        call write_magfie_data_to_files(magfie_data, trim(runname))
-        call write_transport_data_to_files(transport_data, trim(runname))
+        call write_output(magfie_data, transport_data, trim(runname), output_format)
     end subroutine main
 
 end module neort_main
