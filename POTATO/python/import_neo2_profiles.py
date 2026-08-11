@@ -7,8 +7,10 @@ ExB rotation (MtOvR) using the same formula as neort_to_potato.py:
 
     Er(s) = sign_theta * psi_pr * vth(s) * MtOvR_ion(s) / C_CGS
 
-where psi_pr = psi_pr_hat * Bref (both available in the HDF5 file).
-This gives phi_e consistent with what NEO-RT uses internally.
+where psi_pr is the poloidal-flux span in POTATO's EQDSK gauge,
+psi_pr = (PsiedgeVs - PsiaxisVs) * 1e8 Mx.  Do not use the NEO-2
+psi_pr_hat * Bref value here: it is a different normalization and inflates
+the imported Er.  The EQDSK span is the normalization used by POTATO itself.
 
 Usage:
     python import_neo2_profiles.py [--neo2 neo2_out.h5] [--sign-theta -1]
