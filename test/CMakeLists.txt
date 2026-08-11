@@ -86,6 +86,34 @@ add_test(NAME test_electromagnetic_torque_invalid_full
 set_tests_properties(test_electromagnetic_torque_invalid_full
     PROPERTIES WILL_FAIL TRUE)
 
+add_test(NAME test_gpec_torque_contract
+    COMMAND test_gpec_torque_contract.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/gpec_control_n3.txt
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_gpec_torque_contract_rejects_missing_volume_current
+    COMMAND test_gpec_torque_contract_invalid.x volume
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gpec_torque_contract_rejects_missing_volume_current
+    PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME test_gpec_torque_contract_rejects_zero_mode
+    COMMAND test_gpec_torque_contract_invalid.x zero_mode
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gpec_torque_contract_rejects_zero_mode
+    PROPERTIES WILL_FAIL TRUE)
+
+add_test(NAME test_gpec_torque_contract_rejects_missing_torque
+    COMMAND test_gpec_torque_contract_invalid.x missing_torque
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/gpec_control_missing_torque.txt
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_gpec_torque_contract_rejects_missing_torque
+    PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME test_vmax_over_vth
     COMMAND test_vmax_over_vth.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
