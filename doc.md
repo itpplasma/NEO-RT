@@ -25,3 +25,4 @@ pages:
   doc/index.md: index
   doc/running.md: Running NEO-RT
   doc/file_formats.md: Output file formats
+  doc/differentiation.md: Differentiation Plan

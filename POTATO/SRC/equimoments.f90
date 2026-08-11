@@ -15,6 +15,7 @@
   use form_classes_doublecount_mod, only : nclasses
   use orbit_dim_mod,     only : numbasef
   use bounds_fixpoints_mod, only : region_set_t
+  use sample_matrix_mod, only : sample_matrix_grid_usable
 
   implicit none
 !
@@ -133,7 +134,7 @@ print *,'toten = ',toten
 !
         call sample_class_doublecount(1000+iclass,ierr)
 !
-        if(ierr.eq.0) then
+        if(sample_matrix_grid_usable(ierr)) then
 !
           call integrate_class_doublecount(2000+iclass,resints)
 !
