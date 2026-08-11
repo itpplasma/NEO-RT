@@ -44,6 +44,7 @@ contains
         real(dp) :: selected_drift(SEPARATRIX_FIT_POINTS)
         real(dp) :: design(SEPARATRIX_FIT_POINTS, 4)
         real(dp) :: tau_coeff(4), drift_coeff(4)
+        real(dp) :: tau_leading(2)
         real(dp) :: tau_rms, drift_rms
         integer :: selected, k
 
@@ -75,8 +76,15 @@ contains
         if (.not. ok) return
 
         if (.not. ieee_is_finite(tau_coeff(1)) .or. tau_coeff(1) <= 0.0_dp) then
-            ok = .false.
-            return
+            ! The correction columns are below the numerical resolution of
+            ! some orbit integrations.  In that case their unconstrained fit
+            ! can steal the positive logarithmic coefficient.  Retain the
+            ! same asymptotic boundary window, but use the resolved leading
+            ! logarithmic submodel instead of accepting an unphysical fit.
+            call least_squares(design(:, 1:2), selected_tau, selected, &
+                tau_leading, ok, tau_rms)
+            if (.not. ok .or. tau_leading(1) <= 0.0_dp) return
+            tau_coeff = [tau_leading(1), tau_leading(2), 0.0_dp, 0.0_dp]
         end if
         if (.not. all(ieee_is_finite(tau_coeff))) then
             ok = .false.
@@ -134,24 +142,35 @@ contains
 
         integer :: order(size(x)), i, j, candidate
         integer :: swap
+        logical :: usable(size(x))
 
         selected_x = 0.0_dp
         selected_tau = 0.0_dp
         selected_drift = 0.0_dp
         selected = min(SEPARATRIX_FIT_POINTS, size(x))
         order = [(i, i=1, size(x))]
+        usable = ieee_is_finite(x) .and. ieee_is_finite(tau_values) .and. &
+            ieee_is_finite(drift_values)
         do i = 1, size(x) - 1
             do j = i + 1, size(x)
-                if (x(order(j)) < x(order(i))) then
-                    swap = order(i)
-                    order(i) = order(j)
-                    order(j) = swap
+                if (usable(order(j))) then
+                    if (.not. usable(order(i))) then
+                        swap = order(i)
+                        order(i) = order(j)
+                        order(j) = swap
+                    else if (x(order(j)) < x(order(i))) then
+                        swap = order(i)
+                        order(i) = order(j)
+                        order(j) = swap
+                    end if
                 end if
             end do
         end do
         candidate = 0
         do i = 1, size(x)
-            if (.not. ieee_is_finite(x(order(i)))) cycle
+            if (.not. ieee_is_finite(x(order(i))) .or. &
+                    .not. ieee_is_finite(tau_values(order(i))) .or. &
+                    .not. ieee_is_finite(drift_values(order(i)))) cycle
             if (x(order(i)) <= 0.0_dp) cycle
             candidate = candidate + 1
             selected_x(candidate) = x(order(i))
@@ -165,10 +184,12 @@ contains
     subroutine least_squares(design, values, n, coefficients, ok, relative_rms)
         real(dp), intent(in) :: design(:, :), values(:)
         integer, intent(in) :: n
-        real(dp), intent(out) :: coefficients(4), relative_rms
+        real(dp), intent(out) :: coefficients(:), relative_rms
         logical, intent(out) :: ok
-        real(dp) :: q(n, 4), r(4, 4), work(n, 4), vector(n), rhs(4), residual(n)
-        real(dp) :: column_scale(4), scale, correction
+        integer :: ncolumns
+        real(dp) :: q(n, size(coefficients)), r(size(coefficients), size(coefficients))
+        real(dp) :: work(n, size(coefficients)), vector(n), rhs(size(coefficients)), residual(n)
+        real(dp) :: column_scale(size(coefficients)), scale, correction
         integer :: i, j, k
 
         coefficients = 0.0_dp
@@ -176,14 +197,16 @@ contains
         ok = .false.
         q = 0.0_dp
         r = 0.0_dp
-        work = design(1:n, :)
-        do j = 1, 4
+        ncolumns = size(coefficients)
+        if (size(design, 2) /= ncolumns .or. n < ncolumns) return
+        work = design(1:n, 1:ncolumns)
+        do j = 1, ncolumns
             column_scale(j) = sqrt(dot_product(work(:, j), work(:, j)))
             if (.not. ieee_is_finite(column_scale(j)) .or. &
                     column_scale(j) <= tiny(1.0_dp)) return
             work(:, j) = work(:, j)/column_scale(j)
         end do
-        do j = 1, 4
+        do j = 1, ncolumns
             vector = work(:, j)
             do k = 1, j - 1
                 r(k, j) = dot_product(q(:, k), vector)
@@ -204,12 +227,12 @@ contains
         end do
 
         rhs = 0.0_dp
-        do j = 1, 4
+        do j = 1, ncolumns
             rhs(j) = dot_product(q(:, j), values(1:n))
         end do
-        do i = 4, 1, -1
+        do i = ncolumns, 1, -1
             coefficients(i) = rhs(i)
-            do j = i + 1, 4
+            do j = i + 1, ncolumns
                 coefficients(i) = coefficients(i) - r(i, j)*coefficients(j)
             end do
             coefficients(i) = coefficients(i)/r(i, i)

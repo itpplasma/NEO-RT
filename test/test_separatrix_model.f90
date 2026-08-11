@@ -3,6 +3,7 @@ program test_separatrix_model
     ! production orbit integrator supplies the sampled values; this test pins
     ! the fit and its physical-distance derivatives against the known formula.
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use, intrinsic :: ieee_arithmetic, only: ieee_quiet_nan, ieee_value
     use neort_separatrix, only: separatrix_model_t, fit_separatrix_model, &
         evaluate_separatrix_model
     implicit none
@@ -14,6 +15,7 @@ program test_separatrix_model
         6.4e-5_dp, 1.28e-4_dp, 2.56e-4_dp, 5.12e-4_dp, 1.024e-3_dp, &
         2.048e-3_dp]
     real(dp) :: tau_values(size(sample_x)), drift_values(size(sample_x))
+    real(dp) :: filtered_x(size(sample_x))
     type(separatrix_model_t) :: model
     logical :: ok
     integer :: k
@@ -22,6 +24,15 @@ program test_separatrix_model
         tau_values(k) = model_value(tau_coeff, sample_x(k))
         drift_values(k) = model_value(drift_coeff, sample_x(k))
     end do
+
+    ! A failed orbit sample must not poison the boundary fit when enough
+    ! resolved samples remain.  The expected result is the same asymptotic
+    ! model, with the invalid point omitted from the selected boundary window.
+    filtered_x = sample_x
+    filtered_x(1) = ieee_value(filtered_x(1), ieee_quiet_nan)
+    call fit_separatrix_model(filtered_x, tau_values, drift_values, model, ok)
+    if (.not. ok) error stop "finite separatrix samples were not selected"
+    if (model%tau(1) <= 0.0_dp) error stop "filtered fit lost positive log coefficient"
 
     call fit_separatrix_model(sample_x, tau_values, drift_values, model, ok)
     if (.not. ok) error stop "manufactured separatrix fit was rejected"
