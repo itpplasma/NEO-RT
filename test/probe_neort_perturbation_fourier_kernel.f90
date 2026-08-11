@@ -1,6 +1,6 @@
 program probe_neort_perturbation_fourier_kernel
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use do_magfie_mod, only: bfac, inp_swi, set_s
+    use neort_config, only: config_t, read_and_set_config, set_config
     use do_magfie_pert_mod, only: do_magfie_pert, do_magfie_pert_amp, &
         init_magfie_pert_at_s, read_boozer_pert_file
 
@@ -12,29 +12,45 @@ program probe_neort_perturbation_fourier_kernel
     real(dp), parameter :: sine_amplitude_t = 0.7e-4_dp
     complex(dp) :: amplitude_g
     real(dp) :: full_field_g, expected_g, wrong_sign_g, x(3)
+    type(config_t) :: config
 
     call write_fixture(fixture)
-    inp_swi = 9
-    bfac = 1.0_dp
-    call set_s(0.5_dp)
-    call read_boozer_pert_file(fixture)
-    call init_magfie_pert_at_s()
 
-    x = [0.5_dp, phi, theta]
-    call do_magfie_pert_amp(x, amplitude_g)
-    call do_magfie_pert(x, full_field_g)
-    expected_g = expected_value(theta + 3.0_dp*phi)
-    wrong_sign_g = expected_value(theta - 3.0_dp*phi)
+    call write_config("mixed_readers.in")
+    call read_and_set_config("mixed_readers.in")
+    call check_manufactured_field("namelist mixed readers")
 
-    write (*, '(*(g0,1x))') 'NEORT_PERT_KERNEL', &
-        'theta', theta, 'phi_ccw', phi, 'amplitude_real_g', real(amplitude_g), &
-        'amplitude_imag_g', aimag(amplitude_g), 'full_field_g', full_field_g, &
-        'expected_plus_n_g', expected_g, 'wrong_minus_n_g', wrong_sign_g
-    if (abs(full_field_g - expected_g) > 1.0e-12_dp) then
-        error stop 'full perturbation field double-counts Fourier rows'
-    end if
+    config%s = 0.5_dp
+    config%inp_swi = 9
+    config%pertfile = .true.
+    call set_config(config)
+    call check_manufactured_field("legacy inherited reader")
+
+    call delete_file(fixture)
+    call delete_file("mixed_readers.in")
 
 contains
+
+    subroutine check_manufactured_field(label)
+        character(len=*), intent(in) :: label
+
+        call read_boozer_pert_file(fixture)
+        call init_magfie_pert_at_s()
+
+        x = [0.5_dp, phi, theta]
+        call do_magfie_pert_amp(x, amplitude_g)
+        call do_magfie_pert(x, full_field_g)
+        expected_g = expected_value(theta + 3.0_dp*phi)
+        wrong_sign_g = expected_value(theta - 3.0_dp*phi)
+
+        write (*, '(*(g0,1x))') 'NEORT_PERT_KERNEL', 'case', trim(label), &
+            'theta', theta, 'phi_ccw', phi, 'amplitude_real_g', real(amplitude_g), &
+            'amplitude_imag_g', aimag(amplitude_g), 'full_field_g', full_field_g, &
+            'expected_plus_n_g', expected_g, 'wrong_minus_n_g', wrong_sign_g
+        if (abs(full_field_g - expected_g) > 1.0e-12_dp) then
+            error stop 'perturbation reader does not reproduce the manufactured field'
+        end if
+    end subroutine check_manufactured_field
 
     real(dp) function expected_value(phase)
         real(dp), intent(in) :: phase
@@ -61,6 +77,33 @@ contains
         end do
         close (unit)
     end subroutine write_fixture
+
+    subroutine write_config(path)
+        character(len=*), intent(in) :: path
+
+        integer :: unit
+
+        open (newunit=unit, file=path, status='replace', action='write')
+        write (unit, '(a)') '&params'
+        write (unit, '(a)') '  s = 0.5'
+        write (unit, '(a)') '  qs = 1.0'
+        write (unit, '(a)') '  ms = 1.0'
+        write (unit, '(a)') '  mph = 3'
+        write (unit, '(a)') '  pertfile = .true.'
+        write (unit, '(a)') '  inp_swi = 10'
+        write (unit, '(a)') '  inp_swi_pert = 9'
+        write (unit, '(a)') '/'
+        close (unit)
+    end subroutine write_config
+
+    subroutine delete_file(path)
+        character(len=*), intent(in) :: path
+
+        integer :: unit
+
+        open (newunit=unit, file=path, status='old')
+        close (unit, status='delete')
+    end subroutine delete_file
 
     subroutine write_surface(unit, radial_coordinate)
         integer, intent(in) :: unit

@@ -10,9 +10,11 @@ add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
 target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)
 
+# test_timestep: runs from test/ripple_plateau so the test can read the
+# same in_file and driftorbit_test.in configuration as the ripple-plateau test.
 add_test(NAME test_timestep
     COMMAND test_timestep.x
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/ripple_plateau
 )
 
 add_test(NAME test_parallel

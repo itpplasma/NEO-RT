@@ -25,6 +25,7 @@ module neort_config
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
+        integer :: inp_swi_pert = -1  ! negative inherits inp_swi
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
@@ -37,7 +38,7 @@ contains
     subroutine set_config(config)
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph
+        use do_magfie_pert_mod, only: mph, set_mph, perturbation_switch => inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use neort_collisional_layer, only: collisional_layer
@@ -68,6 +69,8 @@ contains
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
+        perturbation_switch = resolve_perturbation_switch(config%inp_swi, config%inp_swi_pert)
+        call validate_perturbation_switch(pertfile, perturbation_switch)
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         mth_max_abs = config%mth_max_abs
@@ -83,7 +86,7 @@ contains
     subroutine read_and_set_config(config_file)
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph
+        use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use neort_collisional_layer, only: collisional_layer
@@ -99,10 +102,11 @@ contains
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
             collisional_layer, magdrift, magdrift_passing, nopassing, noshear, pertfile, &
-            nonlin, bfac, efac, inp_swi, vsteps, mth_max_abs, vmax_over_vth, log_level
+            nonlin, bfac, efac, inp_swi, inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
+        inp_swi_pert = -1
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
@@ -110,6 +114,8 @@ contains
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
+        inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
+        call validate_perturbation_switch(pertfile, inp_swi_pert)
 
         M_t = M_t * efac / bfac
         qi = qs * qe
@@ -117,5 +123,25 @@ contains
         call set_mph(mph)
         call set_log_level(log_level)
     end subroutine read_and_set_config
+
+    pure integer function resolve_perturbation_switch(axisymmetric_switch, perturbation_switch)
+        integer, intent(in) :: axisymmetric_switch, perturbation_switch
+
+        if (perturbation_switch < 0) then
+            resolve_perturbation_switch = axisymmetric_switch
+        else
+            resolve_perturbation_switch = perturbation_switch
+        end if
+    end function resolve_perturbation_switch
+
+    subroutine validate_perturbation_switch(has_perturbation_file, perturbation_switch)
+        logical, intent(in) :: has_perturbation_file
+        integer, intent(in) :: perturbation_switch
+
+        if (has_perturbation_file .and. perturbation_switch /= 8 .and. &
+            perturbation_switch /= 9) then
+            error stop "inp_swi_pert must be 8 or 9 for a perturbation .bc file"
+        end if
+    end subroutine validate_perturbation_switch
 
 end module neort_config
