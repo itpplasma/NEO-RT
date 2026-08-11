@@ -86,6 +86,8 @@ module do_magfie_pert_mod
     use neo2_ql, only: read_in_namelists, set_default_values, init
 
     integer :: mph
+    ! The external NEO-2 reader owns its input format; this keeps the config API compatible.
+    integer :: inp_swi_pert = -1
 
 contains
 

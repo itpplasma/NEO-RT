@@ -32,6 +32,8 @@ program boozer_to_efit
   integer :: nwind=4
   integer :: nwEQD,nhEQD
 !
+! Target (R,Z) grid spacing in m for the generated g-file; see box sizing below.
+  double precision, parameter :: hgrid_target = 0.0075d0
   double precision, parameter :: eps_grad = 1d-4 !1d-9
   double precision, parameter :: eps_newt = 1d-9
   double precision, parameter :: sigma = 1.d0, rpowmin=1.d-6
@@ -153,9 +155,6 @@ endif
 !
   else
 !
-    nr=200
-    nz=200
-!
     nt=100
     htheta=2.d0*pi/dble(nt)
     s=1.d0
@@ -185,8 +184,17 @@ endif
     zmin=zmin-hz
     zmax=zmax+hz
 !
-    hr=(rmax-rmin)/dble(nr)    
-    hz=(zmax-zmin)/dble(nz)    
+! Size the grid from a target spacing instead of a fixed point count.  What the
+! psi splines and POTATO's separatrix fixpoint search see is the spacing, not
+! the number of points: a fixed 200x200 gives hz = 4.4 cm on an ITER-sized box
+! against the ~0.6 cm of the AUG g-files POTATO was validated on, and the
+! fixpoint Newton then stalls at ~1e-4 against a 1e-12 relative tolerance.
+! 200 stays the floor so small boxes are unaffected.
+    nr=max(200,nint((rmax-rmin)/hgrid_target))
+    nz=max(200,nint((zmax-zmin)/hgrid_target))
+!
+    hr=(rmax-rmin)/dble(nr)
+    hz=(zmax-zmin)/dble(nz)
   endif
 !
 ! End determine box size

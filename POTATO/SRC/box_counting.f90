@@ -1,17 +1,3 @@
-subroutine linspace(a, b, cnt, out)
-  implicit none
-
-  real(8), intent(in) :: a, b
-  integer :: i, cnt
-  real(8), intent(inout) :: out(cnt)
-  real(8) :: delta
-
-  delta = (b-a)/(cnt-1)
-  do i=1,cnt
-    out(i) = a + delta*(i-1)
-  end do
-end subroutine linspace
-
 subroutine timestep_vode(n, tau, z, vz)
   implicit none
   ! See velo for details

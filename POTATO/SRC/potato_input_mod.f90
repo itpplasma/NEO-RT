@@ -41,6 +41,13 @@ module potato_input_mod
 
     ! Box counting
     integer :: nbox = 100
+    ! Space the radial deposition boxes uniformly in rho_pol instead of s_pol.
+    ! s_pol = rho_pol**2, so the default uniform-s_pol boxes are widest in
+    ! rho_pol at the axis - the innermost of 100 spans rho_pol < 0.1 - which is
+    ! where orbits are widest and the torque profile least resolved. Uniform
+    ! rho_pol boxes trade that for less volume, hence fewer resonant orbits, per
+    ! near-axis box: raise nenerg/npoi_init with it or the inner bins turn noisy.
+    logical :: unif_rho_pol = .false.
 
     ! Adaptive J_perp integration
     logical :: adaptive_jperp = .true.
@@ -106,7 +113,7 @@ module potato_input_mod
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, &
         Rmax_orbit, ntimstep, npoicut, plot_poicut, plot_equilibrium, &
         m_min, m_max, n_tor, &
-        nenerg, thermen_max, enkin_min_over_temp, nbox, &
+        nenerg, thermen_max, enkin_min_over_temp, nbox, unif_rho_pol, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
@@ -179,6 +186,7 @@ contains
         write(iunit, '(A,ES12.5)') '  thermen_max      = ', thermen_max
         write(iunit, '(A,ES12.5)') '  enkin_min_over_temp = ', enkin_min_over_temp
         write(iunit, '(A,I0)') '  nbox             = ', nbox
+        write(iunit, '(A,L1)') '  unif_rho_pol     = ', unif_rho_pol
         write(iunit, '(A,L1)') '  adaptive_jperp   = ', adaptive_jperp
         write(iunit, '(A,I0)') '  npoi_init        = ', npoi_init
         write(iunit, '(A,I0)') '  nlagr_sampling   = ', nlagr_sampling
