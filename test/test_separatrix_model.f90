@@ -16,6 +16,8 @@ program test_separatrix_model
         2.048e-3_dp]
     real(dp) :: tau_values(size(sample_x)), drift_values(size(sample_x))
     real(dp) :: filtered_x(size(sample_x))
+    real(dp) :: narrow_x(8), narrow_tau(8), narrow_drift(8)
+    real(dp) :: adaptive_x(20), adaptive_tau(20), adaptive_drift(20)
     type(separatrix_model_t) :: model
     logical :: ok
     integer :: k
@@ -40,6 +42,42 @@ program test_separatrix_model
             model%drift_relative_rms > 1.0e-10_dp) then
         error stop "manufactured separatrix fit residual is too large"
     end if
+
+    ! A narrow resolved window cannot distinguish the x*log(x) correction
+    ! columns from the leading logarithm, but it still resolves that leading
+    ! pair.  The production fit must reduce its model order instead of
+    ! rejecting a usable passing surface.
+    do k = 1, size(narrow_x)
+        narrow_x(k) = 1.0e-3_dp * (1.0_dp - real(size(narrow_x) - k, dp)*1.0e-5_dp)
+        narrow_tau(k) = model_value([2.0_dp, 0.5_dp, 0.0_dp, 0.0_dp], narrow_x(k))
+        narrow_drift(k) = model_value([0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp], narrow_x(k))
+    end do
+    call fit_separatrix_model(narrow_x, narrow_tau, narrow_drift, model, ok)
+    if (.not. ok) error stop "narrow separatrix window was rejected"
+    if (abs(model%tau(3)) > 0.0_dp .or. abs(model%tau(4)) > 0.0_dp) then
+        error stop "narrow separatrix window did not reduce model order"
+    end if
+    if (model%tau(1) <= 0.0_dp) error stop "narrow fit lost positive log coefficient"
+
+    ! The closest eight samples can carry a reversed numerical trend.  The
+    ! adaptive boundary-window search must move outward until the positive
+    ! leading coefficient is resolved by the independent manufactured data.
+    do k = 1, size(adaptive_x)
+        adaptive_x(k) = 1.0e-6_dp * 2.0_dp**real(k - 1, dp)
+        if (k <= 8) then
+            adaptive_tau(k) = model_value([-1.0_dp, 0.5_dp, 0.0_dp, 0.0_dp], adaptive_x(k))
+        else
+            adaptive_tau(k) = model_value([2.0_dp, 0.5_dp, 0.0_dp, 0.0_dp], adaptive_x(k))
+        end if
+        adaptive_drift(k) = 0.0_dp
+    end do
+    call fit_separatrix_model(adaptive_x, adaptive_tau, adaptive_drift, model, ok)
+    if (.not. ok .or. model%tau(1) <= 0.0_dp) then
+        error stop "adaptive separatrix window did not recover positive trend"
+    end if
+
+    call fit_separatrix_model(sample_x, tau_values, drift_values, model, ok)
+    if (.not. ok) error stop "manufactured separatrix fit was not reproducible"
 
     do k = 1, 5
         call check_point(model, 10.0_dp**real(k - 9, dp), tau_coeff, &

@@ -39,67 +39,79 @@ contains
         type(separatrix_model_t), intent(out) :: model
         logical, intent(out) :: ok
 
-        real(dp) :: selected_x(SEPARATRIX_FIT_POINTS)
-        real(dp) :: selected_tau(SEPARATRIX_FIT_POINTS)
-        real(dp) :: selected_drift(SEPARATRIX_FIT_POINTS)
-        real(dp) :: design(SEPARATRIX_FIT_POINTS, 4)
+        real(dp), allocatable :: selected_x(:), selected_tau(:), selected_drift(:)
+        real(dp) :: design(size(x), 4)
         real(dp) :: tau_coeff(4), drift_coeff(4)
-        real(dp) :: tau_leading(2)
+        real(dp) :: tau_leading(2), drift_leading(2)
         real(dp) :: tau_rms, drift_rms
-        integer :: selected, k
+        integer :: selected, k, nfit, first_window
+        logical :: full_ok, tau_ok, drift_ok
 
         model = separatrix_model_t()
         ok = .false.
         if (size(x) /= size(tau_values) .or. size(x) /= size(drift_values)) return
         if (size(x) < 4) return
 
+        allocate(selected_x(size(x)), selected_tau(size(x)), selected_drift(size(x)))
         call select_nearest_boundary(x, tau_values, drift_values, selected_x, &
             selected_tau, selected_drift, selected)
         if (selected < 4) return
 
-        model%xscale = maxval(selected_x(1:selected))
-        if (.not. ieee_is_finite(model%xscale) .or. model%xscale <= 0.0_dp) return
+        ! The smallest samples can be under-resolved by the orbit quadrature
+        ! and can reverse the physical positive logarithmic trend.  Increase
+        ! the boundary window until the same asymptotic model is resolved;
+        ! no fixed outer cutoff or hand-tuned coefficient is introduced.
+        first_window = min(SEPARATRIX_FIT_POINTS, selected)
+        do nfit = first_window, selected
+            model%xscale = maxval(selected_x(1:nfit))
+            if (.not. ieee_is_finite(model%xscale) .or. model%xscale <= 0.0_dp) cycle
 
-        do k = 1, selected
-            if (selected_x(k) <= 0.0_dp) return
-            associate (z => selected_x(k)/model%xscale)
-                design(k, 1) = log(1.0_dp/z)
-                design(k, 2) = 1.0_dp
-                design(k, 3) = z*design(k, 1)
-                design(k, 4) = z
-            end associate
+            do k = 1, nfit
+                associate (z => selected_x(k)/model%xscale)
+                    design(k, 1) = log(1.0_dp/z)
+                    design(k, 2) = 1.0_dp
+                    design(k, 3) = z*design(k, 1)
+                    design(k, 4) = z
+                end associate
+            end do
+
+            call least_squares(design, selected_tau, nfit, tau_coeff, tau_ok, tau_rms)
+            call least_squares(design, selected_drift, nfit, drift_coeff, drift_ok, drift_rms)
+            full_ok = tau_ok .and. drift_ok .and. all(ieee_is_finite(tau_coeff)) .and. &
+                all(ieee_is_finite(drift_coeff)) .and. tau_coeff(1) > 0.0_dp
+            if (.not. full_ok) then
+                ! The correction columns are below the numerical resolution
+                ! of this window, or their unconstrained fit stole the
+                ! positive logarithmic coefficient.  Retain the same
+                ! boundary window and use the resolved leading model.
+                call least_squares(design(:, 1:2), selected_tau, nfit, &
+                    tau_leading, tau_ok, tau_rms)
+                if (maxval(abs(selected_drift(1:nfit))) <= tiny(1.0_dp)) then
+                    drift_leading = 0.0_dp
+                    drift_ok = .true.
+                    drift_rms = 0.0_dp
+                else
+                    call least_squares(design(:, 1:2), selected_drift, nfit, &
+                        drift_leading, drift_ok, drift_rms)
+                end if
+                if (.not. tau_ok .or. .not. drift_ok .or. &
+                        .not. all(ieee_is_finite(tau_leading)) .or. &
+                        .not. all(ieee_is_finite(drift_leading)) .or. &
+                        tau_leading(1) <= 0.0_dp) cycle
+                tau_coeff = [tau_leading(1), tau_leading(2), 0.0_dp, 0.0_dp]
+                drift_coeff = [drift_leading(1), drift_leading(2), 0.0_dp, 0.0_dp]
+            end if
+            if (.not. all(ieee_is_finite(tau_coeff)) .or. &
+                    .not. all(ieee_is_finite(drift_coeff))) cycle
+
+            model%tau = tau_coeff
+            model%drift = drift_coeff
+            model%tau_relative_rms = tau_rms
+            model%drift_relative_rms = drift_rms
+            model%valid = .true.
+            ok = .true.
+            return
         end do
-
-        call least_squares(design, selected_tau, selected, tau_coeff, ok, tau_rms)
-        if (.not. ok) return
-        call least_squares(design, selected_drift, selected, drift_coeff, ok, drift_rms)
-        if (.not. ok) return
-
-        if (.not. ieee_is_finite(tau_coeff(1)) .or. tau_coeff(1) <= 0.0_dp) then
-            ! The correction columns are below the numerical resolution of
-            ! some orbit integrations.  In that case their unconstrained fit
-            ! can steal the positive logarithmic coefficient.  Retain the
-            ! same asymptotic boundary window, but use the resolved leading
-            ! logarithmic submodel instead of accepting an unphysical fit.
-            call least_squares(design(:, 1:2), selected_tau, selected, &
-                tau_leading, ok, tau_rms)
-            if (.not. ok .or. tau_leading(1) <= 0.0_dp) return
-            tau_coeff = [tau_leading(1), tau_leading(2), 0.0_dp, 0.0_dp]
-        end if
-        if (.not. all(ieee_is_finite(tau_coeff))) then
-            ok = .false.
-            return
-        end if
-        if (.not. all(ieee_is_finite(drift_coeff))) then
-            ok = .false.
-            return
-        end if
-
-        model%tau = tau_coeff
-        model%drift = drift_coeff
-        model%tau_relative_rms = tau_rms
-        model%drift_relative_rms = drift_rms
-        model%valid = .true.
     end subroutine fit_separatrix_model
 
     subroutine evaluate_separatrix_model(model, x, tau, dtau_dx, omega, &
@@ -135,9 +147,9 @@ contains
     subroutine select_nearest_boundary(x, tau_values, drift_values, selected_x, &
             selected_tau, selected_drift, selected)
         real(dp), intent(in) :: x(:), tau_values(:), drift_values(:)
-        real(dp), intent(out) :: selected_x(SEPARATRIX_FIT_POINTS)
-        real(dp), intent(out) :: selected_tau(SEPARATRIX_FIT_POINTS)
-        real(dp), intent(out) :: selected_drift(SEPARATRIX_FIT_POINTS)
+        real(dp), intent(out) :: selected_x(:)
+        real(dp), intent(out) :: selected_tau(:)
+        real(dp), intent(out) :: selected_drift(:)
         integer, intent(out) :: selected
 
         integer :: order(size(x)), i, j, candidate
@@ -147,7 +159,7 @@ contains
         selected_x = 0.0_dp
         selected_tau = 0.0_dp
         selected_drift = 0.0_dp
-        selected = min(SEPARATRIX_FIT_POINTS, size(x))
+        selected = 0
         order = [(i, i=1, size(x))]
         usable = ieee_is_finite(x) .and. ieee_is_finite(tau_values) .and. &
             ieee_is_finite(drift_values)
@@ -176,7 +188,7 @@ contains
             selected_x(candidate) = x(order(i))
             selected_tau(candidate) = tau_values(order(i))
             selected_drift(candidate) = drift_values(order(i))
-            if (candidate == selected) exit
+            if (candidate == size(selected_x)) exit
         end do
         selected = candidate
     end subroutine select_nearest_boundary
@@ -190,6 +202,7 @@ contains
         real(dp) :: q(n, size(coefficients)), r(size(coefficients), size(coefficients))
         real(dp) :: work(n, size(coefficients)), vector(n), rhs(size(coefficients)), residual(n)
         real(dp) :: column_scale(size(coefficients)), scale, correction
+        real(dp) :: rank_tolerance
         integer :: i, j, k
 
         coefficients = 0.0_dp
@@ -199,6 +212,12 @@ contains
         r = 0.0_dp
         ncolumns = size(coefficients)
         if (size(design, 2) /= ncolumns .or. n < ncolumns) return
+        ! The four-term correction basis is deliberately rejected when its
+        ! extra columns are below square-root machine precision.  The
+        ! two-term leading model has only one contrast direction and can
+        ! still resolve a narrower physical window down to roundoff.
+        rank_tolerance = epsilon(1.0_dp)
+        if (ncolumns > 2) rank_tolerance = sqrt(epsilon(1.0_dp))
         work = design(1:n, 1:ncolumns)
         do j = 1, ncolumns
             column_scale(j) = sqrt(dot_product(work(:, j), work(:, j)))
@@ -221,7 +240,7 @@ contains
             end do
             scale = sqrt(dot_product(vector, vector))
             if (.not. ieee_is_finite(scale) .or. &
-                    scale <= sqrt(epsilon(1.0_dp))) return
+                    scale <= rank_tolerance) return
             r(j, j) = scale
             q(:, j) = vector/scale
         end do
