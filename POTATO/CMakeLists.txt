@@ -112,6 +112,17 @@ add_test(NAME test_potato_invariants
    COMMAND test_potato_invariants.x
 )
 
+add_executable(test_sample_matrix_itermax.x
+   SRC/test_sample_matrix_itermax.f90
+)
+target_link_libraries(test_sample_matrix_itermax.x
+   potato_base
+   potato
+)
+add_test(NAME test_sample_matrix_itermax
+   COMMAND test_sample_matrix_itermax.x
+)
+
 add_executable(test_wall_profile.x
    SRC/test_wall_profile.f90
 )
