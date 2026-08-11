@@ -80,6 +80,10 @@ add_test(NAME test_separatrix_model
     COMMAND ${CMAKE_BINARY_DIR}/test_separatrix_model.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+add_test(NAME test_orbit_classes
+    COMMAND ${CMAKE_BINARY_DIR}/test_orbit_classes.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

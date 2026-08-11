@@ -115,6 +115,7 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
+    src/orbit_classes.f90
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90

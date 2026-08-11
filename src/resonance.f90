@@ -67,10 +67,12 @@ contains
 
         real(dp) :: driftorbit_root(2)
         real(dp), intent(in) :: v, tol, eta_min, eta_max
-        real(dp) :: residual, residual_left, residual_right, residual_old
+        real(dp) :: residual, residual_left, residual_right
         real(dp) :: derivative, eta, eta_new, eta_left, eta_right
         real(dp) :: derivative_left, derivative_right, dresdv_tmp
         real(dp) :: tol_eff, residual_scale
+        real(dp) :: eta_scale, eta_tol, newton_candidate, derivative_scale
+        real(dp) :: best_eta, best_residual, best_derivative
         integer :: maxit, k, state
         logical :: bracketed
         character(len=1024) :: msg
@@ -79,7 +81,6 @@ contains
 
         maxit = 100
         state = -2
-        residual_old = 0.0_dp
         driftorbit_root = [ -2.0_dp, 0.0_dp ]
         eta_left = eta_min
         eta_right = eta_max
@@ -88,6 +89,11 @@ contains
         call resonance_value(v, eta_right, residual_right, dresdv_tmp, derivative_right)
         residual_scale = max(1.0_dp, abs(residual_left), abs(residual_right))
         tol_eff = max(abs(tol), 64.0_dp*epsilon(1.0_dp)*residual_scale)
+        eta_scale = max(abs(eta_left), abs(eta_right))
+        derivative_scale = 0.0_dp
+        if (ieee_is_finite(derivative_left)) derivative_scale = max(derivative_scale, abs(derivative_left))
+        if (ieee_is_finite(derivative_right)) derivative_scale = max(derivative_scale, abs(derivative_right))
+        tol_eff = max(tol_eff, 8.0_dp * derivative_scale * spacing(eta_scale))
         bracketed = residual_left == 0.0_dp .or. residual_right == 0.0_dp .or. &
             residual_left*residual_right < 0.0_dp
         if (.not. bracketed) then
@@ -110,24 +116,12 @@ contains
 
         eta = 0.5_dp*(eta_left + eta_right)
         do k = 1, maxit
-            residual_old = residual
             call resonance_value(v, eta, residual, dresdv_tmp, derivative)
             driftorbit_root(1) = eta
             if (abs(residual) <= tol_eff) then
                 state = 1
                 driftorbit_root(2) = derivative
                 exit
-            end if
-
-            eta_new = eta
-            if (ieee_is_finite(derivative)) then
-                if (derivative /= 0.0_dp) then
-                    eta_new = eta - residual/derivative
-                end if
-            end if
-            if (.not. ieee_is_finite(eta_new) .or. eta_new <= eta_left .or. &
-                    eta_new >= eta_right) then
-                eta_new = 0.5_dp*(eta_left + eta_right)
             end if
 
             if (residual_left*residual <= 0.0_dp) then
@@ -138,6 +132,45 @@ contains
                 eta_left = eta
                 residual_left = residual
                 derivative_left = derivative
+            end if
+
+            eta_scale = max(1.0_dp, abs(eta_left), abs(eta_right))
+            eta_tol = 64.0_dp*epsilon(1.0_dp)*eta_scale
+            if (eta_right - eta_left <= eta_tol) then
+                eta = 0.5_dp*(eta_left + eta_right)
+                call resonance_value(v, eta, residual, dresdv_tmp, derivative)
+                best_eta = eta
+                best_residual = residual
+                best_derivative = derivative
+                if (abs(residual_left) < abs(best_residual)) then
+                    best_eta = eta_left
+                    best_residual = residual_left
+                    best_derivative = derivative_left
+                end if
+                if (abs(residual_right) < abs(best_residual)) then
+                    best_eta = eta_right
+                    best_residual = residual_right
+                    best_derivative = derivative_right
+                end if
+                if (abs(best_residual) <= tol_eff) then
+                    driftorbit_root = [best_eta, best_derivative]
+                    state = 1
+                end if
+                exit
+            end if
+
+            ! Newton is used only when it remains inside the updated bracket;
+            ! bisection is the deterministic fallback for a flat or noisy
+            ! derivative.  Updating the bracket before forming this candidate
+            ! prevents a stale endpoint from accepting a zero-width step.
+            eta_new = 0.5_dp*(eta_left + eta_right)
+            newton_candidate = eta
+            if (ieee_is_finite(derivative)) then
+                if (derivative /= 0.0_dp) newton_candidate = eta - residual/derivative
+            end if
+            if (ieee_is_finite(newton_candidate) .and. &
+                    newton_candidate > eta_left .and. newton_candidate < eta_right) then
+                eta_new = newton_candidate
             end if
             eta = eta_new
         end do
@@ -150,7 +183,7 @@ contains
                 TAB//"v/vth = ", v/vth, ", mth = ", mth, ", sign_vpar = ", sign_vpar, LF// &
                 TAB//"etamin = ", eta_min, ", etamax = ", eta_max, ", eta = ", eta, LF// &
                 TAB//"resmin = ", residual_left, ", resmax = ", residual_right, &
-                ", res = ", residual, LF//TAB//"resold = ", residual_old, &
+                ", res = ", residual, &
                 ", requested tol = ", tol, ", effective tol = ", tol_eff
             call warning(msg)
         end if
