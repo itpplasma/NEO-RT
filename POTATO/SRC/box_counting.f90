@@ -1,3 +1,22 @@
+subroutine set_radial_boxes(nbox, unif_rho_pol, sbox)
+  implicit none
+
+  integer, intent(in) :: nbox
+  logical, intent(in) :: unif_rho_pol
+  real(8), intent(out) :: sbox(nbox)
+  integer :: i
+  real(8) :: rho_pol
+
+  do i=1,nbox
+    rho_pol = real(i,8)/real(nbox,8)
+    if (unif_rho_pol) then
+      sbox(i) = rho_pol**2
+    else
+      sbox(i) = rho_pol
+    endif
+  enddo
+end subroutine set_radial_boxes
+
 subroutine timestep_vode(n, tau, z, vz)
   implicit none
   ! See velo for details
