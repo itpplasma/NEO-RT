@@ -80,7 +80,8 @@ contains
         etamax = etatp + (etadt - etatp) * (1.0_dp - epsst_spl)
         Om_tB_v = 0.0_dp
         taub_v = 0.0_dp
-     ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
+        ! Allocate coefficient arrays for trapped region splines (safe for
+        ! undefined allocation status).
         if (.not. freq_trapped_initialized) then
             if (allocated(Omth_spl_coeff)) deallocate(Omth_spl_coeff)
             if (allocated(OmtB_spl_coeff)) deallocate(OmtB_spl_coeff)
@@ -304,7 +305,10 @@ contains
             Omph = Om_tE + Omth/iota
             dOmphdv = dOmthdv/iota
             dOmphdeta = dOmthdeta/iota
-            if (magdrift) then
+            ! Passing orbits have their own magnetic-drift switch, and Om_tB
+            ! honours it. Gating this branch on magdrift instead would drop
+            ! the passing drift whenever the two switches are set apart.
+            if (magdrift_passing > 0) then
                 call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
                 Omph = Omph + OmtB
                 dOmphdv = dOmphdv + dOmtBdv

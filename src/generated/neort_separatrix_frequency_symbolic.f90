@@ -8,24 +8,30 @@ module neort_separatrix_frequency_symbolic
     public :: neort_separatrix_frequency_kernel
 contains
 
-    pure subroutine neort_separatrix_frequency_kernel(z, tau_a, tau_b, tau_c, tau_d, drift_a, drift_b, &
-            drift_c, drift_d, tau, dtau_dz, omega, domega_dz, drift, ddrift_dz)
+    pure subroutine neort_separatrix_frequency_kernel(z, tau_a, tau_b, tau_c, tau_d, num_a, num_b, &
+            num_c, num_d, tau, dtau_dz, omega, domega_dz, drift, ddrift_dz)
         use, intrinsic :: iso_fortran_env, only: dp => real64
         implicit none
-        real(dp), intent(in) :: z, tau_a, tau_b, tau_c, tau_d, drift_a, drift_b, drift_c, drift_d
+        real(dp), intent(in) :: z, tau_a, tau_b, tau_c, tau_d, num_a, num_b, num_c, num_d
         real(dp), intent(out) :: tau, dtau_dz, omega, domega_dz, drift, ddrift_dz
-        real(dp) :: sep_t1, sep_t2, sep_t3, sep_t4
+        real(dp) :: sep_t1, sep_t2, sep_t3, sep_t4, sep_t5, sep_t6, sep_t7, sep_t8, sep_t9
 
         sep_t1 = log(1/z)
         sep_t2 = log(z**(-1))
-        sep_t3 = tau_d - tau_a/z + tau_c*sep_t2 - tau_c
-        sep_t4 = tau_b + tau_a*sep_t2 + tau_c*z*sep_t2 + tau_d*z
+        sep_t3 = tau_c*sep_t2
+        sep_t4 = tau_d - tau_a/z + sep_t3 - tau_c
+        sep_t5 = tau_a*sep_t2
+        sep_t6 = tau_b + sep_t5 + tau_c*z*sep_t2 + tau_d*z
+        sep_t7 = num_a*sep_t2
+        sep_t8 = tau_b + sep_t5 + z*(tau_d + sep_t3)
+        sep_t9 = num_c*sep_t2
         tau = tau_b + tau_a*sep_t1 + z*(tau_d + tau_c*sep_t1)
-        dtau_dz = sep_t3
-        omega = 3.1415926535897931E+000_dp*2/sep_t4
-        domega_dz = -3.1415926535897931E+000_dp*sep_t3*2/sep_t4**2
-        drift = drift_b + drift_a*sep_t1 + z*(drift_d + drift_c*sep_t1)
-        ddrift_dz = drift_d - drift_a/z + drift_c*sep_t2 - drift_c
+        dtau_dz = sep_t4
+        omega = 3.1415926535897931E+000_dp*2/sep_t6
+        domega_dz = -3.1415926535897931E+000_dp*sep_t4*2/sep_t6**2
+        drift = (num_b + sep_t7 + num_c*z*sep_t2 + num_d*z)/sep_t6
+        ddrift_dz = -(num_b + sep_t7 + z*(num_d + sep_t9))*sep_t4/sep_t8**2 + (num_d - num_a/z + &
+            sep_t9 - num_c)/sep_t8
 
     end subroutine neort_separatrix_frequency_kernel
 

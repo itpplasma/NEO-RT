@@ -1,16 +1,35 @@
 module neort_separatrix
     ! Data-derived regularisation of the logarithmic thin-orbit limit.
     !
-    ! For a smooth non-degenerate magnetic maximum the bounce and orbit
-    ! integrals have the local form
+    ! Let x = |eta-etatp|/etatp be the pitch distance from the trapped-passing
+    ! boundary.  Around a smooth non-degenerate magnetic maximum the orbit
+    ! spends time (1/lambda) log(1/x) near the barrier, with lambda the
+    ! linear instability exponent of that saddle, and the rest of the period
+    ! is analytic in x.  Every orbit integral therefore shares one endpoint
+    ! form,
     !
-    !   F(x) = A log(1/x) + B + x [C log(1/x) + D] + O(x**2 log x),
+    !   I(x) = A log(1/x) + B + x [C log(1/x) + D] + O(x**2 log(1/x)),
     !
-    ! with x = |eta-etatp|/etatp.  The coefficients are fitted from the
-    ! smallest numerically resolved orbit distances.  The fit is performed in
-    ! the scaled coordinate z=x/xscale, so the least-squares system remains
-    ! well-conditioned while the physical distance and its derivative remain
-    ! explicit at the call boundary.
+    ! and this module fits that form to two integrals at once: the bounce
+    ! time tau, and the same integral weighted by the magnetic-drift
+    ! integrand.  The bounce-averaged drift is the ratio of the two, which is
+    ! how it is defined (Mackenbach et al., Phys. Plasmas 30, 093901 (2023),
+    ! Eqs. 7/10/13).  Both leading coefficients come from the same barrier
+    ! passage and differ only by the value of the drift integrand there, so
+    ! the ratio has a finite separatrix limit num_a/tau_a.
+    !
+    ! The ratio is kept intact instead of being re-expanded.  Expanding it
+    ! gives a series in 1/log(1/x) whose successive terms fall only by
+    ! tau_b/(tau_a log(1/x)) - about 1.1 for the passing orbits of the shipped
+    ! base example at its innermost resolved sample, so there the series does
+    ! not even converge.  Where it does converge it does so far too slowly to
+    ! be truncated after two terms and then extrapolated across the ten or
+    ! more decades between the resolved samples and the boundary.  Fitting
+    ! numerator and denominator separately resums it exactly.
+    !
+    ! The fit runs in the scaled coordinate z=x/xscale so the least-squares
+    ! system stays well-conditioned, while the physical distance and its
+    ! derivative remain explicit at the call boundary.
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_separatrix_frequency_symbolic, only: &
@@ -18,14 +37,25 @@ module neort_separatrix
     implicit none
     private
 
-    integer, parameter, public :: SEPARATRIX_FIT_POINTS = 8
+    ! Minimum natural-log span log(x_max/x_min) of the fitted boundary window.
+    ! The leading coefficient A is resolved only through the contrast of the
+    ! log column across the window, so with relative sampling noise sigma and
+    ! I/A of order ten the relative error of A is roughly 10*sigma/span.  The
+    ! competing model error is the neglected O(x**2 log(1/x)) term, which is
+    ! O(x_max**2) relative and stays below 1e-9 out to x_max = 1e-4, so the
+    ! window can be widened freely.  A span of two e-folds keeps an order of
+    ! margin over the measured sampling noise without approaching that limit.
+    ! A fixed sample count cannot do this: it inherits whatever spacing the
+    ! caller's pitch grid happens to have.
+    real(dp), parameter, public :: SEPARATRIX_FIT_LOG_SPAN = 2.0_dp
+    integer, parameter :: SEPARATRIX_FIT_TERMS = 4
 
     type, public :: separatrix_model_t
         real(dp) :: tau(4) = 0.0_dp
-        real(dp) :: drift(4) = 0.0_dp
+        real(dp) :: numerator(4) = 0.0_dp
         real(dp) :: xscale = 0.0_dp
         real(dp) :: tau_relative_rms = huge(1.0_dp)
-        real(dp) :: drift_relative_rms = huge(1.0_dp)
+        real(dp) :: numerator_relative_rms = huge(1.0_dp)
         logical :: valid = .false.
     end type separatrix_model_t
 
@@ -35,39 +65,46 @@ module neort_separatrix
 contains
 
     subroutine fit_separatrix_model(x, tau_values, drift_values, model, ok)
+        ! drift_values are bounce averages, i.e. already divided by the bounce
+        ! time.  The endpoint form holds for the un-normalised integral, so
+        ! the numerator is reconstructed here and fitted on the same basis.
         real(dp), intent(in) :: x(:), tau_values(:), drift_values(:)
         type(separatrix_model_t), intent(out) :: model
         logical, intent(out) :: ok
 
         real(dp), allocatable :: selected_x(:), selected_tau(:), selected_drift(:)
-        real(dp) :: design(size(x), 4)
-        real(dp) :: tau_coeff(4), drift_coeff(4)
-        real(dp) :: tau_leading(2), drift_leading(2)
-        real(dp) :: tau_rms, drift_rms
+        real(dp), allocatable :: selected_numerator(:)
+        real(dp) :: design(size(x), SEPARATRIX_FIT_TERMS)
+        real(dp) :: tau_coeff(SEPARATRIX_FIT_TERMS), num_coeff(SEPARATRIX_FIT_TERMS)
+        real(dp) :: tau_leading(2), num_leading(2)
+        real(dp) :: tau_rms, num_rms, xscale
         integer :: selected, k, nfit, first_window
-        logical :: full_ok, tau_ok, drift_ok
+        logical :: full_ok, tau_ok, num_ok
 
         model = separatrix_model_t()
         ok = .false.
         if (size(x) /= size(tau_values) .or. size(x) /= size(drift_values)) return
-        if (size(x) < 4) return
+        if (size(x) < SEPARATRIX_FIT_TERMS) return
 
         allocate(selected_x(size(x)), selected_tau(size(x)), selected_drift(size(x)))
+        allocate(selected_numerator(size(x)))
         call select_nearest_boundary(x, tau_values, drift_values, selected_x, &
             selected_tau, selected_drift, selected)
-        if (selected < 4) return
+        if (selected < SEPARATRIX_FIT_TERMS) return
+        selected_numerator = selected_drift*selected_tau
+
+        first_window = resolved_window(selected_x, selected)
 
         ! The smallest samples can be under-resolved by the orbit quadrature
         ! and can reverse the physical positive logarithmic trend.  Increase
         ! the boundary window until the same asymptotic model is resolved;
         ! no fixed outer cutoff or hand-tuned coefficient is introduced.
-        first_window = min(SEPARATRIX_FIT_POINTS, selected)
         do nfit = first_window, selected
-            model%xscale = maxval(selected_x(1:nfit))
-            if (.not. ieee_is_finite(model%xscale) .or. model%xscale <= 0.0_dp) cycle
+            xscale = maxval(selected_x(1:nfit))
+            if (.not. ieee_is_finite(xscale) .or. xscale <= 0.0_dp) cycle
 
             do k = 1, nfit
-                associate (z => selected_x(k)/model%xscale)
+                associate (z => selected_x(k)/xscale)
                     design(k, 1) = log(1.0_dp/z)
                     design(k, 2) = 1.0_dp
                     design(k, 3) = z*design(k, 1)
@@ -76,43 +113,59 @@ contains
             end do
 
             call least_squares(design, selected_tau, nfit, tau_coeff, tau_ok, tau_rms)
-            call least_squares(design, selected_drift, nfit, drift_coeff, drift_ok, drift_rms)
-            full_ok = tau_ok .and. drift_ok .and. all(ieee_is_finite(tau_coeff)) .and. &
-                all(ieee_is_finite(drift_coeff)) .and. tau_coeff(1) > 0.0_dp
+            call least_squares(design, selected_numerator, nfit, num_coeff, &
+                num_ok, num_rms)
+            full_ok = tau_ok .and. num_ok .and. all(ieee_is_finite(tau_coeff)) .and. &
+                all(ieee_is_finite(num_coeff)) .and. tau_coeff(1) > 0.0_dp
             if (.not. full_ok) then
                 ! The correction columns are below the numerical resolution
                 ! of this window, or their unconstrained fit stole the
                 ! positive logarithmic coefficient.  Retain the same
-                ! boundary window and use the resolved leading model.
+                ! boundary window and use the resolved leading model, which
+                ! still gives the ratio its finite separatrix limit.
                 call least_squares(design(:, 1:2), selected_tau, nfit, &
                     tau_leading, tau_ok, tau_rms)
-                if (maxval(abs(selected_drift(1:nfit))) <= tiny(1.0_dp)) then
-                    drift_leading = 0.0_dp
-                    drift_ok = .true.
-                    drift_rms = 0.0_dp
-                else
-                    call least_squares(design(:, 1:2), selected_drift, nfit, &
-                        drift_leading, drift_ok, drift_rms)
-                end if
-                if (.not. tau_ok .or. .not. drift_ok .or. &
+                call least_squares(design(:, 1:2), selected_numerator, nfit, &
+                    num_leading, num_ok, num_rms)
+                if (.not. tau_ok .or. .not. num_ok .or. &
                         .not. all(ieee_is_finite(tau_leading)) .or. &
-                        .not. all(ieee_is_finite(drift_leading)) .or. &
+                        .not. all(ieee_is_finite(num_leading)) .or. &
                         tau_leading(1) <= 0.0_dp) cycle
                 tau_coeff = [tau_leading(1), tau_leading(2), 0.0_dp, 0.0_dp]
-                drift_coeff = [drift_leading(1), drift_leading(2), 0.0_dp, 0.0_dp]
+                num_coeff = [num_leading(1), num_leading(2), 0.0_dp, 0.0_dp]
             end if
-            if (.not. all(ieee_is_finite(tau_coeff)) .or. &
-                    .not. all(ieee_is_finite(drift_coeff))) cycle
 
+            model%xscale = xscale
             model%tau = tau_coeff
-            model%drift = drift_coeff
+            model%numerator = num_coeff
             model%tau_relative_rms = tau_rms
-            model%drift_relative_rms = drift_rms
+            model%numerator_relative_rms = num_rms
             model%valid = .true.
             ok = .true.
             return
         end do
+        ! No window produced a usable model.  Leave xscale at zero so callers
+        ! that gate on x <= xscale fall back to their own representation
+        ! instead of entering an invalid model.
+        model = separatrix_model_t()
     end subroutine fit_separatrix_model
+
+    pure function resolved_window(selected_x, selected) result(nfit)
+        ! Smallest sample count that both spans SEPARATRIX_FIT_LOG_SPAN and
+        ! leaves the fit over-determined, so that its residual is a residual
+        ! and not an artefact of an exactly determined system.
+        real(dp), intent(in) :: selected_x(:)
+        integer, intent(in) :: selected
+        integer :: nfit, k
+
+        nfit = selected
+        do k = min(SEPARATRIX_FIT_TERMS + 1, selected), selected
+            if (log(selected_x(k)/selected_x(1)) >= SEPARATRIX_FIT_LOG_SPAN) then
+                nfit = k
+                return
+            end if
+        end do
+    end function resolved_window
 
     subroutine evaluate_separatrix_model(model, x, tau, dtau_dx, omega, &
             domega_dx, drift, ddrift_dx, ok)
@@ -133,8 +186,8 @@ contains
         if (x <= 0.0_dp .or. x > model%xscale) return
         z = x/model%xscale
         call neort_separatrix_frequency_kernel(z, model%tau(1), model%tau(2), &
-            model%tau(3), model%tau(4), model%drift(1), model%drift(2), &
-            model%drift(3), model%drift(4), tau, dtau_dz, omega, domega_dz, &
+            model%tau(3), model%tau(4), model%numerator(1), model%numerator(2), &
+            model%numerator(3), model%numerator(4), tau, dtau_dz, omega, domega_dz, &
             drift, ddrift_dz)
         dtau_dx = dtau_dz/model%xscale
         domega_dx = domega_dz/model%xscale
