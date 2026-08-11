@@ -5,7 +5,7 @@
 !
   module find_all_roots_mod
     logical :: customgrid=.false.
-    integer :: nroots, nsearch_min=100, ncustom, niter=100
+    integer :: nroots, nsearch_min=400, ncustom, niter=100
     double precision :: relerr_allroots=1.d-12
     double precision, dimension(:), allocatable :: xcustom,roots
 ! Root-search state is per caller. Energy slices set their own custom grid and

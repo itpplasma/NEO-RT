@@ -7,7 +7,7 @@ program potato_resonance_probe
     use form_classes_doublecount_mod, only : nclasses, ifuntype, sigma_class, &
         R_class_beg, R_class_end
     use get_matrix_mod, only : iclass
-    use sample_matrix_mod, only : n1, npoi, xarr
+    use sample_matrix_mod, only : n1, npoi, xarr, sample_matrix_grid_usable
     use phielec_of_psi_mod, only : polyphi, polydens, polytemp
     use potato_input_mod, only : read_potato_input, E_alpha, A_alpha, Z_alpha, &
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, Rmax_orbit, &
@@ -77,7 +77,7 @@ program potato_resonance_probe
 
     do iclass = 1, nclasses
         call sample_class_doublecount(1, ierr)
-        if (ierr /= 0) then
+        if (.not. sample_matrix_grid_usable(ierr)) then
             write(unit_out, '(A,I0,A,I0)') "# class_error iclass=", iclass, &
                 " ierr=", ierr
             cycle
