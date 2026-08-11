@@ -41,6 +41,7 @@ module neort_orbit_classes
     public :: select_orbit_class
     public :: select_global_passing
     public :: find_periodic_extrema
+    public :: find_periodic_well_barriers
 
 contains
 
@@ -53,14 +54,18 @@ contains
         integer :: nmin, nmax, k, minimum_count, maximum_count
         real(dp) :: b_refined, theta_refined
         real(dp) :: maxima_value(NTH_CLASS_SCAN)
+        real(dp) :: sampled_barrier(NTH_CLASS_SCAN)
         integer :: previous_max, next_max
+        logical :: barriers_valid
 
         do k = 1, NTH_CLASS_SCAN
             theta(k) = -pi + 2.0_dp*pi*real(k - 1, dp)/real(NTH_CLASS_SCAN, dp)
             bmod(k) = field_strength(s, theta(k))
         end do
 
-        call find_periodic_extrema(bmod, minima, maxima, nmin, nmax)
+        call find_periodic_well_barriers(bmod, minima, maxima, sampled_barrier, &
+            nmin, nmax, barriers_valid)
+        if (.not. barriers_valid) error stop "magnetic field has no resolvable periodic barrier"
         minimum_count = 0
         maximum_count = 0
         do k = 1, NTH_CLASS_SCAN
@@ -97,6 +102,9 @@ contains
                 theta_refined, b_refined)
             previous_max = neighboring_maximum(minima_index(k), -1, maxima)
             next_max = neighboring_maximum(minima_index(k), 1, maxima)
+            if (previous_max == 0 .or. next_max == 0) then
+                error stop "magnetic well has no neighboring barrier"
+            end if
             classes(k)%theta_min = theta_refined
             classes(k)%Bmin = b_refined
             classes(k)%Bbarrier = min(maxima_value(previous_max), maxima_value(next_max))
@@ -142,6 +150,31 @@ contains
             end if
         end do
     end subroutine find_periodic_extrema
+
+    pure subroutine find_periodic_well_barriers(bmod, minima, maxima, barriers, &
+            nmin, nmax, valid)
+        real(dp), intent(in) :: bmod(:)
+        logical, intent(out) :: minima(:), maxima(:)
+        real(dp), intent(out) :: barriers(:)
+        integer, intent(out) :: nmin, nmax
+        logical, intent(out) :: valid
+        integer :: k, previous_max, next_max
+
+        barriers = 0.0_dp
+        call find_periodic_extrema(bmod, minima, maxima, nmin, nmax)
+        valid = size(barriers) == size(bmod) .and. nmin > 0 .and. nmax > 0
+        if (.not. valid) return
+        do k = 1, size(bmod)
+            if (.not. minima(k)) cycle
+            previous_max = neighboring_maximum(k, -1, maxima)
+            next_max = neighboring_maximum(k, 1, maxima)
+            if (previous_max == 0 .or. next_max == 0) then
+                valid = .false.
+                return
+            end if
+            barriers(k) = min(bmod(previous_max), bmod(next_max))
+        end do
+    end subroutine find_periodic_well_barriers
 
     integer function orbit_class_count()
         if (allocated(classes)) then
@@ -202,7 +235,7 @@ contains
         b_refined = field_strength(s, theta_refined)
     end subroutine refine_extremum
 
-    integer function neighboring_maximum(index, direction, maxima)
+    pure integer function neighboring_maximum(index, direction, maxima)
         integer, intent(in) :: index, direction
         logical, intent(in) :: maxima(:)
         integer :: candidate, step
@@ -215,7 +248,7 @@ contains
                 return
             end if
         end do
-        error stop "magnetic well has no neighboring barrier"
+        neighboring_maximum = 0
     end function neighboring_maximum
 
     pure integer function periodic_index(index, n)
