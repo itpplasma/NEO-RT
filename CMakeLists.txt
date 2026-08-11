@@ -66,6 +66,12 @@ endif()
 
 option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${NEORT_IS_STANDALONE})
 
+# Symbolic generators are consumer-owned and optional.  The generated kernels
+# are committed and are all that a normal NEO-RT build needs.  Set
+# FORTSYM_SOURCE_DIR to the local fortsym checkout when regenerating them.
+option(NEORT_BUILD_SYMBOLICS "Build NEO-RT fortsym generators" OFF)
+set(FORTSYM_SOURCE_DIR "" CACHE PATH "fortsym source tree for NEO-RT generators")
+
 if(DEFINED BUILD_TESTING)
     set(NEORT_BUILD_TESTING ${BUILD_TESTING})
 endif()
@@ -112,6 +118,8 @@ set(NEO_RT_SOURCES
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
+    src/generated/neort_separatrix_frequency_symbolic.f90
+    src/separatrix.f90
     src/shaing.f90
     src/transport.f90
     src/util.f90
@@ -177,6 +185,10 @@ endif()
 
 # Diagnostics
 add_subdirectory(src/diag)
+
+if(NEORT_BUILD_SYMBOLICS)
+    add_subdirectory(tools/symbolics)
+endif()
 
 add_executable(neo_rt_diag.x
     src/diag/neort_diag.f90

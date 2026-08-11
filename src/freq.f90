@@ -4,6 +4,8 @@ module neort_freq
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
+    use neort_separatrix, only: separatrix_model_t, fit_separatrix_model, &
+        evaluate_separatrix_model
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
         magdrift_passing, &
@@ -24,8 +26,7 @@ module neort_freq
     real(dp), allocatable :: Omth_pass_spl_coeff(:, :)
     real(dp), allocatable :: vres_pass_spl_coeff(:, :)
 
-    real(dp) :: k_taub_p=0.0_dp, d_taub_p=0.0_dp, k_taub_t=0.0_dp, d_taub_t=0.0_dp ! extrapolation at tp bound
-    real(dp) :: k_OmtB_p=0.0_dp, d_Omtb_p=0.0_dp, k_Omtb_t=0.0_dp, d_Omtb_t=0.0_dp ! extrapolation at tp bound
+    type(separatrix_model_t) :: separatrix_trapped, separatrix_passing
 
     ! Initialization flags for threadprivate allocatable arrays
     logical :: freq_trapped_initialized = .false.
@@ -39,8 +40,7 @@ module neort_freq
     !$omp threadprivate (freq_thread_init_state)
     !$omp threadprivate (OmtB_spl_coeff, Omth_spl_coeff, vres_spl_coeff)
     !$omp threadprivate (OmtB_pass_spl_coeff, Omth_pass_spl_coeff, vres_pass_spl_coeff)
-    !$omp threadprivate (k_taub_p, d_taub_p, k_taub_t, d_taub_t)
-    !$omp threadprivate (k_OmtB_p, d_Omtb_p, k_Omtb_t, d_Omtb_t)
+    !$omp threadprivate (separatrix_trapped, separatrix_passing)
 
 contains
 
@@ -49,24 +49,19 @@ contains
         ! Must be called once per thread before using frequency routines
         freq_trapped_initialized = .false.
         freq_passing_initialized = .false.
-        k_taub_p = 0.0_dp
-        d_taub_p = 0.0_dp
-        k_taub_t = 0.0_dp
-        d_taub_t = 0.0_dp
-        k_OmtB_p = 0.0_dp
-        d_Omtb_p = 0.0_dp
-        k_Omtb_t = 0.0_dp
-        d_Omtb_t = 0.0_dp
+        separatrix_trapped = separatrix_model_t()
+        separatrix_passing = separatrix_model_t()
     end subroutine freq_thread_init
 
     subroutine init_canon_freq_trapped_spline
         ! Initialise splines for canonical frequencies of trapped orbits
 
         real(dp) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
+        real(dp) :: taub_v(netaspl)
         integer :: k
         real(dp) :: aa, b
-        real(dp) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
         real(dp) :: v, eta, taub, taub_est, bounceavg(nvar)
+        logical :: fit_ok
 
         ! Auto-initialize threadprivate state if not yet done for this thread
         if (freq_thread_init_state /= FREQ_INIT_SENTINEL) then
@@ -76,13 +71,6 @@ contains
 
         call trace('init_canon_freq_trapped_spline')
 
-        taub0 = 0.0_dp
-        taub1 = 0.0_dp
-        leta0 = 0.0_dp
-        leta1 = 0.0_dp
-        OmtB0 = 0.0_dp
-        OmtB1 = 0.0_dp
-
         v = vth
         ! Start the spline knots where the spline is actually evaluated
         ! (eta > etatp*(1+epst_spl)); knots closer to the trapped-passing
@@ -90,6 +78,8 @@ contains
         ! cubic spline ring. The region below is covered by the log extrapolation.
         etamin = (1.0_dp + epst_spl) * etatp
         etamax = etatp + (etadt - etatp) * (1.0_dp - epsst_spl)
+        Om_tB_v = 0.0_dp
+        taub_v = 0.0_dp
      ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
         if (.not. freq_trapped_initialized) then
             if (allocated(Omth_spl_coeff)) deallocate(Omth_spl_coeff)
@@ -131,26 +121,16 @@ contains
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift) Om_tB_v(k + 1) = bounceavg(3)
+            taub_v(k + 1) = v*taub
             Omth_v(k + 1) = 2*pi/(v*taub)
-            if (k == 0) then
-                leta0 = log(eta - etatp)
-                taub0 = v*taub
-                if (magdrift) OmtB0 = Om_tB_v(k + 1)/Omth_v(k + 1)
-            end if
-            if (k == 1) then
-                leta1 = log(eta - etatp)
-                taub1 = v*taub
-                if (magdrift) OmtB1 = Om_tB_v(k + 1)/Omth_v(k + 1)
-            end if
         end do
 
-        k_taub_t = (taub1 - taub0)/(leta1 - leta0)
-        d_taub_t = taub0 - k_taub_t*leta0
+        call fit_separatrix_model((etarange - etatp)/etatp, taub_v, &
+            Om_tB_v, separatrix_trapped, fit_ok)
+        if (.not. fit_ok) error stop "trapped separatrix fit failed"
         Omth_spl_coeff = spline_coeff(etarange, Omth_v)
 
         if (magdrift) then
-            k_OmtB_t = (OmtB1 - OmtB0)/(leta1 - leta0)
-            d_OmtB_t = OmtB0 - k_OmtB_t*leta0
             OmtB_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
 
@@ -162,10 +142,11 @@ contains
         ! Initialise splines for canonical frequencies of passing orbits
 
         real(dp) :: etarange(netaspl_pass), Om_tB_v(netaspl_pass), Omth_v(netaspl_pass)
+        real(dp) :: taub_v(netaspl_pass)
         real(dp) :: aa, b
         integer :: k
-        real(dp) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
         real(dp) :: v, eta, taub, taub_est, bounceavg(nvar)
+        logical :: fit_ok
 
         ! Auto-initialize threadprivate state if not yet done for this thread
         if (freq_thread_init_state /= FREQ_INIT_SENTINEL) then
@@ -175,16 +156,11 @@ contains
 
         call trace('init_canon_freq_passing_spline')
 
-        taub0 = 0.0_dp
-        taub1 = 0.0_dp
-        leta0 = 0.0_dp
-        leta1 = 0.0_dp
-        OmtB0 = 0.0_dp
-        OmtB1 = 0.0_dp
-
         v = vth
         etamin = etatp*epssp_spl
         etamax = etatp
+        Om_tB_v = 0.0_dp
+        taub_v = 0.0_dp
         ! Allocate coefficient arrays for passing region splines (safe for undefined allocation status)
         if (.not. freq_passing_initialized) then
             if (allocated(Omth_pass_spl_coeff)) deallocate(Omth_pass_spl_coeff)
@@ -225,26 +201,16 @@ contains
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_passing_spline k=', k, ' eta=', eta, ' taub=', taub
             end if
             if (magdrift_passing > 0) Om_tB_v(k + 1) = bounceavg(3)
+            taub_v(k + 1) = v*taub
             Omth_v(k + 1) = 2*pi/(v*taub)
-            if (k == netaspl_pass - 2) then
-                leta0 = log(etatp - eta)
-                taub0 = v*taub
-                if (magdrift_passing > 0) OmtB0 = Om_tB_v(k + 1)/Omth_v(k + 1)
-            end if
-            if (k == netaspl_pass - 1) then
-                leta1 = log(etatp - eta)
-                taub1 = v*taub
-                if (magdrift_passing > 0) OmtB1 = Om_tB_v(k + 1)/Omth_v(k + 1)
-            end if
         end do
 
-        k_taub_p = (taub1 - taub0)/(leta1 - leta0)
-        d_taub_p = taub0 - k_taub_p*leta0
+        call fit_separatrix_model((etatp - etarange)/etatp, taub_v, &
+            Om_tB_v, separatrix_passing, fit_ok)
+        if (.not. fit_ok) error stop "passing separatrix fit failed"
         Omth_pass_spl_coeff = spline_coeff(etarange, Omth_v)
 
         if (magdrift_passing > 0) then
-            k_OmtB_p = (OmtB1 - OmtB0)/(leta1 - leta0)
-            d_OmtB_p = OmtB0 - k_OmtB_p*leta0
             OmtB_pass_spl_coeff = spline_coeff(etarange, Om_tB_v)
         end if
         call trace('init_canon_freq_passing_spline complete')
@@ -256,30 +222,42 @@ contains
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: OmtB, dOmtBdv, dOmtBdeta
         real(dp) :: splineval(3)
-        real(dp) :: Omth, dOmthdv, dOmthdeta
+        real(dp) :: x, tau_model, dtau_dx, omega_model, domega_dx
+        real(dp) :: drift_model, ddrift_dx
+        logical :: fit_ok
+        OmtB = 0.0_dp
+        dOmtBdv = 0.0_dp
+        dOmtBdeta = 0.0_dp
         if (eta > etatp) then
-            if (eta > etatp * (1 + epst_spl)) then
+            if (.not. magdrift) return
+            x = (eta - etatp)/etatp
+            if (x <= separatrix_trapped%xscale) then
+                call evaluate_separatrix_model(separatrix_trapped, x, tau_model, &
+                    dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
+                if (.not. fit_ok) error stop "trapped separatrix drift evaluation failed"
+                OmtB = v**2*drift_model
+                dOmtBdv = 2.0_dp*v*drift_model
+                dOmtBdeta = v**2*ddrift_dx/etatp
+                return
+            else
                 splineval = spline_val_0(OmtB_spl_coeff, eta)
-            else ! extrapolation
-                call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = sign_vpar * (k_OmtB_t * log(eta - etatp) + d_OmtB_t) * Omth / v
-                splineval(2) = sign_vpar * (Omth / v * k_OmtB_t / (eta - etatp) + &
-                                            dOmthdeta / v * (k_OmtB_t * log(eta - etatp) &
-                                                + d_OmtB_t))
             end if
         else if (magdrift_passing <= 0) then
             ! MARS-K has no passing magnetic-drift path; this reproduces that
             ! scope exactly rather than approximately.
             splineval = 0.0_dp
         else
-            if (eta < etatp * (1 - epsp_spl)) then
+            x = (etatp - eta)/etatp
+            if (x <= separatrix_passing%xscale) then
+                call evaluate_separatrix_model(separatrix_passing, x, tau_model, &
+                    dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
+                if (.not. fit_ok) error stop "passing separatrix drift evaluation failed"
+                OmtB = v**2*drift_model
+                dOmtBdv = 2.0_dp*v*drift_model
+                dOmtBdeta = -v**2*ddrift_dx/etatp
+                return
+            else
                 splineval = spline_val_0(OmtB_pass_spl_coeff, eta)
-            else ! extrapolation
-                call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-                splineval(1) = sign_vpar * (k_OmtB_p * log(etatp - eta) + d_OmtB_p) * Omth / v
-                splineval(2) = sign_vpar * (Omth / v * k_OmtB_p / (eta - etatp) + &
-                                            dOmthdeta / v * (k_OmtB_p * log(etatp - eta) &
-                                                + d_OmtB_p))
             end if
         end if
         OmtB = splineval(1) * v**2
@@ -341,20 +319,35 @@ contains
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: Omth, dOmthdv, dOmthdeta
         real(dp) :: splineval(3)
+        real(dp) :: x, tau_model, dtau_dx, omega_model, domega_dx
+        real(dp) :: drift_model, ddrift_dx
+        logical :: fit_ok
 
         if (eta > etatp) then
-            if (eta > etatp*(1 + epst_spl)) then
+            x = (eta - etatp)/etatp
+            if (x <= separatrix_trapped%xscale) then
+                call evaluate_separatrix_model(separatrix_trapped, x, tau_model, &
+                    dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
+                if (.not. fit_ok) error stop "trapped separatrix frequency evaluation failed"
+                Omth = sign_vpar*v*omega_model
+                dOmthdv = sign_vpar*omega_model
+                dOmthdeta = sign_vpar*v*domega_dx/etatp
+                return
+            else
                 splineval = spline_val_0(Omth_spl_coeff, eta)
-            else  ! extrapolation
-                splineval(1) = 2.0_dp * pi / (k_taub_t * log(eta - etatp) + d_taub_t)
-                splineval(2) = -splineval(1)**2 / (2.0_dp * pi) * k_taub_t / (eta - etatp)
             end if
         else
-            if (eta < etatp * (1 - epsp_spl)) then
+            x = (etatp - eta)/etatp
+            if (x <= separatrix_passing%xscale) then
+                call evaluate_separatrix_model(separatrix_passing, x, tau_model, &
+                    dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
+                if (.not. fit_ok) error stop "passing separatrix frequency evaluation failed"
+                Omth = sign_vpar*v*omega_model
+                dOmthdv = sign_vpar*omega_model
+                dOmthdeta = -sign_vpar*v*domega_dx/etatp
+                return
+            else
                 splineval = spline_val_0(Omth_pass_spl_coeff, eta)
-            else  ! extrapolation
-                splineval(1) = 2.0_dp * pi / (k_taub_p * log(etatp - eta) + d_taub_p)
-                splineval(2) = -splineval(1)**2 / (2.0_dp * pi) * k_taub_p / (eta - etatp)
             end if
         end if
         Omth = sign_vpar * splineval(1) * v

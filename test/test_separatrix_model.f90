@@ -1,0 +1,89 @@
+program test_separatrix_model
+    ! Independent manufactured oracle for the singular-fit algebra.  The
+    ! production orbit integrator supplies the sampled values; this test pins
+    ! the fit and its physical-distance derivatives against the known formula.
+    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use neort_separatrix, only: separatrix_model_t, fit_separatrix_model, &
+        evaluate_separatrix_model
+    implicit none
+
+    real(dp), parameter :: tau_coeff(4) = [2.3_dp, 0.7_dp, -0.4_dp, 1.1_dp]
+    real(dp), parameter :: drift_coeff(4) = [-0.8_dp, 0.2_dp, 0.6_dp, -0.3_dp]
+    real(dp), parameter :: sample_x(12) = [ &
+        1.0e-6_dp, 2.0e-6_dp, 4.0e-6_dp, 8.0e-6_dp, 1.6e-5_dp, 3.2e-5_dp, &
+        6.4e-5_dp, 1.28e-4_dp, 2.56e-4_dp, 5.12e-4_dp, 1.024e-3_dp, &
+        2.048e-3_dp]
+    real(dp) :: tau_values(size(sample_x)), drift_values(size(sample_x))
+    type(separatrix_model_t) :: model
+    logical :: ok
+    integer :: k
+
+    do k = 1, size(sample_x)
+        tau_values(k) = model_value(tau_coeff, sample_x(k))
+        drift_values(k) = model_value(drift_coeff, sample_x(k))
+    end do
+
+    call fit_separatrix_model(sample_x, tau_values, drift_values, model, ok)
+    if (.not. ok) error stop "manufactured separatrix fit was rejected"
+    if (model%tau_relative_rms > 1.0e-10_dp .or. &
+            model%drift_relative_rms > 1.0e-10_dp) then
+        error stop "manufactured separatrix fit residual is too large"
+    end if
+
+    do k = 1, 5
+        call check_point(model, 10.0_dp**real(k - 9, dp), tau_coeff, &
+            drift_coeff)
+    end do
+    write (*, '(a)') "PASS separatrix asymptotic fit"
+
+contains
+
+    subroutine check_point(model, x, tau_coeff, drift_coeff)
+        type(separatrix_model_t), intent(in) :: model
+        real(dp), intent(in) :: x, tau_coeff(4), drift_coeff(4)
+        real(dp) :: tau, dtau_dx, omega, domega_dx, drift, ddrift_dx
+        real(dp) :: want_tau, want_dtau, want_omega, want_domega
+        real(dp) :: want_drift, want_ddrift
+        logical :: good
+
+        call evaluate_separatrix_model(model, x, tau, dtau_dx, omega, &
+            domega_dx, drift, ddrift_dx, good)
+        if (.not. good) error stop "separatrix evaluation was rejected"
+        want_tau = model_value(tau_coeff, x)
+        want_dtau = model_derivative(tau_coeff, x)
+        want_omega = 2.0_dp*acos(-1.0_dp)/want_tau
+        want_domega = -2.0_dp*acos(-1.0_dp)*want_dtau/want_tau**2
+        want_drift = model_value(drift_coeff, x)
+        want_ddrift = model_derivative(drift_coeff, x)
+        if (abs(tau - want_tau) > 2.0e-9_dp*max(1.0_dp, abs(want_tau))) &
+            error stop "tau asymptotic value disagrees with oracle"
+        if (abs(dtau_dx - want_dtau) > 2.0e-6_dp*max(1.0_dp, abs(want_dtau))) &
+            error stop "tau asymptotic derivative disagrees with oracle"
+        if (abs(omega - want_omega) > 2.0e-9_dp*max(1.0_dp, abs(want_omega))) &
+            error stop "frequency asymptotic value disagrees with oracle"
+        if (abs(domega_dx - want_domega) > 2.0e-6_dp*max(1.0_dp, abs(want_domega))) &
+            error stop "frequency asymptotic derivative disagrees with oracle"
+        if (abs(drift - want_drift) > 2.0e-9_dp*max(1.0_dp, abs(want_drift))) &
+            error stop "drift asymptotic value disagrees with oracle"
+        if (abs(ddrift_dx - want_ddrift) > 2.0e-6_dp*max(1.0_dp, abs(want_ddrift))) &
+            error stop "drift asymptotic derivative disagrees with oracle"
+    end subroutine check_point
+
+    pure function model_value(coeff, x) result(value)
+        real(dp), intent(in) :: coeff(4), x
+        real(dp) :: value, log_distance
+
+        log_distance = log(1.0_dp/x)
+        value = coeff(1)*log_distance + coeff(2) + x * &
+            (coeff(3)*log_distance + coeff(4))
+    end function model_value
+
+    pure function model_derivative(coeff, x) result(value)
+        real(dp), intent(in) :: coeff(4), x
+        real(dp) :: value, log_distance
+
+        log_distance = log(1.0_dp/x)
+        value = -coeff(1)/x + coeff(3)*log_distance - coeff(3) + coeff(4)
+    end function model_derivative
+
+end program test_separatrix_model
