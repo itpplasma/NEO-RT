@@ -18,7 +18,7 @@
                                           itest_type, E_alpha, A_alpha, Z_alpha, &
                                           rho_pol, rho_pol_max, scalfac_energy, &
                                           scalfac_efield, Rmax_orbit, ntimstep, &
-                                          npoicut, m_min, m_max, n_tor, &
+                                          npoicut, plot_poicut, m_min, m_max, n_tor, &
                                           toten_plot, perpinv_plot, profile_file, &
                                           edge_extension, &
                                           input_clip_resonance_classes => clip_resonance_classes, &
@@ -38,7 +38,7 @@
   double precision,parameter  :: p_mass=1.6726d-24
   double precision,parameter  :: ev=1.6022d-12
 !
-  logical :: classes_talk,plot_orbits,compute_equibrium_profiles,compute_resonant_torque,plot_poicut
+  logical :: classes_talk,plot_orbits,compute_equibrium_profiles,compute_resonant_torque
   logical :: trace_single_orbit,freq_scan
 !
   integer          :: ifdir_type,ierr,m,iunit,i,log_u,invariant_unit
@@ -144,9 +144,6 @@
   polyphi = polyphi*Z_alpha*e_charge/(E_alpha*ev)
 !
 ! Find Poincare cut:
-!  plot_poicut=.true.
-  plot_poicut=.false.
-!
   call tee_message('Computing Poincare cut')
   call find_poicut(rho_pol_max,npoicut)
   call tee_message('Poincare cut done')
@@ -426,7 +423,7 @@ end subroutine test_prfs
         Rst=x(1)
         write(msg, '(A,3ES14.6)') &
           'R_cut_in < Rst < R_cut_out = ', &
-          rpc_arr(1), Rst, rpc_arr(npc)
+          rpc_arr(0), Rst, rpc_arr(npc)
         call tee_message(trim(msg))
         return
       endif

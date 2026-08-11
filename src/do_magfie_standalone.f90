@@ -634,6 +634,7 @@ module do_magfie_pert_mod
     real(dp), private, allocatable :: Bmnc(:), Bmns(:)
 
     integer :: ncol1, ncol2  ! number of columns in input file
+    integer :: inp_swi_pert = -1  ! negative inherits the axisymmetric switch
     integer :: mph  ! toroidal perturbation mode (threadprivate)
     integer :: mph_shared = 0  ! shared copy for namelist input (when pertfile=.false.)
 
@@ -667,11 +668,18 @@ contains
         ! Main thread only: Read perturbation Boozer file and prepare shared spline data
         ! This should be called ONCE before parallel region
         character(len=*), intent(in) :: path
-        integer :: j, k
+        integer :: input_switch, j, k
 
         ncol1 = 5
-        if (inp_swi == 8) ncol2 = 4 ! tok_circ
-        if (inp_swi == 9) ncol2 = 8 ! ASDEX
+        input_switch = resolved_perturbation_switch()
+        select case (input_switch)
+        case (8)
+            ncol2 = 4 ! tok_circ
+        case (9)
+            ncol2 = 8 ! ASDEX
+        case default
+            error stop "inp_swi_pert must resolve to 8 or 9"
+        end select
 
         ! allocates params, modes - SHARED arrays
         call boozer_read_pert(path)
@@ -763,17 +771,19 @@ contains
         complex(dp), intent(out) :: bamp
 
         real(dp) :: x1
+        integer :: input_switch
 
         ! safety measure in order not to extrapolate
         x1 = max(params(1, 1), x(1))
         x1 = min(params(nflux, 1), x1)
 
         ! calculate B-field from modes
-        if (inp_swi == 8) then
+        input_switch = resolved_perturbation_switch()
+        if (input_switch == 8) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
             Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
             bamp = sum(Bmnc * cos(modes(1, :, 1) * x(3)))
-        else if (inp_swi == 9) then
+        else if (input_switch == 9) then
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
             call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
             Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
@@ -783,6 +793,14 @@ contains
 
         s_prev = x1
     end subroutine do_magfie_pert_amp
+
+    integer function resolved_perturbation_switch()
+        if (inp_swi_pert < 0) then
+            resolved_perturbation_switch = inp_swi
+        else
+            resolved_perturbation_switch = inp_swi_pert
+        end if
+    end function resolved_perturbation_switch
 
     subroutine do_magfie_pert(x, bmod)
         real(dp), dimension(:), intent(in) :: x
