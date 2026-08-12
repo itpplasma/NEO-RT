@@ -1,10 +1,8 @@
 module neort_resonance
     use iso_fortran_env, only: dp => real64
     use ieee_arithmetic, only: ieee_is_finite
-    use neort_freq, only: Om_th, Om_ph, Om_tB
-    use neort_profiles, only: Om_tE
-    use do_magfie_mod, only: iota
-    use driftorbit, only: mth, mph, nlev, vth, sign_vpar, etatp, magdrift
+    use neort_freq, only: Om_th, Om_ph, Om_ph_passing_from_omth
+    use driftorbit, only: mth, mph, nlev, vth, sign_vpar, etatp
     implicit none
 
 contains
@@ -17,23 +15,15 @@ contains
         real(dp), intent(out) :: res, dresdeta
         real(dp) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
-        real(dp) :: OmtB, dOmtBdv, dOmtBdeta
 
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         if (eta <= etatp) then
             ! Om_ph repeats this Om_th call in the passing branch.  Expand
             ! that identity here so each residual evaluation computes the
-            ! expensive poloidal frequency only once.  Om_tB retains its own
-            ! separatrix extrapolation call when that path requires it.
-            Omph = Om_tE + Omth / iota
-            dOmphdv = dOmthdv / iota
-            dOmphdeta = dOmthdeta / iota
-            if (magdrift) then
-                call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
-                Omph = Omph + OmtB
-                dOmphdv = dOmphdv + dOmtBdv
-                dOmphdeta = dOmphdeta + dOmtBdeta
-            end if
+            ! expensive poloidal frequency only once. The shared completion
+            ! routine retains the passing magnetic-drift path exactly.
+            call Om_ph_passing_from_omth(v, eta, Omth, dOmthdv, dOmthdeta, &
+                Omph, dOmphdv, dOmphdeta)
         else
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         end if
