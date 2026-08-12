@@ -7,6 +7,7 @@ module neort
     use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
     use neort_transport, only: compute_transport_integral
+    use neort_orbit_classes, only: select_global_passing, select_orbit_class
     use do_magfie_mod, only: s
 
     implicit none
@@ -45,8 +46,11 @@ contains
 
         call debug('init')
         call init_flux_surface_average(s)
-        call init_canon_freq_trapped_spline
+        call select_global_passing()
+        sign_vpar = 1
         if (.not. nopassing) call init_canon_freq_passing_spline
+        call select_orbit_class(1)
+        call init_canon_freq_trapped_spline
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
@@ -54,21 +58,31 @@ contains
     end subroutine init
 
     pure subroutine set_to_trapped_region(eta_min, eta_max)
-        use driftorbit, only: epst, etatp, etadt
+        use, intrinsic :: ieee_arithmetic, only: ieee_next_after
+        use driftorbit, only: etatp, etadt
 
         real(dp), intent(out) :: eta_min, eta_max
 
-        eta_min = (1 + epst)*etatp
-        eta_max = (1 - epst)*etadt
+        ! The trapped-passing endpoint is open, but it has no physical
+        ! exclusion layer.  Use the adjacent representable values so the
+        ! asymptotic frequency model can search all the way to the boundary
+        ! without ever evaluating its logarithmic singularity at x=0.
+        eta_min = ieee_next_after(etatp, huge(etatp))
+        eta_max = ieee_next_after(etadt, etatp)
     end subroutine set_to_trapped_region
 
     pure subroutine set_to_passing_region(eta_min, eta_max)
-        use driftorbit, only: epsp, etatp
+        use, intrinsic :: ieee_arithmetic, only: ieee_next_after
+        use driftorbit, only: etatp
 
         real(dp), intent(out) :: eta_min, eta_max
 
-        eta_min = epsp*etatp
-        eta_max = (1 - epsp)*etatp
+        ! eta=0 and eta=etatp are both open endpoints.  Use the smallest
+        ! normal positive pitch at the unrelated eta=0 end so IEEE underflow
+        ! trapping is not triggered; the upper endpoint is the adjacent value
+        ! below the trapped-passing boundary.
+        eta_min = ieee_next_after(tiny(1.0_dp), etatp)
+        eta_max = ieee_next_after(etatp, 0.0_dp)
     end subroutine set_to_passing_region
 
     subroutine check_magfie(data)
@@ -156,8 +170,7 @@ contains
     end subroutine check_magfie
 
     subroutine compute_transport(result_)
-        use driftorbit, only: mth, M_t, R0, etamin, etamax, sign_vpar, nopassing, comptorque, &
-            dVds, mph, dOm_tEds, dM_tds, supban
+        use driftorbit, only: M_t, R0, comptorque, dVds, mph, dOm_tEds, dM_tds, supban
         use neort_profiles, only: Om_tE
         use do_magfie_mod, only: q
 
@@ -234,13 +247,16 @@ contains
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
         use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing, supban
+        use neort_orbit_classes, only: orbit_class_count, select_global_passing, select_orbit_class
 
         integer, intent(in) :: j
         real(dp), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
         type(transport_harmonic_t), intent(out) :: harmonic
 
         real(dp) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
+        real(dp) :: Dclass(2), Tclass
         real(dp) :: vminp, vmaxp, vmint, vmaxt
+        integer :: class_index, class_count
         character(len=256) :: buffer
 
         write(buffer, '(A,ES12.5,A,I0)') "compute_transport_harmonic: M_t = ", M_t, ", mth = ", j
@@ -266,9 +282,18 @@ contains
             ! captured across the thermal range.
             vmint = 0.01_dp * vth
             vmaxt = 5.0_dp * vth
-            sign_vpar = 1
-            call set_to_trapped_region(etamin, etamax)
-            call compute_transport_integral(vmint, vmaxt, vsteps, Drest, Trest)
+            class_count = orbit_class_count()
+            if (class_count < 1) error stop "orbit classes are not initialized"
+            do class_index = 1, class_count
+                call select_orbit_class(class_index)
+                call init_canon_freq_trapped_spline()
+                sign_vpar = 1
+                call set_to_trapped_region(etamin, etamax)
+                call compute_transport_integral(vmint, vmaxt, vsteps, Dclass, Tclass)
+                Drest = Drest + Dclass
+                Trest = Trest + Tclass
+            end do
+            call select_orbit_class(1)
             Dt = Dt + Drest
             Tt = Tt + Trest
 
@@ -289,6 +314,7 @@ contains
         end if
 
         ! Passing resonance (co-passing)
+        call select_global_passing()
         if (.not. nopassing) then
             sign_vpar = 1
             call set_to_passing_region(etamin, etamax)
@@ -307,9 +333,19 @@ contains
         end if
 
         ! Trapped resonance (trapped)
-        sign_vpar = 1
-        call set_to_trapped_region(etamin, etamax)
-        call compute_transport_integral(vmint, vmaxt, vsteps, Drest, Trest)
+        class_count = orbit_class_count()
+        if (class_count < 1) error stop "orbit classes are not initialized"
+        call select_global_passing()
+        do class_index = 1, class_count
+            call select_orbit_class(class_index)
+            call init_canon_freq_trapped_spline()
+            sign_vpar = 1
+            call set_to_trapped_region(etamin, etamax)
+            call compute_transport_integral(vmint, vmaxt, vsteps, Dclass, Tclass)
+            Drest = Drest + Dclass
+            Trest = Trest + Tclass
+        end do
+        call select_orbit_class(1)
         Dt = Dt + Drest
         Tt = Tt + Trest
 

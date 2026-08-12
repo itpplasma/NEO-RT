@@ -80,6 +80,21 @@ add_test(NAME test_resonance_oracle
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_separatrix_model
+    COMMAND ${CMAKE_BINARY_DIR}/test_separatrix_model.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+# test_separatrix_limit: needs a real equilibrium, so it runs on the base
+# example and compares the fitted separatrix limit with a direct do_magfie
+# evaluation of the drift integrand at the barrier top.
+add_test(NAME test_separatrix_limit
+    COMMAND ${CMAKE_BINARY_DIR}/test_separatrix_limit.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+add_test(NAME test_orbit_classes
+    COMMAND ${CMAKE_BINARY_DIR}/test_orbit_classes.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
