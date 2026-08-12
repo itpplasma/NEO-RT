@@ -76,6 +76,10 @@ add_test(NAME test_resonance_bracket
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_bracket.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_resonance_oracle
+    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
 add_test(NAME test_separatrix_model
     COMMAND ${CMAKE_BINARY_DIR}/test_separatrix_model.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

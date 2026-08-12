@@ -1,7 +1,7 @@
 module neort_resonance
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_next_after
     use iso_fortran_env, only: dp => real64
-    use neort_freq, only: Om_th, Om_ph
+    use neort_freq, only: Om_th, Om_ph, Om_ph_passing_from_omth
     use driftorbit, only: mth, mph, nlev, vth, sign_vpar, etatp
     implicit none
 
@@ -222,11 +222,23 @@ contains
         real(dp) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
 
-        call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-        residual = mth*Omth + mph*Omph
-        dresdv = mth*dOmthdv + mph*dOmphdv
-        dresdeta = mth*dOmthdeta + mph*dOmphdeta
+        if (eta <= etatp) then
+            ! Om_ph repeats Om_th in the passing branch. Complete the
+            ! canonical toroidal frequency from the value already computed;
+            ! this preserves the physical passing-drift switch and removes a
+            ! duplicate expensive orbit-frequency evaluation.
+            call Om_ph_passing_from_omth(v, eta, Omth, dOmthdv, dOmthdeta, &
+                Omph, dOmphdv, dOmphdeta)
+        else
+            call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+        end if
+        ! Keep the public cancellation ordering used by the independent
+        ! oracle. Fast builds may reassociate the expression, but this is the
+        ! numerically intended ordering of the residual and its derivative.
+        residual = mph*Omph + mth*Omth
+        dresdv = mph*dOmphdv + mth*dOmthdv
+        dresdeta = mph*dOmphdeta + mth*dOmthdeta
     end subroutine resonance_value
 
     subroutine resonance_eta(v, eta, residual, derivative)

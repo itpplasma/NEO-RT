@@ -317,6 +317,27 @@ contains
         end if
     end subroutine Om_ph
 
+    subroutine Om_ph_passing_from_omth(v, eta, Omth, dOmthdv, dOmthdeta, &
+            Omph, dOmphdv, dOmphdeta)
+        ! Complete the passing canonical toroidal frequency from one already
+        ! evaluated poloidal frequency.  This keeps the optimized resonance
+        ! residual consistent with Om_ph while preserving the independent
+        ! passing magnetic-drift switch.
+        real(dp), intent(in) :: v, eta, Omth, dOmthdv, dOmthdeta
+        real(dp), intent(out) :: Omph, dOmphdv, dOmphdeta
+        real(dp) :: OmtB, dOmtBdv, dOmtBdeta
+
+        Omph = Om_tE + Omth / iota
+        dOmphdv = dOmthdv / iota
+        dOmphdeta = dOmthdeta / iota
+        if (magdrift_passing > 0) then
+            call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+            Omph = Omph + OmtB
+            dOmphdv = dOmphdv + dOmtBdv
+            dOmphdeta = dOmphdeta + dOmtBdeta
+        end if
+    end subroutine Om_ph_passing_from_omth
+
     subroutine Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         ! returns canonical poloidal frequency
         ! and derivatives w.r.t. v and eta
