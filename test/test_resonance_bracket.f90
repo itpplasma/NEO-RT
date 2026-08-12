@@ -22,16 +22,16 @@ program test_resonance_bracket
     real(dp) :: eta_res(2), eta_mid, v
     real(dp) :: Omph, dOmphdv, dOmphdeta
     real(dp) :: Omth, dOmthdv, dOmthdeta
-    real(dp) :: residual, residual_scale
+    real(dp) :: residual, residual_scale, eta_ref, fa, fb, fm, a, b
+    integer :: kbis
     real(dp) :: roots(nlev, 3)
     integer :: nroots, trial_mth, trial_v
     logical :: found_root
 
-    call set_log_level(-1)  ! silence the expected bracket-failure warning
-
     call neort_init("driftorbit.in", "in_file")
     call neort_prepare_splines("plasma.in", "profile.in")
     call neort_setup_at_s(0.5_dp)
+    call set_log_level(-1)  ! silence the expected bracket-failure warning
 
     mth = 1
     v = vth
@@ -81,10 +81,47 @@ program test_resonance_bracket
     call Om_th(v, eta_res(1), Omth, dOmthdv, dOmthdeta)
     residual = mph * Omph + mth * Omth
     residual_scale = max(1.0_dp, abs(mph * Omph), abs(mth * Omth))
-    if (abs(residual) > 1.0e-9_dp * residual_scale) then
+    if (abs(residual) > max(1.0e-9_dp * residual_scale, &
+        8.0_dp * abs(eta_res(2)) * spacing(eta_res(1)))) then
         write(*,*) "zero-rotation residual and scale:", residual, residual_scale
         error stop "zero-rotation resonance residual is not converged"
     end if
 
+    ! Independent oracle: plain bisection over the same sign-changing
+    ! interval.  The production solver may use its analytic derivative, but
+    ! it must converge to the same simple root selected by the bracket.
+    a = roots(1, 1)
+    b = roots(1, 2)
+    call resonance_residual(v, a, fa)
+    call resonance_residual(v, b, fb)
+    do kbis = 1, 200
+        eta_ref = 0.5_dp * (a + b)
+        call resonance_residual(v, eta_ref, fm)
+        if (fa * fm <= 0.0_dp) then
+            b = eta_ref
+            fb = fm
+        else
+            a = eta_ref
+            fa = fm
+        end if
+    end do
+    eta_ref = 0.5_dp * (a + b)
+    if (abs(eta_res(1) - eta_ref) > 2.0e-12_dp * max(abs(eta_ref), tiny(1.0_dp))) then
+        write(*,*) 'production/oracle eta:', eta_res(1), eta_ref
+        error stop 'resonance root disagrees with independent bisection oracle'
+    end if
+
     print *, "test_resonance_bracket PASSED"
+
+contains
+
+    subroutine resonance_residual(v_, eta_, residual_)
+        real(dp), intent(in) :: v_, eta_
+        real(dp), intent(out) :: residual_
+        real(dp) :: Omph_, dOmphdv_, dOmphdeta_
+        real(dp) :: Omth_, dOmthdv_, dOmthdeta_
+        call Om_ph(v_, eta_, Omph_, dOmphdv_, dOmphdeta_)
+        call Om_th(v_, eta_, Omth_, dOmthdv_, dOmthdeta_)
+        residual_ = mph * Omph_ + mth * Omth_
+    end subroutine resonance_residual
 end program test_resonance_bracket
