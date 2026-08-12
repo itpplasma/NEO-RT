@@ -7,7 +7,7 @@ module neort_freq
     use neort_separatrix, only: separatrix_model_t, fit_separatrix_model, &
         evaluate_separatrix_model
     use neort_profiles, only: vth, Om_tE, dOm_tEds
-    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, epst, magdrift, &
+    use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
         magdrift_passing, &
         epssp_spl, epsp_spl, sign_vpar, sign_vpar_htheta, mph, nonlin, supban
     use shaing, only: omph_shaing
@@ -80,7 +80,8 @@ contains
         etamax = etatp + (etadt - etatp) * (1.0_dp - epsst_spl)
         Om_tB_v = 0.0_dp
         taub_v = 0.0_dp
-     ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
+        ! Allocate coefficient arrays for trapped region splines (safe for
+        ! undefined allocation status).
         if (.not. freq_trapped_initialized) then
             if (allocated(Omth_spl_coeff)) deallocate(Omth_spl_coeff)
             if (allocated(OmtB_spl_coeff)) deallocate(OmtB_spl_coeff)
@@ -304,7 +305,10 @@ contains
             Omph = Om_tE + Omth/iota
             dOmphdv = dOmthdv/iota
             dOmphdeta = dOmthdeta/iota
-            if (magdrift) then
+            ! Passing orbits have their own magnetic-drift switch, and Om_tB
+            ! honours it. Gating this branch on magdrift instead would drop
+            ! the passing drift whenever the two switches are set apart.
+            if (magdrift_passing > 0) then
                 call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
                 Omph = Omph + OmtB
                 dOmphdv = dOmphdv + dOmtBdv

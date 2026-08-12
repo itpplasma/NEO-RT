@@ -39,7 +39,6 @@ module driftorbit
 
     real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp   ! dist to tpb for spline
     real(dp), parameter :: epsst_spl = 1.0e-3_dp, epssp_spl = 1.0e-3_dp ! dist to deep for spline
-    real(dp), parameter :: epst = 1.0e-8_dp, epsp = 1.0e-8_dp ! smallest eta distance to tp bound
 
 
 

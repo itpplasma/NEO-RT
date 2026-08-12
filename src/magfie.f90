@@ -3,7 +3,8 @@ module neort_magfie
     use util, only: disp, pi
     use do_magfie_mod, only: do_magfie, eps, iota
     use neort_orbit, only: th0
-    use driftorbit, only: B0, Bmin, Bmax, etadt, etatp, dVds
+    use neort_orbit_classes, only: init_orbit_classes
+    use driftorbit, only: B0, Bmin, Bmax, dVds
     use logger, only: log_result
 
     implicit none
@@ -46,20 +47,13 @@ contains
             B0 = B0 + bmod*dth
             eps = eps - cos(x(3))*bmod*dth
 
-            ! TODO: do fine search for minima and maxima
-            if ((Bmin < 0) .or. (bmod < Bmin)) then
-                Bmin = bmod
-                th0 = x(3)
-            end if
-            if (bmod > Bmax) Bmax = bmod
         end do
 
         dVds = 2.0_dp * pi * dVds
         B0 = B0 / (2.0_dp * pi)
         eps = eps / (B0 * pi)
 
-        etatp = 1.0_dp / Bmax
-        etadt = 1.0_dp / Bmin
+        call init_orbit_classes(s)
 
         write(buffer, "(A,ES12.5)") " eps calc: ", eps
         call log_result(buffer)
