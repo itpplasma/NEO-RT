@@ -27,8 +27,12 @@ contains
         else
             call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         end if
-        res = mth * Omth + mph * Omph
-        dresdeta = mth * dOmthdeta + mph * dOmphdeta
+        ! Keep the historical/public ordering of the cancellation.  The
+        ! resonance oracle evaluates the public frequency path in this order,
+        ! and changing it under -ffast-math can move a poorly conditioned root
+        ! by several ulps even though the algebra is identical.
+        res = mph * Omph + mth * Omth
+        dresdeta = mph * dOmphdeta + mth * dOmthdeta
     end subroutine resonance_value
 
     subroutine driftorbit_coarse(v, eta_min, eta_max, roots, nroots)
