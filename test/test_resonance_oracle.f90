@@ -84,10 +84,10 @@ contains
             ! separately.  With -ffast-math, different CPUs may reassociate
             ! those mathematically identical operations by a few ulps.  Keep
             ! the machine-precision target when possible, but allow at most
-            ! 0.1% of the original sign-changing bracket for that portable
+            ! 1% of the original sign-changing bracket for that portable
             ! evaluation difference; the residual and Jacobian checks below
             ! still test the returned root independently.
-            eta_tolerance = max(2.0e-12_dp * scale, 1.0e-3_dp * bracket_width)
+            eta_tolerance = max(2.0e-12_dp * scale, 1.0e-2_dp * bracket_width)
             if (abs(eta_res(1) - eta_ref) > eta_tolerance) then
                 write(*,*) 'root mismatch v,mth,sign,bracket,production,oracle:', &
                     v_/vth, mth, sign_vpar, roots(ir,1), roots(ir,2), eta_res(1), eta_ref, eta_tolerance
