@@ -27,6 +27,18 @@ add_test(NAME test_neort_lib
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+add_test(NAME test_parallel_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_parallel_transport.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+set_tests_properties(test_parallel_transport PROPERTIES
+    ENVIRONMENT
+        "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
+    PROCESSORS 4
+    TIMEOUT 600
+)
+
 # test_chartmap_input: Boozer chartmap field I/O test (inp_swi=10).
 #
 # The reference chartmap fixture (test/fixtures/circ_chartmap.nc) was generated
