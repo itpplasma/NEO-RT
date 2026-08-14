@@ -17,7 +17,10 @@ module neort_transport
 
   implicit none
 
+  ! These values remain live while bounce_fast invokes timestep_transport.
+  ! Each transport worker needs an independent callback state.
   real(dp) :: Omth, dOmthdv, dOmthdeta
+  !$omp threadprivate (Omth, dOmthdv, dOmthdeta)
 
 contains
 
