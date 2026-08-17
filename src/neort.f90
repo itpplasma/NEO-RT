@@ -76,7 +76,8 @@ contains
         use do_magfie_mod, only: do_magfie, sign_theta, R0, a, psi_pr, iota, q, Bthcov, Bphcov, &
             dBthcovds, dBphcovds, eps
         use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
-        use driftorbit, only: B0, etatp, etadt, M_t, Om_tE, m0, pertfile, nonlin, epsmn, dVds
+        use driftorbit, only: B0, etatp, etadt, M_t, Om_tE, m0, pertfile, nonlin, &
+                              epsmn, pertfile_scale, dVds
 
         type(magfie_data_t), intent(out) :: data
 
@@ -139,7 +140,7 @@ contains
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
             if (pertfile) then
                 call do_magfie_pert_amp(x, bn)
-                bn = epsmn*bn/bmod
+                bn = pertfile_scale*bn/bmod
             else
                 bn = epsmn*exp(imun*m0*x(3))
             end if
