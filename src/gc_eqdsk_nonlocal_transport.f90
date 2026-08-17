@@ -223,6 +223,7 @@ module neort_gc_eqdsk_nonlocal_transport
         real(dp) :: field_scale = 1.0_dp
         real(dp) :: profile_electric_factor = 1.0_dp
         real(dp) :: profile_bfactor = 1.0_dp
+        real(dp) :: perturbation_scale = 1.0_dp ! scale loaded perturbation
         !! These are rho_tor bounds of the physical volume, not a profile
         !! interpolation cutoff.  The default includes the axis; profile
         !! inputs must cover the complete requested domain or initialization
@@ -3794,6 +3795,8 @@ contains
                     callback_status = GC_CYL_PERTURBATION_ERROR
                     return
                 end if
+                perturbation_amplitude = factory%options%perturbation_scale * &
+                    perturbation_amplitude
                 call evaluate_neort_full_fow_harmonic_integrand( &
                     factory%species%mass_g, factory%species%charge_esu, &
                     state%mu, field%bmod, launch%h0, potential, &

@@ -147,7 +147,7 @@ contains
             gc_eqdsk_nonlocal_species_t, &
             initialize_gc_eqdsk_nonlocal_transport
         use neort_gc_wall_context, only: configured_wall_file, configured_wall_units
-        use driftorbit, only: bfac, efac, m0, mph
+        use driftorbit, only: bfac, efac, m0, mph, pertfile_scale
         use neort_profiles, only: vth
         use util, only: c, mi, qi
         use iso_fortran_env, only: dp => real64
@@ -175,6 +175,7 @@ contains
         factory_options%field_scale = bfac
         factory_options%profile_electric_factor = efac
         factory_options%profile_bfactor = bfac
+        factory_options%perturbation_scale = pertfile_scale
         factory_options%reference_surface = s
         factory_options%residence_target_s_tor = s
         dispatch_options = gc_model2_transport_options_t()

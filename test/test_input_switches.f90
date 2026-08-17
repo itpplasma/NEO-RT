@@ -4,7 +4,8 @@ program test_input_switches
     use do_magfie_mod, only: axisymmetric_switch => inp_swi
     use do_magfie_pert_mod, only: perturbation_switch => inp_swi_pert
     use driftorbit, only: FREQUENCY_MODEL_BOOZER_THIN, FREQUENCY_MODEL_GC_FULL, &
-        configured_frequency_model => frequency_model
+        configured_frequency_model => frequency_model, &
+        configured_epsmn => epsmn, configured_pertfile_scale => pertfile_scale
 
     implicit none
 
@@ -47,6 +48,8 @@ program test_input_switches
     end if
 
     if (config%inp_swi_pert /= -1) error stop "perturbation switch default changed"
+    if (config%epsmn /= 1.0d0) error stop "epsmn default changed"
+    if (config%pertfile_scale /= 1.0d0) error stop "pertfile_scale default changed"
     if (perturbation_chart_is_compatible(11, 9)) then
         error stop "direct GEQDSK accepted a Boozer-angle perturbation"
     end if
@@ -71,9 +74,15 @@ program test_input_switches
     config%inp_swi = 10
     config%inp_swi_pert = 9
     config%pertfile = .true.
+    config%epsmn = 0.25d0
+    config%pertfile_scale = 2.0d0
     call set_config(config)
     if (axisymmetric_switch /= 10) error stop "axisymmetric switch not set"
     if (perturbation_switch /= 9) error stop "perturbation switch not set"
+    if (configured_epsmn /= 0.25d0) error stop "epsmn was not set"
+    if (configured_pertfile_scale /= 2.0d0) then
+        error stop "pertfile_scale was not set"
+    end if
 
     config = config_t()
     config%inp_swi = 9
@@ -95,6 +104,10 @@ program test_input_switches
     call read_and_set_config("input_switches.in")
     if (axisymmetric_switch /= 10) error stop "namelist axisymmetric switch not read"
     if (perturbation_switch /= 9) error stop "namelist perturbation switch not read"
+    if (configured_epsmn /= 0.25d0) error stop "namelist epsmn not read"
+    if (configured_pertfile_scale /= 2.0d0) then
+        error stop "namelist pertfile_scale not read"
+    end if
 
     call write_namelist("input_switches.in", .false., FREQUENCY_MODEL_GC_FULL)
     call read_and_set_config("input_switches.in")
@@ -121,6 +134,8 @@ contains
         write (u, '(A)') "&params"
         write (u, '(A)') "    qs = 1.0"
         write (u, '(A)') "    ms = 2.0"
+        write (u, '(A)') "    epsmn = 0.25"
+        write (u, '(A)') "    pertfile_scale = 2.0"
         if (present(selected_model)) then
             if (selected_model == FREQUENCY_MODEL_GC_FULL) then
                 write (u, '(A)') "    pertfile = .false."

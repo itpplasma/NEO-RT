@@ -29,6 +29,7 @@ module neort_transport
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
+        pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
         sign_vpar_htheta, sign_vpar, frequency_model, &
         FREQUENCY_MODEL_BOOZER_THIN, FREQUENCY_MODEL_GC_THIN, FREQUENCY_MODEL_GC_FULL
@@ -759,7 +760,7 @@ contains
         if (bmod <= 0.0_dp) return
         if (pertfile) then
             call do_magfie_pert_amp(position, field_amplitude)
-            amplitude = epsmn*field_amplitude/bmod
+            amplitude = pertfile_scale*field_amplitude/bmod
         else
             amplitude = epsmn*exp(imun*real(m0, dp)*position(3))
         end if
@@ -802,7 +803,7 @@ contains
         ! evaluate orbit averages of Hamiltonian perturbation
         if (pertfile) then
             call do_magfie_pert_amp(x, epsn)
-            epsn = epsmn * epsn / bmod
+            epsn = pertfile_scale * epsn / bmod
         else
             epsn = epsmn * exp(imun * m0 * y(1))
         end if

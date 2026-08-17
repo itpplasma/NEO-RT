@@ -19,6 +19,7 @@ module driftorbit
     ! Harmonics TODO: make dynamic, multiple harmonics
     ! Default values are overridden by config file in driftorbit_test:read_control
     real(dp) :: epsmn = 1.0_dp            ! perturbation amplitude B1/B0
+    real(dp) :: pertfile_scale = 1.0_dp   ! scale factor for perturbations read from file
     integer :: m0 = 1                 ! Boozer poloidal perturbation mode
     integer :: mth = 1                ! canonical poloidal mode
     logical :: magdrift = .true.      ! consider magnetic drift
@@ -65,7 +66,8 @@ module driftorbit
     !$omp threadprivate (mth, dVds, etadt, etatp, etamin, etamax)
     !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta)
 
-    ! Shared read-only configuration (NOT threadprivate): efac, epsmn, m0,
+    ! Shared read-only configuration (NOT threadprivate): efac, epsmn,
+    ! pertfile_scale, m0,
     ! magdrift, frequency_model, nopassing, pertfile, comptorque, nonlin, supban
 
 end module driftorbit

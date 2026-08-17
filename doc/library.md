@@ -134,7 +134,7 @@ Computes transport using `s`, `M_t`, `vth`, etc. from the config file or `config
 type :: config_t
     ! Same fields as the params namelist in <base>.in
     real(8) :: s, qs, ms
-    real(8) :: epsmn, mph
+    real(8) :: epsmn, pertfile_scale, mph
     real(8) :: bfac, efac
     real(8) :: M_t, vth
     real(8) :: vmax_over_vth

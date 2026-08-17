@@ -12,7 +12,8 @@ module neort_config
         real(dp) :: qs = 0.0_dp  ! particle charge / elementary charge !*!
         real(dp) :: ms = 0.0_dp  ! particle mass / u !*!
         real(dp) :: vth = 0.0_dp  ! thermal velocity / cm/s !*!
-        real(dp) :: epsmn = 0.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
+        real(dp) :: epsmn = 1.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
+        real(dp) :: pertfile_scale = 1.0_dp  ! scale factor for perturbations read from file
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
@@ -127,7 +128,7 @@ contains
         use do_magfie_mod, only: s, bfac, inp_swi, has_direct_eqdsk_gc
         use do_magfie_pert_mod, only: mph, set_mph, set_pert_angle_map_path, &
             perturbation_switch => inp_swi_pert
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, &
+        use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, frequency_model, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
@@ -142,6 +143,7 @@ contains
         M_t = config%M_t * config%efac / config%bfac
         vth = config%vth
         epsmn = config%epsmn
+        pertfile_scale = config%pertfile_scale
         m0 = config%m0
         mph = config%mph
         comptorque = config%comptorque
@@ -195,7 +197,7 @@ contains
         use do_magfie_mod, only: s, bfac, inp_swi, has_direct_eqdsk_gc
         use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert, &
             set_pert_angle_map_path
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, &
+        use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, frequency_model, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
@@ -212,7 +214,7 @@ contains
         character(len=1024) :: wall_file
         character(len=16) :: wall_units
 
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
+        namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, supban, &
             magdrift, magdrift_passing, frequency_model, nopassing, noshear, pertfile, &
             nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, &
