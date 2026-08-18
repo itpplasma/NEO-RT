@@ -92,7 +92,6 @@ contains
         config%vsteps = 32
         config%mth_max_abs = -1
         config%vmax_over_vth = 4.0_dp
-        config%k_nc = 1.17_dp
         config%log_level = -1
         config%output_format = "text"
 
@@ -152,20 +151,15 @@ contains
         if (.not. result%torque%has_offset) then
             error stop "offset response missing on circular torque test"
         end if
-        if (.not. result%torque%has_k_na) then
-            error stop "KNA response missing on circular torque test"
-        end if
-
         D11 = sum([result%summary%Dco(1), result%summary%Dctr(1), &
             result%summary%Dt(1)])
         D12 = sum([result%summary%Dco(2), result%summary%Dctr(2), &
             result%summary%Dt(2)])
-        expected_k_na = D12 / D11 - 2.5_dp + &
-            result%torque%geometry_factor * result%torque%k_nc
-        if (abs(result%torque%k_na - expected_k_na) > 1.0e-12_dp * &
+        expected_k_na = D12 / D11 - 2.5_dp
+        if (abs(result%torque%k_na_transport - expected_k_na) > 1.0e-12_dp * &
             max(1.0_dp, abs(expected_k_na))) then
-            print *, "KNA mismatch on circular surface", surface
-            error stop "KNA does not match the force-flux oracle"
+            print *, "KNA transport mismatch on circular surface", surface
+            error stop "KNA transport does not match the force-flux oracle"
         end if
 
         delta_omega = result%torque%Om_tE - result%torque%Om_tE_offset
@@ -206,18 +200,10 @@ contains
             torque_total(actual), surface, round, failures_)
         call check_logical("offset available", expected%torque%has_offset, &
             actual%torque%has_offset, surface, round, failures_)
-        call check_logical("kNA available", expected%torque%has_k_na, &
-            actual%torque%has_k_na, surface, round, failures_)
         call check_real("kNA transport", expected%torque%k_na_transport, &
             actual%torque%k_na_transport, surface, round, failures_)
-        call check_real("kNA", expected%torque%k_na, actual%torque%k_na, &
-            surface, round, failures_)
         call check_real("Om_tE offset", expected%torque%Om_tE_offset, &
             actual%torque%Om_tE_offset, surface, round, failures_)
-        call check_real("Om_phi intrinsic", expected%torque%Om_phi_in, &
-            actual%torque%Om_phi_in, surface, round, failures_)
-        call check_real("Vphi intrinsic", expected%torque%Vphi_in, &
-            actual%torque%Vphi_in, surface, round, failures_)
     end subroutine compare_torque
 
     subroutine compare_harmonics(expected, actual, surface, round, failures_)

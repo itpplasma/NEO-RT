@@ -158,7 +158,7 @@ contains
 
     subroutine compute_transport(result_)
         use driftorbit, only: mth, M_t, R0, etamin, etamax, sign_vpar, nopassing, comptorque, &
-            dVds, mph, dOm_tEds, dM_tds, supban, k_nc
+            dVds, mph, dOm_tEds, dM_tds, supban
         use neort_profiles, only: Om_tE
         use do_magfie_mod, only: q
 
@@ -233,27 +233,17 @@ contains
             result_%torque%Tctr = 0.0_dp
             result_%torque%Tt = 0.0_dp
             result_%torque%has_offset = .false.
-            result_%torque%has_k_na = .false.
             result_%torque%k_na_transport = 0.0_dp
-            result_%torque%k_na = 0.0_dp
-            result_%torque%geometry_factor = 0.0_dp
-            result_%torque%k_nc = k_nc
             result_%torque%Om_tE_offset = 0.0_dp
-            result_%torque%Om_phi_in = 0.0_dp
-            result_%torque%Vphi_in = 0.0_dp
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
 
     subroutine compute_rotation_offsets(torque, Dco, Dctr, Dt)
         ! Convert the already computed non-ambipolar transport response into
-        ! rotation diagnostics.  The first offset is the zero of the local
-        ! force response at fixed resonant transport coefficients.  The second
-        ! is the intrinsic toroidal flow from the Kasilov closure and requires
-        ! k_nc = 5/2 - D32/D31 from an axisymmetric calculation.
-        use driftorbit, only: R0, B0, k_nc
-        use neort_profiles, only: A1, A2, Om_tE, Ti1, dTi1ds, qi
-        use do_magfie_mod, only: Bphcov, iota, psi_pr, q, sign_theta
+        ! the local rotation offset at fixed resonant transport coefficients.
+        use neort_profiles, only: A1, A2, Om_tE, Ti1, qi
+        use do_magfie_mod, only: psi_pr, q, sign_theta
         use util, only: c, ev
 
         type(torque_summary_t), intent(inout) :: torque
@@ -261,37 +251,17 @@ contains
 
         real(dp) :: D11, D12, D12_over_D11
         real(dp) :: dA1dOm, A1_zero
-        real(dp) :: geometry_factor
 
         D11 = Dco(1) + Dctr(1) + Dt(1)
         D12 = Dco(2) + Dctr(2) + Dt(2)
-        geometry_factor = 0.0_dp
-
         torque%has_offset = .false.
-        torque%has_k_na = .false.
         torque%k_na_transport = 0.0_dp
-        torque%k_na = 0.0_dp
-        torque%geometry_factor = 0.0_dp
-        torque%k_nc = k_nc
         torque%Om_tE_offset = 0.0_dp
-        torque%Om_phi_in = 0.0_dp
-        torque%Vphi_in = 0.0_dp
 
         if (D11 == 0.0_dp) return
 
         D12_over_D11 = D12 / D11
         torque%k_na_transport = D12_over_D11 - 2.5_dp
-
-        ! For the circular Boozer model B_phi is a flux function and
-        ! g_phi_phi is represented by R0**2.  This is the large-aspect-ratio
-        ! estimate of <B_phi**2>/(<B**2><g_phi_phi>) available from the
-        ! quantities already evaluated by NEO-RT.
-        if (B0 /= 0.0_dp) then
-            if (R0 /= 0.0_dp) then
-                geometry_factor = (Bphcov / (B0 * R0))**2
-                torque%geometry_factor = geometry_factor
-            end if
-        end if
 
         dA1dOm = 0.0_dp
         if (Ti1 /= 0.0_dp) then
@@ -305,16 +275,6 @@ contains
             torque%has_offset = .true.
         end if
 
-        if (k_nc < 0.0_dp) return
-
-        torque%k_na = torque%k_na_transport + geometry_factor * k_nc
-        if (qi == 0.0_dp .or. iota == 0.0_dp .or. psi_pr == 0.0_dp) return
-
-        ! Ti1 and dTi1ds are in eV; ev converts the gradient to erg per s.
-        torque%Om_phi_in = c * ev * torque%k_na * dTi1ds / &
-            (qi * sign_theta * iota * psi_pr)
-        torque%Vphi_in = R0 * torque%Om_phi_in
-        torque%has_k_na = .true.
     end subroutine compute_rotation_offsets
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
@@ -518,13 +478,10 @@ contains
             close (unit=unit1)
 
             open (unit=unit3, file=trim(adjustl(base_path))//"_offset_rotation.out", recl=1024)
-            write (unit3, *) "# s dVds M_t Om_tE kNA_transport kNA geometry_factor k_nc", &
-                " Om_tE_offset Om_phi_in Vphi_in has_offset has_kNA"
+            write (unit3, *) "# s dVds M_t Om_tE kNA_transport Om_tE_offset has_offset"
             write (unit3, *) data%torque%s, data%torque%dVds, data%torque%M_t, &
-                data%torque%Om_tE, data%torque%k_na_transport, data%torque%k_na, &
-                data%torque%geometry_factor, data%torque%k_nc, data%torque%Om_tE_offset, &
-                data%torque%Om_phi_in, data%torque%Vphi_in, data%torque%has_offset, &
-                data%torque%has_k_na
+                data%torque%Om_tE, data%torque%k_na_transport, data%torque%Om_tE_offset, &
+                data%torque%has_offset
             close (unit=unit3)
         end if
 

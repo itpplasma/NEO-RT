@@ -86,7 +86,7 @@ contains
         use do_magfie_mod, only: bfac, inp_swi
         use do_magfie_pert_mod, only: mph, inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, &
-            nopassing, pertfile, nonlin, efac, supban, k_nc
+            nopassing, pertfile, nonlin, efac, supban
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use util, only: qe, mu, qi, mi
@@ -116,8 +116,6 @@ contains
             comment="max |mth|; negative means q-dependent range")
         call h5_add(group_id, "vmax_over_vth", vmax_over_vth, unit="1", &
             comment="upper velocity cutoff / thermal velocity")
-        call h5_add(group_id, "k_nc", k_nc, unit="1", &
-            comment="5/2-D32/D31; negative means intrinsic-flow closure unavailable")
     end subroutine write_config_group
 
     subroutine write_magfie_group(group_id, data)
@@ -243,22 +241,10 @@ contains
             comment="trapped torque density dTphi_int/ds")
         call h5_add(group_id, "has_offset", data%torque%has_offset, &
             comment="E x B force-response offset is available")
-        call h5_add(group_id, "has_kNA", data%torque%has_k_na, &
-            comment="Kasilov intrinsic-flow closure is available")
         call h5_add(group_id, "kNA_transport", data%torque%k_na_transport, unit="1", &
-            comment="D12/D11 - 5/2")
-        call h5_add(group_id, "kNA", data%torque%k_na, unit="1", &
-            comment="Kasilov intrinsic-flow coefficient")
-        call h5_add(group_id, "geometry_factor", data%torque%geometry_factor, unit="1", &
-            comment="circular estimate of <B_phi^2>/(<B^2><g_phi_phi>)")
-        call h5_add(group_id, "k_nc", data%torque%k_nc, unit="1", &
-            comment="5/2-D32/D31 axisymmetric closure")
+            comment="D12/D11 - 5/2; transport contribution only")
         call h5_add(group_id, "Om_tE_offset", data%torque%Om_tE_offset, unit="1/s", &
             comment="zero of the local NEO-RT E x B force response")
-        call h5_add(group_id, "Om_phi_in", data%torque%Om_phi_in, unit="1/s", &
-            comment="intrinsic contravariant toroidal angular frequency")
-        call h5_add(group_id, "Vphi_in", data%torque%Vphi_in, unit="cm/s", &
-            comment="intrinsic frequency multiplied by reference major radius")
     end subroutine write_torque_group
 
     subroutine write_harmonics_group(group_id, data)

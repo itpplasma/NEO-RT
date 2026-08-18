@@ -50,15 +50,11 @@ module driftorbit
     ! Nonlinear calculation switch
     logical :: nonlin = .false.
 
-    ! Axisymmetric neoclassical coefficient used for the Kasilov intrinsic-flow
-    ! closure.  A negative value means that D31/D32 were not supplied.
-    real(dp) :: k_nc = -1.0_dp
-
     ! Flux-surface dependent and working variables (computed/modified per-thread)
     !$omp threadprivate (mth, dVds, etadt, etatp, etamin, etamax)
     !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta)
 
     ! Shared read-only configuration (NOT threadprivate): efac, epsmn, m0,
-    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban, k_nc
+    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban
 
 end module driftorbit

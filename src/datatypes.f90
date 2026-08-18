@@ -65,7 +65,6 @@ module neort_datatypes
     type :: torque_summary_t
         logical :: has_torque ! Flag: torque calculation enabled
         logical :: has_offset ! Flag: E x B offset frequency is available
-        logical :: has_k_na ! Flag: intrinsic-flow closure was supplied
         real(dp) :: s ! Normalised toroidal flux
         real(dp) :: dVds ! Derivative of flux-surface volume with respect to s
         real(dp) :: M_t ! Toroidal Mach number
@@ -74,12 +73,7 @@ module neort_datatypes
         real(dp) :: Tctr ! Torque density from counter-passing particles
         real(dp) :: Tt ! Torque density from trapped particles
         real(dp) :: k_na_transport ! D12/D11 - 5/2
-        real(dp) :: k_na ! Kasilov intrinsic-flow coefficient
-        real(dp) :: geometry_factor ! <B_phi^2>/(<B^2><g_phi_phi>) estimate
-        real(dp) :: k_nc ! 5/2 - D32/D31 supplied by the axisymmetric closure
         real(dp) :: Om_tE_offset ! Zero of the NEO-RT E x B force response [1/s]
-        real(dp) :: Om_phi_in ! Intrinsic toroidal angular frequency [1/s]
-        real(dp) :: Vphi_in ! Reference-radius intrinsic velocity [cm/s]
     end type torque_summary_t
 
     type :: transport_harmonic_t
