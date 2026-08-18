@@ -47,7 +47,6 @@ The solver writes a consistent set of text files for each run:
 - `<runname>_magfie_param.out` – Flux-surface magnetic parameters for verification.
 - `<runname>_magfie.out` – Magnetic-field samples along the Boozer poloidal angle.
 - `<runname>_torque.out` / `<runname>_torque_integral.out` – Torque diagnostics when enabled.
-- `<runname>_offset_rotation.out` – `E x B` offset and intrinsic-flow diagnostics when torque is enabled.
 
 Column definitions and units are tabulated in [Output file formats](file_formats.md).
 

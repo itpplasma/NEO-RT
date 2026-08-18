@@ -4,6 +4,9 @@ program test_parallel_transport
     use neort_datatypes, only: transport_harmonic_t
     use neort_lib, only: config_t, transport_data_t, neort_compute_at_s, &
         neort_init, neort_prepare_splines
+    use neort_profiles, only: A1, A2, Om_tE, Ti1, qi
+    use do_magfie_mod, only: psi_pr, q, sign_theta
+    use util, only: c, ev
     use omp_lib, only: omp_get_num_threads, omp_set_dynamic, &
         omp_set_num_threads
 
@@ -30,9 +33,6 @@ program test_parallel_transport
     do surface_index = 1, N_SURFACES
         call neort_compute_at_s( &
             SURFACES(surface_index), serial_results(surface_index))
-    end do
-
-    do surface_index = 1, N_SURFACES
         call check_offset_response(serial_results(surface_index), surface_index)
     end do
 
@@ -146,26 +146,24 @@ contains
         type(transport_data_t), intent(in) :: result
         integer, intent(in) :: surface
 
-        real(dp) :: D11, D12, expected_k_na, delta_omega, total_torque
+        real(dp) :: D11, D12, k_na, delta_omega, total_torque
+        real(dp) :: dA1dOm, expected_offset
 
-        if (.not. result%torque%has_offset) then
-            error stop "offset response missing on circular torque test"
-        end if
         D11 = sum([result%summary%Dco(1), result%summary%Dctr(1), &
             result%summary%Dt(1)])
         D12 = sum([result%summary%Dco(2), result%summary%Dctr(2), &
             result%summary%Dt(2)])
-        expected_k_na = D12 / D11 - 2.5_dp
-        if (abs(result%torque%k_na_transport - expected_k_na) > 1.0e-12_dp * &
-            max(1.0_dp, abs(expected_k_na))) then
-            print *, "KNA transport mismatch on circular surface", surface
-            error stop "KNA transport does not match the force-flux oracle"
+        if (D11 == 0.0_dp) error stop "D11 vanished on circular torque test"
+        if (Ti1 == 0.0_dp .or. q == 0.0_dp) then
+            error stop "invalid circular profile for offset test"
         end if
-
-        delta_omega = result%torque%Om_tE - result%torque%Om_tE_offset
+        k_na = D12 / D11 - 2.5_dp
+        dA1dOm = -qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c)
+        expected_offset = Om_tE + (-(k_na + 2.5_dp) * A2 - A1) / dA1dOm
+        delta_omega = Om_tE - expected_offset
         total_torque = torque_total(result)
         if (abs(delta_omega) > 1.0e-10_dp * &
-            max(1.0_dp, abs(result%torque%Om_tE))) then
+            max(1.0_dp, abs(Om_tE))) then
             if (abs(total_torque) > 1.0e-12_dp) then
                 if (total_torque * delta_omega >= 0.0_dp) then
                     print *, "torque", total_torque, "delta omega", delta_omega
@@ -188,8 +186,6 @@ contains
             actual%torque%dVds, surface, round, failures_)
         call check_real("torque M_t", expected%torque%M_t, &
             actual%torque%M_t, surface, round, failures_)
-        call check_real("torque Om_tE", expected%torque%Om_tE, &
-            actual%torque%Om_tE, surface, round, failures_)
         call check_real("torque Tco", expected%torque%Tco, &
             actual%torque%Tco, surface, round, failures_)
         call check_real("torque Tctr", expected%torque%Tctr, &
@@ -198,12 +194,6 @@ contains
             actual%torque%Tt, surface, round, failures_)
         call check_real("torque total", torque_total(expected), &
             torque_total(actual), surface, round, failures_)
-        call check_logical("offset available", expected%torque%has_offset, &
-            actual%torque%has_offset, surface, round, failures_)
-        call check_real("kNA transport", expected%torque%k_na_transport, &
-            actual%torque%k_na_transport, surface, round, failures_)
-        call check_real("Om_tE offset", expected%torque%Om_tE_offset, &
-            actual%torque%Om_tE_offset, surface, round, failures_)
     end subroutine compare_torque
 
     subroutine compare_harmonics(expected, actual, surface, round, failures_)

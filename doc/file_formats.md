@@ -84,20 +84,3 @@ Also written when `comptorque=.true.`. Appends one line per harmonic with:
 4. `Tt` – Trapped-particle contribution to the torque integral.
 
 The sum of the three torque components matches the values written in `<runname>_torque.out` once all harmonics have been processed.
-
-## `<runname>_offset_rotation.out`
-
-Written when `comptorque=.true.`. It contains one row per flux-surface run:
-
-1. `s` – Normalised toroidal flux.
-2. `dVds` – Flux-surface volume derivative `[cm^3]`.
-3. `M_t` – Toroidal Mach number.
-4. `Om_tE` – Current toroidal `E x B` angular frequency `[1/s]`.
-5. `kNA_transport` – NEO-RT contribution `D12/D11 - 5/2` (dimensionless).
-6. `Om_tE_offset` – Local zero of the NEO-RT `E x B` force response `[1/s]`.
-7. `has_offset` – `T`/`F` flag for `Om_tE_offset`.
-
-The same quantities are stored in the HDF5 `torque` group with units and
-comments attached to each dataset. The full Kasilov `kNA` can be reconstructed
-in post-processing once the geometry factor and axisymmetric `k_nc` closure are
-available.

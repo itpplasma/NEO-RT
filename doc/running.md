@@ -136,40 +136,8 @@ The solver writes the files described below:
 - `<runname>_magfie.out` – Field-line samples, basis vectors, and perturbation amplitudes along the poloidal angle.
 - `<runname>_torque.out` – Torque density components (only when `comptorque=.true.`).
 - `<runname>_torque_integral.out` – Harmonic-resolved torque contributions (only when `comptorque=.true.`).
-- `<runname>_offset_rotation.out` – Per-surface force-response offset and intrinsic-flow diagnostics (only when `comptorque=.true.`).
 
 Detailed column descriptions are provided in [`doc/file_formats.md`](file_formats.md). Utility scripts in `examples`, such as `plot_torque.py`, offer quick post-processing templates.
-
-## Offset rotation and `kNA`
-
-The torque calculation already evaluates the non-ambipolar force-flux response
-
-```text
-Gamma_NA = -n (D11 A1 + D12 A2).
-```
-
-The new `<runname>_offset_rotation.out` file reports two related quantities:
-
-- `Om_tE_offset` is the local zero of that response when the computed `D11`
-  and `D12` are held fixed. It is the toroidal `E x B` angular frequency in
-  `1/s` and can be compared directly with `magfie/Om_tE`.
-`kNA_transport` is the dimensionless NEO-RT contribution `D12/D11 - 5/2`.
-The full Kasilov coefficient additionally needs the axisymmetric closure
-`k_nc = 5/2-D32/D31` and the geometry factor
-`<B_phi^2>/(<B^2><g_phi_phi>)`; those are intentionally left to post-processing
-because NEO-RT does not have a general-equilibrium calculation of them. For a
-circular test only, the large-aspect-ratio geometry estimate can be formed as
-`(Bphcov/(B0*R0))**2` and combined with an independently supplied `k_nc`.
-
-The output therefore does not invent a general intrinsic linear velocity. If a
-post-processing calculation supplies the missing closure, the Kasilov
-contravariant velocity is a frequency in `1/s`; multiply by a specified length
-only when a linear velocity is required.
-The resonant transport coefficients themselves vary with `Om_tE`; therefore
-`Om_tE_offset` is a local force-response diagnostic, not a claim that a single
-full nonlinear rotation scan is globally affine. A below/at/above scan should
-evaluate the torque with the same setup at three requested rotation values when
-that nonlinear dependence matters.
 
 ## Diagnostics program
 

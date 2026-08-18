@@ -167,16 +167,12 @@ end type
 ```fortran
 type :: torque_summary_t
     logical :: has_torque  ! Torque calculation enabled
-    logical :: has_offset  ! E x B offset frequency is available
     real(8) :: s           ! Normalized toroidal flux
     real(8) :: dVds        ! dV/ds (flux surface volume derivative)
     real(8) :: M_t         ! Toroidal Mach number
-    real(8) :: Om_tE       ! Toroidal E x B rotation frequency [1/s]
     real(8) :: Tco         ! Torque from co-passing particles
     real(8) :: Tctr        ! Torque from counter-passing particles
     real(8) :: Tt          ! Torque from trapped particles
-    real(8) :: k_na_transport ! D12/D11 - 5/2
-    real(8) :: Om_tE_offset ! Local E x B force-response zero [1/s]
 end type
 ```
 

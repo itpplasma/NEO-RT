@@ -4,32 +4,32 @@ module neort_config
     implicit none
 
     type :: config_t
-        real(dp) :: s = 0.0_dp ! radial coordinate (flux surface)
-        real(dp) :: M_t = 0.0_dp ! Mach number (for single Mach no. run) !*!
-        real(dp) :: qs = 0.0_dp ! particle charge / elementary charge !*!
-        real(dp) :: ms = 0.0_dp ! particle mass / u !*!
-        real(dp) :: vth = 0.0_dp ! thermal velocity / cm/s !*!
-        real(dp) :: epsmn = 0.0_dp ! perturbation amplitude B1/B0 (if pertfile==F)
-        integer :: m0 = 0 ! poloidal perturbation mode (if pertfile==F)
-        integer :: mph = 0 ! toroidal perturbation mode (if pertfile==F, n>0!)
-        logical :: comptorque = .false. ! compute torque
-        logical :: supban = .false. ! Shaing superbanana-plateau (trapped ell=0) only
-        logical :: magdrift = .false. ! consider magnetic drift
+        real(dp) :: s = 0.0_dp  ! radial coordinate (flux surface)
+        real(dp) :: M_t = 0.0_dp  ! Mach number (for single Mach no. run) !*!
+        real(dp) :: qs = 0.0_dp  ! particle charge / elementary charge !*!
+        real(dp) :: ms = 0.0_dp  ! particle mass / u !*!
+        real(dp) :: vth = 0.0_dp  ! thermal velocity / cm/s !*!
+        real(dp) :: epsmn = 0.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
+        integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
+        integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
+        logical :: comptorque = .false.  ! compute torque
+        logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
+        logical :: magdrift = .false.  ! consider magnetic drift
         ! Negative means "follow magdrift", preserving every existing deck.
         integer :: magdrift_passing = -1
-        logical :: nopassing = .false. ! neglect passing particles
-        logical :: noshear = .false. ! neglect magnetic shear term with dqds
-        logical :: pertfile = .false. ! read perturbation from file
-        logical :: nonlin = .false. ! do nonlinear calculation
-        real(dp) :: bfac = 1.0_dp ! scale B field by factor
-        real(dp) :: efac = 1.0_dp ! scale E field by factor
-        integer :: inp_swi = 0 ! input switch for Boozer file
-        integer :: inp_swi_pert = -1 ! negative inherits inp_swi
-        integer :: vsteps = 0 ! integration steps in velocity space
+        logical :: nopassing = .false.  ! neglect passing particles
+        logical :: noshear = .false.  ! neglect magnetic shear term with dqds
+        logical :: pertfile = .false.  ! read perturbation from file
+        logical :: nonlin = .false.  ! do nonlinear calculation
+        real(dp) :: bfac = 1.0_dp  ! scale B field by factor
+        real(dp) :: efac = 1.0_dp  ! scale E field by factor
+        integer :: inp_swi = 0  ! input switch for Boozer file
+        integer :: inp_swi_pert = -1  ! negative inherits inp_swi
+        integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
-        real(dp) :: vmax_over_vth = 4.0_dp ! upper velocity cutoff / vth
-        integer :: log_level = 0 ! how much to log
-        character(len=8) :: output_format = "both" ! 'hdf5', 'text' or 'both'
+        real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
+        integer :: log_level = 0  ! how much to log
+        character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
 
