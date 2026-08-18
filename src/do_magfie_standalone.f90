@@ -394,6 +394,10 @@ contains
         cm_rho_max = d%rho(d%n_rho)
         n_s_aphi = d%n_s
         R0 = d%rmajor * 100.0_dp  ! m -> cm
+        a = d%aminor * 100.0_dp  ! m -> cm
+        if (a <= 0.0_dp) then
+            error stop "Boozer chartmap has no usable minor radius"
+        end if
         ! psi_pr stored globally; negate torflux to match the .bc sign convention
         ! (chartmap torflux > 0, .bc psi_pr = flux*1e8/(2*pi) < 0 for typical orientation).
         psi_pr = -d%torflux * bfac
