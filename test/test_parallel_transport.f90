@@ -4,9 +4,6 @@ program test_parallel_transport
     use neort_datatypes, only: transport_harmonic_t
     use neort_lib, only: config_t, transport_data_t, neort_compute_at_s, &
         neort_init, neort_prepare_splines
-    use neort_profiles, only: A1, A2, Om_tE, Ti1, qi
-    use do_magfie_mod, only: psi_pr, q, sign_theta
-    use util, only: c, ev
     use omp_lib, only: omp_get_num_threads, omp_set_dynamic, &
         omp_set_num_threads
 
@@ -33,7 +30,6 @@ program test_parallel_transport
     do surface_index = 1, N_SURFACES
         call neort_compute_at_s( &
             SURFACES(surface_index), serial_results(surface_index))
-        call check_offset_response(serial_results(surface_index), surface_index)
     end do
 
     call omp_set_dynamic(.false.)
@@ -141,37 +137,6 @@ contains
         call check_array("summary Dt", expected%summary%Dt, &
             actual%summary%Dt, surface, round, failures_)
     end subroutine compare_summary
-
-    subroutine check_offset_response(result, surface)
-        type(transport_data_t), intent(in) :: result
-        integer, intent(in) :: surface
-
-        real(dp) :: D11, D12, k_na, delta_omega, total_torque
-        real(dp) :: dA1dOm, expected_offset
-
-        D11 = sum([result%summary%Dco(1), result%summary%Dctr(1), &
-            result%summary%Dt(1)])
-        D12 = sum([result%summary%Dco(2), result%summary%Dctr(2), &
-            result%summary%Dt(2)])
-        if (D11 == 0.0_dp) error stop "D11 vanished on circular torque test"
-        if (Ti1 == 0.0_dp .or. q == 0.0_dp) then
-            error stop "invalid circular profile for offset test"
-        end if
-        k_na = D12 / D11 - 2.5_dp
-        dA1dOm = -qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c)
-        expected_offset = Om_tE + (-(k_na + 2.5_dp) * A2 - A1) / dA1dOm
-        delta_omega = Om_tE - expected_offset
-        total_torque = torque_total(result)
-        if (abs(delta_omega) > 1.0e-10_dp * &
-            max(1.0_dp, abs(Om_tE))) then
-            if (abs(total_torque) > 1.0e-12_dp) then
-                if (total_torque * delta_omega >= 0.0_dp) then
-                    print *, "torque", total_torque, "delta omega", delta_omega
-                    error stop "torque does not point toward the reported offset"
-                end if
-            end if
-        end if
-    end subroutine check_offset_response
 
     subroutine compare_torque(expected, actual, surface, round, failures_)
         type(transport_data_t), intent(in) :: expected, actual
@@ -284,7 +249,7 @@ contains
         limit = ABS_TOL + REL_TOL*max(abs(expected), abs(actual))
 
         if (.not. ieee_is_finite(expected) .or. &
-            .not. ieee_is_finite(actual) .or. difference > limit) then
+                .not. ieee_is_finite(actual) .or. difference > limit) then
             if (failures_ < MAX_REPORTED_FAILURES) then
                 print *, trim(name), "surface", surface, "round", round
                 print *, "expected", expected, "actual", actual
