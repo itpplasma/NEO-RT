@@ -39,6 +39,18 @@ set_tests_properties(test_parallel_transport PROPERTIES
     TIMEOUT 600
 )
 
+add_test(NAME test_circular_offset_rotation
+    COMMAND ${CMAKE_BINARY_DIR}/test_circular_offset_rotation.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+set_tests_properties(test_circular_offset_rotation PROPERTIES
+    ENVIRONMENT
+        "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
+    PROCESSORS 4
+    TIMEOUT 600
+)
+
 # test_chartmap_input: Boozer chartmap field I/O test (inp_swi=10).
 #
 # The reference chartmap fixture (test/fixtures/circ_chartmap.nc) was generated
