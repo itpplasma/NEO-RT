@@ -64,6 +64,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `vsteps` | Number of velocity grid points. | Set to `0` for adaptive quadrature. |
 | `mth_max_abs` | Maximum absolute orbit-resonance harmonic. | Default `-1` keeps the historical `±ceil(2\|mph q\|)` range; `0` selects only `mth=0`. |
 | `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
+| `k_nc` | Axisymmetric neoclassical closure `5/2-D32/D31`. | Optional. Set it when an axisymmetric calculation supplies the parallel-flow closure; `-1` (default) leaves the full intrinsic-flow `kNA` unavailable. For the circular example, `1.17` is the supplied closure. |
 | `inp_swi_pert` | Input format for `in_file_pert` with the standalone field reader. | Default `-1` inherits `inp_swi`; set `9` to combine an axisymmetric chartmap (`inp_swi=10`) with a Strumberger perturbation `.bc`. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
 
@@ -136,8 +137,45 @@ The solver writes the files described below:
 - `<runname>_magfie.out` – Field-line samples, basis vectors, and perturbation amplitudes along the poloidal angle.
 - `<runname>_torque.out` – Torque density components (only when `comptorque=.true.`).
 - `<runname>_torque_integral.out` – Harmonic-resolved torque contributions (only when `comptorque=.true.`).
+- `<runname>_offset_rotation.out` – Per-surface force-response offset and intrinsic-flow diagnostics (only when `comptorque=.true.`).
 
 Detailed column descriptions are provided in [`doc/file_formats.md`](file_formats.md). Utility scripts in `examples`, such as `plot_torque.py`, offer quick post-processing templates.
+
+## Offset rotation and `kNA`
+
+The torque calculation already evaluates the non-ambipolar force-flux response
+
+```text
+Gamma_NA = -n (D11 A1 + D12 A2).
+```
+
+The new `<runname>_offset_rotation.out` file reports two related quantities:
+
+- `Om_tE_offset` is the local zero of that response when the computed `D11`
+  and `D12` are held fixed. It is the toroidal `E x B` angular frequency in
+  `1/s` and can be compared directly with `magfie/Om_tE`.
+- `kNA` is the Kasilov intrinsic-flow coefficient. It is dimensionless and is
+  evaluated as `D12/D11 - 5/2 + geometry_factor*k_nc`. The full value is only
+  marked available when `k_nc = 5/2-D32/D31` is supplied by an axisymmetric
+  neoclassical calculation. `kNA_transport` is always the part available from
+  NEO-RT itself.
+
+`Om_phi_in` is the contravariant toroidal angular frequency of the intrinsic
+flow and has units `1/s`; the implementation multiplies the input `dTi1ds`
+in `eV` by the cgs conversion `ev` before applying the Kasilov expression.
+`Vphi_in = R0*Om_phi_in` is the corresponding reference-major-radius speed in
+`cm/s`. An angular coordinate is dimensionless, so its contravariant velocity
+is already a frequency. Do not multiply `Om_phi_in` by `R0` unless a linear
+velocity is required.
+
+The circular geometry factor is estimated from the available flux functions as
+`(Bphcov/(B0*R0))**2`. For a general equilibrium, provide and validate the
+axisymmetric closure and geometry against the upstream neoclassical calculation.
+The resonant transport coefficients themselves vary with `Om_tE`; therefore
+`Om_tE_offset` is a local force-response diagnostic, not a claim that a single
+full nonlinear rotation scan is globally affine. A below/at/above scan should
+evaluate the torque with the same setup at three requested rotation values when
+that nonlinear dependence matters.
 
 ## Diagnostics program
 

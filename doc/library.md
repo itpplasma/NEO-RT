@@ -138,6 +138,7 @@ type :: config_t
     real(8) :: bfac, efac
     real(8) :: M_t, vth
     real(8) :: vmax_over_vth
+    real(8) :: k_nc             ! 5/2-D32/D31 axisymmetric closure
     integer :: m0, inp_swi, vsteps, mth_max_abs, log_level
     logical :: comptorque, magdrift, nopassing, noshear, pertfile, nonlin
 end type
@@ -167,12 +168,22 @@ end type
 ```fortran
 type :: torque_summary_t
     logical :: has_torque  ! Torque calculation enabled
+    logical :: has_offset  ! E x B offset frequency is available
+    logical :: has_k_na    ! Intrinsic-flow closure was supplied
     real(8) :: s           ! Normalized toroidal flux
     real(8) :: dVds        ! dV/ds (flux surface volume derivative)
     real(8) :: M_t         ! Toroidal Mach number
+    real(8) :: Om_tE       ! Toroidal E x B rotation frequency [1/s]
     real(8) :: Tco         ! Torque from co-passing particles
     real(8) :: Tctr        ! Torque from counter-passing particles
     real(8) :: Tt          ! Torque from trapped particles
+    real(8) :: k_na_transport ! D12/D11 - 5/2
+    real(8) :: k_na        ! Kasilov intrinsic-flow coefficient
+    real(8) :: geometry_factor
+    real(8) :: k_nc        ! 5/2-D32/D31 axisymmetric closure
+    real(8) :: Om_tE_offset ! Local E x B force-response zero [1/s]
+    real(8) :: Om_phi_in  ! Intrinsic contravariant frequency [1/s]
+    real(8) :: Vphi_in    ! Reference-radius speed [cm/s]
 end type
 ```
 

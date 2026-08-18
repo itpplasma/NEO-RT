@@ -1,9 +1,10 @@
 module neort
     use iso_fortran_env, only: dp => real64
     use logger, only: debug, set_log_level, get_log_level, log_result, LOG_INFO
-    use neort_datatypes, only: magfie_data_t, transport_data_t, transport_harmonic_t
+    use neort_datatypes, only: magfie_data_t, transport_data_t, transport_harmonic_t, &
+        torque_summary_t
     use neort_profiles, only: init_thermodynamic_forces, init_profiles, vth, dvthds, ni1, &
-                              dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
+        dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
     use neort_transport, only: compute_transport_integral
@@ -89,7 +90,7 @@ contains
         complex(dp) :: bn
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
-        Drp = 4 * mph * q / (eps**2 * sqrt(pi))  ! actually this is Drp/Dp
+        Drp = 4 * mph * q / (eps**2 * sqrt(pi)) ! actually this is Drp/Dp
 
         thmin = -pi
         thmax = pi
@@ -157,7 +158,7 @@ contains
 
     subroutine compute_transport(result_)
         use driftorbit, only: mth, M_t, R0, etamin, etamax, sign_vpar, nopassing, comptorque, &
-            dVds, mph, dOm_tEds, dM_tds, supban
+            dVds, mph, dOm_tEds, dM_tds, supban, k_nc
         use neort_profiles, only: Om_tE
         use do_magfie_mod, only: q
 
@@ -218,19 +219,103 @@ contains
             result_%torque%s = s
             result_%torque%dVds = dVds
             result_%torque%M_t = M_t
+            result_%torque%Om_tE = Om_tE
             result_%torque%Tco = Tco
             result_%torque%Tctr = Tctr
             result_%torque%Tt = Tt
+            call compute_rotation_offsets(result_%torque, Dco, Dctr, Dt)
         else
             result_%torque%s = 0.0_dp
             result_%torque%dVds = 0.0_dp
             result_%torque%M_t = 0.0_dp
+            result_%torque%Om_tE = 0.0_dp
             result_%torque%Tco = 0.0_dp
             result_%torque%Tctr = 0.0_dp
             result_%torque%Tt = 0.0_dp
+            result_%torque%has_offset = .false.
+            result_%torque%has_k_na = .false.
+            result_%torque%k_na_transport = 0.0_dp
+            result_%torque%k_na = 0.0_dp
+            result_%torque%geometry_factor = 0.0_dp
+            result_%torque%k_nc = k_nc
+            result_%torque%Om_tE_offset = 0.0_dp
+            result_%torque%Om_phi_in = 0.0_dp
+            result_%torque%Vphi_in = 0.0_dp
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
+
+    subroutine compute_rotation_offsets(torque, Dco, Dctr, Dt)
+        ! Convert the already computed non-ambipolar transport response into
+        ! rotation diagnostics.  The first offset is the zero of the local
+        ! force response at fixed resonant transport coefficients.  The second
+        ! is the intrinsic toroidal flow from the Kasilov closure and requires
+        ! k_nc = 5/2 - D32/D31 from an axisymmetric calculation.
+        use driftorbit, only: R0, B0, k_nc
+        use neort_profiles, only: A1, A2, Om_tE, Ti1, dTi1ds, qi
+        use do_magfie_mod, only: Bphcov, iota, psi_pr, q, sign_theta
+        use util, only: c, ev
+
+        type(torque_summary_t), intent(inout) :: torque
+        real(dp), intent(in) :: Dco(2), Dctr(2), Dt(2)
+
+        real(dp) :: D11, D12, D12_over_D11
+        real(dp) :: dA1dOm, A1_zero
+        real(dp) :: geometry_factor
+
+        D11 = Dco(1) + Dctr(1) + Dt(1)
+        D12 = Dco(2) + Dctr(2) + Dt(2)
+        geometry_factor = 0.0_dp
+
+        torque%has_offset = .false.
+        torque%has_k_na = .false.
+        torque%k_na_transport = 0.0_dp
+        torque%k_na = 0.0_dp
+        torque%geometry_factor = 0.0_dp
+        torque%k_nc = k_nc
+        torque%Om_tE_offset = 0.0_dp
+        torque%Om_phi_in = 0.0_dp
+        torque%Vphi_in = 0.0_dp
+
+        if (D11 == 0.0_dp) return
+
+        D12_over_D11 = D12 / D11
+        torque%k_na_transport = D12_over_D11 - 2.5_dp
+
+        ! For the circular Boozer model B_phi is a flux function and
+        ! g_phi_phi is represented by R0**2.  This is the large-aspect-ratio
+        ! estimate of <B_phi**2>/(<B**2><g_phi_phi>) available from the
+        ! quantities already evaluated by NEO-RT.
+        if (B0 /= 0.0_dp) then
+            if (R0 /= 0.0_dp) then
+                geometry_factor = (Bphcov / (B0 * R0))**2
+                torque%geometry_factor = geometry_factor
+            end if
+        end if
+
+        dA1dOm = 0.0_dp
+        if (Ti1 /= 0.0_dp) then
+            if (q /= 0.0_dp) then
+                dA1dOm = -qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c)
+            end if
+        end if
+        if (dA1dOm /= 0.0_dp) then
+            A1_zero = -D12_over_D11 * A2
+            torque%Om_tE_offset = Om_tE + (A1_zero - A1) / dA1dOm
+            torque%has_offset = .true.
+        end if
+
+        if (k_nc < 0.0_dp) return
+
+        torque%k_na = torque%k_na_transport + geometry_factor * k_nc
+        if (qi == 0.0_dp .or. iota == 0.0_dp .or. psi_pr == 0.0_dp) return
+
+        ! Ti1 and dTi1ds are in eV; ev converts the gradient to erg per s.
+        torque%Om_phi_in = c * ev * torque%k_na * dTi1ds / &
+            (qi * sign_theta * iota * psi_pr)
+        torque%Vphi_in = R0 * torque%Om_phi_in
+        torque%has_k_na = .true.
+    end subroutine compute_rotation_offsets
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
         use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing, supban
@@ -394,14 +479,14 @@ contains
         open (unit=unit, file=trim(adjustl(base_path))//"_magfie.out", recl=1024)
         do k = 1, data%n_points
             write (unit, *) data%tensors(k)%theta, data%tensors(k)%bmod, data%tensors(k)%sqrtg, &
-                            data%tensors(k)%hder(1), data%tensors(k)%hder(2), &
-                            data%tensors(k)%hder(3), data%tensors(k)%hcovar(1), &
-                            data%tensors(k)%hcovar(2), data%tensors(k)%hcovar(3), &
-                            data%tensors(k)%hctrvr(1), data%tensors(k)%hctrvr(2), &
-                            data%tensors(k)%hctrvr(3), data%tensors(k)%hcurl(1), &
-                            data%tensors(k)%hcurl(2), data%tensors(k)%hcurl(3), &
-                            real(data%tensors(k)%bn), aimag(data%tensors(k)%bn), &
-                            real(data%tensors(k)%eps_exp), aimag(data%tensors(k)%eps_exp)
+                data%tensors(k)%hder(1), data%tensors(k)%hder(2), &
+                data%tensors(k)%hder(3), data%tensors(k)%hcovar(1), &
+                data%tensors(k)%hcovar(2), data%tensors(k)%hcovar(3), &
+                data%tensors(k)%hctrvr(1), data%tensors(k)%hctrvr(2), &
+                data%tensors(k)%hctrvr(3), data%tensors(k)%hcurl(1), &
+                data%tensors(k)%hcurl(2), data%tensors(k)%hcurl(3), &
+                real(data%tensors(k)%bn), aimag(data%tensors(k)%bn), &
+                real(data%tensors(k)%eps_exp), aimag(data%tensors(k)%eps_exp)
         end do
         close (unit=unit)
     end subroutine write_magfie_data_to_files
@@ -414,40 +499,51 @@ contains
         real(dp) :: total_D1, total_D2
         integer, parameter :: unit1 = 9
         integer, parameter :: unit2 = 10
+        integer, parameter :: unit3 = 11
 
         open (unit=unit1, file=trim(adjustl(base_path))//".out", recl=1024)
         write (unit1, *) "# M_t D11co D11ctr D11t D11 D12co D12ctr D12t D12"
         total_D1 = data%summary%Dco(1) + data%summary%Dctr(1) + data%summary%Dt(1)
         total_D2 = data%summary%Dco(2) + data%summary%Dctr(2) + data%summary%Dt(2)
         write (unit1, *) data%summary%M_t, data%summary%Dco(1), data%summary%Dctr(1), &
-                        data%summary%Dt(1), total_D1, data%summary%Dco(2), data%summary%Dctr(2), &
-                        data%summary%Dt(2), total_D2
+            data%summary%Dt(1), total_D1, data%summary%Dco(2), data%summary%Dctr(2), &
+            data%summary%Dt(2), total_D2
         close (unit=unit1)
 
         if (data%torque%has_torque) then
             open (unit=unit1, file=trim(adjustl(base_path))//"_torque.out", recl=1024)
             write (unit1, *) "# s dVds M_t Tco Tctr Tt"
             write (unit1, *) data%torque%s, data%torque%dVds, data%torque%M_t, data%torque%Tco, &
-                             data%torque%Tctr, data%torque%Tt
+                data%torque%Tctr, data%torque%Tt
             close (unit=unit1)
+
+            open (unit=unit3, file=trim(adjustl(base_path))//"_offset_rotation.out", recl=1024)
+            write (unit3, *) "# s dVds M_t Om_tE kNA_transport kNA geometry_factor k_nc", &
+                " Om_tE_offset Om_phi_in Vphi_in has_offset has_kNA"
+            write (unit3, *) data%torque%s, data%torque%dVds, data%torque%M_t, &
+                data%torque%Om_tE, data%torque%k_na_transport, data%torque%k_na, &
+                data%torque%geometry_factor, data%torque%k_nc, data%torque%Om_tE_offset, &
+                data%torque%Om_phi_in, data%torque%Vphi_in, data%torque%has_offset, &
+                data%torque%has_k_na
+            close (unit=unit3)
         end if
 
         open (unit=unit1, file=trim(adjustl(base_path))//"_integral.out", recl=1024)
         open (unit=unit2, file=trim(adjustl(base_path))//"_torque_integral.out", recl=1024)
         do k = 1, size(data%harmonics)
             total_D1 = data%harmonics(k)%Dresco(1) + data%harmonics(k)%Dresctr(1) + &
-                       data%harmonics(k)%Drest(1)
+                data%harmonics(k)%Drest(1)
             total_D2 = data%harmonics(k)%Dresco(2) + data%harmonics(k)%Dresctr(2) + &
-                       data%harmonics(k)%Drest(2)
+                data%harmonics(k)%Drest(2)
             write (unit1, *) data%summary%M_t, data%harmonics(k)%mth, data%harmonics(k)%Dresco(1), &
-                             data%harmonics(k)%Dresctr(1), data%harmonics(k)%Drest(1), &
-                             total_D1, data%harmonics(k)%Dresco(2), data%harmonics(k)%Dresctr(2), &
-                             data%harmonics(k)%Drest(2), total_D2, &
-                             data%harmonics(k)%vminp_over_vth, data%harmonics(k)%vmaxp_over_vth, &
-                             data%harmonics(k)%vmint_over_vth, data%harmonics(k)%vmaxt_over_vth
+                data%harmonics(k)%Dresctr(1), data%harmonics(k)%Drest(1), &
+                total_D1, data%harmonics(k)%Dresco(2), data%harmonics(k)%Dresctr(2), &
+                data%harmonics(k)%Drest(2), total_D2, &
+                data%harmonics(k)%vminp_over_vth, data%harmonics(k)%vmaxp_over_vth, &
+                data%harmonics(k)%vmint_over_vth, data%harmonics(k)%vmaxt_over_vth
 
             write (unit2, *) data%harmonics(k)%mth, data%harmonics(k)%Tresco, &
-                             data%harmonics(k)%Tresctr, data%harmonics(k)%Trest
+                data%harmonics(k)%Tresctr, data%harmonics(k)%Trest
         end do
         close (unit=unit1)
         close (unit=unit2)

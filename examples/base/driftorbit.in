@@ -17,6 +17,7 @@
     pertfile = .false.     ! read perturbation from file with do_magfie_pert
     nonlin = .false.       ! do nonlinear calculation
     comptorque = .true.    ! compute torque
+    k_nc = 1.17             ! circular neoclassical closure: 5/2-D32/D31
     bfac = 1.0             ! scale B field by factor
     efac = 1.0             ! scale E field by factor
     inp_swi = 8            ! input switch for Boozer file

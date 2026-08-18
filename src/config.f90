@@ -4,32 +4,33 @@ module neort_config
     implicit none
 
     type :: config_t
-        real(dp) :: s = 0.0_dp  ! radial coordinate (flux surface)
-        real(dp) :: M_t = 0.0_dp  ! Mach number (for single Mach no. run) !*!
-        real(dp) :: qs = 0.0_dp  ! particle charge / elementary charge !*!
-        real(dp) :: ms = 0.0_dp  ! particle mass / u !*!
-        real(dp) :: vth = 0.0_dp  ! thermal velocity / cm/s !*!
-        real(dp) :: epsmn = 0.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
-        integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
-        integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
-        logical :: comptorque = .false.  ! compute torque
-        logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
-        logical :: magdrift = .false.  ! consider magnetic drift
+        real(dp) :: s = 0.0_dp ! radial coordinate (flux surface)
+        real(dp) :: M_t = 0.0_dp ! Mach number (for single Mach no. run) !*!
+        real(dp) :: qs = 0.0_dp ! particle charge / elementary charge !*!
+        real(dp) :: ms = 0.0_dp ! particle mass / u !*!
+        real(dp) :: vth = 0.0_dp ! thermal velocity / cm/s !*!
+        real(dp) :: epsmn = 0.0_dp ! perturbation amplitude B1/B0 (if pertfile==F)
+        integer :: m0 = 0 ! poloidal perturbation mode (if pertfile==F)
+        integer :: mph = 0 ! toroidal perturbation mode (if pertfile==F, n>0!)
+        logical :: comptorque = .false. ! compute torque
+        logical :: supban = .false. ! Shaing superbanana-plateau (trapped ell=0) only
+        logical :: magdrift = .false. ! consider magnetic drift
         ! Negative means "follow magdrift", preserving every existing deck.
         integer :: magdrift_passing = -1
-        logical :: nopassing = .false.  ! neglect passing particles
-        logical :: noshear = .false.  ! neglect magnetic shear term with dqds
-        logical :: pertfile = .false.  ! read perturbation from file
-        logical :: nonlin = .false.  ! do nonlinear calculation
-        real(dp) :: bfac = 1.0_dp  ! scale B field by factor
-        real(dp) :: efac = 1.0_dp  ! scale E field by factor
-        integer :: inp_swi = 0  ! input switch for Boozer file
-        integer :: inp_swi_pert = -1  ! negative inherits inp_swi
-        integer :: vsteps = 0  ! integration steps in velocity space
+        logical :: nopassing = .false. ! neglect passing particles
+        logical :: noshear = .false. ! neglect magnetic shear term with dqds
+        logical :: pertfile = .false. ! read perturbation from file
+        logical :: nonlin = .false. ! do nonlinear calculation
+        real(dp) :: bfac = 1.0_dp ! scale B field by factor
+        real(dp) :: efac = 1.0_dp ! scale E field by factor
+        integer :: inp_swi = 0 ! input switch for Boozer file
+        integer :: inp_swi_pert = -1 ! negative inherits inp_swi
+        integer :: vsteps = 0 ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
-        real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
-        integer :: log_level = 0  ! how much to log
-        character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
+        real(dp) :: vmax_over_vth = 4.0_dp ! upper velocity cutoff / vth
+        real(dp) :: k_nc = -1.0_dp ! 5/2-D32/D31; negative means unavailable
+        integer :: log_level = 0 ! how much to log
+        character(len=8) :: output_format = "both" ! 'hdf5', 'text' or 'both'
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
 
@@ -43,7 +44,7 @@ contains
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, perturbation_switch => inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
-            nonlin, efac, supban
+            nonlin, efac, supban, k_nc
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -77,6 +78,8 @@ contains
         mth_max_abs = config%mth_max_abs
         if (config%vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         vmax_over_vth = config%vmax_over_vth
+        if (config%k_nc < -1.0_dp) error stop "k_nc must be nonnegative or -1"
+        k_nc = config%k_nc
         output_format = config%output_format
         call validate_output_format(output_format)
 
@@ -91,7 +94,7 @@ contains
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
-            nonlin, efac, supban
+            nonlin, efac, supban, k_nc
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -104,10 +107,11 @@ contains
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, k_nc, log_level, output_format
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
+        k_nc = -1.0_dp
         inp_swi_pert = -1
         output_format = "both"
         open (unit=9, file=config_file, status="old", form="formatted")
@@ -117,6 +121,7 @@ contains
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
+        if (k_nc < -1.0_dp) error stop "k_nc must be nonnegative or -1"
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)

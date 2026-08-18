@@ -84,3 +84,28 @@ Also written when `comptorque=.true.`. Appends one line per harmonic with:
 4. `Tt` – Trapped-particle contribution to the torque integral.
 
 The sum of the three torque components matches the values written in `<runname>_torque.out` once all harmonics have been processed.
+
+## `<runname>_offset_rotation.out`
+
+Written when `comptorque=.true.`. It contains one row per flux-surface run:
+
+1. `s` – Normalised toroidal flux.
+2. `dVds` – Flux-surface volume derivative `[cm^3]`.
+3. `M_t` – Toroidal Mach number.
+4. `Om_tE` – Current toroidal `E x B` angular frequency `[1/s]`.
+5. `kNA_transport` – NEO-RT contribution `D12/D11 - 5/2` (dimensionless).
+6. `kNA` – Full Kasilov intrinsic-flow coefficient when `has_kNA=1` (dimensionless).
+7. `geometry_factor` – Circular estimate of
+   `<B_phi^2>/(<B^2><g_phi_phi>)` (dimensionless).
+8. `k_nc` – Axisymmetric closure `5/2-D32/D31`; negative means unavailable.
+9. `Om_tE_offset` – Local zero of the NEO-RT `E x B` force response `[1/s]`.
+10. `Om_phi_in` – Intrinsic contravariant toroidal angular frequency `[1/s]`.
+11. `Vphi_in` – `R0*Om_phi_in`, a reference-major-radius speed `[cm/s]`.
+12. `has_offset` – `T`/`F` flag for `Om_tE_offset`.
+13. `has_kNA` – `T`/`F` flag for the full intrinsic-flow closure.
+
+The same quantities are stored in the HDF5 `torque` group with units and
+comments attached to each dataset. `Om_phi_in` is already a frequency because
+the toroidal coordinate is an angle; `Vphi_in` is provided only for comparison
+with a linear-velocity profile. The input temperature gradient is in `eV` and
+is converted to cgs energy using `ev` in the intrinsic-flow expression.
