@@ -1,1 +1,1 @@
-../../../libneo/src/MC/collis_nbi.f90
+../../src/collis_nbi.f90
