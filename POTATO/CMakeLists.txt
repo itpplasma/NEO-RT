@@ -88,6 +88,16 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_radial_boxes.x
+   SRC/test_radial_boxes.f90
+)
+target_link_libraries(test_radial_boxes.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_radial_boxes
+   COMMAND test_radial_boxes.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )
