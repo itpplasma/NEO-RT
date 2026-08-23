@@ -59,6 +59,26 @@ def get_profile_data_for_flux_surface(profile_file_name: str,
   return [get_profile_data_from_file_data(profile_data, flux_surface_number), profile_data]
 
 
+def resolve_executable(executable_name: str):
+  """Resolve an executable on PATH or relative to the current directory."""
+
+  import os
+  import shutil
+
+  executable = shutil.which(executable_name)
+  if executable is None:
+    candidate = os.path.abspath(executable_name)
+    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+      executable = candidate
+
+  if executable is None:
+    raise FileNotFoundError(
+        "executable {!r} was not found on PATH or in the working directory".format(
+            executable_name))
+
+  return executable
+
+
 def run_single_flux_surface(executable_name: str, template_file_name: str, runname: str,
     s: float, M_t: float, vth: float, epsm: float):
   """Run code for given template parameter values.
@@ -107,9 +127,9 @@ def run_single_flux_surface(executable_name: str, template_file_name: str, runna
       result = pattern.sub(lambda x: str(dic[x.group()]), line)
       outf.write(result)
 
+  executable = resolve_executable(executable_name)
   with open(runname+'.log', 'w') as log, open(runname+'.err', 'w') as err:
-    retcode = run('./{} {}'.format(executable_name, runname),
-        shell=True, stdout=log, stderr=err)
+    run([executable, runname], check=True, stdout=log, stderr=err)
 
 
 def run_multiple_flux_surfaces(executable_name: str,
