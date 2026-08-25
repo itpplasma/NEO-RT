@@ -8,7 +8,7 @@ program probe_neort_perturbation_fourier_kernel
     use do_magfie_pert_mod, only: do_magfie_pert, do_magfie_pert_amp, &
         init_magfie_pert_at_s, read_boozer_pert_file
     use driftorbit, only: epsmn, m0, pertfile, pertfile_scale
-    use neort_magfie, only: B0
+    use neort_magfie, only: B0, init_flux_surface_average
 
     implicit none
 
@@ -39,6 +39,8 @@ program probe_neort_perturbation_fourier_kernel
 
     config = config_t()
     config%s = 0.5_dp
+    config%vth = 4.0e7_dp
+    config%mph = 3
     config%qs = 1.0_dp
     config%ms = 1.0_dp
     config%inp_swi = 9
@@ -54,6 +56,7 @@ program probe_neort_perturbation_fourier_kernel
     call init_magfie_at_s()
     call read_boozer_pert_file(fixture)
     call init_magfie_pert_at_s()
+    call init_flux_surface_average(0.5_dp)
     call check_magfie(magfie_data)
 
     sample = 13
@@ -151,7 +154,7 @@ contains
             write (unit, '(*(g0,1x))') 0, 0, 5.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
                 0.0_dp, 0.0_dp, 2.0_dp, 0.0_dp
             write (unit, '(*(g0,1x))') 1, 0, 0.5_dp, 0.0_dp, 0.0_dp, 0.5_dp, &
-                0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp
+                0.0_dp, 0.0_dp, -0.2_dp, 0.0_dp
         end do
         close (unit)
     end subroutine write_equilibrium_fixture
