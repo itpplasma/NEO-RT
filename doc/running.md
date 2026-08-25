@@ -49,7 +49,8 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `qs` | Ion charge in units of the elementary charge. | Used to compute `qi`. |
 | `ms` | Ion mass in atomic mass units. | Used to compute `mi`. |
 | `vth` | Thermal velocity `[cm/s]`. | Used when no `plasma.in` is provided. |
-| `epsmn` | Perturbation amplitude `B₁/B₀`. | Used when `pertfile=.false.`. |
+| `epsmn` | Perturbation amplitude `B₁/B₀`. | Used when `pertfile=.false.`; default `1`. |
+| `pertfile_scale` | Scale factor for the perturbation read from `in_file_pert`. | Used when `pertfile=.true.`; default `1`. |
 | `m0` | Poloidal perturbation harmonic. | Integer. |
 | `mph` | Toroidal perturbation harmonic. | Positive integer when using analytic perturbations. |
 | `magdrift` | Include magnetic drift (`.true.`/`.false.`). | Controls bounce-averaged drifts. |
