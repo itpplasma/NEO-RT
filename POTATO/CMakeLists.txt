@@ -88,6 +88,19 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_failed_orbit_nodes.x
+   SRC/test_failed_orbit_nodes.f90
+)
+# sample_matrix pulls sub_potato (module state), which calls into a
+# profile_input implementation.  potato_base is intentionally incomplete there,
+# so the two archives must be rescanned as a group rather than linked in order.
+target_link_libraries(test_failed_orbit_nodes.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_failed_orbit_nodes
+   COMMAND test_failed_orbit_nodes.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )

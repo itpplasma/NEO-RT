@@ -22,6 +22,7 @@
   DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod
   COMPLEX(8),   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
   COMPLEX(8),   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
+  LOGICAL,      DIMENSION(:),     ALLOCATABLE :: valid_old,valid_arr
 !
   external :: get_matrix
 !
@@ -40,18 +41,20 @@
     DEALLOCATE(amat,xarr,amat_arr)
   endif
 !
-  ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi))
+  ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi),valid_arr(npoi))
 !
   x=xbeg
   CALL get_matrix
 !
   xarr(1)=x
   amat_arr(:,:,1)=amat
+  valid_arr(1)=ierr_get_matrix.EQ.0
 !
   x=xend
   CALL get_matrix
   xarr(npoi)=x
   amat_arr(:,:,npoi)=amat
+  valid_arr(npoi)=ierr_get_matrix.EQ.0
 !
   DO i=2,npoi-1
     x=xbeg+h*(i-1)+hh*(i-1)**2
@@ -67,6 +70,7 @@
     x=xarr(i)
     CALL get_matrix
     amat_arr(:,:,i)=amat
+    valid_arr(i)=ierr_get_matrix.EQ.0
   ENDDO
   !$omp end parallel do
 !
@@ -79,6 +83,7 @@
     x=0.5d0*(xarr(inew)+xarr(inew+1))
     ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
     iend=ibeg+nlagr
+    IF(.NOT.ALL(valid_arr(ibeg:iend))) CYCLE
     CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
     DO i=1,n1
       amat1(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -88,6 +93,7 @@
     ENDDO
     ibeg=MAX(2,MIN(npoi-nlagr,inew-nshift+1))
     iend=ibeg+nlagr
+    IF(.NOT.ALL(valid_arr(ibeg:iend))) CYCLE
     CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
     DO i=1,n1
       amat2(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -103,9 +109,10 @@
   ENDDO
   IF(MAXVAL(isplit).GT.0) THEN
     npoi_old=npoi
-    ALLOCATE(xold(npoi),amat_old(n1,n2,npoi))
+    ALLOCATE(xold(npoi),amat_old(n1,n2,npoi),valid_old(npoi))
     xold=xarr
     amat_old=amat_arr
+    valid_old=valid_arr
   ELSE
     RETURN
   ENDIF
@@ -128,9 +135,9 @@
       IF(isplit(iold).EQ.1) npoi=npoi+1
     ENDDO
     IF(ALLOCATED(xarr)) THEN
-      DEALLOCATE(xarr,amat_arr)
+      DEALLOCATE(xarr,amat_arr,valid_arr)
     ENDIF
-    ALLOCATE(xarr(npoi),amat_arr(n1,n2,npoi))
+    ALLOCATE(xarr(npoi),amat_arr(n1,n2,npoi),valid_arr(npoi))
 !
 ! Serial layout pass: copy the retained old nodes into their new slots and, for
 ! each split interval, reserve the new node's slot inew with its midpoint xarr.
@@ -144,6 +151,7 @@
       inew=inew+1
       xarr(inew)=xold(iold)
       amat_arr(:,:,inew)=amat_old(:,:,iold)
+      valid_arr(inew)=valid_old(iold)
       IF(isplit(iold).EQ.1) THEN
         inew=inew+1
         xarr(inew)=0.5d0*(xold(iold)+xold(iold+1))
@@ -166,6 +174,7 @@
       x=xarr(newslots(k))
       CALL get_matrix
       amat_arr(:,:,newslots(k))=amat
+      valid_arr(newslots(k))=ierr_get_matrix.EQ.0
     ENDDO
     !$omp end parallel do
     DEALLOCATE(newslots)
@@ -177,6 +186,7 @@
       x=0.5d0*(xarr(inew)+xarr(inew+1))
       ibeg=MAX(1,MIN(npoi-nlagr-1,inew-nshift-1))
       iend=ibeg+nlagr
+      IF(.NOT.ALL(valid_arr(ibeg:iend))) CYCLE
       CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
       DO i=1,n1
         amat1(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -186,6 +196,7 @@
       ENDDO
       ibeg=MAX(2,MIN(npoi-nlagr,inew-nshift+1))
       iend=ibeg+nlagr
+      IF(.NOT.ALL(valid_arr(ibeg:iend))) CYCLE
       CALL plag_coeff(npoilag,nder,x,xarr(ibeg:iend),coef)
       DO i=1,n1
         amat2(i,:)=MATMUL(amat_arr(i,:,ibeg:iend),coef(0,:))
@@ -201,10 +212,11 @@
     ENDDO
     IF(MAXVAL(isplit).GT.0) THEN
       npoi_old=npoi
-      DEALLOCATE(xold,amat_old)
-      ALLOCATE(xold(npoi),amat_old(n1,n2,npoi))
+      DEALLOCATE(xold,amat_old,valid_old)
+      ALLOCATE(xold(npoi),amat_old(n1,n2,npoi),valid_old(npoi))
       xold=xarr
       amat_old=amat_arr
+      valid_old=valid_arr
     ELSE
       EXIT
     ENDIF
