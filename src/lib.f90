@@ -123,6 +123,7 @@ contains
         use neort, only: set_to_trapped_region
         use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
         use neort_magfie, only: init_flux_surface_average
+        use neort_orbit_classes, only: select_global_passing, select_orbit_class
         use neort_profiles, only: init_plasma_at_s, init_profile_at_s, init_thermodynamic_forces
 
         real(dp), intent(in) :: s_val
@@ -137,8 +138,11 @@ contains
         call init_profile_at_s(R0, efac, bfac) ! overwrites M_t
 
         call init_flux_surface_average(s_val)
-        call init_canon_freq_trapped_spline() ! sets etamin and etamax
+        call select_global_passing()
+        sign_vpar = 1
         if (.not. nopassing) call init_canon_freq_passing_spline()
+        call select_orbit_class(1)
+        call init_canon_freq_trapped_spline() ! sets etamin and etamax
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax) ! overwrites etamin and etamax
         ! psi_pr is the torodial flux at plasma boundary, fixed for all s
@@ -163,6 +167,7 @@ contains
         use neort, only: compute_transport, set_to_trapped_region
         use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
         use neort_magfie, only: init_flux_surface_average
+        use neort_orbit_classes, only: select_global_passing, select_orbit_class
         use neort_profiles, only: init_profiles, init_thermodynamic_forces
 
         type(transport_data_t), intent(out) :: transport_data_out
@@ -174,8 +179,11 @@ contains
         call init_profiles(R0)
 
         call init_flux_surface_average(s)
-        call init_canon_freq_trapped_spline()
+        call select_global_passing()
+        sign_vpar = 1
         if (.not. nopassing) call init_canon_freq_passing_spline()
+        call select_orbit_class(1)
+        call init_canon_freq_trapped_spline()
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
