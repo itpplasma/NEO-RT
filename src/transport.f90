@@ -9,7 +9,8 @@ module neort_transport
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph
-    use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
+    use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity, &
+        sync_parallel_direction
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         pertfile_scale, &
@@ -88,6 +89,11 @@ contains
         integer :: nroots, kr, ku
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
+
+        ! compute_transport_harmonic changes sign_vpar between orbit classes.
+        ! Root search uses sign_vpar_htheta before bounce_fast has a chance to
+        ! initialize it, so synchronize the cached coordinate-aware sign here.
+        call sync_parallel_direction()
 
         D = 0.0_dp
         T = 0.0_dp

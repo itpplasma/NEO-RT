@@ -33,6 +33,16 @@ module neort_orbit
 
 contains
 
+    subroutine sync_parallel_direction()
+        ! Resonance frequencies are evaluated before bounce integration, so
+        ! refresh the field-line direction whenever sign_vpar changes rather
+        ! than relying on state left by a previous orbit.
+        real(dp) :: bmod, htheta
+
+        call evaluate_bfield_local(bmod, htheta)
+        sign_vpar_htheta = sign(1.0_dp, htheta) * sign_vpar
+    end subroutine sync_parallel_direction
+
     subroutine dvode_error_context(where, v_in, eta_in, tcur, tout, ist)
         use do_magfie_mod, only: s, iota, R0, q, psi_pr, eps
         use driftorbit, only: etatp, etadt, etamin, etamax, mth, mph, sign_vpar
