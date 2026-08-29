@@ -92,6 +92,10 @@ add_test(NAME test_resonance_oracle
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_transport_branch_state
+    COMMAND ${CMAKE_BINARY_DIR}/test_transport_branch_state.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
