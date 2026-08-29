@@ -84,8 +84,12 @@ contains
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
         real(dp) :: Hmn2, attenuation_factor
+        real(dp) :: Omph_trace, dOmphdv_trace, dOmphdeta_trace
+        real(dp) :: residual_trace, Tphi_trace, density_trace
         real(dp) :: roots(nlev, 3)
-        integer :: nroots, kr, ku
+        integer :: nroots, kr, ku, root_trace_unit, root_trace_status
+        character(len=1024) :: root_trace_path
+        logical :: root_trace_enabled
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
@@ -93,6 +97,28 @@ contains
         ! Root search uses sign_vpar_htheta before bounce_fast has a chance to
         ! initialize it, so synchronize the cached coordinate-aware sign here.
         call sync_parallel_direction()
+
+        root_trace_enabled = .false.
+        root_trace_path = ''
+        if (mth == 1 .and. etamin > etatp) then
+            call get_environment_variable('NEORT_ROOT_TRACE', root_trace_path, &
+                status=root_trace_status)
+            root_trace_enabled = root_trace_status == 0 .and. len_trim(root_trace_path) > 0
+        end if
+        if (root_trace_enabled) then
+            open(newunit=root_trace_unit, file=trim(root_trace_path), &
+                status='replace', action='write', iostat=root_trace_status)
+            if (root_trace_status /= 0) error stop 'cannot open NEORT_ROOT_TRACE'
+            write(root_trace_unit, '(A)') '# production trapped mth=+1 root trace'
+            write(root_trace_unit, '(A,ES24.16)') '# s_tor = ', s
+            write(root_trace_unit, '(A,ES24.16)') '# rho_tor = ', sqrt(s)
+            write(root_trace_unit, '(A,I0)') '# mth = ', mth
+            write(root_trace_unit, '(A,I0)') '# mph = ', mph
+            write(root_trace_unit, '(A,I0)') '# vsteps = ', vsteps
+            write(root_trace_unit, '(A)') '# cols: ku kr ux du eta dres_deta Omth '// &
+                'dOmth_dv dOmth_deta Omph dOmph_dv dOmph_deta residual '// &
+                'taub Hre Him Hmn2 attenuation Tphi_int density_without_du dT istate'
+        end if
 
         D = 0.0_dp
         T = 0.0_dp
@@ -111,6 +137,10 @@ contains
                 eta = eta_res(1)
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+                if (root_trace_enabled) then
+                    call Om_ph(v, eta, Omph_trace, dOmphdv_trace, dOmphdeta_trace)
+                    residual_trace = real(mph, dp)*Omph_trace + real(mth, dp)*Omth
+                end if
 
                 taub = 2.0_dp * pi / abs(Omth)
                 call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
@@ -132,13 +162,29 @@ contains
                 D(1) = D(1) + dD11 * attenuation_factor
                 D(2) = D(2) + dD12 * attenuation_factor
 
+                dT = 0.0_dp
                 if (comptorque) then
                     dT = du * Tphi_int(ux, taub, Hmn2) / abs(eta_res(2))
                     T = T + dT * attenuation_factor
                 end if
+                if (root_trace_enabled) then
+                    Tphi_trace = Tphi_int(ux, taub, Hmn2)
+                    density_trace = Tphi_trace/abs(eta_res(2))*attenuation_factor
+                    write(root_trace_unit, '(2(I0,1X),19(ES24.16,1X),I0)') &
+                        ku, kr, ux, du, eta, eta_res(2), Omth, dOmthdv, &
+                        dOmthdeta, Omph_trace, dOmphdv_trace, &
+                        dOmphdeta_trace, residual_trace, taub, bounceavg(3), &
+                        bounceavg(4), Hmn2, attenuation_factor, Tphi_trace, &
+                        density_trace, du*density_trace, istate_dv
+                end if
             end do
             ux = ux + du
         end do
+
+        if (root_trace_enabled) then
+            write(root_trace_unit, '(A,ES24.16)') '# reconstructed_Tt = ', T
+            close(root_trace_unit)
+        end if
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
         dsdreff = 2.0_dp / a * sqrt(s)  ! TODO: Use exact value instead of this approximation
