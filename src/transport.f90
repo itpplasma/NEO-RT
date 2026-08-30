@@ -88,7 +88,9 @@ contains
         real(dp) :: residual_trace, Tphi_trace, density_trace
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku, root_trace_unit, root_trace_status
+        integer :: root_trace_mth, root_trace_parse_status
         character(len=1024) :: root_trace_path
+        character(len=32) :: root_trace_mth_text
         logical :: root_trace_enabled
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
@@ -100,7 +102,16 @@ contains
 
         root_trace_enabled = .false.
         root_trace_path = ''
-        if (mth == 1 .and. etamin > etatp) then
+        root_trace_mth = 1
+        root_trace_mth_text = ''
+        call get_environment_variable('NEORT_ROOT_TRACE_MTH', root_trace_mth_text, &
+            status=root_trace_status)
+        if (root_trace_status == 0 .and. len_trim(root_trace_mth_text) > 0) then
+            read(root_trace_mth_text, *, iostat=root_trace_parse_status) root_trace_mth
+            if (root_trace_parse_status /= 0) &
+                error stop 'invalid integer in NEORT_ROOT_TRACE_MTH'
+        end if
+        if (mth == root_trace_mth .and. etamin > etatp) then
             call get_environment_variable('NEORT_ROOT_TRACE', root_trace_path, &
                 status=root_trace_status)
             root_trace_enabled = root_trace_status == 0 .and. len_trim(root_trace_path) > 0
@@ -109,7 +120,7 @@ contains
             open(newunit=root_trace_unit, file=trim(root_trace_path), &
                 status='replace', action='write', iostat=root_trace_status)
             if (root_trace_status /= 0) error stop 'cannot open NEORT_ROOT_TRACE'
-            write(root_trace_unit, '(A)') '# production trapped mth=+1 root trace'
+            write(root_trace_unit, '(A,I0,A)') '# production trapped mth=', mth, ' root trace'
             write(root_trace_unit, '(A,ES24.16)') '# s_tor = ', s
             write(root_trace_unit, '(A,ES24.16)') '# rho_tor = ', sqrt(s)
             write(root_trace_unit, '(A,I0)') '# mth = ', mth
