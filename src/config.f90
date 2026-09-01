@@ -49,7 +49,7 @@ contains
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
-        use neort_energy_distribution, only: validate_energy_ratio
+        use kinetic_energy_selection, only: validate_energy_ratio
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
         use util, only: qe, mu, qi, mi
@@ -102,7 +102,7 @@ contains
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
-        use neort_energy_distribution, only: validate_energy_ratio
+        use kinetic_energy_selection, only: validate_energy_ratio
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
         use util, only: qe, mu, qi, mi

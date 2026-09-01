@@ -1,6 +1,6 @@
 program test_energy_distribution
     use iso_fortran_env, only: dp => real64
-    use neort_energy_distribution, only: maxwellian_speed_density, &
+    use kinetic_energy_selection, only: maxwellian_speed_density, &
         speed_from_energy_ratio, energy_sample_count, energy_sample_speed, &
         energy_sample_weight
     use neort_transport, only: D11int, D11mono

@@ -1,4 +1,4 @@
-module neort_energy_distribution
+module kinetic_energy_selection
     use iso_fortran_env, only: dp => real64
 
     implicit none
@@ -6,6 +6,7 @@ module neort_energy_distribution
     private
     public :: maxwellian_speed_density, speed_from_energy_ratio, validate_energy_ratio
     public :: energy_sample_count, energy_sample_speed, energy_sample_weight
+    public :: total_energy_sample, total_energy_measure
 
     real(dp), parameter :: pi = acos(-1.0_dp)
 
@@ -65,4 +66,31 @@ contains
         end if
     end function energy_sample_weight
 
-end module neort_energy_distribution
+    pure real(dp) function total_energy_sample(energy_ratio, sample_index, thermal_steps, &
+            minimum_energy, energy_range, reference_temperature, reference_potential)
+        real(dp), intent(in) :: energy_ratio, minimum_energy, energy_range
+        real(dp), intent(in) :: reference_temperature, reference_potential
+        integer, intent(in) :: sample_index, thermal_steps
+
+        if (energy_ratio > 0.0_dp) then
+            total_energy_sample = reference_potential &
+                + energy_ratio*reference_temperature
+        else
+            total_energy_sample = minimum_energy &
+                + (real(sample_index, dp) - 0.5_dp)*energy_range/thermal_steps
+        end if
+    end function total_energy_sample
+
+    pure real(dp) function total_energy_measure(energy_ratio, thermal_steps, &
+            energy_range, reference_temperature)
+        real(dp), intent(in) :: energy_ratio, energy_range, reference_temperature
+        integer, intent(in) :: thermal_steps
+
+        if (energy_ratio > 0.0_dp) then
+            total_energy_measure = reference_temperature
+        else
+            total_energy_measure = energy_range/thermal_steps
+        end if
+    end function total_energy_measure
+
+end module kinetic_energy_selection

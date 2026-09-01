@@ -101,7 +101,7 @@ set(NEO_RT_SOURCES
     src/config.f90
     src/datatypes.f90
     src/driftorbit.f90
-    src/energy_distribution.f90
+    src/kinetic_energy_selection.f90
     src/freq.f90
     src/lib.f90
     src/logging.f90

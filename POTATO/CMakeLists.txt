@@ -98,6 +98,16 @@ add_test(NAME test_radial_boxes
    COMMAND test_radial_boxes.x
 )
 
+add_executable(test_energy_selection.x
+   SRC/test_energy_selection.f90
+)
+target_link_libraries(test_energy_selection.x
+   potato_base
+)
+add_test(NAME test_energy_selection
+   COMMAND test_energy_selection.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )

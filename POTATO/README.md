@@ -19,6 +19,14 @@ cmake --build build -j
 `&potato_nml` namelist), the g-eqdsk and convex-wall file named in
 `field_divB0.inp`, and the profile files.
 
+Resonant-torque runs are Maxwellian-integrated by default. Set
+`monoenergetic_x=E/T_ref` to evaluate one fixed total-energy slice instead,
+where `T_ref` and the reference potential are taken on the magnetic axis. The
+energy measure is normalized as `delta(x-x0)`, so no finite energy-bin width is
+applied. For finite-width orbits through varying profiles this remains an
+energy-resolved nonlocal torque, not a local `D11`; at zero potential and in the
+local-profile limit it supplies the corresponding fixed-energy reference.
+
 The g-eqdsk and convex-wall file are a matched equilibrium pair. The convex
 wall is the outer boundary of the complete computational domain, not the
 separatrix, and must enclose the LCFS with enough margin for every orbit being
