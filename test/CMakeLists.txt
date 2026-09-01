@@ -89,6 +89,11 @@ add_test(NAME test_vmax_over_vth
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_energy_distribution
+    COMMAND test_energy_distribution.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_resonance_bracket
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_bracket.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base

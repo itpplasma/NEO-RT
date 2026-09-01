@@ -87,7 +87,7 @@ contains
         use do_magfie_pert_mod, only: mph, inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, &
                               nopassing, pertfile, nonlin, efac, supban
-        use neort, only: vsteps, mth_max_abs, vmax_over_vth
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
         use neort_orbit, only: noshear
         use util, only: qe, mu, qi, mi
 
@@ -116,6 +116,8 @@ contains
                     comment="max |mth|; negative means q-dependent range")
         call h5_add(group_id, "vmax_over_vth", vmax_over_vth, unit="1", &
                     comment="upper velocity cutoff / thermal velocity")
+        call h5_add(group_id, "monoenergetic_x", monoenergetic_x, unit="1", &
+                    comment="E/T; -1 selects Maxwellian integration")
     end subroutine write_config_group
 
     subroutine write_magfie_group(group_id, data)
