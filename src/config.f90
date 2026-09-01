@@ -29,6 +29,7 @@ module neort_config
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
+        real(dp) :: monoenergetic_x = -1.0_dp  ! -1: thermal; positive: E/T
         integer :: log_level = 0  ! how much to log
         character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
         !*! will be overwritten if using splines from plasma.in and profile.in files
@@ -47,7 +48,8 @@ contains
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
-        use neort, only: vsteps, mth_max_abs, vmax_over_vth
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
+        use neort_energy_distribution, only: validate_energy_ratio
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
         use util, only: qe, mu, qi, mi
@@ -80,6 +82,8 @@ contains
         mth_max_abs = config%mth_max_abs
         if (config%vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         vmax_over_vth = config%vmax_over_vth
+        call validate_energy_ratio(config%monoenergetic_x)
+        monoenergetic_x = config%monoenergetic_x
         output_format = config%output_format
         call validate_output_format(output_format)
 
@@ -97,7 +101,8 @@ contains
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
-        use neort, only: vsteps, mth_max_abs, vmax_over_vth
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
+        use neort_energy_distribution, only: validate_energy_ratio
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
         use util, only: qe, mu, qi, mi
@@ -109,10 +114,12 @@ contains
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
             supban, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, &
+            log_level, output_format
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
+        monoenergetic_x = -1.0_dp
         inp_swi_pert = -1
         output_format = "both"
         open (unit=9, file=config_file, status="old", form="formatted")
@@ -122,6 +129,7 @@ contains
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
+        call validate_energy_ratio(monoenergetic_x)
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)
