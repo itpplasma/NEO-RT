@@ -265,7 +265,21 @@ contains
         sqgbmod = sqgbmod2 / bmod
         sqrtg = sqgbmod / bmod
 
-        hcovar(1) = 0.0_dp  ! TODO
+        ! hcovar(1) = B_s/|B| is not computed here, and the zero is an
+        ! approximation rather than an identity. For an axisymmetric field it is
+        ! determined by geometry the .bc does store, via
+        !
+        !   B_s = (psi'/R) * (R_s*R_th + Z_s*Z_th)/J_pol
+        !         + F * (2*pi/nper) * dv/ds
+        !
+        ! with J_pol = R_s*Z_th - R_th*Z_s the poloidal Jacobian and F the
+        ! toroidal field function. Computing it needs the s-derivatives of the
+        ! R, Z and v harmonics, which this module currently splines only for B,
+        ! and it inherits the sign convention of the stored shift v. That
+        ! convention is the one under audit for the ITER TC24 canonical file, so
+        ! implementing this before it is settled would bake the disputed choice
+        ! into a field component. Left explicit rather than silently zero.
+        hcovar(1) = 0.0_dp
         hcovar(2) = Bphcov / bmod
         hcovar(3) = Bthcov / bmod
 
