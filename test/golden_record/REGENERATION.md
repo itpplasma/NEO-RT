@@ -1,3 +1,21 @@
+# Golden record regeneration: 2026-09-06
+
+The committed `golden.h5` was regenerated after bumping fortnum VODE to
+`48f6f9b` (CMake `GIT_TAG 48f6f9bf0d4d523c3677bb686f5892f6e1329a24`).
+
+## Why this drift happened
+
+The drift is real and comes from the upstream fortnum VODE event-root fix in
+`48f6f9b` ("Do not move tn onto a located event root"). That change keeps the
+integrator state on the internal mesh top when reporting an event root, instead
+of relabeling time to the root. NEO-RT’s trapped-bounce search continues after
+intermediate root candidates by construction, so this directly changes some
+located trapped-bounce root times and therefore the `torque_integral` baseline.
+
+The strict golden check remains enabled (`RTOL = 5e-3` in
+`test_golden_record.py`); we did not relax tolerances. We updated the committed
+golden artifact to the new, intentional fortnum behavior.
+
 # Golden record regeneration: 2026-06-15
 
 The committed `golden.h5` was regenerated from the fortnum vode integrator
