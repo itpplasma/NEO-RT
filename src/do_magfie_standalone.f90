@@ -36,6 +36,11 @@ module do_magfie_mod
 
     integer :: inp_swi = 0 ! type of input file
 
+    ! The toroidal component of curl h needs the covariant radial component of
+    ! the field, which a Boozer file does not store. The radial and poloidal
+    ! components are exact; a consumer of hcurl(2) must check this first.
+    logical, parameter :: hcurl_toroidal_is_available = .false.
+
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_arrays_initialized = .false.
 
@@ -268,9 +273,7 @@ contains
         hctrvr(2) = sign_theta * psi_pr / sqgbmod
         hctrvr(3) = sign_theta * iota * psi_pr / sqgbmod
 
-        hcurl(1) = 0.0_dp  ! TODO
-        hcurl(3) = 0.0_dp  ! TODO
-        hcurl(2) = 0.0_dp  ! TODO
+        call axisymmetric_hcurl(bmod, sqrtg, bder, hcovar, hcurl)
 
         s_prev = x1
 
@@ -367,9 +370,7 @@ contains
         hctrvr(2) = sign_theta * psi_pr / sqgbmod
         hctrvr(3) = sign_theta * iota * psi_pr / sqgbmod
 
-        hcurl(1) = 0.0_dp
-        hcurl(3) = 0.0_dp
-        hcurl(2) = 0.0_dp
+        call axisymmetric_hcurl(bmod, sqrtg, bder, hcovar, hcurl)
 
     end subroutine do_magfie_chartmap
 
@@ -554,6 +555,47 @@ contains
             ", iota sign=", int(sign(1.0_dp, params0(ksurf, 2)))
         error stop trim(message)
     end subroutine fail_inconsistent_handedness
+
+    subroutine axisymmetric_hcurl(bmod, sqrtg, bder, hcovar, hcurl)
+        ! Curl of the unit field direction h = B/|B| in Boozer (s, ph, th).
+        !
+        ! With e^{123} = +1 in this coordinate order,
+        !     (curl h)^i = (1/sqrtg) e^{ijk} d_j h_k
+        ! and d_ph = 0 for an axisymmetric field, so
+        !     (curl h)^s  = -(1/sqrtg) d_th h_ph
+        !     (curl h)^ph =  (1/sqrtg) (d_th h_s - d_s h_th)
+        !     (curl h)^th =  (1/sqrtg) d_s h_ph
+        !
+        ! B_ph and B_th are flux functions here, so h_ph = Bphcov/bmod and
+        ! h_th = Bthcov/bmod depend on theta only through bmod. Both the radial
+        ! and the poloidal component are therefore fully determined by
+        ! quantities this routine already has, using
+        !     bder(1) = (d_s bmod)/bmod,  bder(3) = (d_th bmod)/bmod.
+        !
+        ! The toroidal component needs d_th h_s, and h_s = hcovar(1) is not
+        ! determined by a Boozer file: the covariant radial component carries
+        ! the Boozer stream function, which the .bc format does not store. It is
+        ! left at zero, and `hcurl_toroidal_is_available` says so, so that a
+        ! consumer can reject it instead of silently integrating a zero. Before
+        ! this routine existed all three components were zero with TODO markers,
+        ! and an independent axisymmetric identity in
+        ! results/neort_x3_drift_vector_20260905 rejected the radial one as a
+        ! physical curl.
+        real(dp), intent(in) :: bmod, sqrtg
+        real(dp), dimension(:), intent(in) :: bder
+        real(dp), dimension(:), intent(in) :: hcovar
+        real(dp), dimension(:), intent(out) :: hcurl
+
+        ! d_th h_ph = Bphcov * d_th (1/bmod) = -h_ph * bder(3)
+        hcurl(1) = hcovar(2) * bder(3) / sqrtg
+
+        ! d_s h_ph = dBphcovds/bmod - h_ph * bder(1)
+        hcurl(3) = (dBphcovds / bmod - hcovar(2) * bder(1)) / sqrtg
+
+        ! Undetermined without the covariant radial component; see above.
+        hcurl(2) = 0.0_dp
+
+    end subroutine axisymmetric_hcurl
 
     subroutine booz_to_cyl(x, r)
 
