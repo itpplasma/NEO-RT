@@ -27,6 +27,16 @@ add_test(NAME test_neort_lib
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+# test_multi_init: repeated do_magfie_init calls must not corrupt or change the
+# loaded field data (deallocate-before-reallocate).  The oracle is nmode/nflux
+# compared against the values from the first init, and the program stops with a
+# nonzero status on any mismatch.  Runs from examples/base, which supplies the
+# driftorbit.in and in_file it reads.
+add_test(NAME test_multi_init
+    COMMAND ${CMAKE_BINARY_DIR}/test_multi_init.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
 add_test(NAME test_parallel_transport
     COMMAND ${CMAKE_BINARY_DIR}/test_parallel_transport.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
@@ -56,6 +66,14 @@ add_test(NAME test_chartmap_input
 
 add_test(NAME test_boozer_handedness
     COMMAND ${CMAKE_BINARY_DIR}/test_boozer_handedness.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# test_hcurl_axisymmetric: curl of the unit field direction in the standalone
+# Boozer path. The oracle is a central difference of hcovar over separate
+# do_magfie calls, so it is independent of the analytic formula it checks.
+add_test(NAME test_hcurl_axisymmetric
+    COMMAND ${CMAKE_BINARY_DIR}/test_hcurl_axisymmetric.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -105,3 +123,50 @@ set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
         "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
 )
+
+# ---------------------------------------------------------------------------
+# Built but deliberately NOT registered as ctest tests
+# ---------------------------------------------------------------------------
+#
+# The glob at the top builds an executable for every test_*.f90 in this
+# directory.  Being built is not the same as being run.  The programs listed
+# below are built and are intentionally left out of ctest, for two different
+# reasons.
+#
+# (a) Self-checking, but currently failing or missing an input file.
+#     Registering them as they stand would turn the suite red; weakening their
+#     assertions to make them green would destroy the only oracle they have.
+#     They stay unregistered until the underlying problem is fixed.
+#
+#   test_bounce.f90
+#       Runs from examples/base (it needs in_file only; every other parameter
+#       is hard-coded in the program).  Its first check, test_bounce, passes.
+#       Its second check, test_bounce_time, fails: bounce_time() and the taub
+#       returned by bounce() disagree by about 2.6e-3 relative
+#       (1.8118979825798727E-004 vs 1.8072370257754395E-004) against a 1e-8
+#       tolerance.  src/orbit.f90 was last changed after test_bounce.f90 was,
+#       so this looks like an unnoticed regression rather than a stale test.
+#       Make bounce_time and bounce agree, then register it here.
+#
+#   test_torque.f90
+#       Needs the run configuration driftorbit64.new.in next to in_file,
+#       plasma.in and profile.in in the working directory.  driftorbit64.new.in
+#       is not in this repository, so the program aborts inside
+#       read_and_set_config before it reaches either of its two assertions.
+#       Commit that input (or point the program at an existing configuration)
+#       before registering it here.
+#
+# (b) Diagnostics, not tests.  These programs print numbers or write .dat files
+#     for plotting and contain no assertion at all, so they exit 0 no matter
+#     what the physics does.  Registering them would add permanently green
+#     tests that can never detect a regression, which is worse than not running
+#     them.  Keep them out of ctest unless an oracle is added to them.
+#
+#   test_bounce_integrand.f90
+#   test_freq_scan.f90
+#   test_frequencies.f90  -- writes <runname>_ux*_freq_vs_eta_*.dat and exits 0
+#                            for any runname; its only nonzero exit is the
+#                            "usage:" guard when no argument is passed.
+#   test_misc.f90
+#   test_omega_prime.f90
+#   test_reslines.f90
