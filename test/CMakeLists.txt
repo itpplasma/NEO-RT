@@ -6,6 +6,12 @@ foreach(test_src ${TEST_SOURCES})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
 
+target_sources(test_action_trace.x PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/diag/diag_action_trace_contract.f90)
+add_test(NAME test_action_trace
+    COMMAND test_action_trace.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
 target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)

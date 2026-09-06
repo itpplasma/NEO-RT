@@ -1,5 +1,7 @@
 # Diagnostics static library
 add_library(neort_diaglib STATIC
+  diag_action_trace_contract.f90
+  diag_action_trace.f90
   diag_bounce_nonlin.f90
   diag_atten_map.f90
   diag_contrib_map.f90
