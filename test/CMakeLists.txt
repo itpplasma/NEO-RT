@@ -37,6 +37,17 @@ add_test(NAME test_multi_init
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+# test_bounce: the trapped bounce time, against a Gauss-Legendre quadrature of
+# the same orbit that does not integrate it, and then the two ODE paths against
+# each other.  The absolute oracle runs first because it is the only one of the
+# three that can see a defect the two integrations share -- which is how they
+# came to agree with each other to 0.26% while both were 0.4% wrong.  Runs from
+# examples/base, which supplies the driftorbit.in and in_file it reads.
+add_test(NAME test_bounce
+    COMMAND ${CMAKE_BINARY_DIR}/test_bounce.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
 add_test(NAME test_parallel_transport
     COMMAND ${CMAKE_BINARY_DIR}/test_parallel_transport.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
@@ -133,15 +144,14 @@ set_tests_properties(test_chartmap_input PROPERTIES
 #     assertions to make them green would destroy the only oracle they have.
 #     They stay unregistered until the underlying problem is fixed.
 #
-#   test_bounce.f90
-#       Runs from examples/base (it needs in_file only; every other parameter
-#       is hard-coded in the program).  Its first check, test_bounce, passes.
-#       Its second check, test_bounce_time, fails: bounce_time() and the taub
-#       returned by bounce() disagree by about 2.6e-3 relative
-#       (1.8118979825798727E-004 vs 1.8072370257754395E-004) against a 1e-8
-#       tolerance.  src/orbit.f90 was last changed after test_bounce.f90 was,
-#       so this looks like an unnoticed regression rather than a stale test.
-#       Make bounce_time and bounce agree, then register it here.
+#   test_bounce.f90 is now registered above.  It was left here because
+#       bounce_time() and bounce() disagreed by 2.6e-3 against a 1e-8
+#       tolerance.  That was real: the pinned fortnum moved its clock onto a
+#       located event root without rebuilding the history it interpolates from,
+#       so every trapped bounce time -- which continues past the half-bounce
+#       crossing by construction -- came out short.  Fixed upstream and
+#       repinned; both paths now match a quadrature of the same orbit to
+#       1.7e-9.
 #
 #   test_torque.f90
 #       Needs the run configuration driftorbit64.new.in next to in_file,
