@@ -59,6 +59,14 @@ add_test(NAME test_boozer_handedness
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+# test_hcurl_axisymmetric: curl of the unit field direction in the standalone
+# Boozer path. The oracle is a central difference of hcovar over separate
+# do_magfie calls, so it is independent of the analytic formula it checks.
+add_test(NAME test_hcurl_axisymmetric
+    COMMAND ${CMAKE_BINARY_DIR}/test_hcurl_axisymmetric.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
