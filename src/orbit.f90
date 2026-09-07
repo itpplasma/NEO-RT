@@ -143,6 +143,17 @@ contains
     end function vperp
 
     subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
+        real(dp), intent(in) :: v, eta, taub
+        real(dp), intent(out) :: bounceavg(nvar)
+        procedure(timestep_i) :: ts
+        integer, intent(out), optional :: istate_out
+
+        call bounce_fast_toleranced(v, eta, taub, bounceavg, ts, istate_out, &
+            1.0e-9_dp, 1.0e-10_dp)
+    end subroutine bounce_fast
+
+    subroutine bounce_fast_toleranced(v, eta, taub, bounceavg, ts, istate_out, &
+            rtol, atol_val)
         use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
         use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
             FORTNUM_CONVERGENCE_ERROR
@@ -151,15 +162,13 @@ contains
         real(dp), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
+        real(dp), intent(in) :: rtol, atol_val
 
         ! Nonstiff variable-order Adams (fortnum vode, DVODE MF=10) integrated
-        ! over the single bounce span [0, taub], relative tolerance 1e-9 and a
-        ! per-component absolute tolerance 1e-10 (DVODE ITOL=2). This is the
-        ! same method NEO-RT drove through DVODE before the migration, so the
-        ! variable-order controller resolves the oscillatory bounceavg(3:4)
-        ! Hamiltonian integrands without an artificial step cap.
-        real(dp), parameter :: rtol = 1.0e-9_dp
-        real(dp), parameter :: atol_val = 1.0e-10_dp
+        ! over the single bounce span [0, taub]. The public bounce_fast
+        ! wrapper supplies the accepted 1e-9/1e-10 tolerances. Diagnostics may
+        ! call this routine with a tighter pair to distinguish solver error
+        ! from the exact zero-FOW speed homogeneity.
 
         real(dp) :: t1, t2, bmod, htheta
         real(dp) :: y0(nvar), atol(nvar)
@@ -168,7 +177,7 @@ contains
         type(fortnum_status_t) :: status
         integer :: istate
 
-        call trace('bounce_fast')
+        call trace('bounce_fast_toleranced')
 
         t1 = 0.0_dp
         t2 = taub
@@ -195,13 +204,13 @@ contains
             istate = 0
         end if
         if (istate == -1) then
-            call dvode_error_context('bounce_fast', v, eta, t1, t2, istate)
+            call dvode_error_context('bounce_fast_toleranced', v, eta, t1, t2, istate)
         end if
 
         bounceavg = yend / taub
         if (present(istate_out)) istate_out = istate
 
-        call trace('bounce_fast complete')
+        call trace('bounce_fast_toleranced complete')
 
     contains
 
@@ -214,7 +223,7 @@ contains
             end associate
             call ts(v, eta, size(y_), t_, y_, dydt_)
         end subroutine bounce_rhs
-    end subroutine bounce_fast
+    end subroutine bounce_fast_toleranced
 
     function bounce_time(v, eta, taub_estimate) result(taub)
 

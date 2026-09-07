@@ -7,7 +7,7 @@ module diag_pitch_action
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_transport, only: timestep_transport, Tphi_int, transport_omth => Omth, &
         transport_domthdv => dOmthdv, transport_domthdeta => dOmthdeta
-    use neort_orbit, only: bounce_fast, nvar, noshear
+    use neort_orbit, only: bounce_fast, bounce_fast_toleranced, nvar, noshear
     use driftorbit, only: mth, mph, mi, sign_vpar, nonlin, supban, nopassing, &
         comptorque, magdrift, magdrift_passing, etatp, etadt
     use do_magfie_mod, only: s, q, iota, psi_pr, sign_theta
@@ -99,19 +99,29 @@ contains
         close (unit)
     end subroutine read_pitch_points
 
-    subroutine run_pitch_action_diag(runname, point_file)
+    subroutine run_pitch_action_diag(runname, point_file, tight)
         character(*), intent(in) :: runname, point_file
+        logical, intent(in), optional :: tight
         type(pitch_point_t), allocatable :: points(:)
         real(dp) :: current_surface
         integer :: unit, k
+        logical :: tight_mode
+        character(len=256) :: output_name
 
+        tight_mode = .false.
+        if (present(tight)) tight_mode = tight
         call read_pitch_points(point_file, points)
         call neort_init(trim(runname)//".in", "in_file", "in_file_pert")
         if (nonlin) error stop "pitch action requires nonlin=false"
         if (supban) error stop "pitch action requires supban=false"
         if (.not. comptorque) error stop "pitch action requires comptorque=true"
         call neort_prepare_splines("plasma.in", "profile.in")
-        open (newunit=unit, file=trim(runname)//"_pitch_action.dat", &
+        if (tight_mode) then
+            output_name = trim(runname)//"_pitch_action_tight.dat"
+        else
+            output_name = trim(runname)//"_pitch_action.dat"
+        end if
+        open (newunit=unit, file=trim(output_name), &
             status="replace", action="write")
         write (unit, '(A)') "# schema neort-pitch-action-v1"
         write (unit, '(A)') "# branch: 1=passing_co 2=passing_ctr 3=trapped"
@@ -119,6 +129,8 @@ contains
         write (unit, '(A,L1,A,I0,A,L1)') "# magdrift=", magdrift, &
             " magdrift_passing=", magdrift_passing, " noshear=", noshear
         write (unit, '(A)') "# nonlin=false supban=false spline_init_sign=+1"
+        if (tight_mode) write (unit, '(A)') &
+            "# integration_rtol=1e-12 integration_atol=1e-14 diagnostic_only"
         write (unit, '(A)') "# columns: point branch mth mph istate "// &
             "s_tor eta ux vth sign_vpar eta_min eta_max umin umax "// &
             "q iota psi_pr sign_theta A1 A2 OmE Omth Omph dg_du "// &
@@ -134,14 +146,15 @@ contains
                     error stop "pitch action requires native q*iota=1"
                 current_surface = points(k)%surface
             end if
-            call write_pitch_point(unit, k, points(k))
+            call write_pitch_point(unit, k, points(k), tight_mode)
         end do
         close (unit)
     end subroutine run_pitch_action_diag
 
-    subroutine write_pitch_point(unit, index, point)
+    subroutine write_pitch_point(unit, index, point, tight)
         integer, intent(in) :: unit, index
         type(pitch_point_t), intent(in) :: point
+        logical, intent(in) :: tight
         real(dp) :: eta_min, eta_max, unit_theta, unit_drift, d1, d2
         real(dp) :: omph, domphdv, domphdeta, v, coeff(3), g, dgdu, dgdeta
         real(dp) :: taub, bounceavg(nvar), hmn2, weight, values(33)
@@ -177,7 +190,12 @@ contains
             real(mph, dp)*domphdv)
         dgdeta = real(mth, dp)*transport_domthdeta + real(mph, dp)*domphdeta
         taub = 2.0_dp*acos(-1.0_dp)/abs(transport_omth)
-        call bounce_fast(v, point%eta, taub, bounceavg, timestep_transport, istate)
+        if (tight) then
+            call bounce_fast_toleranced(v, point%eta, taub, bounceavg, &
+                timestep_transport, istate, 1.0e-12_dp, 1.0e-14_dp)
+        else
+            call bounce_fast(v, point%eta, taub, bounceavg, timestep_transport, istate)
+        end if
         if (istate /= 2) error stop "pitch action bounce solver failed"
         hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*v**2/2.0_dp)**2
         weight = Tphi_int(point%ux, taub, hmn2)
