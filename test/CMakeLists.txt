@@ -12,6 +12,15 @@ add_test(NAME test_action_trace
     COMMAND test_action_trace.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
+target_link_libraries(test_pitch_action.x neort_diaglib)
+add_test(NAME test_pitch_action COMMAND test_pitch_action.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+foreach(mode extra missing branch nonfinite endpoint empty)
+    add_test(NAME test_pitch_action_${mode} COMMAND test_pitch_action.x ${mode}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_pitch_action_${mode} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
 target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)

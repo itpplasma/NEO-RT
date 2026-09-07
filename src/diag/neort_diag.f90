@@ -7,6 +7,7 @@ program neort_diag
     use diag_action_trace, only: run_action_trace_diag
     use diag_resonance_contour, only: run_resonance_contour_diag
     use diag_resonance_scan, only: run_resonance_scan_diag
+    use diag_pitch_action, only: run_pitch_action_diag
     implicit none
     character(len=256) :: diag, runname, ux_arg, neta_arg, surface_file_arg
     real(real64) :: ux
@@ -16,6 +17,7 @@ program neort_diag
     if (len_trim(diag) == 0 .or. len_trim(runname) == 0) then
         print *, "Usage: neo_rt_diag.x <diagnostic> <runname> [ux] [neta] [surface_file]"
         print *, "Diagnostics: bounce_nonlin, atten_map, contrib, bounce_debug, action_trace, resonance_contour, resonance_scan"
+        print *, "pitch_action <runname> <points_file>: off-root frequency and action"
         stop 1
     end if
 
@@ -49,6 +51,11 @@ program neort_diag
         else
             call run_resonance_scan_diag(trim(adjustl(runname)), ux, neta)
         end if
+    case ("pitch_action")
+        call get_command_argument(3, surface_file_arg)
+        if (len_trim(surface_file_arg) == 0) &
+            error stop "pitch_action requires a point-file argument"
+        call run_pitch_action_diag(trim(adjustl(runname)), trim(surface_file_arg))
     case default
         print *, "Unknown diagnostic:", trim(diag)
         stop 2
