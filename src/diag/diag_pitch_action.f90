@@ -99,24 +99,29 @@ contains
         close (unit)
     end subroutine read_pitch_points
 
-    subroutine run_pitch_action_diag(runname, point_file, tight)
+    subroutine run_pitch_action_diag(runname, point_file, tight, ultra)
         character(*), intent(in) :: runname, point_file
-        logical, intent(in), optional :: tight
+        logical, intent(in), optional :: tight, ultra
         type(pitch_point_t), allocatable :: points(:)
         real(dp) :: current_surface
         integer :: unit, k
-        logical :: tight_mode
+        logical :: tight_mode, ultra_mode
         character(len=256) :: output_name
 
         tight_mode = .false.
         if (present(tight)) tight_mode = tight
+        ultra_mode = .false.
+        if (present(ultra)) ultra_mode = ultra
+        if (tight_mode .and. ultra_mode) error stop "conflicting pitch-action tolerances"
         call read_pitch_points(point_file, points)
         call neort_init(trim(runname)//".in", "in_file", "in_file_pert")
         if (nonlin) error stop "pitch action requires nonlin=false"
         if (supban) error stop "pitch action requires supban=false"
         if (.not. comptorque) error stop "pitch action requires comptorque=true"
         call neort_prepare_splines("plasma.in", "profile.in")
-        if (tight_mode) then
+        if (ultra_mode) then
+            output_name = trim(runname)//"_pitch_action_ultra.dat"
+        else if (tight_mode) then
             output_name = trim(runname)//"_pitch_action_tight.dat"
         else
             output_name = trim(runname)//"_pitch_action.dat"
@@ -131,6 +136,8 @@ contains
         write (unit, '(A)') "# nonlin=false supban=false spline_init_sign=+1"
         if (tight_mode) write (unit, '(A)') &
             "# integration_rtol=1e-12 integration_atol=1e-14 diagnostic_only"
+        if (ultra_mode) write (unit, '(A)') &
+            "# integration_rtol=1e-14 integration_atol=1e-16 diagnostic_only"
         write (unit, '(A)') "# columns: point branch mth mph istate "// &
             "s_tor eta ux vth sign_vpar eta_min eta_max umin umax "// &
             "q iota psi_pr sign_theta A1 A2 OmE Omth Omph dg_du "// &
@@ -146,15 +153,15 @@ contains
                     error stop "pitch action requires native q*iota=1"
                 current_surface = points(k)%surface
             end if
-            call write_pitch_point(unit, k, points(k), tight_mode)
+            call write_pitch_point(unit, k, points(k), tight_mode, ultra_mode)
         end do
         close (unit)
     end subroutine run_pitch_action_diag
 
-    subroutine write_pitch_point(unit, index, point, tight)
+    subroutine write_pitch_point(unit, index, point, tight, ultra)
         integer, intent(in) :: unit, index
         type(pitch_point_t), intent(in) :: point
-        logical, intent(in) :: tight
+        logical, intent(in) :: tight, ultra
         real(dp) :: eta_min, eta_max, unit_theta, unit_drift, d1, d2
         real(dp) :: omph, domphdv, domphdeta, v, coeff(3), g, dgdu, dgdeta
         real(dp) :: taub, bounceavg(nvar), hmn2, weight, values(33)
@@ -190,7 +197,10 @@ contains
             real(mph, dp)*domphdv)
         dgdeta = real(mth, dp)*transport_domthdeta + real(mph, dp)*domphdeta
         taub = 2.0_dp*acos(-1.0_dp)/abs(transport_omth)
-        if (tight) then
+        if (ultra) then
+            call bounce_fast_toleranced(v, point%eta, taub, bounceavg, &
+                timestep_transport, istate, 1.0e-14_dp, 1.0e-16_dp)
+        else if (tight) then
             call bounce_fast_toleranced(v, point%eta, taub, bounceavg, &
                 timestep_transport, istate, 1.0e-12_dp, 1.0e-14_dp)
         else

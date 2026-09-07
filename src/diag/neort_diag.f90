@@ -19,6 +19,7 @@ program neort_diag
         print *, "Diagnostics: bounce_nonlin, atten_map, contrib, bounce_debug, action_trace, resonance_contour, resonance_scan"
         print *, "pitch_action <runname> <points_file>: off-root frequency and action"
         print *, "pitch_action_tight <runname> <points_file>: diagnostic tight-tolerance action"
+        print *, "pitch_action_ultra <runname> <points_file>: diagnostic ultra-tight action"
         stop 1
     end if
 
@@ -62,6 +63,11 @@ program neort_diag
         if (len_trim(surface_file_arg) == 0) &
             error stop "pitch_action_tight requires a point-file argument"
         call run_pitch_action_diag(trim(adjustl(runname)), trim(surface_file_arg), .true.)
+    case ("pitch_action_ultra")
+        call get_command_argument(3, surface_file_arg)
+        if (len_trim(surface_file_arg) == 0) &
+            error stop "pitch_action_ultra requires a point-file argument"
+        call run_pitch_action_diag(trim(adjustl(runname)), trim(surface_file_arg), .false., .true.)
     case default
         print *, "Unknown diagnostic:", trim(diag)
         stop 2
