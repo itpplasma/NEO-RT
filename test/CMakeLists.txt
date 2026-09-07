@@ -137,6 +137,11 @@ add_test(NAME test_resonance_scan_neta
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_scan_neta.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+target_link_libraries(test_resonance_scan_surface.x neort_diaglib)
+add_test(NAME test_resonance_scan_surface
+    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_scan_surface.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

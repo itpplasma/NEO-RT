@@ -8,13 +8,13 @@ program neort_diag
     use diag_resonance_contour, only: run_resonance_contour_diag
     use diag_resonance_scan, only: run_resonance_scan_diag
     implicit none
-    character(len=256) :: diag, runname, ux_arg, neta_arg
+    character(len=256) :: diag, runname, ux_arg, neta_arg, surface_file_arg
     real(real64) :: ux
     integer :: ios, neta
     call get_command_argument(1, diag)
     call get_command_argument(2, runname)
     if (len_trim(diag) == 0 .or. len_trim(runname) == 0) then
-        print *, "Usage: neo_rt_diag.x <diagnostic> <runname>"
+        print *, "Usage: neo_rt_diag.x <diagnostic> <runname> [ux] [neta] [surface_file]"
         print *, "Diagnostics: bounce_nonlin, atten_map, contrib, bounce_debug, action_trace, resonance_contour, resonance_scan"
         stop 1
     end if
@@ -43,7 +43,12 @@ program neort_diag
         call get_command_argument(4, neta_arg)
         if (len_trim(neta_arg) > 0) read(neta_arg, *, iostat=ios) neta
         if (len_trim(neta_arg) > 0 .and. ios /= 0) error stop "NETA must be an integer"
-        call run_resonance_scan_diag(trim(adjustl(runname)), ux, neta)
+        call get_command_argument(5, surface_file_arg)
+        if (len_trim(surface_file_arg) > 0) then
+            call run_resonance_scan_diag(trim(adjustl(runname)), ux, neta, trim(adjustl(surface_file_arg)))
+        else
+            call run_resonance_scan_diag(trim(adjustl(runname)), ux, neta)
+        end if
     case default
         print *, "Unknown diagnostic:", trim(diag)
         stop 2

@@ -26,15 +26,16 @@ contains
         if (neta < 3) error stop "NETA must be at least three"
     end function resolve_neta
 
-    subroutine run_resonance_scan_diag(arg_runname, ux_arg, neta_arg)
+    subroutine run_resonance_scan_diag(arg_runname, ux_arg, neta_arg, surface_file_arg)
         character(*), intent(in) :: arg_runname
         real(dp), intent(in), optional :: ux_arg
         integer, intent(in), optional :: neta_arg
+        character(*), intent(in), optional :: surface_file_arg
         character(len=16) :: branch_name
         integer, parameter :: nmth = 11
         integer :: u, ur, k, j, i, branch
         integer :: neta
-        real(dp), allocatable :: profile(:, :)
+        real(dp), allocatable :: profile(:, :), scan_surfaces(:)
         real(dp) :: ux, v, eta0, eta1, eta, eta_prev, res_prev
         real(dp) :: omth, domthdv, domthdeta
         real(dp) :: omph, domphdv, domphdeta
@@ -49,14 +50,20 @@ contains
         call neort_init(trim(arg_runname)//".in", "in_file", "in_file_pert")
         call neort_prepare_splines("plasma.in", "profile.in")
         call read_profile_table("profile.in", profile)
+        if (present(surface_file_arg) .and. len_trim(surface_file_arg) > 0) then
+            call read_surface_table(trim(surface_file_arg), scan_surfaces)
+        else
+            allocate(scan_surfaces(size(profile, 1)))
+            scan_surfaces = profile(:, 1)
+        end if
 
         open(newunit=u, file=trim(arg_runname)//"_resonance_scan.dat", status="replace", action="write")
         open(newunit=ur, file=trim(arg_runname)//"_resonance_roots.dat", status="replace", action="write")
         write(u, '(A)') "# s_tor rho_tor branch ux mth mph eta eta_over_etatp Omth_s-1 Omph_s-1 residual_s-1 dres_deta_s-1 q"
         write(ur, '(A)') "# s_tor rho_tor branch ux mth mph eta eta_over_etatp Omth_s-1 Omph_s-1 dres_deta_s-1 q"
 
-        do k = 1, size(profile, 1)
-            call neort_setup_at_s(profile(k, 1))
+        do k = 1, size(scan_surfaces)
+            call neort_setup_at_s(scan_surfaces(k))
             rho = sqrt(max(0.0_dp, s))
             v = ux * vth
 
@@ -114,6 +121,7 @@ contains
 
         close(u)
         close(ur)
+        deallocate(scan_surfaces, profile)
     end subroutine run_resonance_scan_diag
 
 
@@ -137,5 +145,35 @@ contains
         end do
         close(u)
     end subroutine read_profile_table
+
+
+    subroutine read_surface_table(path, data)
+        character(*), intent(in) :: path
+        real(dp), allocatable, intent(out) :: data(:)
+        integer :: n, ios, u
+        real(dp) :: value
+
+        n = 0
+        open(newunit=u, file=path, status="old", action="read")
+        do
+            read(u, *, iostat=ios) value
+            if (ios /= 0) exit
+            n = n + 1
+        end do
+        if (n < 1) error stop "surface list must contain at least one value"
+        rewind(u)
+        allocate(data(n))
+        do n = 1, size(data)
+            read(u, *, iostat=ios) data(n)
+            if (ios /= 0) error stop "invalid surface list"
+            if (.not. (data(n) >= 0.0_dp .and. data(n) <= 1.0_dp)) then
+                error stop "surface list values must lie in [0,1]"
+            end if
+            if (n > 1 .and. data(n) <= data(n - 1)) then
+                error stop "surface list must be strictly increasing"
+            end if
+        end do
+        close(u)
+    end subroutine read_surface_table
 
 end module diag_resonance_scan
