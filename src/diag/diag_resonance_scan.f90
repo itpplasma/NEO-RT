@@ -14,14 +14,26 @@ module diag_resonance_scan
     use do_magfie_mod, only: s, q
     implicit none
 
+    integer, parameter :: default_neta = 180
+
 contains
 
-    subroutine run_resonance_scan_diag(arg_runname, ux_arg)
+    integer function resolve_neta(neta_arg) result(neta)
+        integer, intent(in), optional :: neta_arg
+
+        neta = default_neta
+        if (present(neta_arg)) neta = neta_arg
+        if (neta < 3) error stop "NETA must be at least three"
+    end function resolve_neta
+
+    subroutine run_resonance_scan_diag(arg_runname, ux_arg, neta_arg)
         character(*), intent(in) :: arg_runname
         real(dp), intent(in), optional :: ux_arg
+        integer, intent(in), optional :: neta_arg
         character(len=16) :: branch_name
-        integer, parameter :: nmth = 11, neta = 180
+        integer, parameter :: nmth = 11
         integer :: u, ur, k, j, i, branch
+        integer :: neta
         real(dp), allocatable :: profile(:, :)
         real(dp) :: ux, v, eta0, eta1, eta, eta_prev, res_prev
         real(dp) :: omth, domthdv, domthdeta
@@ -32,6 +44,7 @@ contains
         ux = 1.5_dp
         if (present(ux_arg)) ux = ux_arg
         if (ux <= 0.0_dp) error stop "UX must be positive"
+        neta = resolve_neta(neta_arg)
 
         call neort_init(trim(arg_runname)//".in", "in_file", "in_file_pert")
         call neort_prepare_splines("plasma.in", "profile.in")

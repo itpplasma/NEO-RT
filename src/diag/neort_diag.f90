@@ -8,9 +8,9 @@ program neort_diag
     use diag_resonance_contour, only: run_resonance_contour_diag
     use diag_resonance_scan, only: run_resonance_scan_diag
     implicit none
-    character(len=256) :: diag, runname, ux_arg
+    character(len=256) :: diag, runname, ux_arg, neta_arg
     real(real64) :: ux
-    integer :: ios
+    integer :: ios, neta
     call get_command_argument(1, diag)
     call get_command_argument(2, runname)
     if (len_trim(diag) == 0 .or. len_trim(runname) == 0) then
@@ -38,7 +38,12 @@ program neort_diag
         call get_command_argument(3, ux_arg)
         if (len_trim(ux_arg) > 0) read(ux_arg, *, iostat=ios) ux
         if (len_trim(ux_arg) > 0 .and. ios /= 0) error stop "UX must be a real number"
-        call run_resonance_scan_diag(trim(adjustl(runname)), ux)
+        neta = 180
+        ios = 0
+        call get_command_argument(4, neta_arg)
+        if (len_trim(neta_arg) > 0) read(neta_arg, *, iostat=ios) neta
+        if (len_trim(neta_arg) > 0 .and. ios /= 0) error stop "NETA must be an integer"
+        call run_resonance_scan_diag(trim(adjustl(runname)), ux, neta)
     case default
         print *, "Unknown diagnostic:", trim(diag)
         stop 2
