@@ -22,7 +22,7 @@ contains
     subroutine run_atten_map_diag(arg_runname)
         character(*), intent(in) :: arg_runname
         logical :: file_exists
-        integer :: i, j, nu, nm
+        integer :: i, j, nu, nm, istate
         real(dp) :: eta_max
         real(dp), allocatable :: ux(:), ux_edges(:), mth_vals(:), mth_edges(:)
         real(dp), allocatable :: z(:, :)
@@ -81,7 +81,8 @@ contains
                 v = ux(i)*vth
                 call Om_th(v, eta_max, Omth, dOmthdv, dOmthdeta)
                 taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
-                call bounce_fast(v, eta_max, taub, bounceavg, timestep_transport)
+                call bounce_fast(v, eta_max, taub, bounceavg, timestep_transport, istate)
+                if (istate /= 2) error stop 'attenuation-map bounce failed'
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_dp))**2
                 z(j, i) = nonlinear_attenuation(ux(i), eta_max, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
             end do

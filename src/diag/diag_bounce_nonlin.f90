@@ -24,7 +24,7 @@ contains
         character(*), intent(in) :: arg_runname
         logical :: file_exists
         real(dp) :: v, eta_min, eta_max
-        integer :: i, j, npts
+        integer :: i, j, npts, istate
         real(dp), allocatable :: eta(:)
         real(dp), parameter :: ux_list(3) = [1.0_dp, 2.0_dp, 3.0_dp]
         real(dp), allocatable :: att_nonlin(:, :)
@@ -66,7 +66,8 @@ contains
             do i = 1, npts
                 call Om_th(v, eta(i), Omth, dOmthdv, dOmthdeta)
                 taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
-                call bounce_fast(v, eta(i), taub, bounceavg, timestep_transport)
+                call bounce_fast(v, eta(i), taub, bounceavg, timestep_transport, istate)
+                if (istate /= 2) error stop 'bounce-nonlinearity diagnostic failed'
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v*v/2.0_dp))**2
 
                 nonlin = .true.

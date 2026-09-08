@@ -2,7 +2,7 @@ module neort_transport
     use iso_fortran_env, only: dp => real64
     use ieee_arithmetic, only: ieee_is_finite
     use util, only: imun, pi, c, qi
-    use logger, only: trace, debug, warning, error
+    use logger, only: trace, debug, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
     use do_magfie_pert_mod, only: do_magfie_pert_amp
@@ -127,13 +127,12 @@ contains
                 if (istate_dv == -1) then
                     call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
                 else if (istate_dv /= 2) then
-                    call warning(fmt_dbg('dvode istate=', dble(istate_dv), ' at mth=', dble(mth), ' ux=', ux, ' eta=', eta))
+                    call error(fmt_dbg('unexpected VODE status=', dble(istate_dv), ' at mth=', dble(mth), ' ux=', ux, ' eta=', eta))
                 else
                     if (abs(eta - etatp) < 1.0e-8_dp*etatp) then
                         call trace(fmt_dbg('near etatp: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
                     end if
                 end if
-                if (istate_dv /= 2) call error('non-success bounce status')
                 if (.not. all(ieee_is_finite(bounceavg))) call error('nonfinite bounce average')
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * (mi * (ux * vth)**2 / 2.0_dp)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &

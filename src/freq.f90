@@ -1,6 +1,6 @@
 module neort_freq
     use iso_fortran_env, only: dp => real64
-    use logger, only: debug, trace, get_log_level, LOG_TRACE
+    use logger, only: debug, trace, get_log_level, LOG_TRACE, error
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
     use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
@@ -63,7 +63,7 @@ contains
         ! Initialise splines for canonical frequencies of trapped orbits
 
         real(dp) :: etarange(netaspl), Om_tB_v(netaspl), Omth_v(netaspl)
-        integer :: k
+        integer :: k, istate
         real(dp) :: aa, b
         real(dp) :: taub0, taub1, leta0, leta1, OmtB0, OmtB1
         real(dp) :: v, eta, taub, taub_est, bounceavg(nvar)
@@ -126,7 +126,8 @@ contains
                 taub_est = bounce_time(v, eta, taub_estimate=taub_est)
             end if
             taub = taub_est
-            call bounce_fast(v, eta, taub, bounceavg, timestep)
+            call bounce_fast(v, eta, taub, bounceavg, timestep, istate)
+            if (istate /= 2) call error('trapped frequency spline bounce failed')
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta, ' taub=', taub
             end if
@@ -163,7 +164,7 @@ contains
 
         real(dp) :: etarange(netaspl_pass), Om_tB_v(netaspl_pass), Omth_v(netaspl_pass)
         real(dp) :: aa, b
-        integer :: k
+        integer :: k, istate
         real(dp) :: leta0, leta1, taub0, taub1, OmtB0, OmtB1
         real(dp) :: v, eta, taub, taub_est, bounceavg(nvar)
 
@@ -220,7 +221,8 @@ contains
                 taub_est = bounce_time(v, eta, taub_estimate=taub_est)
             end if
             taub = taub_est
-            call bounce_fast(v, eta, taub, bounceavg, timestep)
+            call bounce_fast(v, eta, taub, bounceavg, timestep, istate)
+            if (istate /= 2) call error('passing frequency spline bounce failed')
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_passing_spline k=', k, ' eta=', eta, ' taub=', taub
             end if
@@ -381,6 +383,7 @@ contains
         real(dp), intent(out) :: dOmthds, dOmphds
         real(dp) :: s0, ds, bounceavg(nvar)
         real(dp) :: taub, taub_est, Omth, Omph_noE
+        integer :: istate
 
         call trace('d_Om_ds')
 
@@ -391,7 +394,8 @@ contains
         s = s0 - ds / 2.0_dp
         taub_est = bounce_time(v, eta, taub_estimate)
         taub = taub_est
-        call bounce_fast(v, eta, taub, bounceavg, timestep)
+        call bounce_fast(v, eta, taub, bounceavg, timestep, istate)
+        if (istate /= 2) call error('lower-surface bounce derivative failed')
         Omth = sign_vpar_htheta * 2.0_dp * pi / taub
         if (magdrift) then
             if (eta > etatp) then
@@ -409,7 +413,8 @@ contains
         s = s0 + ds / 2.0_dp
         taub_est = bounce_time(v, eta, taub_estimate)
         taub = taub_est
-        call bounce_fast(v, eta, taub, bounceavg, timestep)
+        call bounce_fast(v, eta, taub, bounceavg, timestep, istate)
+        if (istate /= 2) call error('upper-surface bounce derivative failed')
         dOmthds = sign_vpar_htheta * (2.0_dp * pi / taub - sign_vpar_htheta * Omth) / ds
         if (magdrift) then
             if (eta > etatp) then
