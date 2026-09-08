@@ -203,7 +203,7 @@ contains
             driftorbit_root(2) = dresdeta
 
             if (abs(res) <= tol_eff .and. abs(b - a) <= eta_relative_tolerance * eta_scale .and. &
-                ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp) then
+                valid_resonance_jacobian(dresdeta)) then
                 converged = .true.
                 exit
             end if
