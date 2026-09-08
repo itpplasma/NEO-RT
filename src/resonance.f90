@@ -13,9 +13,17 @@ contains
         valid_resonance_jacobian = ieee_is_finite(jacobian) .and. jacobian /= 0.0_dp
         if (valid_resonance_jacobian) then
             ! A finite subnormal derivative can still overflow its coarea
-            ! reciprocal.  Reject it before any contribution divides by the
-            ! Jacobian; a finite output is part of the numerical contract.
-            valid_resonance_jacobian = ieee_is_finite(1.0_dp / abs(jacobian))
+            ! reciprocal.  Reject all subnormals before evaluating that
+            ! reciprocal: Debug builds trap overflow/underflow, so evaluating
+            ! 1/abs(jacobian) as a probe would otherwise raise SIGFPE instead
+            ! of returning the required fail-closed status.  The normal-number
+            ! floor is conservative; it guarantees a representable reciprocal
+            ! without changing any physical production row.
+            if (abs(jacobian) < tiny(1.0_dp)) then
+                valid_resonance_jacobian = .false.
+            else
+                valid_resonance_jacobian = ieee_is_finite(1.0_dp / abs(jacobian))
+            end if
         end if
     end function valid_resonance_jacobian
 
