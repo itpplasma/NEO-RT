@@ -11,6 +11,12 @@ contains
         real(dp), intent(in) :: jacobian
 
         valid_resonance_jacobian = ieee_is_finite(jacobian) .and. jacobian /= 0.0_dp
+        if (valid_resonance_jacobian) then
+            ! A finite subnormal derivative can still overflow its coarea
+            ! reciprocal.  Reject it before any contribution divides by the
+            ! Jacobian; a finite output is part of the numerical contract.
+            valid_resonance_jacobian = ieee_is_finite(1.0_dp / abs(jacobian))
+        end if
     end function valid_resonance_jacobian
 
     subroutine resonance_value(v, eta, res, dresdeta)

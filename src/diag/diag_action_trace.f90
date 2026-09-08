@@ -14,7 +14,7 @@ module diag_action_trace
     use neort_transport, only: timestep_transport, Tphi_int, transport_Omth => Omth, &
         transport_dOmthdv => dOmthdv, transport_dOmthdeta => dOmthdeta
     use neort_orbit, only: bounce_fast, nvar
-    use neort_resonance, only: driftorbit_coarse, driftorbit_root
+    use neort_resonance, only: driftorbit_coarse, driftorbit_root, valid_resonance_jacobian
     use neort_action_trace_contract, only: action_trace_weight
     use driftorbit, only: mth, mph, mi, nlev, pertfile, nonlin, etamin, etamax, &
         sign_vpar, nopassing
@@ -100,7 +100,7 @@ contains
                     if (eta_res(1) == -1.0_dp) cycle
                     error stop "unconverged resonance root"
                 end if
-                if (.not. ieee_is_finite(eta_res(2)) .or. eta_res(2) == 0.0_dp) then
+                if (.not. valid_resonance_jacobian(eta_res(2))) then
                     error stop "nonfinite or zero resonance Jacobian"
                 end if
                 eta = eta_res(1)
