@@ -189,7 +189,10 @@ contains
         t1 = 0.0_dp
         t2 = taub
 
-        if (.not. ieee_is_finite(taub) .or. taub <= 0.0_dp) then
+        if (.not. ieee_is_finite(v) .or. .not. ieee_is_finite(eta) .or. &
+            .not. ieee_is_finite(taub) .or. .not. ieee_is_finite(rtol) .or. &
+            .not. ieee_is_finite(atol_val) .or. taub <= 0.0_dp .or. &
+            rtol <= 0.0_dp .or. atol_val <= 0.0_dp) then
             bounceavg = 0.0_dp
             if (present(istate_out)) istate_out = 0
             return
