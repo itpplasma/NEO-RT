@@ -114,6 +114,14 @@ contains
         write (unit, '(A,F18.10)') "# s_tor = ", s
         write (unit, '(A,F18.10)') "# rho_tor = ", sqrt(s)
         write (unit, '(A)') "# position_coordinates = Boozer(s_tor,phi,theta)"
+        ! NEO-RT integrates one complete trapped orbit from the minimum-field
+        ! point back to that point.  MARS' KJPCOEFF trace is a half-bounce
+        ! between turning points; recording the span prevents a consumer from
+        ! pairing equal-looking normalized fractions as the same samples.
+        write (unit, '(A)') "# orbit_span = full_bounce"
+        write (unit, '(A)') "# start_point = local_Bmin"
+        write (unit, '(A)') "# endpoint_bounce_angle = 2*pi"
+        write (unit, '(A)') "# time_orientation = increasing_native_time"
         write (unit, '(A)') "# phase_gauge = t=0 at theta=th0 and phi=0"
         write (unit, '(A)') "# orientation_convention = sign(v_parallel)"
         write (unit, '(A,F18.10)') "# ux = ", ux_target
