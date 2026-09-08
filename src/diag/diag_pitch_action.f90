@@ -9,7 +9,8 @@ module diag_pitch_action
         transport_domthdv => dOmthdv, transport_domthdeta => dOmthdeta
     use neort_orbit, only: bounce_fast, bounce_fast_toleranced, nvar, noshear
     use driftorbit, only: mth, mph, mi, sign_vpar, nonlin, supban, nopassing, &
-        comptorque, magdrift, magdrift_passing, etatp, etadt
+        comptorque, magdrift, magdrift_passing, etatp, etadt, epst_spl, epsst_spl, &
+        epssp_spl, epsp_spl
     use do_magfie_mod, only: s, q, iota, psi_pr, sign_theta
     implicit none
     private
@@ -201,7 +202,7 @@ contains
             "eta_min eta_max umin umax q iota psi_pr sign_theta A1 A2 OmE "// &
             "unit_theta d_unit_theta unit_drift d_unit_drift a b c da db dc "// &
             "Omth Omph dOmthdv dOmphdv dOmthdeta dOmphdeta g g_quadratic "// &
-            "dgdu dgdu_quadratic dgdeta"
+            "dgdu dgdu_quadratic dgdeta etatp etadt eta_spline_min eta_spline_max"
         current_surface = -1.0_dp
         do k = 1, size(points)
             if (points(k)%surface /= current_surface) then
@@ -224,15 +225,19 @@ contains
         real(dp) :: unit_drift, d_unit_drift, d1, d2, v
         real(dp) :: omth, omph, domthdv, domphdv, domthdeta, domphdeta
         real(dp) :: coeff(3), dcoeff(3), g, g_quadratic, dgdu, dgdu_quadratic
-        real(dp) :: dgdeta, values(37)
+        real(dp) :: dgdeta, eta_spline_min, eta_spline_max, values(41)
         logical :: passing
 
         passing = point%branch /= 3
         if (passing) then
             if (nopassing) error stop "passing point forbidden by nopassing"
             call set_to_passing_region(eta_min, eta_max)
+            eta_spline_min = epssp_spl*etatp
+            eta_spline_max = (1.0_dp - epsp_spl)*etatp
         else
             call set_to_trapped_region(eta_min, eta_max)
+            eta_spline_min = (1.0_dp + epst_spl)*etatp
+            eta_spline_max = etatp + (etadt - etatp)*(1.0_dp - epsst_spl)
         end if
         sign_vpar = 1.0_dp
         if (point%branch == 2) sign_vpar = -1.0_dp
@@ -268,7 +273,7 @@ contains
             1.0e-6_dp, vmax_over_vth, q, iota, psi_pr, sign_theta, A1, A2, Om_tE, &
             unit_theta, d_unit_theta, unit_drift, d_unit_drift, coeff, dcoeff, omth, &
             omph, domthdv, domphdv, domthdeta, domphdeta, g, g_quadratic, dgdu, &
-            dgdu_quadratic, dgdeta]
+            dgdu_quadratic, dgdeta, etatp, etadt, eta_spline_min, eta_spline_max]
         if (.not. all(ieee_is_finite(values))) error stop "nonfinite pitch coefficients"
         write (unit, '(5(I0,1X),*(ES24.16,1X))') index, point%branch, mth, mph, 0, values
     end subroutine write_pitch_coeff_point
