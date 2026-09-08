@@ -1,4 +1,5 @@
 module diag_action_trace
+    use ieee_arithmetic, only: ieee_is_finite
     use iso_fortran_env, only: dp => real64
     use neort, only: init, check_magfie, write_magfie_data_to_files, &
         set_to_passing_region, set_to_trapped_region, harmonic_bounds, &
@@ -94,8 +95,14 @@ contains
             call driftorbit_coarse(v, etamin, etamax, roots, nroots)
             do kr = 1, nroots
                 eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                if (eta_res(1) < 0.0_dp) cycle
-                if (eta_res(2) == 0.0_dp) cycle
+                if (.not. ieee_is_finite(eta_res(1))) error stop "nonfinite resonance root"
+                if (eta_res(1) < 0.0_dp) then
+                    if (eta_res(1) == -1.0_dp) cycle
+                    error stop "unconverged resonance root"
+                end if
+                if (.not. ieee_is_finite(eta_res(2)) .or. eta_res(2) == 0.0_dp) then
+                    error stop "nonfinite or zero resonance Jacobian"
+                end if
                 eta = eta_res(1)
                 ! The production callback reads neort_transport's threadprivate
                 ! Omth while bounce_fast advances the orbit.  Bind the same
@@ -106,6 +113,8 @@ contains
                 residual = real(mth, dp) * transport_Omth + real(mph, dp) * omph
                 taub = 2.0_dp * acos(-1.0_dp) / abs(transport_Omth)
                 call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
+                if (istate_dv /= 2) error stop "non-success bounce status"
+                if (.not. all(ieee_is_finite(bounceavg))) error stop "nonfinite bounce average"
                 hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * &
                     (mi * (ux * vth)**2 / 2.0_dp)**2
                 attenuation = nonlinear_attenuation(ux, eta, bounceavg, transport_Omth, &

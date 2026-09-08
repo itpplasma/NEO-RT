@@ -1,5 +1,6 @@
 module diag_contrib_map
   use iso_fortran_env, only: dp => real64
+  use ieee_arithmetic, only: ieee_is_finite
   use fortplot, only: figure, plot, pcolormesh, title, xlabel, ylabel, legend, savefig
   use neort, only: init, check_magfie, write_magfie_data_to_files, &
                    set_to_passing_region, set_to_trapped_region
@@ -12,7 +13,7 @@ module diag_contrib_map
   use neort_freq, only: Om_th
   use neort_transport, only: timestep_transport, Tphi_int
   use neort_orbit, only: bounce_fast, nvar
-  use neort_resonance, only: driftorbit_coarse, driftorbit_root
+  use neort_resonance, only: driftorbit_coarse, driftorbit_root, valid_resonance_jacobian
   use driftorbit, only: nonlin, mth, mph, etatp, etadt, epsst_spl, mi, pertfile, &
                         etamin, etamax, sign_vpar, sign_vpar_htheta, nopassing
   use do_magfie_mod, only: R0, s, q
@@ -151,18 +152,27 @@ contains
       integer :: nroots, kr
       real(dp) :: att
       real(dp) :: v_eff
+      integer :: istate_dv
 
       call driftorbit_coarse(v, etamin, etamax, roots, nroots)
       if (nroots == 0) return
       do kr = 1, nroots
         eta_res = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
-        if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
+        if (.not. ieee_is_finite(eta_res(1))) then
+          error stop 'nonfinite resonance root'
+        else if (eta_res(1) < 0.0_dp) then
+          if (eta_res(1) == -1.0_dp) cycle
+          error stop 'unconverged resonance root'
+        end if
+        if (.not. valid_resonance_jacobian(eta_res(2))) error stop 'nonfinite or zero resonance Jacobian'
         eta = eta_res(1)
 
         v_eff = max(v, 1.0e-8_dp*vth)
         call Om_th(v_eff, eta, Omth, dOmthdv, dOmthdeta)
         taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
-        call bounce_fast(v_eff, eta, taub, bounceavg, timestep_transport)
+        call bounce_fast(v_eff, eta, taub, bounceavg, timestep_transport, istate_dv)
+        if (istate_dv /= 2) error stop 'non-success bounce status'
+        if (.not. all(ieee_is_finite(bounceavg))) error stop 'nonfinite bounce average'
         Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(v_eff*v_eff/2.0_dp))**2
         att = nonlinear_attenuation(ux, eta, bounceavg, Omth, dOmthdv, dOmthdeta, Hmn2)
         contrib_out = contrib_out + Tphi_int(ux, taub, Hmn2)/abs(eta_res(2)) * att

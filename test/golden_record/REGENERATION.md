@@ -1,5 +1,28 @@
 # Golden record regeneration: 2026-06-15
 
+## Current regeneration: 2026-09-08
+
+The committed `golden.h5` was regenerated on the current Linux runner from
+NEO-RT `fix/tc24-fail-closed-resonance` at source base `759c09b`, with the
+Fortnum VODE dependency pinned to `aba0f247658786462961d85f42ba921492a7f212`
+(`Do not move tn onto a located event root`) and the existing standalone
+field/profile fixtures.  The resulting artifact has SHA-256
+`07687de0a77c2d868241309ebf4b4e352fcbff3182bbe3b97b0c503781930c3e`.
+
+This refresh is required because the checked-in golden was produced with the
+older Fortnum pin (`92de6e949a772cfffc73bb5295fe5e2b056b9c18`), while the
+current CMake pin includes the event-root state fix.  On the untouched parent
+source, the stale artifact reproduced the `0p300` torque-integral failure by
+about 1.9%; it therefore was not caused by the fail-closed resonance/bounce
+guards.  The old artifact is retained outside the repository by the campaign
+runner as evidence, while this file and the new hash identify the accepted
+current dependency state.
+
+The refresh is not a physical torque adjustment.  The independent bounce
+quadrature/oracle in `test_bounce` remains the acceptance check for the
+Fortnum event path, and no output sign, phase, gain, radius or smoothing is
+changed.
+
 The committed `golden.h5` was regenerated from the fortnum vode integrator
 (branch `migrate/fortnum-ode-events-drop-vode`, PR #47; fortnum pinned to main
 `974dcf1`), built `CONFIG=Fast`. The previous golden was generated on demand

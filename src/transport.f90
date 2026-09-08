@@ -1,5 +1,6 @@
 module neort_transport
     use iso_fortran_env, only: dp => real64
+    use ieee_arithmetic, only: ieee_is_finite
     use util, only: imun, pi, c, qi
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
@@ -10,7 +11,7 @@ module neort_transport
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
-    use neort_resonance, only: driftorbit_coarse, driftorbit_root
+    use neort_resonance, only: driftorbit_coarse, driftorbit_root, valid_resonance_jacobian
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
@@ -102,12 +103,26 @@ contains
             ! `ux = ux + du` velocity-grid increment and stall the sweep.
             do kr = 1, nroots
                 eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
+                if (.not. ieee_is_finite(eta_res(1))) then
+                    call error('nonfinite resonance root')
+                else if (eta_res(1) < 0.0_dp) then
+                    if (eta_res(1) == -1.0_dp) cycle
+                    call error('unconverged resonance root')
+                end if
+                if (.not. valid_resonance_jacobian(eta_res(2))) then
+                    call error('nonfinite or zero resonance Jacobian')
+                end if
                 eta = eta_res(1)
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
+                if (.not. ieee_is_finite(Omth) .or. Omth == 0.0_dp) then
+                    call error('nonfinite or zero poloidal frequency')
+                end if
                 taub = 2.0_dp * pi / abs(Omth)
+                if (.not. ieee_is_finite(taub) .or. taub <= 0.0_dp) then
+                    call error('nonfinite or nonpositive bounce period')
+                end if
                 call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
                 if (istate_dv == -1) then
                     call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
@@ -118,6 +133,8 @@ contains
                         call trace(fmt_dbg('near etatp: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
                     end if
                 end if
+                if (istate_dv /= 2) call error('non-success bounce status')
+                if (.not. all(ieee_is_finite(bounceavg))) call error('nonfinite bounce average')
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * (mi * (ux * vth)**2 / 2.0_dp)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)

@@ -1,5 +1,6 @@
 module neort_orbit
     use iso_fortran_env, only: dp => real64
+    use ieee_arithmetic, only: ieee_is_finite
     use logger, only: debug, trace, get_log_level, LOG_TRACE, error
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
@@ -147,9 +148,15 @@ contains
         real(dp), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
+        integer :: istate
 
-        call bounce_fast_toleranced(v, eta, taub, bounceavg, ts, istate_out, &
+        call bounce_fast_toleranced(v, eta, taub, bounceavg, ts, istate, &
             1.0e-9_dp, 1.0e-10_dp)
+        if (present(istate_out)) then
+            istate_out = istate
+        else if (istate /= 2) then
+            call error('bounce_fast: non-success orbit status')
+        end if
     end subroutine bounce_fast
 
     subroutine bounce_fast_toleranced(v, eta, taub, bounceavg, ts, istate_out, &
@@ -182,6 +189,12 @@ contains
         t1 = 0.0_dp
         t2 = taub
 
+        if (.not. ieee_is_finite(taub) .or. taub <= 0.0_dp) then
+            bounceavg = 0.0_dp
+            if (present(istate_out)) istate_out = 0
+            return
+        end if
+
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1.0_dp, htheta) * sign_vpar
         y0 = 1.0e-15_dp
@@ -207,7 +220,13 @@ contains
             call dvode_error_context('bounce_fast_toleranced', v, eta, t1, t2, istate)
         end if
 
-        bounceavg = yend / taub
+        if (.not. allocated(yend)) then
+            bounceavg = 0.0_dp
+            istate = 0
+        else
+            bounceavg = yend / taub
+            if (.not. all(ieee_is_finite(bounceavg))) istate = 0
+        end if
         if (present(istate_out)) istate_out = istate
 
         call trace('bounce_fast_toleranced complete')

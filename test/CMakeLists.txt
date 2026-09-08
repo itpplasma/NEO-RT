@@ -62,6 +62,15 @@ add_test(NAME test_bounce
     COMMAND ${CMAKE_BINARY_DIR}/test_bounce.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_bounce_status
+    COMMAND ${CMAKE_BINARY_DIR}/test_bounce_status.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+add_test(NAME test_bounce_status_omitted
+    COMMAND ${CMAKE_BINARY_DIR}/test_bounce_status_omitted.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_bounce_status_omitted PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME test_parallel_transport
     COMMAND ${CMAKE_BINARY_DIR}/test_parallel_transport.x
@@ -130,6 +139,10 @@ add_test(NAME test_vmax_over_vth
 
 add_test(NAME test_resonance_bracket
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_bracket.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+add_test(NAME test_resonance_jacobian
+    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_jacobian.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 add_test(NAME test_resonance_oracle

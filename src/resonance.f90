@@ -7,6 +7,12 @@ module neort_resonance
 
 contains
 
+    pure logical function valid_resonance_jacobian(jacobian)
+        real(dp), intent(in) :: jacobian
+
+        valid_resonance_jacobian = ieee_is_finite(jacobian) .and. jacobian /= 0.0_dp
+    end function valid_resonance_jacobian
+
     subroutine resonance_value(v, eta, res, dresdeta)
         ! R(v, eta) = mth*Omega_theta + mph*Omega_phi.
         ! Om_th and Om_ph already provide the analytic eta derivatives, so
@@ -140,7 +146,7 @@ contains
             max(1.0_dp, abs(fa), abs(fb)))
 
         if (fa == 0.0_dp) then
-            if (.not. ieee_is_finite(dfa_deta) .or. dfa_deta == 0.0_dp) then
+            if (.not. valid_resonance_jacobian(dfa_deta)) then
                 call warning("driftorbit_root: zero/invalid Jacobian at exact bracket endpoint")
                 return
             end if
@@ -148,7 +154,7 @@ contains
             return
         end if
         if (fb == 0.0_dp) then
-            if (.not. ieee_is_finite(dfb_deta) .or. dfb_deta == 0.0_dp) then
+            if (.not. valid_resonance_jacobian(dfb_deta)) then
                 call warning("driftorbit_root: zero/invalid Jacobian at exact bracket endpoint")
                 return
             end if
@@ -191,7 +197,7 @@ contains
             driftorbit_root(2) = dresdeta
 
             if (abs(res) <= tol_eff .and. abs(b - a) <= eta_relative_tolerance * eta_scale .and. &
-                ieee_is_finite(dresdeta)) then
+                ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp) then
                 converged = .true.
                 exit
             end if
@@ -209,7 +215,7 @@ contains
                 eta = 0.5_dp * (a + b)
                 call resonance_value(v, eta, res, dresdeta)
                 driftorbit_root = [eta, dresdeta]
-                converged = ieee_is_finite(res) .and. ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp
+                converged = ieee_is_finite(res) .and. valid_resonance_jacobian(dresdeta)
                 exit
             end if
 
@@ -222,7 +228,7 @@ contains
             end if
 
             eta_next = eta
-            if (ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp) then
+            if (valid_resonance_jacobian(dresdeta)) then
                 eta_next = eta - res / dresdeta
             end if
             if (.not. ieee_is_finite(eta_next) .or. eta_next <= a .or. eta_next >= b .or. &
