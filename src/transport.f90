@@ -74,6 +74,35 @@ contains
                    * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
     end function Tphi_int
 
+    subroutine evaluate_hamiltonian(v, eta, t, theta, bmod, omth_in, Hn)
+        ! Evaluate the instantaneous complex perturbation used by the
+        ! transport callback.  Diagnostics call this routine so that an
+        ! emitted orbit packet cannot silently acquire a second phase
+        ! convention by reimplementing the callback formula.
+        real(dp), intent(in) :: v, eta, t, theta, bmod, omth_in
+        complex(dp), intent(out) :: Hn
+        real(dp) :: x(3)
+        complex(dp) :: epsn
+
+        x(1) = s
+        x(2) = 0.0_dp
+        x(3) = theta
+        if (pertfile) then
+            call do_magfie_pert_amp(x, epsn)
+            epsn = pertfile_scale * epsn / bmod
+        else
+            epsn = epsmn * exp(imun * m0 * theta)
+        end if
+
+        if (eta > etatp) then
+            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * &
+                (q * mph * theta - mth * t * omth_in))
+        else
+            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * &
+                (q * mph * theta - (mth + q * mph) * t * omth_in))
+        end if
+    end subroutine evaluate_hamiltonian
+
     subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
@@ -175,9 +204,7 @@ contains
         ! BEGIN TODO: remove all of this after refactoring and re-use routine in orbit
         ! for y(1:3)
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
-        real(dp) :: t0
-        complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
-        ! and Hamiltonian Hn = (H - H0)_n
+        complex(dp) :: Hn  ! Hamiltonian perturbation Hn = (H - H0)_n
 
         x(1) = s
         x(2) = 0.0_dp
@@ -185,23 +212,8 @@ contains
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot)
 
-        ! evaluate orbit averages of Hamiltonian perturbation
-        if (pertfile) then
-            call do_magfie_pert_amp(x, epsn)
-            epsn = pertfile_scale * epsn / bmod
-        else
-            epsn = epsmn * exp(imun * m0 * y(1))
-        end if
-
-        if (eta > etatp) then
-            !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
-            t0 = 0.0_dp
-            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
-                                                                                      t0) * Omth))
-        else
-            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
-                                                            * t * Omth))
-        end if
+        ! Evaluate the same complex perturbation used by the orbit packet.
+        call evaluate_hamiltonian(v, eta, t, y(1), bmod, Omth, Hn)
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
 
