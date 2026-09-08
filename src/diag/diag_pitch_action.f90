@@ -13,7 +13,8 @@ module diag_pitch_action
     use do_magfie_mod, only: s, q, iota, psi_pr, sign_theta
     implicit none
     private
-    public :: run_pitch_action_diag, read_pitch_points, resonance_coefficients
+    public :: run_pitch_action_diag, run_pitch_coeff_diag, read_pitch_points, &
+        resonance_coefficients, resonance_coefficient_eta_derivatives
     public :: pitch_point_t
 
     type :: pitch_point_t
@@ -39,6 +40,23 @@ contains
         coeff(2) = transit*unit_theta
         coeff(3) = real(toroidal, dp)*electric
     end function resonance_coefficients
+
+    pure function resonance_coefficient_eta_derivatives(harmonic, toroidal, passing, &
+            rotational, d_unit_theta, d_unit_drift) result(dcoeff)
+        integer, intent(in) :: harmonic, toroidal
+        logical, intent(in) :: passing
+        real(dp), intent(in) :: rotational, d_unit_theta, d_unit_drift
+        real(dp) :: dcoeff(3), transit
+
+        transit = real(harmonic, dp)
+        if (passing) then
+            if (rotational == 0.0_dp) error stop "zero passing rotational transform"
+            transit = transit + real(toroidal, dp)/rotational
+        end if
+        dcoeff(1) = real(toroidal, dp)*d_unit_drift
+        dcoeff(2) = transit*d_unit_theta
+        dcoeff(3) = 0.0_dp
+    end function resonance_coefficient_eta_derivatives
 
     subroutine parse_point(line, point)
         character(*), intent(in) :: line
@@ -157,6 +175,103 @@ contains
         end do
         close (unit)
     end subroutine run_pitch_action_diag
+
+    subroutine run_pitch_coeff_diag(runname, point_file)
+        character(*), intent(in) :: runname, point_file
+        type(pitch_point_t), allocatable :: points(:)
+        real(dp) :: current_surface
+        integer :: unit, k
+
+        call read_pitch_points(point_file, points)
+        call neort_init(trim(runname)//".in", "in_file", "in_file_pert")
+        if (nonlin) error stop "pitch coefficients require nonlin=false"
+        if (supban) error stop "pitch coefficients require supban=false"
+        if (.not. comptorque) error stop "pitch coefficients require comptorque=true"
+        call neort_prepare_splines("plasma.in", "profile.in")
+        open (newunit=unit, file=trim(runname)//"_pitch_coeff.dat", &
+            status="replace", action="write")
+        write (unit, '(A)') "# schema neort-pitch-coeff-v1"
+        write (unit, '(A)') "# branch: 1=passing_co 2=passing_ctr 3=trapped"
+        write (unit, '(A)') "# coefficients use g(u,eta)=a*u^2+b*u+c in the ordinary model"
+        write (unit, '(A)') "# unit_theta/unit_drift are native frequencies at u=1 (not SI-normalized)"
+        write (unit, '(A,L1,A,I0,A,L1)') "# magdrift=", magdrift, &
+            " magdrift_passing=", magdrift_passing, " noshear=", noshear
+        write (unit, '(A)') "# nonlin=false supban=false spline_init_sign=+1"
+        write (unit, '(A)') "# columns: point branch mth mph s_tor eta ux_request vth sign_vpar "// &
+            "eta_min eta_max umin umax q iota psi_pr sign_theta A1 A2 OmE "// &
+            "unit_theta d_unit_theta unit_drift d_unit_drift a b c da db dc "// &
+            "Omth Omph dOmthdv dOmphdv dOmthdeta dOmphdeta g g_quadratic "// &
+            "dgdu dgdu_quadratic dgdeta"
+        current_surface = -1.0_dp
+        do k = 1, size(points)
+            if (points(k)%surface /= current_surface) then
+                sign_vpar = 1.0_dp
+                call neort_setup_at_s(points(k)%surface)
+                if (.not. ieee_is_finite(q*iota)) error stop "nonfinite q*iota"
+                if (abs(q*iota - 1.0_dp) > 1.0e-10_dp) &
+                    error stop "pitch coefficients require native q*iota=1"
+                current_surface = points(k)%surface
+            end if
+            call write_pitch_coeff_point(unit, k, points(k))
+        end do
+        close (unit)
+    end subroutine run_pitch_coeff_diag
+
+    subroutine write_pitch_coeff_point(unit, index, point)
+        integer, intent(in) :: unit, index
+        type(pitch_point_t), intent(in) :: point
+        real(dp) :: eta_min, eta_max, unit_theta, d_unit_theta
+        real(dp) :: unit_drift, d_unit_drift, d1, d2, v
+        real(dp) :: omth, omph, domthdv, domphdv, domthdeta, domphdeta
+        real(dp) :: coeff(3), dcoeff(3), g, g_quadratic, dgdu, dgdu_quadratic
+        real(dp) :: dgdeta, values(37)
+        logical :: passing
+
+        passing = point%branch /= 3
+        if (passing) then
+            if (nopassing) error stop "passing point forbidden by nopassing"
+            call set_to_passing_region(eta_min, eta_max)
+        else
+            call set_to_trapped_region(eta_min, eta_max)
+        end if
+        sign_vpar = 1.0_dp
+        if (point%branch == 2) sign_vpar = -1.0_dp
+        mth = point%harmonic
+        if (point%eta < eta_min .or. point%eta > eta_max) &
+            error stop "point outside native pitch support"
+        if (point%ux < 1.0e-6_dp .or. point%ux > vmax_over_vth) &
+            error stop "point outside native velocity support"
+        call Om_th(vth, point%eta, omth, d1, d2)
+        unit_theta = omth
+        d_unit_theta = d2
+        unit_drift = 0.0_dp
+        d_unit_drift = 0.0_dp
+        if (magdrift) then
+            call Om_tB(vth, point%eta, unit_drift, d1, d2)
+            ! Om_tB(v,eta) is quadratic in u=v/vth in this guarded model;
+            ! keep its native u=1 value as the polynomial coefficient.
+            d_unit_drift = d2
+        end if
+        coeff = resonance_coefficients(mth, mph, passing, iota, Om_tE, &
+            unit_theta, unit_drift)
+        dcoeff = resonance_coefficient_eta_derivatives(mth, mph, passing, iota, &
+            d_unit_theta, d_unit_drift)
+        v = point%ux*vth
+        call Om_th(v, point%eta, omth, domthdv, domthdeta)
+        call Om_ph(v, point%eta, omph, domphdv, domphdeta)
+        g = real(mth, dp)*omth + real(mph, dp)*omph
+        dgdu = vth*(real(mth, dp)*domthdv + real(mph, dp)*domphdv)
+        dgdeta = real(mth, dp)*domthdeta + real(mph, dp)*domphdeta
+        g_quadratic = (coeff(1)*point%ux + coeff(2))*point%ux + coeff(3)
+        dgdu_quadratic = 2.0_dp*coeff(1)*point%ux + coeff(2)
+        values = [s, point%eta, point%ux, vth, sign_vpar, eta_min, eta_max, &
+            1.0e-6_dp, vmax_over_vth, q, iota, psi_pr, sign_theta, A1, A2, Om_tE, &
+            unit_theta, d_unit_theta, unit_drift, d_unit_drift, coeff, dcoeff, omth, &
+            omph, domthdv, domphdv, domthdeta, domphdeta, g, g_quadratic, dgdu, &
+            dgdu_quadratic, dgdeta]
+        if (.not. all(ieee_is_finite(values))) error stop "nonfinite pitch coefficients"
+        write (unit, '(5(I0,1X),*(ES24.16,1X))') index, point%branch, mth, mph, 0, values
+    end subroutine write_pitch_coeff_point
 
     subroutine write_pitch_point(unit, index, point, tight, ultra)
         integer, intent(in) :: unit, index

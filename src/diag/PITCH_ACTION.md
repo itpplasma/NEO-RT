@@ -12,6 +12,21 @@ From a prepared input directory, run through the build driver:
 fo exec --cwd /path/to/inputs neo_rt_diag.x pitch_action case points.in
 ```
 
+For event-partition construction, use the companion coefficient-only export:
+
+```sh
+fo exec --cwd /path/to/inputs neo_rt_diag.x pitch_coeff case points.in
+```
+
+`case_pitch_coeff.dat` evaluates the native `Om_th`/`Om_ph` path at each
+requested pitch and writes the ordinary-model coefficients and their eta
+derivatives. It performs no bounce solve and no torque integration; it is a
+diagnostic input to an independently implemented event detector. The same
+support, branch-sign, `q*iota`, and `nonlin=false supban=false comptorque=true`
+guards as `pitch_action` apply. The `ux` column is retained as a row identity
+and direct-frequency check, while `a`, `b`, and `c` are independent of `ux` in
+this guarded model.
+
 The input directory must contain `case.in`, `in_file`, `in_file_pert`,
 `plasma.in` and `profile.in`, with the same identities as the reference lane.
 A campaign must hash the actual executable and linked libraries before

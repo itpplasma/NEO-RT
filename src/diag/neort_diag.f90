@@ -7,7 +7,7 @@ program neort_diag
     use diag_action_trace, only: run_action_trace_diag
     use diag_resonance_contour, only: run_resonance_contour_diag
     use diag_resonance_scan, only: run_resonance_scan_diag
-    use diag_pitch_action, only: run_pitch_action_diag
+    use diag_pitch_action, only: run_pitch_action_diag, run_pitch_coeff_diag
     implicit none
     character(len=256) :: diag, runname, ux_arg, neta_arg, surface_file_arg
     real(real64) :: ux
@@ -20,6 +20,7 @@ program neort_diag
         print *, "pitch_action <runname> <points_file>: off-root frequency and action"
         print *, "pitch_action_tight <runname> <points_file>: diagnostic tight-tolerance action"
         print *, "pitch_action_ultra <runname> <points_file>: diagnostic ultra-tight action"
+        print *, "pitch_coeff <runname> <points_file>: native coefficient/event table"
         stop 1
     end if
 
@@ -68,6 +69,11 @@ program neort_diag
         if (len_trim(surface_file_arg) == 0) &
             error stop "pitch_action_ultra requires a point-file argument"
         call run_pitch_action_diag(trim(adjustl(runname)), trim(surface_file_arg), .false., .true.)
+    case ("pitch_coeff")
+        call get_command_argument(3, surface_file_arg)
+        if (len_trim(surface_file_arg) == 0) &
+            error stop "pitch_coeff requires a point-file argument"
+        call run_pitch_coeff_diag(trim(adjustl(runname)), trim(surface_file_arg))
     case default
         print *, "Unknown diagnostic:", trim(diag)
         stop 2

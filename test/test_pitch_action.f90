@@ -1,7 +1,7 @@
 program test_pitch_action
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use diag_pitch_action, only: pitch_point_t, read_pitch_points, &
-        resonance_coefficients
+        resonance_coefficients, resonance_coefficient_eta_derivatives
     implicit none
     type(pitch_point_t), allocatable :: points(:)
     real(dp) :: coeff(3)
@@ -53,4 +53,12 @@ program test_pitch_action
     coeff = resonance_coefficients(-1, 3, .true., -0.5_dp, -7.0_dp, &
         -5.0_dp, -2.0_dp)
     if (coeff(2) /= 35.0_dp) error stop "counter-passing orientation"
+    coeff = resonance_coefficient_eta_derivatives(-1, 3, .false., -0.5_dp, &
+        5.0_dp, -2.0_dp)
+    if (coeff(1) /= -6.0_dp) error stop "trapped drift derivative"
+    if (coeff(2) /= -5.0_dp) error stop "trapped transit derivative"
+    if (coeff(3) /= 0.0_dp) error stop "electric derivative"
+    coeff = resonance_coefficient_eta_derivatives(-1, 3, .true., -0.5_dp, &
+        5.0_dp, -2.0_dp)
+    if (coeff(2) /= -35.0_dp) error stop "passing transit derivative"
 end program test_pitch_action
