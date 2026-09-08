@@ -198,7 +198,7 @@ contains
         write (unit, '(A,L1,A,I0,A,L1)') "# magdrift=", magdrift, &
             " magdrift_passing=", magdrift_passing, " noshear=", noshear
         write (unit, '(A)') "# nonlin=false supban=false spline_init_sign=+1"
-        write (unit, '(A)') "# columns: point branch mth mph s_tor eta ux_request vth sign_vpar "// &
+        write (unit, '(A)') "# columns: point branch mth mph istate s_tor eta ux_request vth sign_vpar "// &
             "eta_min eta_max umin umax q iota psi_pr sign_theta A1 A2 OmE "// &
             "unit_theta d_unit_theta unit_drift d_unit_drift a b c da db dc "// &
             "Omth Omph dOmthdv dOmphdv dOmthdeta dOmphdeta g g_quadratic "// &
