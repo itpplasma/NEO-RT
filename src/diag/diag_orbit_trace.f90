@@ -175,7 +175,12 @@ contains
             H_action_im = yout(4)
             if (i == 1) then
                 orientation = merge(1, -1, yout(2) >= 0.0_dp)
-            else if (abs(yout(2)) > 1.0e-12_dp * max(v, 1.0_dp)) then
+            else if (yout(2) == 0.0_dp) then
+                ! An exactly sampled turning point has no signed
+                ! orientation.  Do not retain the previous leg's value;
+                ! near-zero nonzero values remain one-sided signs.
+                orientation = 0
+            else
                 orientation = merge(1, -1, yout(2) >= 0.0_dp)
             end if
             write (unit, '(A,1X,I0,1X,17(ES24.16,1X),I0,1X,I0)') &
