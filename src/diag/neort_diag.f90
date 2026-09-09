@@ -25,6 +25,7 @@ program neort_diag
         print *, "pitch_coeff <runname> <points_file>: native coefficient/event table"
         print *, "orbit_trace <runname> <ux> <eta> [nsteps] [mth]: ordered complex orbit packet"
         print *, "orbit_trace_physical <runname> <ux> <eta> [nsteps] [mth]: thin-orbit toroidal candidate"
+        print *, "orbit_trace_hcovar <runname> <ux> <eta> [nsteps] [mth]: source-bound radial covariant packet"
         stop 1
     end if
 
@@ -84,6 +85,29 @@ program neort_diag
         if (len_trim(mth_arg) > 0 .and. ios /= 0) error stop "MTH must be an integer"
         call run_orbit_trace_diag(trim(adjustl(runname)), ux, eta, nsteps, &
             mth_value, .true.)
+    case ("orbit_trace_hcovar")
+        ux = 1.0_real64
+        eta = 1.0_real64
+        nsteps = 257
+        mth_value = 0
+        ios = 0
+        call get_command_argument(3, ux_arg)
+        if (len_trim(ux_arg) > 0) read(ux_arg, *, iostat=ios) ux
+        if (len_trim(ux_arg) > 0 .and. ios /= 0) error stop "UX must be a real number"
+        ios = 0
+        call get_command_argument(4, eta_arg)
+        if (len_trim(eta_arg) > 0) read(eta_arg, *, iostat=ios) eta
+        if (len_trim(eta_arg) > 0 .and. ios /= 0) error stop "ETA must be a real number"
+        ios = 0
+        call get_command_argument(5, nsteps_arg)
+        if (len_trim(nsteps_arg) > 0) read(nsteps_arg, *, iostat=ios) nsteps
+        if (len_trim(nsteps_arg) > 0 .and. ios /= 0) error stop "NSTEPS must be an integer"
+        ios = 0
+        call get_command_argument(6, mth_arg)
+        if (len_trim(mth_arg) > 0) read(mth_arg, *, iostat=ios) mth_value
+        if (len_trim(mth_arg) > 0 .and. ios /= 0) error stop "MTH must be an integer"
+        call run_orbit_trace_diag(trim(adjustl(runname)), ux, eta, nsteps, &
+            mth_value, .false., .true.)
     case ("resonance_contour")
         call run_resonance_contour_diag(trim(adjustl(runname)))
     case ("resonance_scan")

@@ -1,4 +1,5 @@
 module do_magfie_mod
+    use ieee_arithmetic, only: ieee_is_finite
     use iso_fortran_env, only: dp => real64
     use util
     use spline
@@ -292,6 +293,120 @@ contains
         s_prev = x1
 
     end subroutine do_magfie
+
+    subroutine radial_covariant_component(x, bmod, h_s)
+        ! Reconstruct the covariant radial component from an ASDEX-style .bc
+        ! geometry without changing the native do_magfie output.  This is a
+        ! source-bound diagnostic hook for the finite-orbit map: h_s has the
+        ! native cgs length unit (cm) because bmod and psi_pr are cgs here.
+        ! The accepted operator still leaves hcovar(1)=0 until this hook has
+        ! an independent producer/phase/covector admission packet.
+        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(in) :: bmod
+        real(dp), intent(out) :: h_s
+
+        real(dp) :: x1, theta, b_s, j_pol, r, r_theta, r_s, z, z_theta, z_s
+        real(dp) :: v_s, f_toroidal, spl_val(3)
+        real(dp), dimension(nmode) :: r_c, r_sine, r_c_s, r_sine_s
+        real(dp), dimension(nmode) :: z_c, z_sine, z_c_s, z_sine_s
+        real(dp), dimension(nmode) :: v_c_s, v_sine_s
+        real(dp), dimension(nmode) :: cosine, sine, mode
+        integer :: j
+
+        if (inp_swi /= 9) error stop &
+            "radial_covariant_component requires inp_swi=9 (.bc)"
+        if (size(x) < 3) error stop "radial_covariant_component needs (s,phi,theta)"
+        if (.not. ieee_is_finite(bmod) .or. bmod <= 0.0_dp) error stop &
+            "radial_covariant_component received invalid bmod"
+
+        x1 = max(params0(1, 1), x(1))
+        x1 = min(params0(nflux, 1), x1)
+        theta = x(3)
+        mode = modes0(1, :, 1)
+        cosine = cos(mode * theta)
+        sine = sin(mode * theta)
+
+        do j = 1, nmode
+            spl_val = spline_val_0(spl_coeff2(:, :, 1, j), x1)
+            r_c(j) = 1.0e2_dp * spl_val(1)
+            r_c_s(j) = 1.0e2_dp * spl_val(2)
+            spl_val = spline_val_0(spl_coeff2(:, :, 2, j), x1)
+            r_sine(j) = 1.0e2_dp * spl_val(1)
+            r_sine_s(j) = 1.0e2_dp * spl_val(2)
+            spl_val = spline_val_0(spl_coeff2(:, :, 3, j), x1)
+            z_c(j) = 1.0e2_dp * spl_val(1)
+            z_c_s(j) = 1.0e2_dp * spl_val(2)
+            spl_val = spline_val_0(spl_coeff2(:, :, 4, j), x1)
+            z_sine(j) = 1.0e2_dp * spl_val(1)
+            z_sine_s(j) = 1.0e2_dp * spl_val(2)
+            spl_val = spline_val_0(spl_coeff2(:, :, 5, j), x1)
+            v_c_s(j) = spl_val(2)
+            spl_val = spline_val_0(spl_coeff2(:, :, 6, j), x1)
+            v_sine_s(j) = spl_val(2)
+        end do
+
+        r = sum(r_c * cosine + r_sine * sine)
+        r_theta = sum(-mode * r_c * sine + mode * r_sine * cosine)
+        r_s = sum(r_c_s * cosine + r_sine_s * sine)
+        z = sum(z_c * cosine + z_sine * sine)
+        z_theta = sum(-mode * z_c * sine + mode * z_sine * cosine)
+        z_s = sum(z_c_s * cosine + z_sine_s * sine)
+        v_s = sum(v_c_s * cosine + v_sine_s * sine)
+
+        spl_val = spline_val_0(spl_coeff1(:, :, 2), x1)
+        ! In the .bc contract Jpol/nper is Bphcov, the toroidal field
+        ! function F.  Itor is Bthcov and does not belong in this term.
+        f_toroidal = ItoB * spl_val(1) * bfac
+        j_pol = r_s * z_theta - r_theta * z_s
+        if (.not. ieee_is_finite(r) .or. abs(r) <= tiny(1.0_dp)) error stop &
+            "radial_covariant_component encountered invalid R"
+        if (.not. ieee_is_finite(j_pol) .or. abs(j_pol) <= tiny(1.0_dp)) error stop &
+            "radial_covariant_component encountered degenerate J_pol"
+        if (.not. ieee_is_finite(f_toroidal) .or. .not. ieee_is_finite(v_s)) error stop &
+            "radial_covariant_component encountered non-finite shift data"
+
+        b_s = (psi_pr / r) * (r_s * r_theta + z_s * z_theta) / j_pol + &
+            f_toroidal * (2.0_dp * pi / real(nfp, dp)) * v_s
+        if (.not. ieee_is_finite(b_s)) error stop &
+            "radial_covariant_component produced non-finite B_s"
+        h_s = b_s / bmod
+        if (.not. ieee_is_finite(h_s)) error stop &
+            "radial_covariant_component produced non-finite h_s"
+    end subroutine radial_covariant_component
+
+    subroutine finite_orbit_toroidal_phase(v_parallel, h_s, a_phi_prime, delta_phi_h)
+        ! Source-bound finite-orbit part of Albert et al. (2016), Eq. (21),
+        ! for the ASDEX-style .bc path.  In NEO-RT's signed flux convention
+        !
+        !   A_phi(s)-A_phi(s_ref) = psi_pr * integral(iota(s),s_ref,s) ds,
+        !   A_phi'(s)             = psi_pr*iota(s).
+        !
+        ! This is the same gauge derivative used by the chartmap path, where
+        ! A_phi=-Phi_tor*integral(iota ds) and psi_pr=-Phi_tor.  An additive
+        ! constant in A_phi is immaterial here.  The returned phase is the
+        ! signed displacement only; it is not the periodic Delta_phi action-
+        ! angle map and is not fed back into the native zero-FOW operator.
+        real(dp), intent(in) :: v_parallel, h_s
+        real(dp), intent(out) :: a_phi_prime, delta_phi_h
+
+        if (inp_swi /= 9) error stop &
+            "finite_orbit_toroidal_phase requires inp_swi=9 (.bc)"
+        if (.not. ieee_is_finite(v_parallel) .or. .not. ieee_is_finite(h_s)) &
+            error stop "finite_orbit_toroidal_phase received non-finite orbit data"
+        if (.not. ieee_is_finite(psi_pr) .or. .not. ieee_is_finite(iota)) &
+            error stop "finite_orbit_toroidal_phase received non-finite flux data"
+        if (.not. ieee_is_finite(mi) .or. mi <= 0.0_dp) error stop &
+            "finite_orbit_toroidal_phase requires finite positive mass"
+        if (.not. ieee_is_finite(qi) .or. qi == 0.0_dp) error stop &
+            "finite_orbit_toroidal_phase requires finite nonzero charge"
+
+        a_phi_prime = psi_pr*iota
+        if (.not. ieee_is_finite(a_phi_prime) .or. a_phi_prime == 0.0_dp) &
+            error stop "finite_orbit_toroidal_phase encountered degenerate A_phi'"
+        delta_phi_h = -c*mi*v_parallel*h_s/(qi*a_phi_prime)
+        if (.not. ieee_is_finite(delta_phi_h)) error stop &
+            "finite_orbit_toroidal_phase produced non-finite phase"
+    end subroutine finite_orbit_toroidal_phase
 
     subroutine do_magfie_chartmap(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
         ! Evaluate field from Boozer chartmap data (inp_swi == 10).

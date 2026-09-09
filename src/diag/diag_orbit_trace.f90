@@ -15,13 +15,44 @@ module diag_orbit_trace
         transport_dOmthdeta => dOmthdeta
     use neort_datatypes, only: magfie_data_t
     use neort_orbit, only: nvar, th0, magnetic_toroidal_drift_per_v2
+    use util, only: mi
     use driftorbit, only: mph, mth, pertfile, sign_vpar, etatp, magdrift, &
         magdrift_passing, supban
-    use do_magfie_mod, only: do_magfie, do_magfie_init, R0, s, q
+    use do_magfie_mod, only: do_magfie, do_magfie_init, radial_covariant_component, &
+        finite_orbit_toroidal_phase, R0, s, q, psi_pr, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_init
     implicit none
 
 contains
+
+    pure subroutine native_torque_mode_factors(toroidal_mode, flux_prime, &
+            safety_factor, chart_orientation, covector, drive_mode, product, valid)
+        ! Exact signed mode factors in Tphi_int before multiplication by its
+        ! positive action, Maxwellian, density and dimensional prefactors.
+        ! One mph is the toroidal work covector and the other comes from the
+        ! thermodynamic-force contraction.  This exposes the native factors;
+        ! it does not declare their unresolved physical MARS chart map.
+        integer, intent(in) :: toroidal_mode
+        real(dp), intent(in) :: flux_prime, safety_factor, chart_orientation
+        real(dp), intent(out) :: covector, drive_mode, product
+        logical, intent(out) :: valid
+
+        valid = ieee_is_finite(flux_prime) .and. ieee_is_finite(safety_factor) &
+            .and. ieee_is_finite(chart_orientation)
+        if (valid) valid = flux_prime /= 0.0_dp .and. safety_factor /= 0.0_dp
+        if (valid) valid = abs(chart_orientation) == 1.0_dp
+        if (.not. valid) then
+            covector = 0.0_dp
+            drive_mode = 0.0_dp
+            product = 0.0_dp
+            return
+        end if
+
+        covector = sign(1.0_dp, flux_prime*safety_factor*chart_orientation) &
+            * real(toroidal_mode, dp)
+        drive_mode = real(toroidal_mode, dp)
+        product = covector*drive_mode
+    end subroutine native_torque_mode_factors
 
     pure function physical_orientation(vpar_state, hctrvr_theta) result(orientation)
         ! The second orbit state is the signed coordinate velocity state.  The
@@ -60,18 +91,23 @@ contains
     end function toroidal_velocity_from_components
 
     subroutine run_orbit_trace_diag(arg_runname, ux_target, eta_target, nsteps, &
-            mth_target, emit_physical_phi)
+            mth_target, emit_physical_phi, emit_radial_covariant)
         character(*), intent(in) :: arg_runname
         real(dp), intent(in) :: ux_target, eta_target
         integer, intent(in) :: nsteps, mth_target
         logical, intent(in), optional :: emit_physical_phi
+        logical, intent(in), optional :: emit_radial_covariant
 
-        logical :: file_exists, trapped_orbit
+        logical :: file_exists, trapped_orbit, torque_factors_valid
         logical :: physical_phi
+        logical :: radial_covariant
         integer :: i, unit, istate, orientation_state, orientation_vpar
         real(dp) :: v, taub, dt, target_time, theta, phi
         real(dp) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(dp) :: hctrvr_theta, hctrvr_phi, omtb_v
+        real(dp) :: h_s, a_phi_prime, delta_phi_h, toroidal_phase_increment
+        real(dp) :: hcovar_phi, p_phi_parallel
+        real(dp) :: toroidal_covector, drive_mode, torque_mode_factor
         real(dp) :: vpar_physical, phi_gc, phi_gc_dot
         real(dp) :: phi_field_dot, phi_magnetic_dot, phi_electric_dot
         real(dp) :: phi_period_avg, phi_period_error
@@ -87,6 +123,10 @@ contains
 
         physical_phi = .false.
         if (present(emit_physical_phi)) physical_phi = emit_physical_phi
+        radial_covariant = .false.
+        if (present(emit_radial_covariant)) radial_covariant = emit_radial_covariant
+        if (physical_phi .and. radial_covariant) error stop &
+            "orbit_trace cannot combine physical and radial-covariant modes"
 
         if (.not. ieee_is_finite(ux_target) .or. ux_target <= 0.0_dp) then
             error stop "orbit_trace requires finite positive ux"
@@ -165,6 +205,8 @@ contains
             status="replace", action="write")
         if (physical_phi) then
             write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v3"
+        else if (radial_covariant) then
+            write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v4"
         else
             write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v2"
         end if
@@ -196,6 +238,26 @@ contains
             write (unit, '(A)') "# toroidal_phase_definition = phi_trace=q*(theta-th0)"
             write (unit, '(A)') "# toroidal_phase_excludes = "// &
                 "canonical_toroidal_angle_and_Omega_t_secular_drift"
+        end if
+        if (radial_covariant) then
+            write (unit, '(A)') "# radial_covariant_component = h_s=B_s/|B|"
+            write (unit, '(A)') &
+                "# radial_covariant_source = do_magfie_standalone.bc_geometry_formula"
+            write (unit, '(A)') &
+                "# radial_covariant_units = h_s=source_declared_length;phi_H_phase_abs_bound=radian;phi_H_covector_abs_bound=source_declared_native"
+            write (unit, '(A)') "# radial_covariant_native_unit = cm"
+            write (unit, '(A)') "# radial_covariant_contract = signed_source_export"
+            write (unit, '(A)') &
+                "# a_phi_gauge = A_phi(s)-A_phi(s_ref)=psi_pr*integral(iota ds)"
+            write (unit, '(A)') "# a_phi_prime = psi_pr*iota"
+            write (unit, '(A)') &
+                "# finite_orbit_phase = delta_phi_H=-c*mi*v_parallel*h_s/(qi*A_phi')"
+            write (unit, '(A)') &
+                "# finite_orbit_phase_scope = signed_displacement_only;excludes_Delta_phi_and_action_derivatives"
+            write (unit, '(A)') &
+                "# torque_mode_factor = toroidal_covector_native*drive_mode_native"
+            write (unit, '(A)') &
+                "# toroidal_covector_native = sign(psi_pr*q*sign_theta)*mph"
         end if
         ! NEO-RT starts at the local minimum-field point and closes one native
         ! period.  For trapped input this is a full bounce; passing and
@@ -238,6 +300,14 @@ contains
                 "phi_field_dot phi_magnetic_dot phi_electric_dot phi_period_avg "// &
                 "phi_period_error H_inst_re H_inst_im H_action_re H_action_im "// &
                 "residual jacobian_dres_deta orientation_state orientation_vpar istate"
+        else if (radial_covariant) then
+            write (unit, '(A)') "# columns: orbit_id sample_index time time_fraction "// &
+                "bounce_angle theta phi_trace s_tor rho_tor ux eta vpar_state bmod h_s "// &
+                "a_phi_prime vpar_physical delta_phi_H toroidal_phase_increment "// &
+                "hcovar_phi p_phi_parallel toroidal_covector_native "// &
+                "drive_mode_native torque_mode_factor hctrvr_theta H_inst_re H_inst_im "// &
+                "H_action_re H_action_im residual jacobian_dres_deta orientation_state "// &
+                "orientation_vpar istate"
         else
             write (unit, '(A)') "# columns: orbit_id sample_index time time_fraction "// &
                 "bounce_angle theta phi_trace s_tor rho_tor ux eta vpar_state bmod "// &
@@ -267,6 +337,22 @@ contains
             x(3) = theta
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
             hctrvr_theta = hctrvr(3)
+            if (radial_covariant) then
+                call radial_covariant_component(x, bmod, h_s)
+                if (.not. ieee_is_finite(hctrvr_theta) .or. hctrvr_theta == 0.0_dp) &
+                    error stop "finite-orbit diagnostic encountered zero theta chart factor"
+                vpar_physical = yout(2)*sign(1.0_dp, hctrvr_theta)
+                call finite_orbit_toroidal_phase(vpar_physical, h_s, a_phi_prime, &
+                    delta_phi_h)
+                toroidal_phase_increment = real(mph, dp)*delta_phi_h
+                hcovar_phi = hcovar(2)
+                p_phi_parallel = mi*vpar_physical*hcovar_phi
+                call native_torque_mode_factors(mph, psi_pr, q, sign_theta, &
+                    toroidal_covector, drive_mode, torque_mode_factor, &
+                    torque_factors_valid)
+                if (.not. torque_factors_valid) error stop &
+                    "finite-orbit diagnostic encountered invalid torque mode factors"
+            end if
             call evaluate_hamiltonian(v, eta_target, target_time, theta, bmod, &
                 transport_Omth, Hn)
             ! timestep_transport stores the integrated complex Hamiltonian in
@@ -322,6 +408,16 @@ contains
                     phi_magnetic_dot, phi_electric_dot, phi_period_avg, &
                     phi_period_error, real(Hn), aimag(Hn), H_action_re, H_action_im, &
                     residual, jacobian, orientation_state, orientation_vpar, 2
+            else if (radial_covariant) then
+                write (unit, '(A,1X,I0,1X,28(ES24.16,1X),I0,1X,I0,1X,I0)') &
+                    trim(orbit_id), i - 1, target_time, target_time / taub, &
+                    target_time * abs(transport_Omth), theta, phi, s, sqrt(s), &
+                    ux_target, eta_target, yout(2), bmod, h_s, a_phi_prime, &
+                    vpar_physical, delta_phi_h, toroidal_phase_increment, &
+                    hcovar_phi, p_phi_parallel, toroidal_covector, drive_mode, &
+                    torque_mode_factor, hctrvr_theta, real(Hn), aimag(Hn), &
+                    H_action_re, H_action_im, residual, jacobian, &
+                    orientation_state, orientation_vpar, 2
             else
                 write (unit, '(A,1X,I0,1X,18(ES24.16,1X),I0,1X,I0,1X,I0)') &
                     trim(orbit_id), i - 1, target_time, target_time / taub, &

@@ -118,6 +118,11 @@ add_test(NAME test_hcurl_axisymmetric
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_radial_covariant
+    COMMAND ${CMAKE_BINARY_DIR}/test_radial_covariant.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
