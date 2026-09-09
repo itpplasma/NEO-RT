@@ -300,6 +300,30 @@ contains
         ydot(2) = -v**2 * eta / 2.0_dp * hthctr * hderth * bmod ! v_par
     end subroutine poloidal_velocity
 
+    function magnetic_toroidal_drift_per_v2(eta, bmod, hder_s, hctrvr_theta) &
+            result(omtb_v)
+        ! Return the native toroidal magnetic-drift frequency divided by v**2.
+        !
+        ! Keeping this expression in one routine makes the frequency path and
+        ! the physical-position diagnostic use the same source identity.  The
+        ! arguments are the local values returned by do_magfie; the remaining
+        ! quantities are the radial equilibrium state already owned by this
+        ! module.  This helper is diagnostic infrastructure and does not alter
+        ! the production state vector or transport callback.
+        real(dp), intent(in) :: eta, bmod, hder_s, hctrvr_theta
+        real(dp) :: omtb_v, shearterm
+
+        shearterm = Bphcov * dqds
+        if (noshear) then
+            shearterm = 0.0_dp
+        end if
+
+        omtb_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * (&
+            -(2.0_dp - eta * bmod) * bmod * hder_s &
+            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr_theta * (&
+            dBthcovds + q * dBphcovds + shearterm))
+    end function magnetic_toroidal_drift_per_v2
+
     function bounce_integral(v, eta, neq, y0, dt, ts)
         !
         !  Finds the root of an orbit after the first turn
@@ -446,22 +470,13 @@ contains
 
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(dp) :: Om_tB_v
-        real(dp) :: shearterm
 
         x(1) = s
         x(2) = 0.0_dp
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        shearterm = Bphcov * dqds
-        if (noshear) then
-            shearterm = 0
-        end if
-
-        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
-            -(2.0_dp - eta * bmod) * bmod * hder(1) &
-            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
-            (dBthcovds + q * dBphcovds + shearterm))
+        Om_tB_v = magnetic_toroidal_drift_per_v2(eta, bmod, hder(1), hctrvr(3))
 
         ydot(1) = y(2) * hctrvr(3) ! theta
         ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod ! v_par

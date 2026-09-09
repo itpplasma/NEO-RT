@@ -4,6 +4,12 @@
 `<runname>_orbit_trace.dat` for one fixed surface and one resonant orbit.
 The diagnostic is default-off and does not alter a production torque run.
 
+`neo_rt_diag.x orbit_trace_physical <runname> <ux> <eta> [nsteps] [mth]` emits
+the same trace with schema v3 and an additional, explicitly scoped candidate
+toroidal trajectory.  The v2 command remains byte-compatible with its prior
+field-line-only output; v3 is a separate diagnostic lane and is not consumed by
+the production transport path.
+
 The packet is an ordered, same-callback trace.  Its radial and poloidal
 columns are evaluated in the Boozer chart with `rho_tor=sqrt(s_tor)`.  The
 `phi` column is named `phi_trace` in the metadata because it is the
@@ -58,3 +64,28 @@ claim a MARS-equivalent coarea measure, toroidal covector, finite-width
 resonance prescription, or physical cylindrical embedding.  Those quantities
 must be supplied by the corresponding producer before a cross-code action
 gate can close.
+
+## Thin-orbit toroidal candidate (schema v3)
+
+The optional physical trace integrates the source-faithful thin-orbit rate
+
+```text
+d phi_gc / d t = v_parallel hctrvr_phi + v^2 (Omega_tB / v^2) + Omega_tE.
+```
+
+Here `v_parallel = sign(hctrvr_theta)*vpar_state`, `hctrvr_phi` is the native
+contravariant toroidal field-line component, and the magnetic term is the exact
+expression used by `neort_orbit:timestep` for its bounce-averaged
+`Omega_tB/v^2`.  `phi_gc(0)=0`; the packet also emits the three addends,
+`phi_gc`, and the running `phi_gc/t - Omph` residual so the period identity can
+be checked without reconstructing a drift term from a plot.  The diagnostic
+rejects the analytic superbanana (`supban`) path because its native `Om_ph` is
+not the local thin-orbit drift expression integrated here.
+
+This is a candidate physical guiding-centre coordinate in the thin-orbit model,
+not the canonical angle itself.  It still omits the periodic `Delta_phi` chart
+term, the canonical origin `phi_H`, and finite-orbit/non-axisymmetric
+corrections.  A v3 period identity therefore verifies only the local source
+decomposition; it does not close the MARS reflection, phase, coarea, covector,
+or work map and cannot authorize a sign, gain, harmonic relabel, or torque
+patch.

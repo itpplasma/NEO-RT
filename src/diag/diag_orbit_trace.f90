@@ -7,15 +7,16 @@ module diag_orbit_trace
     use neort_config, only: read_and_set_config
     use neort_main, only: runname
     use neort_profiles, only: init_profiles, read_and_init_plasma_input, &
-        read_and_init_profile_input, vth
+        read_and_init_profile_input, vth, Om_tE
     use neort_freq, only: Om_th, Om_ph
     use neort_resonance, only: valid_resonance_jacobian
     use neort_transport, only: evaluate_hamiltonian, timestep_transport, &
         transport_Omth => Omth, transport_dOmthdv => dOmthdv, &
         transport_dOmthdeta => dOmthdeta
     use neort_datatypes, only: magfie_data_t
-    use neort_orbit, only: nvar, th0
-    use driftorbit, only: mph, mth, pertfile, sign_vpar, etatp
+    use neort_orbit, only: nvar, th0, magnetic_toroidal_drift_per_v2
+    use driftorbit, only: mph, mth, pertfile, sign_vpar, etatp, magdrift, &
+        magdrift_passing, supban
     use do_magfie_mod, only: do_magfie, do_magfie_init, R0, s, q
     use do_magfie_pert_mod, only: do_magfie_pert_init
     implicit none
@@ -44,16 +45,36 @@ contains
         end if
     end function physical_orientation
 
-    subroutine run_orbit_trace_diag(arg_runname, ux_target, eta_target, nsteps, mth_target)
+    pure function toroidal_velocity_from_components(vpar, hctrvr_phi, &
+            v2_omtb, omte) result(phi_dot)
+        ! Thin-orbit guiding-centre toroidal rate in the native chart.
+        ! ``vpar*hctrvr_phi`` is the field-line contribution, ``v2_omtb`` is
+        ! the magnetic drift rate already multiplied by v**2, and ``omte`` is
+        ! the electric drift rate.  Keeping the sum as a pure helper gives the
+        ! diagnostic an independent algebraic oracle without changing the
+        ! production transport callback.
+        real(dp), intent(in) :: vpar, hctrvr_phi, v2_omtb, omte
+        real(dp) :: phi_dot
+
+        phi_dot = vpar * hctrvr_phi + v2_omtb + omte
+    end function toroidal_velocity_from_components
+
+    subroutine run_orbit_trace_diag(arg_runname, ux_target, eta_target, nsteps, &
+            mth_target, emit_physical_phi)
         character(*), intent(in) :: arg_runname
         real(dp), intent(in) :: ux_target, eta_target
         integer, intent(in) :: nsteps, mth_target
+        logical, intent(in), optional :: emit_physical_phi
 
         logical :: file_exists, trapped_orbit
+        logical :: physical_phi
         integer :: i, unit, istate, orientation_state, orientation_vpar
         real(dp) :: v, taub, dt, target_time, theta, phi
         real(dp) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
-        real(dp) :: hctrvr_theta
+        real(dp) :: hctrvr_theta, hctrvr_phi, omtb_v
+        real(dp) :: vpar_physical, phi_gc, phi_gc_dot
+        real(dp) :: phi_field_dot, phi_magnetic_dot, phi_electric_dot
+        real(dp) :: phi_period_avg, phi_period_error
         real(dp) :: y0(nvar), atol(nvar)
         real(dp), allocatable :: yout(:)
         real(dp) :: omph, domphdv, domphdeta, residual, jacobian
@@ -63,6 +84,9 @@ contains
         type(vode_state_t) :: vstate
         type(fortnum_status_t) :: status
         character(len=160) :: orbit_id
+
+        physical_phi = .false.
+        if (present(emit_physical_phi)) physical_phi = emit_physical_phi
 
         if (.not. ieee_is_finite(ux_target) .or. ux_target <= 0.0_dp) then
             error stop "orbit_trace requires finite positive ux"
@@ -88,6 +112,11 @@ contains
         call check_magfie(magfie_data)
         mth = mth_target
         trapped_orbit = eta_target > etatp
+
+        if (physical_phi) then
+            if (supban) error stop &
+                "physical phi diagnostic does not support supban frequency"
+        end if
 
         if (s < 0.0_dp) error stop "orbit_trace requires nonnegative s_tor"
 
@@ -134,17 +163,40 @@ contains
         orbit_id = trim(runname)//"_orbit_0001"
         open (newunit=unit, file=trim(runname)//"_orbit_trace.dat", &
             status="replace", action="write")
-        write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v2"
+        if (physical_phi) then
+            write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v3"
+        else
+            write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v2"
+        end if
         write (unit, '(A,F18.10)') "# s_tor = ", s
         write (unit, '(A,F18.10)') "# rho_tor = ", sqrt(s)
-        write (unit, '(A)') "# position_coordinates = Boozer(s_tor,phi_trace,theta)"
-        ! The displayed toroidal coordinate follows the unperturbed field line.
-        ! It is not the full guiding-centre toroidal position: canonical
-        ! toroidal angle and secular precession are absent from this packet.
-        write (unit, '(A)') "# toroidal_coordinate = field_line_phase_only"
-        write (unit, '(A)') "# toroidal_phase_definition = phi_trace=q*(theta-th0)"
-        write (unit, '(A)') "# toroidal_phase_excludes = "// &
-            "canonical_toroidal_angle_and_Omega_t_secular_drift"
+        if (physical_phi) then
+            write (unit, '(A)') &
+                "# position_coordinates = Boozer(s_tor,phi_gc,theta)"
+            write (unit, '(A)') &
+                "# toroidal_coordinate = thin_orbit_guiding_center_candidate"
+            write (unit, '(A)') &
+                "# toroidal_phase_definition = phi_gc(0)=0; dphi_gc/dt = "// &
+                "vpar*hctrvr_phi + v**2*Om_tB_over_v2 + Om_tE"
+            write (unit, '(A)') &
+                "# toroidal_phase_excludes = canonical_phi_H_periodic_Delta_phi "// &
+                "and_finite_orbit_chart_terms"
+            write (unit, '(A)') &
+                "# toroidal_velocity_model = native_thin_orbit; supban=false"
+            write (unit, '(A,ES24.16)') "# omph_native = ", omph
+            write (unit, '(A)') &
+                "# phi_period_identity = mean(phi_gc_dot) = omph_native "// &
+                "only on this native thin_orbit model"
+        else
+            ! The displayed toroidal coordinate follows the unperturbed field
+            ! line.  It is not the full guiding-centre toroidal position:
+            ! canonical toroidal angle and secular precession are absent.
+            write (unit, '(A)') "# position_coordinates = Boozer(s_tor,phi_trace,theta)"
+            write (unit, '(A)') "# toroidal_coordinate = field_line_phase_only"
+            write (unit, '(A)') "# toroidal_phase_definition = phi_trace=q*(theta-th0)"
+            write (unit, '(A)') "# toroidal_phase_excludes = "// &
+                "canonical_toroidal_angle_and_Omega_t_secular_drift"
+        end if
         ! NEO-RT starts at the local minimum-field point and closes one native
         ! period.  For trapped input this is a full bounce; passing and
         ! separatrix inputs are labelled separately.  MARS' KJPCOEFF trace is
@@ -179,11 +231,19 @@ contains
         write (unit, '(A,ES24.16)') "# jacobian_dres_deta = ", jacobian
         write (unit, '(A,ES24.16)') "# taub = ", taub
         write (unit, '(A,A)') "# orbit_id = ", trim(orbit_id)
-        write (unit, '(A)') "# columns: orbit_id sample_index time time_fraction "// &
-            "bounce_angle theta phi_trace s_tor rho_tor ux eta vpar_state bmod "// &
-            "hctrvr_theta "// &
-            "H_inst_re H_inst_im H_action_re H_action_im residual "// &
-            "jacobian_dres_deta orientation_state orientation_vpar istate"
+        if (physical_phi) then
+            write (unit, '(A)') "# columns: orbit_id sample_index time time_fraction "// &
+                "bounce_angle theta phi_trace s_tor rho_tor ux eta vpar_state "// &
+                "bmod hctrvr_theta vpar_physical hctrvr_phi phi_gc phi_gc_dot "// &
+                "phi_field_dot phi_magnetic_dot phi_electric_dot phi_period_avg "// &
+                "phi_period_error H_inst_re H_inst_im H_action_re H_action_im "// &
+                "residual jacobian_dres_deta orientation_state orientation_vpar istate"
+        else
+            write (unit, '(A)') "# columns: orbit_id sample_index time time_fraction "// &
+                "bounce_angle theta phi_trace s_tor rho_tor ux eta vpar_state bmod "// &
+                "hctrvr_theta H_inst_re H_inst_im H_action_re H_action_im residual "// &
+                "jacobian_dres_deta orientation_state orientation_vpar istate"
+        end if
 
         do i = 1, nsteps
             target_time = dt * real(i - 1, dp)
@@ -213,6 +273,37 @@ contains
             ! y(3:4); y(5:6) are reserved for nonlinear attenuation moments.
             H_action_re = yout(3)
             H_action_im = yout(4)
+
+            if (physical_phi) then
+                if (.not. ieee_is_finite(hctrvr_theta) .or. hctrvr_theta == 0.0_dp) then
+                    error stop "physical phi diagnostic encountered zero theta chart factor"
+                end if
+                hctrvr_phi = hctrvr(2)
+                vpar_physical = yout(2) * sign(1.0_dp, hctrvr_theta)
+                omtb_v = 0.0_dp
+                if (magdrift) then
+                    if (trapped_orbit) then
+                        omtb_v = magnetic_toroidal_drift_per_v2(eta_target, bmod, &
+                            hder(1), hctrvr_theta)
+                    else if (magdrift_passing > 0) then
+                        omtb_v = magnetic_toroidal_drift_per_v2(eta_target, bmod, &
+                            hder(1), hctrvr_theta)
+                    end if
+                end if
+                phi_field_dot = vpar_physical * hctrvr_phi
+                phi_magnetic_dot = v**2 * omtb_v
+                phi_electric_dot = Om_tE
+                phi_gc_dot = toroidal_velocity_from_components(vpar_physical, &
+                    hctrvr_phi, phi_magnetic_dot, phi_electric_dot)
+                phi_gc = yout(7)
+                if (target_time > 0.0_dp) then
+                    phi_period_avg = phi_gc / target_time
+                    phi_period_error = phi_period_avg - omph
+                else
+                    phi_period_avg = 0.0_dp
+                    phi_period_error = 0.0_dp
+                end if
+            end if
             if (yout(2) == 0.0_dp) then
                 ! An exactly sampled turning point has no signed
                 ! orientation.  Do not retain the previous leg's value;
@@ -222,12 +313,23 @@ contains
                 orientation_state = merge(1, -1, yout(2) >= 0.0_dp)
             end if
             orientation_vpar = physical_orientation(yout(2), hctrvr_theta)
-            write (unit, '(A,1X,I0,1X,18(ES24.16,1X),I0,1X,I0,1X,I0)') &
-                trim(orbit_id), i - 1, target_time, target_time / taub, &
-                target_time * abs(transport_Omth), theta, phi, s, sqrt(s), &
-                ux_target, eta_target, yout(2), bmod, hctrvr_theta, &
-                real(Hn), aimag(Hn), H_action_re, H_action_im, residual, &
-                jacobian, orientation_state, orientation_vpar, 2
+            if (physical_phi) then
+                write (unit, '(A,1X,I0,1X,27(ES24.16,1X),I0,1X,I0,1X,I0)') &
+                    trim(orbit_id), i - 1, target_time, target_time / taub, &
+                    target_time * abs(transport_Omth), theta, phi, s, sqrt(s), &
+                    ux_target, eta_target, yout(2), bmod, hctrvr_theta, &
+                    vpar_physical, hctrvr_phi, phi_gc, phi_gc_dot, phi_field_dot, &
+                    phi_magnetic_dot, phi_electric_dot, phi_period_avg, &
+                    phi_period_error, real(Hn), aimag(Hn), H_action_re, H_action_im, &
+                    residual, jacobian, orientation_state, orientation_vpar, 2
+            else
+                write (unit, '(A,1X,I0,1X,18(ES24.16,1X),I0,1X,I0,1X,I0)') &
+                    trim(orbit_id), i - 1, target_time, target_time / taub, &
+                    target_time * abs(transport_Omth), theta, phi, s, sqrt(s), &
+                    ux_target, eta_target, yout(2), bmod, hctrvr_theta, &
+                    real(Hn), aimag(Hn), H_action_re, H_action_im, residual, &
+                    jacobian, orientation_state, orientation_vpar, 2
+            end if
         end do
         close (unit)
 
@@ -243,6 +345,28 @@ contains
             end associate
             y_fixed = y_
             call timestep_transport(v, eta_target, nvar, t_, y_fixed, dydt_fixed)
+            if (physical_phi) then
+                x(1) = s
+                x(2) = 0.0_dp
+                x(3) = y_fixed(1)
+                call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+                if (.not. ieee_is_finite(hctrvr(3)) .or. hctrvr(3) == 0.0_dp) then
+                    error stop "physical phi RHS encountered zero theta chart factor"
+                end if
+                vpar_physical = y_fixed(2) * sign(1.0_dp, hctrvr(3))
+                omtb_v = 0.0_dp
+                if (magdrift) then
+                    if (trapped_orbit) then
+                        omtb_v = magnetic_toroidal_drift_per_v2(eta_target, bmod, &
+                            hder(1), hctrvr(3))
+                    else if (magdrift_passing > 0) then
+                        omtb_v = magnetic_toroidal_drift_per_v2(eta_target, bmod, &
+                            hder(1), hctrvr(3))
+                    end if
+                end if
+                dydt_fixed(7) = toroidal_velocity_from_components(vpar_physical, &
+                    hctrvr(2), v**2 * omtb_v, Om_tE)
+            end if
             dydt_ = dydt_fixed
         end subroutine vode_rhs
 
