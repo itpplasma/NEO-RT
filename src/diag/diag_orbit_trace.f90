@@ -137,7 +137,14 @@ contains
         write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v2"
         write (unit, '(A,F18.10)') "# s_tor = ", s
         write (unit, '(A,F18.10)') "# rho_tor = ", sqrt(s)
-        write (unit, '(A)') "# position_coordinates = Boozer(s_tor,phi,theta)"
+        write (unit, '(A)') "# position_coordinates = Boozer(s_tor,phi_trace,theta)"
+        ! The displayed toroidal coordinate follows the unperturbed field line.
+        ! It is not the full guiding-centre toroidal position: canonical
+        ! toroidal angle and secular precession are absent from this packet.
+        write (unit, '(A)') "# toroidal_coordinate = field_line_phase_only"
+        write (unit, '(A)') "# toroidal_phase_definition = phi_trace=q*(theta-th0)"
+        write (unit, '(A)') "# toroidal_phase_excludes = "// &
+            "canonical_toroidal_angle_and_Omega_t_secular_drift"
         ! NEO-RT starts at the local minimum-field point and closes one native
         ! period.  For trapped input this is a full bounce; passing and
         ! separatrix inputs are labelled separately.  MARS' KJPCOEFF trace is
@@ -157,7 +164,7 @@ contains
         write (unit, '(A)') "# end_point = local_Bmin"
         write (unit, '(A)') "# endpoint_bounce_angle = 2*pi"
         write (unit, '(A)') "# time_orientation = increasing_native_time"
-        write (unit, '(A)') "# phase_gauge = t=0 at theta=th0 and phi=0"
+        write (unit, '(A)') "# phase_gauge = t=0 at theta=th0 and phi_trace=0"
         write (unit, '(A)') "# state_velocity_convention = vpar_state = "// &
             "sign(hctrvr_theta)*v_parallel"
         write (unit, '(A)') "# orientation_convention = sign(v_parallel) = "// &
@@ -173,7 +180,7 @@ contains
         write (unit, '(A,ES24.16)') "# taub = ", taub
         write (unit, '(A,A)') "# orbit_id = ", trim(orbit_id)
         write (unit, '(A)') "# columns: orbit_id sample_index time time_fraction "// &
-            "bounce_angle theta phi s_tor rho_tor ux eta vpar_state bmod "// &
+            "bounce_angle theta phi_trace s_tor rho_tor ux eta vpar_state bmod "// &
             "hctrvr_theta "// &
             "H_inst_re H_inst_im H_action_re H_action_im residual "// &
             "jacobian_dres_deta orientation_state orientation_vpar istate"
@@ -191,6 +198,9 @@ contains
             end if
 
             theta = yout(1)
+            ! This is the drift-free field-line phase used to evaluate the
+            ! axisymmetric equilibrium and its toroidal Fourier amplitude.  It
+            ! is intentionally not a physical guiding-centre phi trajectory.
             phi = q * (theta - th0)
             x(1) = s
             x(2) = phi
