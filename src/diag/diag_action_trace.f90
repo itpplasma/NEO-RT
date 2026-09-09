@@ -13,9 +13,10 @@ module diag_action_trace
     use neort_freq, only: Om_th, Om_ph
     use neort_transport, only: timestep_transport, Tphi_int, transport_Omth => Omth, &
         transport_dOmthdv => dOmthdv, transport_dOmthdeta => dOmthdeta
-    use neort_orbit, only: bounce_fast, nvar
+    use neort_orbit, only: bounce_fast, nvar, th0
     use neort_resonance, only: driftorbit_coarse, driftorbit_root, valid_resonance_jacobian
-    use neort_action_trace_contract, only: action_trace_weight
+    use neort_action_trace_contract, only: action_trace_weight, &
+        complex_orbit_action, action_modulus_squared
     use driftorbit, only: mth, mph, mi, nlev, pertfile, nonlin, etamin, etamax, &
         sign_vpar, nopassing
     use do_magfie_mod, only: R0, s, q, do_magfie_init
@@ -58,7 +59,9 @@ contains
         write (unit, '(A,I0)') "# mph = ", mph
         write (unit, '(A,I0,A,I0)') "# mth range = ", mth_min, "..", mth_max
         write (unit, '(A,I0,A,ES18.10)') "# vsteps = ", vsteps, " vmax_over_vth = ", vmax_over_vth
-        write (unit, '(A)') "# columns: branch mth ux v eta dR_deta root_lo root_hi Omth Omph residual dOmth_deta dOmph_deta taub bounce_re bounce_im Hmn2 attenuation Tphi_int du weighted_T istate"
+        write (unit, '(A,ES24.16)') "# phase_gauge = t=0 theta=th0; th0 = ", th0
+        write (unit, '(A)') "# H_m = (mi*v**2/2)*orbit_average(Hn); response weight remains executable-native"
+        write (unit, '(A)') "# columns: branch mth ux v eta dR_deta root_lo root_hi Omth Omph residual dOmth_deta dOmph_deta taub bounce_re bounce_im Hm_re Hm_im Hmn2 attenuation response_weight Tphi_int du weighted_T istate"
 
         do j = mth_min, mth_max
             mth = j
@@ -86,7 +89,8 @@ contains
         real(dp) :: roots(nlev, 3), eta_res(2)
         real(dp) :: omph, domphdv, domphdeta, residual
         real(dp) :: taub, bounceavg(nvar), hmn2, attenuation
-        real(dp) :: tphi, weighted
+        real(dp) :: tphi, response_weight, weighted
+        complex(dp) :: hm
 
         du = (vmax - vmin) / (real(vsteps, dp) * vth)
         ux = vmin / vth + du / 2.0_dp
@@ -115,16 +119,20 @@ contains
                 call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
                 if (istate_dv /= 2) error stop "non-success bounce status"
                 if (.not. all(ieee_is_finite(bounceavg))) error stop "nonfinite bounce average"
-                hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * &
-                    (mi * (ux * vth)**2 / 2.0_dp)**2
+                hm = complex_orbit_action(bounceavg(3), bounceavg(4), &
+                    mi*(ux*vth)**2/2.0_dp)
+                hmn2 = action_modulus_squared(hm)
                 attenuation = nonlinear_attenuation(ux, eta, bounceavg, transport_Omth, &
                     transport_dOmthdv, transport_dOmthdeta, hmn2)
                 tphi = Tphi_int(ux, taub, hmn2)
+                response_weight = action_trace_weight(du, &
+                    Tphi_int(ux, taub, 1.0_dp), eta_res(2), attenuation)
                 weighted = action_trace_weight(du, tphi, eta_res(2), attenuation)
-                write (unit, '(A,1X,I0,1X,19(ES24.16,1X),I0)') trim(label), mth, &
+                write (unit, '(A,1X,I0,1X,22(ES24.16,1X),I0)') trim(label), mth, &
                     ux, v, eta, eta_res(2), roots(kr, 1), roots(kr, 2), transport_Omth, omph, &
                     residual, transport_dOmthdeta, domphdeta, taub, bounceavg(3), bounceavg(4), &
-                    hmn2, attenuation, tphi, du, weighted, istate_dv
+                    real(hm, dp), aimag(hm), hmn2, attenuation, response_weight, &
+                    tphi, du, weighted, istate_dv
             end do
             ux = ux + du
         end do
