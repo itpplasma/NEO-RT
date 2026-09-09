@@ -15,7 +15,7 @@ module diag_orbit_trace
         transport_dOmthdeta => dOmthdeta
     use neort_datatypes, only: magfie_data_t
     use neort_orbit, only: nvar, th0
-    use driftorbit, only: mph, mth, pertfile, sign_vpar
+    use driftorbit, only: mph, mth, pertfile, sign_vpar, etatp
     use do_magfie_mod, only: do_magfie, do_magfie_init, R0, s, q
     use do_magfie_pert_mod, only: do_magfie_pert_init
     implicit none
@@ -27,7 +27,7 @@ contains
         real(dp), intent(in) :: ux_target, eta_target
         integer, intent(in) :: nsteps, mth_target
 
-        logical :: file_exists
+        logical :: file_exists, trapped_orbit
         integer :: i, unit, istate, orientation
         real(dp) :: v, taub, dt, target_time, theta, phi
         real(dp) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
@@ -64,6 +64,7 @@ contains
         call init
         call check_magfie(magfie_data)
         mth = mth_target
+        trapped_orbit = eta_target > etatp
 
         if (s < 0.0_dp) error stop "orbit_trace requires nonnegative s_tor"
 
@@ -114,12 +115,23 @@ contains
         write (unit, '(A,F18.10)') "# s_tor = ", s
         write (unit, '(A,F18.10)') "# rho_tor = ", sqrt(s)
         write (unit, '(A)') "# position_coordinates = Boozer(s_tor,phi,theta)"
-        ! NEO-RT integrates one complete trapped orbit from the minimum-field
-        ! point back to that point.  MARS' KJPCOEFF trace is a half-bounce
-        ! between turning points; recording the span prevents a consumer from
-        ! pairing equal-looking normalized fractions as the same samples.
-        write (unit, '(A)') "# orbit_span = full_bounce"
+        ! NEO-RT starts at the local minimum-field point and closes one native
+        ! period.  For trapped input this is a full bounce; passing and
+        ! separatrix inputs are labelled separately.  MARS' KJPCOEFF trace is
+        ! a half-bounce between turning points; recording the class and span
+        ! prevents a consumer from pairing equal-looking fractions blindly.
+        if (trapped_orbit) then
+            write (unit, '(A)') "# orbit_class = trapped"
+            write (unit, '(A)') "# orbit_span = full_bounce"
+        else if (eta_target < etatp) then
+            write (unit, '(A)') "# orbit_class = passing"
+            write (unit, '(A)') "# orbit_span = full_transit"
+        else
+            write (unit, '(A)') "# orbit_class = separatrix"
+            write (unit, '(A)') "# orbit_span = separatrix"
+        end if
         write (unit, '(A)') "# start_point = local_Bmin"
+        write (unit, '(A)') "# end_point = local_Bmin"
         write (unit, '(A)') "# endpoint_bounce_angle = 2*pi"
         write (unit, '(A)') "# time_orientation = increasing_native_time"
         write (unit, '(A)') "# phase_gauge = t=0 at theta=th0 and phi=0"
