@@ -173,9 +173,7 @@ contains
             ! y(3:4); y(5:6) are reserved for nonlinear attenuation moments.
             H_action_re = yout(3)
             H_action_im = yout(4)
-            if (i == 1) then
-                orientation = merge(1, -1, yout(2) >= 0.0_dp)
-            else if (yout(2) == 0.0_dp) then
+            if (yout(2) == 0.0_dp) then
                 ! An exactly sampled turning point has no signed
                 ! orientation.  Do not retain the previous leg's value;
                 ! near-zero nonzero values remain one-sided signs.
