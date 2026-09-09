@@ -15,6 +15,12 @@ add_test(NAME test_action_trace
 target_link_libraries(test_pitch_action.x neort_diaglib)
 add_test(NAME test_pitch_action COMMAND test_pitch_action.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+target_link_libraries(test_orbit_trace_orientation.x neort_diaglib)
+add_test(NAME test_orbit_trace_orientation
+    COMMAND test_orbit_trace_orientation.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
 foreach(mode extra missing branch nonfinite endpoint empty)
     add_test(NAME test_pitch_action_${mode} COMMAND test_pitch_action.x ${mode}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

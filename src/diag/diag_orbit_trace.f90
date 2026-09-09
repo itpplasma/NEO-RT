@@ -22,15 +22,38 @@ module diag_orbit_trace
 
 contains
 
+    pure function physical_orientation(vpar_state, hctrvr_theta) result(orientation)
+        ! The second orbit state is the signed coordinate velocity state.  The
+        ! physical parallel direction has one additional chart factor because
+        ! ydot(theta) = vpar_state * hctrvr(3).  Return zero when either factor
+        ! is exactly zero (the direction is then undefined).  NaNs also fall
+        ! through to zero instead of being admitted as a sign.
+        real(dp), intent(in) :: vpar_state, hctrvr_theta
+        integer :: orientation
+
+        if (vpar_state == 0.0_dp .or. hctrvr_theta == 0.0_dp) then
+            orientation = 0
+        else if ((vpar_state > 0.0_dp .and. hctrvr_theta > 0.0_dp) .or. &
+                (vpar_state < 0.0_dp .and. hctrvr_theta < 0.0_dp)) then
+            orientation = 1
+        else if ((vpar_state > 0.0_dp .and. hctrvr_theta < 0.0_dp) .or. &
+                (vpar_state < 0.0_dp .and. hctrvr_theta > 0.0_dp)) then
+            orientation = -1
+        else
+            orientation = 0
+        end if
+    end function physical_orientation
+
     subroutine run_orbit_trace_diag(arg_runname, ux_target, eta_target, nsteps, mth_target)
         character(*), intent(in) :: arg_runname
         real(dp), intent(in) :: ux_target, eta_target
         integer, intent(in) :: nsteps, mth_target
 
         logical :: file_exists, trapped_orbit
-        integer :: i, unit, istate, orientation
+        integer :: i, unit, istate, orientation_state, orientation_vpar
         real(dp) :: v, taub, dt, target_time, theta, phi
         real(dp) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: hctrvr_theta
         real(dp) :: y0(nvar), atol(nvar)
         real(dp), allocatable :: yout(:)
         real(dp) :: omph, domphdv, domphdeta, residual, jacobian
@@ -111,7 +134,7 @@ contains
         orbit_id = trim(runname)//"_orbit_0001"
         open (newunit=unit, file=trim(runname)//"_orbit_trace.dat", &
             status="replace", action="write")
-        write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v1"
+        write (unit, '(A)') "# schema: iter-tc24-neort-common-orbit-trace-v2"
         write (unit, '(A,F18.10)') "# s_tor = ", s
         write (unit, '(A,F18.10)') "# rho_tor = ", sqrt(s)
         write (unit, '(A)') "# position_coordinates = Boozer(s_tor,phi,theta)"
@@ -135,7 +158,12 @@ contains
         write (unit, '(A)') "# endpoint_bounce_angle = 2*pi"
         write (unit, '(A)') "# time_orientation = increasing_native_time"
         write (unit, '(A)') "# phase_gauge = t=0 at theta=th0 and phi=0"
-        write (unit, '(A)') "# orientation_convention = sign(v_parallel)"
+        write (unit, '(A)') "# state_velocity_convention = vpar_state = "// &
+            "sign(hctrvr_theta)*v_parallel"
+        write (unit, '(A)') "# orientation_convention = sign(v_parallel) = "// &
+            "sign(vpar_state*hctrvr_theta)"
+        write (unit, '(A)') "# orientation_zero = 0 when vpar_state or "// &
+            "hctrvr_theta is zero"
         write (unit, '(A,F18.10)') "# ux = ", ux_target
         write (unit, '(A,F18.10)') "# eta = ", eta_target
         write (unit, '(A,I0)') "# mth = ", mth
@@ -145,9 +173,10 @@ contains
         write (unit, '(A,ES24.16)') "# taub = ", taub
         write (unit, '(A,A)') "# orbit_id = ", trim(orbit_id)
         write (unit, '(A)') "# columns: orbit_id sample_index time time_fraction "// &
-            "bounce_angle theta phi s_tor rho_tor ux eta vpar bmod "// &
+            "bounce_angle theta phi s_tor rho_tor ux eta vpar_state bmod "// &
+            "hctrvr_theta "// &
             "H_inst_re H_inst_im H_action_re H_action_im residual "// &
-            "jacobian_dres_deta orientation istate"
+            "jacobian_dres_deta orientation_state orientation_vpar istate"
 
         do i = 1, nsteps
             target_time = dt * real(i - 1, dp)
@@ -167,6 +196,7 @@ contains
             x(2) = phi
             x(3) = theta
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+            hctrvr_theta = hctrvr(3)
             call evaluate_hamiltonian(v, eta_target, target_time, theta, bmod, &
                 transport_Omth, Hn)
             ! timestep_transport stores the integrated complex Hamiltonian in
@@ -177,15 +207,17 @@ contains
                 ! An exactly sampled turning point has no signed
                 ! orientation.  Do not retain the previous leg's value;
                 ! near-zero nonzero values remain one-sided signs.
-                orientation = 0
+                orientation_state = 0
             else
-                orientation = merge(1, -1, yout(2) >= 0.0_dp)
+                orientation_state = merge(1, -1, yout(2) >= 0.0_dp)
             end if
-            write (unit, '(A,1X,I0,1X,17(ES24.16,1X),I0,1X,I0)') &
+            orientation_vpar = physical_orientation(yout(2), hctrvr_theta)
+            write (unit, '(A,1X,I0,1X,18(ES24.16,1X),I0,1X,I0,1X,I0)') &
                 trim(orbit_id), i - 1, target_time, target_time / taub, &
                 target_time * abs(transport_Omth), theta, phi, s, sqrt(s), &
-                ux_target, eta_target, yout(2), bmod, real(Hn), aimag(Hn), &
-                H_action_re, H_action_im, residual, jacobian, orientation, 2
+                ux_target, eta_target, yout(2), bmod, hctrvr_theta, &
+                real(Hn), aimag(Hn), H_action_re, H_action_im, residual, &
+                jacobian, orientation_state, orientation_vpar, 2
         end do
         close (unit)
 
