@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import hashlib
 import json
 import os
 import shutil
@@ -18,18 +17,28 @@ SKIP = 77
 DEFAULT_CASE = Path("potato_benchmarks/rung4_torque_30835/run/potato_zero_mid")
 
 
-def numeric_hash(path, sort_rows, digits):
+# The outputs agree across platforms only to rounding (macOS arm64 gives a
+# relative integral-torque difference of 6e-8 against the Linux baseline), so
+# compare with a relative tolerance rather than bitwise. 1e-6 leaves a factor
+# of about 15 above that spread and still catches any physics change.
+RTOL = 1.0e-6
+
+
+def column_stats(path):
+    """Shape and per-column sum and sum of |x|; independent of row order."""
     data = np.loadtxt(path)
     if data.ndim == 1:
         data = data.reshape(1, -1)
-    if sort_rows:
-        order = np.lexsort(tuple(data[:, i] for i in range(data.shape[1] - 1, -1, -1)))
-        data = data[order]
-    value_format = f"{{value:.{digits}e}}"
-    payload = "\n".join(
-        " ".join(value_format.format(value=value) for value in row) for row in data
-    ) + "\n"
-    return list(data.shape), hashlib.sha256(payload.encode("ascii")).hexdigest()
+    return list(data.shape), data.sum(axis=0), np.abs(data).sum(axis=0)
+
+
+def column_scale(abs_sum, groups):
+    """Tolerance scale per column: its own sum of |x|, or the summed sum of |x|
+    of its group for columns that share a physical unit (torque per mode)."""
+    scale = np.array(abs_sum, dtype=float)
+    for group in groups:
+        scale[group] = scale[group].sum()
+    return scale
 
 
 def copy_case(src, dst):
@@ -78,21 +87,28 @@ def main():
             return result.returncode
 
         torque = float(np.loadtxt(work / "integral_torque.dat"))
-        if torque != golden["integral_torque"]:
-            print(f"integral_torque mismatch: {torque} != {golden['integral_torque']}")
+        ref_torque = golden["integral_torque"]
+        if not abs(torque - ref_torque) <= RTOL * abs(ref_torque):
+            print(
+                f"integral_torque mismatch: {torque!r} vs {ref_torque!r} "
+                f"(relative {abs(torque / ref_torque - 1.0):.2e} > {RTOL:.0e})"
+            )
             return 1
 
         for name, expected in golden["files"].items():
-            shape, digest = numeric_hash(
-                work / name,
-                expected.get("sort_rows", False),
-                expected.get("digits", 17),
+            shape, col_sum, abs_sum = column_stats(work / name)
+            if shape != expected["shape"]:
+                print(f"{name} shape {shape} != {expected['shape']}")
+                return 1
+            scale = column_scale(expected["abs_sum"], expected.get("scale_groups", []))
+            dev = np.abs(col_sum - np.array(expected["sum"])) / np.where(
+                scale > 0.0, scale, 1.0
             )
-            if shape != expected["shape"] or digest != expected["sha256"]:
+            if not np.all(dev <= RTOL):
+                col = int(np.argmax(dev))
                 print(
-                    f"{name} mismatch: shape={shape} sha256={digest} "
-                    f"expected_shape={expected['shape']} "
-                    f"expected_sha256={expected['sha256']}"
+                    f"{name} column {col} sum {col_sum[col]!r} vs "
+                    f"{expected['sum'][col]!r} (relative {dev[col]:.2e} > {RTOL:.0e})"
                 )
                 return 1
 
