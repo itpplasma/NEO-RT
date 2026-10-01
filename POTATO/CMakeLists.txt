@@ -88,6 +88,28 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_bmod_pert_bounds.x
+   SRC/test_bmod_pert_bounds.f90
+)
+target_link_libraries(test_bmod_pert_bounds.x
+   potato_base
+)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run)
+foreach(_mode inside outside_r outside_z)
+   add_test(NAME test_bmod_pert_bounds_${_mode}
+      COMMAND test_bmod_pert_bounds.x ${_mode}
+   )
+   set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run
+      RESOURCE_LOCK potato_bmod_pert_bounds_run
+   )
+endforeach()
+foreach(_mode outside_r outside_z)
+   set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
+      PASS_REGULAR_EXPRESSION "evaluation outside the bmod_n.dat R-Z grid"
+   )
+endforeach()
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )

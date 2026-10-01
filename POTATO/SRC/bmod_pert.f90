@@ -15,11 +15,12 @@ end module bmod_pert_mod
 !
   use bmod_pert_mod, only : prop,nrad,nzet,icp,iunit_bn,hrad,hzet,imi,ima,jmi,jma, &
                             ipoint,rad,zet,splbmod_re,splbmod_im
+  use, intrinsic :: iso_fortran_env, only : error_unit
 !
   implicit none
 !
   integer :: i,ierr
-  double precision :: R,Z,rrr,zzz
+  double precision :: R,Z
   double precision :: bmod_re,bmod_im,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   complex(8)   :: bmod_n
   double precision, dimension(:,:), allocatable :: bmod_n_re,bmod_n_im
@@ -75,12 +76,21 @@ end module bmod_pert_mod
   !$omp end critical (bmod_pert_init)
   endif
 !
-  rrr=max(rad(1),min(rad(nrad),R))
-  zzz=max(zet(1),min(zet(nzet),Z))
+! Fail closed outside the tabulated R-Z grid (or on NaN input): the spline
+! would otherwise extrapolate, and clamping to the edge would return a wrong
+! but plausible perturbation amplitude.
+  if (.not. (R >= rad(1) .and. R <= rad(nrad) .and. &
+             Z >= zet(1) .and. Z <= zet(nzet))) then
+    write(error_unit, '(a, 2es24.16)') 'bmod_pert: (R, Z) = ', R, Z
+    write(error_unit, '(a, 2es24.16, a, 2es24.16)') &
+        'bmod_pert: bmod_n.dat grid R in ', rad(1), rad(nrad), &
+        ', Z in ', zet(1), zet(nzet)
+    error stop 'bmod_pert: evaluation outside the bmod_n.dat R-Z grid'
+  endif
 !
-  call spline(nrad,nzet,rad,zet,hrad,hzet,icp,splbmod_re,ipoint,rrr,zzz, &
+  call spline(nrad,nzet,rad,zet,hrad,hzet,icp,splbmod_re,ipoint,R,Z, &
               bmod_re,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierr)
-  call spline(nrad,nzet,rad,zet,hrad,hzet,icp,splbmod_im,ipoint,rrr,zzz, &
+  call spline(nrad,nzet,rad,zet,hrad,hzet,icp,splbmod_im,ipoint,R,Z, &
               bmod_im,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2,ierr)
 !
   bmod_n=cmplx(bmod_re,bmod_im)
