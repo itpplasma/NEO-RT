@@ -60,16 +60,16 @@ def get_profile_data_for_flux_surface(profile_file_name: str,
 
 
 def resolve_executable(executable_name: str):
-  """Resolve an executable on PATH or relative to the current directory."""
+  """Resolve an executable in the working directory, then on PATH."""
 
   import os
   import shutil
 
+  candidate = os.path.abspath(executable_name)
+  if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+    return candidate
+
   executable = shutil.which(executable_name)
-  if executable is None:
-    candidate = os.path.abspath(executable_name)
-    if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-      executable = candidate
 
   if executable is None:
     raise FileNotFoundError(

@@ -72,3 +72,24 @@ def test_multi_surface_failure_is_propagated(tmp_path: Path, monkeypatch: pytest
         )
 
     assert error.value.returncode == 7
+
+
+@pytest.mark.parametrize("local_executable", [True, False])
+def test_bare_executable_prefers_local_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, local_executable: bool,
+):
+    path_bin = tmp_path / "bin"
+    path_bin.mkdir()
+    make_executable(path_bin / "neo_rt.x", 'printf "path:%s" "$1"\n')
+    if local_executable:
+        make_executable(tmp_path / "neo_rt.x", 'printf "local:%s" "$1"\n')
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(path_bin))
+
+    run_driftorbit.run_single_flux_surface(
+        "neo_rt.x", str(write_template(tmp_path / "template.in")),
+        "surface0", 0.1, 0.2, 0.3, 1.0,
+    )
+
+    origin = "local" if local_executable else "path"
+    assert (tmp_path / "surface0.log").read_text() == f"{origin}:surface0"

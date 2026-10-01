@@ -4,6 +4,7 @@
     qs = 1.0
     ms = 2.014
     epsmn = 1.0
+    pertfile_scale = 1.0
     m0 = -1
     mph = 1
     magdrift = .true.
