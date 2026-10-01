@@ -11,6 +11,8 @@ module neort_transport
     use neort_freq, only: Om_th, Om_ph
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
+    use neort_line_drive, only: line_drive_enabled, line_bounce_transport, &
+        pert_model_active, line_scalar_eps
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
@@ -108,7 +110,11 @@ contains
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
                 taub = 2.0_dp * pi / abs(Omth)
-                call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
+                if (line_drive_enabled()) then
+                    call line_bounce_transport(v, eta, taub, Omth, bounceavg, istate_dv)
+                else
+                    call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
+                end if
                 if (istate_dv == -1) then
                     call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
                 else if (istate_dv /= 2) then
@@ -173,6 +179,8 @@ contains
         if (pertfile) then
             call do_magfie_pert_amp(x, epsn)
             epsn = pertfile_scale * epsn / bmod
+        else if (pert_model_active()) then
+            epsn = line_scalar_eps(y(1))
         else
             epsn = epsmn * exp(imun * m0 * y(1))
         end if

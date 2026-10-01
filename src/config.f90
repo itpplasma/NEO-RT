@@ -34,6 +34,8 @@ module neort_config
         ! Axisymmetric Boozer file of the equilibrium, required to evaluate a
         ! Boozer perturbation file on the direct GEQDSK chart (inp_swi = 11).
         character(len=1024) :: pert_angle_map = ''
+        character(len=8) :: drive_form = 'boozer'  ! 'boozer' or 'line'
+        character(len=16) :: pert_model = 'scalar'  ! 'scalar', 'ideal_helical', ...
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
 
@@ -54,6 +56,7 @@ contains
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
+        use neort_line_drive, only: set_line_drive_options
         use util, only: qe, mu, qi, mi
 
         type(config_t), intent(in) :: config
@@ -81,6 +84,8 @@ contains
         call validate_perturbation_switch(pertfile, perturbation_switch)
         angle_map_path = config%pert_angle_map
         call validate_direct_geqdsk(inp_swi, pertfile, noshear, angle_map_path)
+        call set_line_drive_options(config%drive_form, config%pert_model, pertfile, &
+                                    inp_swi, noshear)
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         mth_max_abs = config%mth_max_abs
@@ -106,18 +111,23 @@ contains
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth
+        use neort_line_drive, only: set_line_drive_options
         use util, only: qe, mu, qi, mi
 
         character(len=*), intent(in) :: config_file
         real(dp) :: qs, ms
+        character(len=8) :: drive_form
+        character(len=16) :: pert_model
         integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
             supban, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format, &
-            pert_angle_map
+            pert_angle_map, drive_form, pert_model
 
+        drive_form = 'boozer'
+        pert_model = 'scalar'
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
@@ -134,6 +144,7 @@ contains
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)
         call validate_direct_geqdsk(inp_swi, pertfile, noshear, pert_angle_map)
+        call set_line_drive_options(drive_form, pert_model, pertfile, inp_swi, noshear)
 
         M_t = M_t * efac / bfac
         qi = qs * qe

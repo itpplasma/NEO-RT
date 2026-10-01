@@ -114,6 +114,7 @@ set(NEO_RT_SOURCES
     src/profiles.f90
     src/resonance.f90
     src/shaing.f90
+    src/line_drive.f90
     src/transport.f90
     src/util.f90
 )
