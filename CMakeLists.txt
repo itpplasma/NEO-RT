@@ -126,6 +126,7 @@ if(USE_STANDALONE)
     add_library("neo_rt" STATIC
         ${NEO_RT_SOURCES}
         src/eqdsk_field.f90
+        src/boozer_angle_map.f90
         src/do_magfie_standalone.f90
     )
 

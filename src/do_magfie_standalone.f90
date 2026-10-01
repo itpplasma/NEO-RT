@@ -687,6 +687,9 @@ module do_magfie_pert_mod
     integer :: inp_swi_pert = -1  ! negative inherits the axisymmetric switch
     integer :: mph  ! toroidal perturbation mode (threadprivate)
     integer :: mph_shared = 0  ! shared copy for namelist input (when pertfile=.false.)
+    ! Axisymmetric Boozer file mapping the direct GEQDSK chart onto Boozer angles
+    ! (inp_swi == 11 with a Boozer perturbation file only).
+    character(len=1024) :: pert_angle_map = ''
 
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_pert_arrays_initialized = .false.
@@ -755,7 +758,25 @@ contains
                 spl_coeff2(:, :, k, j) = spline_coeff(params(:, 1), modes(:, j, k + 2))
             end do
         end do
+
+        if (inp_swi == 11) call build_angle_map_for_direct_chart()
     end subroutine read_boozer_pert_file
+
+    subroutine build_angle_map_for_direct_chart()
+        ! Main thread only, after the GEQDSK field is read.
+        use neort_eqdsk_field, only: eqdsk_axis, eqdsk_flux_profiles
+        use neort_boozer_angle_map, only: build_boozer_angle_map
+        real(dp) :: R_axis, Z_axis, q_ref, dqds_ref, psi_tor
+
+        if (len_trim(pert_angle_map) == 0) then
+            error stop "inp_swi = 11 with a Boozer perturbation needs pert_angle_map"
+        end if
+        call eqdsk_axis(R_axis, Z_axis)
+        call eqdsk_flux_profiles(0.5_dp, q_ref, dqds_ref, psi_tor)
+        ! libneo reports the axis in cm, the Boozer file stores metres.
+        call build_boozer_angle_map(trim(pert_angle_map), 1.0e-2_dp*R_axis, &
+                                    1.0e-2_dp*Z_axis, psi_tor)
+    end subroutine build_angle_map_for_direct_chart
 
     subroutine init_magfie_pert_at_s()
         ! Per-thread: Initialize perturbation field at current s value
@@ -817,6 +838,26 @@ contains
     end subroutine do_magfie_pert_init
 
     subroutine do_magfie_pert_amp(x, bamp)
+        ! Complex amplitude of the perturbation at x = (s, phi, theta); the
+        ! caller multiplies by exp(i*mph*phi).  In the direct GEQDSK chart the
+        ! Boozer series is summed at (s_B, theta_B) and exp(i*mph*(phi_B - phi))
+        ! is folded into the amplitude.
+        use neort_boozer_angle_map, only: boozer_angles
+        real(dp), dimension(:), intent(in) :: x
+        complex(dp), intent(out) :: bamp
+        real(dp) :: x_boozer(3), dphi
+
+        if (inp_swi /= 11) then
+            call boozer_series_amp(x, bamp)
+            return
+        end if
+        call boozer_angles(x(1), x(3), x_boozer(1), x_boozer(3), dphi)
+        x_boozer(2) = x(2)
+        call boozer_series_amp(x_boozer, bamp)
+        bamp = bamp*exp(imun*mph*dphi)
+    end subroutine do_magfie_pert_amp
+
+    subroutine boozer_series_amp(x, bamp)
         real(dp), dimension(:), intent(in) :: x
         complex(dp), intent(out) :: bamp
 
@@ -842,7 +883,7 @@ contains
         end if
 
         s_prev = x1
-    end subroutine do_magfie_pert_amp
+    end subroutine boozer_series_amp
 
     integer function resolved_perturbation_switch()
         if (inp_swi_pert < 0) then

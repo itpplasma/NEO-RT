@@ -31,6 +31,9 @@ module neort_config
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
         integer :: log_level = 0  ! how much to log
         character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
+        ! Axisymmetric Boozer file of the equilibrium, required to evaluate a
+        ! Boozer perturbation file on the direct GEQDSK chart (inp_swi = 11).
+        character(len=1024) :: pert_angle_map = ''
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
 
@@ -42,7 +45,8 @@ contains
     subroutine set_config(config)
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph, perturbation_switch => inp_swi_pert
+        use do_magfie_pert_mod, only: mph, set_mph, perturbation_switch => inp_swi_pert, &
+            angle_map_path => pert_angle_map
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
@@ -75,7 +79,8 @@ contains
         inp_swi = config%inp_swi
         perturbation_switch = resolve_perturbation_switch(config%inp_swi, config%inp_swi_pert)
         call validate_perturbation_switch(pertfile, perturbation_switch)
-        call validate_direct_geqdsk(inp_swi, pertfile, noshear)
+        angle_map_path = config%pert_angle_map
+        call validate_direct_geqdsk(inp_swi, pertfile, noshear, angle_map_path)
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         mth_max_abs = config%mth_max_abs
@@ -93,7 +98,7 @@ contains
     subroutine read_and_set_config(config_file)
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
-        use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
+        use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert, pert_angle_map
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
@@ -110,12 +115,14 @@ contains
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
             supban, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format, &
+            pert_angle_map
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
         output_format = "both"
+        pert_angle_map = ''
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
@@ -126,7 +133,7 @@ contains
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)
-        call validate_direct_geqdsk(inp_swi, pertfile, noshear)
+        call validate_direct_geqdsk(inp_swi, pertfile, noshear, pert_angle_map)
 
         M_t = M_t * efac / bfac
         qi = qs * qe
@@ -165,17 +172,18 @@ contains
     end subroutine validate_perturbation_switch
 
     subroutine validate_direct_geqdsk(axisymmetric_switch, has_perturbation_file, &
-                                      no_shear)
+                                      no_shear, angle_map)
         ! A Boozer-Fourier perturbation summed against the geometric angle of
-        ! the direct GEQDSK chart would be a smooth but wrong series, and the
-        ! noshear switch removes a term that only exists in a
-        ! straight-field-line chart.  Both are rejected for inp_swi = 11.
+        ! the direct GEQDSK chart would be a smooth but wrong series, so it
+        ! needs the Boozer angle map; the noshear switch removes a term that
+        ! only exists in a straight-field-line chart.
         integer, intent(in) :: axisymmetric_switch
         logical, intent(in) :: has_perturbation_file, no_shear
+        character(len=*), intent(in) :: angle_map
 
         if (axisymmetric_switch /= 11) return
-        if (has_perturbation_file) then
-            error stop "inp_swi = 11 cannot use a Boozer perturbation file"
+        if (has_perturbation_file .and. len_trim(angle_map) == 0) then
+            error stop "inp_swi = 11 with a Boozer perturbation needs pert_angle_map"
         end if
         if (no_shear) error stop "noshear is undefined for inp_swi = 11"
     end subroutine validate_direct_geqdsk

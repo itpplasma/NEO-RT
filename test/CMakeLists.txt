@@ -127,3 +127,13 @@ set_tests_properties(test_eqdsk_boozer_backend PROPERTIES
     ENVIRONMENT
         "EQDSK_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev.geqdsk;BOOZER_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_boozer.bc"
 )
+
+# Boozer angles on the direct GEQDSK chart against the direct field line.
+add_test(NAME test_boozer_angle_map
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_angle_map.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_boozer_angle_map PROPERTIES
+    ENVIRONMENT
+        "EQDSK_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev.geqdsk;BOOZER_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_boozer.bc;PERT_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_pert.bc"
+)
