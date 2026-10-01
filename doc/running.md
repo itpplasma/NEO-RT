@@ -62,11 +62,12 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `comptorque` | Write torque diagnostics. | Produces `_torque.out` and `_torque_integral.out`. |
 | `bfac` | Magnetic-field scaling factor. | Multiplies `B`. |
 | `efac` | Electric-field scaling factor. | Multiplies `E`. |
-| `inp_swi` | Boozer input switch. | Passed to `do_magfie`. |
+| `inp_swi` | Axisymmetric field input: Boozer `.bc` (`8`, `9`), Boozer chartmap (`10`), GEQDSK (`11`). | With `11`, `in_file` is a GEQDSK read through libneo's geoflux chart; `noshear` is rejected, and `pertfile=.false.` uses the analytic perturbation in the geometric angle. |
 | `vsteps` | Number of velocity grid points. | Set to `0` for adaptive quadrature. |
 | `mth_max_abs` | Maximum absolute orbit-resonance harmonic. | Default `-1` keeps the historical `±ceil(2\|mph q\|)` range; `0` selects only `mth=0`. |
 | `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
 | `inp_swi_pert` | Input format for `in_file_pert` with the standalone field reader. | Default `-1` inherits `inp_swi`; set `9` to combine an axisymmetric chartmap (`inp_swi=10`) with a Strumberger perturbation `.bc`. |
+| `pert_angle_map` | Axisymmetric Boozer `.bc` (8-column format) of the same equilibrium. | Required for `inp_swi=11` with `pertfile=.true.` (`inp_swi_pert` `8` or `9`): maps the GEQDSK chart onto Boozer angles; surfaces are matched by toroidal flux. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
 
 `magdrift_passing` is deliberately separate from `magdrift`: setting

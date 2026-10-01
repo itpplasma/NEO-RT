@@ -27,7 +27,7 @@ program test_eqdsk_boozer_backend
     integer, parameter :: nk = 7, nclass = 2
     real(dp), parameter :: s0 = 0.35_dp, v = 1.0e8_dp
     real(dp), parameter :: kappa(nk) = [0.05_dp, 0.2_dp, 0.35_dp, 0.5_dp, &
-                                        0.65_dp, 0.8_dp, 0.95_dp]
+        0.65_dp, 0.8_dp, 0.95_dp]
     ! Bounce (trapped) and transit (co-passing) frequencies in rad/s of the
     ! exact Solov'ev field at s0, v, from an independent integration of the
     ! same orbit equations on the analytic surface (scipy DOP853, rtol 1e-12,
@@ -65,12 +65,12 @@ program test_eqdsk_boozer_backend
     print '(a,f10.6)', "Boozer-file s of the matched surface: ", s_boozer
 
     call scan_backend(9, trim(boozer), s_boozer, om_b(:, :, 1), om_t(:, :, 1), &
-                      surf(:, 1))
+        surf(:, 1))
     noshear = .true.
     call scan_backend(9, trim(boozer), s_boozer, dummy_b, om_t_noshear, dummy_s)
     noshear = .false.
     call scan_backend(11, trim(geqdsk), s0, om_b(:, :, 2), om_t(:, :, 2), &
-                      surf(:, 2))
+        surf(:, 2))
 
     call print_table(om_b, om_t)
     print '(a,5es14.6)', "surface booz:  ", surf(:, 1)
@@ -81,21 +81,21 @@ program test_eqdsk_boozer_backend
     nfail = 0
     err_s = maxval(abs(surf(:, 2)/surf(:, 1) - 1.0_dp))
     call report("q, sign(sign_theta*psi_pr), B0, Bmax, dV/dpsi", err_s, &
-                2.0e-3_dp, nfail)
+        2.0e-3_dp, nfail)
     do iclass = 1, nclass
         do ib = 1, 2
             call report(trim(merge("trapped Om_b  ", "passing Om_b  ", iclass == 1)) &
-                        //merge(" Boozer", " direct", ib == 1), &
-                        maxval(abs(om_b(:, iclass, ib)/om_exact(:, iclass) - 1.0_dp)), &
-                        tol_om(iclass), nfail)
+                //merge(" Boozer", " direct", ib == 1), &
+                maxval(abs(om_b(:, iclass, ib)/om_exact(:, iclass) - 1.0_dp)), &
+                tol_om(iclass), nfail)
         end do
     end do
     call report("trapped Om_tB direct-Boozer / max|Om_tB|", &
-                maxval(abs(om_t(:, 1, 2) - om_t(:, 1, 1)))/maxval(abs(om_t(:, 1, 1))), &
-                1.0e-2_dp, nfail)
+        maxval(abs(om_t(:, 1, 2) - om_t(:, 1, 1)))/maxval(abs(om_t(:, 1, 1))), &
+        1.0e-2_dp, nfail)
     call report("passing Om_tB direct-Boozer / max|Om_tB|", &
-                maxval(abs(om_t(:, 2, 2) - om_t(:, 2, 1)))/maxval(abs(om_t(:, 2, 1))), &
-                1.0e-4_dp, nfail)
+        maxval(abs(om_t(:, 2, 2) - om_t(:, 2, 1)))/maxval(abs(om_t(:, 2, 1))), &
+        1.0e-4_dp, nfail)
     if (nfail > 0) error stop "test_eqdsk_boozer_backend failed"
     print *, "PASS test_eqdsk_boozer_backend"
 
@@ -117,7 +117,7 @@ contains
         call init_flux_surface_average(s_surf)
         ! dV/d(psi_tor) rather than dV/ds, whose normalization differs.
         surface = [q, sign(1.0_dp, sign_theta*psi_pr), B0, 1.0_dp/etatp, &
-                   dVds/abs(psi_pr)]
+            dVds/abs(psi_pr)]
         do iclass = 1, nclass
             do k = 1, nk
                 ! Trapped and co-passing.

@@ -88,9 +88,9 @@ contains
         err(3) = max(err(3), abs(abs(hcon(2)/hcon(3))/p_exact - 1.0_dp))
         d = R0 - sqrt(R0**2 - a**2)
         dp_exact = R0*(2.0_dp*C*r*Rmaj - qm(r)*cos(th))/Rmaj**2 &
-                   *(R0 - s_val*d)*d/r
+            *(R0 - s_val*d)*d/r
         err(4) = max(err(4), abs(abs(eqdsk_dpitch_ds(s_val, th)) &
-                                 /abs(dp_exact) - 1.0_dp))
+            /abs(dp_exact) - 1.0_dp))
         err(7) = max(err(7), curl_mismatch(x, hcurl))
         err(8) = max(err(8), abs(sum(hcov*hcon) - 1.0_dp), abs(hcon(1))*a)
         if (sign(1.0_dp, q) /= sign(1.0_dp, eqdsk_local_pitch(s_val, th))) then
@@ -134,11 +134,11 @@ contains
         call covariant_h(x, curl_fd, sqrtg)
         curl_fd(1) = -(ht_p(2) - ht_m(2))/(2.0_dp*dth)/sqrtg
         curl_fd(2) = ((ht_p(1) - ht_m(1))/(2.0_dp*dth) &
-                      - (hs_p(3) - hs_m(3))/(2.0_dp*ds))/sqrtg
+            - (hs_p(3) - hs_m(3))/(2.0_dp*ds))/sqrtg
         curl_fd(3) = (hs_p(2) - hs_m(2))/(2.0_dp*ds)/sqrtg
         ! Compare physical magnitudes: |v|^2 = g_ij v^i v^j ~ (a v^s)^2 + ...
         mismatch = maxval(abs(curl_fd - hcurl)*[a, R0, a]) &
-                   /maxval(abs(hcurl)*[a, R0, a])
+            /maxval(abs(hcurl)*[a, R0, a])
     end function curl_mismatch
 
     subroutine covariant_h(x_in, hcov, sqrtg)

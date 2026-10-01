@@ -45,7 +45,7 @@ contains
         ! The first field_eq call reads and splines the file; do it here so that
         ! worker threads only ever read the shared tables.
         call eqdsk_field([0.5_dp, 0.0_dp, 0.0_dp], bmod, sqrtg, bder, hcovar, &
-                         hctrvr, hcurl)
+            hctrvr, hcurl)
         if (abs(hctrvr(3)) <= tiny(1.0_dp)) then
             error stop "GEQDSK field has no poloidal component at s=0.5"
         end if
@@ -64,7 +64,7 @@ contains
         real(dp) :: hcurl_cyl(3)
 
         call cylindrical_field(x, R, jac, bmod, bder_cyl, hcov_cyl, hcon_cyl, &
-                               hcurl_cyl)
+            hcurl_cyl)
         call covariant_to_chart(jac, bder_cyl, bder)
         call covariant_to_chart(jac, hcov_cyl, hcovar)
         call contravariant_to_chart(jac, hcon_cyl, hctrvr)
@@ -73,7 +73,7 @@ contains
     end subroutine eqdsk_field
 
     subroutine cylindrical_field(x, R, jac, bmod, bder_cyl, hcov_cyl, hcon_cyl, &
-                                 hcurl_cyl)
+            hcurl_cyl)
         !! Cylindrical (R, phi, Z) components at the chart point x.  With
         !! sqrt(g) = R and h_phi = R*h^phi, (curl h)^i = eps^ijk d_j h_k / R and
         !! d_j h_k = d_j B_k / B - h_k d_j(ln B).
@@ -91,7 +91,7 @@ contains
         call geoflux_to_cyl([x(1), x(3), x(2)], xcyl, jac)
         R = xcyl(1)
         call field_eq(xcyl(1), xcyl(2), xcyl(3), br, bf, bz, &
-                      brr, brf, brz, bfr, bff, bfz, bzr, bzf, bzz)
+            brr, brf, brz, bfr, bff, bfz, bzr, bzf, bzz)
         bmod = sqrt(br**2 + bf**2 + bz**2)
         h = [br, bf, bz]/bmod
         bder_cyl(1) = (brr*h(1) + bfr*h(2) + bzr*h(3))/bmod
@@ -101,13 +101,13 @@ contains
         hcon_cyl = [h(1), h(2)/R, h(3)]
         ! d_phi h_Z - d_Z h_phi, with d_Z(R B_phi) = R dB_phi/dZ
         hcurl_cyl(1) = ((bzf - R*bfz)/bmod - hcov_cyl(3)*bder_cyl(2) &
-                        + hcov_cyl(2)*bder_cyl(3))/R
+            + hcov_cyl(2)*bder_cyl(3))/R
         ! d_Z h_R - d_R h_Z
         hcurl_cyl(2) = ((brz - bzr)/bmod - hcov_cyl(1)*bder_cyl(3) &
-                        + hcov_cyl(3)*bder_cyl(1))/R
+            + hcov_cyl(3)*bder_cyl(1))/R
         ! d_R h_phi - d_phi h_R, with d_R(R B_phi) = B_phi + R dB_phi/dR
         hcurl_cyl(3) = ((bf + R*bfr - brf)/bmod - hcov_cyl(2)*bder_cyl(1) &
-                        + hcov_cyl(1)*bder_cyl(2))/R
+            + hcov_cyl(1)*bder_cyl(2))/R
     end subroutine cylindrical_field
 
     pure real(dp) function meridional_det(jac)
@@ -145,7 +145,7 @@ contains
         real(dp) :: bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
         call eqdsk_field([s, 0.0_dp, theta], bmod, sqrtg, bder, hcovar, hctrvr, &
-                         hcurl)
+            hcurl)
         if (abs(hctrvr(3)) <= tiny(1.0_dp)) then
             error stop "direct GEQDSK: B^theta vanishes, field-line pitch undefined"
         end if
@@ -161,7 +161,7 @@ contains
         s_lo = max(s - pitch_ds, pitch_ds)
         s_hi = min(s + pitch_ds, 1.0_dp)
         dpitch = (eqdsk_local_pitch(s_hi, theta) - eqdsk_local_pitch(s_lo, theta)) &
-                 /(s_hi - s_lo)
+            /(s_hi - s_lo)
     end function eqdsk_dpitch_ds
 
     subroutine eqdsk_flux_profiles(s, q, dqds, psi_tor)
@@ -176,7 +176,7 @@ contains
         real(dp) :: q_file, dq_file, psi_pol, dpsi_pol, psi_tor_edge
 
         call geoflux_get_flux_profiles(s, q_file, dq_file, psi_pol, dpsi_pol, &
-                                       psi_tor_edge)
+            psi_tor_edge)
         q = pitch_sign*abs(q_file)
         dqds = pitch_sign*sign(1.0_dp, q_file)*dq_file
         psi_tor = toroidal_field_sign*abs(psi_tor_edge)

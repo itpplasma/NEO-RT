@@ -54,14 +54,14 @@ contains
         allocate (data(nflux, n_theta_map + 1, 2))
         do k = 1, nflux
             call tabulate_surface(mpol, rz(:, :, k), R_axis, Z_axis, k, &
-                                  data(k, :, :))
+                data(k, :, :))
         end do
         map_s_min = s_grid(1)
         map_s_max = s_grid(nflux)
         map_ds = (map_s_max - map_s_min)/real(nflux - 1, dp)
         if (map_ready) call destroy_batch_splines_2d(map_spline)
         call construct_batch_splines_2d([map_s_min, 0.0_dp], [map_s_max, 2.0_dp*pi], &
-                                        data, [5, 5], [.false., .true.], map_spline)
+            data, [5, 5], [.false., .true.], map_spline)
         map_ready = .true.
     end subroutine build_boozer_angle_map
 
@@ -110,8 +110,8 @@ contains
         call require_monotonic(theta_geo, ksurf)
         do i = 1, n_theta_map
             call interp_periodic(theta_geo, theta_b - theta_geo, nu, &
-                                 2.0_dp*pi*real(i - 1, dp)/real(n_theta_map, dp), &
-                                 table(i, 1), table(i, 2))
+                2.0_dp*pi*real(i - 1, dp)/real(n_theta_map, dp), &
+                table(i, 1), table(i, 2))
         end do
         table(n_theta_map + 1, :) = table(1, :)
     end subroutine tabulate_surface
@@ -162,7 +162,7 @@ contains
         target_value = modulo(at, 2.0_dp*pi)
         if (target_value < abscissa(1) .or. target_value >= abscissa(n)) then
             weight = modulo(target_value - abscissa(n), 2.0_dp*pi) &
-                     /modulo(abscissa(1) - abscissa(n), 2.0_dp*pi)
+                /modulo(abscissa(1) - abscissa(n), 2.0_dp*pi)
             first_out = first(n) + weight*(first(1) - first(n))
             second_out = second(n) + weight*(second(1) - second(n))
             return
