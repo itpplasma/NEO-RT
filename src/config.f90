@@ -24,7 +24,7 @@ module neort_config
         logical :: nonlin = .false.  ! do nonlinear calculation
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
-        integer :: inp_swi = 0  ! input switch for Boozer file
+        integer :: inp_swi = 0  ! Boozer .bc (8, 9), chartmap (10), GEQDSK (11)
         integer :: inp_swi_pert = -1  ! negative inherits inp_swi
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
@@ -75,6 +75,7 @@ contains
         inp_swi = config%inp_swi
         perturbation_switch = resolve_perturbation_switch(config%inp_swi, config%inp_swi_pert)
         call validate_perturbation_switch(pertfile, perturbation_switch)
+        call validate_direct_geqdsk(inp_swi, pertfile, noshear)
         vsteps = config%vsteps
         if (config%mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         mth_max_abs = config%mth_max_abs
@@ -125,6 +126,7 @@ contains
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)
+        call validate_direct_geqdsk(inp_swi, pertfile, noshear)
 
         M_t = M_t * efac / bfac
         qi = qs * qe
@@ -161,5 +163,21 @@ contains
             error stop "inp_swi_pert must be 8 or 9 for a perturbation .bc file"
         end if
     end subroutine validate_perturbation_switch
+
+    subroutine validate_direct_geqdsk(axisymmetric_switch, has_perturbation_file, &
+                                      no_shear)
+        ! A Boozer-Fourier perturbation summed against the geometric angle of
+        ! the direct GEQDSK chart would be a smooth but wrong series, and the
+        ! noshear switch removes a term that only exists in a
+        ! straight-field-line chart.  Both are rejected for inp_swi = 11.
+        integer, intent(in) :: axisymmetric_switch
+        logical, intent(in) :: has_perturbation_file, no_shear
+
+        if (axisymmetric_switch /= 11) return
+        if (has_perturbation_file) then
+            error stop "inp_swi = 11 cannot use a Boozer perturbation file"
+        end if
+        if (no_shear) error stop "noshear is undefined for inp_swi = 11"
+    end subroutine validate_direct_geqdsk
 
 end module neort_config

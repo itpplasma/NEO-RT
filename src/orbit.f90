@@ -3,7 +3,7 @@ module neort_orbit
     use logger, only: debug, trace, get_log_level, LOG_TRACE, error
     use util, only: imun, pi, mi, qi, c
     use spline, only: spline_coeff, spline_val_0
-    use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, &
+    use do_magfie_mod, only: do_magfie, s, iota, R0, eps, psi_pr, inp_swi, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_profiles, only: vth, Om_tE, dOm_tEds
@@ -422,6 +422,13 @@ contains
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
+        if (inp_swi == 11) then
+            Om_tB_v = direct_precession_v(eta, x, bmod, sqrtg, hder, hcovar, &
+                                          hctrvr, hcurl)
+            call finish_timestep(v, eta, y, bmod, hctrvr, hder, Om_tB_v, ydot)
+            return
+        end if
+
         shearterm = Bphcov * dqds
         if (noshear) then
             shearterm = 0
@@ -437,5 +444,68 @@ contains
         ydot(3) = Om_tB_v ! for bounce average of Om_tB/v**2
         ydot(4:) = 0.0_dp ! remaining integrands not computed here
     end subroutine timestep
+
+    pure subroutine finish_timestep(v, eta, y, bmod, hctrvr, hder, Om_tB_v, ydot)
+        real(dp), intent(in) :: v, eta, y(:), bmod, hctrvr(3), hder(3), Om_tB_v
+        real(dp), intent(out) :: ydot(:)
+
+        ydot(1) = y(2)*hctrvr(3)
+        ydot(2) = -0.5_dp*v**2*eta*hctrvr(3)*hder(3)*bmod
+        ydot(3) = Om_tB_v
+        ydot(4:) = 0.0_dp
+    end subroutine finish_timestep
+
+    function direct_precession_v(eta, x, bmod, sqrtg, hder, hcovar, hctrvr, &
+                                 hcurl) result(Om_tB_v)
+        ! Om_tB/v**2 = v_d . grad(alpha)/v**2 in a general axisymmetric chart
+        ! (s, phi, theta), alpha = phi - q*vartheta(s, theta) with vartheta a
+        ! straight-field-line angle.  do_magfie returns sqrtg for the order
+        ! (s, theta, phi), so the (s, phi, theta) Jacobian here is -sqrtg.
+        ! The angular part projects the drift with
+        ! the local pitch p = B^phi/B^theta = d(phi)/d(theta) along the field.
+        ! The radial part d(alpha)/ds * v_d^s is integrated by parts over the
+        ! orbit, using v_d^s = -(m c F/(e chi')) d/dt(v_par/B) with
+        ! chi' = sqrt(g) B^theta; all q' and d(vartheta)/ds terms then combine
+        ! into -(m c F/(e chi')) (v_par**2/B) h^theta dp/ds.  In a
+        ! straight-field-line chart p = q and this is the shear term Bphcov*dqds
+        ! of the Boozer formula.  That split is chart dependent, so noshear is
+        ! rejected for this chart (neort_config).
+        use neort_eqdsk_field, only: eqdsk_dpitch_ds
+
+        real(dp), intent(in) :: eta, x(3), bmod, sqrtg
+        real(dp), intent(in) :: hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: Om_tB_v
+        real(dp) :: drift_phi, drift_theta, pitch, dpitch_ds, F, chi_prime
+
+        call magnetic_drift_v(eta, bmod, -sqrtg, hder, hcovar, hctrvr, hcurl, &
+                              drift_phi, drift_theta)
+        pitch = hctrvr(2)/hctrvr(3)
+        dpitch_ds = eqdsk_dpitch_ds(x(1), x(3))
+        F = hcovar(2)*bmod
+        chi_prime = -sqrtg*hctrvr(3)*bmod
+        Om_tB_v = drift_phi - pitch*drift_theta &
+                  - mi*c*F/(qi*chi_prime)*(1.0_dp - eta*bmod)*hctrvr(3)/bmod &
+                  *dpitch_ds
+    end function direct_precession_v
+
+    pure subroutine magnetic_drift_v(eta, bmod, sqrtg, hder, hcovar, hctrvr, hcurl, &
+                                     drift_phi, drift_theta)
+        ! Contravariant phi and theta components of the guiding-centre drift
+        ! per v**2: v_par**2 h x (h.grad h) + (v_perp**2/2) h x grad(ln B), over
+        ! the gyrofrequency.  h x (h.grad h) is curl(h) without its parallel part.
+        real(dp), intent(in) :: eta, bmod, sqrtg
+        real(dp), intent(in) :: hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), intent(out) :: drift_phi, drift_theta
+        real(dp) :: curl_parallel, gradB_phi, gradB_theta, factor
+
+        curl_parallel = sum(hcovar*hcurl)
+        gradB_phi = (hcovar(3)*hder(1) - hcovar(1)*hder(3))/sqrtg
+        gradB_theta = (hcovar(1)*hder(2) - hcovar(2)*hder(1))/sqrtg
+        factor = mi*c/(qi*bmod)
+        drift_phi = factor*((1.0_dp - eta*bmod)*(hcurl(2) - hctrvr(2)*curl_parallel) &
+                            + 0.5_dp*eta*bmod*gradB_phi)
+        drift_theta = factor*((1.0_dp - eta*bmod)*(hcurl(3) - hctrvr(3)*curl_parallel) &
+                              + 0.5_dp*eta*bmod*gradB_theta)
+    end subroutine magnetic_drift_v
 
 end module neort_orbit

@@ -116,3 +116,14 @@ set_tests_properties(test_eqdsk_field PROPERTIES
     ENVIRONMENT
         "EQDSK_CIRC_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/circ.geqdsk"
 )
+
+# The same Solov'ev field read directly (inp_swi=11) and as its
+# efit_to_boozer.x Boozer file (inp_swi=9): frequencies and precession.
+add_test(NAME test_eqdsk_boozer_backend
+    COMMAND ${CMAKE_BINARY_DIR}/test_eqdsk_boozer_backend.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_eqdsk_boozer_backend PROPERTIES
+    ENVIRONMENT
+        "EQDSK_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev.geqdsk;BOOZER_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_boozer.bc"
+)

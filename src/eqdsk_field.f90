@@ -167,7 +167,8 @@ contains
     subroutine eqdsk_flux_profiles(s, q, dqds, psi_tor)
         !! Safety factor signed like the local pitch, so that a passing orbit
         !! advances phi by 2*pi*q per poloidal turn, and the toroidal flux per
-        !! radian signed like sqrt(g)*B^phi (its theta average).
+        !! radian signed like B^phi, i.e. the theta average of sqrt(g)*B^phi
+        !! with the positive (s, phi, theta) chart Jacobian.
         use geoflux_coordinates, only: geoflux_get_flux_profiles
 
         real(dp), intent(in) :: s
@@ -182,7 +183,7 @@ contains
     end subroutine eqdsk_flux_profiles
 
     real(dp) function eqdsk_flux_sign()
-        !! Sign of sqrt(g)*B^phi in the chart.
+        !! Sign of B^phi, and of sqrt(g)*B^phi in the (s, phi, theta) chart.
         eqdsk_flux_sign = toroidal_field_sign
     end function eqdsk_flux_sign
 

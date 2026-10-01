@@ -1,7 +1,7 @@
 module neort_magfie
     use iso_fortran_env, only: dp => real64
     use util, only: disp, pi
-    use do_magfie_mod, only: do_magfie, eps, iota
+    use do_magfie_mod, only: do_magfie, eps, iota, inp_swi
     use neort_orbit, only: th0
     use driftorbit, only: B0, Bmin, Bmax, etadt, etatp, dVds
     use logger, only: log_result
@@ -16,7 +16,7 @@ contains
         real(dp), intent(in) :: s
         integer, parameter :: nth = 1000
         integer :: k
-        real(dp) :: thrange(nth), dth
+        real(dp) :: thrange(nth), dth, boozer_weight, B0_boozer
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         character(len=256) :: buffer
 
@@ -38,6 +38,8 @@ contains
 
         Bmin = -1.0_dp
         Bmax = 0.0_dp
+        boozer_weight = 0.0_dp
+        B0_boozer = 0.0_dp
 
         do k = 1, nth
             x(3) = thrange(k)
@@ -45,6 +47,8 @@ contains
             dVds = dVds + abs(sqrtg)*dth
             B0 = B0 + bmod*dth
             eps = eps - cos(x(3))*bmod*dth
+            boozer_weight = boozer_weight + abs(sqrtg)*bmod**2
+            B0_boozer = B0_boozer + abs(sqrtg)*bmod**3
 
             ! TODO: do fine search for minima and maxima
             if ((Bmin < 0) .or. (bmod < Bmin)) then
@@ -57,6 +61,15 @@ contains
         dVds = 2.0_dp * pi * dVds
         B0 = B0 / (2.0_dp * pi)
         eps = eps / (B0 * pi)
+        if (inp_swi == 11) then
+            ! The geometric angle is not the Boozer angle, so neither the theta
+            ! average of B nor its m=1 cosine is the quantity the Boozer path
+            ! reports.  Average over the Boozer angle, d(theta_B) being
+            ! proportional to sqrt(g)*B**2 d(theta), and take the trapping
+            ! parameter of B = B0*(1 - eps*cos(theta)) from the extrema.
+            B0 = B0_boozer/boozer_weight
+            eps = (Bmax - Bmin)/(Bmax + Bmin)
+        end if
 
         etatp = 1.0_dp / Bmax
         etadt = 1.0_dp / Bmin

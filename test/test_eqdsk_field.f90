@@ -100,7 +100,7 @@ contains
 
     subroutine check_surface(s_val, r, err)
         ! q and the toroidal flux per radian, sign_theta*psi_pr being the theta
-        ! average of sqrt(g)*B^phi.
+        ! average of sqrtg*B^phi with sqrtg the (s, theta, phi) Jacobian.
         real(dp), intent(in) :: s_val, r
         real(dp), intent(inout) :: err(:)
         integer, parameter :: nth = 256
@@ -142,12 +142,14 @@ contains
     end function curl_mismatch
 
     subroutine covariant_h(x_in, hcov, sqrtg)
+        ! sqrtg is returned as the (s, phi, theta) Jacobian.
         real(dp), intent(in) :: x_in(3)
         real(dp), intent(out) :: hcov(3), sqrtg
         real(dp) :: bmod, bder(3), hcon(3), hcurl(3), x(3)
 
         x = x_in
         call do_magfie(x, bmod, sqrtg, bder, hcov, hcon, hcurl)
+        sqrtg = -sqrtg
     end subroutine covariant_h
 
     subroutine report(label, value, tol, nfail)

@@ -385,8 +385,9 @@ contains
 
     subroutine read_eqdsk_file(path)
         ! Main thread only: initialize the direct GEQDSK field (inp_swi == 11).
-        ! psi_pr is stored such that sign_theta*psi_pr is the theta average of
-        ! sqrt(g)*B^phi, the same quantity it is in the Boozer path.
+        ! As in the Boozer path, sign_theta*psi_pr is the theta average of
+        ! sqrtg*B^phi with sqrtg the Jacobian of (s, theta, phi) (see
+        ! do_magfie_eqdsk), so psi_pr is the toroidal flux signed like B^phi.
         use neort_eqdsk_field, only: init_eqdsk_field, eqdsk_axis, &
             eqdsk_minor_radius, eqdsk_flux_profiles
         character(len=*), intent(in) :: path
@@ -396,15 +397,18 @@ contains
         call eqdsk_axis(R0, Z_axis)
         a = eqdsk_minor_radius()
         call eqdsk_flux_profiles(0.5_dp, q_ref, dqds_ref, psi_tor)
-        psi_pr = sign_theta*psi_tor*bfac
+        psi_pr = -sign_theta*psi_tor*bfac
         nfp = 1
     end subroutine read_eqdsk_file
 
     subroutine do_magfie_eqdsk(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
         ! Direct GEQDSK field at x = (s, phi, theta_geo) and the flux-surface
-        ! quantities at x(1).  Bthcov is the local covariant poloidal component,
-        ! which is not a flux function in the geometric chart; the covariant
-        ! s-derivatives are not used by the direct drift and are set to zero.
+        ! quantities at x(1).  sqrtg is returned, like in the Boozer and chartmap
+        ! paths, as the Jacobian of the order (s, theta, phi), i.e. with the
+        ! opposite sign of the (s, phi, theta) chart Jacobian.  Bthcov is the
+        ! local covariant poloidal component, which is not a flux function in
+        ! the geometric chart; the covariant s-derivatives are not used by the
+        ! direct drift and are set to zero.
         use neort_eqdsk_field, only: eqdsk_field, eqdsk_flux_profiles
         real(dp), dimension(:), intent(in) :: x
         real(dp), intent(out) :: bmod, sqrtg
@@ -412,6 +416,7 @@ contains
         real(dp) :: psi_tor
 
         call eqdsk_field(x(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        sqrtg = -sqrtg
         call eqdsk_flux_profiles(x(1), q, dqds, psi_tor)
         iota = 1.0_dp/q
         bmod = bmod*bfac
