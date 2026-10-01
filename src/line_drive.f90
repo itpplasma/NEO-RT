@@ -577,15 +577,18 @@ contains
         taub = taub_est
         target = th0
         if (eta_p <= etatp) target = th0 + sign(2.0_dp*pi, sign_vpar_htheta)
-        do it = 1, 40
+        do it = 1, 80
             y = [th0, sign_vpar_htheta*vpar(v, eta_p, bmod)]
             call poloidal_state_at(v, eta_p, taub, y)
             call poloidal_rate(v, eta_p, y, ydot)
             dt = -(y(1) - target)/ydot(1)
-            taub = taub + dt
+            dt = sign(min(abs(dt), 0.05_dp*taub_est), dt)
+            taub = min(max(taub + dt, 0.7_dp*taub_est), 1.3_dp*taub_est)
             if (abs(dt) < 1.0e-14_dp*taub) exit
         end do
-        if (abs(dt) >= 1.0e-12_dp*taub) error stop "exact_orbit_period: no convergence"
+        if (.not. (abs(dt) < 1.0e-12_dp*taub)) then
+            error stop "exact_orbit_period: no convergence within 30% of taub_est"
+        end if
         omth = sign(2.0_dp*pi/taub, sign_vpar_htheta)
     end subroutine exact_orbit_period
 
