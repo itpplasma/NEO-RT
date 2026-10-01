@@ -181,6 +181,13 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
+    add_test(NAME potato_freq_scan_start
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/freq_scan_start/test_freq_scan_start.py
+            $<TARGET_FILE:potato.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
+    )
+    set_tests_properties(potato_freq_scan_start PROPERTIES TIMEOUT 150)
     add_test(NAME potato_fixed_energy_contour
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/fixed_energy_contour/test_fixed_energy_contour.py
