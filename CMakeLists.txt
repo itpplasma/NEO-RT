@@ -125,6 +125,7 @@ if(USE_STANDALONE)
 
     add_library("neo_rt" STATIC
         ${NEO_RT_SOURCES}
+        src/eqdsk_field.f90
         src/do_magfie_standalone.f90
     )
 
@@ -165,6 +166,7 @@ target_compile_options(neo_rt PRIVATE
 if(USE_STANDALONE)
     target_link_libraries(neo_rt PUBLIC
         LIBNEO::boozer
+        LIBNEO::magfie
     )
 endif()
 

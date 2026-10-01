@@ -105,3 +105,14 @@ set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
         "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
 )
+
+# Direct GEQDSK field (inp_swi=11) against the closed forms of the analytic
+# circular equilibrium; fixtures from test/gen_analytic_eqdsk.py.
+add_test(NAME test_eqdsk_field
+    COMMAND ${CMAKE_BINARY_DIR}/test_eqdsk_field.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_eqdsk_field PROPERTIES
+    ENVIRONMENT
+        "EQDSK_CIRC_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/circ.geqdsk"
+)

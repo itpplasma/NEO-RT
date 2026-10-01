@@ -59,6 +59,8 @@ module do_magfie_mod
     ! R0, ItoB
 
     ! inp_swi == 10: Boozer chartmap (NetCDF) input via libneo reader.
+    ! inp_swi == 11: direct axisymmetric GEQDSK in libneo's geoflux chart
+    !               (module neort_eqdsk_field).
     ! Shared read-only arrays; populated once by read_boozer_chartmap_file.
     integer :: cm_n_rho = 0, cm_n_theta = 0
     real(dp) :: cm_torflux = 0.0_dp, cm_h_theta = 0.0_dp
@@ -94,6 +96,10 @@ contains
 
         if (inp_swi == 10) then
             call read_boozer_chartmap_file(path)
+            return
+        end if
+        if (inp_swi == 11) then
+            call read_eqdsk_file(path)
             return
         end if
 
@@ -143,7 +149,7 @@ contains
 
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
         if (.not. magfie_arrays_initialized) then
-            if (inp_swi /= 10) then
+            if (inp_swi /= 10 .and. inp_swi /= 11) then
                 if (allocated(B0mnc)) deallocate(B0mnc)
                 if (allocated(dB0dsmnc)) deallocate(dB0dsmnc)
                 allocate(B0mnc(nmode), dB0dsmnc(nmode))
@@ -208,6 +214,10 @@ contains
 
         if (inp_swi == 10) then
             call do_magfie_chartmap(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+            return
+        end if
+        if (inp_swi == 11) then
+            call do_magfie_eqdsk(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
             return
         end if
 
@@ -372,6 +382,45 @@ contains
         hcurl(2) = 0.0_dp
 
     end subroutine do_magfie_chartmap
+
+    subroutine read_eqdsk_file(path)
+        ! Main thread only: initialize the direct GEQDSK field (inp_swi == 11).
+        ! psi_pr is stored such that sign_theta*psi_pr is the theta average of
+        ! sqrt(g)*B^phi, the same quantity it is in the Boozer path.
+        use neort_eqdsk_field, only: init_eqdsk_field, eqdsk_axis, &
+            eqdsk_minor_radius, eqdsk_flux_profiles
+        character(len=*), intent(in) :: path
+        real(dp) :: Z_axis, q_ref, dqds_ref, psi_tor
+
+        call init_eqdsk_field(path)
+        call eqdsk_axis(R0, Z_axis)
+        a = eqdsk_minor_radius()
+        call eqdsk_flux_profiles(0.5_dp, q_ref, dqds_ref, psi_tor)
+        psi_pr = sign_theta*psi_tor*bfac
+        nfp = 1
+    end subroutine read_eqdsk_file
+
+    subroutine do_magfie_eqdsk(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        ! Direct GEQDSK field at x = (s, phi, theta_geo) and the flux-surface
+        ! quantities at x(1).  Bthcov is the local covariant poloidal component,
+        ! which is not a flux function in the geometric chart; the covariant
+        ! s-derivatives are not used by the direct drift and are set to zero.
+        use neort_eqdsk_field, only: eqdsk_field, eqdsk_flux_profiles
+        real(dp), dimension(:), intent(in) :: x
+        real(dp), intent(out) :: bmod, sqrtg
+        real(dp), dimension(size(x)), intent(out) :: bder, hcovar, hctrvr, hcurl
+        real(dp) :: psi_tor
+
+        call eqdsk_field(x(1:3), bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        call eqdsk_flux_profiles(x(1), q, dqds, psi_tor)
+        iota = 1.0_dp/q
+        bmod = bmod*bfac
+        Bthcov = hcovar(3)*bmod
+        Bphcov = hcovar(2)*bmod
+        dBthcovds = 0.0_dp
+        dBphcovds = 0.0_dp
+        B0h = bmod
+    end subroutine do_magfie_eqdsk
 
     subroutine read_boozer_chartmap_file(path)
         ! Read a Boozer chartmap NetCDF file via libneo's boozer_chartmap_io reader
