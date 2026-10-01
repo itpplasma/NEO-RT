@@ -172,6 +172,9 @@
 !
 ! relative error of orbit integrator:
   double precision, parameter :: relerr=1d-10 !8
+!
+! relative distance from the Poincare cut above which a start point is off it:
+  double precision, parameter :: offcut_tol=1d-10
 
   integer, intent(in) :: next
   double precision, intent(in) :: dtau_in
@@ -201,6 +204,19 @@
 !
 !  dtau=dtau_in/max(z(4),1d-3)
   dtau=dtau_in
+!
+! The cut-based closing below needs a start point on the Poincare cut. A start
+! point off the cut is first moved along its own orbit to the next cut crossing;
+! the bounce time and shift of the orbit do not depend on the start point.
+!
+  if(.not.nousecut) then
+    call move_to_poicut(velo_ext,ndim,dtau,relerr,offcut_tol,z,ierr)
+    if(ierr.ne.0) return
+    if(next.gt.0) then
+      z(neqm+1:ndim)=extraset
+    endif
+    Rorb_max=z(1)
+  endif
 !
 ! Primary search:
 !
@@ -329,6 +345,43 @@
   delphi=z(2)-z_start(2)
 !
   end subroutine find_bounce
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine move_to_poicut(velo_ext,ndim,dtau,relerr,offcut_tol,z,ierr)
+!
+! Moves a start point that is off the Poincare cut along its orbit to the next
+! crossing of the cut. A point on the cut (within offcut_tol relative to R) is
+! left unchanged. ierr = 1 if the orbit leaves the field domain.
+!
+  use field_eq_mod, only : ierrfield
+!
+  implicit none
+!
+  integer, intent(in) :: ndim
+  double precision, intent(in) :: dtau,relerr,offcut_tol
+  double precision, dimension(ndim), intent(inout) :: z
+  integer, intent(out) :: ierr
+  double precision :: tau0,Z_cut,dZ_dR,sign_delZ
+!
+  external velo_ext
+!
+  ierr = 0
+  call get_poicut(z(1),Z_cut,dZ_dR)
+  if(abs(z(3)-Z_cut).le.offcut_tol*z(1)) return
+  sign_delZ=sign(1.d0,z(3)-Z_cut)
+  tau0=0.d0
+  do
+    call odeint_allroutines(z,ndim,tau0,dtau,relerr,velo_ext)
+    if(ierrfield.ne.0) then
+      ierr = 1
+      return
+    endif
+    call get_poicut(z(1),Z_cut,dZ_dR)
+    if(sign_delZ*(z(3)-Z_cut).lt.0.d0) exit
+  enddo
+!
+  end subroutine move_to_poicut
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
