@@ -18,12 +18,16 @@ program test_boozer_angle_map
     integer, parameter :: nth = 2048
     real(dp), parameter :: s_test(3) = [0.15_dp, 0.4_dp, 0.75_dp]
     character(len=1024) :: geqdsk, boozer, pert
-    real(dp) :: residual, swing, worst, worst_wrong_sign, worst_no_map
+    real(dp) :: residual, swing, worst, worst_wrong_sign, worst_no_map, winding
+    character(len=32) :: orientation
     integer :: is
 
     call get_environment_variable("EQDSK_SOLOVEV_FILE", geqdsk)
     call get_environment_variable("BOOZER_SOLOVEV_FILE", boozer)
     call get_environment_variable("PERT_SOLOVEV_FILE", pert)
+    call get_environment_variable("BOOZER_WINDING", orientation)
+    winding = 1.0_dp
+    if (trim(orientation) == "-1") winding = -1.0_dp
     if (len_trim(pert) == 0) error stop "EQDSK/BOOZER/PERT_SOLOVEV_FILE must be set"
     inp_swi = 11
     inp_swi_pert = 9
@@ -80,7 +84,7 @@ contains
                 theta_b = theta(i)
                 dphi = 0.0_dp
             end if
-            label(i) = phi(i) + dphi_sign*dphi - q_line*theta_b
+            label(i) = phi(i) + dphi_sign*dphi - winding*q_line*theta_b
             swing = max(swing, abs(dphi))
         end do
         residual = maxval(abs(label - label(0)))

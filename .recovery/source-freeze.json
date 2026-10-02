@@ -1,0 +1,49 @@
+{
+  "instruction": "User requested commit/push then conclude; no new jobs/science; controller owns commits/pushes on owned WIP branches only.",
+  "repositories": {
+    "artifacts": {
+      "path": "/Users/ert/proj/neort-proofs",
+      "head": "c4615729cb7f29586f652306c6a22be8f2d1acdc",
+      "branch": "realspace-mode",
+      "remotes": {
+        "origin": "git@gitlab.tugraz.at:plasma/proj/ntv/neort-proofs.git"
+      }
+    },
+    "source": {
+      "path": "/Users/ert/proj/NEO-RT-s2transport",
+      "head": "0b9472e50e0a960b3a83e432796a1242c34b3d52",
+      "branch": "DETACHED",
+      "remotes": {
+        "origin": "git@github.com:itpplasma/NEO-RT.git"
+      }
+    }
+  },
+  "owned_artifact_directory": "/Users/ert/proj/neort-proofs/realspace/s2/transport",
+  "owned_source_worktree": "/Users/ert/proj/NEO-RT-s2transport",
+  "source_base": "0b9472e50e0a960b3a83e432796a1242c34b3d52",
+  "full_source_overlay_sha256": "dc72f39dc95be0a662306df466ca3d9ccca2cd66cfbbf8917372efa86b5e43ac",
+  "source_overlay": "source-overlays/s2-full-candidate.patch",
+  "native_helicity_repair": "Artifact-only code/input adapter and two independent native nonzero-angle oracles prepared, not run. Preserved BC input bytes unchanged.",
+  "submissions": [],
+  "runtime": "All S2 scientific execution remains pending; no jobs authorized now.",
+  "authoritative_promotion": false,
+  "owned_source_paths": [
+    "M POTATO/CMakeLists.txt",
+    " M POTATO/SRC/CMakeLists.txt",
+    " M POTATO/SRC/resonant_int.f90",
+    " M POTATO/SRC/sub_potato.f90",
+    " M src/boozer_angle_map.f90",
+    " M src/do_magfie_standalone.f90",
+    " M test/CMakeLists.txt",
+    " M test/gen_analytic_eqdsk.py",
+    " M test/test_boozer_angle_map.f90",
+    " M test/test_eqdsk_boozer_backend.f90",
+    "?? POTATO/SRC/resonance_energy_limits_mod.f90",
+    "?? POTATO/SRC/resonance_mode_bounds_mod.f90",
+    "?? POTATO/SRC/test_resonance_energy_limits.f90",
+    "?? POTATO/SRC/test_signed_toroidal_bound.f90",
+    "?? test/check_boozer_angle_map_rejection.py",
+    "?? test/fixtures/eqdsk/solovev_bt_reversed.geqdsk",
+    "?? test/test_eqdsk_boozer_transport.f90"
+  ]
+}

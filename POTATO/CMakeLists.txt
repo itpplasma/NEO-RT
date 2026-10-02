@@ -88,6 +88,24 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_signed_toroidal_bound.x
+   SRC/test_signed_toroidal_bound.f90
+)
+target_link_libraries(test_signed_toroidal_bound.x
+   potato_base
+)
+add_test(NAME test_signed_toroidal_bound
+   COMMAND test_signed_toroidal_bound.x
+)
+
+add_executable(test_resonance_energy_limits.x
+   SRC/test_resonance_energy_limits.f90
+)
+target_link_libraries(test_resonance_energy_limits.x PRIVATE potato_base)
+add_test(NAME test_resonance_energy_limits
+   COMMAND test_resonance_energy_limits.x
+)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )

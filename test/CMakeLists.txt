@@ -137,3 +137,38 @@ set_tests_properties(test_boozer_angle_map PROPERTIES
     ENVIRONMENT
         "EQDSK_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev.geqdsk;BOOZER_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_boozer.bc;PERT_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_pert.bc"
 )
+
+# The complete mapped perturbation and toroidal-phase transport chain against
+# the independent Boozer Fourier backend, on the same physical orbits.
+add_test(NAME test_eqdsk_boozer_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_eqdsk_boozer_transport.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_eqdsk_boozer_transport PROPERTIES
+    ENVIRONMENT
+        "EQDSK_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev.geqdsk;BOOZER_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_boozer.bc;PERT_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_pert.bc"
+    TIMEOUT 180
+)
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME test_boozer_angle_map_reject_stream_convention
+    COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/check_boozer_angle_map_rejection.py
+        ${CMAKE_BINARY_DIR}/test_boozer_angle_map.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_boozer_angle_map_reject_stream_convention PROPERTIES
+    ENVIRONMENT
+        "EQDSK_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev.geqdsk;BOOZER_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_boozer.bc;PERT_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_pert.bc"
+    TIMEOUT 120
+)
+
+add_test(NAME test_boozer_angle_map_bt_reversed
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_angle_map.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_boozer_angle_map_bt_reversed PROPERTIES
+    ENVIRONMENT
+        "EQDSK_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_bt_reversed.geqdsk;BOOZER_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_bt_reversed_boozer.bc;PERT_SOLOVEV_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/eqdsk/solovev_bt_reversed_pert.bc;BOOZER_WINDING=-1"
+    TIMEOUT 120
+)

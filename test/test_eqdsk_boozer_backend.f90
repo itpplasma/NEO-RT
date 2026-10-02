@@ -44,6 +44,7 @@ program test_eqdsk_boozer_backend
     character(len=1024) :: geqdsk, boozer
     real(dp) :: om_b(nk, nclass, 2), om_t(nk, nclass, 2), surf(5, 2)
     real(dp) :: om_t_noshear(nk, nclass), dummy_b(nk, nclass), dummy_s(5)
+    real(dp) :: om_t_again(nk, nclass)
     real(dp) :: err_s, shear_size, psi_pr_direct, s_boozer
     integer :: iclass, ib, nfail
 
@@ -59,6 +60,10 @@ program test_eqdsk_boozer_backend
     inp_swi = 11
     call read_boozer_file(trim(geqdsk))
     psi_pr_direct = psi_pr
+    ! Initialize the direct input first: the Fourier buffers have never been
+    ! allocated when the following Boozer scan begins.
+    call set_s(s0)
+    call init_magfie_at_s()
     inp_swi = 9
     call read_boozer_file(trim(boozer))
     s_boozer = s0*abs(psi_pr_direct/psi_pr)
@@ -71,6 +76,9 @@ program test_eqdsk_boozer_backend
     noshear = .false.
     call scan_backend(11, trim(geqdsk), s0, om_b(:, :, 2), om_t(:, :, 2), &
         surf(:, 2))
+    ! Switching back from the direct field must reallocate the Fourier work
+    ! buffers and reproduce the first Boozer scan exactly.
+    call scan_backend(9, trim(boozer), s_boozer, dummy_b, om_t_again, dummy_s)
 
     call print_table(om_b, om_t)
     print '(a,5es14.6)', "surface booz:  ", surf(:, 1)
@@ -93,6 +101,8 @@ program test_eqdsk_boozer_backend
     call report("trapped Om_tB direct-Boozer / max|Om_tB|", &
         maxval(abs(om_t(:, 1, 2) - om_t(:, 1, 1)))/maxval(abs(om_t(:, 1, 1))), &
         1.0e-2_dp, nfail)
+    call report("Boozer rescan after direct field, max |diff|", &
+        maxval(abs(om_t_again - om_t(:, :, 1))), 0.0_dp, nfail)
     call report("passing Om_tB direct-Boozer / max|Om_tB|", &
         maxval(abs(om_t(:, 2, 2) - om_t(:, 2, 1)))/maxval(abs(om_t(:, 2, 1))), &
         1.0e-4_dp, nfail)
