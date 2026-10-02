@@ -5,7 +5,8 @@
 ! toroidal drift frequency of Shaing 2009 PPCF 51 035009 Eq. (8),
 !
 !     Omph = Om_tE + <Om_tB>,
-!     <Om_tB> = -(c*mu*B0)/(qi*chi') * eps' * (2*E(kappa)/K(kappa) - 1),
+!     <Om_tB> = (c*mu*q*B0)/(qi*sign_theta*psi_pr)
+!               * d eps/ds * (2*E(kappa)/K(kappa) - 1),
 !
 ! which supplies the resonant toroidal drift frequency of the ell=0
 ! superbanana resonance for trapped particles.  See the "Superbanana plateau"
@@ -17,7 +18,7 @@
 module shaing
     use iso_fortran_env, only: dp => real64
     use util, only: c, qi, mi
-    use do_magfie_mod, only: eps, s, a, psi_pr, sign_theta
+    use do_magfie_mod, only: eps, s, q, psi_pr, sign_theta
     use driftorbit, only: B0
     use neort_profiles, only: Om_tE
 
@@ -45,7 +46,7 @@ contains
         real(dp), intent(in) :: v, eta
         real(dp) :: omph
 
-        real(dp) :: kappa, k2, Kell, Eell, depsdr, chi_prime, mu, drift
+        real(dp) :: kappa, k2, Kell, Eell, depsds, mu, drift
 
         ! Clamp kappa^2 into the open interval (0, 1) so the complete elliptic
         ! integrals stay well defined at the trapped-region boundaries, where
@@ -61,17 +62,12 @@ contains
         ! Magnetic moment mu = m*v_perp^2/(2*B) = mi*eta*v^2/2 (eta = v_perp^2/(v^2*B)).
         mu = 0.5_dp*mi*eta*v**2
 
-        ! Radial derivative of the inverse aspect ratio for a large-aspect-ratio
-        ! circular flux surface: eps = r/R0 with r = a*sqrt(s), so
-        ! deps/dr = eps/r = eps/(a*sqrt(s)) = 1/R0.
-        depsdr = eps/(a*sqrt(s))
-
-        ! Poloidal-flux derivative chi' = sign_theta*psi_pr, consistent with the
-        ! reference drift frequency Om_tBref = c*mi*vth^2/(2*qi*chi') used in
-        ! neort::check_magfie.
-        chi_prime = sign_theta*psi_pr
-
-        drift = -(c*mu*B0)/(qi*chi_prime)*depsdr*(2.0_dp*Eell/Kell - 1.0_dp)
+        ! psi_pr is the toroidal-flux derivative per dimensionless s=r**2/a**2.
+        ! Thus eps=r/R0 gives deps/ds=eps/(2*s). The field-line label
+        ! alpha=phi-q*theta has grad-B drift -c*mu*q*dB/ds/(qi*sign_theta*psi_pr).
+        depsds = eps/(2.0_dp*s)
+        drift = (c*mu*q*B0)/(qi*sign_theta*psi_pr)*depsds &
+            *(2.0_dp*Eell/Kell - 1.0_dp)
 
         omph = Om_tE + drift
     end function omph_shaing
