@@ -1,0 +1,39 @@
+{
+  "status": "Stopped for user-requested commit/push/restart checkpoint; workers do not commit or push.",
+  "base_sha": "84115376478208b6bb55777c92b12120f146bab2",
+  "worktree": "/Users/ert/proj/NEO-RT-cyladapter",
+  "branch": "feat/periodic-cylinder-adapter",
+  "current_patch": "/Users/ert/tmp/claude-cyladapter-20261002/periodic-cylinder-adapter.patch",
+  "current_patch_sha256": "083426725c1125633217b4fd1529a0d2d60a27f168728bda37cc2fa6009e3432",
+  "source_files": {
+    "python/periodic_cylinder.py": "2b2c058b2d91796ca048bc4fd49a9eedecf51a6d4bc9c2e906e42c0d0a22c82b",
+    "python/geqdsk_cylinder_chart.py": "3d20c96013f5b1173ec619f92fd50d30181af4f13a99130f6191437b0360ebb3",
+    "python/kilca_to_toroidal.py": "639e0222795a3f84e0299c9404cc11281be3a7267c1c168587643c5a4fb91130",
+    "test/test_periodic_cylinder_adapter.py": "c420412b436e3834538d0074fdf182b5ab76fe001400c18feb549c5bf7e0afb0",
+    "test/test_geqdsk_cylinder_chart.py": "4cba79b47ac95205872fb52a6b1b968ce82274f2888c6fa59c6208c33d86a8b9",
+    "docs/periodic_cylinder_adapter.md": "75603ef6ab70b3cb95faf4fee71874c04b3b6e7f7d7242e8ffcecaefb24bb102"
+  },
+  "last_tested_reviewed_patch": "/Users/ert/tmp/claude-cyladapter-20261002/periodic-cylinder-adapter-reviewed-a937e0fe.patch",
+  "last_tested_reviewed_patch_sha256": "a937e0fefc6bdb9441441c894a5a9ca63101856be67ec1156a41e922d51e5181",
+  "last_cluster_job": 21805553,
+  "last_cluster_state": "COMPLETED on node26 in 24 seconds; 16 analytic tests PASS; no OOM",
+  "last_tested_source_archive": "/Users/ert/tmp/claude-cyladapter-20261002/core-source-job21805553.tar",
+  "last_tested_source_sha256": "0511794fbe3b6735a269fad3f89fe895a100e384a2805b58576456533cd4f60e",
+  "prior_evidence_packet": "/Users/ert/tmp/claude-cyladapter-20261002/evidence-summary.json",
+  "prior_evidence_packet_sha256": "8256d26aec1c50d3c5e2f839e677ac1dd9f7d1b2b5d265940d8c175371bd1ad2",
+  "prior_rejections": "/Users/ert/tmp/claude-cyladapter-20261002/results-21805553/physical-map-exports.json",
+  "accepted_exports": "3 vacuum magnetic; 0 paired electromagnetic; 3 FLRE magnetic candidates explicitly rejected",
+  "since_last_tested_source": "Only the independent variable-F finite-aspect circle test was added; it is not yet executed. Scientific field code and thresholds are unchanged.",
+  "staged_unsubmitted_scalar_archive": "/Users/ert/tmp/claude-cyladapter-20261002/scalar-source.tar",
+  "staged_unsubmitted_scalar_sha256": "f4b76b69ad7a92c042aaa5694b7371b151d103606480d8b1cd795d7ef26a57b8",
+  "staged_unsubmitted_scope": "17 analytic tests and component-level scalar source-versus-transform diagnostics using the immutable existing chart; no submission.",
+  "authorized_contract_repairs_not_implemented": [
+    "Include exact laboratory omega, exp(-i*omega*t), and mode_data SHA in magnetic CLI metadata.",
+    "Check both toroidal and clockwise poloidal physical polarity against native background; reject simultaneous psi/F reversal.",
+    "Include every requested export radius in source residual gates alongside native nodes/midpoints; explicitly state sampled scope."
+  ],
+  "next_step_after_restart": "Root decides/implements narrow contract repairs, refreezes patch, and releases one combined tiny scheduler pass; do not submit without root budget release.",
+  "independent_review": "No transform, handedness, phase, or gauge algebra defect. Three contract gaps above plus variable-F oracle gap; the latter is now added but unrun.",
+  "child_status": "adapter_review completed and is no longer live; native_chart_audit was told to stop and its Lean staging packet was forwarded to root.",
+  "current_S6_jobs": "None queued or running; no additional job submitted."
+}
