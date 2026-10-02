@@ -1,9 +1,8 @@
 {
-  "_comment": "Golden record for the public-safe circular-equilibrium resonance gate. Per-energy-slice resonance-line counts produced by potato.x on the committed circular case. Each slice is keyed by its total-energy value (toten, first column of fort.31415); the count is the number of resonance lines written for that slice. Regenerated for the configurable uniform-energy grid (enkin_min_over_temp default 0.1; toten starts at phi_max + 0.1*T) after making libneo's ierrfield threadprivate, which removed the OpenMP race that the new energy slices exposed. The OMP-determinism half of the gate checks the sorted reslines are identical at 1 and 4 threads; a privatization regression in the resonance weights drops the counts well below these numbers.",
-  "total_reslines": 660,
+  "_comment": "Public-safe circular-equilibrium resonance gate. Commit 3e46ec08 (Restore POTATO legacy torque numerics, 2026-06-25) intentionally restored toten_min=phi_elec_min and skips energy index 1, so nenerg=3 produces two slices. The three-slice record from 9f4f047 is stale. Counts also reflect the bounded bracketed root search in #67 (15cc256); #69 adds wall loss, while #104 changes only NEO-RT. Reference counts were recovered from identical 2026-10-01 runs of main and the fail-closed-reader branch with the #181 link fix applied only for building. Sorted resonance lines agree at 1 and 4 OpenMP threads. The original weight-corruption regression lowered counts by roughly 40%.",
+  "total_reslines": 267,
   "slices": [
-    {"toten": 18.220600840510961, "count": 200},
-    {"toten": 18.607267507177632, "count": 191},
-    {"toten": 18.993934173844298, "count": 269}
+    {"toten": 16.33885906878043, "count": 135},
+    {"toten": 18.237798027711897, "count": 132}
   ]
 }

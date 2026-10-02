@@ -174,6 +174,17 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_profile_converter.py
     )
     set_tests_properties(potato_profile_converter PROPERTIES TIMEOUT 60)
+    add_test(NAME resonance_golden
+        COMMAND ${CMAKE_COMMAND} -E env
+            "POTATO_EXE=$<TARGET_FILE:potato.x>"
+            ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance/test_resonance_golden.py
+    )
+    set_tests_properties(resonance_golden PROPERTIES
+        SKIP_RETURN_CODE 77
+        PROCESSORS 4
+        TIMEOUT 660
+    )
     add_test(NAME potato_invariant_handoff
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py

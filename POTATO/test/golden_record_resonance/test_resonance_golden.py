@@ -17,28 +17,37 @@ What it checks
 1. potato.x runs the circular case to completion (exit 0).
 2. The per-energy-slice resonance-line counts (lines of fort.31415 grouped by
    total energy, the first column) match golden_reslines.json within +-2%.
-   The buggy commit 363fe03 yields per-slice counts roughly 0.6x the golden
-   values, far outside the tolerance, so the gate fires on the regression.
+   The original buggy commit 363fe03 dropped per-slice counts by roughly 40%,
+   far outside the tolerance. The record follows the restored legacy energy
+   grid (3e46ec08) and the later bounded root search (#67).
 3. Determinism: the sorted fort.31415 from OMP_NUM_THREADS=4 is byte-identical
    to OMP_NUM_THREADS=1 (the reslines are written from a critical section in
    thread-completion order, so only the sorted set is order-invariant).
 
 Invoke directly with pytest, or via ctest (POTATO/CMakeLists.txt registers it as
-the test `resonance_golden` when Python + numpy are available).
+the test `resonance_golden` when Python is available). The committed synthetic
+case needs no external benchmark data; missing executable, inputs or pytest
+skip cleanly. POTATO_GOLDEN_CASE and POTATO_PROBE_CASE apply to the separate
+experimental-data gates and are not used here.
 """
 import json
+import math
 import os
 import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    print("SKIP: pytest is unavailable")
+    raise SystemExit(77)
 
 HERE = Path(__file__).resolve().parent
 GOLDEN = json.loads((HERE / "golden_reslines.json").read_text())
 
 # Counts are small integers; allow cross-platform root jitter but stay far below
-# the correct-vs-buggy gap (golden ~133/200 vs buggy ~82/120).
+# the original correct-vs-buggy gap (~40%).
 REL_TOL = 0.02
 ABS_FLOOR = 3  # tolerate at least +-3 lines on the smallest slices
 
@@ -55,35 +64,35 @@ INPUT_FILES = (
 def find_executable() -> Path:
     # POTATO_EXE wins so a caller can point the gate at a specific build
     # (e.g. comparing a candidate against a reference) without a rebuild.
-    candidates = [
-        Path(os.environ.get("POTATO_EXE", "")),
-        HERE.parent.parent / "build" / "potato.x",
-    ]
+    explicit = os.environ.get("POTATO_EXE")
+    if explicit:
+        candidate = Path(explicit)
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate.resolve()
+        pytest.skip(f"POTATO_EXE is not executable: {candidate}")
+    candidates = [HERE.parent.parent / "build" / "potato.x"]
     for cand in candidates:
         if cand.is_file() and os.access(cand, os.X_OK):
-            return cand
+            return cand.resolve()
     found = shutil.which("potato.x")
     if found:
-        return Path(found)
+        return Path(found).resolve()
     pytest.skip("potato.x executable not found (build POTATO first)")
 
 
 def ensure_inputs() -> None:
-    """Regenerate the synthetic inputs if any are missing."""
-    if all((HERE / f).exists() for f in INPUT_FILES):
-        return
-    subprocess.run(
-        ["python3", str(HERE / "gen_circular_eqdsk.py")],
-        cwd=HERE,
-        check=True,
-    )
+    """Require the committed synthetic inputs without modifying the source tree."""
+    missing = [name for name in INPUT_FILES if not (HERE / name).is_file()]
+    if missing:
+        pytest.skip(f"synthetic circular inputs missing: {', '.join(missing)}")
 
 
 def run_case(exe: Path, work_dir: Path, threads: int) -> Path:
     work_dir.mkdir(parents=True, exist_ok=True)
     for name in INPUT_FILES:
         shutil.copy(HERE / name, work_dir / name)
-    env = dict(os.environ, OMP_NUM_THREADS=str(threads))
+    env = dict(os.environ, OMP_NUM_THREADS=str(threads),
+               OMP_THREAD_LIMIT="4", OMP_DYNAMIC="FALSE")
     result = subprocess.run(
         [str(exe)],
         cwd=work_dir,
@@ -129,8 +138,8 @@ def reslines_runs(tmp_path_factory) -> dict[int, list[str]]:
     Module-scoped so potato.x is invoked exactly twice for the whole gate
     (~40 s total), not once per test.
     """
-    ensure_inputs()
     exe = find_executable()
+    ensure_inputs()
     base = tmp_path_factory.mktemp("resonance_golden")
     runs = {}
     for threads in (1, 4):
@@ -154,6 +163,9 @@ def test_resonance_counts_match_golden(reslines_runs) -> None:
         f"{[s['count'] for s in golden]}"
     )
     for (toten, count), ref in zip(actual, golden):
+        assert math.isclose(toten, ref["toten"], rel_tol=1e-10, abs_tol=1e-12), (
+            f"energy-grid mismatch: got {toten}, golden {ref['toten']}"
+        )
         tol = max(ABS_FLOOR, REL_TOL * ref["count"])
         assert abs(count - ref["count"]) <= tol, (
             f"resonance-line count for slice toten~{toten:.6g}: "
@@ -175,4 +187,10 @@ def test_omp_determinism(reslines_runs) -> None:
 
 
 if __name__ == "__main__":
+    try:
+        find_executable()
+        ensure_inputs()
+    except pytest.skip.Exception as exc:
+        print(f"SKIP: {exc}")
+        raise SystemExit(77)
     raise SystemExit(pytest.main([__file__, "-v"]))
