@@ -99,6 +99,7 @@ module neort_line_drive
     type, public :: local_field_t
         !! Field and perturbation at one point of the field-line path.
         real(dp) :: bmod = 0, sqrtg = 0, hth = 0, dB_ds = 0, dB_dth = 0
+        real(dp) :: beta = 0, dbeta_dth = 0 ! radial covariant B for circular oracle
         complex(dp) :: A(3) = 0 ! covariant dA_(s,theta,phi)
         complex(dp) :: sgB(3) = 0 ! sqrt(g) dB^(s,theta,phi)
         complex(dp) :: dBE = 0, xigradB = 0, divxi = 0, xs = 0, chi = 0
@@ -295,12 +296,35 @@ contains
         lf%sgB(1) = psit*(iota*pp%dxs_dth + imun*mph*pp%xs)
         lf%sgB(2) = imun*mph*psit*pp%eta - psit*(diota*pp%xs + iota*pp%dxs_ds)
         lf%sgB(3) = -psit*(pp%dxs_ds + pp%deta_dth)
-        lf%dBE = (Bthcov*lf%sgB(2) + Bphcov*lf%sgB(3))/(lf%sqrtg*lf%bmod)
+        if (pert_model_id == PERT_CIRC_PRESTUDY) then
+            call circ_covariant_radial(s_, th, lf%beta, lf%dbeta_dth)
+        end if
+        lf%dBE = (lf%beta*lf%sgB(1) + Bthcov*lf%sgB(2) + Bphcov*lf%sgB(3)) &
+            /(lf%sqrtg*lf%bmod)
         lf%xigradB = pp%xs*lf%dB_ds + pp%eta*lf%dB_dth
         lf%divxi = pp%dxs_ds + pp%deta_dth - 2.0_dp*pp%eta*bder(3) &
             + pp%xs*((dBphcovds + diota*Bthcov + iota*dBthcovds)/GI &
             - 2.0_dp*bder(1))
     end subroutine local_field
+
+    subroutine circ_covariant_radial(s_, thb, beta, dbeta_dth)
+        !! The circular map has B_s = B.dot(dX/ds), even though B^s = 0.
+        !! Retain it for the Cartesian pre-study oracle. The historical Boozer
+        !! background approximates this component as zero for other sources.
+        real(dp), intent(in) :: s_, thb
+        real(dp), intent(out) :: beta, dbeta_dth
+        real(dp) :: dpsi, w, r, k, thg, rmaj
+
+        dpsi = 1.0_dp - sqrt(1.0_dp - circ_a**2)
+        w = 1.0_dp - s_*dpsi
+        r = sqrt(1.0_dp - w**2)
+        k = sqrt((1.0_dp - r)/(1.0_dp + r))
+        thg = 2.0_dp*atan2(sin(0.5_dp*sigma_theta*thb), &
+            k*cos(0.5_dp*sigma_theta*thb))
+        rmaj = 1.0_dp + r*cos(thg)
+        beta = Bthcov*sigma_theta*dpsi*sin(thg)/(r*rmaj)
+        dbeta_dth = Bthcov*dpsi*(cos(thg) + r)/(r*w*rmaj)
+    end subroutine circ_covariant_radial
 
     subroutine line_point(v, eta_p, th, vpar, om_path, om_te, gf, lf, loc, drate)
         !! Integrand pieces at one point (without the harmonic phase), in the
@@ -402,7 +426,7 @@ contains
         real(dp), intent(in) :: vpar, mu
         type(local_field_t), intent(in) :: lf
         real(dp) :: vd(3)
-        real(dp) :: rhop, f, b2, gob_s, iob_s, gob_th
+        real(dp) :: rhop, f, b2, gob_s, iob_s, gob_th, bob_th
 
         rhop = mi*c*vpar/qi
         f = 1.0_dp/(lf%sqrtg*lf%bmod)
@@ -410,9 +434,11 @@ contains
         gob_s = dBphcovds/lf%bmod - Bphcov*lf%dB_ds/b2
         iob_s = dBthcovds/lf%bmod - Bthcov*lf%dB_ds/b2
         gob_th = -Bphcov*lf%dB_dth/b2
+        bob_th = lf%dbeta_dth/lf%bmod - lf%beta*lf%dB_dth/b2
         vd(1) = f*(vpar*rhop*gob_th - (c*mu/qi)*Bphcov*lf%dB_dth/lf%bmod)
         vd(2) = f*(-vpar*rhop*gob_s + (c*mu/qi)*Bphcov*lf%dB_ds/lf%bmod)
-        vd(3) = f*(vpar*rhop*iob_s - (c*mu/qi)*Bthcov*lf%dB_ds/lf%bmod)
+        vd(3) = f*(vpar*rhop*(iob_s - bob_th) &
+            + (c*mu/qi)*(lf%beta*lf%dB_dth - Bthcov*lf%dB_ds)/lf%bmod)
     end function drift_velocity
 
     subroutine line_bounce(v, eta_p, taub, omth, om_path, om_te, res, istate)
@@ -445,6 +471,10 @@ contains
         call vode_init(vstate, neq, 0.0_dp, y0)
         call vode_integrate_to(rhs, vstate, taub, rtol, atol, yend, status)
         istate = merge(2, -1, status%code == FORTNUM_OK)
+        if (status%code /= FORTNUM_OK) then
+            res = line_harmonics_t()
+            return
+        end if
         call unpack_harmonics(yend, res)
 
     contains
@@ -562,39 +592,64 @@ contains
     end function line_scalar_eps
 
     subroutine exact_orbit_period(v, eta_p, taub_est, taub, omth)
-        !! Bounce (theta back to th0) or transit (theta advanced by 2 pi) period
-        !! by Newton iteration on theta(t), each step a fresh tight integration.
+        !! Refine the bounce/transit period inside the spline estimate's bracket.
+        !! Fresh VODE shots have a finite closure floor; certify the bracket,
+        !! endpoint state and velocity sign instead of a sub-noise Newton step.
         use neort_orbit, only: th0, evaluate_bfield_local, vpar
         use driftorbit, only: sign_vpar, sign_vpar_htheta, etatp
 
         real(dp), intent(in) :: v, eta_p, taub_est
         real(dp), intent(out) :: taub, omth
-        real(dp) :: y(2), ydot(2), target, bmod, htheta, dt
+        real(dp) :: y(2), yinitial(2), target, bmod, htheta, lower, upper
+        real(dp) :: f_lower, f_upper, residual
         integer :: it
 
         call evaluate_bfield_local(bmod, htheta)
         sign_vpar_htheta = sign(1.0_dp, htheta)*sign_vpar
-        taub = taub_est
+        if (taub_est <= 0.0_dp) error stop "exact_orbit_period: nonpositive estimate"
         target = th0
         if (eta_p <= etatp) target = th0 + sign(2.0_dp*pi, sign_vpar_htheta)
+        yinitial = [th0, sign_vpar_htheta*vpar(v, eta_p, bmod)]
+        lower = 0.7_dp*taub_est
+        upper = 1.3_dp*taub_est
+        y = yinitial
+        call poloidal_state_at(v, eta_p, lower, y)
+        f_lower = y(1) - target
+        y = yinitial
+        call poloidal_state_at(v, eta_p, upper, y)
+        f_upper = y(1) - target
+        if (f_lower*f_upper >= 0.0_dp) then
+            error stop "exact_orbit_period: period not bracketed within 30% of estimate"
+        end if
         do it = 1, 80
-            y = [th0, sign_vpar_htheta*vpar(v, eta_p, bmod)]
+            taub = 0.5_dp*(lower + upper)
+            y = yinitial
             call poloidal_state_at(v, eta_p, taub, y)
-            call poloidal_rate(v, eta_p, y, ydot)
-            dt = -(y(1) - target)/ydot(1)
-            dt = sign(min(abs(dt), 0.05_dp*taub_est), dt)
-            taub = min(max(taub + dt, 0.7_dp*taub_est), 1.3_dp*taub_est)
-            if (abs(dt) < 1.0e-14_dp*taub) exit
+            residual = y(1) - target
+            if (f_lower*residual <= 0.0_dp) then
+                upper = taub
+            else
+                lower = taub
+                f_lower = residual
+            end if
+            if (upper - lower <= 1.0e-12_dp*taub_est) exit
         end do
-        if (.not. (abs(dt) < 1.0e-12_dp*taub)) then
-            error stop "exact_orbit_period: no convergence within 30% of taub_est"
+        if (it > 80) error stop "exact_orbit_period: bracket did not converge"
+        if (abs(residual) > 1.0e-10_dp*(1.0_dp + abs(target))) then
+            error stop "exact_orbit_period: orbit angle did not close"
+        end if
+        if (y(2)*yinitial(2) <= 0.0_dp) then
+            error stop "exact_orbit_period: wrong bounce branch"
+        end if
+        if (abs(y(2) - yinitial(2)) > 1.0e-10_dp*v) then
+            error stop "exact_orbit_period: parallel velocity did not close"
         end if
         omth = sign(2.0_dp*pi/taub, sign_vpar_htheta)
     end subroutine exact_orbit_period
 
     subroutine poloidal_state_at(v, eta_p, t_end, y)
         use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
-        use fortnum_status, only: fortnum_status_t
+        use fortnum_status, only: fortnum_status_t, FORTNUM_OK
 
         real(dp), intent(in) :: v, eta_p, t_end
         real(dp), intent(inout) :: y(2)
@@ -605,6 +660,9 @@ contains
         call vode_init(vstate, 2, 0.0_dp, y)
         call vode_integrate_to(rhs, vstate, t_end, 1.0e-13_dp, &
             [1.0e-15_dp, 1.0e-13_dp*v], yend, status)
+        if (status%code /= FORTNUM_OK) then
+            error stop "exact_orbit_period: orbit integration failed"
+        end if
         y = yend
     contains
         subroutine rhs(t_, y_, dydt_, ctx_)

@@ -68,6 +68,8 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
 | `inp_swi_pert` | Input format for `in_file_pert` with the standalone field reader. | Default `-1` inherits `inp_swi`; set `9` to combine an axisymmetric chartmap (`inp_swi=10`) with a Strumberger perturbation `.bc`. |
 | `pert_angle_map` | Axisymmetric Boozer `.bc` (8-column format) of the same equilibrium. | Required for `inp_swi=11` with `pertfile=.true.` (`inp_swi_pert` `8` or `9`): maps the GEQDSK chart onto Boozer angles; surfaces are matched by toroidal flux. |
+| `drive_form` | Perturbation drive, `boozer` or `line`. | Default `boozer`; `line` integrates the guiding-center one-form. |
+| `pert_model` | Analytic perturbation, `scalar`, `ideal_helical`, or `circ_prestudy`. | Default `scalar`; vector-potential models require `inp_swi=8/9` and `pertfile=.false.`. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
 
 `magdrift_passing` is deliberately separate from `magdrift`: setting
@@ -77,6 +79,35 @@ The frequency and derivative paths use the same switch. In particular,
 `d_Om_ds` does not add `bounceavg(3)*v**2` on the passing branch when the
 switch is zero; this consistency guard was fixed in commit `0b7c4e8` and is
 covered by `test/test_passing_drift_derivative.f90`.
+
+### Line-integral drive
+
+The `line` drive evaluates the magnetic and electrostatic perturbations along
+the unperturbed thin orbit. To compare it with the Boozer scalar using the same
+physical perturbation, select `pert_model='ideal_helical'`,
+`noshear=.false.`, and a Boozer background (`inp_swi=8/9`), then run once with
+each `drive_form`. This displacement satisfies the Boozer volume constraint;
+the `boozer` run uses its Lagrangian field-strength perturbation.
+
+The integrated Hamiltonian is
+`H = e*dPhi_E + mu*dB_E - (e/c)*dA.dot(Xdot)` in Gaussian units, with
+`dB_E = b0.dot(curl(dA))`. The opposite overall sign in the one-form convention
+has the same `abs(H_m)**2`. The bounce slots store `H_m/(mi*v**2/2)`;
+the existing transport calculation restores the energy factor. The Hamiltonian
+term uses the Eulerian field strength. Adding the Boozer weight there would
+count the parallel coupling twice.
+
+The thin-orbit implementation fixes the vector-potential gauge by removing
+the parallel component on nearby surfaces. Its full drift velocity includes
+radial motion, whereas the thin integration path stays on one surface; a raw
+gauge shift along that approximate path need not be invariant. Rational
+magnetic harmonics cannot be removed by this gauge construction and are
+outside the present analytic benchmark. General cylindrical perturbation-file
+input through libneo's `perturbation_field_t` is a later integration step.
+
+`circ_prestudy` is a benchmark source for the circular equilibrium in
+`test/fixtures/prestudy`, with its orientation and displacement options set by
+the test driver. It is not a configurable adapter for arbitrary equilibria.
 
 ### Magnetic field data
 

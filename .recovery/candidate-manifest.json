@@ -1,0 +1,24 @@
+{
+  "head": "8c429a5fb2f5182295843fb9e31b6b909ab89e92",
+  "candidate_source_digest_sha256": "7621a3970998c6fd15b2b5176aa11a401e04201db8f1b3ad0046d1c716ec6282",
+  "paths": [
+    "src/line_drive.f90",
+    "doc/running.md",
+    "test/CMakeLists.txt",
+    "test/test_line_drive.f90",
+    "test/test_line_prestudy.f90",
+    "test/gen_prestudy_circ.py",
+    "test/diagnose_line_drive.f90",
+    "test/line_drive/check_mutations.py",
+    "test/line_drive/plot_diagnostics.py",
+    "test/line_drive/run_diagnostics.sh",
+    "test/line_drive/DIAGNOSTICS.md",
+    "test/fixtures/prestudy/prestudy.geqdsk",
+    "test/fixtures/prestudy/prestudy_boozer.bc",
+    "test/line_drive/period_oracle.f90",
+    "test/line_drive/prestudy_potential_oracle.f90"
+  ],
+  "patch_sha256": "e77d75a29e5bd47ba0395c99dd543f6b117511d2a5ab28d2f299dc1d4e68b4b2",
+  "validation_only_overlay_sha256": "dd540918c5aa632bf871f08cfe34dc3677d403f3f640805de61e0a3ca6834f39",
+  "source_digest_order": "lexicographic paths; path NUL uint64big-endian length bytes"
+}
