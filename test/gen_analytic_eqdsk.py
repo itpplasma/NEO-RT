@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Write the analytic GEQDSK fixtures used by the direct-EQDSK tests.
 
-    gen_analytic_eqdsk.py circ|solovev OUTPUT.geqdsk
+    gen_analytic_eqdsk.py circ|solovev|solovev_bt_reversed OUTPUT.geqdsk
 
 Both fields have a constant F = R0*B0 and a purely toroidal current, so they
 admit Boozer coordinates (libneo's efit_to_boozer.x turns them into the
-Boozer files, see gen_circ_boozer.py).
+Boozer files, see gen_analytic_boozer.py).
 
 circ: concentric circles about (R0, 0) with
 
@@ -88,9 +88,12 @@ def records(values):
 
 
 def main(kind, path):
-    psi_fn = {"circ": psi_circ, "solovev": psi_solovev}[kind]
+    toroidal_sign = -1.0 if kind.endswith("_bt_reversed") else 1.0
+    psi_fn = {"circ": psi_circ, "solovev": psi_solovev}[
+        kind.removesuffix("_bt_reversed")]
     rdim = 3.2 * A
-    zdim = 3.2 * A
+    # The Solovev LCFS reaches |Z|=0.808 m; ±0.8 m clips edge-flux contours.
+    zdim = (3.6 if kind.startswith("solovev") else 3.2) * A
     rleft = R0 - 0.5 * rdim
     R = rleft + np.linspace(0.0, rdim, NR)
     Z = -0.5 * zdim + np.linspace(0.0, zdim, NZ)
@@ -102,7 +105,7 @@ def main(kind, path):
     psi_grid = np.linspace(simag, sibry, NR)
     # qpsi is informational only: libneo recomputes q from the field.
     qpsi = q_circ(psi_grid) if kind == "circ" else np.full(NR, Q0)
-    fpol = np.full(NR, R0 * B0)
+    fpol = np.full(NR, toroidal_sign * R0 * B0)
     zeros = np.zeros(NR)
     current = 1.0e6
 
@@ -113,7 +116,7 @@ def main(kind, path):
     with open(path, "w") as out:
         out.write(f"{'NEO-RT analytic ' + kind:48s}{0:4d}{NR:4d}{NZ:4d}\n")
         out.write(records([rdim, zdim, R0, rleft, 0.0]))
-        out.write(records([R0, 0.0, simag, sibry, B0]))
+        out.write(records([R0, 0.0, simag, sibry, toroidal_sign * B0]))
         out.write(records([current, simag, 0.0, R0, 0.0]))
         out.write(records([0.0, 0.0, sibry, 0.0, 0.0]))
         out.write(records(fpol))

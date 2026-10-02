@@ -171,9 +171,10 @@ contains
                 if (allocated(spl_val_c)) deallocate(spl_val_c)
                 if (allocated(spl_val_s)) deallocate(spl_val_s)
                 allocate(spl_val_c(3, nmode), spl_val_s(3, nmode))
+                ! Only the Fourier inputs own these buffers; marking them ready
+                ! for inp_swi 10/11 would skip the allocation after a switch.
+                magfie_arrays_initialized = .true.
             end if
-
-            magfie_arrays_initialized = .true.
         end if
 
         ! Initialize cache
