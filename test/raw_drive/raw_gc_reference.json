@@ -1,0 +1,29 @@
+{
+  "source_csv_sha256": "0d81132bff824772d15cf46dd925a9294aad37def00893f15e17a176b014a784",
+  "source_metadata_sha256": "b92b46732de8545000b8651460460b83a896682926844a20af6675bb82091307",
+  "fixture_sha256": "bd801437b75e065e7e5a11e369104655da3801e865b50debf61d96f1ba450c82",
+  "columns": [
+    "t",
+    "R",
+    "phi",
+    "Z",
+    "vp",
+    "xdot_R",
+    "xdot_phi_physical",
+    "xdot_Z",
+    "B0_R",
+    "B0_phi",
+    "B0_Z",
+    "H_real",
+    "H_imag",
+    "chi_real",
+    "chi_imag",
+    "grad_chi_R_real",
+    "grad_chi_R_imag",
+    "grad_chi_phi_real",
+    "grad_chi_phi_imag",
+    "grad_chi_Z_real",
+    "grad_chi_Z_imag"
+  ],
+  "convention": "Normalized values, independently generated S5 full GC orbit; SI scales in source metadata. No orbit recomputation in fixture preparation."
+}

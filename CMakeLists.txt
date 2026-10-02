@@ -65,6 +65,7 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 endif()
 
 option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${NEORT_IS_STANDALONE})
+option(NEORT_ENABLE_RAW_DRIVE "Build raw-field finite-orbit diagnostics" OFF)
 
 if(DEFINED BUILD_TESTING)
     set(NEORT_BUILD_TESTING ${BUILD_TESTING})
@@ -179,6 +180,13 @@ if(NOT TARGET LIBNEO::hdf5_tools)
 endif()
 
 target_link_libraries(neo_rt PUBLIC LIBNEO::hdf5_tools)
+
+if(NEORT_ENABLE_RAW_DRIVE)
+    # Experimental container support uses a controller-provided libneo source
+    # override; the pinned default dependency and analytical S3 stay unchanged.
+    target_sources(neo_rt PRIVATE src/raw_drive.f90 src/raw_orbit.f90)
+    target_link_libraries(neo_rt PUBLIC LIBNEO::field)
+endif()
 
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 

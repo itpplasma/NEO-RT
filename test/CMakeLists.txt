@@ -1,5 +1,26 @@
 file(GLOB TEST_SOURCES "test_*.f90")
 
+if(NEORT_ENABLE_RAW_DRIVE)
+    add_executable(test_raw_oneform.x raw_drive/test_raw_oneform.f90)
+    target_link_libraries(test_raw_oneform.x neo_rt)
+    add_test(NAME test_raw_oneform COMMAND ${CMAKE_BINARY_DIR}/test_raw_oneform.x)
+    set_tests_properties(test_raw_oneform PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1"
+        TIMEOUT 180
+    )
+    add_executable(test_raw_gc.x
+        raw_drive/raw_fixture.f90 raw_drive/test_raw_gc.f90)
+    target_link_libraries(test_raw_gc.x neo_rt)
+    add_test(NAME test_raw_gc COMMAND ${CMAKE_BINARY_DIR}/test_raw_gc.x
+        ${CMAKE_CURRENT_SOURCE_DIR}/raw_drive/raw_gc_reference.dat)
+    set_tests_properties(test_raw_gc PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1"
+        TIMEOUT 180
+    )
+endif()
+
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})
