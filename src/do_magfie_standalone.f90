@@ -467,6 +467,7 @@ contains
         end do
         close (unit=18)
         call set_bc_current_factor(filename)
+        call check_bc_volume_derivative(filename, flux)
         ! Set R0 to first harmonic
         R0 = modes0(1, 1, 3)*100
     end subroutine boozer_read
@@ -496,6 +497,90 @@ contains
         end do
         ItoB = current_to_covar*real(handedness, dp)
     end subroutine set_bc_current_factor
+
+    subroutine check_bc_volume_derivative(filename, flux)
+        ! Fail closed when the header flux sign (or the current columns) contradict
+        ! the file's own dV/ds column. In Boozer coordinates sqrt(g)*B**2 is a flux
+        ! function, so the surface average of the Jacobian used in do_magfie is
+        ! sign_theta*psi_pr*(Bphcov + iota*Bthcov)*<1/B**2>, and
+        ! 4*pi**2*<sqrt(g)> must equal the (dV/ds)/nper column.
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
+        character(len=*), intent(in) :: filename
+        real(dp), intent(in) :: flux  ! header toroidal flux in T m^2 (unscaled)
+
+        real(dp), parameter :: rel_tolerance = 5.0e-2_dp
+        real(dp), parameter :: cm3_to_m3 = 1.0e-6_dp
+        integer :: ksurf
+        real(dp) :: dvds_file, dvds_neort, inv_b2_avg, psi_pr_raw
+
+        psi_pr_raw = 1.0e8_dp*flux/(2*pi)
+        do ksurf = 1, nflux
+            dvds_file = params0(ksurf, 6)
+            inv_b2_avg = surface_average_inverse_b2(ksurf)
+            dvds_neort = 4*pi**2*sign_theta*psi_pr_raw*ItoB &
+                *(params0(ksurf, 3) + params0(ksurf, 2)*params0(ksurf, 4)) &
+                *inv_b2_avg*cm3_to_m3
+            if (.not. ieee_is_finite(dvds_file)) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+            if (.not. ieee_is_finite(dvds_neort)) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+            if (dvds_file == 0.0_dp) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+            if (abs(dvds_neort - dvds_file) > rel_tolerance*abs(dvds_file)) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+        end do
+    end subroutine check_bc_volume_derivative
+
+    function surface_average_inverse_b2(ksurf) result(inv_b2_avg)
+        ! <1/B**2> over theta from the axisymmetric |B| harmonics (in Gauss).
+        integer, intent(in) :: ksurf
+        real(dp) :: inv_b2_avg
+
+        integer :: icos, isin, j, ktheta, ntheta
+        real(dp) :: bmod, m, theta
+
+        icos = 6
+        isin = 0
+        if (inp_swi /= 8) then
+            icos = 9
+            isin = 10
+        end if
+        ntheta = max(64, 8*m0b)
+        inv_b2_avg = 0.0_dp
+        do ktheta = 0, ntheta - 1
+            theta = 2*pi*real(ktheta, dp)/real(ntheta, dp)
+            bmod = 0.0_dp
+            do j = 1, nmode
+                if (nint(modes0(ksurf, j, 2)) /= 0) cycle
+                m = modes0(ksurf, j, 1)
+                bmod = bmod + modes0(ksurf, j, icos)*cos(m*theta)
+                if (isin > 0) bmod = bmod + modes0(ksurf, j, isin)*sin(m*theta)
+            end do
+            if (.not. (bmod > 0.0_dp)) error stop "Invalid Boozer |B| in volume derivative"
+            inv_b2_avg = inv_b2_avg + 1.0_dp/(1.0e4_dp*bmod)**2
+        end do
+        inv_b2_avg = inv_b2_avg/real(ntheta, dp)
+    end function surface_average_inverse_b2
+
+    subroutine fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+        character(len=*), intent(in) :: filename
+        integer, intent(in) :: ksurf
+        real(dp), intent(in) :: dvds_neort, dvds_file
+
+        character(len=1024) :: message
+
+        write (message, "(a,a,a,i0,a,es12.4,a,es12.4,a)") &
+            "Inconsistent Boozer orientation in '", trim(filename), &
+            "' at surface ", ksurf, ": 4*pi**2*<sqrt(g)> from flux and currents=", &
+            dvds_neort, " m^3, but (dV/ds)/nper column=", dvds_file, &
+            " m^3. Check the sign of the header toroidal flux and the currents."
+        error stop trim(message)
+    end subroutine fail_volume_derivative
 
     function signed_poloidal_area(ksurf) result(area)
         integer, intent(in) :: ksurf

@@ -3,7 +3,7 @@ CC based on calculation: tok_examples/boozer.tok02
 CC <beta> = 0.006432
 CC Configurationname = tok02, aspect ratio ca 3.8, q_0 > 1, q_a < 3
  m0b  n0b nsurf nper flux/[Tm^2]     a/[m]     R/[m]
- 18    0    63   1   -1.330000e+00   0.46000   1.64377
+ 18    0    63   1    1.330000e+00   0.46000   1.64377
        s         iota  curr_pol/nper    curr_tor    pprime   sqrt g(0,0)
                             [A]            [A]   dp/ds,[Pa] (dV/ds)/nper
   2.3438E-02  8.9997E-01 -1.7754E+07 -2.3937E+04 -1.7231E+04 -7.7240E+00
