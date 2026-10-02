@@ -130,6 +130,15 @@ target_link_libraries(test_wall_profile.x
    potato_base
 )
 
+add_executable(test_bmod_pert_precision.x SRC/test_bmod_pert_precision.f90)
+target_link_libraries(test_bmod_pert_precision.x PRIVATE potato_base)
+add_test(NAME test_bmod_pert_precision COMMAND test_bmod_pert_precision.x)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_precision_run)
+set_tests_properties(test_bmod_pert_precision PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_precision_run
+    TIMEOUT 30
+)
+
 add_executable(import_neo2_profiles.x
    SRC/import_neo2_profiles.f90
 )
