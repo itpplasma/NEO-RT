@@ -138,7 +138,7 @@ def d11_analytic(p: dict, neta: int = 3000, npsi: int = 6001) -> float:
 
     om_te = VTH * M_T / R0
     chi = SIGN_THETA * psi_pr
-    depsdr = eps / (a * np.sqrt(S))     # = 1/R0 for a circular flux surface
+    depsds = eps / (2.0 * S)            # s=(r/a)^2, eps=r/R0
     hth = iota / R0                     # contravariant poloidal, leading order
     meff = M0 + q * MPH
 
@@ -165,7 +165,7 @@ def d11_analytic(p: dict, neta: int = 3000, npsi: int = 6001) -> float:
 
         # Resonance Om_tE + <Om_tB> = 0 with <Om_tB> = -C0*drift_shape*v^2
         # gives v^2 explicitly (removes the velocity-space singularity).
-        c0 = (C * 0.5 * MI * eta * B0 / (QI * chi)) * depsdr
+        c0 = -(C * 0.5 * MI * eta * q * B0 / (QI * chi)) * depsds
         v2 = om_te / (c0 * drift_shape)
         if v2 <= 0.0:
             continue
