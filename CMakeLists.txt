@@ -43,7 +43,7 @@ endif()
 include(Util)
 
 if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF 8d58a5eb55a376d6b5d8ae1c160ab7e2c9190b2c)
+    set(LIBNEO_REF a4620f8075698dabafd774859e28e0ae92e8f339)
 endif()
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
@@ -110,6 +110,7 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
+    src/output.f90
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
@@ -167,6 +168,14 @@ if(USE_STANDALONE)
         LIBNEO::boozer
     )
 endif()
+
+# HDF5 output. libneo's hdf5_tools forwards to fortio, which implements the
+# required HDF5 subset without linking the system HDF5 library.
+if(NOT TARGET LIBNEO::hdf5_tools)
+    message(FATAL_ERROR "LIBNEO::hdf5_tools not found; it is required for HDF5 output")
+endif()
+
+target_link_libraries(neo_rt PUBLIC LIBNEO::hdf5_tools)
 
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 

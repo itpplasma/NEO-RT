@@ -95,8 +95,16 @@ state is explicit.
 - `src/resonance.f90`
   - `driftorbit_coarse` scans eta on uniform intervals for sign changes of
     `R(v, eta) = mth*Omth + mph*Omph`.
-  - `driftorbit_root` refines one root by bisection and returns `(eta_res,
-    dR/deta)`.
+  - `driftorbit_root` refines one supplied sign-change bracket with a
+    safeguarded Newton/secant iteration and returns `(eta_res, dR/deta)`.
+    The Newton derivative is the existing analytic combination
+    `mth*dOmthdeta + mph*dOmphdeta`; a midpoint is used whenever the Newton or
+    secant proposal would leave the bracket, or when false position fails to
+    contract it by half.  The residual test is paired with a relative eta-width
+    test so residual conditioning near the trapped--passing boundary cannot
+    accept a visibly displaced root.  The refinement no longer repeats the
+    100-cell coarse scan, so the coarse scan remains the root-counting
+    operation and refinement cannot silently jump to another root.
 
 The hard-root formula is mathematically the Dirac-delta reduction of the eta
 integral. It is piecewise differentiable as long as:
@@ -275,6 +283,14 @@ collision coefficients, orbit averages, and `omega_prime`.
   Enzyme differentiates LLVM IR and documents support across languages that
   lower to LLVM IR, including Fortran. Candidate after NEO-RT kernels are made
   explicit enough for AD.
+
+For the scalar numerical refinement, the algorithm choice follows the
+enclosing-root literature rather than an unconstrained Newton iteration.
+Brent's guaranteed-convergence method combines interpolation with a bracket;
+Algorithm 748 of Alefeld, Potra, and Shi gives a higher-order enclosing
+alternative.  NEO-RT uses the cheaper derivative-informed variant here because
+`Om_th` and `Om_ph` already expose the exact derivative needed by the residual,
+while retaining the same enclosing-bracket invariant and a bisection fallback.
 
 ## Differentiability by input class
 

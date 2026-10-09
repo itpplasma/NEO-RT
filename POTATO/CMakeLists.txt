@@ -15,7 +15,7 @@ endif ()
 
 include(Util)
 if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF 8d58a5eb55a376d6b5d8ae1c160ab7e2c9190b2c)
+    set(LIBNEO_REF a4620f8075698dabafd774859e28e0ae92e8f339)
 endif()
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
     find_package(PkgConfig QUIET)
