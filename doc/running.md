@@ -49,10 +49,12 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `qs` | Ion charge in units of the elementary charge. | Used to compute `qi`. |
 | `ms` | Ion mass in atomic mass units. | Used to compute `mi`. |
 | `vth` | Thermal velocity `[cm/s]`. | Used when no `plasma.in` is provided. |
-| `epsmn` | Perturbation amplitude `B₁/B₀`. | Used when `pertfile=.false.`. |
+| `epsmn` | Perturbation amplitude `B₁/B₀`. | Used when `pertfile=.false.`; default `1`. |
+| `pertfile_scale` | Scale factor for the perturbation read from `in_file_pert`. | Used when `pertfile=.true.`; default `1`. |
 | `m0` | Poloidal perturbation harmonic. | Integer. |
 | `mph` | Toroidal perturbation harmonic. | Positive integer when using analytic perturbations. |
 | `magdrift` | Include magnetic drift (`.true.`/`.false.`). | Controls bounce-averaged drifts. |
+| `magdrift_passing` | Include magnetic drift for passing particles (`1`/`0`; `-1` follows `magdrift`). | Independent passing-particle control. With `0`, the passing transit frequency and its `d_Om_ds` derivative omit the magnetic-drift term. |
 | `nopassing` | Skip passing resonances. | When `.true.` only trapped contributions are computed. |
 | `noshear` | Neglect magnetic shear. | Propagated to orbit module. |
 | `pertfile` | Read perturbation from `in_file_pert`. | Otherwise analytic perturbation is used. |
@@ -66,6 +68,14 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
 | `inp_swi_pert` | Input format for `in_file_pert` with the standalone field reader. | Default `-1` inherits `inp_swi`; set `9` to combine an axisymmetric chartmap (`inp_swi=10`) with a Strumberger perturbation `.bc`. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
+
+`magdrift_passing` is deliberately separate from `magdrift`: setting
+`magdrift=.true., magdrift_passing=0` retains trapped magnetic drift while
+matching a model whose passing operator has no magnetic-drift contribution.
+The frequency and derivative paths use the same switch. In particular,
+`d_Om_ds` does not add `bounceavg(3)*v**2` on the passing branch when the
+switch is zero; this consistency guard was fixed in commit `0b7c4e8` and is
+covered by `test/test_passing_drift_derivative.f90`.
 
 ### Magnetic field data
 

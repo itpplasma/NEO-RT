@@ -12,12 +12,16 @@ module neort_transport
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
+        pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
         sign_vpar_htheta, sign_vpar
 
   implicit none
 
+  ! These values remain live while bounce_fast invokes timestep_transport.
+  ! Each transport worker needs an independent callback state.
   real(dp) :: Omth, dOmthdv, dOmthdeta
+  !$omp threadprivate (Omth, dOmthdv, dOmthdeta)
 
 contains
 
@@ -168,7 +172,7 @@ contains
         ! evaluate orbit averages of Hamiltonian perturbation
         if (pertfile) then
             call do_magfie_pert_amp(x, epsn)
-            epsn = epsmn * epsn / bmod
+            epsn = pertfile_scale * epsn / bmod
         else
             epsn = epsmn * exp(imun * m0 * y(1))
         end if
