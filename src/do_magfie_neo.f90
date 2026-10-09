@@ -149,6 +149,7 @@ contains
              expv = EXP(imun*m*x(3))
              bn_hat_pert = bn_hat_pert + bmnc_pert_val * expv
        ELSEIF (inp_swi .EQ. 9) THEN ! ASDEX-U (E. Strumberger)
+             m = ixm_pert(i)
              expv = EXP(imun*m*x(3))
              bn_hat_pert = bn_hat_pert + (bmnc_pert_val-imun*bmns_pert_val)*expv
        END IF
