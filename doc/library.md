@@ -138,10 +138,16 @@ type :: config_t
     real(8) :: bfac, efac
     real(8) :: M_t, vth
     real(8) :: vmax_over_vth
-    integer :: m0, inp_swi, vsteps, mth_max_abs, log_level
+    integer :: m0, inp_swi, vsteps, magdrift_passing, mth_max_abs, log_level
     logical :: comptorque, magdrift, nopassing, noshear, pertfile, nonlin
 end type
 ```
+
+`magdrift_passing` is the passing-particle magnetic-drift switch. `0` keeps
+the trapped magnetic-drift path enabled when `magdrift=.true.` but removes the
+passing drift term from both the transit frequency and `d_Om_ds`; `1` enables
+it; `-1` follows `magdrift`. The two frequency paths intentionally share this
+guard (fixed in `0b7c4e8`).
 
 `mth_max_abs=-1` preserves the historical q-dependent harmonic range. A
 nonnegative value selects the exact symmetric range `-mth_max_abs:mth_max_abs`.

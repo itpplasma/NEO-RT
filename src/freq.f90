@@ -397,7 +397,12 @@ contains
             if (eta > etatp) then
                 Omph_noE = bounceavg(3) * v**2
             else
-                Omph_noE = bounceavg(3) * v**2 + Omth / iota
+                ! With passing magnetic drift disabled, retain only the
+                ! canonical transit contribution.  This must match Om_ph_passing_from_omth.
+                Omph_noE = Omth / iota
+                if (magdrift_passing > 0) then
+                    Omph_noE = bounceavg(3) * v**2 + Omth / iota
+                end if
             end if
         else
             if (eta > etatp) then
@@ -415,8 +420,14 @@ contains
             if (eta > etatp) then
                 dOmphds = dOm_tEds + (bounceavg(3) * v**2 - Omph_noE) / ds
             else
-                dOmphds = dOm_tEds + (bounceavg(3) * v**2 + (2.0_dp * pi / taub) / iota - &
-                                      Omph_noE) / ds
+                if (magdrift_passing > 0) then
+                    dOmphds = dOm_tEds + (bounceavg(3) * v**2 + (2.0_dp * pi / taub) / iota - &
+                                          Omph_noE) / ds
+                else
+                    ! Keep the finite-difference derivative on the same
+                    ! no-passing-drift branch as the frequency above.
+                    dOmphds = dOm_tEds + ((2.0_dp * pi / taub) / iota - Omph_noE) / ds
+                end if
             end if
         else
             if (eta > etatp) then
