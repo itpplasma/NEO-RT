@@ -12,45 +12,49 @@ module neort_transport
     use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
+        pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
         sign_vpar_htheta, sign_vpar
 
-    implicit none
+  implicit none
 
-    real(dp) :: Omth, dOmthdv, dOmthdeta
+  ! These values remain live while bounce_fast invokes timestep_transport.
+  ! Each transport worker needs an independent callback state.
+  real(dp) :: Omth, dOmthdv, dOmthdeta
+  !$omp threadprivate (Omth, dOmthdv, dOmthdeta)
 
 contains
 
-    pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
-        ! Helper to compose a short debug line
-        character(*), intent(in) :: msg1, msg2
-        character(*), intent(in), optional :: msg3, msg4
-        real(dp), intent(in) :: v1, v2
-        real(dp), intent(in), optional :: v3, v4
-        character(len=256) :: s
-        character(len=64) :: a1, a2, a3, a4
-        a3 = ''; a4 = ''
-        write(a1,'(ES12.5)') v1
-        write(a2,'(ES12.5)') v2
-        if (present(v3)) write(a3,'(ES12.5)') v3
-        if (present(v4)) write(a4,'(ES12.5)') v4
-        if (present(msg4)) then
-            s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)//' '//trim(msg4)//trim(a4)
-        else if (present(msg3)) then
-            s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)
-        else
-            s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)
-        end if
-    end function fmt_dbg
+  pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
+    ! Helper to compose a short debug line
+    character(*), intent(in) :: msg1, msg2
+    character(*), intent(in), optional :: msg3, msg4
+    real(dp), intent(in) :: v1, v2
+    real(dp), intent(in), optional :: v3, v4
+    character(len=256) :: s
+    character(len=64) :: a1, a2, a3, a4
+    a3 = ''; a4 = ''
+    write(a1,'(ES12.5)') v1
+    write(a2,'(ES12.5)') v2
+    if (present(v3)) write(a3,'(ES12.5)') v3
+    if (present(v4)) write(a4,'(ES12.5)') v4
+    if (present(msg4)) then
+      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)//' '//trim(msg4)//trim(a4)
+    else if (present(msg3)) then
+      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)//' '//trim(msg3)//trim(a3)
+    else
+      s = trim(msg1)//trim(a1)//' '//trim(msg2)//trim(a2)
+    end if
+  end function fmt_dbg
 
-    ! original contains follows
+! original contains follows
 
     pure function D11int(ux, taub, Hmn2)
         real(dp) :: D11int
         real(dp), intent(in) :: ux, taub, Hmn2
 
         D11int = pi**(3.0_dp / 2.0_dp) * mph**2 * c**2 * q * vth &
-            / (qi**2 * dVds * abs(psi_pr)) * ux**3 * exp(-ux**2) * taub * Hmn2
+                 / (qi**2 * dVds * abs(psi_pr)) * ux**3 * exp(-ux**2) * taub * Hmn2
     end function D11int
 
     pure function D12int(ux, taub, Hmn2)
@@ -65,16 +69,16 @@ contains
         real(dp), intent(in) :: ux, taub, Hmn2
 
         Tphi_int = sign(1.0_dp, psi_pr * q * sign_theta) * pi**(3.0_dp / 2.0_dp) * mph**2 * ni1 * &
-            c * vth / qi &
-            * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
+                   c * vth / qi &
+                   * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
     end function Tphi_int
 
     subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
-        real(dp), intent(out) :: D(2), T ! Transport coefficients D and torque density T
-        real(dp) :: D_plateau, dsdreff ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
+        real(dp), intent(out) :: D(2), T  ! Transport coefficients D and torque density T
+        real(dp) :: D_plateau, dsdreff  ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
         real(dp) :: ux, du, dD11, dD12, dT, v, eta
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
@@ -127,7 +131,7 @@ contains
             ! `ux = ux + du` velocity-grid increment and stall the sweep.
             do kr = 1, nroots
                 eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                if (eta_res(1) < 0.0_dp) cycle ! bracket-failure sentinel
+                if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
                 eta = eta_res(1)
 
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
@@ -145,7 +149,7 @@ contains
                 end if
                 Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * (mi * (ux * vth)**2 / 2.0_dp)**2
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
-                    dOmthdv, dOmthdeta, Hmn2)
+                                                           dOmthdv, dOmthdeta, Hmn2)
 
                 dD11 = du * D11int(ux, taub, Hmn2) / abs(eta_res(2))
                 dD12 = du * D12int(ux, taub, Hmn2) / abs(eta_res(2))
@@ -169,7 +173,7 @@ contains
         if (ledger_enabled) close(ledger_unit)
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
-        dsdreff = 2.0_dp / a * sqrt(s) ! TODO: Use exact value instead of this approximation
+        dsdreff = 2.0_dp / a * sqrt(s)  ! TODO: Use exact value instead of this approximation
         D = dsdreff**(-2) * D / D_plateau
 
         call debug("compute_transport_integral complete")
@@ -205,7 +209,7 @@ contains
         ! evaluate orbit averages of Hamiltonian perturbation
         if (pertfile) then
             call do_magfie_pert_amp(x, epsn)
-            epsn = epsmn * epsn / bmod
+            epsn = pertfile_scale * epsn / bmod
         else
             epsn = epsmn * exp(imun * m0 * y(1))
         end if
@@ -214,10 +218,10 @@ contains
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
             Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
-                t0) * Omth))
+                                                                                      t0) * Omth))
         else
             Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
-                * t * Omth))
+                                                            * t * Omth))
         end if
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)

@@ -5,6 +5,7 @@ add_library(neort_diaglib STATIC
   diag_contrib_map.f90
   diag_bounce_debug.f90
   diag_resonance_contour.f90
+  diag_resonance_scan.f90
 )
 
 target_link_libraries(neort_diaglib PUBLIC

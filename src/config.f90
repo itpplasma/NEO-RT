@@ -9,7 +9,8 @@ module neort_config
         real(dp) :: qs = 0.0_dp  ! particle charge / elementary charge !*!
         real(dp) :: ms = 0.0_dp  ! particle mass / u !*!
         real(dp) :: vth = 0.0_dp  ! thermal velocity / cm/s !*!
-        real(dp) :: epsmn = 0.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
+        real(dp) :: epsmn = 1.0_dp  ! perturbation amplitude B1/B0 (if pertfile==F)
+        real(dp) :: pertfile_scale = 1.0_dp  ! scale factor for perturbations read from file
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
@@ -29,8 +30,12 @@ module neort_config
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
         integer :: log_level = 0  ! how much to log
+        character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
         !*! will be overwritten if using splines from plasma.in and profile.in files
     end type config_t
+
+    ! Resolved output format, read by neort_output at write time.
+    character(len=8) :: output_format = "hdf5"
 
 contains
 
@@ -38,7 +43,8 @@ contains
         ! Set global control parameters via config struct
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, perturbation_switch => inp_swi_pert
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
+        use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
+            magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
@@ -52,6 +58,7 @@ contains
         M_t = config%M_t * config%efac / config%bfac
         vth = config%vth
         epsmn = config%epsmn
+        pertfile_scale = config%pertfile_scale
         m0 = config%m0
         mph = config%mph
         comptorque = config%comptorque
@@ -73,6 +80,8 @@ contains
         mth_max_abs = config%mth_max_abs
         if (config%vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         vmax_over_vth = config%vmax_over_vth
+        output_format = config%output_format
+        call validate_output_format(output_format)
 
         qi = config%qs * qe
         mi = config%ms * mu
@@ -84,7 +93,8 @@ contains
         ! Set global control parameters directly from a file
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
-        use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, nopassing, pertfile, &
+        use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
+            magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
@@ -96,13 +106,15 @@ contains
         real(dp) :: qs, ms
         integer :: log_level = 0
 
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, m0, mph, comptorque, supban, &
+        namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
+            supban, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
+        output_format = "both"
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
@@ -110,6 +122,7 @@ contains
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
+        call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)
 
@@ -129,6 +142,15 @@ contains
             resolve_perturbation_switch = perturbation_switch
         end if
     end function resolve_perturbation_switch
+
+    subroutine validate_output_format(format)
+        character(len=*), intent(in) :: format
+
+        if (trim(format) /= "hdf5" .and. trim(format) /= "text" .and. &
+            trim(format) /= "both") then
+            error stop "output_format must be 'hdf5', 'text' or 'both'"
+        end if
+    end subroutine validate_output_format
 
     subroutine validate_perturbation_switch(has_perturbation_file, perturbation_switch)
         logical, intent(in) :: has_perturbation_file
