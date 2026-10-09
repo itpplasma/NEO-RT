@@ -42,7 +42,7 @@ contains
     subroutine setup_control
         use driftorbit, only: s, M_t, qi, mi, vth, epsmn, m0, &
             mph, mth, magdrift, nopassing, pertfile, &
-            nonlin, bfac, efac, inp_swi
+            nonlin, comptorque, bfac, efac, inp_swi
         use neort_orbit, only: noshear
         real(dp) :: qs, ms
 
@@ -60,6 +60,7 @@ contains
         noshear = .true.
         pertfile = .false.
         nonlin = .false.
+        comptorque = .false.
         bfac = 1.0_dp
         efac = 1.0_dp
         inp_swi = 8
