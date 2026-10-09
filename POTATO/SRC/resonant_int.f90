@@ -57,7 +57,6 @@ logical :: resline_unit_is_private=.false.,resline_diag_unit_is_private=.false.
 !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all, &
 !$omp               respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
 !$omp               resline_unit_is_private,resline_diag_unit_is_private)
-
 end module resint_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
