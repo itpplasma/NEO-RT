@@ -86,11 +86,40 @@ contains
         real(dp) :: Hmn2, attenuation_factor
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku
+        character(len=4096) :: ledger_path
+        character(len=4) :: orbit_branch
+        integer :: env_length, env_status, ledger_unit
+        logical :: ledger_enabled, ledger_exists
+        real(dp) :: Omph, dOmphdv, dOmphdeta, resonance_residual
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         D = 0.0_dp
         T = 0.0_dp
+        ledger_path = ''
+        call get_environment_variable('NEORT_RESONANCE_LEDGER', ledger_path, &
+            length=env_length, status=env_status)
+        if (env_status == -1) error stop 'NEORT_RESONANCE_LEDGER path is too long'
+        ledger_enabled = env_status == 0 .and. env_length > 0
+        if (ledger_enabled) then
+            if (.not. comptorque) error stop 'NEORT_RESONANCE_LEDGER requires comptorque=.true.'
+            inquire(file=trim(ledger_path), exist=ledger_exists)
+            open(newunit=ledger_unit, file=trim(ledger_path), status='unknown', &
+                position='append', action='write')
+            if (.not. ledger_exists) then
+                write(ledger_unit, '(A)') &
+                    '# s mth mph branch ux eta Omth Omph residual dF_deta taub Hmn2 attenuation dTds_du istate'
+            end if
+            if (etamax < etatp) then
+                if (sign_vpar > 0.0_dp) then
+                    orbit_branch = 'cop'
+                else
+                    orbit_branch = 'ctr'
+                end if
+            else
+                orbit_branch = 'trap'
+            end if
+        end if
         du = (vmax - vmin) / (vsteps * vth)
         ux = vmin / vth + du / 2.0_dp
 
@@ -131,9 +160,17 @@ contains
                     dT = du * Tphi_int(ux, taub, Hmn2) / abs(eta_res(2))
                     T = T + dT * attenuation_factor
                 end if
+                if (ledger_enabled) then
+                    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+                    resonance_residual = real(mth, dp) * Omth + real(mph, dp) * Omph
+                    write(ledger_unit, *) s, mth, mph, trim(orbit_branch), ux, eta, &
+                        Omth, Omph, resonance_residual, eta_res(2), taub, Hmn2, &
+                        attenuation_factor, dT / du, istate_dv
+                end if
             end do
             ux = ux + du
         end do
+        if (ledger_enabled) close(ledger_unit)
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
         dsdreff = 2.0_dp / a * sqrt(s)  ! TODO: Use exact value instead of this approximation

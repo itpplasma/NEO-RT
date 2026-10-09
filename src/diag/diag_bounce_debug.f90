@@ -1,16 +1,17 @@
 module diag_bounce_debug
   use iso_fortran_env, only: dp => real64
   use neort, only: init, check_magfie, write_magfie_data_to_files, &
-                   set_to_passing_region, set_to_trapped_region, vsteps
+        set_to_passing_region, set_to_trapped_region, vsteps, &
+        vmax_over_vth
   use neort_config, only: read_and_set_config
   use neort_main, only: runname
   use neort_datatypes, only: magfie_data_t
   use neort_profiles, only: read_and_init_profile_input, read_and_init_plasma_input, init_profiles, vth, Om_tE
-  use neort_freq, only: Om_th
+    use neort_freq, only: Om_th, Om_ph
   use neort_transport, only: timestep_transport
   use neort_orbit, only: nvar
   use neort_resonance, only: driftorbit_coarse, driftorbit_root
-  use driftorbit, only: mth, mph, mi, pertfile, etamin, etamax, sign_vpar, &
+    use driftorbit, only: mth, mph, pertfile, etamin, etamax, sign_vpar, &
                         etatp, etadt, efac
   use do_magfie_mod, only: R0, s, q, bfac, do_magfie_init
   use do_magfie_pert_mod, only: do_magfie_pert_init
@@ -23,8 +24,10 @@ contains
 
   subroutine run_bounce_debug(arg_runname)
     character(*), intent(in) :: arg_runname
+        character(32) :: arg_mth, arg_branch
     logical :: file_exists
-    integer :: i, j, mmin, mmax, nm, u
+        integer :: j, mmin, mmax, nm, u, target_mth
+        logical :: filter_mth
     real(dp) :: vminp, vmaxp, vmint, vmaxt
     real(dp) :: du, ux, v
     real(dp) :: roots(100,3), eta_res(2), eta
@@ -34,6 +37,19 @@ contains
     integer :: istats(50)
     real(dp) :: rstats(50)
     type(magfie_data_t) :: magfie_data
+
+        call get_command_argument(3, arg_mth)
+        call get_command_argument(4, arg_branch)
+        filter_mth = len_trim(arg_mth) > 0
+        if (filter_mth) then
+            read(arg_mth, *, err=900) target_mth
+        else
+            target_mth = 0
+        end if
+        if (len_trim(arg_branch) == 0) arg_branch = 'all'
+        if (all(trim(arg_branch) /= ['all ', 'cop ', 'ctr ', 'trap'])) then
+            error stop 'bounce_debug branch must be all, cop, ctr, or trap'
+        end if
 
     ! Initialize environment just like main
     runname = trim(arg_runname)
@@ -53,7 +69,7 @@ contains
     call write_magfie_data_to_files(magfie_data, runname)
 
     vminp = 1.0e-6_dp*vth
-    vmaxp = 3.0_dp*vth
+        vmaxp = vmax_over_vth*vth
     vmint = vminp
     vmaxt = vmaxp
 
@@ -64,27 +80,38 @@ contains
     open(newunit=u, file=trim(arg_runname)//'_bounce_debug.txt', status='replace', action='write')
     write(u,'(A)') '# bounce debug: logs where integration stalls (MXSTEP)'
     write(u,'(A,F10.6)') '# s = ', s
-    write(u,'(A)') '# cols: branch mth ux eta Omth taub istate nst accrej last_h'
+        write(u,'(A)') &
+            '# cols: branch mth ux eta Omth Omph residual dres_deta taub istate_probe nst_probe last_h_probe'
 
     do j = 1, nm
       mth = mmin + (j - 1)
+            if (filter_mth .and. mth /= target_mth) cycle
 
       ! Passing co
+            if (trim(arg_branch) == 'all' .or. trim(arg_branch) == 'cop') then
       sign_vpar = 1.0_dp
       call set_to_passing_region(etamin, etamax)
       call scan_branch('cop', vminp, vmaxp, vsteps, u)
+            end if
 
       ! Passing ctr
+            if (trim(arg_branch) == 'all' .or. trim(arg_branch) == 'ctr') then
       sign_vpar = -1.0_dp
       call set_to_passing_region(etamin, etamax)
       call scan_branch('ctr', vminp, vmaxp, vsteps, u)
+            end if
 
       ! Trapped
+            if (trim(arg_branch) == 'all' .or. trim(arg_branch) == 'trap') then
       sign_vpar = 1.0_dp
       call set_to_trapped_region(etamin, etamax)
       call scan_branch('trap', vmint, vmaxt, vsteps, u)
+            end if
     end do
     close(u)
+        return
+
+        900 error stop 'bounce_debug mth must be an integer'
   end subroutine run_bounce_debug
 
   subroutine scan_branch(label, vmin, vmax, vsteps_loc, u)
@@ -95,7 +122,8 @@ contains
     real(dp) :: du, ux, v
     real(dp) :: roots(100,3), eta_res(2), eta
     integer :: nroots, kr
-    real(dp) :: Omth, dOmthdv, dOmthdeta, taub
+        real(dp) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
+        real(dp) :: residual, taub
     integer :: istate
     integer :: istats(50)
     real(dp) :: rstats(50)
@@ -111,10 +139,13 @@ contains
           if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
           eta = eta_res(1)
           call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+                    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+                    residual = real(mth, dp)*Omth + real(mph, dp)*Omph
           taub = 2.0_dp*acos(-1.0_dp)/abs(Omth)
           call probe_bounce(v, eta, taub, istate, istats, rstats)
-          write(u,'(A,1X,I4,1X,F8.4,1X,ES12.5,1X,ES12.5,1X,ES12.5,1X,I4,1X,I9,1X,ES12.5)') &
-               trim(label), mth, ux, eta, Omth, taub, istate, istats(1), rstats(6)
+                    write(u,'(A,1X,I4,1X,F12.8,1X,6(ES22.14E3,1X),I4,1X,I9,1X,ES14.6E3)') &
+                        trim(label), mth, ux, eta, Omth, Omph, residual, eta_res(2), &
+                        taub, istate, istats(1), rstats(6)
         end do
       end if
       ux = ux + du
