@@ -15,6 +15,7 @@ module neort_config
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
+        logical :: collisional_layer = .false.  ! collisional boundary-layer factor
         logical :: magdrift = .false.  ! consider magnetic drift
         ! Negative means "follow magdrift", preserving every existing deck.
         integer :: magdrift_passing = -1
@@ -46,6 +47,7 @@ contains
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
+        use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -63,6 +65,7 @@ contains
         mph = config%mph
         comptorque = config%comptorque
         supban = config%supban
+        collisional_layer = config%collisional_layer
         magdrift = config%magdrift
         magdrift_passing = config%magdrift_passing
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
@@ -96,6 +99,7 @@ contains
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban
+        use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -107,7 +111,7 @@ contains
         integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
-            supban, &
+            supban, collisional_layer, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format
 

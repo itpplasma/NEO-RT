@@ -79,6 +79,11 @@ add_test(NAME test_harmonic_bounds
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_collisional_layer
+    COMMAND test_collisional_layer.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_passing_drift_derivative
     COMMAND test_passing_drift_derivative.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
