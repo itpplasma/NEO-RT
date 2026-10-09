@@ -12,7 +12,7 @@ program test_bounce_counter_passing
     use util, only: qe, mu, pi
     use driftorbit, only: do_magfie_init, s, M_t, qi, mi, vth, epsmn, m0, &
         mph, mth, magdrift, nopassing, pertfile, nonlin, bfac, efac, inp_swi, &
-        etatp, sign_vpar
+        etatp, sign_vpar, comptorque
     use neort, only: init
     use neort_orbit, only: bounce, bounce_time, nvar, noshear
 
@@ -37,6 +37,7 @@ program test_bounce_counter_passing
     noshear = .true.
     pertfile = .false.
     nonlin = .false.
+    comptorque = .false.
     bfac = 1.0_dp
     efac = 1.0_dp
     inp_swi = 8
