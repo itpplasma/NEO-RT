@@ -15,9 +15,9 @@ program test_bounce_program
 contains
 
     subroutine setup
-        use neort, only: init
+        use neort, only: init, set_to_trapped_region
         use driftorbit, only: do_magfie_init, etamin, etamax, &
-            Om_tE, dOm_tEds, etatp, etadt, epst, sign_vpar, vth, M_t, dM_tds
+            Om_tE, dOm_tEds, sign_vpar, vth, M_t, dM_tds
         use do_magfie_mod, only: R0
 
         call setup_control
@@ -27,8 +27,7 @@ contains
         Om_tE = vth * M_t / R0
         dOm_tEds = vth * dM_tds / R0
 
-        etamin = (1 + epst) * etatp
-        etamax = (1 - epst) * etadt
+        call set_to_trapped_region(etamin, etamax)
         sign_vpar = 1
 
         v = vth

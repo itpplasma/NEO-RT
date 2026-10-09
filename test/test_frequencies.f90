@@ -6,12 +6,16 @@ program test_frequencies
     !             profile.in from the current directory, like neo_rt.x
     !   ux      : v = ux*vth, i.e. E_kin = ux^2 * T_local (default 1.0)
     !
-    ! Writes <runname>_ux<tag>_freq_vs_eta_{t,pco,pct}.dat (uniform eta grids)
-    ! and    <runname>_ux<tag>_freq_vs_eta_tzoom.dat (trapped side, log-spaced
-    ! distance to the trapped-passing boundary down to (eta-etatp)/etatp=1e-6,
+    ! Writes <runname>_ux<tag>_freq_vs_eta_{t,pco,pct}.dat (uniform eta grids),
+    ! plus log-spaced trapped/passing zoom files
+    ! <runname>_ux<tag>_freq_vs_eta_{t,pcozoom,pctzoom}.dat.
+    ! The trapped zoom is log-spaced
+    ! distance to the trapped-passing boundary down to the adjacent
+    ! representable eta value,
     ! header carries etatp, etadt, ux, s). Columns: eta [1/G], omega_b [rad/s],
     ! Omega_tor [rad/s].
     use iso_fortran_env, only: dp => real64
+    use, intrinsic :: ieee_arithmetic, only: ieee_next_after
     use do_magfie_mod, only: s
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
     use neort_freq, only: Om_th, Om_ph, Om_tB
@@ -23,13 +27,11 @@ program test_frequencies
 
     integer, parameter :: neta = 1000    ! steps of the uniform grids
     integer, parameter :: nzoom = 400    ! steps of the log-spaced zoom grid
-    real(dp), parameter :: distmin = 1.0e-6_dp  ! innermost (eta-etatp)/etatp
-
     character(1024) :: runname, arg2, tag
     integer :: i, fid
     real(dp) :: Omth, dOmthdv, dOmthdeta, Omph, dOmphdv, dOmphdeta
     real(dp) :: OmtB, dOmtBdv, dOmtBdeta
-    real(dp) :: v, eta, ux, xlo, xhi, x
+    real(dp) :: v, eta, ux, xlo, xhi, x, distmin, distmin_pass
 
     call get_command_argument(1, runname)
     if (len_trim(runname) == 0) then
@@ -56,6 +58,11 @@ program test_frequencies
     print *, 'test_frequencies: s =', s, ' ux =', ux, ' v =', v
     print *, '  etatp =', etatp, ' etadt =', etadt
 
+    distmin = (ieee_next_after(etatp, huge(etatp)) - etatp)/etatp
+    if (.not. (distmin > 0.0_dp)) error stop 'etatp has no representable upper neighbour'
+    distmin_pass = (etatp - ieee_next_after(etatp, 0.0_dp))/etatp
+    if (.not. (distmin_pass > 0.0_dp)) error stop 'etatp has no representable lower neighbour'
+
     open (newunit=fid, file=trim(runname)//'_ux'//trim(tag)//'_freq_vs_eta_t.dat')
     write (fid, *) '%# eta [1/G], omega_b, Omega_tor, Om_tB, Om_tE [rad/s] trapped'
     sign_vpar = 1
@@ -77,11 +84,46 @@ program test_frequencies
     xhi = log10(0.999_dp*(etadt - etatp)/etatp)
     do i = 0, nzoom
         x = xlo + (xhi - xlo)*i/nzoom
-        eta = etatp*(1.0_dp + 10.0_dp**x)
+        eta = etatp + etatp*10.0_dp**x
+        if (eta <= etatp) eta = ieee_next_after(etatp, huge(etatp))
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
         call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
         write (fid, *) eta, Omth, Omph, OmtB, Om_tE
+    end do
+    close (fid)
+
+    open (newunit=fid, file=trim(runname)//'_ux'//trim(tag)//'_freq_vs_eta_pcozoom.dat')
+    write (fid, '(A,ES23.15,A,ES23.15,A,F8.4,A,ES23.15)') &
+        '%# etatp =', etatp, ' etadt =', etadt, ' ux =', ux, ' s =', s
+    write (fid, *) '%# eta [1/G], omega_b, Omega_tor, Om_tB, Om_tE [rad/s] co-passing zoom'
+    sign_vpar = 1
+    xlo = log10(distmin_pass)
+    xhi = 0.0_dp
+    do i = 0, nzoom
+        x = xlo + (xhi - xlo)*i/nzoom
+        eta = etatp - etatp*10.0_dp**x
+        if (eta >= etatp) eta = ieee_next_after(etatp, 0.0_dp)
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+        call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+        call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+        write (fid, *) eta, Omth, Omph, OmtB, Om_tE
+    end do
+    close (fid)
+
+    open (newunit=fid, file=trim(runname)//'_ux'//trim(tag)//'_freq_vs_eta_pctzoom.dat')
+    write (fid, '(A,ES23.15,A,ES23.15,A,F8.4,A,ES23.15)') &
+        '%# etatp =', etatp, ' etadt =', etadt, ' ux =', ux, ' s =', s
+    write (fid, *) '%# eta [1/G], omega_b, Omega_tor, Om_tB, Om_tE [rad/s] counter-passing zoom'
+    sign_vpar = -1
+    do i = 0, nzoom
+        x = xlo + (xhi - xlo)*i/nzoom
+        eta = etatp - etatp*10.0_dp**x
+        if (eta >= etatp) eta = ieee_next_after(etatp, 0.0_dp)
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+        call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+        call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+        write (fid, *) eta, -Omth, Omph, OmtB, Om_tE
     end do
     close (fid)
 

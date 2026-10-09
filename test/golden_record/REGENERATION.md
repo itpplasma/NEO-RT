@@ -1,10 +1,39 @@
-# Golden record regeneration: 2026-06-15
+# Golden record regeneration: 2026-08-11
 
-The committed `golden.h5` was regenerated from the fortnum vode integrator
+The committed `golden.h5` was regenerated from NEO-RT commit `b15ce44`
+(`fix separatrix drift and orbit endpoint handling`) using the Release
+executable built from that exact checkout. This is a branch-local reference
+update: the previous artifact remains recoverable from Git history and was
+generated before the corrected near-separatrix orbit endpoint handling.
+
+## Validation of the new reference
+
+- CTest: 15/15 passed.
+- Ripple-plateau regression: passed; the independent checks of `D11/eps^2`
+  and `D12/D11` remain within their stated tolerances.
+- Golden regression: 9/9 surface cases passed at `rtol=5e-3` with the
+  committed cross-CPU scale-relative comparison, including the independent
+  mixed-scope passing-magdrift control.
+- The separatrix-limit test compares the fitted limit with a direct
+  `do_magfie` evaluation; the frequency and orbit endpoint tests also pass.
+
+The only old-reference mismatch was case `0p300`, in
+`torque_integral`. The PR-129 executable reproduces the old reference for
+that case, while `b15ce44` changes the result through the corrected
+fundamental trapped-bounce endpoint. The updated value is therefore recorded
+as a physics/reference correction, not hidden by loosening the comparison
+tolerance.
+
+The independent orbit validation and the fit derivation are the acceptance
+evidence for this update; the generated HDF5 file is only the reproducible
+regression snapshot.
+
+The predecessor artifact was regenerated from the fortnum vode integrator
 (branch `migrate/fortnum-ode-events-drop-vode`, PR #47; fortnum pinned to main
-`974dcf1`), built `CONFIG=Fast`. The previous golden was generated on demand
-from NEO-RT `main` (DVODE_F90). Comparison bar unchanged: `rtol=1e-8`,
-`atol=1e-15`.
+`974dcf1`), built `CONFIG=Fast`. The predecessor golden was generated on
+demand from NEO-RT `main` (DVODE_F90). Its original comparison bar was
+`rtol=1e-8`, `atol=1e-15`; the committed test now uses the documented
+scale-relative `rtol=5e-3` contract to remain portable across CPUs.
 
 ## Why
 

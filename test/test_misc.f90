@@ -2,13 +2,14 @@ program test_misc
     use iso_fortran_env, only: dp => real64
     use util, only: readdata, disp, c, qi, mi, pi
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, &
-        epsp_spl, sign_vpar, mth, nlev, nopassing, epsp, epst, dVds
+        epsp_spl, sign_vpar, mth, nlev, nopassing, dVds
     use do_magfie_mod, only: do_magfie, psi_pr, q, s, eps, R0
     use do_magfie_pert_mod, only: mph
     use neort_profiles, only: vth, Om_tE, read_and_init_plasma_input
     use neort_main, only: main, runname
     use neort_orbit, only: bounce, nvar
     use neort_resonance, only: driftorbit_root, driftorbit_coarse
+    use neort, only: set_to_trapped_region, set_to_passing_region
     use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: Om_th, Om_ph, Om_tB, d_Om_ds
 
@@ -114,13 +115,15 @@ contains
             if (.not. nopassing) then
                 ! resonance (passing)
                 sign_vpar = 1
-                call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
+                call set_to_passing_region(etamin, etamax)
+                call driftorbit_coarse(v, etamin, etamax, roots, nroots)
                 do kr = 1, nroots
                     etaresp = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                     write (9, *) v/vth, kr, etaresp(1), 0.0_dp, etatp
                 end do
                 sign_vpar = -1
-                call driftorbit_coarse(v, etatp*epsp, etatp*(1 - epsp), roots, nroots)
+                call set_to_passing_region(etamin, etamax)
+                call driftorbit_coarse(v, etamin, etamax, roots, nroots)
                 do kr = 1, nroots
                     etaresp = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                     write (10, *) v/vth, kr, etaresp(1), 0.0_dp, etatp
@@ -129,7 +132,8 @@ contains
 
             ! resonance (trapped)
             sign_vpar = 1
-            call driftorbit_coarse(v, etatp*(1 + epst), etadt*(1 - epst), roots, nroots)
+            call set_to_trapped_region(etamin, etamax)
+            call driftorbit_coarse(v, etamin, etamax, roots, nroots)
             do kr = 1, nroots
                 etarest = driftorbit_root(v, 1.0e-8_dp*abs(Om_tE), roots(kr, 1), roots(kr, 2))
                 write (11, *) v/vth, kr, etarest(1), etatp, etadt

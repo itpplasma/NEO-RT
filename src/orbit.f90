@@ -292,7 +292,7 @@ contains
         type(vode_state_t) :: vstate
         type(fortnum_status_t) :: status
         real(dp), allocatable :: y_out(:)
-        real(dp) :: atol(neq), t_now, t_root, theta_before
+        real(dp) :: atol(neq), t_now, t_root
         logical :: passing, found
         integer :: chunk
 
@@ -304,26 +304,26 @@ contains
                 ' pass=', merge('T','F', passing)
         end if
 
-        ! Reproduce the DVODE bounceroots search: two event functions monitored
-        ! with NEVENTS=2, advancing in dt-sized chunks, stop at the first root
-        ! of either that satisfies the turn acceptance test. fortnum vode
-        ! locates the root on its own Nordsieck interpolant (relerr 1e-9,
-        ! per-component abserr 1e-10, ITOL=2), so taub is the located root.
+        ! Two event functions are monitored, advancing in dt-sized windows;
+        ! the search stops at the first root that satisfies the turn
+        ! acceptance test. fortnum vode locates the root on its own Nordsieck
+        ! interpolant (relerr 1e-9, per-component abserr 1e-10), so taub is
+        ! the located root.
         !   g1 = theta - th0          (trapped: return to th0)
         !   g2 = 2*pi - (theta - th0) (passing: full +2*pi turn)
-        ! DVODE accepted a root when passing, or when theta entered from below
-        ! th0 (the old (yold(1)-th0) < 0 filter); otherwise it kept integrating.
+        !
+        ! A trapped orbit crosses th0 twice per bounce period. The half-bounce
+        ! return reverses the poloidal direction and the full bounce restores
+        ! it, so a root is accepted when the parallel velocity at the crossing
+        ! has the sign it had at t=0. Both crossings happen at the same
+        ! poloidal angle, so h^theta is the same and the sign of y(2) alone
+        ! decides the direction. This is a property of the orbit and does not
+        ! depend on where the search-window boundaries happen to fall.
         call vode_init(vstate, neq, 0.0_dp, y0)
         t_now = 0.0_dp
-        theta_before = y0(1)
         found = .false.
 
         do chunk = 1, n_turns - 1
-            ! Step one dt-sized window. The integration is never re-initialised:
-            ! after a turn root vode stops at the root and continues from there
-            ! on the next call, so the next window ends dt past wherever this
-            ! one stopped. theta_before is the poloidal angle at the end of the
-            ! previous window (DVODE's yold), used by the acceptance filter.
             call vode_integrate_to(bounce_int_rhs, vstate, t_now + dt, &
                 rtol, atol, y_out, status, &
                 event=root_theta, event_dir=ODE_EVENT_ANY, &
@@ -335,16 +335,21 @@ contains
             end if
 
             if (found) then
-                if (passing .or. (theta_before - th0) < 0.0_dp) exit
-                ! Reject this turning point: keep integrating, the next window
-                ! ends dt past the located root (DVODE istate=2 continuation).
+                if (passing) exit
+                if (y_out(2)*y0(2) > 0.0_dp) exit
+                ! Half-bounce return: keep integrating. An event return leaves
+                ! the Nordsieck history centred on the internal mesh top while
+                ! the reported time has been moved back to the root, so the
+                ! state is only self-consistent again after re-seeding it at
+                ! the located root. Continuing without this shifts the whole
+                ! remaining trajectory by up to one internal step and makes
+                ! the returned bounce time depend on dt.
+                call vode_init(vstate, neq, t_root, y_out)
                 found = .false.
-                theta_before = y_out(1)
                 t_now = t_root
                 cycle
             end if
 
-            theta_before = y_out(1)
             t_now = t_now + dt
         end do
 
