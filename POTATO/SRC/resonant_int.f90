@@ -512,7 +512,7 @@ subroutine resonant_torque
     double precision, parameter :: pi=3.14159265358979d0
     integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
     integer :: omp_threads_env_len
-    integer :: nrespoints,unit1901,unit1902,ienerg_begin
+    integer :: nrespoints,unit1901,unit1902
     double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
     double precision :: bmod,phi_elec,phi_elec_min,phi_elec_max
     double precision :: toten_min,toten_max,thermen_max,toten_range
@@ -595,7 +595,6 @@ subroutine resonant_torque
     torquebox=0.d0
     !
     step_energ=toten_range/dble(nenerg) !integration step over total energy
-    ienerg_begin=2
     !step_energ=0.22521463755624047d0
     !
     omp_threads_env_len=0
@@ -607,7 +606,7 @@ subroutine resonant_torque
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   copyin(dtau)
-    do ienerg=ienerg_begin,nenerg
+    do ienerg=1,nenerg
         xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
         toten=toten_min+toten_range*xenerg
         ! size of result matrix in get_matrix_res:
@@ -924,7 +923,7 @@ contains
         integer :: idx,io,in_unit,out_unit
         !
         open(newunit=out_unit,file=trim(final_name),status='replace',action='write')
-        do idx=ienerg_begin,count
+        do idx=1,count
             call energy_path(prefix,idx,path)
             open(newunit=in_unit,file=trim(path),status='old',action='read',iostat=io)
             if(io.ne.0) then
@@ -959,7 +958,7 @@ contains
         mode_prefix=0.d0
         scalar_prefix=0.d0
         open(newunit=out_unit,file=trim(final_name),status='replace',action='write')
-        do idx=ienerg_begin,count
+        do idx=1,count
             call energy_path(prefix,idx,path)
             open(newunit=in_unit,file=trim(path),status='old',action='read',iostat=io)
             if(io.ne.0) then
