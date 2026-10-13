@@ -5,6 +5,10 @@ program test_fow_radial
     !    (Delta r = q R0 v_par/(r omega_c), s = r**2/a**2) to O(eps).
     ! 2. Labelling: the displacement averages to zero over trapped and passing
     !    orbits, so s stays the orbit-averaged radius.
+    ! 3. Sign: d(Delta s)/dt along an integrated orbit (central differences)
+    !    equals the radial magnetic drift v_d . grad s evaluated independently
+    !    from the field, v_d = (m c / (q B^3)) (v_par^2 + v_perp^2/2) B x grad B,
+    !    i.e. ds/dt = m c W B_phi dB/dtheta / (q B^3 sqrtg) in Boozer coordinates.
     use iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: do_magfie_init, do_magfie, s, a, R0, q
     use do_magfie_pert_mod, only: do_magfie_pert_init
@@ -41,6 +45,11 @@ program test_fow_radial
     call check_mean("passing counter", 0.5_dp*etatp)
     sign_vpar = 1
 
+    call check_drift("trapped co", 0.5_dp*(etamin + etamax), 1.0_dp)
+    call check_drift("trapped counter", 0.5_dp*(etamin + etamax), -1.0_dp)
+    call check_drift("passing co", 0.5_dp*etatp, 1.0_dp)
+    call check_drift("passing counter", 0.5_dp*etatp, -1.0_dp)
+
     if (failures > 0) error stop "test_fow_radial failed"
     print *, "test_fow_radial passed"
 
@@ -61,6 +70,64 @@ contains
             "  large-aspect =", ds_ref, "  |ratio| =", abs(ds/ds_ref)
         if (abs(abs(ds/ds_ref) - 1.0_dp) > 0.25_dp) failures = failures + 1
     end subroutine check_size
+
+    subroutine check_drift(label, eta, dir)
+        ! RK4 orbit in (theta, v_par); compare dDelta s/dt by central differences
+        ! with the independent drift formula at the same points
+        character(*), intent(in) :: label
+        real(dp), intent(in) :: eta, dir
+        integer, parameter :: nstep = 400
+        real(dp) :: y(2), yk(2, 4), dt, ds(0:nstep), dr(0:nstep), x(3)
+        real(dp) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3), worst, fd
+        integer :: k
+
+        x = [s, 0.0_dp, 0.3_dp]
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        y = [0.3_dp, dir*v*sqrt(1.0_dp - eta*bmod)]
+        dt = 0.15_dp*q*R0/v/nstep
+        do k = 0, nstep
+            ds(k) = fow_displacement(y(2), hphi_at(y(1)), eta)
+            dr(k) = drift_s(y(1), y(2), eta)
+            if (k == nstep) exit
+            call rhs(y, eta, yk(:, 1))
+            call rhs(y + 0.5_dp*dt*yk(:, 1), eta, yk(:, 2))
+            call rhs(y + 0.5_dp*dt*yk(:, 2), eta, yk(:, 3))
+            call rhs(y + dt*yk(:, 3), eta, yk(:, 4))
+            y = y + dt/6.0_dp*(yk(:, 1) + 2.0_dp*yk(:, 2) + 2.0_dp*yk(:, 3) + yk(:, 4))
+        end do
+        worst = 0.0_dp
+        do k = 1, nstep - 1
+            fd = (ds(k + 1) - ds(k - 1))/(2.0_dp*dt)
+            worst = max(worst, abs(fd - dr(k))/maxval(abs(dr)))
+        end do
+        print '(a,a,es12.4,a,es12.4,a,es10.2)', label, ": max|d(Delta s)/dt| =", &
+            maxval(abs(dr)), "  max |fd - drift|/max =", worst
+        if (.not. (worst < 1.0e-4_dp)) failures = failures + 1
+    end subroutine check_drift
+
+    subroutine rhs(y, eta, ydot)
+        real(dp), intent(in) :: y(2), eta
+        real(dp), intent(out) :: ydot(2)
+        real(dp) :: yfull(7), yd(7)
+
+        yfull = 0.0_dp
+        yfull(1:2) = y
+        call timestep_transport(v, eta, 7, 0.0_dp, yfull, yd)
+        ydot = yd(1:2)
+    end subroutine rhs
+
+    function drift_s(theta, v_par, eta) result(dsdt)
+        ! v_d . grad s for low beta from B, dB/dtheta and the Jacobian only
+        real(dp), intent(in) :: theta, v_par, eta
+        real(dp) :: dsdt
+        real(dp) :: x(3), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: w
+
+        x = [s, 0.0_dp, theta]
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        w = v_par**2 + 0.5_dp*v**2*eta*bmod  ! v_par^2 + v_perp^2/2
+        dsdt = mi*c*w*(bmod*hcovar(2))*(bmod*hder(3))/(qi*bmod**3*sqrtg)
+    end function drift_s
 
     subroutine check_mean(label, eta)
         character(*), intent(in) :: label
