@@ -64,6 +64,11 @@ add_test(NAME test_profile_collision_species
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_fow_radial
+    COMMAND ${CMAKE_BINARY_DIR}/test_fow_radial.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
 add_test(NAME test_nonlinear_contract
     COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
