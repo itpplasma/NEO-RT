@@ -209,3 +209,19 @@ if(Python3_Interpreter_FOUND)
         TIMEOUT 240
     )
 endif()
+
+add_executable(test_set_radial_boxes.x
+   SRC/test_set_radial_boxes.f90
+)
+target_link_libraries(test_set_radial_boxes.x
+   potato_base
+   potato
+)
+add_test(NAME test_set_radial_boxes
+   COMMAND test_set_radial_boxes.x
+)
+
+# potato.x must link: resonant_int.f90 calls set_radial_boxes (box_counting.f90).
+add_test(NAME potato_x_links
+   COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target potato.x
+)
