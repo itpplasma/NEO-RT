@@ -32,6 +32,9 @@ module driftorbit
     ! Keep the oscillating part of the toroidal drift phase in the orbit
     ! integral of the perturbation (needed when n*Om_d is comparable to Om_th)
     logical :: drift_phase = .false.
+    ! Sample the perturbation at the first-order guiding-centre radius
+    ! s + Delta s (finite radial orbit width), Delta s from p_phi conservation
+    logical :: fow_radial = .false.
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(dp) :: dVds = 0.0_dp, etadt = 0.0_dp, etatp = 0.0_dp
@@ -60,6 +63,6 @@ module driftorbit
 
     ! Shared read-only configuration (NOT threadprivate): efac, epsmn,
     ! pertfile_scale, m0,
-    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban
+    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban, fow_radial
 
 end module driftorbit

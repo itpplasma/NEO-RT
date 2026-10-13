@@ -59,6 +59,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `nopassing` | Skip passing resonances. | When `.true.` only trapped contributions are computed. |
 | `noshear` | Neglect magnetic shear. | Propagated to orbit module. |
 | `pertfile` | Read perturbation from `in_file_pert`. | Otherwise analytic perturbation is used. |
+| `fow_radial` | Sample the perturbation at the first-order guiding-centre radius `s + Delta s` (`.false.` default). | `Delta s = (m c q / (e psi_pr)) (v_par h_phi - <v_par h_phi>)` from conservation of `p_phi`; the bounce average `<>` is zero for trapped orbits and is removed for passing orbits, so `s` stays the orbit-averaged radius. Only the harmonic amplitude changes (finite radial orbit width); bounce and precession frequencies and the resonance stay thin-orbit. Needs a radially resolved perturbation (`pertfile`) to matter. |
 | `nonlin` | Enable nonlinear corrections. | Requires `plasma.in` and `profile.in`. |
 | `comptorque` | Write torque diagnostics. | Produces `_torque.out` and `_torque_integral.out`. |
 | `bfac` | Magnetic-field scaling factor. | Multiplies `B`. |
