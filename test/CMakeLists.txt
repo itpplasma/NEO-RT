@@ -75,6 +75,16 @@ add_test(NAME test_chartmap_input
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+add_test(NAME test_s_outside_data
+    COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+)
+add_test(NAME test_s_outside_data_init_rejects
+    COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x init
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+)
+set_tests_properties(test_s_outside_data_init_rejects PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME test_boozer_handedness
     COMMAND ${CMAKE_BINARY_DIR}/test_boozer_handedness.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
