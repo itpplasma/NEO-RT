@@ -36,10 +36,6 @@ module neort_transport
   ! oscillating toroidal drift Om_tB(theta) - <Om_tB> [rad/s] by a prescribed
   ! function of orbit time, so tests can use analytic Bessel sidebands.
   procedure(drift_osc_i), pointer :: drift_osc_override => null()
-  ! Surface integral int_0^2pi h_phi/h^theta dtheta for the passing-orbit mean
-  ! of the first-order radial displacement, cached per flux surface s.
-  real(dp) :: fow_s_cached = -1.0_dp, fow_hphi_int = 0.0_dp
-  !$omp threadprivate (fow_s_cached, fow_hphi_int)
 
 contains
 
@@ -179,7 +175,8 @@ contains
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
         real(dp) :: t0, Om_osc, OmtB_avg, dOmtBdv, dOmtBdeta, Omph_avg
         real(dp) :: dOmphdv, dOmphdeta
-        real(dp) :: phase_drift, bmod1
+        real(dp) :: phase_drift, bmod1, x1(3), sqrtg1, hder1(3), hcovar1(3), &
+                    hctrvr1(3), hcurl1(3)
         complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
 
@@ -190,14 +187,17 @@ contains
         call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot)
 
         ! evaluate orbit averages of Hamiltonian perturbation, optionally at the
-        ! first-order guiding-centre radius (finite radial orbit width)
+        ! first-order guiding-centre radius (finite radial orbit width). Only the
+        ! perturbation amplitude and bmod are taken there; everything else below
+        ! (Hn phase, drift phase) stays on the label surface s.
+        x1 = x
         bmod1 = bmod
         if (fow_radial) then
-            x(1) = s + fow_displacement(y(2), hcovar(2), eta)
-            call do_magfie(x, bmod1, sqrtg, hder, hcovar, hctrvr, hcurl)
+            x1(1) = s + fow_displacement(y(2), hcovar(2))
+            call do_magfie_displaced(x1, bmod1, sqrtg1, hder1, hcovar1, hctrvr1, hcurl1)
         end if
         if (pertfile) then
-            call do_magfie_pert_amp(x, epsn)
+            call do_magfie_pert_amp(x1, epsn)
             epsn = pertfile_scale * epsn / bmod1
         else
             epsn = epsmn * exp(imun * m0 * y(1))
@@ -253,41 +253,40 @@ contains
         ydot(8:) = 0.0_dp
     end subroutine timestep_transport
 
-    function fow_displacement(v_par, hphi, eta) result(ds)
-        ! First-order radial guiding-centre displacement from the thin orbit.
-        ! Conservation of p_phi = m v_par h_phi - (e/c) psi_pol gives
-        ! Delta psi_pol = (m c/e) v_par h_phi, and Delta s = q Delta psi_pol/psi_pr.
-        ! The orbit mean is removed so that s stays the orbit-averaged radius:
-        ! it vanishes for trapped orbits (the two legs carry opposite v_par at the
-        ! same theta) and equals sign_vpar*int(h_phi/h^theta dtheta)/tau_b for
-        ! passing orbits, tau_b = 2 pi/|Omth| (Omth must be set by the caller).
-        real(dp), intent(in) :: v_par, hphi, eta
+    function fow_displacement(v_par, hphi) result(ds)
+        ! First-order radial guiding-centre displacement s(t) - s from the thin
+        ! orbit on s. Conservation of p_phi = m v_par h_phi + (e/c) A_phi(s) with
+        ! A_phi' = -sign_theta*iota*psi_pr (x = (s, phi, theta) has Jacobian
+        ! -sqrtg, test_fow_gc_orbit) gives
+        !   Delta s = m c q v_par h_phi / (e sign_theta psi_pr).
+        ! s is the p_phi label, (e/c) A_phi(s) = p_phi, for trapped and passing
+        ! orbits alike. This is the label of NEO-RT's frequencies: the shear term
+        ! of Om_tB is q' <Delta s thetadot> with this Delta s. The orbit mean is
+        ! therefore not removed; for passing orbits it is <Delta s> ~ +-rho_pol.
+        real(dp), intent(in) :: v_par, hphi
         real(dp) :: ds
 
-        ds = mi * c * q * v_par * hphi / (qi * psi_pr)
-        if (eta < etatp) then
-            if (fow_s_cached /= s) call fow_init_surface
-            ds = ds - mi * c * q / (qi * psi_pr) * sign_vpar * fow_hphi_int &
-                 * abs(Omth) / (2.0_dp * pi)
-        end if
+        ds = mi * c * q * v_par * hphi / (qi * sign_theta * psi_pr)
     end function fow_displacement
 
-    subroutine fow_init_surface
-        ! Periodic trapezoid rule, spectrally accurate for the smooth integrand
-        integer, parameter :: nth = 256
-        integer :: k
-        real(dp) :: x(3), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+    subroutine do_magfie_displaced(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        ! do_magfie at a displaced radius without side effects: do_magfie
+        ! overwrites the flux-surface module quantities of the label surface s,
+        ! which the caller and drift_phase (Om_tB_local_v2) still need. (The
+        ! standalone B0h is also overwritten; nothing reads it after init.)
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: saved(7)
 
-        fow_hphi_int = 0.0_dp
-        x(1) = s
-        x(2) = 0.0_dp
-        do k = 0, nth - 1
-            x(3) = 2.0_dp * pi * k / nth
-            call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-            fow_hphi_int = fow_hphi_int + hcovar(2) / hctrvr(3)
-        end do
-        fow_hphi_int = fow_hphi_int * 2.0_dp * pi / nth
-        fow_s_cached = s
-    end subroutine fow_init_surface
+        saved = [Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds, iota]
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        Bthcov = saved(1)
+        Bphcov = saved(2)
+        dBthcovds = saved(3)
+        dBphcovds = saved(4)
+        q = saved(5)
+        dqds = saved(6)
+        iota = saved(7)
+    end subroutine do_magfie_displaced
 
 end module neort_transport
