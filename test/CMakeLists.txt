@@ -190,3 +190,11 @@ set_tests_properties(test_chartmap_input PROPERTIES
 #   test_misc.f90
 #   test_omega_prime.f90
 #   test_reslines.f90
+
+# test_omph_shaing_units: Shaing's analytic trapped drift frequency against the
+# numerical bounce-averaged precession on examples/circ.bc (agreement to
+# O(eps)); catches a unit/sign defect in omph_shaing.
+add_test(NAME test_omph_shaing_units
+    COMMAND ${CMAKE_BINARY_DIR}/test_omph_shaing_units.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+)
