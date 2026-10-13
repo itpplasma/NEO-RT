@@ -181,6 +181,15 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_invariant_handoff PROPERTIES TIMEOUT 150)
+    add_test(NAME potato_energy_cells
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/energy_cells/test_energy_cells.py
+            $<TARGET_FILE:potato.x>
+    )
+    set_tests_properties(potato_energy_cells PROPERTIES
+        SKIP_RETURN_CODE 77
+        TIMEOUT 150
+    )
     add_test(NAME potato_fixed_energy_contour
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/fixed_energy_contour/test_fixed_energy_contour.py
