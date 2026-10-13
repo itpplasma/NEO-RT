@@ -400,6 +400,23 @@ contains
         end function root_turn
     end function bounce_integral
 
+    function Om_tB_local_v2(eta, bmod, hder1, hctrvr3) result(Om_tB_v)
+        ! Local toroidal magnetic drift frequency divided by v**2
+        real(dp), intent(in) :: eta, bmod, hder1, hctrvr3
+        real(dp) :: Om_tB_v
+        real(dp) :: shearterm
+
+        shearterm = Bphcov * dqds
+        if (noshear) then
+            shearterm = 0
+        end if
+
+        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
+            -(2.0_dp - eta * bmod) * bmod * hder1 &
+            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr3 * &
+            (dBthcovds + q * dBphcovds + shearterm))
+    end function Om_tB_local_v2
+
     subroutine timestep(v, eta, neq, t, y, ydot)
         !
         !  Timestep function for orbit integration.
@@ -415,22 +432,13 @@ contains
 
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(dp) :: Om_tB_v
-        real(dp) :: shearterm
 
         x(1) = s
         x(2) = 0.0_dp
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        shearterm = Bphcov * dqds
-        if (noshear) then
-            shearterm = 0
-        end if
-
-        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
-            -(2.0_dp - eta * bmod) * bmod * hder(1) &
-            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
-            (dBthcovds + q * dBphcovds + shearterm))
+        Om_tB_v = Om_tB_local_v2(eta, bmod, hder(1), hctrvr(3))
 
         ydot(1) = y(2) * hctrvr(3) ! theta
         ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod ! v_par

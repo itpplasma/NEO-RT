@@ -29,6 +29,9 @@ module driftorbit
     logical :: pertfile = .false.     ! read perturbation from file with neo_magfie_pert
     logical :: comptorque = .true.    ! compute torque
     logical :: supban = .false.       ! Shaing superbanana-plateau (trapped ell=0) only
+    ! Keep the oscillating part of the toroidal drift phase in the orbit
+    ! integral of the perturbation (needed when n*Om_d is comparable to Om_th)
+    logical :: drift_phase = .false.
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(dp) :: dVds = 0.0_dp, etadt = 0.0_dp, etatp = 0.0_dp
