@@ -16,6 +16,7 @@ module neort_config
         logical :: comptorque = .false.  ! compute torque
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: drift_phase = .false.  ! keep oscillating drift phase in orbit integral
+        logical :: fow_radial = .false.  ! first-order radial orbit width in amplitude
         logical :: magdrift = .false.  ! consider magnetic drift
         ! Negative means "follow magdrift", preserving every existing deck.
         integer :: magdrift_passing = -1
@@ -46,7 +47,7 @@ contains
         use do_magfie_pert_mod, only: mph, set_mph, perturbation_switch => inp_swi_pert
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
-            nonlin, efac, supban, drift_phase
+            nonlin, efac, supban, drift_phase, fow_radial
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -65,6 +66,7 @@ contains
         comptorque = config%comptorque
         supban = config%supban
         drift_phase = config%drift_phase
+        fow_radial = config%fow_radial
         magdrift = config%magdrift
         magdrift_passing = config%magdrift_passing
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
@@ -97,7 +99,7 @@ contains
         use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
-            nonlin, efac, supban, drift_phase
+            nonlin, efac, supban, drift_phase, fow_radial
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
@@ -109,7 +111,7 @@ contains
         integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
-            supban, drift_phase, &
+            supban, drift_phase, fow_radial, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format
 
