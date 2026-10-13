@@ -87,7 +87,7 @@ contains
         use do_magfie_pert_mod, only: mph, inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, &
                               nopassing, pertfile, nonlin, efac, supban, &
-                              fow_radial
+                              fow_radial, drift_phase
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
         use util, only: qe, mu, qi, mi
@@ -103,6 +103,8 @@ contains
         call h5_add(group_id, "supban", supban, comment="Shaing superbanana plateau only")
         call h5_add(group_id, "fow_radial", fow_radial, &
                     comment="perturbation sampled at first-order orbit radius")
+        call h5_add(group_id, "drift_phase", drift_phase, &
+                    comment="oscillating drift phase kept in orbit integral")
         call h5_add(group_id, "magdrift", magdrift)
         call h5_add(group_id, "magdrift_passing", magdrift_passing)
         call h5_add(group_id, "nopassing", nopassing)

@@ -55,6 +55,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `mph` | Toroidal perturbation harmonic. | Positive integer when using analytic perturbations. |
 | `magdrift` | Include magnetic drift (`.true.`/`.false.`). | Controls bounce-averaged drifts. |
 | `magdrift_passing` | Include magnetic drift for passing particles (`1`/`0`; `-1` follows `magdrift`). | Independent passing-particle control. With `0`, the passing transit frequency and its `d_Om_ds` derivative omit the magnetic-drift term. |
+| `drift_phase` | Keep the oscillating toroidal drift phase `mph*int(Om_tB(theta) - <Om_tB>)dt` in the orbit integral of the perturbation (`.false.` default). | The default is the thin-orbit ordering `Om_d << Om_th`, where this phase is `O(Om_d/Om_th)`. A passing resonance with `mth != 0` or a trapped bounce harmonic `mth != 0` needs `mph*<Om_d> ~ Om_th`, so the modulation index is `O(1)`: enable it there. The sidebands are then Bessel functions of the index. |
 | `nopassing` | Skip passing resonances. | When `.true.` only trapped contributions are computed. |
 | `noshear` | Neglect magnetic shear. | Propagated to orbit module. |
 | `pertfile` | Read perturbation from `in_file_pert`. | Otherwise analytic perturbation is used. |
