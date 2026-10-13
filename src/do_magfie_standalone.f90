@@ -132,6 +132,23 @@ contains
         B00 = 1.0e4_dp * modes0(1, 1, 6) * bfac
     end subroutine read_boozer_file
 
+    logical function s_outside_data(s_)
+        ! True if s_ lies outside the radial range tabulated in the Boozer file.
+        ! do_magfie clamps to this range instead of extrapolating, so such a
+        ! flux surface would silently carry the field of the nearest data surface.
+        real(dp), intent(in) :: s_
+        real(dp), parameter :: rel_tol = 1.0e-12_dp
+
+        s_outside_data = .false.
+        if (inp_swi == 10) return
+        if (.not. allocated(params0)) return
+        if (s_ < params0(1, 1)*(1.0_dp - rel_tol)) then
+            s_outside_data = .true.
+        else if (s_ > params0(nflux, 1)*(1.0_dp + rel_tol)) then
+            s_outside_data = .true.
+        end if
+    end function s_outside_data
+
     subroutine init_magfie_at_s()
         ! Per-thread: Initialize magnetic field at current s value
         ! Assumes s is already set via set_s()
@@ -173,6 +190,13 @@ contains
             end if
 
             magfie_arrays_initialized = .true.
+        end if
+
+        if (s_outside_data(s)) then
+            write (0, '(A,ES12.5,A,ES12.5,A,ES12.5,A)') &
+                "init_magfie_at_s: s = ", s, " is outside the Boozer file range [", &
+                params0(1, 1), ",", params0(nflux, 1), "]; refusing to clamp"
+            error stop "s outside Boozer file radial range"
         end if
 
         ! Initialize cache
