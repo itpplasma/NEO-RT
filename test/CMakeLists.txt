@@ -205,3 +205,32 @@ set_tests_properties(test_chartmap_input PROPERTIES
 #   test_misc.f90
 #   test_omega_prime.f90
 #   test_reslines.f90
+
+# Compile the actual frequency and root routines with an analytic orbit provider.
+# Private module directories keep these fixture providers out of neo_rt.
+set(frequency_model_dir "${CMAKE_CURRENT_BINARY_DIR}/frequency_model_modules")
+file(MAKE_DIRECTORY "${frequency_model_dir}")
+add_library(frequency_model_fixture STATIC
+    fixtures/frequency_models/providers.f90
+    ../src/freq.f90 ../src/resonance.f90)
+set_target_properties(frequency_model_fixture PROPERTIES
+    Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
+target_include_directories(frequency_model_fixture BEFORE PUBLIC "${frequency_model_dir}")
+target_include_directories(frequency_model_fixture PRIVATE "${PROJECT_BINARY_DIR}/spline")
+target_link_libraries(frequency_model_fixture PUBLIC spline)
+# Namespace providers: GNU also searches the build working directory for .mod
+# files, where neo_rt's real providers may already exist after an incremental build.
+target_compile_options(frequency_model_fixture PUBLIC -cpp)
+foreach(model_module IN ITEMS logger util driftorbit neort_profiles do_magfie_mod shaing
+        neort_orbit neort_freq neort_resonance)
+    target_compile_definitions(frequency_model_fixture PUBLIC
+        "${model_module}=frequency_model_${model_module}")
+endforeach()
+foreach(model_case IN ITEMS join roots)
+    add_executable(test_frequency_model_${model_case}.x fixtures/frequency_models/${model_case}.f90)
+    set_target_properties(test_frequency_model_${model_case}.x PROPERTIES
+        Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
+    target_include_directories(test_frequency_model_${model_case}.x PRIVATE "${PROJECT_BINARY_DIR}/spline")
+    target_link_libraries(test_frequency_model_${model_case}.x frequency_model_fixture)
+    add_test(NAME test_frequency_model_${model_case} COMMAND test_frequency_model_${model_case}.x)
+endforeach()
