@@ -234,3 +234,9 @@ foreach(model_case IN ITEMS join roots)
     target_link_libraries(test_frequency_model_${model_case}.x frequency_model_fixture)
     add_test(NAME test_frequency_model_${model_case} COMMAND test_frequency_model_${model_case}.x)
 endforeach()
+
+# Independent constant angular motion: exact signed full-turn time and endpoint.
+add_test(NAME test_passing_bounce_direction
+    COMMAND test_passing_bounce_direction.x)
+set_tests_properties(test_passing_bounce_direction PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)

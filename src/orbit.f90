@@ -310,7 +310,7 @@ contains
         ! locates the root on its own Nordsieck interpolant (relerr 1e-9,
         ! per-component abserr 1e-10, ITOL=2), so taub is the located root.
         !   g1 = theta - th0          (trapped: return to th0)
-        !   g2 = 2*pi - (theta - th0) (passing: full +2*pi turn)
+        !   g2 = 2*pi - abs(theta - th0) (passing: one full turn either way)
         ! DVODE accepted a root when passing, or when theta entered from below
         ! th0 (the old (yold(1)-th0) < 0 filter); otherwise it kept integrating.
         call vode_init(vstate, neq, 0.0_dp, y0)
@@ -388,7 +388,7 @@ contains
             g = y_(1) - th0
         end function root_theta
 
-        ! DVODE bounceroots GOUT(2): theta advances by 2*pi (passing turn).
+        ! A passing orbit advances by one full turn in either poloidal direction.
         function root_turn(t_, y_, ctx_) result(g)
             real(dp), intent(in) :: t_
             real(dp), intent(in) :: y_(:)
@@ -396,7 +396,7 @@ contains
             real(dp) :: g
             associate (dummy_t => t_, dummy_c => ctx_)
             end associate
-            g = 2.0_dp * pi - (y_(1) - th0)
+            g = 2.0_dp * pi - abs(y_(1) - th0)
         end function root_turn
     end function bounce_integral
 
