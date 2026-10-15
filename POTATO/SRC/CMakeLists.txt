@@ -34,6 +34,7 @@ add_library(potato_base
   sorting.f90
   binsrc.f90
   bmod_pert.f90
+  resonance_mode_bounds_mod.f90
   resonant_int.f90
   eqmagprofs.f90
   box_counting.f90
