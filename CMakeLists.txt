@@ -128,14 +128,11 @@ if(USE_STANDALONE)
         src/do_magfie_standalone.f90
     )
 
-    if(NEORT_BUILD_TESTING)
-        add_library("util_for_test_${PROJECT_NAME}" STATIC test/util_for_test.f90)
-    endif()
 else()
     # Native CPU sparse backend for the optional NEO-2 field provider only.
     # The default standalone path neither fetches NEO-2 nor adds FortSparse.
     if(NOT DEFINED NEO-2_RELEASE)
-        set(NEO-2_RELEASE cdb9bd4e72002f1177226cfed0290d17c143e286)
+        set(NEO-2_RELEASE 1c8228ced947cf213ef50cee858c9dba333875bb)
     endif()
     set(NEO2_NATIVE_SPARSE ON CACHE BOOL "Native CPU sparse backend in NEO-2")
     find_or_fetch(NEO-2)
@@ -185,6 +182,7 @@ target_link_libraries(neo_rt PUBLIC LIBNEO::hdf5_tools)
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 
 if(NEORT_BUILD_TESTING)
+    add_library("util_for_test_${PROJECT_NAME}" STATIC test/util_for_test.f90)
     set(BUILD_TESTING ON)
     include(CTest)
     add_subdirectory(test)
