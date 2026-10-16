@@ -79,11 +79,63 @@ program probe_neort_perturbation_fourier_kernel
         error stop 'epsmn does not control analytic perturbations independently'
     end if
 
+    call check_cosine_envelope()
+
     call delete_file(fixture)
     call delete_file(equilibrium_fixture)
     call delete_file("mixed_readers.in")
 
 contains
+
+    subroutine check_cosine_envelope()
+        ! Type 8 intentionally carries the real cosine envelope, rather than
+        ! the full signed-m complex coefficient used by type 9.
+        real(dp), parameter :: coefficients(3) = [0.3e-4_dp, 0.1e-4_dp, 0.2e-4_dp]
+        real(dp) :: expected, value
+        complex(dp) :: envelope
+        config%inp_swi_pert = 8
+        config%bfac = 1.7_dp
+        call set_config(config)
+        call write_cosine_fixture(coefficients)
+        call read_boozer_pert_file('manufactured_cosine.bc')
+        call init_magfie_pert_at_s()
+        x = [0.5_dp, phi, theta]
+        call do_magfie_pert_amp(x, envelope)
+        expected = config%bfac*1.0e4_dp*( &
+            (coefficients(1)+coefficients(3))*cos(theta)+coefficients(2))
+        if (abs(envelope-cmplx(expected,0.0_dp,dp)) > 1.0e-12_dp) &
+            error stop 'type8 signed-m cosine envelope or field scaling'
+        call do_magfie_pert(x, value)
+        if (abs(value-expected*cos(3.0_dp*phi)) > 1.0e-12_dp) &
+            error stop 'type8 toroidal phase'
+        config%inp_swi_pert = 9
+        config%bfac = 1.0_dp
+        call set_config(config)
+        call check_manufactured_field('type9 reload after type8')
+        call delete_file('manufactured_cosine.bc')
+    end subroutine check_cosine_envelope
+
+    subroutine write_cosine_fixture(coefficients)
+        real(dp), intent(in) :: coefficients(3)
+        real(dp), parameter :: radial_grid(3) = [0.2_dp, 0.5_dp, 0.8_dp]
+        integer :: unit, j, k
+        open(newunit=unit, file='manufactured_cosine.bc', status='replace')
+        do j = 1, 5
+            write(unit, '(a)') 'CC signed-m cosine envelope'
+        end do
+        write(unit, *) 2, 0, 3, 1, 1.0_dp, 0.5_dp, 5.0_dp
+        do j = 1, 3
+            write(unit, '(a)') 'CC surface'
+            write(unit, '(a)') 'CC units'
+            write(unit, *) radial_grid(j), 0.2_dp, 0.0_dp, 0.0_dp, 0.0_dp, 1.0_dp
+            write(unit, '(a)') 'CC m n R Z v B'
+            do k = 1, 3
+                write(unit, *) k-2, 3, 0.0_dp, 0.0_dp, 0.0_dp, coefficients(k)
+            end do
+        end do
+        close(unit)
+    end subroutine write_cosine_fixture
+
 
     subroutine check_manufactured_field(label)
         character(len=*), intent(in) :: label

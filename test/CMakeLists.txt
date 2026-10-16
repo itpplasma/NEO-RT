@@ -1,4 +1,32 @@
+# The NEO-2 provider has its own lifecycle/layout. Register behavioral tests
+# against the shared field interface; standalone storage-inspection and chartmap
+# tests remain on the standalone path.
+if(NOT USE_STANDALONE)
+    foreach(test_name IN ITEMS test_profile_collision_species test_boozer_handedness
+            test_bounce test_hcurl_axisymmetric test_neo_provider_parallel
+            probe_neort_perturbation_fourier_kernel)
+        add_executable(${test_name}.x ${test_name}.f90)
+        target_link_libraries(${test_name}.x PRIVATE neo_rt "util_for_test_${PROJECT_NAME}")
+        set(case_name "${test_name}")
+        if(test_name STREQUAL "probe_neort_perturbation_fourier_kernel")
+            set(case_name "test_perturbation_fourier_kernel")
+        endif()
+        add_test(NAME ${case_name} COMMAND ${test_name}.x)
+        set_tests_properties(${case_name} PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+    endforeach()
+    set_tests_properties(test_boozer_handedness PROPERTIES
+        FIXTURES_SETUP neo_provider_charts)
+    set_tests_properties(test_neo_provider_parallel PROPERTIES
+        FIXTURES_REQUIRED neo_provider_charts PROCESSORS 2)
+    set_tests_properties(test_bounce PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/examples/base")
+    return()
+endif()
+
 file(GLOB TEST_SOURCES "test_*.f90")
+list(FILTER TEST_SOURCES EXCLUDE REGEX "test_neo_provider_parallel\\.f90$")
 
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
