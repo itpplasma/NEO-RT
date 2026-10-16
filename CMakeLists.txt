@@ -43,7 +43,7 @@ endif()
 include(Util)
 
 if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF d30174fb9a9c6520301463ef2406bd2cbfbcd55b)
+    set(LIBNEO_REF c92b33667b299062473855f7ebe0fe9a59b627ec)
 endif()
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
@@ -132,7 +132,7 @@ else()
     # Native CPU sparse backend for the optional NEO-2 field provider only.
     # The default standalone path neither fetches NEO-2 nor adds FortSparse.
     if(NOT DEFINED NEO-2_RELEASE)
-        set(NEO-2_RELEASE 6a2e7778acdcf47747f0a7c90715f14a277e74fb)
+        set(NEO-2_RELEASE 8aeb79f65503df58fc986cd59e6c24c3fb0f258c)
     endif()
     set(NEO2_NATIVE_SPARSE ON CACHE BOOL "Native CPU sparse backend in NEO-2")
     find_or_fetch(NEO-2)
