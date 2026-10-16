@@ -132,6 +132,12 @@ if(USE_STANDALONE)
         add_library("util_for_test_${PROJECT_NAME}" STATIC test/util_for_test.f90)
     endif()
 else()
+    # Native CPU sparse backend for the optional NEO-2 field provider only.
+    # The default standalone path neither fetches NEO-2 nor adds FortSparse.
+    if(NOT DEFINED NEO-2_RELEASE)
+        set(NEO-2_RELEASE cdb9bd4e72002f1177226cfed0290d17c143e286)
+    endif()
+    set(NEO2_NATIVE_SPARSE ON CACHE BOOL "Native CPU sparse backend in NEO-2")
     find_or_fetch(NEO-2)
     add_library("neo_rt" STATIC
         ${NEO_RT_SOURCES}

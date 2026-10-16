@@ -14,6 +14,7 @@ include(FetchContent)
 function(find_or_fetch DEPENDENCY)
     set(REPO_URL https://github.com/itpplasma/${DEPENDENCY}.git)
     string(TOUPPER ${DEPENDENCY} _DEP)
+    string(TOLOWER ${DEPENDENCY} _dep_lower)
 
     set(_ref "")
     set(_override "")
@@ -57,13 +58,18 @@ function(find_or_fetch DEPENDENCY)
         GIT_TAG ${_ref}
     )
     FetchContent_GetProperties(${DEPENDENCY})
-    if(NOT ${DEPENDENCY}_POPULATED)
+    if(NOT ${_dep_lower}_POPULATED)
         FetchContent_Populate(${DEPENDENCY})
-        add_subdirectory(${${DEPENDENCY}_SOURCE_DIR}
+        # NEO-2 includes its own Util.cmake, including a URL-aware fetch helper.
+        # Keep its module discovery local to this dependency's configure scope.
+        if(DEPENDENCY STREQUAL "NEO-2")
+            list(PREPEND CMAKE_MODULE_PATH "${${_dep_lower}_SOURCE_DIR}/cmake")
+        endif()
+        add_subdirectory(${${_dep_lower}_SOURCE_DIR}
             ${CMAKE_CURRENT_BINARY_DIR}/${DEPENDENCY}
             EXCLUDE_FROM_ALL
         )
-        set(${_DEP}_SOURCE_DIR "${${DEPENDENCY}_SOURCE_DIR}" PARENT_SCOPE)
+        set(${_DEP}_SOURCE_DIR "${${_dep_lower}_SOURCE_DIR}" PARENT_SCOPE)
     endif()
 endfunction()
 

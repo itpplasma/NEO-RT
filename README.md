@@ -16,7 +16,6 @@ The project is developed with GNU Fortran and CMake. The following dependencies 
 - GNU Fortran (gfortran) and a C/C++ toolchain (`build-essential`).
 - CMake 3.22+ and Ninja.
 - BLAS and LAPACK implementations.
-- SuiteSparse (used by the magnetic-field routines).
 - NetCDF (Fortran interface, provides `nf-config`).
 - Python 3 with NumPy (for the regression tests and helper scripts).
 - Optional: [FORD](https://github.com/Fortran-FOSS-Programmers/ford) and Graphviz for documentation generation.
@@ -43,7 +42,18 @@ On GNU/Linux with GNU Fortran, the build now prefers OpenBLAS when it is
 available so standalone NEO-RT builds match the shared benchmark venv instead
 of picking up a stale system MKL installation.
 
-CMake also exposes an option `USE_STANDALONE` (enabled by default) that uses the standalone magnetic-field reader. Set `-DUSE_STANDALONE=OFF` when configuring to link against an external NEO-2 checkout if required.
+CMake exposes `USE_STANDALONE` (enabled by default) for the supported standalone
+magnetic-field reader. That default does not fetch NEO-2 or require an external
+sparse factorizer. The optional `USE_STANDALONE=OFF` dependency is pinned to
+NEO-2 `cdb9bd4e72002f1177226cfed0290d17c143e286`, whose default sparse backend is
+native CPU FortSparse. An explicit `NEO-2_REF` still overrides that pin.
+
+The optional field adapter currently has a pre-existing build blocker: it imports
+`neo_magfie_pert_amp`, which the pinned provider does not export, and lacks newer
+NEO-RT field initialization interfaces. Pinning the native dependency does not
+restore that adapter. Keep `USE_STANDALONE=ON` until its field, phase, geometry and
+initialization contracts have been checked with independent fixtures. No optional
+NEO-2 application run or distributed-field support is claimed.
 
 To build against a specific libneo branch, tag, or commit, pass `-DLIBNEO_REF=<ref>` at configure time or `LIBNEO_REF=<ref>` on the make command line:
 
