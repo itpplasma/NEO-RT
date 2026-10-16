@@ -45,7 +45,7 @@ of picking up a stale system MKL installation.
 CMake exposes `USE_STANDALONE` (enabled by default) for the supported standalone
 magnetic-field reader. That default does not fetch NEO-2 or require an external
 sparse factorizer. The optional `USE_STANDALONE=OFF` dependency is pinned to
-NEO-2 `1c8228ced947cf213ef50cee858c9dba333875bb`, whose default sparse backend is
+NEO-2 `e9e2877d852a6a29b228cdf7bc8f805ec3a47ee3`, whose default sparse backend is
 native CPU FortSparse. An explicit `NEO-2_REF` still overrides that pin.
 
 The optional adapter delegates field interpolation and perturbation Fourier
@@ -59,9 +59,10 @@ Chartmap input (`inp_swi=10`) remains a standalone capability.
 
 The existing zero-radial-covariant-field approximation remains explicit, and the
 toroidal component of curl is marked unavailable. The pinned provider fixes the
-laboratory-10 Jacobian orientation for the determined axisymmetric curl
-components. It does not implement the missing radial-field derivative terms of
-the general NEO-2 3-D curl. The provider's cubic angular interpolation uses 1025
+laboratory-10 Jacobian orientation and computes the complete CGS covariant curl
+using derivatives of the same cached field-value polynomials. NEO-RT retains its
+declared approximation and does not enable the raw provider's general 3-D field
+capability. The provider's cubic angular interpolation uses 1025
 poloidal and 9 toroidal points; the independent fixtures qualify the stated
 checks, not a rigorous error enclosure for arbitrary input spectra.
 

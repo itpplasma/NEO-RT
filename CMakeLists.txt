@@ -132,7 +132,7 @@ else()
     # Native CPU sparse backend for the optional NEO-2 field provider only.
     # The default standalone path neither fetches NEO-2 nor adds FortSparse.
     if(NOT DEFINED NEO-2_RELEASE)
-        set(NEO-2_RELEASE 1c8228ced947cf213ef50cee858c9dba333875bb)
+        set(NEO-2_RELEASE e9e2877d852a6a29b228cdf7bc8f805ec3a47ee3)
     endif()
     set(NEO2_NATIVE_SPARSE ON CACHE BOOL "Native CPU sparse backend in NEO-2")
     find_or_fetch(NEO-2)
