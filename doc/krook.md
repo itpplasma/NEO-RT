@@ -99,11 +99,20 @@ The bounce integral of `H_n` uses an absolute tolerance relative to
 (`test_transport_weight_amplitude`), and orbit integrations use relative
 tolerance `1e-13`: at `1e-9` the weight was noisy by about `1e-3`, and the
 frequency splines non-monotone, within `1e-5*etatp` of the trapped-passing
-boundary. Passing transport additionally evaluates parallel velocity from the
-energy invariant `v_parallel**2 = v**2*(1-eta*B)` at each orbit step. Integrating
-parallel velocity independently leaves energy errors that are amplified near
-the separatrix, making the weight noisy even at the tighter ODE tolerance;
-refining the pitch quadrature cannot remove that noise.
+boundary. Integrating parallel velocity independently leaves energy errors
+that are amplified by `1/|1-eta*B_max|` near the separatrix, making the weight
+noisy even at the tighter ODE tolerance (about `1e-4` at `eta/etatp-1 = 1e-8`
+on the trapped side); refining the pitch quadrature cannot remove that noise.
+Passing transport therefore evaluates parallel velocity from the energy
+invariant `v_parallel**2 = v**2*(1-eta*B)` at each orbit step. Trapped transport
+integrates the closed orbit in the angle `chi`, with
+`theta = theta_m - Delta*cos(chi)` between the turning points, so that
+`dt/dchi` follows from the energy invariant and is regular at the turning
+points. Close to them, `1-eta*B` is integrated from `dB/dtheta` instead of
+being formed as a difference. A first pass gives the orbit period, which sets
+the bounce frequency of the phase `exp(-i*mth*Omth*t)` so that the harmonic
+closes on the orbit; the interpolated `Om_th` is off by up to `1e-5` in its
+logarithmic extrapolation below `eta/etatp-1 = 1e-6`.
 
 `krook_rtol` defaults to `1e-5`, `krook_atol` to zero and
 `krook_max_depth` to 40. Nonconvergence, a detected wrong-sign inverse
@@ -122,6 +131,9 @@ against its closed form, and a jittered tail below `1e-21` of the peak must
 converge without refinement to the depth limit. `test_krook_passing_weight`
 compares near-separatrix passing Hamiltonian averages in both directions with
 an independent angular quadrature, including convergence of that reference.
+`test_krook_trapped_weight` compares trapped bounce harmonics at
+`eta/etatp-1 = 1e-8, 1e-7, 1e-6` with a panel quadrature in the turning-point
+angle with cumulative bounce time.
 `test_krook_transport` checks actual field transport against a direct pitch
 quadrature and verifies exact equality of disabled and zero-width dispatches. Configuration and selected-profile
 tests reject invalid and nonfinite inputs, including in Fast builds.

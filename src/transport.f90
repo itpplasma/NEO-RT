@@ -287,8 +287,208 @@ contains
         end do
         scale = bounce_rtol*taub*scale
         if (scale > 0.0_dp) atol(3:4) = min(bounce_atol, scale)
-        call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate, atol)
+        if (eta > etatp) then
+            call trapped_bounce(v, eta, taub, bounceavg, istate, atol)
+        else
+            call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate, atol)
+        end if
     end subroutine transport_bounce
+
+    subroutine trapped_bounce(v, eta, taub, bounceavg, istate, atol_in)
+        ! Bounce averages of a trapped orbit over its closed orbit.
+        ! Time integration of (theta, v_parallel) accumulates an energy error
+        ! which near the trapped-passing boundary is amplified by
+        ! 1/(eta*B_max - 1) through the time spent near the X-point; the weight
+        ! then became noisy at the 1e-4 level and the Krook pitch quadrature
+        ! did not converge. Here the orbit is parametrised by the angle chi,
+        !   theta = theta_m - direction*Delta*cos(chi),
+        ! between the turning points theta_m -+ Delta, and t(chi) is integrated
+        ! together with the bounce integrands. v_parallel follows from the
+        ! energy invariant, and dt/dchi is regular at the turning points.
+        use fortnum_quadrature, only: gauss_legendre
+        use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
+        use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
+            FORTNUM_CONVERGENCE_ERROR
+        ! Below this 1 - eta*B is integrated from the turning point: the direct
+        ! difference has relative rounding error eps/(1 - eta*B), which would
+        ! break the ODE step control next to the turning points.
+        real(dp), parameter :: gap_switch = 1.0e-6_dp
+        real(dp), intent(in) :: v, eta, taub, atol_in(nvar)
+        real(dp), intent(out) :: bounceavg(nvar)
+        integer, intent(out) :: istate
+        real(dp) :: lower, upper, middle, half, direction, sign_htheta, chi0, saved_omth
+        integer :: pass
+        logical :: averages
+        real(dp) :: nodes(8), weights(8), y0(nvar), atol(nvar), position(3)
+        real(dp) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), allocatable :: yend(:)
+        type(vode_state_t) :: vstate
+        type(fortnum_status_t) :: status
+
+        call gauss_legendre(size(nodes), nodes, weights)
+        direction = sign(1.0_dp, sign_vpar)
+        position = [s, 0.0_dp, th0]
+        call do_magfie(position, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        sign_htheta = sign(1.0_dp, hctrvr(3))
+        lower = turning_point(-1.0_dp)
+        upper = turning_point(1.0_dp)
+        middle = (lower + upper)/2.0_dp
+        half = (upper - lower)/2.0_dp
+        chi0 = acos(max(-1.0_dp, min(1.0_dp, direction*(middle - th0)/half)))
+        atol = atol_in
+        atol(1) = bounce_rtol*taub
+        bounceavg = 0.0_dp
+        ! The bounce harmonics exp(-i*mth*Omth*t) must close on the orbit:
+        ! a first pass gives its period, which replaces the interpolated
+        ! bounce frequency in the phase during the second pass.
+        saved_omth = Omth
+        do pass = 1, 2
+            averages = pass == 2
+            y0 = 0.0_dp
+            call vode_init(vstate, nvar, chi0, y0)
+            call vode_integrate_to(chi_rhs, vstate, chi0 + 2.0_dp*pi, bounce_rtol, &
+                                   atol, yend, status)
+            if (status%code == FORTNUM_OK) then
+                istate = 2
+            else if (status%code == FORTNUM_CONVERGENCE_ERROR) then
+                istate = -1
+            else
+                istate = 0
+            end if
+            if (istate /= 2) exit
+            Omth = sign(2.0_dp*pi/yend(1), saved_omth)
+        end do
+        Omth = saved_omth
+        if (istate /= 2) return
+        bounceavg(3:) = yend(3:)/yend(1)
+
+    contains
+
+        subroutine chi_rhs(chi, y, dydchi, rhs_ctx)
+            real(dp), intent(in) :: chi
+            real(dp), intent(in) :: y(:)
+            real(dp), intent(out) :: dydchi(:)
+            class(*), intent(in), optional :: rhs_ctx
+            real(dp) :: theta, gap, dtdchi, distance, slope, orbit(nvar), rate(nvar)
+            real(dp) :: bmod_, sqrtg_, hder_(3), hcovar_(3), hctrvr_(3), hcurl_(3), x(3)
+            associate (dummy => rhs_ctx)
+            end associate
+            theta = middle - direction*half*cos(chi)
+            x = [s, 0.0_dp, theta]
+            call do_magfie(x, bmod_, sqrtg_, hder_, hcovar_, hctrvr_, hcurl_)
+            gap = 1.0_dp - eta*bmod_
+            if (gap > gap_switch) then
+                dtdchi = half*abs(sin(chi))/(v*sqrt(gap)*abs(hctrvr_(3)))
+            else if (cos(chi) > 0.0_dp) then
+                ! Turning point at chi = 0, distance 2*Delta*sin(chi/2)**2.
+                distance = 2.0_dp*half*sin(chi/2.0_dp)**2
+                slope = mean_slope(theta, middle - direction*half)
+                gap = eta*slope*distance
+                dtdchi = sqrt(2.0_dp*half/(eta*slope))*abs(cos(chi/2.0_dp))/ &
+                    (v*abs(hctrvr_(3)))
+            else
+                distance = 2.0_dp*half*cos(chi/2.0_dp)**2
+                slope = mean_slope(theta, middle + direction*half)
+                gap = eta*slope*distance
+                dtdchi = sqrt(2.0_dp*half/(eta*slope))*abs(sin(chi/2.0_dp))/ &
+                    (v*abs(hctrvr_(3)))
+            end if
+            dydchi = 0.0_dp
+            dydchi(1) = dtdchi
+            if (.not. averages) return
+            orbit = 0.0_dp
+            orbit(1) = theta
+            orbit(2) = direction*sign(1.0_dp, sin(chi))*sign_htheta*v*sqrt(gap)
+            orbit(3:) = y(3:)
+            call transport_rates(v, eta, nvar, y(1), orbit, bmod_, hder_, hcovar_, &
+                                 hctrvr_, rate)
+            dydchi(3:) = rate(3:)*dtdchi
+        end subroutine chi_rhs
+
+        real(dp) function mean_slope(theta, turning)
+            ! |dB/dtheta| averaged between theta and the turning point, so
+            ! that 1 - eta*B(theta) = eta*mean_slope*|turning - theta|.
+            real(dp), intent(in) :: theta, turning
+            real(dp) :: x(3), bmod_, sqrtg_, hder_(3), hcovar_(3), hctrvr_(3), hcurl_(3)
+            integer :: k
+            mean_slope = 0.0_dp
+            x(1:2) = [s, 0.0_dp]
+            do k = 1, size(nodes)
+                x(3) = theta + (turning - theta)*(nodes(k) + 1.0_dp)/2.0_dp
+                call do_magfie(x, bmod_, sqrtg_, hder_, hcovar_, hctrvr_, hcurl_)
+                mean_slope = mean_slope + weights(k)*bmod_*hder_(3)
+            end do
+            mean_slope = abs(mean_slope)/2.0_dp
+        end function mean_slope
+
+        real(dp) function turning_point(side)
+            ! First root of 1 - eta*B from th0 towards side. A grid scan finds
+            ! a sign change or a local maximum of B that reflects the orbit;
+            ! bisection then resolves the root to rounding.
+            integer, parameter :: steps = 256
+            real(dp), intent(in) :: side
+            real(dp) :: inside, outside, theta, gap, slope, previous_slope
+            integer :: k
+            inside = th0
+            call gap_and_slope(inside, side, gap, previous_slope)
+            do k = 1, steps
+                theta = th0 + side*2.0_dp*pi*real(k, dp)/real(steps, dp)
+                call gap_and_slope(theta, side, gap, slope)
+                if (gap < 0.0_dp) then
+                    outside = theta
+                    exit
+                end if
+                if (previous_slope > 0.0_dp .and. slope <= 0.0_dp) then
+                    outside = local_maximum(inside, theta, side)
+                    call gap_and_slope(outside, side, gap, slope)
+                    if (gap < 0.0_dp) exit
+                end if
+                inside = theta
+                previous_slope = slope
+            end do
+            if (k > steps) error stop 'trapped orbit without turning point'
+            do
+                theta = (inside + outside)/2.0_dp
+                if (theta == inside .or. theta == outside) exit
+                call gap_and_slope(theta, side, gap, slope)
+                if (gap < 0.0_dp) then
+                    outside = theta
+                else
+                    inside = theta
+                end if
+            end do
+            turning_point = inside
+        end function turning_point
+
+        real(dp) function local_maximum(a, b, side)
+            real(dp), intent(in) :: a, b, side
+            real(dp) :: left, right, theta, gap, slope
+            left = a
+            right = b
+            do
+                theta = (left + right)/2.0_dp
+                if (theta == left .or. theta == right) exit
+                call gap_and_slope(theta, side, gap, slope)
+                if (slope > 0.0_dp) then
+                    left = theta
+                else
+                    right = theta
+                end if
+            end do
+            local_maximum = left
+        end function local_maximum
+
+        subroutine gap_and_slope(theta, side, gap, slope)
+            ! 1 - eta*B and dB/dtheta along side at theta.
+            real(dp), intent(in) :: theta, side
+            real(dp), intent(out) :: gap, slope
+            real(dp) :: x(3), bmod_, sqrtg_, hder_(3), hcovar_(3), hctrvr_(3), hcurl_(3)
+            x = [s, 0.0_dp, theta]
+            call do_magfie(x, bmod_, sqrtg_, hder_, hcovar_, hctrvr_, hcurl_)
+            gap = 1.0_dp - eta*bmod_
+            slope = side*bmod_*hder_(3)
+        end subroutine gap_and_slope
+    end subroutine trapped_bounce
 
     subroutine timestep_transport(v, eta, neq, t, y, ydot)
         !
@@ -302,10 +502,26 @@ contains
         real(dp), intent(in) :: t
         real(dp), intent(in) :: y(neq)
         real(dp), intent(out) :: ydot(neq)
+        real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
+
+        x(1) = s
+        x(2) = 0.0_dp
+        x(3) = y(1)
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        call transport_rates(v, eta, neq, t, y, bmod, hder, hcovar, hctrvr, ydot)
+    end subroutine timestep_transport
+
+    subroutine transport_rates(v, eta, neq, t, y, bmod, hder, hcovar, hctrvr, ydot)
+        ! timestep_transport for the field at theta = y(1).
+        real(dp), intent(in) :: v, eta
+        integer, intent(in) :: neq
+        real(dp), intent(in) :: t
+        real(dp), intent(in) :: y(neq), bmod, hder(3), hcovar(3), hctrvr(3)
+        real(dp), intent(out) :: ydot(neq)
 
         ! BEGIN TODO: remove all of this after refactoring and re-use routine in orbit
         ! for y(1:3)
-        real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
+        real(dp) :: x(3), Om_tB_v
         real(dp) :: t0, Om_osc, OmtB_avg, dOmtBdv, dOmtBdeta, Omph_avg
         real(dp) :: dOmphdv, dOmphdeta
         real(dp) :: phase_drift, bmod1, vparallel, x1(3), sqrtg1, hder1(3), hcovar1(3), &
@@ -316,7 +532,6 @@ contains
         x(1) = s
         x(2) = 0.0_dp
         x(3) = y(1)
-        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         vparallel = y(2)
         if (eta < etatp) then
             ! A passing orbit never reverses. Enforce its energy invariant:
@@ -396,7 +611,7 @@ contains
         ! denormal in the state that trips the underflow FPE trap.
         ydot(7) = Om_osc
         ydot(8:) = 0.0_dp
-    end subroutine timestep_transport
+    end subroutine transport_rates
 
     function fow_displacement(v_par, hphi) result(ds)
         ! First-order radial guiding-centre displacement s(t) - s from the thin
