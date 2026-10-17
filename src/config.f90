@@ -6,6 +6,9 @@ module neort_config
 
     use neort_mixture_collisions, only: krook_rate_source, krook_rate_scale, &
         validate_collision_background, finite_krook_active
+    use neort_lorentz_controls, only: lorentz_pitch_collisions, lorentz_nu, &
+        lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps, &
+        reset_lorentz, validate_lorentz_controls
 
     implicit none
 
@@ -44,6 +47,11 @@ module neort_config
         integer :: krook_max_depth = 20
         real(dp) :: krook_rtol = 1.0e-5_dp
         real(dp) :: krook_atol = 0.0_dp
+        logical :: lorentz_pitch_collisions = .false.
+        real(dp) :: lorentz_nu = 0.0_dp  ! physical supplied deflection frequency [s^-1]
+        integer :: lorentz_rate_source = 0  ! 0 supplied, 1 all-background physical rate
+        real(dp) :: lorentz_rate_scale = 1.0_dp
+        integer :: lorentz_pitch_steps = 32
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
@@ -102,6 +110,7 @@ contains
         nonlin = config%nonlin
         profile_species = config%profile_species
         call set_krook_config(config)
+        call set_lorentz_config(config)
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
@@ -145,7 +154,9 @@ contains
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format, &
             profile_species, species_file, krook_collisions, krook_nu, krook_model, krook_harmonic, &
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
-            krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale
+            krook_max_depth, krook_rtol, krook_atol, krook_rate_source, &
+            krook_rate_scale, lorentz_pitch_collisions, lorentz_nu, &
+            lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
@@ -157,6 +168,7 @@ contains
         ms = 0.0_dp
         call reset_mixture()
         call reset_krook()
+        call reset_lorentz()
         krook_rate_source = 0
         krook_rate_scale = 1.0_dp
         open (unit=9, file=config_file, status="old", form="formatted")
@@ -170,6 +182,7 @@ contains
         call validate_selected_physics(profile_species, nonlin)
 
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
+        call validate_lorentz_controls()
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         call validate_output_format(output_format)
@@ -208,6 +221,18 @@ contains
         call validate_collision_background()
         call validate_selected_physics(config%profile_species, config%nonlin)
     end subroutine set_krook_config
+
+    subroutine set_lorentz_config(config)
+        type(config_t), intent(in) :: config
+        lorentz_pitch_collisions = config%lorentz_pitch_collisions
+        lorentz_nu = config%lorentz_nu
+        lorentz_rate_source = config%lorentz_rate_source
+        lorentz_rate_scale = config%lorentz_rate_scale
+        lorentz_pitch_steps = config%lorentz_pitch_steps
+        ! Struct callers may prepare an in-memory mixture after neort_init.
+        ! The compute entry point enforces its presence before using rates.
+        call validate_lorentz_controls(require_background=.false.)
+    end subroutine set_lorentz_config
 
     subroutine validate_selected_physics(selected, nonlinear)
         integer, intent(in) :: selected

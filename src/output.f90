@@ -19,6 +19,7 @@ contains
 
     subroutine write_output(magfie_data, transport_data, base_path, output_format)
         use neort, only: write_magfie_data_to_files, write_transport_data_to_files
+        use neort_lorentz_controls, only: lorentz_pitch_collisions
 
         type(magfie_data_t), intent(in) :: magfie_data
         type(transport_data_t), intent(in) :: transport_data
@@ -37,7 +38,25 @@ contains
         case default
             error stop "output_format must be 'hdf5', 'text' or 'both'"
         end select
+        if (lorentz_pitch_collisions .and. trim(output_format) /= 'hdf5') &
+            call write_lorentz_text_metadata(transport_data, base_path)
     end subroutine write_output
+
+    subroutine write_lorentz_text_metadata(data, base_path)
+        type(transport_data_t), intent(in) :: data
+        character(*), intent(in) :: base_path
+        integer :: unit
+        open(newunit=unit, file=trim(base_path)//'_collision_model.out', &
+            status='replace')
+        write(unit, '(a)') '# model=common_phase_bounce_averaged_lorentz'
+        write(unit, '(a,l1)') '# susceptibility_valid=', data%susceptibility_valid
+        write(unit, '(a)') '# D columns are susceptibility weights, '// &
+            'not direct flux moments'
+        if (.not. data%susceptibility_valid) &
+            write(unit, '(a)') '# D columns are undefined placeholders; '// &
+                'physical zero-drive torque=0'
+        close(unit)
+    end subroutine write_lorentz_text_metadata
 
     subroutine write_hdf5(magfie_data, transport_data, base_path)
         use hdf5_tools, only: HID_T, h5_init, h5_deinit, h5_create, h5_close, &
@@ -131,6 +150,7 @@ contains
         call h5_add(group_id, "vmax_over_vth", vmax_over_vth, unit="1", &
                     comment="upper velocity cutoff / thermal velocity")
         call write_krook_config_group(group_id)
+        call write_lorentz_config_group(group_id)
     end subroutine write_config_group
 
     subroutine write_krook_config_group(group_id)
@@ -158,6 +178,32 @@ contains
         call h5_add(group_id, "krook_rtol", krook_rtol)
         call h5_add(group_id, "krook_atol", krook_atol)
     end subroutine write_krook_config_group
+
+    subroutine write_lorentz_config_group(group_id)
+        use hdf5_tools, only: HID_T, h5_add
+        use neort_lorentz_controls, only: lorentz_pitch_collisions, lorentz_nu, &
+            lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps
+        integer(HID_T), intent(in) :: group_id
+        call h5_add(group_id, 'lorentz_pitch_collisions', lorentz_pitch_collisions)
+        call h5_add(group_id, 'lorentz_nu', lorentz_nu, unit='s^-1', &
+            comment='supplied physical deflection frequency; '// &
+                'C_L=(nu_D/2)d_xi[(1-xi2)d_xi]')
+        call h5_add(group_id, 'lorentz_rate_source', lorentz_rate_source, &
+            comment='0 supplied constant nu_D; '// &
+                '1 all-background nu_D at physical test speed')
+        call h5_add(group_id, 'lorentz_rate_scale', lorentz_rate_scale)
+        call h5_add(group_id, 'lorentz_pitch_steps', lorentz_pitch_steps, &
+            comment='P1 cells per branch, physical endpoints and one shared TP value')
+        if (.not. lorentz_pitch_collisions) return
+        call h5_add(group_id, 'lorentz_response_model', 'common_phase_bounce_averaged')
+        call h5_add(group_id, 'lorentz_relaxed_variable', 'nonadiabatic_g', &
+            comment='coordinate-consistent delta C F0=-C0[delta H*dF0/dH]')
+        call h5_add(group_id, 'lorentz_harmonic_policy', 'trapped_0_passing_minus_nq', &
+            comment='fixed common physical phase; '// &
+                'mth_max_abs controls only legacy mode')
+        call h5_add(group_id, 'lorentz_ordering', 'low_collision_thin_orbit', &
+            comment='not a full arbitrary-collisionality DKE or Fokker-Planck operator')
+    end subroutine write_lorentz_config_group
 
     subroutine write_magfie_group(group_id, data)
         use hdf5_tools, only: HID_T, h5_add
@@ -242,23 +288,42 @@ contains
 
     subroutine write_transport_group(group_id, data)
         use hdf5_tools, only: HID_T, h5_add
+        use neort_lorentz_controls, only: lorentz_pitch_collisions
 
         integer(HID_T), intent(in) :: group_id
         type(transport_data_t), intent(in) :: data
 
+        if (lorentz_pitch_collisions) call h5_add(group_id, 'susceptibility_valid', &
+            data%susceptibility_valid, &
+            comment='false: D weights are undefined placeholders; '// &
+                'physical zero-drive torque=0')
         call h5_add(group_id, "M_t", data%summary%M_t, unit="1", comment="toroidal Mach number")
         call h5_add(group_id, "D11co", data%summary%Dco(1), comment="co-passing D11")
         call h5_add(group_id, "D11ctr", data%summary%Dctr(1), comment="counter-passing D11")
         call h5_add(group_id, "D11t", data%summary%Dt(1), comment="trapped D11")
-        call h5_add(group_id, "D11", &
-                    data%summary%Dco(1) + data%summary%Dctr(1) + data%summary%Dt(1), &
-                    comment="particle flux coefficient, co+ctr+trapped")
+        if (lorentz_pitch_collisions) then
+            call h5_add(group_id, "D11", &
+                data%summary%Dco(1) + data%summary%Dctr(1) + data%summary%Dt(1), &
+                comment="susceptibility-derived legacy D11 weight; "// &
+                    "not a direct flux moment")
+        else
+            call h5_add(group_id, "D11", &
+                data%summary%Dco(1) + data%summary%Dctr(1) + data%summary%Dt(1), &
+                comment="particle flux coefficient, co+ctr+trapped")
+        end if
         call h5_add(group_id, "D12co", data%summary%Dco(2), comment="co-passing D12")
         call h5_add(group_id, "D12ctr", data%summary%Dctr(2), comment="counter-passing D12")
         call h5_add(group_id, "D12t", data%summary%Dt(2), comment="trapped D12")
-        call h5_add(group_id, "D12", &
-                    data%summary%Dco(2) + data%summary%Dctr(2) + data%summary%Dt(2), &
-                    comment="momentum flux coefficient, co+ctr+trapped")
+        if (lorentz_pitch_collisions) then
+            call h5_add(group_id, "D12", &
+                data%summary%Dco(2) + data%summary%Dctr(2) + data%summary%Dt(2), &
+                comment="susceptibility-derived legacy D12 weight; "// &
+                    "not a direct flux moment")
+        else
+            call h5_add(group_id, "D12", &
+                data%summary%Dco(2) + data%summary%Dctr(2) + data%summary%Dt(2), &
+                comment="momentum flux coefficient, co+ctr+trapped")
+        end if
     end subroutine write_transport_group
 
     subroutine write_torque_group(group_id, data)
@@ -388,6 +453,7 @@ contains
     subroutine write_mixture_metadata(file_id, result_)
         use hdf5_tools, only: HID_T, h5_add, h5_define_group, h5_close_group
         use neort_species, only: species_mixture
+        use neort_lorentz_controls, only: lorentz_pitch_collisions
         integer(HID_T), intent(in) :: file_id
         type(mixture_result_t), intent(in) :: result_
         integer(HID_T) :: group_id
@@ -395,8 +461,16 @@ contains
         call h5_add(group_id, 'reference_s', species_mixture%reference_s, unit='1')
         call h5_add(group_id, 'reference_omega_e', species_mixture%omega_e, unit='s^-1')
         call h5_add(group_id, 'reference_domega_e_ds', species_mixture%domega_e_ds, unit='s^-1')
-        call h5_add(group_id, 'torque_observable', 'electromagnetic_perturbation_work', &
-            comment='nonadiabatic-g Krook; evaluated by legacy flux-force-equivalent formula')
+        if (lorentz_pitch_collisions) then
+            call h5_add(group_id, 'torque_observable', &
+                'electromagnetic_perturbation_work', &
+                comment='nonadiabatic-g Lorentz common-phase complex response work')
+        else
+            call h5_add(group_id, 'torque_observable', &
+                'electromagnetic_perturbation_work', &
+                comment='nonadiabatic-g Krook; '// &
+                    'evaluated by legacy flux-force-equivalent formula')
+        end if
         call h5_add(group_id, 'coulomb_log', species_mixture%coulomb_log, unit='1', &
             comment='explicit common Coulomb logarithm for pairwise rate models')
         call h5_add(group_id, 'profile_model', 'affine local expansion in normalized toroidal flux')

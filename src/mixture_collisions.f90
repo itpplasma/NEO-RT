@@ -10,6 +10,7 @@ module neort_mixture_collisions
     public :: krook_rate_source, krook_rate_scale, validate_collision_background
     public :: initialize_collision_background, finite_krook_active, effective_krook_rate
     public :: selected_thermal_deflection_rate, selected_reference_frequency
+    public :: selected_deflection_rate
 
     ! 0 supplied legacy width; 1 all-background thermal deflection amplitude;
     ! 2 all-background deflection rate at the actual test-particle speed.
@@ -67,6 +68,12 @@ contains
         if (.not. background_ready) error stop 'collision background is not initialized'
         rate = reference_frequency(background, selected_species)
     end function selected_reference_frequency
+
+    real(dp) function selected_deflection_rate(speed_m_s) result(rate)
+        real(dp), intent(in) :: speed_m_s
+        if (.not. background_ready) error stop 'collision background is not initialized'
+        rate = deflection_frequency(background, selected_species, speed_m_s)
+    end function selected_deflection_rate
 
     real(dp) function effective_krook_rate(speed_over_vth, harmonic, geometry, speed_m_s) result(rate)
         real(dp), intent(in) :: speed_over_vth, harmonic, geometry

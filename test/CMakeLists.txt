@@ -6,6 +6,20 @@ foreach(test_src ${TEST_SOURCES})
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
+add_test(NAME test_lorentz_graph COMMAND test_lorentz_graph.x)
+add_test(NAME test_lorentz_native COMMAND test_lorentz_native.x)
+add_test(NAME test_lorentz_dispatch COMMAND test_lorentz_dispatch.x)
+add_test(NAME test_lorentz_cli
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_lorentz_cli.py
+        $<TARGET_FILE:neo_rt.x> ${CMAKE_CURRENT_BINARY_DIR}/lorentz_circle.bc
+        ${CMAKE_CURRENT_BINARY_DIR}/lorentz_cli)
+set_tests_properties(test_lorentz_native PROPERTIES FIXTURES_SETUP lorentz_geometry)
+set_tests_properties(test_lorentz_dispatch PROPERTIES FIXTURES_REQUIRED lorentz_geometry)
+set_tests_properties(test_lorentz_cli PROPERTIES FIXTURES_REQUIRED lorentz_geometry)
+set_tests_properties(test_lorentz_graph test_lorentz_native test_lorentz_dispatch PROPERTIES
+    ENVIRONMENT "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
+    PROCESSORS 4 TIMEOUT 90)
+set_tests_properties(test_lorentz_cli PROPERTIES PROCESSORS 3 TIMEOUT 90)
 add_test(NAME test_species_mixture
     COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

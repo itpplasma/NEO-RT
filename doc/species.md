@@ -83,17 +83,19 @@ These widths relax the nonadiabatic response
 They do not damp plain `delta_f`. This choice matters for finite-width
 electromagnetic torque away from resonance. Deflection-shaped scalar damping
 still has no pitch diffusion, energy diffusion or field-particle coupling.
-Lorentz, test-particle FP and conserving multispecies FP require a new coupled
-complex response solver; they are not implemented by these selectors.
+These selectors do not implement pitch diffusion. The separate
+[Lorentz mode](lorentz.md) solves a joined complex pitch response in its supported
+circular geometry. Test-particle FP and conserving multispecies FP remain absent.
 
 With `output_format='hdf5'` or `'both'`, one `<runname>.h5` uses output layout
 version 2. `/species/<name>` contains explicit SI metadata and the native
 `config`, `magfie`, `transport`, `torque` and `harmonics` groups. `/mixture`
 records the common reference state, profile model and summed physical torque.
 `torque_by_population` contains co-passing, counter-passing and trapped species
-sums; `torque_total` sums all populations. Torque is electromagnetic perturbation work for the stated nonadiabatic-g
-Krook model, evaluated with the legacy flux-force-equivalent formula
-`dTphi_int/ds` in erg. Broadened diffusion coefficients are not independently
+sums; `torque_total` sums all populations. Torque is electromagnetic perturbation
+work for the stated nonadiabatic-g model, in erg. Krook uses the legacy
+flux-force-equivalent formula `dTphi_int/ds`; Lorentz uses complex response work
+with the same causal normalization. Broadened diffusion coefficients are not independently
 qualified physical particle fluxes outside the collisionless limit. Diffusion coefficients have
 species-dependent normalizations and are therefore reported per species.
 
