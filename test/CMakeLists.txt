@@ -9,6 +9,9 @@ endforeach()
 add_test(NAME test_conserving_config COMMAND test_conserving_config.x)
 add_test(NAME test_conserving_basis COMMAND test_conserving_basis.x)
 add_test(NAME test_conserving_native COMMAND test_conserving_native.x)
+# The unset-frequency regression must retain its NaN checks in Fast builds.
+set_source_files_properties(test_conserving_native.f90 PROPERTIES
+    COMPILE_OPTIONS "-fno-finite-math-only")
 set_tests_properties(test_conserving_basis test_conserving_native PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 4 TIMEOUT 90)
