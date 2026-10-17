@@ -293,8 +293,14 @@ contains
         do background = 1, 3
             thermal_speed = sqrt(2*elementary_charge*temperature/mass_kg(background))
             xb = speed_m_s/thermal_speed
-            chandrasekhar = (erf(xb) - &
-                2*xb*exp(-xb**2)/sqrt(pi))/(2*xb**2)
+            ! For x >= 8 the omitted relative correction to G is below
+            ! 1.5e-27, far below binary64 roundoff; avoid a trapped exp tail.
+            if (xb >= 8.0_dp) then
+                chandrasekhar = 1.0_dp/(2*xb**2)
+            else
+                chandrasekhar = (erf(xb) - &
+                    2*xb*exp(-xb**2)/sqrt(pi))/(2*xb**2)
+            end if
             gamma = density(background)*mixture%coulomb_log* &
                 (charge(selected_species)*charge(background)*elementary_charge**2)**2/ &
                 (4*pi*epsilon0**2*mass_kg(selected_species)**2)

@@ -144,6 +144,8 @@ contains
             drive = [cmplx(1.0_dp, 0.0_dp, dp), cmplx(speed**2, 0.0_dp, dp)]
         case (4)
             drive(1) = (1.0_dp, 0.0_dp)
+        case (8)
+            drive(1) = cmplx(1.0e-300_dp, -1.0e-300_dp, dp)
         case (6)
             drive = cmplx(0.0_dp, omega, dp)*[1.0_dp, 2.0_dp]
         case (7)
@@ -358,6 +360,9 @@ contains
         omega = 0.0_dp
         call solve_fp_tensor(u, graph, sample, info, parallel_samples=.false.)
         call require(info == 2, 'Global density source must be incompatible')
+        mode = 8
+        call solve_fp_tensor(u, graph, sample, info, parallel_samples=.false.)
+        call require(info == 2, 'Tiny density source must remain incompatible')
         mode = 5
         call solve()
         call require(maxval(abs(graph(1)%response)) == 0.0_dp, 'Zero source, no floor')
