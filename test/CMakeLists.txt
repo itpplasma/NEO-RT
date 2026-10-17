@@ -6,7 +6,46 @@ foreach(test_src ${TEST_SOURCES})
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
+add_test(NAME test_conserving_config COMMAND test_conserving_config.x)
+add_test(NAME test_conserving_basis COMMAND test_conserving_basis.x)
+add_test(NAME test_conserving_native COMMAND test_conserving_native.x)
+set_tests_properties(test_conserving_basis test_conserving_native PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 90)
+add_test(NAME test_conserving_controls
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_conserving_controls.py
+        $<TARGET_FILE:neo_rt.x> $<TARGET_FILE:test_conserving_config.x>
+        ${CMAKE_CURRENT_BINARY_DIR}/lorentz_circle.bc
+        ${CMAKE_CURRENT_BINARY_DIR}/conserving_controls)
+set_tests_properties(test_conserving_controls PROPERTIES
+    FIXTURES_REQUIRED lorentz_geometry PROCESSORS 3 TIMEOUT 90)
+add_test(NAME test_conserving_mixture COMMAND test_conserving_mixture.x
+    ${CMAKE_CURRENT_BINARY_DIR}/conserving_mixture)
+set_tests_properties(test_conserving_mixture PROPERTIES
+    FIXTURES_REQUIRED lorentz_geometry
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 90)
+add_test(NAME test_conserving_cli
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_conserving_cli.py
+        $<TARGET_FILE:neo_rt.x> ${CMAKE_CURRENT_BINARY_DIR}/lorentz_circle.bc
+        ${CMAKE_CURRENT_BINARY_DIR}/conserving_cli)
+set_tests_properties(test_conserving_cli PROPERTIES
+    FIXTURES_REQUIRED lorentz_geometry PROCESSORS 3 TIMEOUT 90)
 add_test(NAME test_fp_tensor COMMAND test_fp_tensor.x)
+add_test(NAME test_conserving_solver COMMAND test_conserving_solver.x)
+set_tests_properties(test_conserving_solver PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 60)
+add_test(NAME test_landau_projection COMMAND test_landau_projection.x)
+set_tests_properties(test_landau_projection PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 60)
+foreach(mode IN ITEMS small-order nan-node zero-relative-node negative-weight nan-mass
+        zero-temperature negative-density zero-charge nan-temperature nan-gradient)
+    add_test(NAME test_landau_projection_reject_${mode}
+        COMMAND test_landau_projection.x ${mode})
+    set_tests_properties(test_landau_projection_reject_${mode} PROPERTIES WILL_FAIL TRUE)
+endforeach()
 add_test(NAME test_fp_native COMMAND test_fp_native.x)
 add_test(NAME test_fp_cli
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_fp_cli.py

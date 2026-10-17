@@ -72,7 +72,7 @@ contains
     end subroutine set_to_passing_region
 
     subroutine check_magfie(data)
-        use neort_fp_mode, only: tp_fp_collisions, fp_ev_cgs
+        use neort_fp_mode, only: fp_physical_mode, fp_ev_cgs
         use util, only: pi, c, imun, eV
         use do_magfie_mod, only: do_magfie, sign_theta, R0, a, psi_pr, iota, q, Bthcov, Bphcov, &
             dBthcovds, dBphcovds, eps
@@ -117,7 +117,7 @@ contains
         data%params%Om_tBref = c * mi * vth**2 / (2.0_dp * qi * sign_theta * psi_pr)
         data%params%vth = vth
         data%params%T_in_eV = mi / 2.0_dp * vth**2 / eV
-        if (tp_fp_collisions) then
+        if (fp_physical_mode()) then
             data%params%T_in_eV = mi*vth**2/(2.0_dp*fp_ev_cgs)
             data%params%fp_thermal_energy_j = mi*vth**2/2.0_dp*1.0e-7_dp
             data%params%fp_charge_over_c = qi/c
@@ -169,7 +169,7 @@ contains
         use do_magfie_mod, only: q
         use neort_lorentz_controls, only: lorentz_pitch_collisions, &
             lorentz_susceptibility_valid
-        use neort_fp_mode, only: tp_fp_collisions
+        use neort_fp_mode, only: tp_fp_collisions, conserving_fp_collisions
 
         type(transport_data_t), intent(out) :: result_
 
@@ -183,6 +183,9 @@ contains
         integer :: mthmin, mthmax
 
         call debug('compute_transport')
+
+        if (conserving_fp_collisions) &
+            error stop 'conserving FP requires the joint mixture API'
 
         if (allocated(result_%harmonics)) deallocate(result_%harmonics)
 
