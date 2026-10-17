@@ -106,6 +106,9 @@ set(NEO_RT_SOURCES
     src/krook.f90
     src/collision_rates.f90
     src/mixture_collisions.f90
+    src/lorentz_controls.f90
+    src/lorentz_graph.f90
+    src/lorentz_native.f90
     src/datatypes.f90
     src/driftorbit.f90
     src/freq.f90
@@ -127,7 +130,9 @@ set(NEO_RT_SOURCES
 )
 
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
-set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 PROPERTIES
+set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90
+    src/collision_rates.f90 src/mixture_collisions.f90 src/lorentz_controls.f90
+    src/lorentz_graph.f90 src/lorentz_native.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
@@ -175,6 +180,7 @@ target_compile_options(neo_rt PRIVATE
 )
 
 if(USE_STANDALONE)
+    target_compile_definitions(neo_rt PRIVATE NEORT_STANDALONE)
     target_link_libraries(neo_rt PUBLIC
         LIBNEO::boozer
     )

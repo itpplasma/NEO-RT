@@ -161,6 +161,8 @@ contains
             dVds, mph, dOm_tEds, dM_tds, supban
         use neort_profiles, only: Om_tE
         use do_magfie_mod, only: q
+        use neort_lorentz_controls, only: lorentz_pitch_collisions, &
+            lorentz_susceptibility_valid
 
         type(transport_data_t), intent(out) :: result_
 
@@ -187,27 +189,30 @@ contains
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
-        call harmonic_bounds(mph, q, mth_max_abs, mthmin, mthmax)
-
-        if (supban) then
-            ! Superbanana plateau is the trapped ell=0 resonance only.
-            mthmin = 0
-            mthmax = 0
-        end if
-
-        if (mthmax < mthmin) then
-            ! Edge case: no valid harmonics (upper bound below lower bound).
-            ! In this situation we intentionally allocate an empty array.
-            allocate(result_%harmonics(0))
+        if (lorentz_pitch_collisions) then
+            call compute_lorentz_common_phase(result_%harmonics, Dco, Dctr, Dt, &
+                Tco, Tctr, Tt)
+            result_%susceptibility_valid = lorentz_susceptibility_valid
         else
-            allocate(result_%harmonics(mthmax - mthmin + 1))
-        end if
+            call harmonic_bounds(mph, q, mth_max_abs, mthmin, mthmax)
+            if (supban) then
+                ! Superbanana plateau is the trapped ell=0 resonance only.
+                mthmin = 0
+                mthmax = 0
+            end if
+            if (mthmax < mthmin) then
+                allocate(result_%harmonics(0))
+            else
+                allocate(result_%harmonics(mthmax - mthmin + 1))
+            end if
 
-        idx = 0
-        do j = mthmin, mthmax
-            idx = idx + 1
-            call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, result_%harmonics(idx))
-        end do
+            idx = 0
+            do j = mthmin, mthmax
+                idx = idx + 1
+                call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, &
+                    result_%harmonics(idx))
+            end do
+        end if
 
         result_%summary%M_t = M_t
         result_%summary%Dco = Dco
@@ -232,6 +237,54 @@ contains
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
+
+    subroutine compute_lorentz_common_phase(harmonics, Dco, Dctr, Dt, Tco, Tctr, Tt)
+        use neort_lorentz_native, only: compute_lorentz_transport
+        use neort_lorentz_controls, only: lorentz_pitch_steps, &
+            lorentz_deflection_rate, validate_lorentz_controls
+        use driftorbit, only: mph
+        use do_magfie_mod, only: q
+        type(transport_harmonic_t), allocatable, intent(out) :: harmonics(:)
+        real(dp), intent(out) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
+        real(dp) :: diffusion(2, 3), torque(3)
+        integer :: info, k
+
+        call validate_lorentz_controls()
+        call compute_lorentz_transport(1.0e-6_dp*vth, vmax_over_vth*vth, vsteps, &
+            lorentz_pitch_steps, lorentz_deflection_rate, diffusion, torque, info)
+        if (info /= 0) then
+            write(*, '(a,i0)') &
+                'Lorentz common-phase response rejected or failed; status=', info
+            error stop 'see doc/lorentz.md for the supported geometry and ordering'
+        end if
+        Dt = diffusion(:, 1)
+        Dco = diffusion(:, 2)
+        Dctr = diffusion(:, 3)
+        Tt = torque(1)
+        Tco = torque(2)
+        Tctr = torque(3)
+        allocate(harmonics(2))
+        do k = 1, 2
+            harmonics(k)%Dresco = 0.0_dp
+            harmonics(k)%Dresctr = 0.0_dp
+            harmonics(k)%Drest = 0.0_dp
+            harmonics(k)%Tresco = 0.0_dp
+            harmonics(k)%Tresctr = 0.0_dp
+            harmonics(k)%Trest = 0.0_dp
+            harmonics(k)%vminp_over_vth = 1.0e-6_dp
+            harmonics(k)%vmint_over_vth = 1.0e-6_dp
+            harmonics(k)%vmaxp_over_vth = vmax_over_vth
+            harmonics(k)%vmaxt_over_vth = vmax_over_vth
+        end do
+        harmonics(1)%mth = 0
+        harmonics(1)%Drest = Dt
+        harmonics(1)%Trest = Tt
+        harmonics(2)%mth = -nint(mph*q)
+        harmonics(2)%Dresco = Dco
+        harmonics(2)%Dresctr = Dctr
+        harmonics(2)%Tresco = Tco
+        harmonics(2)%Tresctr = Tctr
+    end subroutine compute_lorentz_common_phase
 
     subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
         use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing, supban

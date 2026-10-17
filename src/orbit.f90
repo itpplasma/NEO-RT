@@ -142,7 +142,7 @@ contains
         end if
     end function vperp
 
-    subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
+    subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out, zero_integrals)
         use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
         use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
             FORTNUM_CONVERGENCE_ERROR
@@ -151,6 +151,7 @@ contains
         real(dp), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
+        logical, intent(in), optional :: zero_integrals
 
         ! Nonstiff variable-order Adams (fortnum vode, DVODE MF=10) integrated
         ! over the single bounce span [0, taub], relative tolerance 1e-9 and a
@@ -179,6 +180,11 @@ contains
         y0(1) = th0
         y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)
         y0(3:6) = 0.0_dp
+        ! Custom orbit-integral callbacks can use the seventh state as an
+        ! accumulator instead of the historical phase variable.
+        if (present(zero_integrals)) then
+            if (zero_integrals) y0(3:) = 0.0_dp
+        end if
 
         atol = atol_val
         call vode_init(vstate, nvar, t1, y0)
