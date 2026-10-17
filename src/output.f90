@@ -121,7 +121,29 @@ contains
                     comment="max |mth|; negative means q-dependent range")
         call h5_add(group_id, "vmax_over_vth", vmax_over_vth, unit="1", &
                     comment="upper velocity cutoff / thermal velocity")
+        call write_krook_config_group(group_id)
     end subroutine write_config_group
+
+    subroutine write_krook_config_group(group_id)
+        use hdf5_tools, only: HID_T, h5_add
+        use neort_profiles, only: profile_species
+        use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
+            krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
+            krook_max_depth, krook_rtol, krook_atol
+        integer(HID_T), intent(in) :: group_id
+        call h5_add(group_id, "profile_species", profile_species)
+        call h5_add(group_id, "krook_collisions", krook_collisions)
+        call h5_add(group_id, "krook_nu", krook_nu, unit="s^-1", &
+            comment="supplied Krook damping rate; no 2pi conversion")
+        call h5_add(group_id, "krook_model", krook_model)
+        call h5_add(group_id, "krook_harmonic", krook_harmonic)
+        call h5_add(group_id, "krook_geometry_trapped", krook_geometry_trapped)
+        call h5_add(group_id, "krook_geometry_passing", krook_geometry_passing)
+        call h5_add(group_id, "krook_eta_steps", krook_eta_steps)
+        call h5_add(group_id, "krook_max_depth", krook_max_depth)
+        call h5_add(group_id, "krook_rtol", krook_rtol)
+        call h5_add(group_id, "krook_atol", krook_atol)
+    end subroutine write_krook_config_group
 
     subroutine write_magfie_group(group_id, data)
         use hdf5_tools, only: HID_T, h5_add

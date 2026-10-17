@@ -1,5 +1,8 @@
 module neort_config
     use iso_fortran_env, only: dp => real64
+    use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
+        krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
+        krook_max_depth, krook_rtol, krook_atol, validate_krook, reset_krook
 
     implicit none
 
@@ -24,6 +27,17 @@ module neort_config
         logical :: noshear = .false.  ! neglect magnetic shear term with dqds
         logical :: pertfile = .false.  ! read perturbation from file
         logical :: nonlin = .false.  ! do nonlinear calculation
+        integer :: profile_species = 1  ! 0 electrons, 1 first ion, 2 second ion
+        logical :: krook_collisions = .false.
+        real(dp) :: krook_nu = 0.0_dp  ! supplied Krook damping rate [s^-1]
+        integer :: krook_model = 0  ! 0 constant, 1 energy+harmonic, 2 energy
+        integer :: krook_harmonic = 0  ! 0 integer mth, 1 canonical passing mth+nq
+        real(dp) :: krook_geometry_trapped = 1.0_dp
+        real(dp) :: krook_geometry_passing = 1.0_dp
+        integer :: krook_eta_steps = 32
+        integer :: krook_max_depth = 20
+        real(dp) :: krook_rtol = 1.0e-5_dp
+        real(dp) :: krook_atol = 0.0_dp
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
@@ -51,7 +65,7 @@ contains
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
-        use neort_profiles, only: M_t, vth
+        use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
 
         type(config_t), intent(in) :: config
@@ -74,6 +88,8 @@ contains
         noshear = config%noshear
         pertfile = config%pertfile
         nonlin = config%nonlin
+        profile_species = config%profile_species
+        call set_krook_config(config)
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
@@ -103,7 +119,7 @@ contains
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth
         use neort_orbit, only: noshear
-        use neort_profiles, only: M_t, vth
+        use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
 
         character(len=*), intent(in) :: config_file
@@ -113,15 +129,23 @@ contains
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
             supban, drift_phase, fow_radial, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format, &
+            profile_species, krook_collisions, krook_nu, krook_model, krook_harmonic, &
+            krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
+            krook_max_depth, krook_rtol, krook_atol
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         inp_swi_pert = -1
         output_format = "both"
+        profile_species = 1
+        call reset_krook()
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
+
+        call validate_krook()
+        call validate_selected_physics(profile_species, nonlin)
 
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
@@ -136,6 +160,32 @@ contains
         call set_mph(mph)
         call set_log_level(log_level)
     end subroutine read_and_set_config
+
+    subroutine set_krook_config(config)
+        type(config_t), intent(in) :: config
+        krook_collisions = config%krook_collisions
+        krook_nu = config%krook_nu
+        krook_model = config%krook_model
+        krook_harmonic = config%krook_harmonic
+        krook_geometry_trapped = config%krook_geometry_trapped
+        krook_geometry_passing = config%krook_geometry_passing
+        krook_eta_steps = config%krook_eta_steps
+        krook_max_depth = config%krook_max_depth
+        krook_rtol = config%krook_rtol
+        krook_atol = config%krook_atol
+        call validate_krook()
+        call validate_selected_physics(config%profile_species, config%nonlin)
+    end subroutine set_krook_config
+
+    subroutine validate_selected_physics(selected, nonlinear)
+        integer, intent(in) :: selected
+        logical, intent(in) :: nonlinear
+        if (selected < 0 .or. selected > 2) error stop 'profile_species must be 0, 1 or 2'
+        if (selected == 0 .and. nonlinear) &
+            error stop 'nonlinear electron collision model is not implemented'
+        if (krook_collisions .and. krook_nu > 0.0_dp .and. nonlinear) &
+            error stop 'finite-width Krook transport requires nonlin=.false.'
+    end subroutine validate_selected_physics
 
     pure integer function resolve_perturbation_switch(axisymmetric_switch, perturbation_switch)
         integer, intent(in) :: axisymmetric_switch, perturbation_switch
