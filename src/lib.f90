@@ -120,6 +120,8 @@ contains
     end subroutine prepare_splines_from_memory
 
     subroutine neort_setup_at_s(s_val)
+        use neort_fp_controls, only: tp_fp_collisions, validate_fp_controls, &
+            validate_fp_background
         use do_magfie_mod, only: set_s, init_magfie_at_s, R0, psi_pr, q
         use do_magfie_pert_mod, only: init_magfie_pert_at_s, init_mph_from_shared
         use driftorbit, only: pertfile, nopassing, sign_vpar, etamin, etamax, efac, bfac, comptorque
@@ -130,6 +132,7 @@ contains
 
         real(dp), intent(in) :: s_val
 
+        if (tp_fp_collisions) call validate_fp_controls()
         call set_s(s_val)
 
         call init_magfie_at_s()
@@ -137,6 +140,7 @@ contains
         call init_mph_from_shared()
 
         call init_plasma_at_s() ! overwrites qi, mi and vth from config
+        if (tp_fp_collisions) call validate_fp_background()
         call init_profile_at_s(R0, efac, bfac) ! overwrites M_t
 
         call init_flux_surface_average(s_val)
@@ -146,7 +150,8 @@ contains
         call set_to_trapped_region(etamin, etamax) ! overwrites etamin and etamax
         ! psi_pr is the torodial flux at plasma boundary, fixed for all s
         ! psi_pr=const., q is set in do_magfie
-        if (comptorque) call init_thermodynamic_forces(psi_pr, q)
+        if (comptorque .or. tp_fp_collisions) &
+            call init_thermodynamic_forces(psi_pr, q)
     end subroutine neort_setup_at_s
 
     subroutine neort_compute_at_s(s_val, transport_data_out)
@@ -211,6 +216,7 @@ contains
     end subroutine compute_mixture_species_at_s
 
     subroutine neort_compute_no_splines(transport_data_out)
+        use neort_fp_mode, only: tp_fp_collisions
         use do_magfie_mod, only: init_magfie_at_s, R0, psi_pr, q, s
         use do_magfie_pert_mod, only: init_magfie_pert_at_s, init_mph_from_shared
         use driftorbit, only: pertfile, nopassing, sign_vpar, etamin, etamax, comptorque
@@ -221,6 +227,9 @@ contains
 
         type(transport_data_t), intent(out) :: transport_data_out
 
+        if (tp_fp_collisions) &
+            error stop 'TP FP requires explicit mixture profiles; '// &
+                'use neort_compute_at_s'
         call init_magfie_at_s()
         if (pertfile) call init_magfie_pert_at_s()
         call init_mph_from_shared()

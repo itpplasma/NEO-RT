@@ -23,6 +23,8 @@ module neort_datatypes
         real(dp) :: Om_tBref  ! Reference toroidal rotation frequency
         real(dp) :: vth  ! Thermal velocity [cgs]
         real(dp) :: T_in_eV  ! Temperature [eV]
+        real(dp) :: fp_thermal_energy_j = 0.0_dp
+        real(dp) :: fp_charge_over_c = 0.0_dp
         real(dp) :: m0  ! Poloidal mode number of perturbation
         real(dp) :: n0  ! Toroidal mode number of perturbation
         real(dp) :: Dp  ! Thermodynamic force parameter
@@ -91,6 +93,9 @@ module neort_datatypes
 
     type :: transport_data_t
         logical :: susceptibility_valid = .true.
+        logical :: fp_auxiliary_valid = .false.
+        logical :: fp_physical_response = .false.
+        complex(dp) :: fp_source_work(2, 3) = (0.0_dp, 0.0_dp)
         type(transport_summary_t) :: summary  ! Summed transport coefficients across all harmonics
         type(torque_summary_t) :: torque  ! Summed torque density across all harmonics
         type(transport_harmonic_t), allocatable :: harmonics(:)  ! Per-harmonic transport and torque

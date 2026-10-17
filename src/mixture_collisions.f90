@@ -3,7 +3,7 @@ module neort_mixture_collisions
     use ieee_arithmetic, only: ieee_is_finite
     use neort_species, only: mixture_enabled, species_mixture, mixture_at_s, selected_species
     use neort_collision_rates, only: collision_rates_t, initialize_collision_rates, &
-        deflection_frequency, reference_frequency
+        deflection_frequency, reference_frequency, radial_diffusion
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_rate
     implicit none
     private
@@ -11,6 +11,7 @@ module neort_mixture_collisions
     public :: initialize_collision_background, finite_krook_active, effective_krook_rate
     public :: selected_thermal_deflection_rate, selected_reference_frequency
     public :: selected_deflection_rate
+    public :: selected_fp_coefficients, selected_thermal_speed
 
     ! 0 supplied legacy width; 1 all-background thermal deflection amplitude;
     ! 2 all-background deflection rate at the actual test-particle speed.
@@ -74,6 +75,20 @@ contains
         if (.not. background_ready) error stop 'collision background is not initialized'
         rate = deflection_frequency(background, selected_species, speed_m_s)
     end function selected_deflection_rate
+
+    real(dp) function selected_thermal_speed() result(speed_m_s)
+        if (.not. background_ready) error stop 'collision background is not initialized'
+        speed_m_s = background%vth_m_s(selected_species)
+    end function selected_thermal_speed
+
+    subroutine selected_fp_coefficients(speed_m_s, nud, duu)
+        real(dp), intent(in) :: speed_m_s
+        real(dp), intent(out) :: nud, duu
+        if (.not. background_ready) error stop 'collision background is not initialized'
+        nud = deflection_frequency(background, selected_species, speed_m_s)
+        duu = radial_diffusion(background, selected_species, speed_m_s)/ &
+            background%vth_m_s(selected_species)**2
+    end subroutine selected_fp_coefficients
 
     real(dp) function effective_krook_rate(speed_over_vth, harmonic, geometry, speed_m_s) result(rate)
         real(dp), intent(in) :: speed_over_vth, harmonic, geometry
