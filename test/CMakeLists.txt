@@ -6,6 +6,18 @@ foreach(test_src ${TEST_SOURCES})
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
+add_test(NAME test_fp_tensor COMMAND test_fp_tensor.x)
+add_test(NAME test_fp_native COMMAND test_fp_native.x)
+add_test(NAME test_fp_cli
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_fp_cli.py
+        $<TARGET_FILE:neo_rt.x> ${CMAKE_CURRENT_BINARY_DIR}/lorentz_circle.bc
+        ${CMAKE_CURRENT_BINARY_DIR}/fp_cli)
+set_tests_properties(test_fp_native test_fp_cli PROPERTIES
+    FIXTURES_REQUIRED lorentz_geometry)
+set_tests_properties(test_fp_tensor test_fp_native PROPERTIES
+    ENVIRONMENT "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
+    PROCESSORS 4 TIMEOUT 90)
+set_tests_properties(test_fp_cli PROPERTIES PROCESSORS 3 TIMEOUT 90)
 add_test(NAME test_lorentz_graph COMMAND test_lorentz_graph.x)
 add_test(NAME test_lorentz_native COMMAND test_lorentz_native.x)
 add_test(NAME test_lorentz_dispatch COMMAND test_lorentz_dispatch.x)
@@ -349,6 +361,15 @@ foreach(mode IN ITEMS zero-mass negative-mass nan-mass zero-charge infinite-char
     add_test(NAME test_collision_rates_reject_${mode} COMMAND test_collision_rates.x ${mode})
     set_tests_properties(test_collision_rates_reject_${mode} PROPERTIES WILL_FAIL TRUE)
 endforeach()
+
+add_test(NAME test_collision_diffusion COMMAND test_collision_diffusion.x)
+foreach(mode IN ITEMS negative-speed nan-speed infinite-speed pair-shape)
+    add_test(NAME test_collision_diffusion_reject_${mode}
+        COMMAND test_collision_diffusion.x ${mode})
+    set_tests_properties(test_collision_diffusion_reject_${mode} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+set_tests_properties(test_collision_diffusion PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4" PROCESSORS 4 TIMEOUT 30)
 
 add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
 set_tests_properties(test_krook_work_oracle PROPERTIES

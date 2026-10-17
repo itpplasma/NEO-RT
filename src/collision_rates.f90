@@ -7,6 +7,7 @@ module neort_collision_rates
     public :: collision_rates_t, initialize_collision_rates
     public :: thermal_deflection_rates, pair_deflection_rates
     public :: deflection_frequency, reference_frequency
+    public :: radial_diffusion, pair_radial_diffusion
     public :: collision_elementary_charge, collision_epsilon0
 
     ! SI defining charge and 2022 CODATA recommended epsilon0 (not exact).
@@ -135,6 +136,72 @@ contains
             error stop 'total collision frequency exceeds numerical range'
     end function deflection_frequency
 
+    subroutine pair_radial_diffusion(state, test_index, speed_m_s, pair_coefficients)
+        type(collision_rates_t), intent(in) :: state
+        integer, intent(in) :: test_index
+        real(dp), intent(in) :: speed_m_s
+        real(dp), intent(out) :: pair_coefficients(:)
+        integer :: b
+
+        call validate_index(state, test_index)
+        call validate_radial_speed(speed_m_s)
+        if (size(pair_coefficients) /= size(state%vth_m_s)) &
+            error stop 'pair radial diffusion output shape differs'
+        do b = 1, size(state%vth_m_s)
+            pair_coefficients(b) = pair_radial_coefficient( &
+                state%gamma_ab(test_index, b), state%vth_m_s(b), speed_m_s)
+        end do
+    end subroutine pair_radial_diffusion
+
+    function radial_diffusion(state, test_index, speed_m_s) result(coefficient)
+        type(collision_rates_t), intent(in) :: state
+        integer, intent(in) :: test_index
+        real(dp), intent(in) :: speed_m_s
+        real(dp) :: coefficient
+        integer :: b
+
+        call validate_index(state, test_index)
+        call validate_radial_speed(speed_m_s)
+        coefficient = 0.0_dp
+        do b = 1, size(state%vth_m_s)
+            coefficient = coefficient + pair_radial_coefficient( &
+                state%gamma_ab(test_index, b), state%vth_m_s(b), speed_m_s)
+        end do
+        if (.not. ieee_is_finite(coefficient)) &
+            error stop 'total radial diffusion exceeds numerical range'
+    end function radial_diffusion
+
+    function pair_radial_coefficient(gamma_ab, background_vth, speed_m_s) &
+        result(coefficient)
+        real(dp), intent(in) :: gamma_ab, background_vth, speed_m_s
+        real(dp) :: coefficient, x, inverse_x, g_over_x
+
+        if (gamma_ab <= 0.0_dp) then
+            coefficient = 0.0_dp
+            return
+        end if
+        ! Dvv = Gamma*G(v/vtb)/v [m^2/s^3], with a finite isotropic origin.
+        ! C_rad[f] = v^-2 d_v[v^2 Dvv (d_v f + ma*v*f/Tb)].
+        ! This radial Fick friction differs from Cartesian slowing-down drag.
+        if (speed_m_s <= 0.5_dp*background_vth) then
+            x = speed_m_s/background_vth
+            if (x < sqrt(epsilon(1.0_dp))) x = 0.0_dp
+            call collision_small_parallel_shape(x*x, sqrt_pi, g_over_x)
+        else
+            inverse_x = background_vth/speed_m_s
+            if (inverse_x < 0.125_dp) then
+                call collision_large_parallel_shape(inverse_x, g_over_x)
+            else
+                x = speed_m_s/background_vth
+                call collision_middle_parallel_shape(x, inverse_x, sqrt_pi, g_over_x)
+            end if
+        end if
+        coefficient = gamma_ab/background_vth*g_over_x
+        if (.not. ieee_is_finite(coefficient)) &
+            error stop 'pair radial diffusion exceeds numerical range'
+        if (coefficient < 0.0_dp) error stop 'negative pair radial diffusion'
+    end function pair_radial_coefficient
+
     function pair_frequency(gamma_ab, background_vth, speed_m_s) result(frequency)
         real(dp), intent(in) :: gamma_ab, background_vth, speed_m_s
         real(dp) :: frequency, x, inverse_x, b_over_x
@@ -191,6 +258,15 @@ contains
         ! For a Maxwellian bath nu_D diverges as v^-2 at zero speed.
         if (speed_m_s <= 0.0_dp) error stop 'collision speed must be positive'
     end subroutine validate_speed
+
+    subroutine validate_radial_speed(speed_m_s)
+        real(dp), intent(in) :: speed_m_s
+
+        if (.not. ieee_is_finite(speed_m_s)) &
+            error stop 'radial diffusion speed must be finite'
+        if (speed_m_s < 0.0_dp) &
+            error stop 'radial diffusion speed must be nonnegative'
+    end subroutine validate_radial_speed
 
     include 'generated/collision_rate_leaf.inc'
 

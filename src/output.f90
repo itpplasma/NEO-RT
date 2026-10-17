@@ -20,6 +20,7 @@ contains
     subroutine write_output(magfie_data, transport_data, base_path, output_format)
         use neort, only: write_magfie_data_to_files, write_transport_data_to_files
         use neort_lorentz_controls, only: lorentz_pitch_collisions
+        use neort_fp_mode, only: tp_fp_collisions
 
         type(magfie_data_t), intent(in) :: magfie_data
         type(transport_data_t), intent(in) :: transport_data
@@ -40,7 +41,26 @@ contains
         end select
         if (lorentz_pitch_collisions .and. trim(output_format) /= 'hdf5') &
             call write_lorentz_text_metadata(transport_data, base_path)
+        if (tp_fp_collisions .and. trim(output_format) /= 'hdf5') &
+            call write_fp_text_metadata(transport_data, base_path)
     end subroutine write_output
+
+    subroutine write_fp_text_metadata(data, base_path)
+        type(transport_data_t), intent(in) :: data
+        character(*), intent(in) :: base_path
+        integer :: unit
+        open(newunit=unit, file=trim(base_path)//'_collision_model.out', &
+            status='replace')
+        write(unit, '(a)') '# model=equal_temperature_test_particle_fp'
+        write(unit, '(a)') '# susceptibility_valid=F; '// &
+            'all D columns are undefined placeholders'
+        write(unit, '(a,l1)') '# fp_auxiliary_valid=', data%fp_auxiliary_valid
+        write(unit, '(a,l1)') '# fp_physical_response=', data%fp_physical_response
+        write(unit, '(a)') '# finite speed endpoint reflects; '// &
+            'common physical origin u=0'
+        write(unit, '(a)') '# torque is direct electromagnetic perturbation work'
+        close(unit)
+    end subroutine write_fp_text_metadata
 
     subroutine write_lorentz_text_metadata(data, base_path)
         type(transport_data_t), intent(in) :: data
@@ -151,6 +171,7 @@ contains
                     comment="upper velocity cutoff / thermal velocity")
         call write_krook_config_group(group_id)
         call write_lorentz_config_group(group_id)
+        call write_fp_config_group(group_id)
     end subroutine write_config_group
 
     subroutine write_krook_config_group(group_id)
@@ -205,7 +226,27 @@ contains
             comment='not a full arbitrary-collisionality DKE or Fokker-Planck operator')
     end subroutine write_lorentz_config_group
 
+    subroutine write_fp_config_group(group_id)
+        use hdf5_tools, only: HID_T, h5_add
+        use neort_fp_controls, only: tp_fp_collisions, fp_rate_scale, &
+            fp_speed_steps, fp_pitch_steps, fp_umax
+        integer(HID_T), intent(in) :: group_id
+        if (.not. tp_fp_collisions) return
+        call h5_add(group_id, 'tp_fp_collisions', tp_fp_collisions)
+        call h5_add(group_id, 'fp_rate_scale', fp_rate_scale)
+        call h5_add(group_id, 'fp_speed_steps', fp_speed_steps)
+        call h5_add(group_id, 'fp_pitch_steps', fp_pitch_steps)
+        call h5_add(group_id, 'fp_umax', fp_umax)
+        call h5_add(group_id, 'fp_operator', 'equal_T_Maxwellian_test_particle')
+        call h5_add(group_id, 'fp_relaxed_variable', 'nonadiabatic_g')
+        call h5_add(group_id, 'fp_rate_source', 'all_background_physical_Coulomb')
+        call h5_add(group_id, 'fp_speed_boundary', 'common_origin_reflecting_umax')
+        call h5_add(group_id, 'fp_ordering', 'low_collision_common_phase_thin_orbit')
+        call h5_add(group_id, 'fp_conservation', 'test_particle_number_only')
+    end subroutine write_fp_config_group
+
     subroutine write_magfie_group(group_id, data)
+        use neort_fp_mode, only: tp_fp_collisions
         use hdf5_tools, only: HID_T, h5_add
 
         integer(HID_T), intent(in) :: group_id
@@ -238,6 +279,13 @@ contains
                     comment="reference magnetic drift frequency")
         call h5_add(group_id, "vth", data%params%vth, unit="cm/s", comment="thermal velocity")
         call h5_add(group_id, "T", data%params%T_in_eV, unit="eV", comment="temperature")
+        if (tp_fp_collisions) then
+            call h5_add(group_id, 'fp_thermal_energy_J', &
+                data%params%fp_thermal_energy_j, unit='J')
+            call h5_add(group_id, 'fp_vth_m_s', data%params%vth/100.0_dp, unit='m/s')
+            call h5_add(group_id, 'fp_charge_over_c', data%params%fp_charge_over_c, &
+                comment='native EM coefficient qi/c = physical SI charge/10')
+        end if
         call h5_add(group_id, "m0", data%params%m0, comment="poloidal perturbation mode")
         call h5_add(group_id, "n0", data%params%n0, comment="toroidal perturbation mode")
         call h5_add(group_id, "Dp", data%params%Dp, comment="plateau diffusion coefficient")
@@ -289,6 +337,7 @@ contains
     subroutine write_transport_group(group_id, data)
         use hdf5_tools, only: HID_T, h5_add
         use neort_lorentz_controls, only: lorentz_pitch_collisions
+        use neort_fp_mode, only: tp_fp_collisions
 
         integer(HID_T), intent(in) :: group_id
         type(transport_data_t), intent(in) :: data
@@ -297,11 +346,28 @@ contains
             data%susceptibility_valid, &
             comment='false: D weights are undefined placeholders; '// &
                 'physical zero-drive torque=0')
+        if (tp_fp_collisions) then
+            call h5_add(group_id, 'susceptibility_valid', .false., &
+                comment='all legacy D weights are undefined placeholders')
+            call h5_add(group_id, 'fp_auxiliary_valid', data%fp_auxiliary_valid, &
+                comment='true: work columns solve original H and u^2 H sources')
+            call h5_add(group_id, 'fp_physical_response', data%fp_physical_response, &
+                comment='true: column 1 contains physical g; column 2 is undefined')
+            call h5_add(group_id, 'fp_source_work_real', &
+                real(data%fp_source_work, dp), [1, 1], [2, 3], &
+                comment='Re integral W conj(H) response; branches trapped,co,counter')
+            call h5_add(group_id, 'fp_source_work_imag', &
+                aimag(data%fp_source_work), [1, 1], [2, 3], &
+                comment='Im integral W conj(H) response; original H receiving dual')
+        end if
         call h5_add(group_id, "M_t", data%summary%M_t, unit="1", comment="toroidal Mach number")
         call h5_add(group_id, "D11co", data%summary%Dco(1), comment="co-passing D11")
         call h5_add(group_id, "D11ctr", data%summary%Dctr(1), comment="counter-passing D11")
         call h5_add(group_id, "D11t", data%summary%Dt(1), comment="trapped D11")
-        if (lorentz_pitch_collisions) then
+        if (tp_fp_collisions) then
+            call h5_add(group_id, 'D11', 0.0_dp, &
+                comment='undefined placeholder; use direct electromagnetic torque')
+        else if (lorentz_pitch_collisions) then
             call h5_add(group_id, "D11", &
                 data%summary%Dco(1) + data%summary%Dctr(1) + data%summary%Dt(1), &
                 comment="susceptibility-derived legacy D11 weight; "// &
@@ -314,7 +380,10 @@ contains
         call h5_add(group_id, "D12co", data%summary%Dco(2), comment="co-passing D12")
         call h5_add(group_id, "D12ctr", data%summary%Dctr(2), comment="counter-passing D12")
         call h5_add(group_id, "D12t", data%summary%Dt(2), comment="trapped D12")
-        if (lorentz_pitch_collisions) then
+        if (tp_fp_collisions) then
+            call h5_add(group_id, 'D12', 0.0_dp, &
+                comment='undefined placeholder; use direct electromagnetic torque')
+        else if (lorentz_pitch_collisions) then
             call h5_add(group_id, "D12", &
                 data%summary%Dco(2) + data%summary%Dctr(2) + data%summary%Dt(2), &
                 comment="susceptibility-derived legacy D12 weight; "// &
@@ -454,6 +523,7 @@ contains
         use hdf5_tools, only: HID_T, h5_add, h5_define_group, h5_close_group
         use neort_species, only: species_mixture
         use neort_lorentz_controls, only: lorentz_pitch_collisions
+        use neort_fp_mode, only: tp_fp_collisions
         integer(HID_T), intent(in) :: file_id
         type(mixture_result_t), intent(in) :: result_
         integer(HID_T) :: group_id
@@ -461,7 +531,11 @@ contains
         call h5_add(group_id, 'reference_s', species_mixture%reference_s, unit='1')
         call h5_add(group_id, 'reference_omega_e', species_mixture%omega_e, unit='s^-1')
         call h5_add(group_id, 'reference_domega_e_ds', species_mixture%domega_e_ds, unit='s^-1')
-        if (lorentz_pitch_collisions) then
+        if (tp_fp_collisions) then
+            call h5_add(group_id, 'torque_observable', &
+                'electromagnetic_perturbation_work', &
+                comment='nonadiabatic-g two-dimensional test-particle FP response')
+        else if (lorentz_pitch_collisions) then
             call h5_add(group_id, 'torque_observable', &
                 'electromagnetic_perturbation_work', &
                 comment='nonadiabatic-g Lorentz common-phase complex response work')
