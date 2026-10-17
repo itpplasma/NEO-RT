@@ -4,7 +4,10 @@ program test_chartmap_input
     !
     ! Phase 1 (always): verify that read_boozer_file dispatches to
     !   read_boozer_chartmap_file and that do_magfie returns finite, physically
-    !   sane values (bmod>0, sqrtg>0, iota>0) at a reference point.
+    !   sane values (bmod>0, sqrtg<0, iota>0) at a reference point.  The
+    !   fixture chart is left-handed (theta counter-clockwise in (R, Z), zeta
+    !   along the geometric phi): det d(x,y,z)/d(rho,theta,zeta) < 0 on the
+    !   whole grid, and the source file's dV/ds column is negative (#180).
     !
     ! Phase 2 (when both CHARTMAP_FILE and BC_FILE env vars are set): compare
     !   bmod, iota, sqrtg, Bthcov, Bphcov between the chartmap and .bc paths at
@@ -76,8 +79,8 @@ program test_chartmap_input
         print *, "ERROR: chartmap bmod <= 0, got", bmod_cm
         error stop "test_chartmap_input phase 1 failed: bmod"
     end if
-    if (.not. (sqrtg_cm > 0.0_dp)) then
-        print *, "ERROR: chartmap sqrtg <= 0, got", sqrtg_cm
+    if (.not. (sqrtg_cm < 0.0_dp)) then
+        print *, "ERROR: chartmap sqrtg >= 0 for a left-handed chart, got", sqrtg_cm
         error stop "test_chartmap_input phase 1 failed: sqrtg"
     end if
     if (.not. (iota_cm > 0.0_dp)) then
