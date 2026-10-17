@@ -90,6 +90,7 @@ module neort_datatypes
     end type transport_harmonic_t
 
     type :: transport_data_t
+        logical :: susceptibility_valid = .true.
         type(transport_summary_t) :: summary  ! Summed transport coefficients across all harmonics
         type(torque_summary_t) :: torque  ! Summed torque density across all harmonics
         type(transport_harmonic_t), allocatable :: harmonics(:)  ! Per-harmonic transport and torque
