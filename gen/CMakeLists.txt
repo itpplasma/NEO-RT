@@ -3,3 +3,8 @@ project(neort_krook_codegen LANGUAGES Fortran)
 find_package(fortsym CONFIG REQUIRED)
 add_executable(gen_krook gen_krook.f90)
 target_link_libraries(gen_krook PRIVATE fortsym::fortsym)
+add_executable(gen_species gen_species.f90)
+target_link_libraries(gen_species PRIVATE fortsym::fortsym)
+
+add_executable(gen_collision_rates gen_collision_rates.f90)
+target_link_libraries(gen_collision_rates PRIVATE fortsym::fortsym)

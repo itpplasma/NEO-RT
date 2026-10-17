@@ -4,7 +4,10 @@ module neort_profiles
     use spline, only: spline_coeff, spline_val_0
     use util, only: readdata, ev, qi, mi, mu, qe, c
     use collis_alp, only: loacol_nbi
+    use neort_mixture_collisions, only: initialize_collision_background
     use do_magfie_mod, only: sign_theta
+    use neort_species, only: mixture_enabled, mixture_at_s, selected_species, &
+        evaluate_mixture_at_s, mixture_rotation, common_omega_e, common_domega_e_ds
 
     implicit none
 
@@ -77,12 +80,19 @@ contains
         ! Per-thread: Interpolate plasma profiles at current s value
         ! Assumes s is already set via set_s() and prepare_plasma_splines() was called
 
-        call interpolate_plasma_at_s()
+        use do_magfie_mod, only: s
+
+        if (mixture_enabled) then
+            call evaluate_mixture_at_s(s)
+        else
+            call interpolate_plasma_at_s()
+        end if
         call select_thermodynamic_profiles()
         call select_particle_species()
         vth = sqrt(2.0_dp * ts * ev / mi)
         dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * ts)) * dtsds
-        call init_ion_collision_at_s()
+        if (.not. mixture_enabled) call init_ion_collision_at_s()
+        call initialize_collision_background()
     end subroutine init_plasma_at_s
 
     subroutine interpolate_plasma_at_s()
@@ -107,6 +117,10 @@ contains
     end subroutine interpolate_plasma_at_s
 
     subroutine select_thermodynamic_profiles()
+        if (mixture_enabled) then
+            call select_mixture_thermodynamics()
+            return
+        end if
         select case (profile_species)
         case (0)
             ns = Z1_global * ni1 + Z2_global * ni2
@@ -132,7 +146,21 @@ contains
         if (ts <= 0.0_dp) error stop "selected plasma temperature must be positive"
     end subroutine select_thermodynamic_profiles
 
+    subroutine select_mixture_thermodynamics()
+        if (selected_species < 1 .or. selected_species > size(mixture_at_s)) &
+            error stop 'selected mixture species is outside configured list'
+        ns = mixture_at_s(selected_species)%density_m3*1.0e-6_dp
+        ts = mixture_at_s(selected_species)%temperature_ev
+        dnsds = mixture_at_s(selected_species)%density_gradient_m3*1.0e-6_dp
+        dtsds = mixture_at_s(selected_species)%temperature_gradient_ev
+    end subroutine select_mixture_thermodynamics
+
     subroutine select_particle_species()
+        if (mixture_enabled) then
+            qi = mixture_at_s(selected_species)%charge_e*qe
+            mi = mixture_at_s(selected_species)%mass_kg*1.0e3_dp
+            return
+        end if
         select case (profile_species)
         case (0)
             qi = -qe
@@ -233,6 +261,13 @@ contains
         use do_magfie_mod, only: s
         real(dp), intent(in) :: R0, efac, bfac
         real(dp) :: splineval(3)
+
+        if (mixture_enabled) then
+            call mixture_rotation(R0, vth, dvthds, efac, bfac, M_t, dM_tds)
+            Om_tE = common_omega_e*efac/bfac
+            dOm_tEds = common_domega_e_ds*efac/bfac
+            return
+        end if
 
         ! Interpolate M_t at s (writes threadprivate variables)
         splineval = spline_val_0(Mt_spl_coeff, s)

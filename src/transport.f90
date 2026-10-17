@@ -1,4 +1,5 @@
 module neort_transport
+    use neort_mixture_collisions, only: finite_krook_active, effective_krook_rate
     use iso_fortran_env, only: dp => real64
     use util, only: imun, pi, c, qi
     use logger, only: trace, debug, warning, error
@@ -94,7 +95,7 @@ contains
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
         real(dp), intent(out) :: D(2), T
-        if (krook_collisions .and. krook_nu > 0.0_dp) then
+        if (finite_krook_active()) then
             call compute_transport_krook(vmin, vmax, vsteps, D, T)
         else
             call compute_transport_collisionless(vmin, vmax, vsteps, D, T)
@@ -202,7 +203,7 @@ contains
             geometry = krook_geometry_passing
             if (krook_harmonic == 1) effective_harmonic = effective_harmonic + q*mph
         end if
-        nu = krook_rate(krook_nu, ux, effective_harmonic, krook_model, geometry)
+        nu = effective_krook_rate(ux, effective_harmonic, geometry, ux*vth*0.01_dp)
         call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
             krook_rtol, krook_atol, values, status, krook_max_depth)
         if (status /= 0) error stop 'finite-width Krook quadrature did not converge'

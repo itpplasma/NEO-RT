@@ -124,3 +124,8 @@ selected profile derivatives must be finite.
 Rotation input remains the selected species' Mach number. To hold signed
 physical `OmegaE` fixed across species, use `M_t=R0*OmegaE/vth` and undo the
 `efac/bfac` scaling when it is present.
+
+For a general mixture, [set `species_file`](species.md) to supply D, T and
+electrons together with a common physical rotation and explicit profiles.
+NEO-RT then derives each species' Mach number and returns all species results
+in one native invocation.
