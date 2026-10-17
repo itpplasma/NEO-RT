@@ -25,7 +25,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-O2)
 
-    if(APPLE)
+    if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+        add_compile_options(-mcpu=native)
+    elseif(APPLE)
         add_compile_options(-march=native)
     else()
         add_compile_options(-march=x86-64-v2 -mtune=generic)
@@ -33,7 +35,9 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Fast")
     add_compile_options(-O3 -ffast-math)
 
-    if(APPLE)
+    if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+        add_compile_options(-mcpu=native)
+    elseif(APPLE)
         add_compile_options(-march=native)
     else()
         add_compile_options(-march=native -mtune=native)
@@ -99,6 +103,9 @@ set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/collis_nbi.f90
     src/config.f90
+    src/krook.f90
+    src/collision_rates.f90
+    src/mixture_collisions.f90
     src/datatypes.f90
     src/driftorbit.f90
     src/freq.f90
@@ -114,9 +121,14 @@ set(NEO_RT_SOURCES
     src/profiles.f90
     src/resonance.f90
     src/shaing.f90
+    src/species.f90
     src/transport.f90
     src/util.f90
 )
+
+# Fast builds must retain explicit rejection of nonfinite scientific inputs.
+set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 PROPERTIES
+    COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
 
