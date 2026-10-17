@@ -114,7 +114,7 @@ for mode, status in (("noninteger", -13), ("shear", -12)):
     (scratch / "in_file").write_text("\n".join(lines) + "\n")
     run(mode, base.format(extra=""), f"status={status}")
 (scratch / "in_file").write_text(original_field)
-# A weak second B harmonic retains one well but violates the certified cosine.
+# A weak second B harmonic satisfies the analytic single-well certificate.
 shaped_lines = []
 for line in original_field.splitlines():
     numbers = line.split()
@@ -125,7 +125,7 @@ for line in original_field.splitlines():
     if len(numbers) == 6 and numbers[:2] == ["1", "0"]:
         shaped_lines.append("2 0 0 0 0 .01")
 (scratch / "in_file").write_text("\n".join(shaped_lines) + "\n")
-run("shaped_well", base.format(extra=""), expected_error="status=-14")
+run("shaped_well", base.format(extra=""))
 (scratch / "in_file").write_text(original_field)
 # A small m=33 term aliases m=1 at every node of the old 32-point guard.
 # Keep R/Z circular and enough low-harmonic B for the native orbit initializer.

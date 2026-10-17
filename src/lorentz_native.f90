@@ -30,10 +30,12 @@ contains
         use util, only: pi
         integer, intent(out) :: info
         real(dp) :: field(32), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3)
-        real(dp) :: hcurl(3), x(3), mean_b, harmonic_b, theta
+        real(dp) :: hcurl(3), x(3), mean_b, harmonic_b, second_b, theta
         integer :: k
+        logical :: has_second
 
         info = 0
+        has_second = .false.
         if (drift_phase .or. fow_radial .or. nonlin .or. supban .or. nopassing) then
             info = -10
             return
@@ -51,8 +53,8 @@ contains
         return
 #else
         ! Sampling alone cannot certify a spectrum: m=33 aliases m=1 on a
-        ! 32-point grid. Restrict this starter to the two actual input modes.
-        if (m0b /= 1 .or. n0b /= 0 .or. nmode /= 2) then
+        ! 32-point grid. Certify the actual spectrum before sampling its values.
+        if (m0b < 1 .or. m0b > 2 .or. n0b /= 0 .or. nmode /= m0b + 1) then
             info = -14
             return
         end if
@@ -60,11 +62,12 @@ contains
             info = -14
             return
         end if
-        if (any(modes0(1, :, 1) /= [0.0_dp, 1.0_dp]) .or. &
+        if (any(modes0(1, :, 1) /= [(real(k - 1, dp), k=1, nmode)]) .or. &
                 any(modes0(1, :, 2) /= 0.0_dp)) then
             info = -14
             return
         end if
+        has_second = nmode == 3
 #endif
         if (.not. all(ieee_is_finite([q, dqds, Bmin, Bmax]))) then
             info = -12
@@ -82,28 +85,45 @@ contains
             info = -14
             return
         end if
-        ! First supported geometry is a circular cosine well, with its minimum
-        ! at the native orbit launch point theta=0. Reject additional wells and
-        ! shaping rather than assume their bounce phases glue identically.
+        ! B = mean_b + harmonic_b*cos(theta) + second_b*cos(2*theta).
+        ! -harmonic_b > 4*abs(second_b) proves B' has no interior zero on
+        ! (0,pi), with nondegenerate minimum at the native launch theta=0.
         do k = 1, size(field)
             theta = 2.0_dp*pi*real(k - 1, dp)/size(field)
             x = [s, 0.0_dp, theta]
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
             field(k) = bmod
         end do
-        mean_b = sum(field)/size(field)
-        harmonic_b = 0.0_dp
-        do k = 1, size(field)
-            theta = 2.0_dp*pi*real(k - 1, dp)/size(field)
-            harmonic_b = harmonic_b + 2.0_dp*field(k)*cos(theta)/size(field)
-        end do
-        if (harmonic_b >= 0.0_dp) then
+        if (.not. all(ieee_is_finite(field))) then
             info = -14
             return
         end if
+        mean_b = sum(field)/size(field)
+        harmonic_b = 0.0_dp
+        second_b = 0.0_dp
         do k = 1, size(field)
             theta = 2.0_dp*pi*real(k - 1, dp)/size(field)
-            if (abs(field(k) - mean_b - harmonic_b*cos(theta)) > &
+            harmonic_b = harmonic_b + 2.0_dp*field(k)*cos(theta)/size(field)
+            if (has_second) &
+                second_b = second_b + 2.0_dp*field(k)*cos(2*theta)/size(field)
+        end do
+        if (-harmonic_b <= 4.0_dp*abs(second_b) .or. &
+                mean_b + harmonic_b + second_b <= 0.0_dp) then
+            info = -14
+            return
+        end if
+        if (has_second) then
+            ! Do not certify a curvature sign lost in Fourier roundoff.
+            if (-harmonic_b - 4.0_dp*abs(second_b) <= &
+                    128*epsilon(1.0_dp)*mean_b) then
+                info = -14
+                return
+            end if
+        end if
+        do k = 1, size(field)
+            theta = 2.0_dp*pi*real(k - 1, dp)/size(field)
+            if (abs(field(k) - mean_b - harmonic_b*cos(theta) - &
+                    second_b*cos(2*theta)) > &
                 1.0e-10_dp*mean_b) then
                 info = -14
                 return

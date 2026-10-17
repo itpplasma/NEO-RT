@@ -15,8 +15,9 @@ finite projection of the linearized operator about Maxwellians at one common
 local temperature. It does not assert a fully resolved arbitrary-geometry
 Fokker–Planck solution or unequal-temperature equilibrium.
 
-The retained native geometry is the same strict cosine well as the Lorentz
-and test-particle implementations: constant safety factor with integer `n*q`,
+The retained native geometry is the same certified single well as the Lorentz
+and test-particle implementations: `B0*(1-eps*cos(theta)+delta*cos(2*theta))`,
+positive `B`, `eps>4*abs(delta)`, constant safety factor with integer `n*q`,
 linear thin orbits, a common phase, every orbit branch, and the same magnetic
 drift model on trapped and passing particles. Oscillating drift phase,
 finite orbit width, nonlinear transport, superbanana-only and trapped-only

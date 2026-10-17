@@ -168,7 +168,7 @@ for line in original_field.splitlines():
     if len(numbers) == 6 and numbers[:2] == ["1", "0"]:
         shaped_lines.append("2 0 0 0 0 .01")
 (scratch / "in_file").write_text("\n".join(shaped_lines) + "\n")
-run("shaped_well", base.format(extra=""), "status=-14")
+run("shaped_well", base.format(extra=""))
 (scratch / "in_file").write_text(original_field)
 
 # R=0 needs the physical combined source and one global density gauge. Exact

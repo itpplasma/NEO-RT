@@ -14,16 +14,25 @@ controls are independent of Krook widths; simultaneous Krook activation is
 rejected. `mth_max_abs` applies to the legacy independent-harmonic path; Lorentz
 mode always retains the two canonical harmonic records described below.
 
-The initial supported geometry is an exact circular cosine magnetic well with
-constant safety factor, integer `n*q`, thin orbits, linear response, and no
-oscillating drift phase. The trapped canonical harmonic is zero; both passing
-harmonics are `-n*q`. The implementation rejects magnetic shear, shaped or
-multiple wells, finite radial orbit width, nonlinear attenuation, trapped-only
-operation and inconsistent trapped/passing magnetic-drift selections. These
-restrictions certify the common phase and the trapped/passing joining rule.
-The starter requires standalone format 8 with exactly the two input Fourier
-modes `(m,n)=(0,0),(1,0)`. This spectral guard prevents unresolved higher
-harmonics from aliasing a sampled cosine-well check.
+The supported magnetic well is
+`B(theta)=B0*(1-eps*cos(theta)+delta*cos(2*theta))`, with positive `B`,
+`eps>4*abs(delta)` and a positive curvature margin resolved above Fourier
+roundoff. Its derivative is `B0*sin(theta)*(eps-4*delta*cos(theta))`, so its
+only extrema are the nondegenerate minimum at zero and maximum at pi.
+`delta=0` preserves the original cosine well. Constant safety factor,
+integer `n*q`, thin orbits, linear response and no oscillating drift phase
+remain required. The trapped canonical harmonic is zero; both passing
+harmonics are `-n*q`. Magnetic shear, multiple wells, finite radial orbit
+width, nonlinear attenuation, trapped-only operation and inconsistent
+trapped/passing magnetic-drift selections are rejected. These restrictions
+certify the common phase and the trapped/passing joining rule.
+
+The standalone format-8 field must contain exactly `(m,n)=(0,0),(1,0)`,
+optionally followed by `(2,0)`. This actual-spectrum guard excludes unresolved
+harmonics before the analytic single-well certificate is evaluated. Native
+orbit integration locates the actual turning points; no cosine turning-angle
+formula is used. This finite single-well projection does not admit arbitrary
+axisymmetric geometry or noninteger `n*q`.
 
 For physical deflection frequency `nu_D(v)`, the local operator is
 `C_L=(nu_D/2)*d_xi[(1-xi^2)*d_xi]`. At fixed speed, the native orbit callback

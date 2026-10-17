@@ -27,11 +27,13 @@ species' thermal speed. These controls default to the values shown. The mode
 defaults to disabled and cannot be combined with Krook or Lorentz activation.
 
 This implementation retains the [Lorentz mode](lorentz.md) geometry contract:
-standalone format 8 with exactly the `(m,n)=(0,0),(1,0)` field modes, one circular
-cosine magnetic well, constant safety factor and integer `n*q`. Linear thin
-orbits, both passing signs and the trapped population are required. Magnetic
-shear, shaped wells, finite radial orbit width, oscillating drift phase,
-nonlinear attenuation and trapped-only operation are rejected. A common magnetic
+standalone format 8 with `(m,n)=(0,0),(1,0)` and optional `(2,0)` field modes,
+the analytic single well `B0*(1-eps*cos(theta)+delta*cos(2*theta))` with
+`eps>4*abs(delta)` and positive `B`, constant safety factor and integer `n*q`.
+Linear thin orbits, both passing signs and the trapped population are required.
+Magnetic shear, other well shapes or multiple wells, finite radial orbit width,
+oscillating drift phase, nonlinear attenuation and trapped-only operation are
+rejected. A common magnetic
 drift model must apply to all populations. Harmonic output always has the two
 common-phase records: zero for trapped particles and `-n*q` for both passing
 signs. `mth_max_abs` does not alter this model.

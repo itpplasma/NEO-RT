@@ -62,6 +62,17 @@ set_tests_properties(test_fp_tensor test_fp_native PROPERTIES
 set_tests_properties(test_fp_cli PROPERTIES PROCESSORS 3 TIMEOUT 90)
 add_test(NAME test_lorentz_graph COMMAND test_lorentz_graph.x)
 add_test(NAME test_lorentz_native COMMAND test_lorentz_native.x)
+add_test(NAME test_single_well_native COMMAND test_single_well_native.x)
+set_tests_properties(test_single_well_native PROPERTIES
+    FIXTURES_SETUP single_well_geometry
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 90)
+add_test(NAME test_single_well_cli
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_single_well_cli.py
+        $<TARGET_FILE:neo_rt.x> ${CMAKE_CURRENT_BINARY_DIR}/single_well_1.bc
+        ${CMAKE_CURRENT_BINARY_DIR}/single_well_cli)
+set_tests_properties(test_single_well_cli PROPERTIES
+    FIXTURES_REQUIRED single_well_geometry PROCESSORS 3 TIMEOUT 90)
 add_test(NAME test_lorentz_dispatch COMMAND test_lorentz_dispatch.x)
 add_test(NAME test_lorentz_cli
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_lorentz_cli.py
