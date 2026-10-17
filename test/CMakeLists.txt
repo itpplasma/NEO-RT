@@ -149,6 +149,12 @@ add_test(NAME test_krook_transport
     COMMAND ${CMAKE_BINARY_DIR}/test_krook_transport.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_transport_weight_amplitude
+    COMMAND ${CMAKE_BINARY_DIR}/test_transport_weight_amplitude.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_transport_weight_amplitude PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_failure_context
     COMMAND ${Python_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_failure_context.py

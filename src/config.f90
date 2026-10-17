@@ -41,7 +41,7 @@ module neort_config
         real(dp) :: krook_geometry_trapped = 1.0_dp
         real(dp) :: krook_geometry_passing = 1.0_dp
         integer :: krook_eta_steps = 32
-        integer :: krook_max_depth = 20
+        integer :: krook_max_depth = 40
         real(dp) :: krook_rtol = 1.0e-5_dp
         real(dp) :: krook_atol = 0.0_dp
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor

@@ -6,8 +6,8 @@ program test_krook
     real(dp), parameter :: pi = acos(-1.0_dp)
     real(dp) :: answer(1), expected, nu, a, b, slope, offset, amplitude(2), root
     real(dp) :: cfold, shift
-    integer :: model, harmonic, status, trial, direction, placement
-    logical :: quadratic, cubic
+    integer :: model, harmonic, status, trial, direction, placement, calls
+    logical :: quadratic, cubic, layer, noisy
 
     do model = 0, 2
         do harmonic = -4, 4
@@ -26,6 +26,9 @@ program test_krook
 
     quadratic = .false.
     cubic = .false.
+    layer = .false.
+    noisy = .false.
+    calls = 0
     amplitude = [2.0_dp, 0.2_dp]
     do direction = -1, 1, 2
         slope = 2.0_dp*direction
@@ -96,6 +99,9 @@ program test_krook
     call check_fold(6666.59252747415932782976684048705691_dp)
     nu = 1.0e-10_dp
     call check_fold(6666.66665859435780367541546164747952_dp)
+    cubic = .false.
+    call check_boundary_layer()
+    call check_negligible_noise()
     print *, 'test_krook PASSED'
 
 contains
@@ -118,8 +124,65 @@ contains
     subroutine weight(eta, values)
         real(dp), intent(in) :: eta
         real(dp), intent(out) :: values(:)
-        values = amplitude(1) + amplitude(2)*eta
+        calls = calls + 1
+        if (layer) then
+            ! Integrable endpoint layer of width 1e-8, like the bounce weight
+            ! at the trapped-passing boundary eta_tp(1 -+ 1e-8).
+            values = 1.0_dp/sqrt(b + 1.0e-8_dp*(b - a) - eta)
+        else if (noisy) then
+            ! Decaying weight with 10% deterministic jitter where it is below
+            ! 1e-21 of its peak, a stand-in for ODE noise in a region that
+            ! cannot affect the integral.
+            values = exp(-eta/0.01_dp)
+            if (eta > 0.5_dp .and. modulo(aint(eta*2.0_dp**40), 2.0_dp) == 1.0_dp) &
+                values = 1.1_dp*values
+        else
+            values = amplitude(1) + amplitude(2)*eta
+        end if
     end subroutine weight
+
+    subroutine check_boundary_layer()
+        ! Constant detuning inside the width selects the direct pitch rule.
+        real(dp) :: delta, reference
+        layer = .true.
+        slope = 0.0_dp
+        offset = 0.5_dp
+        nu = 2.0_dp
+        a = 0.0_dp
+        b = 1.0_dp
+        delta = 1.0e-8_dp*(b - a)
+        reference = 2.0_dp*(sqrt(b - a + delta) - sqrt(delta)) &
+                    *nu/(pi*(offset**2 + nu**2))
+        call integrate_krook(residual, weight, a, b, nu, 4, &
+                             1.0e-10_dp, 0.0_dp, answer, status)
+        if (status /= 0) error stop 'endpoint layer quadrature did not converge'
+        call check(answer(1), reference, 1.0e-9_dp, 'endpoint layer oracle')
+        layer = .false.
+    end subroutine check_boundary_layer
+
+    subroutine check_negligible_noise()
+        real(dp) :: reference
+        noisy = .true.
+        slope = 0.0_dp
+        offset = 0.5_dp
+        nu = 2.0_dp
+        a = 0.0_dp
+        b = 1.0_dp
+        ! The jitter changes the integral by less than 1e-21 relative.
+        reference = 0.01_dp*(1.0_dp - exp(-100.0_dp))*nu/(pi*(offset**2 + nu**2))
+        calls = 0
+        call integrate_krook(residual, weight, a, b, nu, 4, &
+                             1.0e-10_dp, 0.0_dp, answer, status)
+        if (status /= 0) error stop 'noisy negligible tail did not converge'
+        call check(answer(1), reference, 1.0e-9_dp, 'noisy negligible tail oracle')
+        ! Refinement is driven by the error of the whole integral, so the
+        ! negligible noisy tail must not be bisected to the depth limit.
+        if (calls > 20000) then
+            print *, 'weight evaluations:', calls
+            error stop 'negligible noisy tail drove the quadrature to its depth limit'
+        end if
+        noisy = .false.
+    end subroutine check_negligible_noise
 
     subroutine check(actual, reference, tolerance, message)
         real(dp), intent(in) :: actual, reference, tolerance
