@@ -120,9 +120,22 @@ module neort_datatypes
         real(dp) :: force(2) = 0.0_dp
     end type species_result_t
 
+    type :: conserving_matrix_receipt_t
+        integer, allocatable :: dof_offsets(:), pair_species(:, :)
+        real(dp), allocatable :: mass(:, :), streaming(:, :), precession(:, :)
+        real(dp), allocatable :: singular_values(:), source_compatibility(:)
+        logical, allocatable :: source_qualified(:)
+        complex(dp), allocatable :: collision(:, :), pair_collision(:, :, :)
+        complex(dp), allocatable :: hamiltonian(:, :), source(:, :)
+        complex(dp), allocatable :: coefficient(:), source_coefficient(:, :)
+        real(dp) :: collision_hermitian_error = 0.0_dp
+        real(dp) :: streaming_skew_error = 0.0_dp
+    end type conserving_matrix_receipt_t
+
     type :: mixture_result_t
         type(species_result_t), allocatable :: species(:)
         real(dp) :: torque_total(3) = 0.0_dp  ! co/counter/trapped dTphi/ds [erg]
+        type(conserving_matrix_receipt_t), allocatable :: conserving_receipt
     end type mixture_result_t
 
 end module neort_datatypes

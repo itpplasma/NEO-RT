@@ -15,7 +15,8 @@ module neort_config
         conserving_umax, conserving_rate_scale, conserving_theta_order, &
         conserving_velocity_order, &
         conserving_cm_order, conserving_rel_order, conserving_polar_order, &
-        conserving_azimuth_order, conserving_rank_rtol, conserving_compatibility_rtol
+        conserving_azimuth_order, conserving_rank_rtol, conserving_compatibility_rtol, &
+        conserving_matrix_receipt
 
     implicit none
 
@@ -72,6 +73,7 @@ module neort_config
         integer :: conserving_polar_order = 4, conserving_azimuth_order = 8
         real(dp) :: conserving_rank_rtol = 1.0e-11_dp
         real(dp) :: conserving_compatibility_rtol = 1.0e-9_dp
+        logical :: conserving_matrix_receipt = .false.
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
@@ -184,7 +186,7 @@ contains
         conserving_velocity_order, &
             conserving_cm_order, conserving_rel_order, conserving_polar_order, &
             conserving_azimuth_order, conserving_rank_rtol, &
-            conserving_compatibility_rtol
+            conserving_compatibility_rtol, conserving_matrix_receipt
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
@@ -284,6 +286,7 @@ contains
         conserving_azimuth_order = config%conserving_azimuth_order
         conserving_rank_rtol = config%conserving_rank_rtol
         conserving_compatibility_rtol = config%conserving_compatibility_rtol
+        conserving_matrix_receipt = config%conserving_matrix_receipt
         call validate_fp_controls(require_background=.false.)
     end subroutine set_fp_config
 

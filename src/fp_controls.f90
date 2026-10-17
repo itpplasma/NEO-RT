@@ -13,6 +13,7 @@ module neort_fp_controls
     public :: conserving_theta_order, conserving_velocity_order, conserving_cm_order
     public :: conserving_rel_order, conserving_polar_order, conserving_azimuth_order
     public :: conserving_rank_rtol, conserving_compatibility_rtol
+    public :: conserving_matrix_receipt
 
     real(dp) :: fp_rate_scale = 1.0_dp
     integer :: fp_speed_steps = 16, fp_pitch_steps = 16
@@ -25,6 +26,7 @@ module neort_fp_controls
     integer :: conserving_polar_order = 4, conserving_azimuth_order = 8
     real(dp) :: conserving_rank_rtol = 1.0e-11_dp
     real(dp) :: conserving_compatibility_rtol = 1.0e-9_dp
+    logical :: conserving_matrix_receipt = .false.
 
 contains
 
@@ -43,6 +45,7 @@ contains
         conserving_azimuth_order = 8
         conserving_rank_rtol = 1.0e-11_dp
         conserving_compatibility_rtol = 1.0e-9_dp
+        conserving_matrix_receipt = .false.
         fp_rate_scale = 1.0_dp
         fp_speed_steps = 16
         fp_pitch_steps = 16

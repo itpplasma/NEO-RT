@@ -116,3 +116,34 @@ without a Boltzmann-constant factor.
 The old harmonic velocity-range columns are also undefined zero placeholders:
 the physical velocity domain extends to infinity, and `conserving_umax` is a
 mesh knot. Active metadata states this tail policy explicitly.
+
+Set `conserving_matrix_receipt=T` to retain the matrices from the successful
+joint solve and write `mixture/conserving_matrix_receipt` in HDF5 output.
+The default is false and adds no output. This diagnostic copies existing
+assembly blocks and the existing SVD spectrum; it performs no second pair
+integration and does not change the solve or its accumulation order.
+The receipt contains the number-weighted mass Gram `M`, streaming `D`,
+precession `P`, applied collision matrix `C`, and every applied unordered pair
+block after `conserving_rate_scale`, with one-based species indices. Pair
+blocks close to `C` within summation roundoff. Matrices appear in HDF5 as
+column by row; the `*_real` and `*_imag` datasets form complex matrices.
+`dof_offsets` gives one-based, half-open species-contiguous index ranges.
+
+`source` columns are physical source species, not collision pairs.
+`coefficient` is the actual independently solved total response, while
+`source_coefficient` contains separately solved source responses. Its
+unqualified columns are undefined zero placeholders; use `source_qualified`
+and `source_compatibility`. `hamiltonian` columns are species-major receiving
+trapped/co/counter functionals, with work `H^H c`. The saved singular values
+are those of the actual mass-whitened operator, in descending order. Rank,
+cutoff, total compatibility and whitened residual remain in the existing
+per-species transport metadata, where they describe the same joint solve.
+
+For full-rank receipts at two orders N,M with identical `M,D,P,H` and every
+source column, `A=C+D+iP`, `A_N^H z_N=H`, and
+`delta W=-z_N^H (C_N-C_M)c_M` hold in exact arithmetic. Splitting the applied
+collision difference into pair blocks gives signed pair contributions.
+Check input equality, pair closure, equation/adjoint residuals and the
+rank/cutoff before attribution. With `r=s-Ac`, `q=H-A_N^H z_N`, the residual
+correction is `z_N^H(r_M-r_N)+q^H(c_N-c_M)`. A receipt alone establishes
+neither quadrature convergence nor a physical root cause.

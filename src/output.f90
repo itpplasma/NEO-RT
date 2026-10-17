@@ -680,8 +680,119 @@ contains
             comment='sum of species co+counter+trapped dTphi_int/ds')
         call h5_add(group_id, 'torque_by_population', result_%torque_total, [1], [3], unit='erg', &
             comment='species sum: co-passing, counter-passing, trapped dTphi_int/ds')
+        if (allocated(result_%conserving_receipt)) &
+            call write_conserving_matrix_receipt(group_id, result_)
         call h5_close_group(group_id)
     end subroutine write_mixture_metadata
+
+    subroutine write_conserving_matrix_receipt(parent_id, result_)
+        use hdf5_tools, only: HID_T, h5_add, h5_define_group, h5_close_group
+        integer(HID_T), intent(in) :: parent_id
+        type(mixture_result_t), intent(in) :: result_
+        integer(HID_T) :: group_id
+        character(len=32) :: key
+        integer :: species
+        call h5_define_group(parent_id, 'conserving_matrix_receipt', group_id)
+        call h5_add(group_id, 'schema_version', 1)
+        call h5_add(group_id, 'equation', '(C+D+iP)c=sum(source,source_species)')
+        call h5_add(group_id, 'storage_axes', &
+            'HDF reverses Fortran axes: matrices are column,row')
+        call h5_add(group_id, 'receiver_columns', &
+            'species-major trapped,co-passing,counter-passing; W=conjg(H)^T*c')
+        call h5_add(group_id, 'source_columns', &
+            'physical source species; not collision pairs; '// &
+            'unqualified c columns are zero placeholders')
+        do species = 1, size(result_%species)
+            write(key, '(a,i0)') 'species_', species
+            call h5_add(group_id, trim(key), &
+                trim(result_%species(species)%species%name))
+        end do
+        call write_receipt_matrices(group_id, result_)
+        call write_receipt_pairs(group_id, result_)
+        call write_receipt_solver(group_id, result_)
+        call h5_close_group(group_id)
+    end subroutine write_conserving_matrix_receipt
+
+    subroutine write_receipt_matrices(group_id, result_)
+        use hdf5_tools, only: HID_T, h5_add
+        integer(HID_T), intent(in) :: group_id
+        type(mixture_result_t), intent(in) :: result_
+        integer :: n, sources
+        associate(receipt => result_%conserving_receipt)
+            n = size(receipt%mass, 1)
+            sources = size(receipt%source, 2)
+            call h5_add(group_id, 'dof_offsets', receipt%dof_offsets, &
+                [1], [sources + 1], &
+                comment='one-based species-contiguous half-open ranges')
+            call h5_add(group_id, 'mass', receipt%mass, [1, 1], [n, n], unit='1', &
+                comment='number-weighted mass Gram; not species particle masses')
+            call h5_add(group_id, 'streaming', receipt%streaming, &
+                [1, 1], [n, n], unit='1/s')
+            call h5_add(group_id, 'precession', receipt%precession, &
+                [1, 1], [n, n], unit='1/s')
+            call write_receipt_complex(group_id, 'collision', receipt%collision, '1/s')
+            call write_receipt_complex(group_id, 'source', receipt%source, '1/s')
+            call write_receipt_complex(group_id, 'hamiltonian', &
+                receipt%hamiltonian, 'erg')
+            call write_receipt_complex(group_id, 'coefficient', &
+                reshape(receipt%coefficient, [n, 1]), '1')
+            call write_receipt_complex(group_id, 'source_coefficient', &
+                receipt%source_coefficient, '1')
+        end associate
+    end subroutine write_receipt_matrices
+
+    subroutine write_receipt_pairs(group_id, result_)
+        use hdf5_tools, only: HID_T, h5_add, h5_define_group, h5_close_group
+        integer(HID_T), intent(in) :: group_id
+        type(mixture_result_t), intent(in) :: result_
+        integer(HID_T) :: pair_id
+        integer :: pair
+        character(len=32) :: key
+        associate(receipt => result_%conserving_receipt)
+            do pair = 1, size(receipt%pair_collision, 3)
+                write(key, '(a,i0)') 'pair_', pair
+                call h5_define_group(group_id, trim(key), pair_id)
+                call h5_add(pair_id, 'species_indices', receipt%pair_species(:, pair), &
+                    [1], [2], comment='one-based unordered collision pair a<=b')
+                call write_receipt_complex(pair_id, 'collision', &
+                    receipt%pair_collision(:, :, pair), '1/s')
+                call h5_close_group(pair_id)
+            end do
+        end associate
+    end subroutine write_receipt_pairs
+
+    subroutine write_receipt_solver(group_id, result_)
+        use hdf5_tools, only: HID_T, h5_add
+        integer(HID_T), intent(in) :: group_id
+        type(mixture_result_t), intent(in) :: result_
+        integer :: n, sources
+        associate(receipt => result_%conserving_receipt)
+            n = size(receipt%singular_values)
+            sources = size(receipt%source_qualified)
+            call h5_add(group_id, 'singular_values', receipt%singular_values, &
+                [1], [n], unit='1/s', &
+                comment='actual SVD of M^(-1/2) A M^(-1/2), descending')
+            call h5_add(group_id, 'source_qualified', &
+                merge(1, 0, receipt%source_qualified), [1], [sources])
+            call h5_add(group_id, 'source_compatibility', &
+                receipt%source_compatibility, [1], [sources], &
+                comment='relative projection on whitened left nullspace')
+            call h5_add(group_id, 'collision_hermitian_error', &
+                receipt%collision_hermitian_error)
+            call h5_add(group_id, 'streaming_skew_error', receipt%streaming_skew_error)
+        end associate
+    end subroutine write_receipt_solver
+
+    subroutine write_receipt_complex(group_id, key, value, unit)
+        use hdf5_tools, only: HID_T, h5_add
+        integer(HID_T), intent(in) :: group_id
+        character(len=*), intent(in) :: key, unit
+        complex(dp), intent(in) :: value(:, :)
+        call h5_add(group_id, key//'_real', real(value, dp), &
+            [1, 1], shape(value), unit=unit)
+        call h5_add(group_id, key//'_imag', aimag(value), &
+            [1, 1], shape(value), unit=unit)
+    end subroutine write_receipt_complex
 
     subroutine write_species_result_group(species_id, result_)
         use hdf5_tools, only: HID_T, h5_define_group, h5_close_group

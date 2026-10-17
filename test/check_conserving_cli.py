@@ -47,6 +47,13 @@ def scalar(group, path):
 
 
 run("conserving")
+with h5py.File(scratch / "conserving.h5", "r") as output:
+    assert "conserving_matrix_receipt" not in output["mixture"]
+(scratch / "receipt.in").write_text(deck.replace(
+    "conserving_rate_scale=.6", "conserving_rate_scale=.6,conserving_matrix_receipt=T"))
+run("receipt")
+from check_conserving_receipt import check_receipt
+check_receipt(scratch / "conserving.h5", scratch / "receipt.h5")
 total = np.zeros(3)
 elementary_charge = 1.602176634e-19
 with h5py.File(scratch / "conserving.h5", "r") as output:
