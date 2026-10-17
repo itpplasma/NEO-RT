@@ -99,7 +99,11 @@ The bounce integral of `H_n` uses an absolute tolerance relative to
 (`test_transport_weight_amplitude`), and orbit integrations use relative
 tolerance `1e-13`: at `1e-9` the weight was noisy by about `1e-3`, and the
 frequency splines non-monotone, within `1e-5*etatp` of the trapped-passing
-boundary.
+boundary. Passing transport additionally evaluates parallel velocity from the
+energy invariant `v_parallel**2 = v**2*(1-eta*B)` at each orbit step. Integrating
+parallel velocity independently leaves energy errors that are amplified near
+the separatrix, making the weight noisy even at the tighter ODE tolerance;
+refining the pitch quadrature cannot remove that noise.
 
 `krook_rtol` defaults to `1e-5`, `krook_atol` to zero and
 `krook_max_depth` to 40. Nonconvergence, a detected wrong-sign inverse
@@ -115,9 +119,11 @@ signs, interior/boundary/exterior roots and widths from `1e-12` to `1e3`.
 Quadratic and hidden cubic folds use high-precision analytic oracles checked
 against independently split quadrature. A `1e-8` endpoint layer is checked
 against its closed form, and a jittered tail below `1e-21` of the peak must
-converge without refinement to the depth limit. `test_krook_transport` checks actual
-field transport against a direct pitch quadrature and verifies exact equality
-of disabled and zero-width dispatches. Configuration and selected-profile
+converge without refinement to the depth limit. `test_krook_passing_weight`
+compares near-separatrix passing Hamiltonian averages in both directions with
+an independent angular quadrature, including convergence of that reference.
+`test_krook_transport` checks actual field transport against a direct pitch
+quadrature and verifies exact equality of disabled and zero-width dispatches. Configuration and selected-profile
 tests reject invalid and nonfinite inputs, including in Fast builds.
 
 Regenerate the leaves with a FortSym installation at the recorded revision:

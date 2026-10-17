@@ -141,6 +141,13 @@ add_test(NAME test_krook
     COMMAND ${CMAKE_BINARY_DIR}/test_krook.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+add_test(NAME test_krook_passing_weight
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_passing_weight.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_krook_passing_weight PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_config
     COMMAND ${CMAKE_BINARY_DIR}/test_krook_config.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

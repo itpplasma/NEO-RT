@@ -12,7 +12,7 @@ module neort_transport
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2, &
-        bounce_rtol, bounce_atol, th0
+        bounce_rtol, bounce_atol, th0, vpar
     use neort_resonance, only: driftorbit_coarse, driftorbit_root, resonance_value
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
@@ -308,7 +308,7 @@ contains
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
         real(dp) :: t0, Om_osc, OmtB_avg, dOmtBdv, dOmtBdeta, Omph_avg
         real(dp) :: dOmphdv, dOmphdeta
-        real(dp) :: phase_drift, bmod1, x1(3), sqrtg1, hder1(3), hcovar1(3), &
+        real(dp) :: phase_drift, bmod1, vparallel, x1(3), sqrtg1, hder1(3), hcovar1(3), &
                     hctrvr1(3), hcurl1(3)
         complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
@@ -317,7 +317,14 @@ contains
         x(2) = 0.0_dp
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
-        call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot)
+        vparallel = y(2)
+        if (eta < etatp) then
+            ! A passing orbit never reverses. Enforce its energy invariant:
+            ! evolving v_parallel accumulates an ODE energy error which is
+            ! amplified by 1/(1-eta*B) near the trapped-passing boundary.
+            vparallel = sign(vpar(v, eta, bmod), y(2))
+        end if
+        call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), vparallel, ydot)
 
         ! evaluate orbit averages of Hamiltonian perturbation, optionally at the
         ! first-order guiding-centre radius (finite radial orbit width). Only the
@@ -326,7 +333,7 @@ contains
         x1 = x
         bmod1 = bmod
         if (fow_radial) then
-            x1(1) = s + fow_displacement(y(2), hcovar(2))
+            x1(1) = s + fow_displacement(vparallel, hcovar(2))
             call do_magfie_displaced(x1, bmod1, sqrtg1, hder1, hcovar1, hctrvr1, hcurl1)
         end if
         if (pertfile) then
