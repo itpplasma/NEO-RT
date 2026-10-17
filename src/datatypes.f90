@@ -93,6 +93,15 @@ module neort_datatypes
 
     type :: transport_data_t
         logical :: susceptibility_valid = .true.
+        logical :: conserving_active = .false.
+        complex(dp) :: conserving_work(3) = (0.0_dp, 0.0_dp)
+        complex(dp), allocatable :: conserving_cross_work(:, :)
+        logical, allocatable :: conserving_cross_work_qualified(:)
+        integer :: conserving_rank = 0, conserving_nullity = 0
+        real(dp) :: conserving_singular_cutoff = 0.0_dp
+        real(dp) :: conserving_residual = 0.0_dp, conserving_compatibility = 0.0_dp
+        real(dp) :: conserving_mass_condition = 0.0_dp
+        real(dp) :: conserving_entropy = 0.0_dp
         logical :: fp_auxiliary_valid = .false.
         logical :: fp_physical_response = .false.
         complex(dp) :: fp_source_work(2, 3) = (0.0_dp, 0.0_dp)

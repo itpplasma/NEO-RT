@@ -10,7 +10,12 @@ module neort_config
         lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps, &
         reset_lorentz, validate_lorentz_controls
     use neort_fp_controls, only: tp_fp_collisions, fp_rate_scale, &
-        fp_speed_steps, fp_pitch_steps, fp_umax, reset_fp, validate_fp_controls
+        fp_speed_steps, fp_pitch_steps, fp_umax, reset_fp, validate_fp_controls, &
+        conserving_fp_collisions, conserving_speed_steps, conserving_pitch_steps, &
+        conserving_umax, conserving_rate_scale, conserving_theta_order, &
+        conserving_velocity_order, &
+        conserving_cm_order, conserving_rel_order, conserving_polar_order, &
+        conserving_azimuth_order, conserving_rank_rtol, conserving_compatibility_rtol
 
     implicit none
 
@@ -58,6 +63,15 @@ module neort_config
         real(dp) :: fp_rate_scale = 1.0_dp
         integer :: fp_speed_steps = 16, fp_pitch_steps = 16
         real(dp) :: fp_umax = 4.0_dp
+        logical :: conserving_fp_collisions = .false.
+        integer :: conserving_speed_steps = 2, conserving_pitch_steps = 2
+        real(dp) :: conserving_umax = 4.0_dp
+        real(dp) :: conserving_rate_scale = 1.0_dp
+        integer :: conserving_theta_order = 8, conserving_velocity_order = 4
+        integer :: conserving_cm_order = 4, conserving_rel_order = 4
+        integer :: conserving_polar_order = 4, conserving_azimuth_order = 8
+        real(dp) :: conserving_rank_rtol = 1.0e-11_dp
+        real(dp) :: conserving_compatibility_rtol = 1.0e-9_dp
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
@@ -164,7 +178,13 @@ contains
             krook_max_depth, krook_rtol, krook_atol, krook_rate_source, &
             krook_rate_scale, lorentz_pitch_collisions, lorentz_nu, &
             lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps, &
-            tp_fp_collisions, fp_rate_scale, fp_speed_steps, fp_pitch_steps, fp_umax
+            tp_fp_collisions, fp_rate_scale, fp_speed_steps, fp_pitch_steps, fp_umax, &
+            conserving_fp_collisions, conserving_speed_steps, conserving_pitch_steps, &
+            conserving_umax, conserving_rate_scale, conserving_theta_order, &
+        conserving_velocity_order, &
+            conserving_cm_order, conserving_rel_order, conserving_polar_order, &
+            conserving_azimuth_order, conserving_rank_rtol, &
+            conserving_compatibility_rtol
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
@@ -251,6 +271,19 @@ contains
         fp_speed_steps = config%fp_speed_steps
         fp_pitch_steps = config%fp_pitch_steps
         fp_umax = config%fp_umax
+        conserving_fp_collisions = config%conserving_fp_collisions
+        conserving_speed_steps = config%conserving_speed_steps
+        conserving_pitch_steps = config%conserving_pitch_steps
+        conserving_umax = config%conserving_umax
+        conserving_rate_scale = config%conserving_rate_scale
+        conserving_theta_order = config%conserving_theta_order
+        conserving_velocity_order = config%conserving_velocity_order
+        conserving_cm_order = config%conserving_cm_order
+        conserving_rel_order = config%conserving_rel_order
+        conserving_polar_order = config%conserving_polar_order
+        conserving_azimuth_order = config%conserving_azimuth_order
+        conserving_rank_rtol = config%conserving_rank_rtol
+        conserving_compatibility_rtol = config%conserving_compatibility_rtol
         call validate_fp_controls(require_background=.false.)
     end subroutine set_fp_config
 
