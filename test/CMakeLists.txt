@@ -217,6 +217,13 @@ add_test(NAME test_krook_transport
     COMMAND ${CMAKE_BINARY_DIR}/test_krook_transport.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_krook_failure_context
+    COMMAND ${Python_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_failure_context.py
+        $<TARGET_FILE:test_krook_transport.x>)
+set_tests_properties(test_krook_failure_context PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 10)
 set_tests_properties(test_krook_transport PROPERTIES
     ENVIRONMENT "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
     PROCESSORS 4

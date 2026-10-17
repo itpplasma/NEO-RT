@@ -1,6 +1,6 @@
 module neort_transport
     use neort_mixture_collisions, only: finite_krook_active, effective_krook_rate
-    use iso_fortran_env, only: dp => real64
+    use iso_fortran_env, only: dp => real64, error_unit
     use util, only: imun, pi, c, qi
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
@@ -8,6 +8,7 @@ module neort_transport
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
+    use neort_species, only: selected_species
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2
@@ -206,7 +207,8 @@ contains
         nu = effective_krook_rate(ux, effective_harmonic, geometry, ux*vth*0.01_dp)
         call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
             krook_rtol, krook_atol, values, status, krook_max_depth)
-        if (status /= 0) error stop 'finite-width Krook quadrature did not converge'
+        if (status /= 0) call report_krook_failure(status, ux, nu, &
+            effective_harmonic, geometry)
     contains
         subroutine residual(eta, res, derivative)
             real(dp), intent(in) :: eta
@@ -219,6 +221,28 @@ contains
             call compute_transport_weight(ux, eta, result_)
         end subroutine weight
     end subroutine compute_krook_velocity
+
+    subroutine report_krook_failure(status, ux, nu, effective_harmonic, geometry)
+        integer, intent(in) :: status
+        real(dp), intent(in) :: ux, nu, effective_harmonic, geometry
+        ! Preserve the returned status and the consuming thread's physical state.
+        ! The eta values are integration bounds, not a guessed failing node.
+        !$omp critical(krook_failure_context)
+        write(error_unit, '(a,6(a,i0),*(a,es25.17e3))') &
+            'KROOK_QUADRATURE_FAILURE', ' status=', status, &
+            ' species_index=', selected_species, ' mth=', mth, ' mph=', mph, &
+            ' eta_steps=', krook_eta_steps, ' max_depth=', krook_max_depth, &
+            ' s=', s, ' mass_g=', mi, ' charge_statc=', qi, &
+            ' density_cm-3=', ns, ' omega_E_s-1=', Om_tE, ' ux=', ux, &
+            ' vth_cm_s=', vth, ' nu_s-1=', nu, ' eta_min=', etamin, &
+            ' eta_max=', etamax, ' eta_tp=', etatp, &
+            ' sign_vpar=', sign_vpar, &
+            ' effective_harmonic=', effective_harmonic, ' geometry=', geometry, &
+            ' rtol=', krook_rtol, ' atol=', krook_atol
+        flush(error_unit)
+        !$omp end critical(krook_failure_context)
+        error stop 'finite-width Krook quadrature did not converge'
+    end subroutine report_krook_failure
 
     subroutine compute_transport_weight(ux, eta, values)
         real(dp), intent(in) :: ux, eta
