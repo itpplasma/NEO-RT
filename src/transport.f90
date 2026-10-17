@@ -6,11 +6,14 @@ module neort_transport
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
     use do_magfie_pert_mod, only: do_magfie_pert_amp
     use neort_magfie, only: dVds, B0
-    use neort_profiles, only: ni1, Om_tE
+    use neort_profiles, only: ns, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2
-    use neort_resonance, only: driftorbit_coarse, driftorbit_root
+    use neort_resonance, only: driftorbit_coarse, driftorbit_root, resonance_value
+    use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
+        krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
+        krook_max_depth, krook_rtol, krook_atol, krook_rate, integrate_krook
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
@@ -82,12 +85,23 @@ contains
         real(dp) :: Tphi_int
         real(dp), intent(in) :: ux, taub, Hmn2
 
-        Tphi_int = sign(1.0_dp, psi_pr * q * sign_theta) * pi**(3.0_dp / 2.0_dp) * mph**2 * ni1 * &
+        Tphi_int = sign(1.0_dp, psi_pr * q * sign_theta) * pi**(3.0_dp / 2.0_dp) * mph**2 * ns * &
                    c * vth / qi &
                    * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
     end function Tphi_int
 
     subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
+        real(dp), intent(in) :: vmin, vmax
+        integer, intent(in) :: vsteps
+        real(dp), intent(out) :: D(2), T
+        if (krook_collisions .and. krook_nu > 0.0_dp) then
+            call compute_transport_krook(vmin, vmax, vsteps, D, T)
+        else
+            call compute_transport_collisionless(vmin, vmax, vsteps, D, T)
+        end if
+    end subroutine compute_transport_integral
+
+    subroutine compute_transport_collisionless(vmin, vmax, vsteps, D, T)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
@@ -155,7 +169,71 @@ contains
 
         call debug("compute_transport_integral complete")
 
-    end subroutine compute_transport_integral
+    end subroutine compute_transport_collisionless
+
+    subroutine compute_transport_krook(vmin, vmax, vsteps, D, T)
+        real(dp), intent(in) :: vmin, vmax
+        integer, intent(in) :: vsteps
+        real(dp), intent(out) :: D(2), T
+        real(dp) :: du, ux, values(3), integral(3), D_plateau, dsdreff
+        integer :: ku
+        integral = 0.0_dp
+        du = (vmax-vmin)/(vsteps*vth)
+        ux = vmin/vth + du/2.0_dp
+        do ku = 1, vsteps
+            call compute_krook_velocity(ux, values)
+            integral = integral + du*values
+            ux = ux + du
+        end do
+        D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
+        dsdreff = 2.0_dp/a*sqrt(s)
+        D = dsdreff**(-2)*integral(1:2)/D_plateau
+        T = integral(3)
+    end subroutine compute_transport_krook
+
+    subroutine compute_krook_velocity(ux, values)
+        real(dp), intent(in) :: ux
+        real(dp), intent(out) :: values(3)
+        real(dp) :: effective_harmonic, geometry, nu
+        integer :: status
+        effective_harmonic = real(mth, dp)
+        geometry = krook_geometry_trapped
+        if (etamax < etatp) then
+            geometry = krook_geometry_passing
+            if (krook_harmonic == 1) effective_harmonic = effective_harmonic + q*mph
+        end if
+        nu = krook_rate(krook_nu, ux, effective_harmonic, krook_model, geometry)
+        call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
+            krook_rtol, krook_atol, values, status, krook_max_depth)
+        if (status /= 0) error stop 'finite-width Krook quadrature did not converge'
+    contains
+        subroutine residual(eta, res, derivative)
+            real(dp), intent(in) :: eta
+            real(dp), intent(out) :: res, derivative
+            call resonance_value(ux*vth, eta, res, derivative)
+        end subroutine residual
+        subroutine weight(eta, result_)
+            real(dp), intent(in) :: eta
+            real(dp), intent(out) :: result_(:)
+            call compute_transport_weight(ux, eta, result_)
+        end subroutine weight
+    end subroutine compute_krook_velocity
+
+    subroutine compute_transport_weight(ux, eta, values)
+        real(dp), intent(in) :: ux, eta
+        real(dp), intent(out) :: values(:)
+        real(dp) :: taub, bounceavg(nvar), Hmn2
+        integer :: istate
+        call Om_th(ux*vth, eta, Omth, dOmthdv, dOmthdeta)
+        taub = 2.0_dp*pi/abs(Omth)
+        call bounce_fast(ux*vth, eta, taub, bounceavg, timestep_transport, istate)
+        if (istate /= 2) error stop 'orbit integration failed in Krook quadrature'
+        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2.0_dp)**2
+        values(1) = D11int(ux, taub, Hmn2)
+        values(2) = D12int(ux, taub, Hmn2)
+        values(3) = 0.0_dp
+        if (comptorque) values(3) = Tphi_int(ux, taub, Hmn2)
+    end subroutine compute_transport_weight
 
     subroutine timestep_transport(v, eta, neq, t, y, ydot)
         !

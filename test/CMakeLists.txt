@@ -5,6 +5,12 @@ foreach(test_src ${TEST_SOURCES})
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
+foreach(invalid nan-density nan-temperature infinite-mass infinite-charge)
+    add_test(NAME test_profile_rejects_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x ${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_profile_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
+endforeach()
 
 add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
@@ -102,6 +108,37 @@ add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_test(NAME test_krook
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_krook_config
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_config.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_krook_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_transport.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_krook_transport PROPERTIES
+    ENVIRONMENT "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
+    PROCESSORS 4
+    TIMEOUT 180)
+foreach(invalid negative-rate invalid-model invalid-harmonic invalid-geometry
+        invalid-steps invalid-tolerance electron-nonlinear krook-nonlinear
+        nan-rate infinite-rate nan-geometry infinite-tolerance)
+    add_test(NAME test_krook_rejects_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_krook_config.x ${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_krook_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+foreach(invalid density temperature)
+    add_test(NAME test_profile_invalid_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x invalid-${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_profile_invalid_${invalid} PROPERTIES WILL_FAIL TRUE)
+endforeach()
 
 add_test(NAME test_drift_phase
     COMMAND ${CMAKE_BINARY_DIR}/test_drift_phase.x
