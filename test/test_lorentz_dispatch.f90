@@ -127,7 +127,13 @@ contains
             background_speed = sqrt(2*elementary_charge*temperature(background)/ &
                 mass(background))
             x = speed/background_speed
-            chandrasekhar = (erf(x) - 2*x*exp(-x*x)/sqrt(pi))/(2*x*x)
+            ! Above x=8 the omitted deflection-shape correction is less
+            ! than exp(-64)/(8*sqrt(pi)) < 1.14e-29.
+            if (x >= 8.0_dp) then
+                chandrasekhar = 1.0_dp/(2*x*x)
+            else
+                chandrasekhar = (erf(x) - 2*x*exp(-x*x)/sqrt(pi))/(2*x*x)
+            end if
             shape = erf(x) - chandrasekhar
             gamma = density(background)*(charge(selected_species)*charge(background)* &
                 elementary_charge**2)**2*20.0_dp/ &
