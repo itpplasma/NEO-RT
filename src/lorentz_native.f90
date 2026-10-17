@@ -112,7 +112,7 @@ contains
     end subroutine validate_lorentz_geometry
 
     subroutine sample_lorentz_orbit(ux, branch, eta, nud, nu, mass, diffusion, &
-            omega, drive)
+            omega, drive, drift_frequency, inverse_b_average)
         use util, only: pi, mi
         use do_magfie_mod, only: q
         use driftorbit, only: mth, mph, sign_vpar, etatp, etadt
@@ -125,6 +125,8 @@ contains
         integer, intent(in) :: branch
         real(dp), intent(out) :: mass, diffusion, omega
         complex(dp), intent(out) :: drive
+        real(dp), intent(out), optional :: drift_frequency
+        real(dp), intent(out), optional :: inverse_b_average
         real(dp) :: omth, average(nvar)
         real(dp) :: old_sign, inverse_b
         integer :: old_mth, status
@@ -157,8 +159,10 @@ contains
             zero_integrals=.true.)
         if (status /= 2) error stop 'Lorentz native bounce integral failed'
         omega = real(mph, dp)*(Om_tE + average(7))
+        if (present(drift_frequency)) drift_frequency = real(mph, dp)*average(7)
         drive = (mi*(ux*vth)**2/2.0_dp)*cmplx(average(3), average(4), dp)
         inverse_b = average(5) + eta
+        if (present(inverse_b_average)) inverse_b_average = inverse_b
         call neort_lorentz_diffusion(nud, eta, mass, inverse_b, diffusion)
         sign_vpar = old_sign
         mth = old_mth

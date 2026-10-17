@@ -9,6 +9,8 @@ module neort_config
     use neort_lorentz_controls, only: lorentz_pitch_collisions, lorentz_nu, &
         lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps, &
         reset_lorentz, validate_lorentz_controls
+    use neort_fp_controls, only: tp_fp_collisions, fp_rate_scale, &
+        fp_speed_steps, fp_pitch_steps, fp_umax, reset_fp, validate_fp_controls
 
     implicit none
 
@@ -52,6 +54,10 @@ module neort_config
         integer :: lorentz_rate_source = 0  ! 0 supplied, 1 all-background physical rate
         real(dp) :: lorentz_rate_scale = 1.0_dp
         integer :: lorentz_pitch_steps = 32
+        logical :: tp_fp_collisions = .false.
+        real(dp) :: fp_rate_scale = 1.0_dp
+        integer :: fp_speed_steps = 16, fp_pitch_steps = 16
+        real(dp) :: fp_umax = 4.0_dp
         real(dp) :: bfac = 1.0_dp  ! scale B field by factor
         real(dp) :: efac = 1.0_dp  ! scale E field by factor
         integer :: inp_swi = 0  ! input switch for Boozer file
@@ -111,6 +117,7 @@ contains
         profile_species = config%profile_species
         call set_krook_config(config)
         call set_lorentz_config(config)
+        call set_fp_config(config)
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
@@ -156,7 +163,8 @@ contains
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
             krook_max_depth, krook_rtol, krook_atol, krook_rate_source, &
             krook_rate_scale, lorentz_pitch_collisions, lorentz_nu, &
-            lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps
+            lorentz_rate_source, lorentz_rate_scale, lorentz_pitch_steps, &
+            tp_fp_collisions, fp_rate_scale, fp_speed_steps, fp_pitch_steps, fp_umax
 
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
@@ -169,6 +177,7 @@ contains
         call reset_mixture()
         call reset_krook()
         call reset_lorentz()
+        call reset_fp()
         krook_rate_source = 0
         krook_rate_scale = 1.0_dp
         open (unit=9, file=config_file, status="old", form="formatted")
@@ -183,6 +192,7 @@ contains
 
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         call validate_lorentz_controls()
+        call validate_fp_controls()
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         call validate_output_format(output_format)
@@ -233,6 +243,16 @@ contains
         ! The compute entry point enforces its presence before using rates.
         call validate_lorentz_controls(require_background=.false.)
     end subroutine set_lorentz_config
+
+    subroutine set_fp_config(config)
+        type(config_t), intent(in) :: config
+        tp_fp_collisions = config%tp_fp_collisions
+        fp_rate_scale = config%fp_rate_scale
+        fp_speed_steps = config%fp_speed_steps
+        fp_pitch_steps = config%fp_pitch_steps
+        fp_umax = config%fp_umax
+        call validate_fp_controls(require_background=.false.)
+    end subroutine set_fp_config
 
     subroutine validate_selected_physics(selected, nonlinear)
         integer, intent(in) :: selected

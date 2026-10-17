@@ -4,7 +4,9 @@ module neort_profiles
     use spline, only: spline_coeff, spline_val_0
     use util, only: readdata, ev, qi, mi, mu, qe, c
     use collis_alp, only: loacol_nbi
-    use neort_mixture_collisions, only: initialize_collision_background
+    use neort_mixture_collisions, only: initialize_collision_background, &
+        selected_thermal_speed
+    use neort_fp_mode, only: tp_fp_collisions, fp_ev_cgs, fp_charge_over_c
     use do_magfie_mod, only: sign_theta
     use neort_species, only: mixture_enabled, mixture_at_s, selected_species, &
         evaluate_mixture_at_s, mixture_rotation, common_omega_e, common_domega_e_ds
@@ -89,10 +91,16 @@ contains
         end if
         call select_thermodynamic_profiles()
         call select_particle_species()
-        vth = sqrt(2.0_dp * ts * ev / mi)
-        dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * ts)) * dtsds
+        if (tp_fp_collisions) then
+            call initialize_collision_background()
+            vth = 100.0_dp*selected_thermal_speed()
+            dvthds = 0.5_dp*vth*dtsds/ts
+        else
+            vth = sqrt(2.0_dp * ts * ev / mi)
+            dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * ts)) * dtsds
+        end if
         if (.not. mixture_enabled) call init_ion_collision_at_s()
-        call initialize_collision_background()
+        if (.not. tp_fp_collisions) call initialize_collision_background()
     end subroutine init_plasma_at_s
 
     subroutine interpolate_plasma_at_s()
@@ -158,6 +166,11 @@ contains
     subroutine select_particle_species()
         if (mixture_enabled) then
             qi = mixture_at_s(selected_species)%charge_e*qe
+            if (tp_fp_collisions) then
+                ! All active electromagnetic consumers use qi/c. This native
+                ! coefficient gives the exact SI force conversion q_C/10.
+                qi = mixture_at_s(selected_species)%charge_e*fp_charge_over_c*c
+            end if
             mi = mixture_at_s(selected_species)%mass_kg*1.0e3_dp
             return
         end if
@@ -305,8 +318,14 @@ contains
         real(dp), intent(in) :: q ! safety factor
 
         call select_thermodynamic_profiles()
-        A1 = dnsds / ns - qi / (ts * ev) * sign_theta * psi_pr / (q * c) * Om_tE &
-            - 3.0_dp / 2.0_dp * dtsds / ts
+        if (tp_fp_collisions) then
+            A1 = dnsds/ns - (qi/c)/(ts*fp_ev_cgs)* &
+                sign_theta*psi_pr/q*Om_tE - 1.5_dp*dtsds/ts
+        else
+            A1 = dnsds / ns - qi / (ts * ev) * &
+                sign_theta * psi_pr / (q * c) * Om_tE &
+                - 3.0_dp / 2.0_dp * dtsds / ts
+        end if
         A2 = dtsds / ts
     end subroutine init_thermodynamic_forces
 

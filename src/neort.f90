@@ -72,6 +72,7 @@ contains
     end subroutine set_to_passing_region
 
     subroutine check_magfie(data)
+        use neort_fp_mode, only: tp_fp_collisions, fp_ev_cgs
         use util, only: pi, c, imun, eV
         use do_magfie_mod, only: do_magfie, sign_theta, R0, a, psi_pr, iota, q, Bthcov, Bphcov, &
             dBthcovds, dBphcovds, eps
@@ -116,6 +117,11 @@ contains
         data%params%Om_tBref = c * mi * vth**2 / (2.0_dp * qi * sign_theta * psi_pr)
         data%params%vth = vth
         data%params%T_in_eV = mi / 2.0_dp * vth**2 / eV
+        if (tp_fp_collisions) then
+            data%params%T_in_eV = mi*vth**2/(2.0_dp*fp_ev_cgs)
+            data%params%fp_thermal_energy_j = mi*vth**2/2.0_dp*1.0e-7_dp
+            data%params%fp_charge_over_c = qi/c
+        end if
         data%params%m0 = 1.0_dp * m0
         data%params%n0 = 1.0_dp * mph
         data%params%Dp = D_plateau
@@ -163,6 +169,7 @@ contains
         use do_magfie_mod, only: q
         use neort_lorentz_controls, only: lorentz_pitch_collisions, &
             lorentz_susceptibility_valid
+        use neort_fp_mode, only: tp_fp_collisions
 
         type(transport_data_t), intent(out) :: result_
 
@@ -189,7 +196,9 @@ contains
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
 
-        if (lorentz_pitch_collisions) then
+        if (tp_fp_collisions) then
+            call compute_fp_common_phase(result_, Tco, Tctr, Tt)
+        else if (lorentz_pitch_collisions) then
             call compute_lorentz_common_phase(result_%harmonics, Dco, Dctr, Dt, &
                 Tco, Tctr, Tt)
             result_%susceptibility_valid = lorentz_susceptibility_valid
@@ -237,6 +246,51 @@ contains
         end if
         call debug('compute_transport complete')
     end subroutine compute_transport
+
+    subroutine compute_fp_common_phase(data, Tco, Tctr, Tt)
+        use neort_fp_native, only: compute_fp_transport, fp_physical_rates
+        use neort_fp_controls, only: fp_speed_steps, fp_pitch_steps, fp_umax, &
+            validate_fp_controls
+        use driftorbit, only: mph
+        use do_magfie_mod, only: q
+        type(transport_data_t), intent(inout) :: data
+        real(dp), intent(out) :: Tco, Tctr, Tt
+        real(dp) :: torque(3)
+        integer :: info, k
+
+        call validate_fp_controls()
+        call compute_fp_transport(fp_speed_steps, fp_pitch_steps, fp_umax, &
+            fp_physical_rates, torque, data%fp_source_work, &
+            data%fp_physical_response, info)
+        if (info /= 0) then
+            write(*, '(a,i0)') &
+                'Test-particle FP response rejected or failed; status=', info
+            error stop 'see doc/test_particle_fp.md for the supported model'
+        end if
+        data%susceptibility_valid = .false.
+        data%fp_auxiliary_valid = .not. data%fp_physical_response
+        Tt = torque(1)
+        Tco = torque(2)
+        Tctr = torque(3)
+        allocate(data%harmonics(2))
+        do k = 1, 2
+            data%harmonics(k)%Dresco = 0.0_dp
+            data%harmonics(k)%Dresctr = 0.0_dp
+            data%harmonics(k)%Drest = 0.0_dp
+            data%harmonics(k)%Tresco = 0.0_dp
+            data%harmonics(k)%Tresctr = 0.0_dp
+            data%harmonics(k)%Trest = 0.0_dp
+            data%harmonics(k)%vminp_over_vth = 0.0_dp
+            data%harmonics(k)%vmint_over_vth = 0.0_dp
+            data%harmonics(k)%vmaxp_over_vth = fp_umax
+            data%harmonics(k)%vmaxt_over_vth = fp_umax
+        end do
+        data%harmonics(1)%mth = 0
+        data%harmonics(1)%Trest = Tt
+        data%harmonics(2)%mth = -nint(mph*q)
+        data%harmonics(2)%Tresco = Tco
+        data%harmonics(2)%Tresctr = Tctr
+    end subroutine compute_fp_common_phase
 
     subroutine compute_lorentz_common_phase(harmonics, Dco, Dctr, Dt, Tco, Tctr, Tt)
         use neort_lorentz_native, only: compute_lorentz_transport
