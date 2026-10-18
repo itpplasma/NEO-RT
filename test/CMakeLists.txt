@@ -2,6 +2,12 @@ file(GLOB TEST_SOURCES "test_*.f90")
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME test_profile_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_profile_probe.py
+            $<TARGET_FILE:neo_rt_profile_probe.x>
+            ${CMAKE_SOURCE_DIR}/tools/run_profile_probe.py)
+    set_tests_properties(test_profile_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
     add_test(NAME test_field_probe
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_field_probe.py
             $<TARGET_FILE:neo_rt_field_probe.x>

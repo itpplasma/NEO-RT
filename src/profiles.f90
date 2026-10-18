@@ -2,7 +2,7 @@ module neort_profiles
     use iso_fortran_env, only: dp => real64
     use spline, only: spline_coeff, spline_val_0
     use util, only: readdata, ev, qi, mi, mu, qe, c
-    use collis_alp, only: loacol_nbi
+    use collis_alp, only: loacol_nbi, collision_ion_mass_g
     use do_magfie_mod, only: sign_theta
 
     implicit none
@@ -73,7 +73,7 @@ contains
         ! Assumes s is already set via set_s() and prepare_plasma_splines() was called
         use do_magfie_mod, only: s
         real(dp) :: spl_val(3)
-        real(dp), parameter :: pmass = 1.6726e-24_dp
+        real(dp), parameter :: pmass = collision_ion_mass_g
         real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
         real(dp) :: v0, ebeam
 
