@@ -277,3 +277,10 @@ add_test(NAME test_passing_bounce_direction
     COMMAND test_passing_bounce_direction.x)
 set_tests_properties(test_passing_bounce_direction PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+# test_omph_shaing_units: Shaing's analytic trapped drift frequency against the
+# numerical bounce-averaged precession on examples/circ.bc (agreement to
+# O(eps)); catches a unit/sign defect in omph_shaing.
+add_test(NAME test_omph_shaing_units
+    COMMAND ${CMAKE_BINARY_DIR}/test_omph_shaing_units.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+)
