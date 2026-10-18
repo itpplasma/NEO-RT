@@ -120,6 +120,11 @@ add_test(NAME test_profile_collision_species
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_linear_carbon_background COMMAND test_linear_carbon_background.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_carbon_background PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+
 add_test(NAME test_linear_electron COMMAND test_linear_electron.x)
 add_test(NAME test_nonlinear_electron_rejects
     COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:test_linear_electron.x>
