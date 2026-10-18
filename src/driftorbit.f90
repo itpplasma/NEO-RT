@@ -27,6 +27,8 @@ module driftorbit
     integer :: magdrift_passing = -1
     logical :: nopassing = .false.    ! neglect passing particles
     logical :: pertfile = .false.     ! read perturbation from file with neo_magfie_pert
+    ! General ideal drive: read |B0| kappa.xi_perp (in_file_pert_kappa) next to dB_L
+    logical :: pertfile_curvature = .false.
     logical :: comptorque = .true.    ! compute torque
     logical :: supban = .false.       ! Shaing superbanana-plateau (trapped ell=0) only
     ! Keep the oscillating part of the toroidal drift phase in the orbit
@@ -63,6 +65,6 @@ module driftorbit
 
     ! Shared read-only configuration (NOT threadprivate): efac, epsmn,
     ! pertfile_scale, m0,
-    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban, fow_radial
+    ! magdrift, nopassing, pertfile, pertfile_curvature, comptorque, nonlin, supban, fow_radial
 
 end module driftorbit
