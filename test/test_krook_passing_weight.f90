@@ -5,12 +5,13 @@ program test_krook_passing_weight
     use iso_fortran_env, only: dp => real64
     use fortnum_quadrature, only: gauss_legendre
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
-    use neort_transport, only: transport_bounce
+    use neort_transport, only: transport_bounce, Omth
     use neort_orbit, only: nvar
     use do_magfie_mod, only: do_magfie, s
     use driftorbit, only: etatp, vth, mth, mph, m0, epsmn, sign_vpar, &
         nopassing, comptorque
     implicit none
+    real(dp), parameter :: pi = acos(-1.0_dp)
     real(dp) :: eta, coarse(2), fine(2), average(nvar), relative_error, worst
     integer :: k, direction, kstate
 
@@ -32,6 +33,9 @@ program test_krook_passing_weight
         call angular_reference(1024, fine)
         if (any(abs(fine-coarse) > 2.0e-8_dp*abs(fine))) &
             error stop 'passing angular reference has not converged'
+        ! Omth enters the phase multiplied by mth + q*mph = 0, but must be
+        ! finite: it is otherwise only set by a preceding frequency evaluation.
+        Omth = 2.0_dp*pi/fine(1)
         do direction = -1, 1, 2
             sign_vpar = real(direction, dp)
             call transport_bounce(vth, eta, fine(1), average, kstate)
@@ -50,7 +54,6 @@ contains
     subroutine angular_reference(panels, result_)
         integer, intent(in) :: panels
         real(dp), intent(out) :: result_(2)
-        real(dp), parameter :: pi = acos(-1.0_dp)
         real(dp) :: nodes(32), weights(32), x(3), bmod, sqrtg
         real(dp) :: hder(3), hcovar(3), hctrvr(3), hcurl(3), dt, width
         integer :: panel, node
