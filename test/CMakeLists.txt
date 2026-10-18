@@ -1,5 +1,16 @@
 file(GLOB TEST_SOURCES "test_*.f90")
 
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME test_field_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_field_probe.py
+            $<TARGET_FILE:neo_rt_field_probe.x>
+            --wrapper ${CMAKE_SOURCE_DIR}/tools/run_field_probe.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}/field_probe_oracle)
+    set_tests_properties(test_field_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+endif()
+
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})

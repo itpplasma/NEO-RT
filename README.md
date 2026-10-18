@@ -9,6 +9,14 @@ NEO-RT computes neoclassical toroidal viscosity (NTV) torque in resonant transpo
 - Support for trapped and passing particle contributions, optional torque integration, and nonlinear corrections that depend on thermodynamic profiles.
 - Batch-processing helpers and Python utilities for scanning multiple flux surfaces and plotting output torque profiles.
 
+`neo_rt_field_probe.x BCF INPUT_SWITCH POINTS OUTPUT` reads the native Boozer
+field at whitespace triples `(s_tor, phi_B, theta_B)` without initializing
+profiles or transport. Input switches 8 and 9 are supported; angles are radians.
+Its CSV reports field magnitude, covariant components, iota, Jacobian and flux
+derivative in the native cgs units stated in the header. Out-of-support radial
+queries fail. `tools/run_field_probe.py` also accepts a CSV point list and writes
+input, executable and output hashes beside the result.
+
 ## Dependencies
 
 The project is developed with GNU Fortran and CMake. The following dependencies are required to build the solver and diagnostics:
