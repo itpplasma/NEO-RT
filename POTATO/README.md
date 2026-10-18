@@ -15,6 +15,12 @@ cmake -S . -B build -G Ninja
 cmake --build build -j
 ```
 
+The default architecture flags target the build host. To build a portable
+binary, override the CMake list `POTATO_ARCH_FLAGS`, for example
+`'-DPOTATO_ARCH_FLAGS=-march=x86-64-v3;-mtune=generic'` on x86-64, or
+`-DPOTATO_ARCH_FLAGS=` to omit POTATO's architecture flags. Dependencies retain
+their own build settings and must also support the destination CPU.
+
 `build/potato.x` reads its inputs from the working directory: `potato.in` (the
 `&potato_nml` namelist), the g-eqdsk and convex-wall file named in
 `field_divB0.inp`, and the profile files.
