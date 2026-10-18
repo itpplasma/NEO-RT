@@ -17,6 +17,14 @@ add_compile_options(-fPIC -g)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp -fmax-errors=1")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wimplicit-interface -Wimplicit-procedure")
 
+# gfortran on Apple silicon rejects -march=native next to the -mcpu=native that
+# dependencies add ("unknown value 'apple-m3' for '-march'"); use -mcpu there.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    set(APPLE_NATIVE_CPU_FLAG -mcpu=native)
+else()
+    set(APPLE_NATIVE_CPU_FLAG -march=native)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-Og -Wextra)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbounds-check -finit-real=nan -fcheck=all")
@@ -26,7 +34,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-O2)
 
     if(APPLE)
-        add_compile_options(-march=native)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=x86-64-v2 -mtune=generic)
     endif()
@@ -34,7 +42,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Fast")
     add_compile_options(-O3 -ffast-math)
 
     if(APPLE)
-        add_compile_options(-march=native)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=native -mtune=native)
     endif()
