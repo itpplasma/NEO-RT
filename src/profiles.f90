@@ -2,7 +2,7 @@ module neort_profiles
     use iso_fortran_env, only: dp => real64
     use spline, only: spline_coeff, spline_val_0
     use util, only: readdata, ev, qi, mi, mu, qe, c
-    use collis_alp, only: loacol_nbi
+    use collis_alp, only: loacol_nbi, collision_ion_mass_g
     use do_magfie_mod, only: sign_theta
 
     implicit none
@@ -27,6 +27,8 @@ module neort_profiles
 
     ! Rotation profile spline data
     real(dp), allocatable :: Mt_spl_coeff(:, :)
+    ! Shared configuration, also exposed through driftorbit.
+    logical :: nonlin = .false.
     ! Flux-surface dependent quantities (interpolated per-thread at each s)
     !$omp threadprivate (vth, dvthds, M_t, dM_tds, Om_tE, dOm_tEds)
     !$omp threadprivate (ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds)
@@ -71,7 +73,7 @@ contains
         ! Assumes s is already set via set_s() and prepare_plasma_splines() was called
         use do_magfie_mod, only: s
         real(dp) :: spl_val(3)
-        real(dp), parameter :: pmass = 1.6726e-24_dp
+        real(dp), parameter :: pmass = collision_ion_mass_g
         real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
         real(dp) :: v0, ebeam
 
@@ -100,6 +102,13 @@ contains
         mi = am1_global * mu
         vth = sqrt(2.0_dp * Ti1 * ev / mi)
         dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * Ti1)) * dTi1ds
+
+        ! The NBI collision kernel assumes two positive background ion species.
+        ! Linear QL electrons do not use its nonlinear decorrelation tensor.
+        if (qi < 0.0_dp) then
+            if (nonlin) error stop "nonlinear electron collisions are unsupported"
+            return
+        end if
 
         ! Call collision routine
         v0 = vth
