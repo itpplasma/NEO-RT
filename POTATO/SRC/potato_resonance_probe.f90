@@ -8,7 +8,7 @@ program potato_resonance_probe
         R_class_beg, R_class_end
     use get_matrix_mod, only : iclass
     use sample_matrix_mod, only : n1, npoi, xarr, sample_matrix_grid_usable
-    use phielec_of_psi_mod, only : polyphi, polydens, polytemp
+    use potato_profile_data_mod, only : load_potato_profiles
     use potato_input_mod, only : read_potato_input, E_alpha, A_alpha, Z_alpha, &
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, Rmax_orbit, &
         ntimstep, npoicut, profile_file, edge_extension, probe_rho_pol, &
@@ -90,20 +90,8 @@ program potato_resonance_probe
 contains
 
     subroutine load_profiles
-        integer :: iunit
-
-        open(newunit=iunit, file=trim(profile_file), status="old", action="read")
-        read(iunit, *)
-        read(iunit, *)
-        read(iunit, *) polydens
-        read(iunit, *) polytemp
-        read(iunit, *) polytemp
-        read(iunit, *) polyphi
-        close(iunit)
-        polytemp = polytemp/scalfac_energy
-        polyphi = polyphi/scalfac_efield
-        polytemp = polytemp/E_alpha
-        polyphi = polyphi*Z_alpha*e_charge/(E_alpha*ev)
+        call load_potato_profiles(trim(profile_file), E_alpha, Z_alpha, &
+            scalfac_energy, scalfac_efield, e_charge, ev)
     end subroutine load_profiles
 
     subroutine write_class_probe(iunit)
