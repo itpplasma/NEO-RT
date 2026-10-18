@@ -173,6 +173,13 @@ add_test(NAME test_magfie_bmax
 set_tests_properties(test_magfie_bmax PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_krook_passing_harmonic
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_passing_harmonic.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_krook_passing_harmonic PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_trapped_weight
     COMMAND ${CMAKE_BINARY_DIR}/test_krook_trapped_weight.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base

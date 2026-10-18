@@ -290,9 +290,95 @@ contains
         if (eta > etatp) then
             call trapped_bounce(v, eta, taub, bounceavg, istate, atol)
         else
-            call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate, atol)
+            call passing_bounce(v, eta, taub, bounceavg, istate, atol)
         end if
     end subroutine transport_bounce
+
+    subroutine passing_bounce(v, eta, taub, bounceavg, istate, atol_in)
+        ! Bounce averages of a passing orbit over its closed transit.
+        ! The supplied taub and the module Omth come from the interpolated
+        ! frequency Om_th, which differs from the orbit period by the spline
+        ! error. A time integration over [0, taub] with the phase
+        ! -(mth + q*mph)*Omth*t then neither closes theta nor the phase, and
+        ! the strongly cancelling harmonic picks up an error of that relative
+        ! size times max|H_n|; for ITER C12 at m = -11 this changed its squared
+        ! weight by a factor of about 200, and its noise in eta stopped
+        ! the Krook pitch quadrature. Here the orbit is parametrised by the
+        ! poloidal angle travelled, theta = th0 + direction*phi with
+        ! dt/dphi = 1/|v_parallel*h^theta|, over exactly one transit. A first
+        ! pass gives the period, whose frequency replaces Omth in the phase
+        ! during the second pass, as in trapped_bounce.
+        use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
+        use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
+            FORTNUM_CONVERGENCE_ERROR
+        real(dp), intent(in) :: v, eta, taub, atol_in(nvar)
+        real(dp), intent(out) :: bounceavg(nvar)
+        integer, intent(out) :: istate
+        real(dp) :: direction, sign_vparallel, saved_omth, y0(nvar), atol(nvar)
+        real(dp) :: position(3), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp), allocatable :: yend(:)
+        integer :: pass
+        logical :: averages
+        type(vode_state_t) :: vstate
+        type(fortnum_status_t) :: status
+
+        ! Same orientation as bounce_fast: v_parallel = sign(h^theta)*sign_vpar*|v_par|
+        ! at th0, so theta moves in the direction of sign_vpar.
+        position = [s, 0.0_dp, th0]
+        call do_magfie(position, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        sign_vparallel = sign(1.0_dp, hctrvr(3))*sign(1.0_dp, sign_vpar)
+        direction = sign(1.0_dp, sign_vparallel*hctrvr(3))
+        atol = atol_in
+        atol(1) = bounce_rtol*taub
+        bounceavg = 0.0_dp
+        saved_omth = Omth
+        do pass = 1, 2
+            averages = pass == 2
+            y0 = 0.0_dp
+            call vode_init(vstate, nvar, 0.0_dp, y0)
+            call vode_integrate_to(phi_rhs, vstate, 2.0_dp*pi, bounce_rtol, atol, &
+                                   yend, status)
+            if (status%code == FORTNUM_OK) then
+                istate = 2
+            else if (status%code == FORTNUM_CONVERGENCE_ERROR) then
+                istate = -1
+            else
+                istate = 0
+            end if
+            if (istate /= 2) exit
+            Omth = sign(2.0_dp*pi/yend(1), saved_omth)
+        end do
+        Omth = saved_omth
+        if (istate /= 2) return
+        bounceavg(3:) = yend(3:)/yend(1)
+
+    contains
+
+        subroutine phi_rhs(phi, y, dydphi, rhs_ctx)
+            real(dp), intent(in) :: phi
+            real(dp), intent(in) :: y(:)
+            real(dp), intent(out) :: dydphi(:)
+            class(*), intent(in), optional :: rhs_ctx
+            real(dp) :: dtdphi, vparallel, orbit(nvar), rate(nvar), x(3)
+            real(dp) :: bmod_, sqrtg_, hder_(3), hcovar_(3), hctrvr_(3), hcurl_(3)
+            associate (dummy => rhs_ctx)
+            end associate
+            x = [s, 0.0_dp, th0 + direction*phi]
+            call do_magfie(x, bmod_, sqrtg_, hder_, hcovar_, hctrvr_, hcurl_)
+            vparallel = vpar(v, eta, bmod_)
+            dtdphi = 1.0_dp/(vparallel*abs(hctrvr_(3)))
+            dydphi = 0.0_dp
+            dydphi(1) = dtdphi
+            if (.not. averages) return
+            orbit = 0.0_dp
+            orbit(1) = x(3)
+            orbit(2) = sign(vparallel, sign_vparallel)
+            orbit(3:) = y(3:)
+            call transport_rates(v, eta, nvar, y(1), orbit, bmod_, hder_, hcovar_, &
+                                 hctrvr_, rate)
+            dydphi(3:) = rate(3:)*dtdphi
+        end subroutine phi_rhs
+    end subroutine passing_bounce
 
     subroutine trapped_bounce(v, eta, taub, bounceavg, istate, atol_in)
         ! Bounce averages of a trapped orbit over its closed orbit.
