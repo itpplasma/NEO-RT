@@ -27,6 +27,8 @@ module neort_profiles
 
     ! Rotation profile spline data
     real(dp), allocatable :: Mt_spl_coeff(:, :)
+    ! Shared configuration, also exposed through driftorbit.
+    logical :: nonlin = .false.
     ! Flux-surface dependent quantities (interpolated per-thread at each s)
     !$omp threadprivate (vth, dvthds, M_t, dM_tds, Om_tE, dOm_tEds)
     !$omp threadprivate (ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds)
@@ -100,6 +102,13 @@ contains
         mi = am1_global * mu
         vth = sqrt(2.0_dp * Ti1 * ev / mi)
         dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * Ti1)) * dTi1ds
+
+        ! The NBI collision kernel assumes two positive background ion species.
+        ! Linear QL electrons do not use its nonlinear decorrelation tensor.
+        if (qi < 0.0_dp) then
+            if (nonlin) error stop "nonlinear electron collisions are unsupported"
+            return
+        end if
 
         ! Call collision routine
         v0 = vth
