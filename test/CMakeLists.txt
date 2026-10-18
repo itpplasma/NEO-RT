@@ -1,6 +1,23 @@
 find_package(Python REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME test_profile_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_profile_probe.py
+            $<TARGET_FILE:neo_rt_profile_probe.x>
+            ${CMAKE_SOURCE_DIR}/tools/run_profile_probe.py)
+    set_tests_properties(test_profile_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+    add_test(NAME test_field_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_field_probe.py
+            $<TARGET_FILE:neo_rt_field_probe.x>
+            --wrapper ${CMAKE_SOURCE_DIR}/tools/run_field_probe.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}/field_probe_oracle)
+    set_tests_properties(test_field_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+endif()
+
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})
@@ -194,6 +211,21 @@ foreach(invalid density temperature)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(test_profile_invalid_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
+
+add_test(NAME test_linear_carbon_background COMMAND test_linear_carbon_background.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_carbon_background PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+
+add_test(NAME test_linear_electron COMMAND test_linear_electron.x)
+add_test(NAME test_nonlinear_electron_rejects
+    COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:test_linear_electron.x>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_nonlinear_electron_rejection.cmake)
+add_test(NAME test_linear_electron_transport COMMAND test_linear_electron.x transport
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_electron test_nonlinear_electron_rejects
+    test_linear_electron_transport PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
 
 add_test(NAME test_drift_phase
     COMMAND ${CMAKE_BINARY_DIR}/test_drift_phase.x

@@ -4,6 +4,7 @@
 ! as functions of (dimensional) poloidal flux $\psi$
 !
   use phielec_of_psi_mod, only : npolyphi,polyphi
+  use potato_profile_data_mod, only : tabulated_profiles,evaluate_profile_table
   use field_eq_mod,       only : psi_sep,psi_axis
 !
   implicit none
@@ -15,6 +16,12 @@
   double precision, intent(out) :: phi_elec,dPhi_dpsi
 
   spol = (psi-psi_axis)/(psi_sep-psi_axis)
+
+  if (tabulated_profiles) then
+    call evaluate_profile_table(spol,3,phi_elec,dPhi_dpsi)
+    dPhi_dpsi = dPhi_dpsi/(psi_sep-psi_axis)
+    return
+  endif
 
   phi_elec=0.d0
   dPhi_dpsi=0.d0
@@ -39,6 +46,7 @@
 !
 !
   use phielec_of_psi_mod, only : npolyphi,polydens,polytemp
+  use potato_profile_data_mod, only : tabulated_profiles,evaluate_profile_table
   use field_eq_mod,       only : psi_sep,psi_axis
 !
   implicit none
@@ -49,6 +57,14 @@
   double precision, intent(out) :: dens,temp,ddens,dtemp
 !
   spol = (psi-psi_axis)/(psi_sep-psi_axis)
+
+  if (tabulated_profiles) then
+    call evaluate_profile_table(spol,1,dens,ddens)
+    call evaluate_profile_table(spol,2,temp,dtemp)
+    ddens = ddens/(psi_sep-psi_axis)
+    dtemp = dtemp/(psi_sep-psi_axis)
+    return
+  endif
 
   dens = 0d0
   temp = 0d0

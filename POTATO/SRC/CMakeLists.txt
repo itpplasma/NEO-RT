@@ -30,6 +30,7 @@ add_library(potato_base
   sample_matrix.f90
   sample_matrix_out.f90
   sub_potato.f90
+  profile_data_mod.f90
   equimoments.f90
   sorting.f90
   binsrc.f90
@@ -55,6 +56,7 @@ endif()
 # the permissive legacy standard rather than POTATO's f2018.
 target_compile_options(vode PRIVATE -std=legacy)
 target_link_libraries(potato_base PUBLIC
+spline
 vode
 BLAS::BLAS
 LAPACK::LAPACK
@@ -62,6 +64,7 @@ LIBNEO::hdf5_tools
 fortplot::fortplot
 OpenMP::OpenMP_Fortran
 )
+target_include_directories(potato_base PUBLIC "${PROJECT_BINARY_DIR}/spline")
 
 add_library(potato
   profile_input.f90
