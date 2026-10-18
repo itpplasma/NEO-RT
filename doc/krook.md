@@ -113,6 +113,14 @@ being formed as a difference. A first pass gives the orbit period, which sets
 the bounce frequency of the phase `exp(-i*mth*Omth*t)` so that the harmonic
 closes on the orbit; the interpolated `Om_th` is off by up to `1e-5` in its
 logarithmic extrapolation below `eta/etatp-1 = 1e-6`.
+Passing transport likewise integrates exactly one transit in the poloidal
+angle travelled, `theta = th0 + direction*phi` with
+`dt/dphi = 1/|v_parallel*h^theta|`, and closes the phase
+`exp(-i*(mth+q*mph)*Omth*t)` with the period of a first pass. The spline
+`Om_th` is off by about `5e-7` in the passing interior for ITER C12 at
+`s = 0.09`; a time integration over `2*pi/|Om_th|` with that frequency then
+changed the squared weight of the strongly cancelling `mth = -11` harmonic
+by a factor of about 200 and left it too noisy for the Krook pitch quadrature.
 
 `krook_rtol` defaults to `1e-5`, `krook_atol` to zero and
 `krook_max_depth` to 40. Nonconvergence, a detected wrong-sign inverse
@@ -131,6 +139,9 @@ against its closed form, and a jittered tail below `1e-21` of the peak must
 converge without refinement to the depth limit. `test_krook_passing_weight`
 compares near-separatrix passing Hamiltonian averages in both directions with
 an independent angular quadrature, including convergence of that reference.
+`test_krook_passing_harmonic` compares cancelling passing harmonics in both
+directions with a closed-orbit angular reference for supplied transit times
+biased by up to `1e-6`, within `1e-10` of the integrand scale `max|H|`.
 `test_krook_trapped_weight` compares trapped bounce harmonics at
 `eta/etatp-1 = 1e-8, 1e-7, 1e-6` with a panel quadrature in the turning-point
 angle with cumulative bounce time.
