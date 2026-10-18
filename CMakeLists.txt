@@ -208,3 +208,6 @@ target_link_libraries(neo_rt_diag.x PRIVATE
 # Field-only readback; does not initialize profiles, orbits or transport.
 add_executable(neo_rt_field_probe.x src/diag/neort_field_probe.f90)
 target_link_libraries(neo_rt_field_probe.x PRIVATE neo_rt)
+
+add_executable(neo_rt_profile_probe.x src/diag/neort_profile_probe.f90)
+target_link_libraries(neo_rt_profile_probe.x PRIVATE neo_rt)
