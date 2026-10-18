@@ -412,6 +412,7 @@ endforeach()
 
 add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
 set_tests_properties(test_krook_work_oracle PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
 
 # Manufactured fold: a resonance root pair inside one coarse eta interval.
 add_test(NAME test_resonance_fold_pairs
