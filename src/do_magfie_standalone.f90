@@ -714,6 +714,15 @@ module do_magfie_pert_mod
     integer :: mph  ! toroidal perturbation mode (threadprivate)
     integer :: mph_shared = 0  ! shared copy for namelist input (when pertfile=.false.)
 
+    ! Optional curvature drive: a second perturbation table of the same layout whose
+    ! b-columns hold |B0| kappa.xi_perp on the unperturbed Boozer angles (see transport_rates).
+    logical, protected :: curvature_drive = .false.
+    real(dp), allocatable, protected :: params_k(:, :), modes_k(:, :, :)
+    real(dp), allocatable, protected :: spl_coeff2_k(:, :, :, :)
+    integer, protected :: nflux_k = 0
+    real(dp), private :: s_prev_k = -1.0_dp
+    real(dp), private, allocatable :: spl_val_ck(:, :), spl_val_sk(:, :)
+
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_pert_arrays_initialized = .false.
 
@@ -724,6 +733,7 @@ module do_magfie_pert_mod
     ! Working buffers (per-thread cache and temporary arrays)
     !$omp threadprivate (magfie_pert_arrays_initialized, magfie_pert_thread_init_state)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s, Bmnc, Bmns)
+    !$omp threadprivate (s_prev_k, spl_val_ck, spl_val_sk)
 
     ! Flux-surface dependent quantities
     !$omp threadprivate (mph)
@@ -738,6 +748,7 @@ contains
         ! Must be called once per thread before using magfie_pert routines
         magfie_pert_arrays_initialized = .false.
         s_prev = -1.0_dp
+        s_prev_k = -1.0_dp
     end subroutine magfie_pert_thread_init
 
     subroutine read_boozer_pert_file(path)
@@ -808,12 +819,16 @@ contains
             if (allocated(spl_val_c)) deallocate(spl_val_c)
             if (allocated(spl_val_s)) deallocate(spl_val_s)
             allocate(spl_val_c(3, nmode), spl_val_s(3, nmode))
+            if (allocated(spl_val_ck)) deallocate(spl_val_ck)
+            if (allocated(spl_val_sk)) deallocate(spl_val_sk)
+            allocate(spl_val_ck(3, nmode), spl_val_sk(3, nmode))
 
             magfie_pert_arrays_initialized = .true.
         end if
 
         ! Initialize cache
         s_prev = -1.0_dp
+        s_prev_k = -1.0_dp
 
         ! Compute mph at current s
         mph = nint(nfp * modes(1, 1, 2))
@@ -889,34 +904,98 @@ contains
     end subroutine do_magfie_pert
 
     subroutine boozer_read_pert(filename)
-        integer :: ksurf, kmode
-        real(dp) :: flux, dummy
         character(len=*) :: filename
+        real(dp) :: flux
+
+        call read_pert_table(filename, mb, nb, nflux, nfp, flux, nmode, params, modes)
+    end subroutine boozer_read_pert
+
+    subroutine read_pert_table(filename, mb_, nb_, nflux_, nfp_, flux_, nmode_, params_, modes_)
+        character(len=*), intent(in) :: filename
+        integer, intent(out) :: mb_, nb_, nflux_, nfp_, nmode_
+        real(dp), intent(out) :: flux_
+        real(dp), allocatable, intent(inout) :: params_(:, :), modes_(:, :, :)
+        integer :: ksurf, kmode
+        real(dp) :: dummy
+
         open (unit=18, file=filename)
         read (18, '(////)')
-        read (18, *) mb, nb, nflux, nfp, flux, dummy, dummy
-        nmode = (mb + 1)*(nb + 1)
+        read (18, *) mb_, nb_, nflux_, nfp_, flux_, dummy, dummy
+        nmode_ = (mb_ + 1)*(nb_ + 1)
 
         ! Allocate params and modes (deallocate first if size changed)
-        if (allocated(params)) then
-            if (size(params, 1) /= nflux) deallocate(params, modes)
+        if (allocated(params_)) then
+            if (size(params_, 1) /= nflux_ .or. size(modes_, 2) /= nmode_) &
+                deallocate(params_, modes_)
         end if
-        if (.not. allocated(params)) then
-            allocate (params(nflux, ncol1 + 1))
-            allocate (modes(nflux, nmode, ncol2 + 2))
+        if (.not. allocated(params_)) then
+            allocate (params_(nflux_, ncol1 + 1))
+            allocate (modes_(nflux_, nmode_, ncol2 + 2))
         end if
-        do ksurf = 1, nflux
+        do ksurf = 1, nflux_
             read (18, '(/)')
-            read (18, *) params(ksurf, :)
+            read (18, *) params_(ksurf, :)
             read (18, *)
-            do kmode = 1, nmode
-                read (18, *) modes(ksurf, kmode, :)
-                call check_equal_space_ascending(modes(ksurf, :, 1), kmode)
-                call check_equal(modes(ksurf, :, 2), kmode)
+            do kmode = 1, nmode_
+                read (18, *) modes_(ksurf, kmode, :)
+                call check_equal_space_ascending(modes_(ksurf, :, 1), kmode)
+                call check_equal(modes_(ksurf, :, 2), kmode)
             end do
         end do
         close (unit=18)
-    end subroutine boozer_read_pert
+    end subroutine read_pert_table
+
+    subroutine read_boozer_curvature_file(path)
+        ! Main thread only, after read_boozer_pert_file: read the curvature table
+        ! |B0| kappa.xi_perp. Its harmonics (m, n rows) must equal those of the
+        ! perturbation file; its radial grid may differ.
+        character(len=*), intent(in) :: path
+        integer :: mb_k, nb_k, nfp_k, nmode_k, j, k
+        real(dp) :: flux_k
+
+        if (.not. allocated(modes)) error stop "read the perturbation file before the curvature file"
+        call read_pert_table(path, mb_k, nb_k, nflux_k, nfp_k, flux_k, nmode_k, params_k, modes_k)
+        if (nmode_k /= nmode .or. nfp_k /= nfp) &
+            error stop "curvature file must have the harmonics of the perturbation file"
+        if (any(abs(modes_k(1, :, 1:2) - modes(1, :, 1:2)) > 1.0e-10_dp)) &
+            error stop "curvature file must have the harmonics of the perturbation file"
+
+        if (allocated(spl_coeff2_k)) deallocate(spl_coeff2_k)
+        allocate (spl_coeff2_k(nflux_k - 1, 5, ncol2, nmode))
+        do j = 1, nmode
+            do k = 1, ncol2
+                spl_coeff2_k(:, :, k, j) = spline_coeff(params_k(:, 1), modes_k(:, j, k + 2))
+            end do
+        end do
+        curvature_drive = .true.
+    end subroutine read_boozer_curvature_file
+
+    subroutine clear_curvature_drive()
+        curvature_drive = .false.
+    end subroutine clear_curvature_drive
+
+    subroutine do_magfie_pert_kappa_amp(x, kamp)
+        ! |B0| kappa.xi_perp at (s, theta) in the units of do_magfie_pert_amp.
+        real(dp), dimension(:), intent(in) :: x
+        complex(dp), intent(out) :: kamp
+        real(dp) :: x1
+        real(dp) :: kmnc(nmode), kmns(nmode)
+
+        x1 = max(params_k(1, 1), x(1))
+        x1 = min(params_k(nflux_k, 1), x1)
+        if (resolved_perturbation_switch() == 8) then
+            call cached_spline(x1, s_prev_k, spl_coeff2_k(:, :, 4, :), spl_val_ck)
+            kmnc(:) = 1.0e4_dp * spl_val_ck(1, :) * bfac
+            kamp = sum(kmnc * cos(modes(1, :, 1) * x(3)))
+        else
+            call cached_spline(x1, s_prev_k, spl_coeff2_k(:, :, 7, :), spl_val_ck)
+            call cached_spline(x1, s_prev_k, spl_coeff2_k(:, :, 8, :), spl_val_sk)
+            kmnc(:) = 1.0e4_dp * spl_val_ck(1, :) * bfac
+            kmns(:) = 1.0e4_dp * spl_val_sk(1, :) * bfac
+            kamp = fast_fourier_sum(kmnc, kmns, modes(1, :, 1), x(3))
+        end if
+        s_prev_k = x1
+    end subroutine do_magfie_pert_kappa_amp
 
     subroutine check_equal_space_ascending(m, kmode)
         real(dp), dimension(:), intent(in) :: m

@@ -14,6 +14,13 @@ module neort_orbit
     implicit none
 
     integer, parameter :: nvar = 7
+    ! Orbit integration tolerances: relative, and per-component absolute.
+    ! Near the trapped-passing boundary the bounce time and the bounce
+    ! averages are ill-conditioned: at rtol 1e-9 the frequency-spline data
+    ! there were noisy enough to make the interpolated resonance residual
+    ! non-monotone within 1e-5*etatp of the boundary, and the transport weight
+    ! noisy by ~1e-3.  At 1e-13 both are smooth, for about twice the cost.
+    real(dp), parameter :: bounce_rtol = 1.0e-13_dp, bounce_atol = 1.0e-10_dp
     real(dp) :: th0 = 0.0_dp
 
     logical :: noshear = .false. ! neglect magnetic shear
@@ -142,7 +149,7 @@ contains
         end if
     end function vperp
 
-    subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
+    subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out, atol_in)
         use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
         use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
             FORTNUM_CONVERGENCE_ERROR
@@ -151,15 +158,17 @@ contains
         real(dp), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
+        ! Per-component absolute tolerances replacing bounce_atol, for
+        ! integrands whose natural scale is far from the default's.
+        real(dp), intent(in), optional :: atol_in(nvar)
 
         ! Nonstiff variable-order Adams (fortnum vode, DVODE MF=10) integrated
-        ! over the single bounce span [0, taub], relative tolerance 1e-9 and a
-        ! per-component absolute tolerance 1e-10 (DVODE ITOL=2). This is the
-        ! same method NEO-RT drove through DVODE before the migration, so the
+        ! over the single bounce span [0, taub], relative tolerance bounce_rtol
+        ! and per-component absolute tolerance bounce_atol (DVODE ITOL=2). This
+        ! is the same method NEO-RT drove through DVODE before the migration, so the
         ! variable-order controller resolves the oscillatory bounceavg(3:4)
         ! Hamiltonian integrands without an artificial step cap.
-        real(dp), parameter :: rtol = 1.0e-9_dp
-        real(dp), parameter :: atol_val = 1.0e-10_dp
+        real(dp), parameter :: rtol = bounce_rtol
 
         real(dp) :: t1, t2, bmod, htheta
         real(dp) :: y0(nvar), atol(nvar)
@@ -180,7 +189,8 @@ contains
         y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)
         y0(3:6) = 0.0_dp
 
-        atol = atol_val
+        atol = bounce_atol
+        if (present(atol_in)) atol = atol_in
         call vode_init(vstate, nvar, t1, y0)
         call vode_integrate_to(bounce_rhs, vstate, t2, rtol, atol, yend, status)
 
@@ -286,8 +296,8 @@ contains
         ! Number of dt-sized chunks the search window spans, matching the old
         ! chunked DVODE search that advanced in dt steps up to this many turns.
         integer, parameter :: n_turns = 500
-        real(dp), parameter :: rtol = 1.0e-9_dp
-        real(dp), parameter :: atol_val = 1.0e-10_dp
+        real(dp), parameter :: rtol = bounce_rtol
+        real(dp), parameter :: atol_val = bounce_atol
 
         type(vode_state_t) :: vstate
         type(fortnum_status_t) :: status
@@ -307,8 +317,8 @@ contains
         ! Reproduce the DVODE bounceroots search: two event functions monitored
         ! with NEVENTS=2, advancing in dt-sized chunks, stop at the first root
         ! of either that satisfies the turn acceptance test. fortnum vode
-        ! locates the root on its own Nordsieck interpolant (relerr 1e-9,
-        ! per-component abserr 1e-10, ITOL=2), so taub is the located root.
+        ! locates the root on its own Nordsieck interpolant (relerr bounce_rtol,
+        ! per-component abserr bounce_atol, ITOL=2), so taub is the located root.
         !   g1 = theta - th0          (trapped: return to th0)
         !   g2 = 2*pi - abs(theta - th0) (passing: one full turn either way)
         ! DVODE accepted a root when passing, or when theta entered from below

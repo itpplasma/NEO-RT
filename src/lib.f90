@@ -1,7 +1,8 @@
 module neort_lib
     use iso_fortran_env, only: dp => real64
     use neort_config, only: config_t
-    use neort_datatypes, only: transport_data_t
+    use neort_datatypes, only: transport_data_t, mixture_result_t
+    use neort_species, only: species_state_t, mixture_t
 
     implicit none
 
@@ -14,6 +15,8 @@ module neort_lib
     public :: neort_setup_at_s
     public :: neort_compute_at_s
     public :: neort_compute_no_splines
+    public :: species_state_t, mixture_t, mixture_result_t
+    public :: neort_prepare_mixture, neort_compute_mixture_at_s
 
     interface neort_init
         module procedure init_from_config_file
@@ -27,7 +30,7 @@ module neort_lib
 
 contains
 
-    subroutine init_from_config_file(config_file, boozer_file, boozer_pert_file)
+    subroutine init_from_config_file(config_file, boozer_file, boozer_pert_file, boozer_kappa_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
         use driftorbit, only: pertfile, nonlin
@@ -38,6 +41,7 @@ contains
         character(len=*), intent(in) :: config_file
         character(len=*), intent(in) :: boozer_file
         character(len=*), intent(in), optional :: boozer_pert_file
+        character(len=*), intent(in), optional :: boozer_kappa_file
 
         call check_file(config_file, .true., " could not be found")
         call check_file(boozer_file, .true., " could not be found")
@@ -49,11 +53,12 @@ contains
             call check_file(boozer_pert_file, .true., " required if pertfile = .true.")
             call read_boozer_pert_file(boozer_pert_file)
         end if
+        call init_curvature_drive(boozer_kappa_file)
 
         if (nonlin) call init_attenuation_data()
     end subroutine init_from_config_file
 
-    subroutine init_from_config_struct(config, boozer_file, boozer_pert_file)
+    subroutine init_from_config_struct(config, boozer_file, boozer_pert_file, boozer_kappa_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
         use driftorbit, only: pertfile, nonlin
@@ -64,6 +69,7 @@ contains
         type(config_t), intent(in) :: config
         character(len=*), intent(in) :: boozer_file
         character(len=*), intent(in), optional :: boozer_pert_file
+        character(len=*), intent(in), optional :: boozer_kappa_file
 
         call set_config(config)
 
@@ -74,9 +80,27 @@ contains
             call check_file(boozer_pert_file, .true., " required if pertfile = .true.")
             call read_boozer_pert_file(boozer_pert_file)
         end if
+        call init_curvature_drive(boozer_kappa_file)
 
         if (nonlin) call init_attenuation_data()
     end subroutine init_from_config_struct
+
+    subroutine init_curvature_drive(boozer_kappa_file)
+        ! The curvature table is read only when the configuration asks for it;
+        ! otherwise any table of a previous initialisation is disabled.
+        use do_magfie_pert_mod, only: read_boozer_curvature_file, clear_curvature_drive
+        use driftorbit, only: pertfile_curvature
+        use util, only: check_file
+
+        character(len=*), intent(in), optional :: boozer_kappa_file
+
+        call clear_curvature_drive()
+        if (.not. pertfile_curvature) return
+        if (.not. present(boozer_kappa_file)) &
+            error stop "pertfile_curvature = .true. needs a curvature file"
+        call check_file(boozer_kappa_file, .true., " required if pertfile_curvature = .true.")
+        call read_boozer_curvature_file(boozer_kappa_file)
+    end subroutine init_curvature_drive
 
     subroutine prepare_splines_from_files(plasma_file, profile_file)
         use driftorbit, only: nonlin, comptorque
@@ -155,6 +179,57 @@ contains
         call neort_setup_at_s(s_val)
         call compute_transport(transport_data_out)
     end subroutine neort_compute_at_s
+
+    subroutine neort_prepare_mixture(mixture)
+        use neort_species, only: configure_mixture
+        use neort_config, only: validate_mixture_mode
+        use driftorbit, only: nonlin
+        type(mixture_t), intent(in) :: mixture
+        call configure_mixture(mixture)
+        call validate_mixture_mode(nonlin)
+    end subroutine neort_prepare_mixture
+
+    subroutine neort_compute_mixture_at_s(s_val, result_)
+        use neort_species, only: mixture_enabled, species_mixture
+        real(dp), intent(in) :: s_val
+        type(mixture_result_t), intent(out) :: result_
+        integer :: k
+        if (.not. mixture_enabled) error stop 'prepare a mixture before computing species'
+        allocate(result_%species(size(species_mixture%species)))
+        !$omp parallel do default(shared) private(k) schedule(dynamic, 1)
+        do k = 1, size(result_%species)
+            call compute_mixture_species_at_s(s_val, k, result_%species(k))
+        end do
+        !$omp end parallel do
+        result_%torque_total = 0.0_dp
+        do k = 1, size(result_%species)
+            result_%torque_total = result_%torque_total + &
+                [result_%species(k)%transport%torque%Tco, &
+                 result_%species(k)%transport%torque%Tctr, &
+                 result_%species(k)%transport%torque%Tt]
+        end do
+    end subroutine neort_compute_mixture_at_s
+
+    subroutine compute_mixture_species_at_s(s_val, species_index, result_)
+        use neort_species, only: selected_species, mixture_at_s
+        use neort_profiles, only: A1, A2, dOm_tEds
+        use neort_mixture_collisions, only: selected_thermal_deflection_rate, &
+            selected_reference_frequency
+        use neort_datatypes, only: species_result_t
+        use neort, only: check_magfie, compute_transport
+        real(dp), intent(in) :: s_val
+        integer, intent(in) :: species_index
+        type(species_result_t), intent(out) :: result_
+        selected_species = species_index
+        call neort_setup_at_s(s_val)
+        call compute_transport(result_%transport)
+        call check_magfie(result_%magfie)
+        result_%species = mixture_at_s(species_index)
+        result_%collision_thermal_deflection_rate = selected_thermal_deflection_rate()
+        result_%collision_reference_frequency = selected_reference_frequency()
+        result_%domega_e_ds = dOm_tEds
+        if (result_%transport%torque%has_torque) result_%force = [A1, A2]
+    end subroutine compute_mixture_species_at_s
 
     subroutine neort_compute_no_splines(transport_data_out)
         use do_magfie_mod, only: init_magfie_at_s, R0, psi_pr, q, s
