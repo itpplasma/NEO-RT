@@ -1,20 +1,19 @@
 subroutine set_radial_boxes(nbox, unif_rho_pol, sbox)
+  ! Upper s_pol boundaries of the radial deposition boxes: uniform in s_pol
+  ! (default) or uniform in rho_pol = sqrt(s_pol).
   implicit none
-
   integer, intent(in) :: nbox
   logical, intent(in) :: unif_rho_pol
   real(8), intent(out) :: sbox(nbox)
   integer :: i
-  real(8) :: rho_pol
 
-  do i=1,nbox
-    rho_pol = real(i,8)/real(nbox,8)
+  do i = 1, nbox
     if (unif_rho_pol) then
-      sbox(i) = rho_pol**2
+      sbox(i) = (dble(i)/dble(nbox))**2
     else
-      sbox(i) = rho_pol
-    endif
-  enddo
+      sbox(i) = dble(i)/dble(nbox)
+    end if
+  end do
 end subroutine set_radial_boxes
 
 subroutine timestep_vode(n, tau, z, vz)

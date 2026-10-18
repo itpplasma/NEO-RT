@@ -929,7 +929,7 @@ contains
         integer :: idx,io,in_unit,out_unit
         !
         open(newunit=out_unit,file=trim(final_name),status='replace',action='write')
-        do idx=ienerg_begin,count
+        do idx=1,count
             call energy_path(prefix,idx,path)
             open(newunit=in_unit,file=trim(path),status='old',action='read',iostat=io)
             if(io.ne.0) then
@@ -964,7 +964,7 @@ contains
         mode_prefix=0.d0
         scalar_prefix=0.d0
         open(newunit=out_unit,file=trim(final_name),status='replace',action='write')
-        do idx=ienerg_begin,count
+        do idx=1,count
             call energy_path(prefix,idx,path)
             open(newunit=in_unit,file=trim(path),status='old',action='read',iostat=io)
             if(io.ne.0) then

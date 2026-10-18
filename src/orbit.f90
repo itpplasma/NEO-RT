@@ -310,7 +310,7 @@ contains
         ! locates the root on its own Nordsieck interpolant (relerr 1e-9,
         ! per-component abserr 1e-10, ITOL=2), so taub is the located root.
         !   g1 = theta - th0          (trapped: return to th0)
-        !   g2 = 2*pi - (theta - th0) (passing: full +2*pi turn)
+        !   g2 = 2*pi - abs(theta - th0) (passing: one full turn either way)
         ! DVODE accepted a root when passing, or when theta entered from below
         ! th0 (the old (yold(1)-th0) < 0 filter); otherwise it kept integrating.
         call vode_init(vstate, neq, 0.0_dp, y0)
@@ -388,7 +388,7 @@ contains
             g = y_(1) - th0
         end function root_theta
 
-        ! DVODE bounceroots GOUT(2): theta advances by 2*pi (passing turn).
+        ! A passing orbit advances by one full turn in either poloidal direction.
         function root_turn(t_, y_, ctx_) result(g)
             real(dp), intent(in) :: t_
             real(dp), intent(in) :: y_(:)
@@ -396,9 +396,26 @@ contains
             real(dp) :: g
             associate (dummy_t => t_, dummy_c => ctx_)
             end associate
-            g = 2.0_dp * pi - (y_(1) - th0)
+            g = 2.0_dp * pi - abs(y_(1) - th0)
         end function root_turn
     end function bounce_integral
+
+    function Om_tB_local_v2(eta, bmod, hder1, hctrvr3) result(Om_tB_v)
+        ! Local toroidal magnetic drift frequency divided by v**2
+        real(dp), intent(in) :: eta, bmod, hder1, hctrvr3
+        real(dp) :: Om_tB_v
+        real(dp) :: shearterm
+
+        shearterm = Bphcov * dqds
+        if (noshear) then
+            shearterm = 0
+        end if
+
+        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
+            -(2.0_dp - eta * bmod) * bmod * hder1 &
+            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr3 * &
+            (dBthcovds + q * dBphcovds + shearterm))
+    end function Om_tB_local_v2
 
     subroutine timestep(v, eta, neq, t, y, ydot)
         !
@@ -415,22 +432,13 @@ contains
 
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(dp) :: Om_tB_v
-        real(dp) :: shearterm
 
         x(1) = s
         x(2) = 0.0_dp
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        shearterm = Bphcov * dqds
-        if (noshear) then
-            shearterm = 0
-        end if
-
-        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
-            -(2.0_dp - eta * bmod) * bmod * hder(1) &
-            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
-            (dBthcovds + q * dBphcovds + shearterm))
+        Om_tB_v = Om_tB_local_v2(eta, bmod, hder(1), hctrvr(3))
 
         ydot(1) = y(2) * hctrvr(3) ! theta
         ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod ! v_par

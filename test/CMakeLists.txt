@@ -1,5 +1,22 @@
 file(GLOB TEST_SOURCES "test_*.f90")
 
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME test_profile_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_profile_probe.py
+            $<TARGET_FILE:neo_rt_profile_probe.x>
+            ${CMAKE_SOURCE_DIR}/tools/run_profile_probe.py)
+    set_tests_properties(test_profile_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+    add_test(NAME test_field_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_field_probe.py
+            $<TARGET_FILE:neo_rt_field_probe.x>
+            --wrapper ${CMAKE_SOURCE_DIR}/tools/run_field_probe.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}/field_probe_oracle)
+    set_tests_properties(test_field_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+endif()
+
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})
@@ -24,6 +41,27 @@ add_test(NAME test_parallel
 
 add_test(NAME test_neort_lib
     COMMAND ${CMAKE_BINARY_DIR}/test_neort_lib.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+# test_multi_init: repeated do_magfie_init calls must not corrupt or change the
+# loaded field data (deallocate-before-reallocate).  The oracle is nmode/nflux
+# compared against the values from the first init, and the program stops with a
+# nonzero status on any mismatch.  Runs from examples/base, which supplies the
+# driftorbit.in and in_file it reads.
+add_test(NAME test_multi_init
+    COMMAND ${CMAKE_BINARY_DIR}/test_multi_init.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+# test_bounce: the trapped bounce time, against a Gauss-Legendre quadrature of
+# the same orbit that does not integrate it, and then the two ODE paths against
+# each other.  The absolute oracle runs first because it is the only one of the
+# three that can see a defect the two integrations share -- which is how they
+# came to agree with each other to 0.26% while both were 0.4% wrong.  Runs from
+# examples/base, which supplies the driftorbit.in and in_file it reads.
+add_test(NAME test_bounce
+    COMMAND ${CMAKE_BINARY_DIR}/test_bounce.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
@@ -54,14 +92,62 @@ add_test(NAME test_chartmap_input
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+add_test(NAME test_s_outside_data
+    COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+)
+add_test(NAME test_s_outside_data_init_rejects
+    COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x init
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+)
+set_tests_properties(test_s_outside_data_init_rejects PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME test_boozer_handedness
     COMMAND ${CMAKE_BINARY_DIR}/test_boozer_handedness.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# test_hcurl_axisymmetric: curl of the unit field direction in the standalone
+# Boozer path. The oracle is a central difference of hcovar over separate
+# do_magfie calls, so it is independent of the analytic formula it checks.
+add_test(NAME test_hcurl_axisymmetric
+    COMMAND ${CMAKE_BINARY_DIR}/test_hcurl_axisymmetric.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_linear_carbon_background COMMAND test_linear_carbon_background.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_carbon_background PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+
+add_test(NAME test_linear_electron COMMAND test_linear_electron.x)
+add_test(NAME test_nonlinear_electron_rejects
+    COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:test_linear_electron.x>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_nonlinear_electron_rejection.cmake)
+add_test(NAME test_linear_electron_transport COMMAND test_linear_electron.x transport
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_electron test_nonlinear_electron_rejects
+    test_linear_electron_transport PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+
+add_test(NAME test_drift_phase
+    COMMAND ${CMAKE_BINARY_DIR}/test_drift_phase.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+add_test(NAME test_fow_radial
+    COMMAND ${CMAKE_BINARY_DIR}/test_fow_radial.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+add_test(NAME test_fow_gc_orbit
+    COMMAND ${CMAKE_BINARY_DIR}/test_fow_gc_orbit.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
 add_test(NAME test_nonlinear_contract
@@ -110,3 +196,84 @@ set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
         "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
 )
+
+# ---------------------------------------------------------------------------
+# Built but deliberately NOT registered as ctest tests
+# ---------------------------------------------------------------------------
+#
+# The glob at the top builds an executable for every test_*.f90 in this
+# directory.  Being built is not the same as being run.  The programs listed
+# below are built and are intentionally left out of ctest, for two different
+# reasons.
+#
+# (a) Self-checking, but currently failing or missing an input file.
+#     Registering them as they stand would turn the suite red; weakening their
+#     assertions to make them green would destroy the only oracle they have.
+#     They stay unregistered until the underlying problem is fixed.
+#
+#   test_bounce.f90 is now registered above.  It was left here because
+#       bounce_time() and bounce() disagreed by 2.6e-3 against a 1e-8
+#       tolerance.  That was real: the pinned fortnum moved its clock onto a
+#       located event root without rebuilding the history it interpolates from,
+#       so every trapped bounce time -- which continues past the half-bounce
+#       crossing by construction -- came out short.  Fixed upstream and
+#       repinned; both paths now match a quadrature of the same orbit to
+#       1.7e-9.
+#
+#   test_torque.f90
+#       Needs the run configuration driftorbit64.new.in next to in_file,
+#       plasma.in and profile.in in the working directory.  driftorbit64.new.in
+#       is not in this repository, so the program aborts inside
+#       read_and_set_config before it reaches either of its two assertions.
+#       Commit that input (or point the program at an existing configuration)
+#       before registering it here.
+#
+# (b) Diagnostics, not tests.  These programs print numbers or write .dat files
+#     for plotting and contain no assertion at all, so they exit 0 no matter
+#     what the physics does.  Registering them would add permanently green
+#     tests that can never detect a regression, which is worse than not running
+#     them.  Keep them out of ctest unless an oracle is added to them.
+#
+#   test_bounce_integrand.f90
+#   test_freq_scan.f90
+#   test_frequencies.f90  -- writes <runname>_ux*_freq_vs_eta_*.dat and exits 0
+#                            for any runname; its only nonzero exit is the
+#                            "usage:" guard when no argument is passed.
+#   test_misc.f90
+#   test_omega_prime.f90
+#   test_reslines.f90
+
+# Compile the actual frequency and root routines with an analytic orbit provider.
+# Private module directories keep these fixture providers out of neo_rt.
+set(frequency_model_dir "${CMAKE_CURRENT_BINARY_DIR}/frequency_model_modules")
+file(MAKE_DIRECTORY "${frequency_model_dir}")
+add_library(frequency_model_fixture STATIC
+    fixtures/frequency_models/providers.f90
+    ../src/freq.f90 ../src/resonance.f90)
+set_target_properties(frequency_model_fixture PROPERTIES
+    Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
+target_include_directories(frequency_model_fixture BEFORE PUBLIC "${frequency_model_dir}")
+target_include_directories(frequency_model_fixture PRIVATE "${PROJECT_BINARY_DIR}/spline")
+target_link_libraries(frequency_model_fixture PUBLIC spline)
+# Namespace providers: GNU also searches the build working directory for .mod
+# files, where neo_rt's real providers may already exist after an incremental build.
+target_compile_options(frequency_model_fixture PUBLIC -cpp)
+foreach(model_module IN ITEMS logger util driftorbit neort_profiles do_magfie_mod shaing
+        neort_orbit neort_freq neort_resonance)
+    target_compile_definitions(frequency_model_fixture PUBLIC
+        "${model_module}=frequency_model_${model_module}")
+endforeach()
+foreach(model_case IN ITEMS join roots)
+    add_executable(test_frequency_model_${model_case}.x fixtures/frequency_models/${model_case}.f90)
+    set_target_properties(test_frequency_model_${model_case}.x PROPERTIES
+        Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
+    target_include_directories(test_frequency_model_${model_case}.x PRIVATE "${PROJECT_BINARY_DIR}/spline")
+    target_link_libraries(test_frequency_model_${model_case}.x frequency_model_fixture)
+    add_test(NAME test_frequency_model_${model_case} COMMAND test_frequency_model_${model_case}.x)
+endforeach()
+
+# Independent constant angular motion: exact signed full-turn time and endpoint.
+add_test(NAME test_passing_bounce_direction
+    COMMAND test_passing_bounce_direction.x)
+set_tests_properties(test_passing_bounce_direction PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
