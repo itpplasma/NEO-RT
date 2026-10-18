@@ -123,8 +123,8 @@ contains
 
         if (.not. all(ieee_is_finite(expected)) .or. &
             .not. all(ieee_is_finite(actual))) error stop "nonfinite transport"
-        if (any(abs(actual - expected) > &
-            1.0e-12_dp * max(abs(expected), tiny(1.0_dp)))) &
+        if (any(abs(actual - expected) / max(abs(expected), tiny(1.0_dp)) &
+            > 1.0e-12_dp)) &
             error stop "carbon-only change altered linear ion transport"
     end subroutine close
 
