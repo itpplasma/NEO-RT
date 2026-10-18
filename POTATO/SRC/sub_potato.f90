@@ -161,11 +161,9 @@
 !
   implicit none
 !
-! nousecut - way to close the orbit during primary search:
-! .true. - without using Poincare cut, can be used for general Phi distributions
-! .false. - with using the cut, valid for Phi=Phi(psi) only
-!  logical, parameter :: nousecut=.true.
-  logical, parameter :: nousecut=.false.
+! Cut crossings count a full bounce only when the initial point is on the cut.
+! For arbitrary single-orbit starts, use the existing return-to-start search.
+  logical :: nousecut
 !
 ! maximum number of Newton iterations for closing the orbit:
   integer, parameter :: niter=20
@@ -205,6 +203,9 @@
 ! Primary search:
 !
   z_start=z
+!
+  call get_poicut(z(1),Z_tmp,dZ_dR)
+  nousecut=abs(z(3)-Z_tmp).gt.max(1.d0,abs(z(1)))*relerr
 !
   call velo_ext(dtau,z,vz)
 !
@@ -263,7 +264,12 @@
 ! sqrt(2) of the poloidal length of the step:
       dL2_pol=2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2)
       dL2_pol_start=(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
-      if(dL2_pol_start.lt.dL2_pol) exit
+      if(dL2_pol_start.lt.dL2_pol) then
+! A trapped orbit can revisit this RZ point with reversed parallel velocity.
+! Accept only a return on the initial direction of the poloidal motion.
+        call velo_ext(dtau,z,vz)
+        if(vz(1)*RNorm+vz(3)*ZNorm.gt.0.d0) exit
+      endif
     else
 ! check if Poincare cut has been crossed
 !

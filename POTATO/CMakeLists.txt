@@ -98,6 +98,11 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_bounce_offcut.x SRC/test_bounce_offcut.f90)
+target_link_libraries(test_bounce_offcut.x PRIVATE potato_base potato)
+add_test(NAME test_bounce_offcut COMMAND test_bounce_offcut.x)
+set_tests_properties(test_bounce_offcut PROPERTIES TIMEOUT 30)
+
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
 )
