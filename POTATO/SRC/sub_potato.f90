@@ -910,20 +910,21 @@
   double precision, parameter :: relerr=1d-12
   integer :: iter
   integer, dimension(2) :: iext
-  double precision :: R,Z,bmod,phi_elec,sigpsi
+  double precision :: R,Z,bmod,sqrtg,sigpsi
   double precision :: errdist2,del_R,del_Z,det
-  double precision,dimension(3) :: x
+  double precision,dimension(3) :: x,bder,hcovar,hctrvr,hcurl
 !
 ! First field evaluation of the run - it reads the equilibrium and so allocates
 ! rad, zet, psi and sets rtf, all used below. No machine dimension is known
-! before it, hence the probe at R = 1 cm: the flux there is clamped to the grid
-! edge and the returned values are discarded. Probing at rtf instead divides by
-! an rtf that is still zero inside magfie.
+! before it, hence the bootstrap probe at R = 1 cm outside the physical grid.
+! Its returned magnetic values are discarded. Probing at rtf instead divides by
+! an rtf that is still zero inside magfie. Only the magnetic field is needed:
+! the bootstrap point and Newton iterates need not lie in profile support.
   x(1)=1.d0
   x(2)=0.d0
   x(3)=0.d0
 !
-  call get_bmod_and_Phi(x,bmod,phi_elec)
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
   sigpsi=sign(1.d0,psi_sep-psi_axis)
   iext=minloc(sigpsi*psi)
@@ -935,7 +936,7 @@
     x(1)=R
     x(3)=Z
 !
-    call get_bmod_and_Phi(x,bmod,phi_elec)
+    call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
     det=d2psidr2*d2psidz2-d2psidrdz**2
     del_R=(d2psidrdz*dpsidz-d2psidz2*dpsidr)/det
@@ -950,7 +951,7 @@
   x(1)=R
   x(3)=Z
 !
-  call get_bmod_and_Phi(x,bmod,phi_elec)
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
   rmagaxis=R
   zmagaxis=Z
