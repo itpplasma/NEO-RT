@@ -1,0 +1,104 @@
+program test_mixture_thread_invariance
+    ! The resonance components of all species and harmonics are one OpenMP
+    ! work list. A thread computing a component must hold the state the serial
+    ! harmonic loop would hold, whatever it computed before (e.g. a
+    ! counter-passing component of another species), so the result must not
+    ! depend on the thread count at all.
+    use iso_fortran_env, only: dp => real64
+    use neort_lib, only: config_t, mixture_t, species_state_t, mixture_result_t, &
+        neort_init, neort_prepare_mixture, neort_compute_mixture_at_s
+    use omp_lib, only: omp_set_num_threads, omp_set_dynamic
+    implicit none
+    type(config_t) :: config
+    type(mixture_t) :: mixture
+    type(mixture_result_t) :: serial, threaded
+    integer :: nthreads, failures
+
+    call setup_config(config)
+    call neort_init(config, 'in_file')
+    call setup_mixture(mixture)
+    call neort_prepare_mixture(mixture)
+    call omp_set_dynamic(.false.)
+    call omp_set_num_threads(1)
+    call neort_compute_mixture_at_s(config%s, serial)
+    if (size(serial%species(1)%transport%harmonics) < 3) &
+        error stop 'test needs several harmonics per species'
+    failures = 0
+    do nthreads = 2, 4
+        call omp_set_num_threads(nthreads)
+        call neort_compute_mixture_at_s(config%s, threaded)
+        call compare(serial, threaded, nthreads, failures)
+    end do
+    if (failures > 0) error stop 'mixture transport depends on the thread count'
+    print *, 'Mixture transport is independent of the thread count'
+contains
+    subroutine setup_config(value)
+        type(config_t), intent(out) :: value
+        value%s = 0.09_dp
+        value%epsmn = 1.0e-3_dp
+        value%m0 = 0
+        value%mph = 3
+        value%comptorque = .true.
+        value%nopassing = .false.
+        value%magdrift = .true.
+        value%inp_swi = 8
+        value%vsteps = 2
+        value%mth_max_abs = 1
+        value%vmax_over_vth = 2.0_dp
+        value%log_level = -1
+        value%krook_collisions = .true.
+        value%krook_nu = 1.0e3_dp
+        value%krook_eta_steps = 4
+        value%krook_rtol = 1.0e-4_dp
+    end subroutine setup_config
+
+    subroutine setup_mixture(value)
+        type(mixture_t), intent(out) :: value
+        value%reference_s = 0.09_dp
+        value%omega_e = -700.0_dp
+        value%coulomb_log = 20.0_dp
+        allocate(value%species(3))
+        value%species(1) = species_state_t('D', 3.3435837724e-27_dp, 1.0_dp, &
+            5.0e15_dp, 2000.0_dp, 0.0_dp, 0.0_dp)
+        value%species(2) = species_state_t('T', 5.0073567446e-27_dp, 1.0_dp, &
+            5.0e15_dp, 2000.0_dp, 0.0_dp, 0.0_dp)
+        value%species(3) = species_state_t('e', 9.1093837139e-31_dp, -1.0_dp, &
+            1.0e16_dp, 2000.0_dp, 0.0_dp, 0.0_dp)
+    end subroutine setup_mixture
+
+    subroutine compare(expected, actual, nthreads, failures)
+        type(mixture_result_t), intent(in) :: expected, actual
+        integer, intent(in) :: nthreads
+        integer, intent(inout) :: failures
+        integer :: k, j
+        do k = 1, size(expected%species)
+            associate (e => expected%species(k)%transport, &
+                       a => actual%species(k)%transport)
+                call check('torque', k, nthreads, [e%torque%Tco, e%torque%Tctr, &
+                    e%torque%Tt], [a%torque%Tco, a%torque%Tctr, a%torque%Tt], failures)
+                call check('D', k, nthreads, [e%summary%Dco, e%summary%Dctr, &
+                    e%summary%Dt], [a%summary%Dco, a%summary%Dctr, a%summary%Dt], &
+                    failures)
+                do j = 1, size(e%harmonics)
+                    call check('harmonic', k, nthreads, [e%harmonics(j)%Tresco, &
+                        e%harmonics(j)%Tresctr, e%harmonics(j)%Trest], &
+                        [a%harmonics(j)%Tresco, a%harmonics(j)%Tresctr, &
+                        a%harmonics(j)%Trest], failures)
+                end do
+            end associate
+        end do
+        call check('total', 0, nthreads, expected%torque_total, actual%torque_total, &
+            failures)
+    end subroutine compare
+
+    subroutine check(label, species, nthreads, reference, value, failures)
+        character(len=*), intent(in) :: label
+        integer, intent(in) :: species, nthreads
+        real(dp), intent(in) :: reference(:), value(:)
+        integer, intent(inout) :: failures
+        if (any(reference /= value)) then
+            failures = failures + 1
+            print *, label, ' species', species, ' threads', nthreads, reference, value
+        end if
+    end subroutine check
+end program test_mixture_thread_invariance
