@@ -396,6 +396,13 @@ foreach(rate_source IN ITEMS 1 2)
         PROCESSORS 3 TIMEOUT 30)
 endforeach()
 
+add_test(NAME test_mixture_thread_invariance
+    COMMAND test_mixture_thread_invariance.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_mixture_thread_invariance PROPERTIES
+    ENVIRONMENT "OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 120)
+
 add_test(NAME test_mixture_collisions COMMAND test_mixture_collisions.x)
 foreach(mode IN ITEMS missing_background nonfinite_scale duplicate_shape)
     add_test(NAME test_mixture_collisions_reject_${mode}
