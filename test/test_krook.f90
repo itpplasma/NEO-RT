@@ -112,14 +112,20 @@ contains
     subroutine residual(eta, res, dres)
         real(dp), intent(in) :: eta
         real(dp), intent(out) :: res, dres
+        real(dp) :: bump
         if (wiggle) then
             ! Decreasing detuning with a narrow bump near the upper endpoint,
             ! like the spline wiggle of R next to the trapped-passing
             ! boundary: R' changes sign twice inside one seed cell, so the
             ! seed scan cannot see these extrema.
-            res = offset + slope*eta + 0.05_dp*exp(-((eta - 0.999_dp)/0.004_dp)**2)
-            dres = slope - 0.05_dp*2.0_dp*(eta - 0.999_dp)/0.004_dp**2 &
-                   *exp(-((eta - 0.999_dp)/0.004_dp)**2)
+            res = offset + slope*eta
+            dres = slope
+            bump = (eta - 0.999_dp)/0.004_dp
+            ! Below exp(-26**2) the bump is beneath rounding (no underflow).
+            if (abs(bump) < 26.0_dp) then
+                res = res + 0.05_dp*exp(-bump**2)
+                dres = dres - 0.05_dp*2.0_dp*bump/0.004_dp*exp(-bump**2)
+            end if
         else if (cubic) then
             res = (eta - 0.1_dp)**3 - 0.0003_dp*(eta - 0.1_dp)
             dres = 3.0_dp*(eta - 0.1_dp)**2 - 0.0003_dp
