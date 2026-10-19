@@ -5,7 +5,7 @@ module neort_transport
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
-    use do_magfie_pert_mod, only: do_magfie_pert_amp
+    use do_magfie_pert_mod, only: do_magfie_pert_amp, do_magfie_pert_kappa_amp, curvature_drive
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
@@ -263,7 +263,7 @@ contains
 
     subroutine transport_bounce(v, eta, taub, bounceavg, istate)
         ! Bounce averages of the transport weight, H_mn**2 = |<H_n>|**2.
-        ! int H_n dt, with the dimensionless H_n = (2 - eta*B)*eps_n*exp(i*phase),
+        ! int H_n dt, with the dimensionless H_n = drive*exp(i*phase) (transport_rates),
         ! is an oscillatory, often strongly cancelling integral of size up to
         ! taub*max|H_n|. The fixed bounce_atol = 1e-10 can exceed that scale
         ! (small eps_n, short taub) and then leaves these components without
@@ -614,6 +614,8 @@ contains
                     hctrvr1(3), hcurl1(3)
         complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
+        complex(dp) :: kappan, phase_factor  ! kappa.xi_perp and the phase of Hn
+        real(dp) :: w_lagrangian, w_curvature
 
         x(1) = s
         x(2) = 0.0_dp
@@ -669,16 +671,27 @@ contains
         if (abs(t) <= 0.0_dp) then
             ! Local Hamiltonian samples have no bounce-time phase and need no
             ! frequency installed by a previous orbit integration.
-            Hn = (2.0_dp - eta * bmod1) * epsn * &
-                 exp(imun * (q * mph * y(1) + phase_drift))
+            phase_factor = exp(imun * (q * mph * y(1) + phase_drift))
         else if (eta > etatp) then
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
-            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
-                                                                                       t0) * Omth + phase_drift))
+            phase_factor = exp(imun * (q * mph * (y(1)) - mth * (t - t0) * Omth + phase_drift))
         else
-            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
-                                                             * t * Omth + phase_drift))
+            phase_factor = exp(imun * (q * mph * (y(1)) - (mth + q * mph) * t * Omth + phase_drift))
+        end if
+
+        ! First-order guiding-centre Hamiltonian per unit energy (doc/hamiltonian_drive.md).
+        ! Default (Boozer form, perturbed field Boozer-representable): (2 - eta B) dB_L/B.
+        ! With a curvature table the general ideal drive for deltaA = xi_perp x B0,
+        !   H/E = eta B dB_L/B + 2 (1 - eta B) kappa.xi_perp,
+        ! which reduces to the default for kappa.xi_perp = dB_L/B.
+        if (curvature_drive) then
+            call do_magfie_pert_kappa_amp(x1, kappan)
+            kappan = pertfile_scale * kappan / bmod1
+            call drive_weight_leaf(eta * bmod1, w_lagrangian, w_curvature)
+            Hn = (w_lagrangian * epsn + w_curvature * kappan) * phase_factor
+        else
+            Hn = (2.0_dp - eta * bmod1) * epsn * phase_factor
         end if
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
@@ -734,5 +747,7 @@ contains
         dqds = saved(6)
         iota = saved(7)
     end subroutine do_magfie_displaced
+
+    include 'generated/drive_leaf.inc'
 
 end module neort_transport

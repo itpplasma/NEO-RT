@@ -30,7 +30,7 @@ module neort_lib
 
 contains
 
-    subroutine init_from_config_file(config_file, boozer_file, boozer_pert_file)
+    subroutine init_from_config_file(config_file, boozer_file, boozer_pert_file, boozer_kappa_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
         use driftorbit, only: pertfile, nonlin
@@ -41,6 +41,7 @@ contains
         character(len=*), intent(in) :: config_file
         character(len=*), intent(in) :: boozer_file
         character(len=*), intent(in), optional :: boozer_pert_file
+        character(len=*), intent(in), optional :: boozer_kappa_file
 
         call check_file(config_file, .true., " could not be found")
         call check_file(boozer_file, .true., " could not be found")
@@ -52,11 +53,12 @@ contains
             call check_file(boozer_pert_file, .true., " required if pertfile = .true.")
             call read_boozer_pert_file(boozer_pert_file)
         end if
+        call init_curvature_drive(boozer_kappa_file)
 
         if (nonlin) call init_attenuation_data()
     end subroutine init_from_config_file
 
-    subroutine init_from_config_struct(config, boozer_file, boozer_pert_file)
+    subroutine init_from_config_struct(config, boozer_file, boozer_pert_file, boozer_kappa_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
         use driftorbit, only: pertfile, nonlin
@@ -67,6 +69,7 @@ contains
         type(config_t), intent(in) :: config
         character(len=*), intent(in) :: boozer_file
         character(len=*), intent(in), optional :: boozer_pert_file
+        character(len=*), intent(in), optional :: boozer_kappa_file
 
         call set_config(config)
 
@@ -77,9 +80,27 @@ contains
             call check_file(boozer_pert_file, .true., " required if pertfile = .true.")
             call read_boozer_pert_file(boozer_pert_file)
         end if
+        call init_curvature_drive(boozer_kappa_file)
 
         if (nonlin) call init_attenuation_data()
     end subroutine init_from_config_struct
+
+    subroutine init_curvature_drive(boozer_kappa_file)
+        ! The curvature table is read only when the configuration asks for it;
+        ! otherwise any table of a previous initialisation is disabled.
+        use do_magfie_pert_mod, only: read_boozer_curvature_file, clear_curvature_drive
+        use driftorbit, only: pertfile_curvature
+        use util, only: check_file
+
+        character(len=*), intent(in), optional :: boozer_kappa_file
+
+        call clear_curvature_drive()
+        if (.not. pertfile_curvature) return
+        if (.not. present(boozer_kappa_file)) &
+            error stop "pertfile_curvature = .true. needs a curvature file"
+        call check_file(boozer_kappa_file, .true., " required if pertfile_curvature = .true.")
+        call read_boozer_curvature_file(boozer_kappa_file)
+    end subroutine init_curvature_drive
 
     subroutine prepare_splines_from_files(plasma_file, profile_file)
         use driftorbit, only: nonlin, comptorque

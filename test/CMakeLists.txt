@@ -290,6 +290,12 @@ add_test(NAME test_resonance_oracle
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_curvature_drive
+    COMMAND ${CMAKE_BINARY_DIR}/test_curvature_drive.x
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(test_curvature_drive PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
