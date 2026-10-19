@@ -49,13 +49,17 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `qs` | Ion charge in units of the elementary charge. | Used to compute `qi`. |
 | `ms` | Ion mass in atomic mass units. | Used to compute `mi`. |
 | `vth` | Thermal velocity `[cm/s]`. | Used when no `plasma.in` is provided. |
-| `epsmn` | Perturbation amplitude `B₁/B₀`. | Used when `pertfile=.false.`. |
+| `epsmn` | Perturbation amplitude `B₁/B₀`. | Used when `pertfile=.false.`; default `1`. |
+| `pertfile_scale` | Scale factor for the perturbation read from `in_file_pert`. | Used when `pertfile=.true.`; default `1`. |
 | `m0` | Poloidal perturbation harmonic. | Integer. |
 | `mph` | Toroidal perturbation harmonic. | Positive integer when using analytic perturbations. |
 | `magdrift` | Include magnetic drift (`.true.`/`.false.`). | Controls bounce-averaged drifts. |
+| `magdrift_passing` | Include magnetic drift for passing particles (`1`/`0`; `-1` follows `magdrift`). | Independent passing-particle control. With `0`, the passing transit frequency and its `d_Om_ds` derivative omit the magnetic-drift term. |
+| `drift_phase` | Keep the oscillating toroidal drift phase `mph*int(Om_tB(theta) - <Om_tB>)dt` in the orbit integral of the perturbation (`.false.` default). | The default is the thin-orbit ordering `Om_d << Om_th`, where this phase is `O(Om_d/Om_th)`. A passing resonance with `mth != 0` or a trapped bounce harmonic `mth != 0` needs `mph*<Om_d> ~ Om_th`, so the modulation index is `O(1)`: enable it there. The sidebands are then Bessel functions of the index. |
 | `nopassing` | Skip passing resonances. | When `.true.` only trapped contributions are computed. |
 | `noshear` | Neglect magnetic shear. | Propagated to orbit module. |
 | `pertfile` | Read perturbation from `in_file_pert`. | Otherwise analytic perturbation is used. |
+| `fow_radial` | Sample the perturbation amplitude (`B_n` and `B`) at the first-order guiding-centre radius `s + Delta s` (`.false.` default). | `Delta s = m c q v_par h_phi / (e sign_theta psi_pr)` from conservation of `p_phi`. `s` is the `p_phi` label of the orbit, `(e/c) A_phi(s) = p_phi`, which is also the label of NEO-RT's frequencies (the shear term of `Om_tB` is `q' <Delta s dtheta/dt>`), so the orbit mean of `Delta s` is kept: it vanishes for trapped orbits and is `O(+-rho_pol)` for co/counter-passing orbits. Frequencies and the resonance stay those of the label `s`. For passing contributions combine it with `drift_phase` (and `noshear = .false.`): sampling at `s + Delta s` also shifts the toroidal phase by `mph q' Delta s theta`, whose oscillating part `mph q' int(Delta s dtheta/dt - <.>)dt` is of the same first order as the amplitude correction and enters only through the shear term of the `drift_phase` integrand. Still omitted at first order: the poloidal timing shift (the change of `dtheta/dt` at `s + Delta s` and the poloidal drift), so the orbit phase uses the thin-orbit `theta(t)`. Sign, size and labelling are checked against the full guiding-centre orbit in `test_fow_gc_orbit`. Needs a radially resolved perturbation (`pertfile`) to matter. |
 | `nonlin` | Enable nonlinear corrections. | Requires `plasma.in` and `profile.in`. |
 | `comptorque` | Write torque diagnostics. | Produces `_torque.out` and `_torque_integral.out`. |
 | `bfac` | Magnetic-field scaling factor. | Multiplies `B`. |
@@ -66,6 +70,14 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
 | `inp_swi_pert` | Input format for `in_file_pert` with the standalone field reader. | Default `-1` inherits `inp_swi`; set `9` to combine an axisymmetric chartmap (`inp_swi=10`) with a Strumberger perturbation `.bc`. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
+
+`magdrift_passing` is deliberately separate from `magdrift`: setting
+`magdrift=.true., magdrift_passing=0` retains trapped magnetic drift while
+matching a model whose passing operator has no magnetic-drift contribution.
+The frequency and derivative paths use the same switch. In particular,
+`d_Om_ds` does not add `bounceavg(3)*v**2` on the passing branch when the
+switch is zero; this consistency guard was fixed in commit `0b7c4e8` and is
+covered by `test/test_passing_drift_derivative.f90`.
 
 ### Magnetic field data
 

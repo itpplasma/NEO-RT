@@ -17,6 +17,14 @@ add_compile_options(-fPIC -g)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp -fmax-errors=1")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wimplicit-interface -Wimplicit-procedure")
 
+# gfortran on Apple silicon rejects -march=native next to the -mcpu=native that
+# dependencies add ("unknown value 'apple-m3' for '-march'"); use -mcpu there.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    set(APPLE_NATIVE_CPU_FLAG -mcpu=native)
+else()
+    set(APPLE_NATIVE_CPU_FLAG -march=native)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-Og -Wextra)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbounds-check -finit-real=nan -fcheck=all")
@@ -26,7 +34,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-O2)
 
     if(APPLE)
-        add_compile_options(-march=native)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=x86-64-v2 -mtune=generic)
     endif()
@@ -34,7 +42,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Fast")
     add_compile_options(-O3 -ffast-math)
 
     if(APPLE)
-        add_compile_options(-march=native)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=native -mtune=native)
     endif()
@@ -43,7 +51,7 @@ endif()
 include(Util)
 
 if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF 8d58a5eb55a376d6b5d8ae1c160ab7e2c9190b2c)
+    set(LIBNEO_REF d30174fb9a9c6520301463ef2406bd2cbfbcd55b)
 endif()
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
@@ -81,7 +89,7 @@ if(NOT TARGET fortnum)
     FetchContent_Declare(
         fortnum
         GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
+        GIT_TAG 48f6f9bf0d4d523c3677bb686f5892f6e1329a24
     )
     FetchContent_MakeAvailable(fortnum)
 endif()
@@ -109,6 +117,7 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
+    src/output.f90
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
@@ -167,6 +176,14 @@ if(USE_STANDALONE)
     )
 endif()
 
+# HDF5 output. libneo's hdf5_tools forwards to fortio, which implements the
+# required HDF5 subset without linking the system HDF5 library.
+if(NOT TARGET LIBNEO::hdf5_tools)
+    message(FATAL_ERROR "LIBNEO::hdf5_tools not found; it is required for HDF5 output")
+endif()
+
+target_link_libraries(neo_rt PUBLIC LIBNEO::hdf5_tools)
+
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 
 if(NEORT_BUILD_TESTING)
@@ -187,3 +204,10 @@ target_link_libraries(neo_rt_diag.x PRIVATE
     neo_rt
     fortplot::fortplot
 )
+
+# Field-only readback; does not initialize profiles, orbits or transport.
+add_executable(neo_rt_field_probe.x src/diag/neort_field_probe.f90)
+target_link_libraries(neo_rt_field_probe.x PRIVATE neo_rt)
+
+add_executable(neo_rt_profile_probe.x src/diag/neort_profile_probe.f90)
+target_link_libraries(neo_rt_profile_probe.x PRIVATE neo_rt)

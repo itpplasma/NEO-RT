@@ -8,16 +8,34 @@ module neort_transport
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ni1, Om_tE
     use neort_nonlin, only: nonlinear_attenuation
-    use neort_freq, only: Om_th, Om_ph
-    use neort_orbit, only: bounce_fast, nvar, noshear, poloidal_velocity
+    use neort_freq, only: Om_th, Om_ph, Om_tB
+    use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
+        pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
-        sign_vpar_htheta, sign_vpar
+        sign_vpar_htheta, sign_vpar, drift_phase, magdrift, magdrift_passing, &
+        fow_radial
 
   implicit none
 
+  ! These values remain live while bounce_fast invokes timestep_transport.
+  ! Each transport worker needs an independent callback state.
   real(dp) :: Omth, dOmthdv, dOmthdeta
+  !$omp threadprivate (Omth, dOmthdv, dOmthdeta)
+
+  abstract interface
+    function drift_osc_i(t) result(Om_osc)
+      import :: dp
+      real(dp), intent(in) :: t
+      real(dp) :: Om_osc
+    end function drift_osc_i
+  end interface
+
+  ! Test seam: when associated (and drift_phase is set), replaces the local
+  ! oscillating toroidal drift Om_tB(theta) - <Om_tB> [rad/s] by a prescribed
+  ! function of orbit time, so tests can use analytic Bessel sidebands.
+  procedure(drift_osc_i), pointer :: drift_osc_override => null()
 
 contains
 
@@ -155,7 +173,10 @@ contains
         ! BEGIN TODO: remove all of this after refactoring and re-use routine in orbit
         ! for y(1:3)
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3), Om_tB_v
-        real(dp) :: t0
+        real(dp) :: t0, Om_osc, OmtB_avg, dOmtBdv, dOmtBdeta, Omph_avg
+        real(dp) :: dOmphdv, dOmphdeta
+        real(dp) :: phase_drift, bmod1, x1(3), sqrtg1, hder1(3), hcovar1(3), &
+                    hctrvr1(3), hcurl1(3)
         complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
 
@@ -165,22 +186,53 @@ contains
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         call poloidal_velocity(v, eta, bmod, hctrvr(3), hder(3), y(2), ydot)
 
-        ! evaluate orbit averages of Hamiltonian perturbation
+        ! evaluate orbit averages of Hamiltonian perturbation, optionally at the
+        ! first-order guiding-centre radius (finite radial orbit width). Only the
+        ! perturbation amplitude and bmod are taken there; everything else below
+        ! (Hn phase, drift phase) stays on the label surface s.
+        x1 = x
+        bmod1 = bmod
+        if (fow_radial) then
+            x1(1) = s + fow_displacement(y(2), hcovar(2))
+            call do_magfie_displaced(x1, bmod1, sqrtg1, hder1, hcovar1, hctrvr1, hcurl1)
+        end if
         if (pertfile) then
-            call do_magfie_pert_amp(x, epsn)
-            epsn = epsmn * epsn / bmod
+            call do_magfie_pert_amp(x1, epsn)
+            epsn = pertfile_scale * epsn / bmod1
         else
             epsn = epsmn * exp(imun * m0 * y(1))
+        end if
+
+        ! Oscillating part of the toroidal drift phase,
+        ! int (Om_tB(theta) - <Om_tB>) dt, accumulated in y(7).  Its toroidal
+        ! phase is mph times this integral; <Om_tB> is the value that enters
+        ! the resonance condition (Om_ph - Om_tE for trapped orbits).
+        Om_osc = 0.0_dp
+        phase_drift = 0.0_dp
+        if (drift_phase) then
+            if (associated(drift_osc_override)) then
+                Om_osc = drift_osc_override(t)
+            else if (magdrift .and. (eta > etatp .or. magdrift_passing > 0)) then
+                if (eta > etatp) then
+                    call Om_ph(v, eta, Omph_avg, dOmphdv, dOmphdeta)
+                    OmtB_avg = Omph_avg - Om_tE
+                else
+                    call Om_tB(v, eta, OmtB_avg, dOmtBdv, dOmtBdeta)
+                end if
+                Om_tB_v = Om_tB_local_v2(eta, bmod, hder(1), hctrvr(3))
+                Om_osc = Om_tB_v * v**2 - OmtB_avg
+            end if
+            phase_drift = mph * y(7)
         end if
 
         if (eta > etatp) then
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
-            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
-                                                                                      t0) * Omth))
+            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
+                                                                                       t0) * Omth + phase_drift))
         else
-            Hn = (2.0_dp - eta * bmod) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
-                                                            * t * Omth))
+            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
+                                                             * t * Omth + phase_drift))
         end if
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
@@ -193,11 +245,48 @@ contains
             ydot(5:6) = 0.0_dp
         end if
 
-        ! Zero any trailing integrands this routine does not compute (the unused
-        ! abs(B) slot, y(7)). The DOP853 solver carries every component through
+        ! y(7) integrates the oscillating drift phase (zero unless drift_phase).
+        ! Zero any trailing integrands this routine does not compute. The DOP853 solver carries every component through
         ! its stage combinations, so an uninitialised derivative leaves a
         ! denormal in the state that trips the underflow FPE trap.
-        ydot(7:) = 0.0_dp
+        ydot(7) = Om_osc
+        ydot(8:) = 0.0_dp
     end subroutine timestep_transport
+
+    function fow_displacement(v_par, hphi) result(ds)
+        ! First-order radial guiding-centre displacement s(t) - s from the thin
+        ! orbit on s. Conservation of p_phi = m v_par h_phi + (e/c) A_phi(s) with
+        ! A_phi' = -sign_theta*iota*psi_pr (x = (s, phi, theta) has Jacobian
+        ! -sqrtg, test_fow_gc_orbit) gives
+        !   Delta s = m c q v_par h_phi / (e sign_theta psi_pr).
+        ! s is the p_phi label, (e/c) A_phi(s) = p_phi, for trapped and passing
+        ! orbits alike. This is the label of NEO-RT's frequencies: the shear term
+        ! of Om_tB is q' <Delta s thetadot> with this Delta s. The orbit mean is
+        ! therefore not removed; for passing orbits it is <Delta s> ~ +-rho_pol.
+        real(dp), intent(in) :: v_par, hphi
+        real(dp) :: ds
+
+        ds = mi * c * q * v_par * hphi / (qi * sign_theta * psi_pr)
+    end function fow_displacement
+
+    subroutine do_magfie_displaced(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        ! do_magfie at a displaced radius without side effects: do_magfie
+        ! overwrites the flux-surface module quantities of the label surface s,
+        ! which the caller and drift_phase (Om_tB_local_v2) still need. (The
+        ! standalone B0h is also overwritten; nothing reads it after init.)
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: saved(7)
+
+        saved = [Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds, iota]
+        call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        Bthcov = saved(1)
+        Bphcov = saved(2)
+        dBthcovds = saved(3)
+        dBphcovds = saved(4)
+        q = saved(5)
+        dqds = saved(6)
+        iota = saved(7)
+    end subroutine do_magfie_displaced
 
 end module neort_transport

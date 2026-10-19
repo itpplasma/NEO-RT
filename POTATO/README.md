@@ -15,6 +15,12 @@ cmake -S . -B build -G Ninja
 cmake --build build -j
 ```
 
+The default architecture flags target the build host. To build a portable
+binary, override the CMake list `POTATO_ARCH_FLAGS`, for example
+`'-DPOTATO_ARCH_FLAGS=-march=x86-64-v3;-mtune=generic'` on x86-64, or
+`-DPOTATO_ARCH_FLAGS=` to omit POTATO's architecture flags. Dependencies retain
+their own build settings and must also support the destination CPU.
+
 `build/potato.x` reads its inputs from the working directory: `potato.in` (the
 `&potato_nml` namelist), the g-eqdsk and convex-wall file named in
 `field_divB0.inp`, and the profile files.
@@ -57,6 +63,23 @@ python tools/neo_rt_profiles_to_potato.py profile.in plasma.in components.npz \
     profile_poly.in --r0-cm=641.0903942 --psi-span-tm2=11.88279543 \
     --relation-sign=1
 ```
+
+For profiles whose edge cannot be represented by a global polynomial, add
+`--format=table` and point `profile_file` at that output. The native table starts
+with `POTATO_PROFILE_TABLE_V1`, then a row count and four columns:
+`s_pol, n[cm^-3], Ti[eV], Phi[statvolt]`. POTATO interpolates these physical
+samples with the same natural cubic spline library used by NEO-RT and computes
+the derivatives from that interpolation. Table coordinates must increase and
+cover `s_pol=0..1`; density and temperature must be positive. A query beyond
+table support stops with an explicit error. The existing polynomial format
+remains the default. Validate values and gradients over the orbit domain;
+a small global polynomial residual can hide a large relative edge error.
+
+`potato_profile_readback.x FILE Ealpha Z escale fscale psi_axis psi_sep QUERIES`
+reads either profile format and writes `s_pol,n,T_hat,Phi_hat,dn/dpsi,
+dT_hat/dpsi,dPhi_hat/dpsi`. The query file contains a count followed by one
+`s_pol` per row. This provides a native value/derivative check with the actual
+energy, charge, scale factors and signed poloidal-flux span.
 
 It selects the physical ion using charge and nonzero density, maps
 `s_tor -> s_pol=rho_pol^2`, and records the polynomial residuals. The JSON
