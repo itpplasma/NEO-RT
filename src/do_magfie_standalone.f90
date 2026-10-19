@@ -73,8 +73,12 @@ module do_magfie_mod
     real(dp), allocatable, protected :: cm_spl_aphi(:, :)   ! spline of A_phi(s)
     real(dp), allocatable, protected :: cm_spl_Bth(:, :)    ! spline of B_theta(rho)
     real(dp), allocatable, protected :: cm_spl_Bph(:, :)    ! spline of B_phi(rho)
-    ! (n_rho-1, 5, n_theta): for each theta grid index, spline of Bmod vs rho
-    real(dp), allocatable, protected :: cm_spl_bmod(:, :, :)
+    ! Bmod(rho, theta) as a theta Fourier series (trigonometric interpolant of
+    ! the endpoint-excluded theta grid), each harmonic splined in rho:
+    ! (n_rho-1, 5, 0:cm_m_max) for the cosine and sine amplitudes.
+    integer :: cm_m_max = 0
+    real(dp), allocatable, protected :: cm_spl_bmod_c(:, :, :)
+    real(dp), allocatable, protected :: cm_spl_bmod_s(:, :, :)
 
 contains
 
@@ -329,10 +333,10 @@ contains
         real(dp), dimension(size(x)), intent(out) :: hcurl
 
         real(dp) :: spl_val(3), rho1, s1, dAphi_ds
-        real(dp) :: bmod0, bmod1, dBmod_drho, dBmod_dth
+        real(dp) :: dBmod_drho, dBmod_dth, cos_m, sin_m
+        real(dp) :: spl_c(3), spl_s(3)
         real(dp) :: sqgbmod, sqgbmod2
-        real(dp) :: alpha, th_shift
-        integer :: k_th, k_th1
+        integer :: m
 
         s1 = max(cm_s_aphi(1), x(1))
         s1 = min(cm_s_aphi(size(cm_s_aphi)), s1)
@@ -365,36 +369,32 @@ contains
         ! Set psi_pr = -cm_torflux so sign_theta*psi_pr has the same sign in both paths.
         psi_pr = -cm_torflux * bfac
 
-        ! Bmod on (rho, theta) grid: wrap theta to [0, 2*pi) then interpolate.
-        th_shift = x(3) - floor(x(3) / (2.0_dp * pi)) * 2.0_dp * pi
-        k_th = max(0, min(cm_n_theta - 1, int(th_shift / cm_h_theta)))
-        k_th1 = mod(k_th + 1, cm_n_theta)
-        alpha = (th_shift - real(k_th, dp) * cm_h_theta) / cm_h_theta
-
-        ! Spline in rho at k_th grid point (1-based index k_th+1).
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
-        bmod0 = spl_val(1) * bfac
-        dBmod_drho = spl_val(2) * bfac
-
-        ! Spline in rho at next theta grid point (periodic wrap).
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
-        bmod1 = spl_val(1) * bfac
-
-        bmod = (1.0_dp - alpha) * bmod0 + alpha * bmod1
+        ! Bmod from its theta Fourier series. Unlike linear interpolation on the
+        ! theta grid, this gives a continuous dBmod/dtheta that matches the .bc
+        ! path; a piecewise-constant derivative biases the bounce integrals.
+        bmod = 0.0_dp
+        dBmod_drho = 0.0_dp
+        dBmod_dth = 0.0_dp
+        do m = 0, cm_m_max
+            spl_c = spline_val_0(cm_spl_bmod_c(:, :, m), rho1)
+            spl_s = spline_val_0(cm_spl_bmod_s(:, :, m), rho1)
+            cos_m = cos(real(m, dp) * x(3))
+            sin_m = sin(real(m, dp) * x(3))
+            bmod = bmod + spl_c(1) * cos_m + spl_s(1) * sin_m
+            dBmod_drho = dBmod_drho + spl_c(2) * cos_m + spl_s(2) * sin_m
+            dBmod_dth = dBmod_dth + real(m, dp) * (spl_s(1) * cos_m - spl_c(1) * sin_m)
+        end do
+        bmod = bmod * bfac
+        dBmod_drho = dBmod_drho * bfac
+        dBmod_dth = dBmod_dth * bfac
         B0h = bmod
 
         ! dBmod/ds via chain rule through rho.
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
-        dBmod_drho = (1.0_dp - alpha) * spl_val(2) * bfac
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
-        dBmod_drho = dBmod_drho + alpha * spl_val(2) * bfac
         bder(1) = dBmod_drho / (2.0_dp * rho1 * bmod)
         ! x(2) is the toroidal angle phi; Bmod has no phi dependence in axisymmetric
         ! (nfp=1, phi=0 slice) Boozer coordinates, so bder(2)=0 is exact.
         bder(2) = 0.0_dp
-        ! dBmod/dtheta by finite difference across the theta grid cell.
-        dBmod_dth = (bmod1 - bmod0) / (cm_h_theta * bmod)
-        bder(3) = dBmod_dth
+        bder(3) = dBmod_dth / bmod
 
         sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
         sqgbmod = sqgbmod2 / bmod
@@ -421,18 +421,26 @@ contains
         character(len=*), intent(in) :: path
 
         type(boozer_chartmap_data_t) :: d
-        integer :: j, n_s_aphi
+        integer :: j, m, n_s_aphi
+        real(dp) :: theta_j
+        real(dp), allocatable :: bmod_c(:), bmod_s(:)
 
         call read_boozer_chartmap(path, d)
 
         cm_n_rho = d%n_rho
-        cm_n_theta = d%n_theta
+        ! The libneo reader appends the periodic theta = 2*pi node to the file
+        ! grid; keep only the distinct nodes for the Fourier transform below.
+        cm_n_theta = d%n_theta - 1
         cm_torflux = d%torflux
         cm_h_theta = d%h_theta
         cm_rho_min = d%rho(1)
         cm_rho_max = d%rho(d%n_rho)
         n_s_aphi = d%n_s
         R0 = d%rmajor * 100.0_dp  ! m -> cm
+        a = d%aminor * 100.0_dp  ! m -> cm
+        if (a <= 0.0_dp) then
+            error stop "Boozer chartmap has no usable minor radius"
+        end if
         ! psi_pr stored globally; negate torflux to match the .bc sign convention
         ! (chartmap torflux > 0, .bc psi_pr = flux*1e8/(2*pi) < 0 for typical orientation).
         psi_pr = -d%torflux * bfac
@@ -442,7 +450,8 @@ contains
         if (allocated(cm_spl_aphi)) deallocate(cm_spl_aphi)
         if (allocated(cm_spl_Bth)) deallocate(cm_spl_Bth)
         if (allocated(cm_spl_Bph)) deallocate(cm_spl_Bph)
-        if (allocated(cm_spl_bmod)) deallocate(cm_spl_bmod)
+        if (allocated(cm_spl_bmod_c)) deallocate(cm_spl_bmod_c)
+        if (allocated(cm_spl_bmod_s)) deallocate(cm_spl_bmod_s)
 
         allocate(cm_rho(cm_n_rho))
         cm_rho = d%rho
@@ -462,9 +471,30 @@ contains
         ! Bmod grid: (n_rho, n_theta, n_phi). For the do_magfie evaluation we
         ! use the phi=0 slice (index 1), which equals the phi=2pi/nfp plane
         ! for a field with nfp-fold symmetry; works for axisymmetric too.
-        allocate(cm_spl_bmod(cm_n_rho - 1, 5, cm_n_theta))
-        do j = 1, cm_n_theta
-            cm_spl_bmod(:, :, j) = spline_coeff(d%rho, d%Bmod(:, j, 1))
+        ! Discrete Fourier transform in theta of the phi=0 slice. The theta grid
+        ! starts at 0 and excludes 2*pi. Harmonics above n_theta/2 alias; the
+        ! Nyquist harmonic (even n_theta) gets half weight and no sine part.
+        cm_m_max = cm_n_theta / 2
+        allocate(cm_spl_bmod_c(cm_n_rho - 1, 5, 0:cm_m_max))
+        allocate(cm_spl_bmod_s(cm_n_rho - 1, 5, 0:cm_m_max))
+        allocate(bmod_c(cm_n_rho), bmod_s(cm_n_rho))
+        do m = 0, cm_m_max
+            bmod_c = 0.0_dp
+            bmod_s = 0.0_dp
+            do j = 1, cm_n_theta
+                theta_j = real(j - 1, dp) * cm_h_theta
+                bmod_c = bmod_c + d%Bmod(:, j, 1) * cos(real(m, dp) * theta_j)
+                bmod_s = bmod_s + d%Bmod(:, j, 1) * sin(real(m, dp) * theta_j)
+            end do
+            if (m == 0 .or. 2 * m == cm_n_theta) then
+                bmod_c = bmod_c / real(cm_n_theta, dp)
+                bmod_s = 0.0_dp
+            else
+                bmod_c = 2.0_dp * bmod_c / real(cm_n_theta, dp)
+                bmod_s = 2.0_dp * bmod_s / real(cm_n_theta, dp)
+            end if
+            cm_spl_bmod_c(:, :, m) = spline_coeff(d%rho, bmod_c)
+            cm_spl_bmod_s(:, :, m) = spline_coeff(d%rho, bmod_s)
         end do
 
         ! B00: (0,0) mode of Bmod = rho=0 surface average; approximate with rho=rho_min.
