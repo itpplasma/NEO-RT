@@ -5,7 +5,8 @@ program test_mixture_thread_invariance
     ! a counter-passing node of another species), so the result must not
     ! depend on the thread count at all. The argument selects the finite-width
     ! Krook ('krook') or the collisionless ('collisionless') velocity integral.
-    use iso_fortran_env, only: dp => real64
+    use iso_fortran_env, only: dp => real64, int64
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use neort_lib, only: config_t, mixture_t, species_state_t, mixture_result_t, &
         neort_init, neort_prepare_mixture, neort_compute_mixture_at_s
     use omp_lib, only: omp_set_num_threads, omp_set_dynamic
@@ -90,6 +91,11 @@ contains
                     e%summary%Dt], [a%summary%Dco, a%summary%Dctr, a%summary%Dt], &
                     failures)
                 do j = 1, size(e%harmonics)
+                    call check('harmonic D', k, nthreads, &
+                        [e%harmonics(j)%Dresco, e%harmonics(j)%Dresctr, &
+                         e%harmonics(j)%Drest], &
+                        [a%harmonics(j)%Dresco, a%harmonics(j)%Dresctr, &
+                         a%harmonics(j)%Drest], failures)
                     call check('harmonic', k, nthreads, [e%harmonics(j)%Tresco, &
                         e%harmonics(j)%Tresctr, e%harmonics(j)%Trest], &
                         [a%harmonics(j)%Tresco, a%harmonics(j)%Tresctr, &
@@ -106,7 +112,10 @@ contains
         integer, intent(in) :: species, nthreads
         real(dp), intent(in) :: reference(:), value(:)
         integer, intent(inout) :: failures
-        if (any(reference /= value)) then
+        if (any(.not. ieee_is_finite(reference)) .or. &
+                any(.not. ieee_is_finite(value)) .or. &
+                any(transfer(reference, [0_int64], size(reference)) /= &
+                transfer(value, [0_int64], size(value)))) then
             failures = failures + 1
             print *, label, ' species', species, ' threads', nthreads, reference, value
         end if

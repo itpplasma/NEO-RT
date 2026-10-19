@@ -51,7 +51,7 @@ module neort_transport
   ! order, independently of where and in which order they were computed.
   type :: velocity_sample_t
       integer :: nterm = 0
-      real(dp), allocatable :: term(:, :)  ! (3, nterm)
+      real(dp), allocatable :: term(:, :)  ! (3, capacity); only 1:nterm is used
   end type velocity_sample_t
 
 contains
@@ -136,6 +136,7 @@ contains
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         allocate(samples(velocity_sample_count(vsteps, energy_ratio)))
+        call prepare_velocity_samples(samples)
         do ku = 1, size(samples)
             call compute_velocity_sample(ku, vmin, vmax, vsteps, energy_ratio, samples(ku))
         end do
@@ -213,16 +214,25 @@ contains
         end if
     end subroutine assemble_velocity_samples
 
+    impure elemental subroutine prepare_velocity_samples(sample)
+        ! Reserve result storage before dispatch, never in a velocity worker.
+        ! nlev bounds the root search; Krook needs only its pitch integral.
+        type(velocity_sample_t), intent(inout) :: sample
+        integer :: capacity
+
+        capacity = nlev
+        if (finite_krook_active()) capacity = 1
+        if (allocated(sample%term)) deallocate(sample%term)
+        allocate(sample%term(3, capacity))
+        sample%nterm = 0
+    end subroutine prepare_velocity_samples
+
     subroutine store_sample_terms(terms, sample)
         real(dp), intent(in) :: terms(:, :)
         type(velocity_sample_t), intent(inout) :: sample
 
         sample%nterm = size(terms, 2)
-        if (allocated(sample%term)) then
-            if (size(sample%term, 2) /= sample%nterm) deallocate(sample%term)
-        end if
-        if (.not. allocated(sample%term)) allocate(sample%term(3, sample%nterm))
-        sample%term = terms
+        sample%term(:, 1:sample%nterm) = terms
     end subroutine store_sample_terms
 
     subroutine compute_collisionless_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)

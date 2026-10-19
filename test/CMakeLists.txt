@@ -402,8 +402,8 @@ foreach(mode IN ITEMS krook collisionless)
         COMMAND test_mixture_thread_invariance.x ${mode}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
     set_tests_properties(test_mixture_thread_invariance_${mode} PROPERTIES
-        ENVIRONMENT "OMP_THREAD_LIMIT=16;OPENBLAS_NUM_THREADS=1"
-        PROCESSORS 4 TIMEOUT 300)
+        ENVIRONMENT "OMP_THREAD_LIMIT=16;OPENBLAS_NUM_THREADS=1;OMP_WAIT_POLICY=PASSIVE"
+        PROCESSORS 16 TIMEOUT 300)
 endforeach()
 
 add_test(NAME test_mixture_collisions COMMAND test_mixture_collisions.x)

@@ -178,7 +178,7 @@ contains
         ! afterwards, so the results do not depend on the thread count.
         use neort, only: compute_component_sample, assemble_component, &
             assemble_transport, component_active, component_sample_count, ncomponent
-        use neort_transport, only: velocity_sample_t
+        use neort_transport, only: velocity_sample_t, prepare_velocity_samples
         real(dp), intent(in) :: s_val
         integer, intent(in) :: state(:)  ! species index of each state
         type(transport_data_t), intent(out) :: transport(size(state))
@@ -218,6 +218,7 @@ contains
         end do
         nsample = component_sample_count()
         allocate(samples(nsample, ncomp))
+        call prepare_velocity_samples(samples)
         ! Species-major order: a thread moves forward through the list, so it
         ! sets each species up at most once.
         !$omp parallel do default(shared) private(n, i, ku, k, j, c) &
