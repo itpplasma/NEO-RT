@@ -3,8 +3,9 @@ program test_energy_distribution
     use kinetic_energy_selection, only: maxwellian_speed_density, &
         speed_from_energy_ratio, energy_sample_count, energy_sample_speed, &
         energy_sample_weight
-    use neort_transport, only: D11int, D11mono
-    use do_magfie_mod, only: q, psi_pr
+    use neort_transport, only: D11int, D11mono, D12int, Tphi_int
+    use do_magfie_mod, only: q, psi_pr, sign_theta
+    use neort_profiles, only: ni1, A1, A2
     use neort_magfie, only: dVds
     use driftorbit, only: mph, vth
     use util, only: c, qi
@@ -16,6 +17,7 @@ program test_energy_distribution
     integer, parameter :: steps = 200000
     real(dp), parameter :: upper_speed = 8.0_dp
     real(dp), parameter :: tolerance = 2.0e-9_dp
+    real(dp), parameter :: pi = acos(-1.0_dp)
     real(dp) :: expected, hamiltonian_squared, integral, speed, step, bounce_time
     integer :: index
     type(config_t) :: config
@@ -45,10 +47,23 @@ program test_energy_distribution
         /(qi**2*dVds*abs(psi_pr))*speed*bounce_time*hamiltonian_squared
     if (abs(D11mono(speed, bounce_time, hamiltonian_squared)/expected - 1.0_dp) &
         > 20.0_dp*epsilon(1.0_dp)) error stop "monoenergetic D11 kernel mismatch"
-    if (abs(D11int(speed, bounce_time, hamiltonian_squared) &
-        /maxwellian_speed_density(speed) &
-        /D11mono(speed, bounce_time, hamiltonian_squared) - 1.0_dp) &
-        > 20.0_dp*epsilon(1.0_dp)) error stop "thermal D11 factorization mismatch"
+    ! Independent oracle: the literal thermal kernels of main before the
+    ! monoenergetic factorization.
+    expected = pi**1.5_dp*mph**2*c**2*q*vth/(qi**2*dVds*abs(psi_pr)) &
+        *speed**3*exp(-speed**2)*bounce_time*hamiltonian_squared
+    if (abs(D11int(speed, bounce_time, hamiltonian_squared)/expected - 1.0_dp) &
+        > 20.0_dp*epsilon(1.0_dp)) error stop "thermal D11 kernel changed"
+    if (abs(D12int(speed, bounce_time, hamiltonian_squared) &
+        /(expected*speed**2) - 1.0_dp) > 20.0_dp*epsilon(1.0_dp)) &
+        error stop "thermal D12 kernel changed"
+    ni1 = 3.0e13_dp
+    A1 = 0.7_dp
+    A2 = -0.2_dp
+    expected = sign(1.0_dp, psi_pr*q*sign_theta)*pi**1.5_dp*mph**2*ni1*c*vth/qi &
+        *speed**3*exp(-speed**2)*bounce_time*hamiltonian_squared &
+        *(A1 + A2*speed**2)
+    if (abs(Tphi_int(speed, bounce_time, hamiltonian_squared)/expected - 1.0_dp) &
+        > 20.0_dp*epsilon(1.0_dp)) error stop "thermal torque kernel changed"
 
     if (config%monoenergetic_x >= 0.0_dp) &
         error stop "thermal integration must remain the default"
