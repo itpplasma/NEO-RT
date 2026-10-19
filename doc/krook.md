@@ -121,6 +121,18 @@ angle travelled, `theta = th0 + direction*phi` with
 `s = 0.09`; a time integration over `2*pi/|Om_th|` with that frequency then
 changed the squared weight of the strongly cancelling `mth = -11` harmonic
 by a factor of about 200 and left it too noisy for the Krook pitch quadrature.
+The two passes take different ODE steps, so their periods differ by about
+`1e-11`; closing the second-pass phase with the first-pass period left a
+mismatch of `(mth+q*mph)*2*pi` times that. Harmonics that cancel to
+`|<H_n>| ~ 1e-7*max|H_n|`, as at the low-rate ITER C12 resonances of slow
+passing particles, then had a weight noisy by `1e-4` in eta, and the Krook
+quadrature exhausted its piece budget with an error estimate stuck at
+`3.5e-6` of the integral. The second pass therefore also integrates
+`d/dOmth` of the harmonic and shifts it to the frequency of its own period
+to first order (`test_krook_passing_harmonic` checks harmonics cancelling to
+`6e-8` against a spectral transit reference to `5e-12*max|H_n|`). The
+remaining ODE error, about `1e-12*max|H_n|`, still limits the relative
+accuracy of the most strongly cancelling harmonics.
 
 `krook_rtol` defaults to `1e-5`, `krook_atol` to zero and
 `krook_max_depth` to 40. The uniform probes cannot see structure of `R` on

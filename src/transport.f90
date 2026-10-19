@@ -307,15 +307,24 @@ contains
         ! poloidal angle travelled, theta = th0 + direction*phi with
         ! dt/dphi = 1/|v_parallel*h^theta|, over exactly one transit. A first
         ! pass gives the period, whose frequency replaces Omth in the phase
-        ! during the second pass, as in trapped_bounce.
+        ! during the second pass, as in trapped_bounce. The two passes take
+        ! different steps, and their periods differ by the ODE error (about
+        ! 1e-11 for ITER C12 at s = 0.09). The phase then did not close on the
+        ! second pass by (mth + q*mph)*2*pi times that, which for harmonics
+        ! cancelling to |<H_n>| ~ 1e-7*max|H_n| made the weight noisy by 1e-4
+        ! in eta and exhausted the Krook piece budget. The second pass
+        ! therefore also integrates d/dOmth of the harmonic and moves it to
+        ! the frequency of its own period, to first order in the difference.
         use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
         use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
             FORTNUM_CONVERGENCE_ERROR
         real(dp), intent(in) :: v, eta, taub, atol_in(nvar)
         real(dp), intent(out) :: bounceavg(nvar)
         integer, intent(out) :: istate
-        real(dp) :: direction, sign_vparallel, saved_omth, y0(nvar), atol(nvar)
+        integer, parameter :: neq = nvar + 2
+        real(dp) :: direction, sign_vparallel, saved_omth, y0(neq), atol(neq)
         real(dp) :: position(3), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: harmonic, period_omth
         real(dp), allocatable :: yend(:)
         integer :: pass
         logical :: averages
@@ -328,14 +337,16 @@ contains
         call do_magfie(position, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
         sign_vparallel = sign(1.0_dp, hctrvr(3))*sign(1.0_dp, sign_vpar)
         direction = sign(1.0_dp, sign_vparallel*hctrvr(3))
-        atol = atol_in
+        atol(:nvar) = atol_in
         atol(1) = bounce_rtol*taub
+        atol(nvar + 1:) = atol(3:4)*taub
+        harmonic = real(mth, dp) + q*mph
         bounceavg = 0.0_dp
         saved_omth = Omth
         do pass = 1, 2
             averages = pass == 2
             y0 = 0.0_dp
-            call vode_init(vstate, nvar, 0.0_dp, y0)
+            call vode_init(vstate, neq, 0.0_dp, y0)
             call vode_integrate_to(phi_rhs, vstate, 2.0_dp*pi, bounce_rtol, atol, &
                                    yend, status)
             if (status%code == FORTNUM_OK) then
@@ -346,11 +357,16 @@ contains
                 istate = 0
             end if
             if (istate /= 2) exit
-            Omth = sign(2.0_dp*pi/yend(1), saved_omth)
+            period_omth = sign(2.0_dp*pi/yend(1), saved_omth)
+            if (pass == 2) then
+                yend(3) = yend(3) + (period_omth - Omth)*yend(nvar + 1)
+                yend(4) = yend(4) + (period_omth - Omth)*yend(nvar + 2)
+            end if
+            Omth = period_omth
         end do
         Omth = saved_omth
         if (istate /= 2) return
-        bounceavg(3:) = yend(3:)/yend(1)
+        bounceavg(3:) = yend(3:nvar)/yend(1)
 
     contains
 
@@ -373,10 +389,13 @@ contains
             orbit = 0.0_dp
             orbit(1) = x(3)
             orbit(2) = sign(vparallel, sign_vparallel)
-            orbit(3:) = y(3:)
+            orbit(3:) = y(3:nvar)
             call transport_rates(v, eta, nvar, y(1), orbit, bmod_, hder_, hcovar_, &
                                  hctrvr_, rate)
-            dydphi(3:) = rate(3:)*dtdphi
+            dydphi(3:nvar) = rate(3:)*dtdphi
+            ! d/dOmth of the harmonic exp(-i*harmonic*Omth*t)*H_n.
+            dydphi(nvar + 1) = harmonic*y(1)*rate(4)*dtdphi
+            dydphi(nvar + 2) = -harmonic*y(1)*rate(3)*dtdphi
         end subroutine phi_rhs
     end subroutine passing_bounce
 
