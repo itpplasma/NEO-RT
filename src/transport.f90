@@ -90,7 +90,7 @@ contains
         real(dp) :: D12int
         real(dp), intent(in) :: ux, taub, Hmn2
 
-        D12int = D11int(ux, taub, Hmn2)*ux**2
+        D12int = D11int(ux, taub, Hmn2) * ux**2
     end function D12int
 
     pure function D12mono(ux, taub, Hmn2)
