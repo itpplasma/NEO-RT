@@ -9,7 +9,13 @@ module do_magfie_mod
     real(dp), private, allocatable :: spl_val_c(:, :), spl_val_s(:, :)
     ! Work arrays previously automatic on stack (size=nmode)
     real(dp), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
-    real(dp), private, allocatable :: costerm(:), sinterm(:)
+    ! (B0mnc, dB0dsmnc, m*B0mnc) - i*(B0mns, dB0dsmns, m*B0mns), zero-padded
+    real(dp), private, allocatable :: bmod_coef(:, :, :)
+    complex(dp), private :: bmod_sums(3)
+    integer, parameter :: fourier_chains = 4
+    ! bfac carried by B0mnc etc.; flux-function spline values at profile_x1
+    real(dp), private :: amplitude_bfac = 0.0_dp, profile_x1 = -1.0_dp
+    real(dp), private :: profile_spl(3, 3) = 0.0_dp
 
     real(dp), parameter :: sign_theta = -1.0_dp  ! negative for left-handed
 
@@ -52,8 +58,9 @@ module do_magfie_mod
     ! Working buffers (per-thread cache and temporary arrays)
     !$omp threadprivate (magfie_arrays_initialized, magfie_thread_init_state)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
-    !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
+    !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, bmod_coef, bmod_sums)
     !$omp threadprivate (rmnc, rmns, zmnc, zmns)
+    !$omp threadprivate (amplitude_bfac, profile_x1, profile_spl)
 
     ! Flux-surface dependent quantities (computed per-thread for each s)
     !$omp threadprivate (s, Bthcov, Bphcov, dBthcovds, dBphcovds)
@@ -89,6 +96,7 @@ contains
         ! Must be called once per thread before using magfie routines
         magfie_arrays_initialized = .false.
         s_prev = -1.0_dp
+        profile_x1 = -1.0_dp
     end subroutine magfie_thread_init
 
     subroutine read_boozer_file(path)
@@ -130,6 +138,7 @@ contains
 
         ! Set B00 from first mode
         B00 = 1.0e4_dp * modes0(1, 1, 6) * bfac
+        profile_x1 = -1.0_dp
     end subroutine read_boozer_file
 
     logical function s_outside_data(s_)
@@ -174,9 +183,9 @@ contains
                     if (allocated(dB0dsmns)) deallocate(dB0dsmns)
                     allocate(B0mns(nmode), dB0dsmns(nmode))
                 end if
-                if (allocated(costerm)) deallocate(costerm)
-                if (allocated(sinterm)) deallocate(sinterm)
-                allocate(costerm(nmode), sinterm(nmode))
+                if (allocated(bmod_coef)) deallocate(bmod_coef)
+                allocate(bmod_coef(fourier_chains*((nmode - 1)/fourier_chains + 1), &
+                                   2, 3))
 
                 if (allocated(rmnc)) deallocate(rmnc)
                 if (allocated(rmns)) deallocate(rmns)
@@ -201,6 +210,7 @@ contains
 
         ! Initialize cache
         s_prev = -1.0_dp
+        profile_x1 = -1.0_dp
 
         x(1) = s
         x(2) = 0.0
@@ -245,45 +255,50 @@ contains
         x1 = max(params0(1, 1), x(1))
         x1 = min(params0(nflux, 1), x1)
 
-        spl_val = spline_val_0(spl_coeff1(:, :, 3), x1)
-        Bthcov = ItoB * spl_val(1) * bfac
-        dBthcovds = ItoB * spl_val(2) * bfac
-        spl_val = spline_val_0(spl_coeff1(:, :, 2), x1)
-        Bphcov = ItoB * spl_val(1) * bfac
-        dBphcovds = ItoB * spl_val(2) * bfac
-        spl_val = spline_val_0(spl_coeff1(:, :, 1), x1)
-        iota = spl_val(1)
-        q = 1 / iota
-        dqds = -spl_val(2) / iota**2
-
-        call fast_sin_cos(modes0(1, :, 1), x(3), sinterm, costerm)
-
-        ! calculate B-field from modes
-        if (inp_swi == 8) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
-            dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
-            B0h = B0mnc(1)
-
-            bmod = sum(B0mnc * costerm)
-            bder(1) = sum(dB0dsmnc * costerm) / bmod
-            bder(2) = 0.0_dp
-            bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm) / bmod
-        else if (inp_swi == 9) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
-            B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
-            dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            B0mns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
-            dB0dsmns(:) = 1.0e4_dp * spl_val_s(2, :) * bfac
-            B0h = B0mnc(1)
-
-            bmod = sum(B0mnc * costerm + B0mns * sinterm)
-            bder(1) = sum(dB0dsmnc * costerm + dB0dsmns * sinterm) / bmod
-            bder(2) = 0.0_dp
-            bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm &
-                          + modes0(1, :, 1) * B0mns * costerm) / bmod
+        ! Orbit integrals call this at fixed s for every theta: the flux
+        ! function splines are evaluated again only when s changes.
+        if (x1 /= profile_x1) then
+            profile_spl(:, 3) = spline_val_0(spl_coeff1(:, :, 3), x1)
+            profile_spl(:, 2) = spline_val_0(spl_coeff1(:, :, 2), x1)
+            profile_spl(:, 1) = spline_val_0(spl_coeff1(:, :, 1), x1)
+            profile_x1 = x1
         end if
+        Bthcov = ItoB * profile_spl(1, 3) * bfac
+        dBthcovds = ItoB * profile_spl(2, 3) * bfac
+        Bphcov = ItoB * profile_spl(1, 2) * bfac
+        dBphcovds = ItoB * profile_spl(2, 2) * bfac
+        iota = profile_spl(1, 1)
+        q = 1 / iota
+        dqds = -profile_spl(2, 1) / iota**2
+
+        ! calculate B-field from modes; the scaled amplitudes are refreshed
+        ! only when cached_spline would refresh them (or bfac changes).
+        if (abs(x1 - s_prev) >= spline_cache_tol .or. bfac /= amplitude_bfac) then
+            if (inp_swi == 8) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
+                B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
+            else if (inp_swi == 9) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+                B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+                B0mns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
+                dB0dsmns(:) = 1.0e4_dp * spl_val_s(2, :) * bfac
+            end if
+            amplitude_bfac = bfac
+            call set_bmod_coefficients()
+        end if
+        B0h = B0mnc(1)
+
+        ! bmod = sum(B0mnc*cos(m*th) + B0mns*sin(m*th)), its s derivative and
+        ! its theta derivative, as the real parts of complex Fourier sums.
+        call fourier_sums(bmod_coef, modes0(1, 1, 1), &
+                          modes0(1, 2, 1) - modes0(1, 1, 1), x(3), bmod_sums)
+        bmod = real(bmod_sums(1), dp)
+        bder(1) = real(bmod_sums(2), dp) / bmod
+        bder(2) = 0.0_dp
+        bder(3) = real(imun * bmod_sums(3), dp) / bmod
 
         sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
         sqgbmod = sqgbmod2 / bmod
@@ -666,27 +681,59 @@ contains
 
     end subroutine booz_to_cyl
 
-    subroutine fast_sin_cos(m, x, sinterm_, costerm_)
-        ! Fast sine and cosine that assumes equally spaced ascending mode numbers
-        real(dp), intent(in) :: m(:), x
-        real(dp), intent(out) :: sinterm_(:), costerm_(:)
+    subroutine set_bmod_coefficients()
+        ! Complex coefficients of bmod, d bmod/ds and d bmod/dtheta (times -i)
+        ! from the current mode amplitudes; B0mns is absent for inp_swi == 8.
+        bmod_coef = 0.0_dp
+        bmod_coef(:nmode, 1, 1) = B0mnc
+        bmod_coef(:nmode, 1, 2) = dB0dsmnc
+        bmod_coef(:nmode, 1, 3) = modes0(1, :, 1) * B0mnc
+        if (inp_swi == 9) then
+            bmod_coef(:nmode, 2, 1) = -B0mns
+            bmod_coef(:nmode, 2, 2) = -dB0dsmns
+            bmod_coef(:nmode, 2, 3) = -modes0(1, :, 1) * B0mns
+        end if
+    end subroutine set_bmod_coefficients
 
-        real(dp) :: dm
-        complex(dp) :: fourier_factor, rotation
-        integer :: j
+    subroutine fourier_sums(coef, m1, dm, x, sums)
+        ! sums(k) = sum_j (coef(j, 1, k) + i*coef(j, 2, k))*exp(i*(m1 + (j - 1)*dm)*x)
+        ! for equally spaced ascending mode numbers, by Horner's scheme in
+        ! z = exp(i*dm*x) as fourier_chains interleaved chains in
+        ! z**fourier_chains (independent recurrences that vectorize). The
+        ! coefficients are zero-padded to a multiple of fourier_chains.
+        real(dp), intent(in) :: coef(:, :, :), m1, dm, x
+        complex(dp), intent(out) :: sums(3)
+        real(dp) :: hr(fourier_chains, 3), hi(fourier_chains, 3)
+        real(dp) :: t(fourier_chains), step_re, step_im
+        complex(dp) :: rotation, power, step
+        integer :: base, l, k
 
-        dm = m(2) - m(1)
-        fourier_factor  = exp(imun*m(1)*x)
-        rotation = exp(imun*dm*x)
-
-        costerm_ = (0.0_dp, 0.0_dp)
-        sinterm_ = (0.0_dp, 0.0_dp)
-        do j = 1, size(m)
-            costerm_(j) = real(fourier_factor)
-            sinterm_(j) = imag(fourier_factor)
-            fourier_factor = fourier_factor*rotation
+        rotation = unit_phase(dm*x)
+        step = rotation
+        do l = 2, fourier_chains
+            step = step*rotation
         end do
-    end subroutine fast_sin_cos
+        step_re = real(step, dp)
+        step_im = aimag(step)
+        hr = 0.0_dp
+        hi = 0.0_dp
+        do base = size(coef, 1) - fourier_chains, 0, -fourier_chains
+            do k = 1, 3
+                t = hr(:, k)*step_re - hi(:, k)*step_im &
+                    + coef(base + 1:base + fourier_chains, 1, k)
+                hi(:, k) = hr(:, k)*step_im + hi(:, k)*step_re &
+                    + coef(base + 1:base + fourier_chains, 2, k)
+                hr(:, k) = t
+            end do
+        end do
+        sums = cmplx(hr(1, :), hi(1, :), dp)
+        power = (1.0_dp, 0.0_dp)
+        do l = 2, fourier_chains
+            power = power*rotation
+            sums = sums + cmplx(hr(l, :), hi(l, :), dp)*power
+        end do
+        if (m1 /= 0.0_dp) sums = sums*exp(imun*m1*x)
+    end subroutine fourier_sums
 
 end module do_magfie_mod
 
@@ -706,8 +753,13 @@ module do_magfie_pert_mod
 
     real(dp), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
 
-    ! Work arrays (size=nmode)
+    ! Scaled mode amplitudes at s_prev (size=nmode) and the bfac they carry
     real(dp), private, allocatable :: Bmnc(:), Bmns(:)
+    ! Bmnc - i*Bmns, zero-padded to a multiple of fourier_chains
+    real(dp), private, allocatable :: coef_re(:), coef_im(:)
+    integer, parameter :: fourier_chains = 8
+    real(dp), private :: amplitude_bfac = 0.0_dp
+    !$omp threadprivate (amplitude_bfac, coef_re, coef_im)
 
     integer :: ncol1, ncol2  ! number of columns in input file
     integer :: inp_swi_pert = -1  ! negative inherits the axisymmetric switch
@@ -814,6 +866,10 @@ contains
             if (ncol2 >= 8) then
                 if (allocated(Bmns)) deallocate(Bmns)
                 allocate(Bmns(nmode))
+                if (allocated(coef_re)) deallocate(coef_re)
+                if (allocated(coef_im)) deallocate(coef_im)
+                allocate(coef_re(fourier_chains*((nmode - 1)/fourier_chains + 1)))
+                allocate(coef_im(size(coef_re)))
             end if
 
             if (allocated(spl_val_c)) deallocate(spl_val_c)
@@ -868,22 +924,43 @@ contains
         x1 = max(params(1, 1), x(1))
         x1 = min(params(nflux, 1), x1)
 
-        ! calculate B-field from modes
+        ! calculate B-field from modes. The orbit integrals evaluate this at a
+        ! fixed s for every theta, so the scaled mode amplitudes are refreshed
+        ! only when cached_spline would refresh them (or bfac changes).
         input_switch = resolved_perturbation_switch()
         if (input_switch == 8) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+            if (amplitudes_stale(x1)) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
+                Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                amplitude_bfac = bfac
+            end if
             bamp = sum(Bmnc * cos(modes(1, :, 1) * x(3)))
         else if (input_switch == 9) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
-            Bmns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
-            bamp = fast_fourier_sum(Bmnc, Bmns, modes(1, :, 1), x(3))
+            if (amplitudes_stale(x1)) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+                Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                Bmns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
+                amplitude_bfac = bfac
+                coef_re = 0.0_dp
+                coef_im = 0.0_dp
+                coef_re(:nmode) = Bmnc
+                coef_im(:nmode) = -Bmns
+            end if
+            bamp = horner_fourier_sum(coef_re, coef_im, modes(1, 1, 1), &
+                                      modes(1, 2, 1) - modes(1, 1, 1), x(3))
         end if
 
         s_prev = x1
     end subroutine do_magfie_pert_amp
+
+    logical function amplitudes_stale(x1)
+        ! Mirrors the refresh test of cached_spline, whose spline values the
+        ! cached amplitudes are scaled from.
+        real(dp), intent(in) :: x1
+        amplitudes_stale = abs(x1 - s_prev) >= spline_cache_tol .or. &
+                           bfac /= amplitude_bfac
+    end function amplitudes_stale
 
     integer function resolved_perturbation_switch()
         if (inp_swi_pert < 0) then
@@ -1047,4 +1124,41 @@ contains
             fourier_factor = fourier_factor*rotation
         end do
     end function fast_fourier_sum
+
+    function horner_fourier_sum(coef_re, coef_im, m1, dm, x) result(total)
+        ! sum_j (coef_re(j) + i*coef_im(j))*exp(i*(m1 + (j - 1)*dm)*x) for
+        ! equally spaced ascending mode numbers. Horner's scheme in
+        ! z = exp(i*dm*x) runs as fourier_chains interleaved chains in
+        ! z**fourier_chains: their recurrences are independent, so the sum
+        ! is throughput- rather than latency-bound and vectorizes. The
+        ! coefficients are zero-padded to a multiple of fourier_chains.
+        real(dp), intent(in) :: coef_re(:), coef_im(:), m1, dm, x
+        complex(dp) :: total
+        real(dp) :: hr(fourier_chains), hi(fourier_chains), t(fourier_chains)
+        real(dp) :: step_re, step_im
+        complex(dp) :: rotation, power, step
+        integer :: base, l
+
+        rotation = unit_phase(dm*x)
+        step = rotation
+        do l = 2, fourier_chains
+            step = step*rotation
+        end do
+        step_re = real(step, dp)
+        step_im = aimag(step)
+        hr = 0.0_dp
+        hi = 0.0_dp
+        do base = size(coef_re) - fourier_chains, 0, -fourier_chains
+            t = hr*step_re - hi*step_im + coef_re(base + 1:base + fourier_chains)
+            hi = hr*step_im + hi*step_re + coef_im(base + 1:base + fourier_chains)
+            hr = t
+        end do
+        total = cmplx(hr(1), hi(1), dp)
+        power = (1.0_dp, 0.0_dp)
+        do l = 2, fourier_chains
+            power = power*rotation
+            total = total + cmplx(hr(l), hi(l), dp)*power
+        end do
+        if (m1 /= 0.0_dp) total = total*exp(imun*m1*x)
+    end function horner_fourier_sum
 end module do_magfie_pert_mod
