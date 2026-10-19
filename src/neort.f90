@@ -6,7 +6,8 @@ module neort
                               dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
-    use neort_transport, only: compute_transport_integral
+    use neort_transport, only: compute_transport_integral, velocity_sample_t, &
+        velocity_sample_count, compute_velocity_sample, assemble_velocity_samples
     use do_magfie_mod, only: s
 
     implicit none
@@ -237,8 +238,6 @@ contains
         ! Resonance integral of harmonic j for one orbit class. Depends only on
         ! the per-species state of prepare_transport, so the components of all
         ! harmonics may be computed in any order or on any thread holding it.
-        use driftorbit, only: mth, etamin, etamax, sign_vpar
-
         integer, intent(in) :: j, component
         real(dp), intent(out) :: D(2), T
 
@@ -253,6 +252,50 @@ contains
             ", component = ", component
         call debug(buffer)
 
+        call select_component(j, component, vmin, vmax)
+        call compute_transport_integral(vmin, vmax, vsteps, monoenergetic_x, D, T)
+    end subroutine compute_transport_component
+
+    integer function component_sample_count()
+        ! Velocity nodes of every resonance component.
+        component_sample_count = velocity_sample_count(vsteps, monoenergetic_x)
+    end function component_sample_count
+
+    subroutine compute_component_sample(j, component, ku, sample)
+        ! Velocity node ku of compute_transport_component(j, component); the
+        ! nodes of all components are independent on threads holding the
+        ! per-species state.
+        integer, intent(in) :: j, component, ku
+        type(velocity_sample_t), intent(inout) :: sample
+
+        real(dp) :: vmin, vmax
+
+        call select_component(j, component, vmin, vmax)
+        call compute_velocity_sample(ku, vmin, vmax, vsteps, monoenergetic_x, sample)
+    end subroutine compute_component_sample
+
+    subroutine assemble_component(j, component, samples, D, T)
+        ! compute_transport_component(j, component) from its velocity nodes.
+        integer, intent(in) :: j, component
+        type(velocity_sample_t), intent(in) :: samples(:)
+        real(dp), intent(out) :: D(2), T
+
+        real(dp) :: vmin, vmax
+
+        D = 0.0_dp
+        T = 0.0_dp
+        if (.not. component_active(component)) return
+        call select_component(j, component, vmin, vmax)
+        call assemble_velocity_samples(vmin, vmax, vsteps, monoenergetic_x, samples, D, T)
+    end subroutine assemble_component
+
+    subroutine select_component(j, component, vmin, vmax)
+        ! Harmonic, orbit class and velocity range of a resonance component.
+        use driftorbit, only: mth, etamin, etamax, sign_vpar
+
+        integer, intent(in) :: j, component
+        real(dp), intent(out) :: vmin, vmax
+
         mth = j
         call velocity_bounds(component, vmin, vmax)
         select case (component)
@@ -266,8 +309,7 @@ contains
             sign_vpar = 1
             call set_to_trapped_region(etamin, etamax)
         end select
-        call compute_transport_integral(vmin, vmax, vsteps, monoenergetic_x, D, T)
-    end subroutine compute_transport_component
+    end subroutine select_component
 
     subroutine velocity_bounds(component, vmin, vmax)
         use driftorbit, only: supban

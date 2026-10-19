@@ -1,9 +1,10 @@
 program test_mixture_thread_invariance
-    ! The resonance components of all species and harmonics are one OpenMP
-    ! work list. A thread computing a component must hold the state the serial
-    ! harmonic loop would hold, whatever it computed before (e.g. a
-    ! counter-passing component of another species), so the result must not
-    ! depend on the thread count at all.
+    ! The velocity nodes of all resonance components of all species and
+    ! harmonics are one OpenMP work list. A thread computing a node must hold
+    ! the state the serial loops would hold, whatever it computed before (e.g.
+    ! a counter-passing node of another species), so the result must not
+    ! depend on the thread count at all. The argument selects the finite-width
+    ! Krook ('krook') or the collisionless ('collisionless') velocity integral.
     use iso_fortran_env, only: dp => real64
     use neort_lib, only: config_t, mixture_t, species_state_t, mixture_result_t, &
         neort_init, neort_prepare_mixture, neort_compute_mixture_at_s
@@ -12,9 +13,14 @@ program test_mixture_thread_invariance
     type(config_t) :: config
     type(mixture_t) :: mixture
     type(mixture_result_t) :: serial, threaded
-    integer :: nthreads, failures
+    integer, parameter :: thread_counts(4) = [2, 4, 8, 16]
+    integer :: n, nthreads, failures
+    character(len=32) :: mode
 
-    call setup_config(config)
+    call get_command_argument(1, mode)
+    if (mode /= 'krook' .and. mode /= 'collisionless') &
+        error stop 'usage: test_mixture_thread_invariance.x krook|collisionless'
+    call setup_config(config, mode == 'krook')
     call neort_init(config, 'in_file')
     call setup_mixture(mixture)
     call neort_prepare_mixture(mixture)
@@ -23,17 +29,21 @@ program test_mixture_thread_invariance
     call neort_compute_mixture_at_s(config%s, serial)
     if (size(serial%species(1)%transport%harmonics) < 3) &
         error stop 'test needs several harmonics per species'
+    if (all(serial%torque_total == 0.0_dp)) error stop 'test needs resonant torque'
+    print *, trim(mode), ' torque_total', serial%torque_total
     failures = 0
-    do nthreads = 2, 4
+    do n = 1, size(thread_counts)
+        nthreads = thread_counts(n)
         call omp_set_num_threads(nthreads)
         call neort_compute_mixture_at_s(config%s, threaded)
         call compare(serial, threaded, nthreads, failures)
     end do
     if (failures > 0) error stop 'mixture transport depends on the thread count'
-    print *, 'Mixture transport is independent of the thread count'
+    print *, 'Mixture transport (', trim(mode), ') is independent of the thread count'
 contains
-    subroutine setup_config(value)
+    subroutine setup_config(value, krook)
         type(config_t), intent(out) :: value
+        logical, intent(in) :: krook
         value%s = 0.09_dp
         value%epsmn = 1.0e-3_dp
         value%m0 = 0
@@ -42,11 +52,11 @@ contains
         value%nopassing = .false.
         value%magdrift = .true.
         value%inp_swi = 8
-        value%vsteps = 2
+        value%vsteps = 4
         value%mth_max_abs = 1
         value%vmax_over_vth = 2.0_dp
         value%log_level = -1
-        value%krook_collisions = .true.
+        value%krook_collisions = krook
         value%krook_nu = 1.0e3_dp
         value%krook_eta_steps = 4
         value%krook_rtol = 1.0e-4_dp

@@ -170,21 +170,24 @@ contains
     end subroutine neort_compute_at_s
 
     subroutine compute_transport_at_s(s_val, state, transport, species)
-        ! Resonance components of every harmonic (and species) are independent
-        ! once a thread holds the per-species state, so they are distributed
-        ! over the OpenMP threads as one work list. Each component is computed
-        ! exactly as by the serial harmonic loop and the results are summed in
-        ! harmonic order afterwards, so they do not depend on the thread count.
-        use neort, only: compute_transport_component, assemble_transport, &
-            component_active, ncomponent
+        ! The velocity nodes of every resonance component of every harmonic
+        ! (and species) are independent once a thread holds the per-species
+        ! state, so they are distributed over the OpenMP threads as one work
+        ! list. Each node is computed exactly as by the serial velocity loop
+        ! and the nodes, components and harmonics are summed in serial order
+        ! afterwards, so the results do not depend on the thread count.
+        use neort, only: compute_component_sample, assemble_component, &
+            assemble_transport, component_active, component_sample_count, ncomponent
+        use neort_transport, only: velocity_sample_t
         real(dp), intent(in) :: s_val
         integer, intent(in) :: state(:)  ! species index of each state
         type(transport_data_t), intent(out) :: transport(size(state))
         type(species_result_t), intent(inout), optional :: species(size(state))
         integer :: mthmin(size(state)), mthmax(size(state))
-        integer :: nstate, lower, upper, k, j, c, n, nitem, epoch
-        integer, allocatable :: item(:, :)
+        integer :: nstate, lower, upper, k, j, c, i, n, ku, ncomp, nsample, epoch
+        integer, allocatable :: comp(:, :)
         real(dp), allocatable :: Dres(:, :, :, :), Tres(:, :, :)
+        type(velocity_sample_t), allocatable :: samples(:, :)
 
         nstate = size(state)
         !$omp atomic capture
@@ -202,30 +205,44 @@ contains
                  Tres(ncomponent, lower:upper, nstate))
         Dres = 0.0_dp
         Tres = 0.0_dp
-        allocate(item(3, nstate*ncomponent*max(upper - lower + 1, 0)))
-        nitem = 0
+        allocate(comp(3, nstate*ncomponent*max(upper - lower + 1, 0)))
+        ncomp = 0
         do k = 1, nstate
             do j = mthmin(k), mthmax(k)
                 do c = 1, ncomponent
                     if (.not. component_active(c)) cycle
-                    nitem = nitem + 1
-                    item(:, nitem) = [k, j, c]
+                    ncomp = ncomp + 1
+                    comp(:, ncomp) = [k, j, c]
                 end do
             end do
         end do
-        !$omp parallel do default(shared) private(n, k, j, c) schedule(dynamic, 1)
-        do n = 1, nitem
-            k = item(1, n)
-            j = item(2, n)
-            c = item(3, n)
+        nsample = component_sample_count()
+        allocate(samples(nsample, ncomp))
+        ! Species-major order: a thread moves forward through the list, so it
+        ! sets each species up at most once.
+        !$omp parallel do default(shared) private(n, i, ku, k, j, c) &
+        !$omp& schedule(dynamic, 1)
+        do n = 1, ncomp*nsample
+            i = (n - 1)/nsample + 1
+            ku = n - (i - 1)*nsample
+            k = comp(1, i)
+            j = comp(2, i)
+            c = comp(3, i)
             call hold_surface_state(s_val, epoch, state(k))
-            call compute_transport_component(j, c, Dres(:, c, j, k), Tres(c, j, k))
+            call compute_component_sample(j, c, ku, samples(ku, i))
         end do
         !$omp end parallel do
-        !$omp parallel do default(shared) private(k) schedule(dynamic, 1) &
+        !$omp parallel do default(shared) private(k, i, j, c) schedule(dynamic, 1) &
         !$omp& if(nstate > 1)
         do k = 1, nstate
             call hold_surface_state(s_val, epoch, state(k))
+            do i = 1, ncomp
+                if (comp(1, i) /= k) cycle
+                j = comp(2, i)
+                c = comp(3, i)
+                call assemble_component(j, c, samples(:, i), Dres(:, c, j, k), &
+                    Tres(c, j, k))
+            end do
             call assemble_transport(mthmin(k), mthmax(k), &
                 Dres(:, :, mthmin(k):mthmax(k), k), Tres(:, mthmin(k):mthmax(k), k), &
                 transport(k))
