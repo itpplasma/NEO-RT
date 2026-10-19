@@ -121,12 +121,34 @@ angle travelled, `theta = th0 + direction*phi` with
 `s = 0.09`; a time integration over `2*pi/|Om_th|` with that frequency then
 changed the squared weight of the strongly cancelling `mth = -11` harmonic
 by a factor of about 200 and left it too noisy for the Krook pitch quadrature.
+The two passes take different ODE steps, so their periods differ by about
+`1e-11`; closing the second-pass phase with the first-pass period left a
+mismatch of `(mth+q*mph)*2*pi` times that. Harmonics that cancel to
+`|<H_n>| ~ 1e-7*max|H_n|`, as at the low-rate ITER C12 resonances of slow
+passing particles, then had a weight noisy by `1e-4` in eta, and the Krook
+quadrature exhausted its piece budget with an error estimate stuck at
+`3.5e-6` of the integral. The second pass therefore also integrates
+`d/dOmth` of the harmonic and shifts it to the frequency of its own period
+to first order (`test_krook_passing_harmonic` checks harmonics cancelling to
+`6e-8` against a spectral transit reference to `5e-12*max|H_n|`). The
+remaining ODE error, about `1e-12*max|H_n|`, still limits the relative
+accuracy of the most strongly cancelling harmonics.
 
 `krook_rtol` defaults to `1e-5`, `krook_atol` to zero and
-`krook_max_depth` to 40. Nonconvergence, a detected wrong-sign inverse
-derivative or an unresolved stationary weight terminates the calculation.
-The monotonicity probes cover the native frequency-spline use case and simple
-folds; finite sampling cannot certify an arbitrary oscillatory callback.
+`krook_max_depth` to 40. The uniform probes cannot see structure of `R` on
+the logarithmic scale of `|eta/etatp-1|`: the frequency splines have nodes
+graded geometrically towards the trapped-passing boundary and switch to a
+logarithmic extrapolation at `|eta/etatp-1| = 1e-6`, and the near cancellation
+of `mth*Om_th + mph*Om_ph` there turns their interpolation error into
+wiggles with extra extrema (TC24 GPEC: `R` relative amplitude about `2e-7`
+at `1-eta/etatp = 1.4e-6`, D at `s = 0.0676`; several in
+`eta/etatp-1 = 1e-6..4e-5`, T at `s = 0.79` and `0.86`). When the inverse
+residual map meets a derivative of the wrong sign for its branch, the
+extrema around that pitch are bracketed by samples graded geometrically
+towards it, become knots, and the integration restarts (at most 32 times).
+Nonconvergence, a residual left non-monotonic after these repairs, a
+non-finite residual or an unresolved stationary weight terminates the
+calculation. Finite sampling cannot certify an arbitrary oscillatory callback.
 Collisionality scans must check convergence in pitch probes, quadrature
 tolerance, velocity steps and harmonic cutoff independently.
 
