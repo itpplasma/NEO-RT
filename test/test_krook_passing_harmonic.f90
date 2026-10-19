@@ -71,8 +71,96 @@ program test_krook_passing_harmonic
         end do
     end do
     print *, 'passing harmonic maximum error/max|H|:', worst
+    call check_strong_cancellation()
     print *, 'test_krook_passing_harmonic PASSED'
 contains
+    subroutine check_strong_cancellation()
+        ! Higher harmonics cancel to |<H>| ~ 1e-7..1e-10 of max|H|, as the
+        ! ITER C12 Krook resonances at low rates. The two orbit passes give
+        ! periods that differ by the ODE error (~1e-11); a phase closed with
+        ! the first-pass period then made the weight noisy at 1e-4 in eta and
+        ! exhausted the Krook piece budget. The reference is the trapezoidal
+        ! rule in the transit angle with a spectral transit time, which
+        ! converges exponentially for this periodic integrand.
+        integer, parameter :: harmonics(2) = [6, 9]
+        real(dp), parameter :: strong_tolerance = 5.0e-12_dp
+        complex(dp) :: reference, coarse_reference
+        real(dp) :: reference_period, coarse_reference_period
+        integer :: j, kd
+        worst = 0.0_dp
+        do j = 1, size(harmonics)
+            mth = harmonics(j)
+            do kd = 2, size(depths)
+                eta = etatp*depths(kd)
+                do direction = -1, 1, 2
+                    sign_vpar = real(direction, dp)
+                    call spectral_reference(eta, 1024, coarse_reference_period, &
+                                            coarse_reference)
+                    call spectral_reference(eta, 2048, reference_period, reference)
+                    if (abs(reference - coarse_reference) > &
+                        1.0e-15_dp*(2.0_dp - eta*Bmin)) &
+                        error stop 'spectral passing reference has not converged'
+                    Omth = sign_vpar*2.0_dp*pi/(reference_period*(1.0_dp + biases(2)))
+                    call transport_bounce(vth, eta, 2.0_dp*pi/abs(Omth), average, &
+                                          kstate)
+                    if (kstate /= 2) error stop 'passing transport bounce failed'
+                    error = abs(cmplx(average(3), average(4), dp) - reference)/ &
+                        (2.0_dp - eta*Bmin)
+                    worst = max(worst, error)
+                    print '(a,i3,es10.2,i3,a,es12.4,a,es10.2)', &
+                        ' mth, eta/etatp, direction:', mth, depths(kd), direction, &
+                        ' |harmonic|/max|H|', abs(reference)/(2.0_dp - eta*Bmin), &
+                        ' error/max|H|', error
+                    if (error > strong_tolerance) error stop &
+                        'cancelling passing harmonic disagrees with reference'
+                end do
+            end do
+        end do
+        print *, 'cancelling passing harmonic maximum error/max|H|:', worst
+    end subroutine check_strong_cancellation
+
+    subroutine spectral_reference(eta_, nodes, period_, harmonic)
+        ! Trapezoidal transit average on equispaced angles phi_j; the time
+        ! t(phi_j) integrates the Fourier series of dt/dphi exactly.
+        real(dp), intent(in) :: eta_
+        integer, intent(in) :: nodes
+        real(dp), intent(out) :: period_
+        complex(dp), intent(out) :: harmonic
+        complex(dp), parameter :: i_unit = (0.0_dp, 1.0_dp)
+        real(dp) :: phi(nodes), dtdphi(nodes), hamiltonian(nodes), times(nodes), omega
+        complex(dp) :: coefficient
+        integer :: mode
+        call node_values(eta_, nodes, phi, dtdphi, hamiltonian)
+        period_ = sum(dtdphi)*2.0_dp*pi/real(nodes, dp)
+        times = period_*phi/(2.0_dp*pi)
+        do mode = 1, nodes/2
+            coefficient = sum(dtdphi*exp(-i_unit*mode*phi))/real(nodes, dp)
+            if (mode == nodes/2) coefficient = coefficient/2.0_dp
+            ! Modes +-mode together: 2*Re(c*(exp(i*mode*phi) - 1)/(i*mode)).
+            times = times + 2.0_dp*real(coefficient*(exp(i_unit*mode*phi) - 1.0_dp) &
+                                        /(i_unit*mode))
+        end do
+        omega = sign_vpar*2.0_dp*pi/period_
+        harmonic = sum(dtdphi*hamiltonian*exp(-i_unit*mth*omega*times)) &
+                   *2.0_dp*pi/real(nodes, dp)/period_
+    end subroutine spectral_reference
+
+    subroutine node_values(eta_, nodes, phi, dtdphi, hamiltonian)
+        real(dp), intent(in) :: eta_
+        integer, intent(in) :: nodes
+        real(dp), intent(out) :: phi(nodes), dtdphi(nodes), hamiltonian(nodes)
+        real(dp) :: position(3), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        integer :: j
+        position(1:2) = [s, 0.0_dp]
+        do j = 1, nodes
+            phi(j) = 2.0_dp*pi*real(j - 1, dp)/real(nodes, dp)
+            position(3) = th0 + sign_vpar*phi(j)
+            call do_magfie(position, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+            dtdphi(j) = 1.0_dp/(vth*sqrt(1.0_dp - eta_*bmod)*abs(hctrvr(3)))
+            hamiltonian(j) = 2.0_dp - eta_*bmod
+        end do
+    end subroutine node_values
+
     subroutine integration_matrix()
         ! cumulative(i, j) = integral of the j-th Lagrange basis polynomial
         ! of the nodes x from -1 to x(i).

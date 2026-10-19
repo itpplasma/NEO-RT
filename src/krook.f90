@@ -111,6 +111,12 @@ contains
         ! error estimate satisfies atol + rtol*|value| in every component.
         ! status: 0 converged, 1 invalid input, 2 not converged within
         ! max_depth bisections (or the piece budget), 3 invalid residual.
+        ! The seed scan can miss a stationary point of R between two samples
+        ! (e.g. a spline wiggle next to the trapped-passing boundary). Such a
+        ! branch is detected when the inverse map meets a derivative of the
+        ! wrong sign; its extrema are then located around that pitch, added
+        ! as knots and the integration restarts (at most max_repairs times).
+        integer, parameter :: max_repairs = 32
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
         real(dp), intent(in) :: a, b, nu, rtol, atol
@@ -118,9 +124,10 @@ contains
         real(dp), intent(out) :: value(:)
         integer, intent(out) :: status
         integer, intent(in), optional :: max_depth
-        real(dp) :: knots(4*nseed + 2), x(16), w(16)
+        real(dp) :: x(16), w(16), turn
+        real(dp), allocatable :: knots(:)
         type(resonance_interval_t), allocatable :: regions(:)
-        integer :: count, depth_limit, nregion
+        integer :: count, depth_limit, nregion, repair
         value = 0.0_dp
         status = 0
         if (nu <= 0.0_dp .or. b <= a .or. nseed < 2) then
@@ -130,11 +137,85 @@ contains
         depth_limit = 40
         if (present(max_depth)) depth_limit = max_depth
         call gauss_legendre(16, x, w)
+        allocate(knots(4*nseed + 2))
         call monotonic_knots(residual, a, b, nseed, knots, count)
-        call collect_regions(residual, knots(:count), nu, regions, nregion)
-        call integrate_regions(residual, weight, regions(:nregion), rtol, atol, &
-                               x, w, depth_limit, value, status)
+        do repair = 0, max_repairs
+            status = 0
+            call collect_regions(residual, knots(:count), nu, regions, nregion)
+            call integrate_regions(residual, weight, regions(:nregion), rtol, atol, &
+                                   x, w, depth_limit, value, status, turn)
+            if (status /= 4) return
+            ! Non-monotonic branch: split it at the extrema around turn.
+            value = 0.0_dp
+            status = 3
+            if (repair == max_repairs) return
+            call insert_extrema(residual, turn, knots, count)
+        end do
     end subroutine integrate_krook
+
+    subroutine insert_extrema(residual, turn, knots, count)
+        ! R'(turn) has the opposite sign of its branch between two knots.
+        ! Samples graded geometrically towards turn from both knots bracket
+        ! the nearby sign changes of R', whose extrema become new knots. If
+        ! none is bracketed, turn itself splits the branch.
+        procedure(residual_i) :: residual
+        real(dp), intent(in) :: turn
+        real(dp), allocatable, intent(inout) :: knots(:)
+        integer, intent(inout) :: count
+        integer, parameter :: levels = 60
+        real(dp) :: samples(2*levels + 3), found(2*(2*levels + 2) + 1)
+        real(dp) :: res(2*levels + 3), der(2*levels + 3), points(2), left, right
+        real(dp), allocatable :: merged(:)
+        integer :: k, j, cell, n, nfound, npoints
+        cell = 0
+        do k = 1, count - 1
+            if (knots(k) < turn .and. turn < knots(k + 1)) cell = k
+        end do
+        if (cell == 0) return
+        left = knots(cell)
+        right = knots(cell + 1)
+        n = 1
+        samples(n) = left
+        do j = 1, levels
+            n = n + 1
+            samples(n) = turn - (turn - left)*0.5_dp**j
+        end do
+        n = n + 1
+        samples(n) = turn
+        do j = levels, 1, -1
+            n = n + 1
+            samples(n) = turn + (right - turn)*0.5_dp**j
+        end do
+        n = n + 1
+        samples(n) = right
+        do k = 1, n
+            call residual(samples(k), res(k), der(k))
+        end do
+        nfound = 0
+        do k = 1, n - 1
+            if (samples(k + 1) <= samples(k)) cycle
+            call stationary_points(residual, samples(k), samples(k + 1), res(k), &
+                                   res(k + 1), der(k), der(k + 1), points, npoints)
+            do j = 1, npoints
+                if (points(j) <= left .or. points(j) >= right) cycle
+                if (nfound > 0) then
+                    if (points(j) <= found(nfound)) cycle
+                end if
+                nfound = nfound + 1
+                found(nfound) = points(j)
+            end do
+        end do
+        if (nfound == 0) then
+            nfound = 1
+            found(1) = turn
+        end if
+        allocate(merged(count + nfound))
+        merged(:cell) = knots(:cell)
+        merged(cell + 1:cell + nfound) = found(:nfound)
+        merged(cell + nfound + 1:) = knots(cell + 1:count)
+        count = count + nfound
+        call move_alloc(merged, knots)
+    end subroutine insert_extrema
 
     subroutine collect_regions(residual, knots, nu, regions, nregion)
         procedure(residual_i) :: residual
@@ -169,7 +250,7 @@ contains
     end subroutine collect_regions
 
     subroutine integrate_regions(residual, weight, regions, rtol, atol, x, w, &
-                                 depth_limit, value, status)
+                                 depth_limit, value, status, turn)
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
         type(resonance_interval_t), intent(in) :: regions(:)
@@ -177,6 +258,7 @@ contains
         integer, intent(in) :: depth_limit
         real(dp), intent(out) :: value(:)
         integer, intent(inout) :: status
+        real(dp), intent(out) :: turn
         ! A budget of pieces bounds the work when the integrand is not
         ! resolvable (e.g. noisy) to the requested tolerance.
         integer, parameter :: max_pieces = 2**14
@@ -197,7 +279,7 @@ contains
             lower(k) = 0.0_dp
             upper(k) = 1.0_dp
             call fixed_interval(residual, weight, regions(k), 0.0_dp, 1.0_dp, &
-                                x, w, coarse, status)
+                                x, w, coarse, status, turn)
             if (status /= 0) return
             call refine_piece(k, coarse)
             if (status /= 0) return
@@ -263,10 +345,10 @@ contains
             real(dp) :: half
             half = (lower(index) + upper(index))/2.0_dp
             call fixed_interval(residual, weight, regions(owner(index)), &
-                lower(index), half, x, w, left(:, index), status)
+                lower(index), half, x, w, left(:, index), status, turn)
             if (status /= 0) return
             call fixed_interval(residual, weight, regions(owner(index)), &
-                half, upper(index), x, w, right(:, index), status)
+                half, upper(index), x, w, right(:, index), status, turn)
             if (status /= 0) return
             error(:, index) = abs(left(:, index) + right(:, index) - coarse_value)
         end subroutine refine_piece
@@ -536,19 +618,22 @@ contains
         interval%angle = atan2(width*(rb - ra), width**2 + ra*rb)
     end subroutine set_angle
 
-    subroutine fixed_interval(residual, weight, interval, a, b, x, w, value, status)
+    subroutine fixed_interval(residual, weight, interval, a, b, x, w, value, status, &
+                              turn)
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
         type(resonance_interval_t), intent(in) :: interval
         real(dp), intent(in) :: a, b, x(:), w(:)
         real(dp), intent(out) :: value(:)
         integer, intent(inout) :: status
+        real(dp), intent(inout) :: turn
         real(dp) :: node, eta, jacobian, values(size(value))
         integer :: k
         value = 0.0_dp
         do k = 1, size(x)
             node = (a + b)/2.0_dp + (b - a)*x(k)/2.0_dp
             call mapped_node(residual, interval, node, eta, jacobian, status)
+            if (status == 4) turn = eta
             if (status /= 0) return
             call weight(eta, values)
             value = value + w(k)*jacobian*values
@@ -577,7 +662,7 @@ contains
         target = max(min(interval%ra, interval%rb), &
                      min(max(interval%ra, interval%rb), target))
         call inverse_residual(residual, interval, target, eta, derivative, status)
-        if (derivative == 0.0_dp) status = 3
+        if (derivative == 0.0_dp .and. status == 0) status = 3
         if (status /= 0) return
         jacobian = jacobian/abs(derivative)
     end subroutine mapped_node
@@ -599,6 +684,7 @@ contains
         do k = 1, 100
             call residual(eta, res, derivative)
             call check_inverse_sample(res, derivative, interval, status)
+            if (status == 4) return
             if (status /= 0) return
             if (res == target) return
             if ((res < target) .eqv. increasing) then
@@ -617,10 +703,11 @@ contains
         real(dp), intent(in) :: residual, derivative
         type(resonance_interval_t), intent(in) :: interval
         integer, intent(inout) :: status
+        ! status 4: R' opposes the branch, which is then not monotonic.
+        if (different_sign(derivative, interval%bracket_rb-interval%bracket_ra)) &
+            status = 4
         if (.not. ieee_is_finite(residual) .or. &
             .not. ieee_is_finite(derivative)) status = 3
-        if (different_sign(derivative, interval%bracket_rb-interval%bracket_ra)) &
-            status = 3
     end subroutine check_inverse_sample
 
     subroutine next_inverse_step(eta, residual, derivative, a, b, next)
