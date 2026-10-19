@@ -1,13 +1,14 @@
 program test_krook
     use iso_fortran_env, only: dp => real64
     use neort_krook, only: krook_rate, integrate_krook, lorentzian
+    use fortnum_quadrature, only: gauss_legendre
     implicit none
 
     real(dp), parameter :: pi = acos(-1.0_dp)
     real(dp) :: answer(1), expected, nu, a, b, slope, offset, amplitude(2), root
     real(dp) :: cfold, shift
     integer :: model, harmonic, status, trial, direction, placement, calls
-    logical :: quadratic, cubic, layer, noisy
+    logical :: quadratic, cubic, layer, noisy, wiggle
 
     do model = 0, 2
         do harmonic = -4, 4
@@ -28,6 +29,7 @@ program test_krook
     cubic = .false.
     layer = .false.
     noisy = .false.
+    wiggle = .false.
     calls = 0
     amplitude = [2.0_dp, 0.2_dp]
     do direction = -1, 1, 2
@@ -102,6 +104,7 @@ program test_krook
     cubic = .false.
     call check_boundary_layer()
     call check_negligible_noise()
+    call check_hidden_extrema()
     print *, 'test_krook PASSED'
 
 contains
@@ -109,7 +112,15 @@ contains
     subroutine residual(eta, res, dres)
         real(dp), intent(in) :: eta
         real(dp), intent(out) :: res, dres
-        if (cubic) then
+        if (wiggle) then
+            ! Decreasing detuning with a narrow bump near the upper endpoint,
+            ! like the spline wiggle of R next to the trapped-passing
+            ! boundary: R' changes sign twice inside one seed cell, so the
+            ! seed scan cannot see these extrema.
+            res = offset + slope*eta + 0.05_dp*exp(-((eta - 0.999_dp)/0.004_dp)**2)
+            dres = slope - 0.05_dp*2.0_dp*(eta - 0.999_dp)/0.004_dp**2 &
+                   *exp(-((eta - 0.999_dp)/0.004_dp)**2)
+        else if (cubic) then
             res = (eta - 0.1_dp)**3 - 0.0003_dp*(eta - 0.1_dp)
             dres = 3.0_dp*(eta - 0.1_dp)**2 - 0.0003_dp
         else if (quadratic) then
@@ -183,6 +194,39 @@ contains
         end if
         noisy = .false.
     end subroutine check_negligible_noise
+
+    subroutine check_hidden_extrema()
+        ! A stationary point missed by the seed scan used to stop the
+        ! inverse residual map with status 3 (wrong-sign derivative).
+        real(dp) :: xg(16), wg(16), reference, eta, res, dres, h
+        integer :: panel, k
+        integer, parameter :: panels = 4000
+        wiggle = .true.
+        slope = -5.0_dp
+        offset = 10.0_dp
+        nu = 1.0e-3_dp
+        a = 0.0_dp
+        b = 1.0_dp
+        amplitude = [1.0_dp, 0.0_dp]
+        call gauss_legendre(16, xg, wg)
+        reference = 0.0_dp
+        h = (b - a)/panels
+        do panel = 1, panels
+            do k = 1, 16
+                eta = a + h*(panel - 0.5_dp + 0.5_dp*xg(k))
+                call residual(eta, res, dres)
+                reference = reference + 0.5_dp*h*wg(k)*lorentzian(res, nu)
+            end do
+        end do
+        call integrate_krook(residual, weight, a, b, nu, 4, &
+                             1.0e-10_dp, 0.0_dp, answer, status)
+        if (status /= 0) then
+            print *, 'status', status
+            error stop 'hidden extrema quadrature did not converge'
+        end if
+        call check(answer(1), reference, 1.0e-9_dp, 'hidden extrema oracle')
+        wiggle = .false.
+    end subroutine check_hidden_extrema
 
     subroutine check(actual, reference, tolerance, message)
         real(dp), intent(in) :: actual, reference, tolerance
