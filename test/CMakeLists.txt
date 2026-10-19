@@ -1,7 +1,8 @@
-find_package(Python REQUIRED COMPONENTS Interpreter)
+# One interpreter (with numpy and h5py) for all Python checks; select it
+# with -DPython3_EXECUTABLE.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
-find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME test_profile_probe
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_profile_probe.py
@@ -34,12 +35,12 @@ set_tests_properties(test_species_mixture_run PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 3 TIMEOUT 60 FIXTURES_SETUP species_mixture_output)
 add_test(NAME test_species_mixture_output
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_output.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_output.py
         ${CMAKE_CURRENT_BINARY_DIR}/species_run)
 set_tests_properties(test_species_mixture_output PROPERTIES
     FIXTURES_REQUIRED species_mixture_output)
 add_test(NAME test_species_mixture_cli
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_cli.py
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_cli.py
         $<TARGET_FILE:neo_rt.x> ${CMAKE_SOURCE_DIR}/examples/base/in_file
         ${CMAKE_CURRENT_BINARY_DIR}/mixture_cli)
 set_tests_properties(test_species_mixture_cli PROPERTIES
@@ -202,7 +203,7 @@ add_test(NAME test_transport_weight_amplitude
 set_tests_properties(test_transport_weight_amplitude PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_failure_context
-    COMMAND ${Python_EXECUTABLE}
+    COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_failure_context.py
         $<TARGET_FILE:test_krook_transport.x>)
 set_tests_properties(test_krook_failure_context PROPERTIES
