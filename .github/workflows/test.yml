@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    types: [opened, synchronize, reopened, labeled]
 
   # Allows you to run this workflow manually, and lets an upstream libneo
   # release dispatch it against a candidate ref.
@@ -46,13 +46,14 @@ jobs:
 
     # The libneo gate dispatches this workflow (report-only) and wants only the
     # fast ctest tier; the golden-record pytest is the slow suite and stays on
-    # NEO-RT's own push/PR runs.
+    # NEO-RT's own push/PR runs. Upper layers of a PR stack (base is not main)
+    # skip it unless the PR is labeled full-ci.
     - name: Run pytest (all tests for Fast)
-      if: github.event_name != 'workflow_dispatch' && matrix.config == 'Fast'
+      if: github.event_name != 'workflow_dispatch' && matrix.config == 'Fast' && (github.event_name != 'pull_request' || github.event.pull_request.base.ref == github.event.repository.default_branch || contains(github.event.pull_request.labels.*.name, 'full-ci'))
       run: |
         make pytest
 
     - name: Run pytest (skip golden record for Debug)
-      if: github.event_name != 'workflow_dispatch' && matrix.config != 'Fast'
+      if: github.event_name != 'workflow_dispatch' && matrix.config != 'Fast' && (github.event_name != 'pull_request' || github.event.pull_request.base.ref == github.event.repository.default_branch || contains(github.event.pull_request.labels.*.name, 'full-ci'))
       run: |
         pytest -m "not fast_only"
