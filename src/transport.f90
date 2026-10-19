@@ -17,6 +17,8 @@ module neort_transport
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
         krook_max_depth, krook_rtol, krook_atol, krook_rate, integrate_krook
+    use kinetic_energy_selection, only: maxwellian_speed_density, &
+        energy_sample_count, energy_sample_speed, energy_sample_weight
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
@@ -73,59 +75,87 @@ contains
         real(dp) :: D11int
         real(dp), intent(in) :: ux, taub, Hmn2
 
-        D11int = pi**(3.0_dp / 2.0_dp) * mph**2 * c**2 * q * vth &
-                 / (qi**2 * dVds * abs(psi_pr)) * ux**3 * exp(-ux**2) * taub * Hmn2
+        D11int = maxwellian_speed_density(ux)*D11mono(ux, taub, Hmn2)
     end function D11int
+
+    pure function D11mono(ux, taub, Hmn2)
+        real(dp) :: D11mono
+        real(dp), intent(in) :: ux, taub, Hmn2
+
+        D11mono = pi**2/4.0_dp*mph**2*c**2*q*vth &
+                  /(qi**2*dVds*abs(psi_pr))*ux*taub*Hmn2
+    end function D11mono
 
     pure function D12int(ux, taub, Hmn2)
         real(dp) :: D12int
         real(dp), intent(in) :: ux, taub, Hmn2
 
-        D12int = D11int(ux, taub, Hmn2) * ux**2
+        D12int = D11int(ux, taub, Hmn2)*ux**2
     end function D12int
+
+    pure function D12mono(ux, taub, Hmn2)
+        real(dp) :: D12mono
+        real(dp), intent(in) :: ux, taub, Hmn2
+
+        D12mono = D11mono(ux, taub, Hmn2)*ux**2
+    end function D12mono
 
     pure function Tphi_int(ux, taub, Hmn2)
         real(dp) :: Tphi_int
         real(dp), intent(in) :: ux, taub, Hmn2
 
-        Tphi_int = sign(1.0_dp, psi_pr * q * sign_theta) * pi**(3.0_dp / 2.0_dp) * mph**2 * ns * &
-                   c * vth / qi &
-                   * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
+        Tphi_int = maxwellian_speed_density(ux)*Tphi_mono(ux, taub, Hmn2)
     end function Tphi_int
 
-    subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
+    pure function Tphi_mono(ux, taub, Hmn2)
+        real(dp) :: Tphi_mono
+        real(dp), intent(in) :: ux, taub, Hmn2
+
+        Tphi_mono = sign(1.0_dp, psi_pr*q*sign_theta)*pi**2/4.0_dp*mph**2 &
+                    *ns*c*vth/qi*ux*taub*Hmn2*(A1 + A2*ux**2)
+    end function Tphi_mono
+
+    subroutine compute_transport_integral(vmin, vmax, vsteps, energy_ratio, D, T)
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T
         if (finite_krook_active()) then
-            call compute_transport_krook(vmin, vmax, vsteps, D, T)
+            call compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
         else
-            call compute_transport_collisionless(vmin, vmax, vsteps, D, T)
+            call compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T)
         end if
     end subroutine compute_transport_integral
 
-    subroutine compute_transport_collisionless(vmin, vmax, vsteps, D, T)
+    subroutine compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T  ! Transport coefficients D and torque density T
         real(dp) :: D_plateau, dsdreff  ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
-        real(dp) :: ux, du, dD11, dD12, dT, v, eta
+        real(dp) :: ux, du, dD11, dD12, dT, v, eta, sample_weight
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
         real(dp) :: Hmn2, attenuation_factor
         real(dp) :: roots(nlev, 3)
-        integer :: nroots, kr, ku
+        integer :: nroots, kr, ku, sample_count
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         D = 0.0_dp
         T = 0.0_dp
-        du = (vmax - vmin) / (vsteps * vth)
-        ux = vmin / vth + du / 2.0_dp
+        if (energy_ratio > 0.0_dp) then
+            du = 0.0_dp
+        else
+            du = (vmax - vmin)/(vsteps*vth)
+        end if
+        sample_count = energy_sample_count(energy_ratio, vsteps)
 
-        do ku = 1, vsteps
+        do ku = 1, sample_count
+            ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
+            sample_weight = energy_sample_weight(energy_ratio, ux, du)
             v = ux * vth
             call driftorbit_coarse(v, etamin, etamax, roots, nroots)
             ! No explicit nroots==0 guard: the do-loop below is empty when
@@ -153,17 +183,16 @@ contains
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)
 
-                dD11 = du * D11int(ux, taub, Hmn2) / abs(eta_res(2))
-                dD12 = du * D12int(ux, taub, Hmn2) / abs(eta_res(2))
+                dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
+                dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
                 D(1) = D(1) + dD11 * attenuation_factor
                 D(2) = D(2) + dD12 * attenuation_factor
 
                 if (comptorque) then
-                    dT = du * Tphi_int(ux, taub, Hmn2) / abs(eta_res(2))
+                    dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
                     T = T + dT * attenuation_factor
                 end if
             end do
-            ux = ux + du
         end do
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
@@ -174,19 +203,30 @@ contains
 
     end subroutine compute_transport_collisionless
 
-    subroutine compute_transport_krook(vmin, vmax, vsteps, D, T)
+    subroutine compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T
         real(dp) :: du, ux, values(3), integral(3), D_plateau, dsdreff
-        integer :: ku
+        integer :: ku, sample_count
         integral = 0.0_dp
-        du = (vmax-vmin)/(vsteps*vth)
-        ux = vmin/vth + du/2.0_dp
-        do ku = 1, vsteps
-            call compute_krook_velocity(ux, values)
-            integral = integral + du*values
-            ux = ux + du
+        if (energy_ratio > 0.0_dp) then
+            du = 0.0_dp
+        else
+            du = (vmax-vmin)/(vsteps*vth)
+        end if
+        sample_count = energy_sample_count(energy_ratio, vsteps)
+        do ku = 1, sample_count
+            ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
+            call compute_krook_velocity(ux, values, energy_ratio)
+            ! thermal weights from compute_transport_weight already carry the
+            ! Maxwellian speed density; monoenergetic ones are weight 1.
+            if (energy_ratio > 0.0_dp) then
+                integral = integral + values
+            else
+                integral = integral + du*values
+            end if
         end do
         D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
         dsdreff = 2.0_dp/a*sqrt(s)
@@ -194,8 +234,9 @@ contains
         T = integral(3)
     end subroutine compute_transport_krook
 
-    subroutine compute_krook_velocity(ux, values)
+    subroutine compute_krook_velocity(ux, values, energy_ratio)
         real(dp), intent(in) :: ux
+        real(dp), intent(in), optional :: energy_ratio
         real(dp), intent(out) :: values(3)
         real(dp) :: effective_harmonic, geometry, nu
         integer :: status
@@ -219,7 +260,7 @@ contains
         subroutine weight(eta, result_)
             real(dp), intent(in) :: eta
             real(dp), intent(out) :: result_(:)
-            call compute_transport_weight(ux, eta, result_)
+            call compute_transport_weight(ux, eta, result_, energy_ratio)
         end subroutine weight
     end subroutine compute_krook_velocity
 
@@ -245,8 +286,12 @@ contains
         error stop 'finite-width Krook quadrature did not converge'
     end subroutine report_krook_failure
 
-    subroutine compute_transport_weight(ux, eta, values)
+    subroutine compute_transport_weight(ux, eta, values, energy_ratio)
+        ! With energy_ratio > 0 the weights omit the Maxwellian speed density
+        ! (monoenergetic mode, sample weight 1); otherwise thermal weights.
         real(dp), intent(in) :: ux, eta
+        real(dp), intent(in), optional :: energy_ratio
+        logical :: mono
         real(dp), intent(out) :: values(:)
         real(dp) :: taub, bounceavg(nvar), Hmn2
         integer :: istate
@@ -255,10 +300,18 @@ contains
         call transport_bounce(ux*vth, eta, taub, bounceavg, istate)
         if (istate /= 2) error stop 'orbit integration failed in Krook quadrature'
         Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2.0_dp)**2
-        values(1) = D11int(ux, taub, Hmn2)
-        values(2) = D12int(ux, taub, Hmn2)
+        mono = .false.
+        if (present(energy_ratio)) mono = energy_ratio > 0.0_dp
         values(3) = 0.0_dp
-        if (comptorque) values(3) = Tphi_int(ux, taub, Hmn2)
+        if (mono) then
+            values(1) = D11mono(ux, taub, Hmn2)
+            values(2) = D12mono(ux, taub, Hmn2)
+            if (comptorque) values(3) = Tphi_mono(ux, taub, Hmn2)
+        else
+            values(1) = D11int(ux, taub, Hmn2)
+            values(2) = D12int(ux, taub, Hmn2)
+            if (comptorque) values(3) = Tphi_int(ux, taub, Hmn2)
+        end if
     end subroutine compute_transport_weight
 
     subroutine transport_bounce(v, eta, taub, bounceavg, istate)
