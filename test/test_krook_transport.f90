@@ -4,6 +4,7 @@ program test_krook_transport
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
     use neort_transport, only: compute_transport_integral, compute_transport_weight, &
         compute_krook_velocity
+    use kinetic_energy_selection, only: maxwellian_speed_density
     use neort_freq, only: Om_ph, Om_th
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_rtol, &
         krook_eta_steps, krook_max_depth, krook_atol, krook_geometry_trapped
@@ -14,7 +15,8 @@ program test_krook_transport
                           comptorque, nopassing, sign_vpar
     use util, only: pi, c, qi
     implicit none
-    real(dp) :: baseline(3), disabled(3), zero_width(3), broadened(3), expected(3)
+    real(dp) :: baseline(3), disabled(3), zero_width(3), broadened(3), monoenergetic(3), &
+        expected(3)
     real(dp) :: x(96), w(96), eta, omph, omth, dvdummy, detadummy
     real(dp) :: weight(3), residual, scale, D_plateau, dsdreff
     integer :: k
@@ -57,12 +59,14 @@ program test_krook_transport
     Om_tE = 1.0e6_dp
     krook_collisions = .false.
     krook_nu = 0.0_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, baseline(1:2), baseline(3))
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, &
+        baseline(1:2), baseline(3))
     krook_nu = 1.0e7_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, disabled(1:2), disabled(3))
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, &
+        disabled(1:2), disabled(3))
     krook_collisions = .true.
     krook_nu = 0.0_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, &
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, &
         zero_width(1:2), zero_width(3))
     if (any(disabled /= baseline)) &
         error stop 'disabled Krook path changed collisionless transport'
@@ -70,7 +74,8 @@ program test_krook_transport
     krook_nu = 1.0e7_dp
     krook_model = 0
     krook_rtol = 1.0e-5_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, broadened(1:2), broadened(3))
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, &
+        broadened(1:2), broadened(3))
     call gauss_legendre(96, x, w)
     expected = 0.0_dp
     do k = 1, size(x)
@@ -81,7 +86,8 @@ program test_krook_transport
         call compute_transport_weight(1.0_dp, eta, weight)
         expected = expected + w(k)*weight*krook_nu/(pi*(residual**2 + krook_nu**2))
     end do
-    expected = 0.2_dp*(etamax - etamin)*expected/2.0_dp
+    ! Thermal midpoint weight du*f_M(u) at u = 1 times the monoenergetic kernel.
+    expected = 0.2_dp*maxwellian_speed_density(1.0_dp)*(etamax - etamin)*expected/2.0_dp
     D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
     dsdreff = 2.0_dp/a*sqrt(s)
     expected(1:2) = dsdreff**(-2)*expected(1:2)/D_plateau
@@ -95,5 +101,15 @@ program test_krook_transport
     if (broadened(1) <= 0.0_dp) error stop 'finite width lost nonresonant transport'
     print *, 'Krook transport maximum relative error =', &
         maxval(abs(broadened-expected)/max(abs(expected), tiny(1.0_dp)))
+    ! monoenergetic_x = E/T = 1 is the delta-normalized sample at u = 1, the
+    ! single thermal midpoint above without its weight du*f_M(1).
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, 1.0_dp, &
+        monoenergetic(1:2), monoenergetic(3))
+    expected = broadened/(0.2_dp*maxwellian_speed_density(1.0_dp))
+    if (any(abs(monoenergetic - expected) > 1.0e-12_dp*abs(expected))) then
+        print *, 'monoenergetic Krook transport:', monoenergetic
+        print *, 'thermal sample without its weight:', expected
+        error stop 'Krook transport ignores monoenergetic_x'
+    end if
     print *, 'test_krook_transport PASSED'
 end program test_krook_transport
