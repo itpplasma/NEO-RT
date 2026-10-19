@@ -20,6 +20,7 @@ contains
 
         character(len=*), parameter :: boozer_file = "in_file"
         character(len=*), parameter :: boozer_pert_file = "in_file_pert"
+        character(len=*), parameter :: boozer_kappa_file = "in_file_pert_kappa"
         character(len=*), parameter :: plasma_file = "plasma.in"
         character(len=*), parameter :: profile_file = "profile.in"
 
@@ -29,7 +30,7 @@ contains
 
         call get_command_argument(1, runname)
 
-        call neort_init(trim(runname)//".in", boozer_file, boozer_pert_file)
+        call neort_init(trim(runname)//".in", boozer_file, boozer_pert_file, boozer_kappa_file)
 
         if (mixture_enabled) then
             call neort_compute_mixture_at_s(s, mixture_result)
