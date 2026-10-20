@@ -3,8 +3,9 @@ program test_circular_offset_rotation
     use neort_datatypes, only: transport_data_t
     use neort_lib, only: config_t, neort_compute_no_splines, neort_init
     use neort_magfie, only: B0
-    use neort_profiles, only: M_t, Om_tE, Ti1, dTi1ds, dni1ds, init_plasma_at_s, &
-        ni1, prepare_plasma_splines, read_plasma_input, vth
+    use neort_profiles, only: A1, M_t, Om_tE, Ti1, dTi1ds, dni1ds, &
+        init_plasma_at_s, init_profiles, init_thermodynamic_forces, ni1, &
+        prepare_plasma_splines, read_plasma_input, vth
     use do_magfie_mod, only: Bphcov, R0, psi_pr, q, set_s, sign_theta
     use omp_lib, only: omp_get_num_threads, omp_set_dynamic, omp_set_num_threads
     use util, only: c, ev, qi
@@ -16,6 +17,7 @@ program test_circular_offset_rotation
     integer, parameter :: N_BISECT = 20
     integer, parameter :: N_THREADS = 4
     real(dp), parameter :: K_NC = 1.17_dp
+    real(dp), parameter :: KASILOV_FIVE_HALVES = 2.5_dp
     real(dp), parameter :: ROOT_BRACKET = 1.0_dp
     real(dp), parameter :: DELTA_OMEGA = 2.0e3_dp
     real(dp), parameter :: SURFACES(N_SURFACES) = &
@@ -109,11 +111,11 @@ contains
         real(dp), parameter :: phi_prime = 3.0_dp
         real(dp), parameter :: Bphi = 4.0_dp
         real(dp), parameter :: Btheta = 2.0_dp
-        real(dp), parameter :: charge = 5.0_dp
         real(dp), parameter :: temperature = 7.0_dp
         real(dp) :: B2, electric(3), magnetic(3), exb(3)
         real(dp) :: omega_from_vector, omega_from_potential
-        real(dp) :: force_from_omega, force_from_radial_field
+        real(dp) :: force_from_radial_field
+        integer :: polarity
 
         ! Use a right-handed Cartesian realization of (s, theta, phi), then
         ! form the field-line-label velocity V^phi - q V^theta used by the
@@ -128,10 +130,25 @@ contains
         call assert_close("E cross B frequency sign", omega_from_potential, &
             omega_from_vector, 1.0e-14_dp)
 
-        force_from_omega = -charge*Btheta*omega_from_vector/(c*temperature)
-        force_from_radial_field = charge*phi_prime/temperature
-        call assert_close("A1 electric-force sign", force_from_radial_field, &
-            force_from_omega, 1.0e-14_dp)
+        ! Isolate the electric force with flat manufactured profiles. Use the
+        ! production Mach conversion and force routine, including cgs units.
+        ni1 = 1.0_dp
+        dni1ds = 0.0_dp
+        Ti1 = temperature
+        dTi1ds = 0.0_dp
+        vth = 4.0e7_dp
+        do polarity = -1, 1, 2
+            M_t = real(polarity, dp)*omega_from_vector/vth ! R0 = 1 cm
+            call init_profiles(1.0_dp)
+            call assert_close("production electric frequency", &
+                real(polarity, dp)*omega_from_vector, Om_tE, 1.0e-14_dp)
+            force_from_radial_field = &
+                real(polarity, dp)*qi*phi_prime/(temperature*ev)
+            ! chi' = sign_theta*psi_pr/q = Btheta, with manufactured q = 2.
+            call init_thermodynamic_forces(Btheta*2.0_dp/sign_theta, 2.0_dp)
+            call assert_close("production A1 electric-force sign", &
+                force_from_radial_field, A1, 1.0e-14_dp)
+        end do
     end subroutine check_electric_sign_oracle
 
     subroutine verify_thread_count()
@@ -232,7 +249,7 @@ contains
         gradient_scale = c*ev/(qi*chi_prime)
         pressure_gradient_over_density = Ti1*dni1ds/ni1 + dTi1ds
         state%geometry_factor = (Bphcov/(B0*R0))**2
-        state%k_na = state%D12/state%D11 - 2.5_dp + &
+        state%k_na = state%D12/state%D11 - KASILOV_FIVE_HALVES + &
             state%geometry_factor*K_NC
         state%Om_tE = Om_tE
         state%Vphi_in = gradient_scale*state%k_na*dTi1ds

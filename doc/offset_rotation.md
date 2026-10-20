@@ -22,6 +22,8 @@ chi'     = sqrt(g) B^theta = sign_theta psi_tor' / q.
 The signs follow from `E_s = -Phi'`. A Cartesian `E cross B` construction in
 the test independently checks the field-line-label velocity
 `V^phi - q V^theta` and the corresponding electric term in `A1`.
+It compares against `init_profiles` and `init_thermodynamic_forces` with flat
+manufactured profiles and both electric-field polarities.
 
 Kasilov's fluid quantities are
 
@@ -87,9 +89,11 @@ files are intentionally not committed.
 From the repository root:
 
 ```bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Fast
+cmake --build build --parallel 8
 NEORT_OFFSET_SHOWCASE="$PWD/examples/circular_offset_rotation/circular_offset_rotation.csv" \
-    fo test test_circular_offset_rotation
-python examples/circular_offset_rotation/plot_showcase.py
+    ctest --test-dir build -R '^test_circular_offset_rotation$' --output-on-failure
+MPLBACKEND=Agg python examples/circular_offset_rotation/plot_showcase.py
 ```
 
 Normal test execution creates no data or plot files. Setting
