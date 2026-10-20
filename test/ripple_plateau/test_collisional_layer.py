@@ -6,7 +6,8 @@ Covers:
       (default-off back-compatibility on the ripple-plateau case);
   (2) with real (energy-dependent) collisionality and an interior resonance,
       the transport integral approaches the collisionless delta result as
-      collisionality -> 0 and is suppressed as collisionality -> infinity.
+      collisionality -> 0; large density exercises the table clamping only.
+      The clamped high-collision response is not a validated physics limit.
 
 The physics tests reuse the ripple-plateau magnetic field but load the real
 plasma/rotation profiles from examples/base so that the deflection frequency is
@@ -31,8 +32,8 @@ CASE_NAME = "driftorbit_test"
 
 def find_executable() -> Path:
     candidates = [
-        REPO_ROOT / "build" / "neo_rt.x",
         Path(os.environ.get("NEO_RT_EXE", "")),
+        REPO_ROOT / "build" / "neo_rt.x",
     ]
     for candidate in candidates:
         if candidate.is_file() and os.access(candidate, os.X_OK):
@@ -74,7 +75,8 @@ def _scale_density(dst: Path, factor: float) -> None:
 
 def _run(executable: Path, work_dir: Path) -> None:
     result = subprocess.run(
-        [str(executable), CASE_NAME], cwd=work_dir, capture_output=True, text=True
+        [str(executable), CASE_NAME], cwd=work_dir, capture_output=True, text=True,
+        timeout=120
     )
     if result.returncode != 0:
         pytest.fail(f"neo_rt.x failed:\nstdout: {result.stdout}\nstderr: {result.stderr}")
@@ -123,11 +125,57 @@ def test_collisionless_limit(executable: Path, tmp_path: Path) -> None:
 
 @pytest.mark.fast_only
 def test_high_collisionality_suppression(executable: Path, tmp_path: Path) -> None:
-    """Huge collisionality suppresses the trapped transport well below the delta result."""
+    """Exercise the clamped table corner, without validating its extrapolation."""
     d_off = _run_case(executable, tmp_path / "off", ".false.", 1e9, nopassing=True)
     d_on = _run_case(executable, tmp_path / "on", ".true.", 1e9, nopassing=True)
     ratio = d_on / d_off
     assert ratio < 0.6, f"high-collisionality ratio {ratio:.4f} not suppressed below 0.6"
+
+
+@pytest.mark.parametrize("extra, message", [
+    ("krook_collisions=.true., krook_nu=1,", "cannot be combined"),
+    ("", "requires positive plasma profiles"),
+])
+def test_rejects_undefined_layer(executable, tmp_path, extra, message):
+    """The layer must not silently vanish under Krook or missing profiles."""
+    _write_input(tmp_path, "collisional_layer=.true., " + extra, True)
+    result = subprocess.run([str(executable), CASE_NAME], cwd=tmp_path,
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode != 0
+    assert message in result.stderr
+
+
+@pytest.mark.fast_only
+def test_monoenergetic_layer(executable, tmp_path):
+    """The layer multiplies monoenergetic D11 and its exact x*D11 D12."""
+    data = []
+    for flag in (".false.", ".true."):
+        work = tmp_path / flag
+        work.mkdir()
+        _write_input(work, f"collisional_layer={flag}, monoenergetic_x=9, comptorque=.true., ", True)
+        _scale_density(work / "plasma.in", 1e6)
+        (work / "profile.in").symlink_to((BASE_DIR / "profile.in").resolve())
+        ledger = work / "roots.txt"
+        result = subprocess.run([str(executable), CASE_NAME], cwd=work,
+            env=os.environ | {"NEORT_RESONANCE_LEDGER": str(ledger)},
+            capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stderr
+        contributions = {}
+        for line in ledger.read_text().splitlines()[1:]:
+            fields = line.split()
+            assert fields[4] == 'trap'
+            harmonic = int(fields[2])
+            contributions[harmonic] = contributions.get(harmonic, 0.0) + float(fields[15])
+        native = np.atleast_2d(np.loadtxt(work / f"{CASE_NAME}_torque_integral.out"))
+        assert any(value != 0.0 for value in contributions.values())
+        for harmonic in native:
+            np.testing.assert_allclose(contributions.get(int(harmonic[0]), 0.0),
+                                       harmonic[3], rtol=2e-13, atol=1e-280)
+        row = np.loadtxt(work / f"{CASE_NAME}.out")
+        assert row[4] > 0
+        np.testing.assert_allclose(row[8], 9.0*row[4], rtol=2e-14)
+        data.append(row[4])
+    assert data[1] < 0.6*data[0]
 
 
 if __name__ == "__main__":

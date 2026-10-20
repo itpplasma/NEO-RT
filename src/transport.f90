@@ -9,7 +9,8 @@ module neort_transport
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
-    use neort_collisional_layer, only: collisional_layer, collisional_layer_factor
+    use neort_collisional_layer, only: collisional_layer, collisional_layer_factor, &
+        deflection_frequency
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2, &
@@ -123,6 +124,8 @@ contains
         real(dp), intent(out) :: D(2), T
         character(len=4096) :: ledger_path
         call resonance_ledger_path(ledger_path)
+        if (collisional_layer .and. finite_krook_active()) &
+            error stop 'collisional_layer and finite Krook broadening cannot be combined'
         if (finite_krook_active()) then
             call compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
         else
@@ -141,7 +144,7 @@ contains
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
-        real(dp) :: Hmn2, attenuation_factor, layer_factor
+        real(dp) :: Hmn2, attenuation_factor, layer_factor, layer_nu
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku, sample_count
         character(len=*), intent(in) :: ledger_path
@@ -180,6 +183,8 @@ contains
             ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
             sample_weight = energy_sample_weight(energy_ratio, ux, du)
             v = ux * vth
+            if (collisional_layer .and. etamax > etatp) &
+                layer_nu = deflection_frequency(v)
             call driftorbit_coarse(v, etamin, etamax, roots, nroots)
             ! No explicit nroots==0 guard: the do-loop below is empty when
             ! nroots==0, and a bare `cycle` here would skip the trailing
@@ -209,7 +214,9 @@ contains
                 dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
                 dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
                 if (collisional_layer) then
-                    layer_factor = collisional_layer_factor(v, eta, abs(eta_res(2)))
+                    layer_factor = 1.0_dp
+                    if (eta > etatp) layer_factor = collisional_layer_factor( &
+                        layer_nu, eta, eps, etatp, etadt, abs(eta_res(2)))
                     dD11 = dD11 * layer_factor
                     dD12 = dD12 * layer_factor
                 end if

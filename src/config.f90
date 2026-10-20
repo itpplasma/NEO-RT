@@ -156,6 +156,7 @@ contains
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
             krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale
 
+        collisional_layer = .false.
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         monoenergetic_x = -1.0_dp
