@@ -8,10 +8,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 add_compile_options(-g -fbacktrace)
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-    add_compile_options(-O3 -mcpu=native)
+    set(POTATO_ARCH_FLAGS "-mcpu=native" CACHE STRING "CPU architecture flags for POTATO")
 else ()
-    add_compile_options(-O3 -march=native -mtune=native)
+    set(POTATO_ARCH_FLAGS "-march=native;-mtune=native" CACHE STRING "CPU architecture flags for POTATO")
 endif ()
+add_compile_options(-O3 ${POTATO_ARCH_FLAGS})
 
 include(Util)
 if(NOT DEFINED LIBNEO_REF)
@@ -34,6 +35,12 @@ find_package(LAPACK REQUIRED)
 # (SRC/resonant_int.f90).  Linked to potato_base so -fopenmp reaches POTATO's own
 # sources and the runtime is linked.
 find_package(OpenMP REQUIRED)
+if(NOT DEFINED SPLINE_REF)
+    set(SPLINE_REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e)
+endif()
+find_or_fetch(spline)
+# spline_val_0 has a threadprivate interval cache used by parallel orbits.
+target_link_libraries(spline OpenMP::OpenMP_Fortran)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -63,6 +70,9 @@ target_link_libraries(potato.x
 potato
 )
 
+add_executable(potato_profile_readback.x SRC/profile_readback.f90)
+target_link_libraries(potato_profile_readback.x PRIVATE potato)
+
 
 add_executable (test_profile.x
    SRC/test_profile.f90
@@ -87,6 +97,76 @@ target_link_libraries(test_find_all_roots_bracketed.x
 add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
+
+add_executable(test_failed_orbit_nodes.x
+   SRC/test_failed_orbit_nodes.f90
+)
+# sample_matrix pulls sub_potato (module state), which calls into a
+# profile_input implementation.  potato_base is intentionally incomplete there,
+# so the two archives must be rescanned as a group rather than linked in order.
+target_link_libraries(test_failed_orbit_nodes.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_failed_orbit_nodes
+   COMMAND test_failed_orbit_nodes.x
+)
+
+add_executable(test_bmod_pert_bounds.x
+   SRC/test_bmod_pert_bounds.f90
+)
+target_link_libraries(test_bmod_pert_bounds.x
+   potato_base
+)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run)
+foreach(_mode inside outside_r outside_z nan_r nan_z)
+   add_test(NAME test_bmod_pert_bounds_${_mode}
+      COMMAND test_bmod_pert_bounds.x ${_mode}
+   )
+   set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run
+      RESOURCE_LOCK potato_bmod_pert_bounds_run
+   )
+endforeach()
+foreach(_mode outside_r outside_z nan_r nan_z)
+   set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
+      PASS_REGULAR_EXPRESSION "evaluation outside the bmod_n.dat R-Z grid"
+   )
+endforeach()
+
+add_executable(test_signed_toroidal_bound.x
+   SRC/test_signed_toroidal_bound.f90
+)
+target_link_libraries(test_signed_toroidal_bound.x
+   potato_base
+)
+add_test(NAME test_signed_toroidal_bound
+   COMMAND test_signed_toroidal_bound.x
+)
+
+add_executable(test_radial_boxes.x
+   SRC/test_radial_boxes.f90
+)
+target_link_libraries(test_radial_boxes.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_radial_boxes
+   COMMAND test_radial_boxes.x
+)
+
+add_executable(test_energy_selection.x
+   SRC/test_energy_selection.f90
+)
+target_link_libraries(test_energy_selection.x
+   potato_base
+)
+add_test(NAME test_energy_selection
+   COMMAND test_energy_selection.x
+)
+
+add_executable(test_bounce_offcut.x SRC/test_bounce_offcut.f90)
+target_link_libraries(test_bounce_offcut.x PRIVATE potato_base potato)
+add_test(NAME test_bounce_offcut COMMAND test_bounce_offcut.x)
+set_tests_properties(test_bounce_offcut PROPERTIES TIMEOUT 30)
 
 add_executable(test_wall_loss.x
    SRC/test_wall_loss.f90
@@ -174,6 +254,11 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_profile_converter.py
     )
     set_tests_properties(potato_profile_converter PROPERTIES TIMEOUT 60)
+    add_test(NAME potato_tabulated_profiles
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_tabulated_profiles.py
+            $<TARGET_FILE:potato_profile_readback.x>)
+    set_tests_properties(potato_tabulated_profiles PROPERTIES TIMEOUT 60)
     add_test(NAME potato_invariant_handoff
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py
@@ -190,6 +275,12 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 150
     )
+    add_test(NAME potato_first_energy_cell
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/energy_cells/test_first_energy_cell.py
+            $<TARGET_FILE:potato.x>
+    )
+    set_tests_properties(potato_first_energy_cell PROPERTIES TIMEOUT 240)
     add_test(NAME potato_fixed_energy_contour
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/fixed_energy_contour/test_fixed_energy_contour.py
