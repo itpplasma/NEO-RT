@@ -161,11 +161,9 @@
 !
   implicit none
 !
-! nousecut - way to close the orbit during primary search:
-! .true. - without using Poincare cut, can be used for general Phi distributions
-! .false. - with using the cut, valid for Phi=Phi(psi) only
-!  logical, parameter :: nousecut=.true.
-  logical, parameter :: nousecut=.false.
+! Cut crossings count a full bounce only when the initial point is on the cut.
+! For arbitrary single-orbit starts, use the existing return-to-start search.
+  logical :: nousecut
 !
 ! maximum number of Newton iterations for closing the orbit:
   integer, parameter :: niter=20
@@ -205,6 +203,9 @@
 ! Primary search:
 !
   z_start=z
+!
+  call get_poicut(z(1),Z_tmp,dZ_dR)
+  nousecut=abs(z(3)-Z_tmp).gt.max(1.d0,abs(z(1)))*relerr
 !
   call velo_ext(dtau,z,vz)
 !
@@ -263,7 +264,12 @@
 ! sqrt(2) of the poloidal length of the step:
       dL2_pol=2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2)
       dL2_pol_start=(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
-      if(dL2_pol_start.lt.dL2_pol) exit
+      if(dL2_pol_start.lt.dL2_pol) then
+! A trapped orbit can revisit this RZ point with reversed parallel velocity.
+! Accept only a return on the initial direction of the poloidal motion.
+        call velo_ext(dtau,z,vz)
+        if(vz(1)*RNorm+vz(3)*ZNorm.gt.0.d0) exit
+      endif
     else
 ! check if Poincare cut has been crossed
 !
@@ -910,20 +916,21 @@
   double precision, parameter :: relerr=1d-12
   integer :: iter
   integer, dimension(2) :: iext
-  double precision :: R,Z,bmod,phi_elec,sigpsi
+  double precision :: R,Z,bmod,sqrtg,sigpsi
   double precision :: errdist2,del_R,del_Z,det
-  double precision,dimension(3) :: x
+  double precision,dimension(3) :: x,bder,hcovar,hctrvr,hcurl
 !
 ! First field evaluation of the run - it reads the equilibrium and so allocates
 ! rad, zet, psi and sets rtf, all used below. No machine dimension is known
-! before it, hence the probe at R = 1 cm: the flux there is clamped to the grid
-! edge and the returned values are discarded. Probing at rtf instead divides by
-! an rtf that is still zero inside magfie.
+! before it, hence the bootstrap probe at R = 1 cm outside the physical grid.
+! Its returned magnetic values are discarded. Probing at rtf instead divides by
+! an rtf that is still zero inside magfie. Only the magnetic field is needed:
+! the bootstrap point and Newton iterates need not lie in profile support.
   x(1)=1.d0
   x(2)=0.d0
   x(3)=0.d0
 !
-  call get_bmod_and_Phi(x,bmod,phi_elec)
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
   sigpsi=sign(1.d0,psi_sep-psi_axis)
   iext=minloc(sigpsi*psi)
@@ -935,7 +942,7 @@
     x(1)=R
     x(3)=Z
 !
-    call get_bmod_and_Phi(x,bmod,phi_elec)
+    call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
     det=d2psidr2*d2psidz2-d2psidrdz**2
     del_R=(d2psidrdz*dpsidz-d2psidz2*dpsidr)/det
@@ -950,7 +957,7 @@
   x(1)=R
   x(3)=Z
 !
-  call get_bmod_and_Phi(x,bmod,phi_elec)
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
   rmagaxis=R
   zmagaxis=Z
