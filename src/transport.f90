@@ -47,6 +47,15 @@ module neort_transport
   ! function of orbit time, so tests can use analytic Bessel sidebands.
   procedure(drift_osc_i), pointer :: drift_osc_override => null()
 
+  ! Contributions of one velocity node to the D11, D12 and torque integrals:
+  ! one term per resonant root (collisionless) or the finite-width pitch
+  ! integral (Krook). assemble_velocity_samples sums them in node and root
+  ! order, independently of where and in which order they were computed.
+  type :: velocity_sample_t
+      integer :: nterm = 0
+      real(dp), allocatable :: term(:, :)  ! (3, capacity); only 1:nterm is used
+  end type velocity_sample_t
+
 contains
 
   pure function fmt_dbg(msg1, v1, msg2, v2, msg3, v3, msg4, v4) result(s)
@@ -118,47 +127,146 @@ contains
     end function Tphi_mono
 
     subroutine compute_transport_integral(vmin, vmax, vsteps, energy_ratio, D, T)
-        real(dp), intent(in) :: vmin, vmax
-        integer, intent(in) :: vsteps
-        real(dp), intent(in) :: energy_ratio
-        real(dp), intent(out) :: D(2), T
-        character(len=4096) :: ledger_path
-        call resonance_ledger_path(ledger_path)
-        if (collisional_layer .and. finite_krook_active()) &
-            error stop 'collisional_layer and finite Krook broadening cannot be combined'
-        if (finite_krook_active()) then
-            call compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
-        else
-            call compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T, ledger_path)
-        end if
-    end subroutine compute_transport_integral
-
-    subroutine compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T, ledger_path)
-        ! compute transport integral via midpoint rule
+        ! Velocity integral of one resonance component, node by node in order.
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
         real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T  ! Transport coefficients D and torque density T
-        real(dp) :: D_plateau, dsdreff  ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
+        type(velocity_sample_t), allocatable :: samples(:)
+        integer :: ku
+
+        call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
+
+        allocate(samples(velocity_sample_count(vsteps, energy_ratio)))
+        call prepare_velocity_samples(samples)
+        do ku = 1, size(samples)
+            call compute_velocity_sample(ku, vmin, vmax, vsteps, energy_ratio, samples(ku))
+        end do
+        call assemble_velocity_samples(vmin, vmax, vsteps, energy_ratio, samples, D, T)
+
+        call debug("compute_transport_integral complete")
+    end subroutine compute_transport_integral
+
+    pure integer function velocity_sample_count(vsteps, energy_ratio)
+        integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
+
+        velocity_sample_count = energy_sample_count(energy_ratio, vsteps)
+    end function velocity_sample_count
+
+    subroutine compute_velocity_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
+        ! Contributions of velocity node ku. The nodes are independent: each
+        ! depends only on the per-species state and the resonance component
+        ! (mth, sign_vpar, etamin, etamax) held by the calling thread.
+        integer, intent(in) :: ku
+        real(dp), intent(in) :: vmin, vmax
+        integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
+        type(velocity_sample_t), intent(inout) :: sample
+
+        if (collisional_layer .and. finite_krook_active()) &
+            error stop 'collisional_layer and finite Krook broadening cannot be combined'
+        if (finite_krook_active()) then
+            block
+                character(len=4096) :: ledger_path
+                call resonance_ledger_path(ledger_path)
+            end block
+            call compute_krook_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
+        else
+            call compute_collisionless_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
+        end if
+    end subroutine compute_velocity_sample
+
+    subroutine assemble_velocity_samples(vmin, vmax, vsteps, energy_ratio, samples, D, T)
+        ! Sums the node contributions in node and root order and normalizes.
+        real(dp), intent(in) :: vmin, vmax
+        integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
+        type(velocity_sample_t), intent(in) :: samples(:)
+        real(dp), intent(out) :: D(2), T
+        real(dp) :: du, integral(3), D_plateau, dsdreff
+        integer :: ku, kr
+
+        if (energy_ratio > 0.0_dp) then
+            du = 0.0_dp
+        else
+            du = (vmax - vmin)/(vsteps*vth)
+        end if
+        D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
+        dsdreff = 2.0_dp / a * sqrt(s)  ! TODO: Use exact value instead of this approximation
+
+        if (finite_krook_active()) then
+            integral = 0.0_dp
+            do ku = 1, size(samples)
+                ! thermal weights from compute_transport_weight already carry the
+                ! Maxwellian speed density; monoenergetic ones are weight 1.
+                if (energy_ratio > 0.0_dp) then
+                    integral = integral + samples(ku)%term(:, 1)
+                else
+                    integral = integral + du*samples(ku)%term(:, 1)
+                end if
+            end do
+            D = dsdreff**(-2)*integral(1:2)/D_plateau
+            T = integral(3)
+        else
+            D = 0.0_dp
+            T = 0.0_dp
+            do ku = 1, size(samples)
+                do kr = 1, samples(ku)%nterm
+                    D(1) = D(1) + samples(ku)%term(1, kr)
+                    D(2) = D(2) + samples(ku)%term(2, kr)
+                    if (comptorque) T = T + samples(ku)%term(3, kr)
+                end do
+            end do
+            D = dsdreff**(-2) * D / D_plateau
+        end if
+    end subroutine assemble_velocity_samples
+
+    impure elemental subroutine prepare_velocity_samples(sample)
+        ! Reserve result storage before dispatch, never in a velocity worker.
+        ! nlev bounds the root search; Krook needs only its pitch integral.
+        type(velocity_sample_t), intent(inout) :: sample
+        integer :: capacity
+
+        capacity = nlev
+        if (finite_krook_active()) capacity = 1
+        if (allocated(sample%term)) deallocate(sample%term)
+        allocate(sample%term(3, capacity))
+        sample%nterm = 0
+    end subroutine prepare_velocity_samples
+
+    subroutine store_sample_terms(terms, sample)
+        real(dp), intent(in) :: terms(:, :)
+        type(velocity_sample_t), intent(inout) :: sample
+
+        sample%nterm = size(terms, 2)
+        sample%term(:, 1:sample%nterm) = terms
+    end subroutine store_sample_terms
+
+    subroutine compute_collisionless_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
+        ! Midpoint-rule node ku: one term per resonant root.
+        integer, intent(in) :: ku
+        real(dp), intent(in) :: vmin, vmax
+        integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
+        type(velocity_sample_t), intent(inout) :: sample
         real(dp) :: ux, du, dD11, dD12, dT, v, eta, sample_weight
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
         real(dp) :: Hmn2, attenuation_factor, layer_factor, layer_nu
-        real(dp) :: roots(nlev, 3)
-        integer :: nroots, kr, ku, sample_count
-        character(len=*), intent(in) :: ledger_path
+        real(dp) :: roots(nlev, 3), terms(3, nlev)
+        integer :: nroots, kr, nterm
+        character(len=4096) :: ledger_path
         character(len=4) :: orbit_branch
         character(len=1024), allocatable :: ledger_rows(:)
         integer :: ledger_count
         logical :: ledger_enabled
         real(dp) :: Omph, dOmphdv, dOmphdeta, resonance_residual
 
-        call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
-
-        D = 0.0_dp
-        T = 0.0_dp
+        call resonance_ledger_path(ledger_path)
         ledger_enabled = len_trim(ledger_path) > 0
+        ledger_count = 0
         if (ledger_enabled) then
             allocate(ledger_rows(nlev))
             if (etamax < etatp) then
@@ -171,84 +279,74 @@ contains
                 orbit_branch = 'trap'
             end if
         end if
+
         if (energy_ratio > 0.0_dp) then
             du = 0.0_dp
         else
             du = (vmax - vmin)/(vsteps*vth)
         end if
-        sample_count = energy_sample_count(energy_ratio, vsteps)
+        nterm = 0
 
-        do ku = 1, sample_count
-            ledger_count = 0
-            ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
-            sample_weight = energy_sample_weight(energy_ratio, ux, du)
-            v = ux * vth
-            if (collisional_layer .and. etamax > etatp) &
-                layer_nu = deflection_frequency(v)
-            call driftorbit_coarse(v, etamin, etamax, roots, nroots)
-            ! No explicit nroots==0 guard: the do-loop below is empty when
-            ! nroots==0, and a bare `cycle` here would skip the trailing
-            ! `ux = ux + du` velocity-grid increment and stall the sweep.
-            do kr = 1, nroots
-                eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
-                if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
-                eta = eta_res(1)
+        ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
+        sample_weight = energy_sample_weight(energy_ratio, ux, du)
+        v = ux * vth
+        if (collisional_layer .and. etamax > etatp) &
+            layer_nu = deflection_frequency(v)
+        call driftorbit_coarse(v, etamin, etamax, roots, nroots)
+        do kr = 1, nroots
+            eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
+            if (eta_res(1) < 0.0_dp) cycle  ! bracket-failure sentinel
+            eta = eta_res(1)
 
-                call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+            call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
-                taub = 2.0_dp * pi / abs(Omth)
-                call transport_bounce(v, eta, taub, bounceavg, istate_dv)
-                if (istate_dv == -1) then
-                    call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
-                else if (istate_dv /= 2) then
-                    call warning(fmt_dbg('dvode istate=', dble(istate_dv), ' at mth=', dble(mth), ' ux=', ux, ' eta=', eta))
-                else
-                    if (abs(eta - etatp) < 1.0e-8_dp*etatp) then
-                        call trace(fmt_dbg('near etatp: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
-                    end if
+            taub = 2.0_dp * pi / abs(Omth)
+            call transport_bounce(v, eta, taub, bounceavg, istate_dv)
+            if (istate_dv == -1) then
+                call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
+            else if (istate_dv /= 2) then
+                call warning(fmt_dbg('dvode istate=', dble(istate_dv), ' at mth=', dble(mth), ' ux=', ux, ' eta=', eta))
+            else
+                if (abs(eta - etatp) < 1.0e-8_dp*etatp) then
+                    call trace(fmt_dbg('near etatp: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
                 end if
-                Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * (mi * (ux * vth)**2 / 2.0_dp)**2
-                attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
-                                                           dOmthdv, dOmthdeta, Hmn2)
+            end if
+            Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2) * (mi * (ux * vth)**2 / 2.0_dp)**2
+            attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
+                                                       dOmthdv, dOmthdeta, Hmn2)
 
-                dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
-                dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
-                if (collisional_layer) then
-                    layer_factor = 1.0_dp
-                    if (eta > etatp) layer_factor = collisional_layer_factor( &
-                        layer_nu, eta, eps, etatp, etadt, abs(eta_res(2)))
-                    dD11 = dD11 * layer_factor
-                    dD12 = dD12 * layer_factor
-                end if
-                D(1) = D(1) + dD11 * attenuation_factor
-                D(2) = D(2) + dD12 * attenuation_factor
-
-                if (comptorque) then
-                    dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
-                    if (collisional_layer) dT = dT * layer_factor
-                    T = T + dT * attenuation_factor
-                end if
-                if (ledger_enabled) then
-                    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
-                    resonance_residual = real(mth, dp) * Omth + real(mph, dp) * Omph
-                    ledger_count = ledger_count + 1
-                    write(ledger_rows(ledger_count), *) &
-                        s, selected_species, mth, mph, trim(orbit_branch), ux, eta, &
-                        Omth, Omph, resonance_residual, eta_res(2), taub, Hmn2, &
-                        attenuation_factor, sample_weight, dT*attenuation_factor, istate_dv
-                end if
-            end do
-            if (ledger_enabled) &
-                call append_resonance_ledger(ledger_path, ledger_rows(:ledger_count))
+            dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
+            dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
+            if (collisional_layer) then
+                layer_factor = 1.0_dp
+                if (eta > etatp) layer_factor = collisional_layer_factor( &
+                    layer_nu, eta, eps, etatp, etadt, abs(eta_res(2)))
+                dD11 = dD11 * layer_factor
+                dD12 = dD12 * layer_factor
+            end if
+            nterm = nterm + 1
+            terms(1, nterm) = dD11 * attenuation_factor
+            terms(2, nterm) = dD12 * attenuation_factor
+            terms(3, nterm) = 0.0_dp
+            if (comptorque) then
+                dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
+                if (collisional_layer) dT = dT * layer_factor
+                terms(3, nterm) = dT * attenuation_factor
+            end if
+            if (ledger_enabled) then
+                call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+                resonance_residual = real(mth, dp) * Omth + real(mph, dp) * Omph
+                ledger_count = ledger_count + 1
+                write(ledger_rows(ledger_count), *) &
+                    s, selected_species, mth, mph, trim(orbit_branch), ux, eta, &
+                    Omth, Omph, resonance_residual, eta_res(2), taub, Hmn2, &
+                    attenuation_factor, sample_weight, dT*attenuation_factor, istate_dv
+            end if
         end do
-
-        D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
-        dsdreff = 2.0_dp / a * sqrt(s)  ! TODO: Use exact value instead of this approximation
-        D = dsdreff**(-2) * D / D_plateau
-
-        call debug("compute_transport_integral complete")
-
-    end subroutine compute_transport_collisionless
+        if (ledger_enabled) &
+            call append_resonance_ledger(ledger_path, ledger_rows(:ledger_count))
+        call store_sample_terms(terms(:, 1:nterm), sample)
+    end subroutine compute_collisionless_sample
 
     subroutine resonance_ledger_path(path)
         character(len=*), intent(out) :: path
@@ -287,36 +385,19 @@ contains
         !$omp end critical(neort_resonance_ledger_io)
     end subroutine append_resonance_ledger
 
-    subroutine compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
+    subroutine compute_krook_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
+        ! Node ku: its finite-width pitch integral as the single term.
+        integer, intent(in) :: ku
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
         real(dp), intent(in) :: energy_ratio
-        real(dp), intent(out) :: D(2), T
-        real(dp) :: du, ux, values(3), integral(3), D_plateau, dsdreff
-        integer :: ku, sample_count
-        integral = 0.0_dp
-        if (energy_ratio > 0.0_dp) then
-            du = 0.0_dp
-        else
-            du = (vmax-vmin)/(vsteps*vth)
-        end if
-        sample_count = energy_sample_count(energy_ratio, vsteps)
-        do ku = 1, sample_count
-            ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
-            call compute_krook_velocity(ux, values, energy_ratio)
-            ! thermal weights from compute_transport_weight already carry the
-            ! Maxwellian speed density; monoenergetic ones are weight 1.
-            if (energy_ratio > 0.0_dp) then
-                integral = integral + values
-            else
-                integral = integral + du*values
-            end if
-        end do
-        D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
-        dsdreff = 2.0_dp/a*sqrt(s)
-        D = dsdreff**(-2)*integral(1:2)/D_plateau
-        T = integral(3)
-    end subroutine compute_transport_krook
+        type(velocity_sample_t), intent(inout) :: sample
+        real(dp) :: ux, values(3, 1)
+
+        ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
+        call compute_krook_velocity(ux, values(:, 1), energy_ratio)
+        call store_sample_terms(values, sample)
+    end subroutine compute_krook_sample
 
     subroutine compute_krook_velocity(ux, values, energy_ratio)
         real(dp), intent(in) :: ux
