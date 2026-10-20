@@ -487,3 +487,8 @@ add_test(NAME test_resonance_fold_pairs
     COMMAND test_resonance_fold_pairs.x)
 set_tests_properties(test_resonance_fold_pairs PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+# A fold pair fills storage before a later ordinary sign-change bracket.
+add_test(NAME test_resonance_root_capacity COMMAND test_resonance_root_capacity.x)
+set_tests_properties(test_resonance_root_capacity PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)

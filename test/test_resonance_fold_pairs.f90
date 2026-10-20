@@ -6,7 +6,6 @@ module fold_pair_fixture
 
 contains
 
-
     subroutine parabola(v, eta, res, dresdeta)
         real(dp), intent(in) :: v, eta
         real(dp), intent(out) :: res, dresdeta
@@ -69,7 +68,8 @@ program test_resonance_fold_pairs
         do k = 1, 2
             eta_res = driftorbit_root(1.0_dp, 0.0_dp, roots(k, 1), roots(k, 2))
             if (abs(eta_res(1) - expected(k)) > 4.0e-12_dp) then
-                write(*,*) 'case, root, found, exact:', kcase, k, eta_res(1), expected(k)
+                write(*,*) 'case, root, found, exact:', &
+                    kcase, k, eta_res(1), expected(k)
                 error stop 'bracketed root differs from the exact root'
             end if
             if (abs(abs(eta_res(2)) / (2.0_dp * w) - 1.0_dp) > 1.0e-5_dp) then

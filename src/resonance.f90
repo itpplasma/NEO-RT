@@ -84,6 +84,10 @@ contains
                 else if (resold /= 0.0_dp) then
                     if ((res > 0.0_dp .and. resold < 0.0_dp) .or. &
                         (res < 0.0_dp .and. resold > 0.0_dp)) then
+                        if (nroots >= ninterv) then
+                            call warning_root_capacity(v)
+                            return
+                        end if
                         nroots = nroots + 1
                         roots(nroots, 1) = eta - deta
                         roots(nroots, 2) = eta
