@@ -1,5 +1,16 @@
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
+  module velo_last_mod
+! |B| and potential from the last completed velo call, so callers that need
+! them at the same point (velo_res) need not repeat magfie and elefie there.
+! velo_last_ok is false whenever velo returned before evaluating both.
+    logical          :: velo_last_ok=.false.
+    double precision :: bmod_last=0.d0,phi_elec_last=0.d0
+    !$omp threadprivate(velo_last_ok,bmod_last,phi_elec_last)
+  end module velo_last_mod
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
   subroutine elefie(x, phi_elec, derphi)
 !
   use field_sub, only : psif,dpsidr,dpsidz
@@ -55,6 +66,7 @@
                              dpsiast_dR,dpsiast_dZ !<=NEW in version 4
       use field_eq_mod, only : ierrfield
       use wall_loss_mod, only : outside_wall
+      use velo_last_mod, only : velo_last_ok,bmod_last,phi_elec_last
 !
       implicit none
 !
@@ -76,6 +88,7 @@
       dimension a_phi(3),a_b(3),a_c(3),hstar(3)
 !
       x(1:3) = z(1:3)
+      velo_last_ok=.false.
 !
       if(outside_wall(x(1),x(3))) then
         ierrfield=1
@@ -106,6 +119,9 @@
 !                     phihat=e*phi/T over space coords (covar. vector)
 !
       call elefie(x,phi_elec,derphi)
+      bmod_last=bmod
+      phi_elec_last=phi_elec
+      velo_last_ok=.true.
 !
       p=z(4)
       alambd=z(5)
