@@ -2,7 +2,7 @@ program test_frequency_join_manufactured
     use iso_fortran_env, only: dp=>real64
     use ieee_arithmetic, only: ieee_next_after
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline, Om_th, Om_tB, Om_ph
-    use driftorbit, only: etatp, epst_spl, epsp_spl, sign_vpar
+    use driftorbit, only: etatp, epst_spl, epsp_spl, sign_vpar, magdrift, magdrift_passing
     use neort_profiles, only: Om_tE
     use do_magfie_mod, only: iota
     use util, only: pi
@@ -32,4 +32,14 @@ program test_frequency_join_manufactured
             end do
         end do
     end do
+    ! The passing switch is independent of the trapped magnetic-drift switch.
+    magdrift=.false.
+    magdrift_passing=1
+    sign_vpar=1
+    eta=etatp*(1-.5_dp*epsp_spl)
+    call Om_th(v,eta,w,dv,de)
+    call Om_tB(v,eta,b,dv,de)
+    call Om_ph(v,eta,p,dv,de)
+    if(abs(b)<1e-3_dp) error stop 'passing drift control is vacuous'
+    if(abs(p-(Om_tE+w/iota+b))>1e-10_dp) error stop 'independent passing drift switch'
 end program

@@ -5,6 +5,19 @@ module neort_resonance
     use driftorbit, only: mth, mph, nlev, vth, sign_vpar, etatp
     implicit none
 
+    abstract interface
+        subroutine resonance_value_i(v, eta, res, dresdeta)
+            import :: dp
+            real(dp), intent(in) :: v, eta
+            real(dp), intent(out) :: res, dresdeta
+        end subroutine resonance_value_i
+    end interface
+
+    ! Test seam: when associated, replaces the resonance function R(v, eta)
+    ! and its eta derivative, so the bracketing can be checked against
+    ! manufactured functions with known roots.
+    procedure(resonance_value_i), pointer :: resonance_override => null()
+
 contains
 
     subroutine resonance_value(v, eta, res, dresdeta)
@@ -16,6 +29,10 @@ contains
         real(dp) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: Omth, dOmthdv, dOmthdeta
 
+        if (associated(resonance_override)) then
+            call resonance_override(v, eta, res, dresdeta)
+            return
+        end if
         call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         if (eta <= etatp) then
             ! Om_ph repeats this Om_th call in the passing branch.  Expand
@@ -67,10 +84,20 @@ contains
                 else if (resold /= 0.0_dp) then
                     if ((res > 0.0_dp .and. resold < 0.0_dp) .or. &
                         (res < 0.0_dp .and. resold > 0.0_dp)) then
+                        if (nroots >= ninterv) then
+                            call warning_root_capacity(v)
+                            return
+                        end if
                         nroots = nroots + 1
                         roots(nroots, 1) = eta - deta
                         roots(nroots, 2) = eta
                         roots(nroots, 3) = dresdetaold
+                    else if (dresdetaold * dresdeta < 0.0_dp) then
+                        ! Same sign at both ends but an extremum inside: a
+                        ! root pair born at a fold of R can lie within one
+                        ! interval, where its 1/|dR/deta| weight is largest.
+                        call bracket_fold_pair(v, eta - deta, eta, resold, &
+                            dresdetaold, roots, nroots)
                     end if
                 end if
             else if (res == 0.0_dp) then
@@ -83,6 +110,56 @@ contains
             dresdetaold = dresdeta
         end do
     end subroutine driftorbit_coarse
+
+    subroutine bracket_fold_pair(v, a, b, fa, dfa, roots, nroots)
+        ! Locate the extremum of R in [a, b] by bisection on dR/deta, whose
+        ! sign differs at a and b.  If R changes sign there, the interval
+        ! holds two simple roots: add [a, extremum] and [extremum, b].  An
+        ! extremum with R exactly zero is a tangency of measure zero in v.
+        real(dp), intent(in) :: v, a, b, fa, dfa
+        real(dp), intent(inout) :: roots(:, :)
+        integer, intent(inout) :: nroots
+        integer, parameter :: maxit = 200
+        real(dp) :: lo, hi, dlo, eta, res, dres
+        integer :: k
+
+        lo = a
+        hi = b
+        dlo = dfa
+        do k = 1, maxit
+            eta = 0.5_dp * (lo + hi)
+            if (eta <= lo .or. eta >= hi) exit
+            call resonance_value(v, eta, res, dres)
+            if (.not. ieee_is_finite(dres)) return
+            if (dres * dlo > 0.0_dp) then
+                lo = eta
+                dlo = dres
+            else
+                hi = eta
+            end if
+        end do
+        eta = 0.5_dp * (lo + hi)
+        call resonance_value(v, eta, res, dres)
+        if (.not. ieee_is_finite(res)) return
+        if (res * fa >= 0.0_dp) return
+        if (nroots + 2 > size(roots, 1)) then
+            call warning_root_capacity(v)
+            return
+        end if
+        roots(nroots + 1, :) = [a, eta, dfa]
+        roots(nroots + 2, :) = [eta, b, dres]
+        nroots = nroots + 2
+    end subroutine bracket_fold_pair
+
+    subroutine warning_root_capacity(v)
+        use logger, only: warning
+        real(dp), intent(in) :: v
+        character(len=128) :: msg
+
+        write (msg, "(a,g0)") "driftorbit_coarse: root capacity exceeded at v/vth = ", &
+            v / vth
+        call warning(msg)
+    end subroutine warning_root_capacity
 
     function driftorbit_nroot(v, eta_min, eta_max)
         integer :: driftorbit_nroot
@@ -191,7 +268,7 @@ contains
             driftorbit_root(2) = dresdeta
 
             if (abs(res) <= tol_eff .and. abs(b - a) <= eta_relative_tolerance * eta_scale .and. &
-                ieee_is_finite(dresdeta)) then
+                ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp) then
                 converged = .true.
                 exit
             end if
@@ -209,8 +286,14 @@ contains
                 eta = 0.5_dp * (a + b)
                 call resonance_value(v, eta, res, dresdeta)
                 driftorbit_root = [eta, dresdeta]
-                converged = ieee_is_finite(res) .and. abs(res) <= tol_eff .and. &
-                    ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp
+                ! At machine width the residual is limited by eta rounding.
+                ! Use only the local Jacobian, and still reject a discontinuity
+                ! or a zero/invalid Jacobian rather than accepting width alone.
+                converged = .false.
+                if (ieee_is_finite(res) .and. ieee_is_finite(dresdeta)) then
+                    if (dresdeta /= 0.0_dp) converged = abs(res) <= &
+                        max(tol_eff, 8.0_dp*abs(dresdeta)*spacing(eta))
+                end if
                 exit
             end if
 

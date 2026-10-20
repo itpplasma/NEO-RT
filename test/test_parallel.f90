@@ -10,6 +10,7 @@ program test_parallel
                               ni1, Ti1, M_t, Om_tE
     use neort, only: init, compute_transport
     use neort_config, only: read_and_set_config
+    use neort_collisional_layer, only: collisional_layer
     use driftorbit, only: efac, B0, Bmin, Bmax, dVds, etatp, etadt
     use neort_magfie, only: init_flux_surface_average
     use util, only: readdata
@@ -35,6 +36,7 @@ contains
     subroutine run_test()
         type(init_results_t) :: init_results(N_THREADS)
         type(transport_data_t) :: transport_results(N_THREADS)
+        character(len=32) :: mode
         integer :: nplasma
         real(dp) :: am1, am2, Z1, Z2
         real(dp), allocatable :: plasma(:, :), profile_data(:, :)
@@ -55,6 +57,8 @@ contains
 
         print *, "Reading input files..."
         call read_and_set_config("driftorbit.in")
+        call get_command_argument(1, mode)
+        collisional_layer = mode == 'collisional-layer'
         call read_boozer_file("in_file")
         call read_plasma_input("plasma.in", nplasma, am1, am2, Z1, Z2, plasma)
         call prepare_plasma_splines(nplasma, am1, am2, Z1, Z2, plasma)

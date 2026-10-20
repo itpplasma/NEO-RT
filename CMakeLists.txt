@@ -74,6 +74,12 @@ endif()
 
 option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${NEORT_IS_STANDALONE})
 
+# Symbolic generators are consumer-owned and optional.  The generated kernels
+# are committed and are all that a normal NEO-RT build needs.  Set
+# FORTSYM_SOURCE_DIR to the local fortsym checkout when regenerating them.
+option(NEORT_BUILD_SYMBOLICS "Build NEO-RT fortsym generators" OFF)
+set(FORTSYM_SOURCE_DIR "" CACHE PATH "fortsym source tree for NEO-RT generators")
+
 if(DEFINED BUILD_TESTING)
     set(NEORT_BUILD_TESTING ${BUILD_TESTING})
 endif()
@@ -106,6 +112,7 @@ add_executable(${PROJECT_EXE_NAME} src/program.f90)
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/collis_nbi.f90
+    src/collisional_layer.f90
     src/config.f90
     src/krook.f90
     src/collision_rates.f90
@@ -121,10 +128,13 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
+    src/orbit_classes.f90
     src/output.f90
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
+    src/generated/neort_separatrix_frequency_symbolic.f90
+    src/separatrix.f90
     src/shaing.f90
     src/species.f90
     src/transport.f90
@@ -132,7 +142,7 @@ set(NEO_RT_SOURCES
 )
 
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
-set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 PROPERTIES
+set_source_files_properties(src/separatrix.f90 src/orbit_classes.f90 src/resonance.f90 src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
@@ -206,6 +216,10 @@ endif()
 
 # Diagnostics
 add_subdirectory(src/diag)
+
+if(NEORT_BUILD_SYMBOLICS)
+    add_subdirectory(tools/symbolics)
+endif()
 
 add_executable(neo_rt_diag.x
     src/diag/neort_diag.f90

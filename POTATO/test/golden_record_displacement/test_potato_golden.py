@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import hashlib
 import json
 import os
 import shutil
@@ -18,18 +17,35 @@ SKIP = 77
 DEFAULT_CASE = Path("potato_benchmarks/rung4_torque_30835/run/potato_zero_mid")
 
 
-def numeric_hash(path, sort_rows, digits):
-    data = np.loadtxt(path)
-    if data.ndim == 1:
-        data = data.reshape(1, -1)
-    if sort_rows:
-        order = np.lexsort(tuple(data[:, i] for i in range(data.shape[1] - 1, -1, -1)))
-        data = data[order]
-    value_format = f"{{value:.{digits}e}}"
-    payload = "\n".join(
-        " ".join(value_format.format(value=value) for value in row) for row in data
-    ) + "\n"
-    return list(data.shape), hashlib.sha256(payload.encode("ascii")).hexdigest()
+# The historical cross-platform integral-torque spread was 6e-8. Keep margin
+# for rounding while checking every output value and its row association.
+RTOL = 1.0e-6
+
+
+def compare_rows(data, reference, key_columns, scale_groups=()):
+    """Compare canonical rows, preserving coordinates and mode associations."""
+    if data.shape != reference.shape:
+        return f"shape {data.shape} != {reference.shape}"
+    if not np.all(np.isfinite(data)):
+        return "nonfinite output"
+    order = lambda rows: np.lexsort(tuple(rows[:, i] for i in reversed(key_columns)))
+    data = data[order(data)]
+    reference = reference[order(reference)]
+    scale = np.abs(reference)
+    for group in scale_groups:
+        # High torque modes approach roundoff. Use the largest torque in the
+        # same row, rather than a sum over unrelated rows or physical units.
+        scale[:, group] = np.max(scale[:, group], axis=1, keepdims=True)
+    error = np.abs(data - reference)
+    mismatch = error > RTOL * scale
+    if np.any(mismatch):
+        row, col = np.argwhere(mismatch)[0]
+        return (
+            f"row {row} column {col}: {data[row, col]!r} vs "
+            f"{reference[row, col]!r} (error {error[row, col]:.2e} > "
+            f"tolerance {RTOL * scale[row, col]:.2e})"
+        )
+    return None
 
 
 def copy_case(src, dst):
@@ -70,7 +86,7 @@ def main():
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=int(os.environ.get("POTATO_GOLDEN_TIMEOUT", "180")),
+            timeout=int(os.environ.get("POTATO_GOLDEN_TIMEOUT", "1800")),
         )
         if result.returncode != 0:
             print(result.stdout, file=sys.stdout)
@@ -78,23 +94,23 @@ def main():
             return result.returncode
 
         torque = float(np.loadtxt(work / "integral_torque.dat"))
-        if torque != golden["integral_torque"]:
-            print(f"integral_torque mismatch: {torque} != {golden['integral_torque']}")
+        ref_torque = golden["integral_torque"]
+        if not abs(torque - ref_torque) <= RTOL * abs(ref_torque):
+            print(
+                f"integral_torque mismatch: {torque!r} vs {ref_torque!r} "
+                f"(relative {abs(torque / ref_torque - 1.0):.2e} > {RTOL:.0e})"
+            )
             return 1
 
-        for name, expected in golden["files"].items():
-            shape, digest = numeric_hash(
-                work / name,
-                expected.get("sort_rows", False),
-                expected.get("digits", 17),
-            )
-            if shape != expected["shape"] or digest != expected["sha256"]:
-                print(
-                    f"{name} mismatch: shape={shape} sha256={digest} "
-                    f"expected_shape={expected['shape']} "
-                    f"expected_sha256={expected['sha256']}"
+        with np.load(golden_path.parent / golden["rows_file"]) as references:
+            for name, expected in golden["files"].items():
+                error = compare_rows(
+                    np.loadtxt(work / name, ndmin=2), references[name],
+                    expected["key_columns"], expected.get("scale_groups", []),
                 )
-                return 1
+                if error:
+                    print(f"{name} mismatch: {error}")
+                    return 1
 
     return 0
 

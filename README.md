@@ -246,7 +246,13 @@ FORD-based API documentation can be generated locally with
 make doc
 ```
 
-This command runs `ford doc.md` and writes the HTML output to `build/doc`. The same command is executed on GitHub Actions to publish documentation to GitHub Pages. Ensure that the `ford` Python package and Graphviz binaries are available before running the target locally.
+Install the pinned documentation tooling with `pip install -r requirements-docs.txt`
+and ensure that Graphviz is available. This command runs `ford doc.md` and writes
+the HTML output to `build/doc`, without configuring or compiling the solver.
+FORD documents `src` recursively using the default standalone field backend;
+the alternative NEO-2 implementation is excluded because it defines the same
+module names. GitHub Actions builds the documentation on pull requests and
+merge groups, and publishes it to GitHub Pages only on pushes to `main`.
 
 ## License
 
