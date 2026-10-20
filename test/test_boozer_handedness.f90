@@ -91,7 +91,7 @@ contains
             raw_Itor = Bth_si*tesla_to_gauss*meter_to_cm &
                 /(current_to_covar*real(handedness, dp))
             call write_surface(file_unit, s_surface, iota_chart, raw_Jpol, &
-                raw_Itor, radius_m, orientation)
+                raw_Itor, radius_m, orientation, handedness)
         end do
         close (file_unit)
     end subroutine write_chart
@@ -109,17 +109,21 @@ contains
     end subroutine write_header
 
     subroutine write_surface(file_unit, s_surface, iota_chart, Jpol, Itor, &
-            radius_m, orientation)
+            radius_m, orientation, handedness)
         integer, intent(in) :: file_unit
-        integer, intent(in) :: orientation
+        integer, intent(in) :: orientation, handedness
         real(dp), intent(in) :: s_surface, iota_chart, Jpol, Itor, radius_m
 
-        real(dp) :: field_magnitude
+        real(dp) :: field_magnitude, dvds
+
+        ! dV/ds = 4*pi**2*sqrt(g) of the analytic chart, in m^3.
+        dvds = 4.0_dp*pi**2*real(handedness, dp)*major_radius_m &
+            *minor_radius_m**2/2.0_dp
 
         field_magnitude = field_t*sqrt(1.0_dp + (radius_m*iota_abs/major_radius_m)**2)
         write (file_unit, "(a)") "CC s iota Jpol Itor pprime sqrtg00"
         write (file_unit, "(a)") "CC units A A Pa m3"
-        write (file_unit, *) s_surface, iota_chart, Jpol, Itor, 0.0_dp, 0.0_dp
+        write (file_unit, *) s_surface, iota_chart, Jpol, Itor, 0.0_dp, dvds
         write (file_unit, "(a)") "CC m n rmnc rmns zmnc zmns vmnc vmns bmnc bmns"
         write (file_unit, *) 0, 0, major_radius_m, 0.0_dp, 0.0_dp, 0.0_dp, &
             0.0_dp, 0.0_dp, field_magnitude, 0.0_dp

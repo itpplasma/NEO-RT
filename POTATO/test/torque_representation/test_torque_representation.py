@@ -118,8 +118,8 @@ class TorqueRepresentation(unittest.TestCase):
         maximum = self.number(text, "maximum total energy")
         self.assertEqual(self.number(text, "minimum total energy"), minimum)
         used = self.samples(text)
-        self.assertEqual(len(used), 2)
-        for actual, index in zip(used, (2, 3)):
+        self.assertEqual(len(used), 3)
+        for actual, index in zip(used, (1, 2, 3)):
             expected = minimum + (index - 0.5)*(maximum - minimum)/3
             self.assertAlmostEqual(actual, expected, delta=2e-5)
 

@@ -35,6 +35,14 @@ local-profile limit it supplies the corresponding fixed-energy reference. See
 the finite-orbit formulation and AUG application in
 [Buchholz et al. (2022)](https://doi.org/10.1088/1742-6596/2397/1/012012).
 
+Thermal runs integrate all `nenerg` cells with the midpoint rule:
+`H_i = Phi_min + (i - 1/2)*DeltaH`, `DeltaH = (thermen_max*T_ref + Phi_max - Phi_min)/nenerg`,
+for `i = 1..nenerg`. Cell 1 is an interior node, not a zero-energy endpoint;
+its Maxwellian and thermodynamic-force weight can contribute with either sign.
+Dropping it changes the physical integral. At zero potential, a one-cell run
+with `thermen_max=3` samples `H/T_ref=1.5` and must equal three times the
+delta-normalized fixed-energy torque at `monoenergetic_x=1.5`.
+
 The g-eqdsk and convex-wall file are a matched equilibrium pair. The convex
 wall is the outer boundary of the complete computational domain, not the
 separatrix, and must enclose the LCFS with enough margin for every orbit being

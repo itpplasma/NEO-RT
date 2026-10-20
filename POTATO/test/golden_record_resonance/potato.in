@@ -16,7 +16,6 @@
   n_tor = 2
   nenerg = 3
   thermen_max = 3d0
-  enkin_min_over_temp = 0.1d0
   nbox = 50
   adaptive_jperp = .true.
   npoi_init = 9

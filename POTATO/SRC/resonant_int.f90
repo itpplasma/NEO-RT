@@ -166,7 +166,7 @@ subroutine integrate_class_resonances
         resline_unit_is_private,resline_diag_unit
     use orbit_dim_mod,      only : neqm
     use global_invariants,  only : dtau,toten,perpinv,cE_ref,Phi_eff
-    use sample_matrix_mod,  only : npoi,xarr
+    use sample_matrix_mod,  only : npoi,xarr,find_valid_class_roots
     use logging_mod,        only : tee_message
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
@@ -226,7 +226,7 @@ subroutine integrate_class_resonances
         rm3=dble(narr(mode))
         delint_mode(mode)=0.d0
         !
-        call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
+        call find_valid_class_roots(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
             !$omp critical (reslines_log)
@@ -514,7 +514,7 @@ subroutine resonant_torque
     !
     integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
     integer :: omp_threads_env_len
-    integer :: nrespoints,unit1901,unit1902,ienerg_begin
+    integer :: nrespoints,unit1901,unit1902
     double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
     double precision :: bmod,phi_elec,phi_elec_min,phi_elec_max
     double precision :: phi_elec_ref
@@ -564,8 +564,8 @@ subroutine resonant_torque
     !
     thermen_max=thermen_max*temp !maximum kinetic energy in units of reference energy
     !
-    ! Energy integration limits.  Preserve the legacy zero-cutoff grid, including
-    ! its skipped first midpoint.  An explicitly positive minimum instead starts
+    ! Energy integration limits.  Preserve the default all-midpoint grid.
+    ! An explicitly positive minimum instead starts
     ! above the maximum potential so every sampled orbit has at least the
     ! requested kinetic energy throughout the field domain.
     toten_max=thermen_max+phi_elec_max
@@ -573,10 +573,8 @@ subroutine resonant_torque
         toten_min=phi_elec_max+enkin_min_over_temp*temp
         if(toten_min.ge.toten_max) &
             error stop 'enkin_min_over_temp must be less than thermen_max'
-        ienerg_begin=1
     else
         toten_min=phi_elec_min
-        ienerg_begin=2
     endif
     toten_range=toten_max-toten_min
     !
@@ -610,7 +608,6 @@ subroutine resonant_torque
     torquebox=0.d0
     !
     step_energ=total_energy_measure(monoenergetic_x,nenerg_input,toten_range,temp)
-    if(monoenergetic_x.gt.0.d0) ienerg_begin=1
     !step_energ=0.22521463755624047d0
     !
     omp_threads_env_len=0
@@ -622,7 +619,8 @@ subroutine resonant_torque
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   copyin(dtau)
-    do ienerg=ienerg_begin,nenerg
+    ! Cell 1 is an interior thermal midpoint, or the sole fixed-energy sample.
+    do ienerg=1,nenerg
         toten=total_energy_sample(monoenergetic_x,ienerg,nenerg_input, &
             toten_min,toten_range,temp,phi_elec_ref)
         ! size of result matrix in get_matrix_res:
