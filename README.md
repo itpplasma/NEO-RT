@@ -9,6 +9,35 @@ NEO-RT computes neoclassical toroidal viscosity (NTV) torque in resonant transpo
 - Support for trapped and passing particle contributions, optional torque integration, and nonlinear corrections that depend on thermodynamic profiles.
 - Batch-processing helpers and Python utilities for scanning multiple flux surfaces and plotting output torque profiles.
 
+`neo_rt_field_probe.x BCF INPUT_SWITCH POINTS OUTPUT` reads the native Boozer
+field at whitespace triples `(s_tor, phi_B, theta_B)` without initializing
+profiles or transport. Input switches 8 and 9 are supported; angles are radians.
+Its CSV reports field magnitude, covariant components, iota, Jacobian and flux
+derivative in the native cgs units stated in the header. Out-of-support radial
+queries fail. `tools/run_field_probe.py` also accepts a CSV point list and writes
+input, executable and output hashes beside the result.
+
+`neo_rt_profile_probe.x BCF INPUT_SWITCH PLASMA MACH EFAC BFAC POINTS OUTPUT`
+executes the native plasma, Mach and collision initializers without orbits or
+transport. `PLASMA` has the solver's species header and six columns; `MACH` is
+its numeric two-column table. `POINTS` contains one `s_tor` per line. Queries
+must lie in the common carrier/plasma/Mach support. The CSV reports native
+profile values and derivatives, Mach/thermal speed/rotation, actual carrier
+R0, orbit masses/charge and collision arrays. Electron density, Zeff and
+thermal pressure are diagnostic combinations of the loaded ion background.
+Temperatures remain eV, densities cm^-3, velocities cm/s, masses g, pressure
+erg/cm^3, and radial derivatives are with respect to `s_tor`.
+
+The header exposes the distinct orbit and legacy collision mass/energy
+constants; no constants are unified. Collision arrays retain their native
+normalization (`efcolf` inverse free path, `velrat` velocity ratios, `enrat`
+energy ratios). Positive background ion species are required; a zero second
+ion density is supported. This readback sets `nonlin=false` and grants no
+collision-model or torque admission. `tools/run_profile_probe.py` accepts the
+same CSV points as the field wrapper, extracts `s_tor` in the supplied order,
+and records exact carrier, plasma, Mach, query, executable and output hashes.
+Use distinct outputs to retain historical and revised backgrounds.
+
 ## Dependencies
 
 The project is developed with GNU Fortran and CMake. The following dependencies are required to build the solver and diagnostics:
@@ -169,6 +198,18 @@ make test
 ```
 
 which executes the CTest suite together with the Python regression test in `test/ripple_plateau`.
+
+## Merging
+
+- Pull requests, including every layer of a stacked PR, run the fast CI tier.
+  Label a PR `full-ci` to run the full tier on it before queueing.
+- Review a stack layer by layer. When it is ready, collapse it into one PR into
+  `main` (retarget the top layer to `main`); the lower PRs then show as merged.
+- Click "Merge when ready" (or `gh pr merge --merge --auto`). The PR enters the
+  merge queue, the full CI tier runs on the exact merge result, and on success
+  it lands on `main` as a merge commit. `main` itself is not re-tested on push.
+- A branch need not be up to date with `main`. Merge `main` into a PR only
+  when it conflicts.
 
 ## Documentation
 
