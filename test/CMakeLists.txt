@@ -23,6 +23,19 @@ foreach(test_src ${TEST_SOURCES})
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
+
+# Opt-in same-machine oracle for the strict default-off compatibility contract.
+set(NEORT_REFERENCE_EXECUTABLE "" CACHE FILEPATH "Separately built main executable")
+if(NEORT_REFERENCE_EXECUTABLE)
+    add_test(NAME test_default_drive_parity
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_default_drive_parity.py
+            $<TARGET_FILE:neo_rt.x> ${NEORT_REFERENCE_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/golden_record/input
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_default_drive_parity PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+        PROCESSORS 1 TIMEOUT 2400)
+endif()
 add_test(NAME test_species_mixture
     COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
@@ -384,6 +397,13 @@ add_test(NAME test_resonance_oracle
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_drive)
+add_test(NAME test_curvature_drive
+    COMMAND ${CMAKE_BINARY_DIR}/test_curvature_drive.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_drive
+)
+set_tests_properties(test_curvature_drive PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_bounce_counter_passing
     COMMAND ${CMAKE_BINARY_DIR}/test_bounce_counter_passing.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
@@ -534,3 +554,19 @@ set_tests_properties(test_resonance_fold_pairs PROPERTIES
 add_test(NAME test_resonance_root_capacity COMMAND test_resonance_root_capacity.x)
 set_tests_properties(test_resonance_root_capacity PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_tables)
+add_test(NAME test_curvature_tables COMMAND test_curvature_tables.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_tables)
+set_tests_properties(test_curvature_tables PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=3;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 3 TIMEOUT 30)
+foreach(rejection IN ITEMS missing-argument missing-file without-pertfile)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_${rejection})
+    add_test(NAME test_curvature_rejects_${rejection}
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_curvature_rejection.py
+            $<TARGET_FILE:test_curvature_drive.x> ${rejection}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_${rejection})
+    set_tests_properties(test_curvature_rejects_${rejection} PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+endforeach()

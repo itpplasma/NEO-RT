@@ -80,6 +80,7 @@ contains
 end module do_magfie_mod
 
 module do_magfie_pert_mod
+    use iso_fortran_env, only: dp => real64
     use neo_magfie_perturbation, only: neo_read_pert, &
                                        neo_init_spline_pert, m_phi, &
                                        neo_magfie_pert_amp
@@ -88,8 +89,27 @@ module do_magfie_pert_mod
     integer :: mph
     ! The external NEO-2 reader owns its input format; this keeps the config API compatible.
     integer :: inp_swi_pert = -1
+    logical, protected :: curvature_drive = .false.
 
 contains
+
+    subroutine clear_curvature_drive()
+        curvature_drive = .false.
+    end subroutine clear_curvature_drive
+
+    subroutine read_boozer_curvature_file(path)
+        character(len=*), intent(in) :: path
+
+        error stop 'pertfile_curvature is unsupported with USE_STANDALONE=OFF: '//trim(path)
+    end subroutine read_boozer_curvature_file
+
+    subroutine do_magfie_pert_kappa_amp(x, kamp)
+        real(dp), intent(in) :: x(:)
+        complex(dp), intent(out) :: kamp
+
+        kamp = (0.0_dp, 0.0_dp)
+        error stop 'pertfile_curvature is unsupported with USE_STANDALONE=OFF'
+    end subroutine do_magfie_pert_kappa_amp
 
     subroutine do_magfie_pert_init
         integer :: iunit

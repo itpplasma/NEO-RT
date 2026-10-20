@@ -88,7 +88,7 @@ contains
         use do_magfie_pert_mod, only: mph, inp_swi_pert
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, &
                               nopassing, pertfile, nonlin, efac, supban, drift_phase, &
-                              fow_radial
+                              fow_radial, pertfile_curvature
         use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
         use neort_orbit, only: noshear
         use util, only: qe, mu, qi, mi
@@ -119,6 +119,8 @@ contains
         call h5_add(group_id, "nopassing", nopassing)
         call h5_add(group_id, "noshear", noshear)
         call h5_add(group_id, "pertfile", pertfile)
+        call h5_add(group_id, "pertfile_curvature", pertfile_curvature, &
+                    comment="general ideal drive with kappa.xi_perp table")
         call h5_add(group_id, "nonlin", nonlin)
         call h5_add(group_id, "bfac", bfac, comment="B field scaling factor")
         call h5_add(group_id, "efac", efac, comment="E field scaling factor")
