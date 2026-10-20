@@ -8,6 +8,38 @@
     double precision, dimension(0:npolyphi) :: polyphi
     double precision, dimension(0:npolyphi) :: polytemp
     double precision, dimension(0:npolyphi) :: polydens
+  contains
+    pure subroutine int_powers(x,pw)
+! pw(i) = x**i, i=0..npolyphi, bit-identical to x**i with an integer variable i.
+! gfortran evaluates that with libgcc __powidf2, i.e. binary exponentiation:
+! y = x (i odd) or 1, then y = y*x**(2**k) for each further set bit k of i in
+! ascending order.  Same products in the same order here, but the squarings
+! are shared across all i instead of redone per power.
+      double precision, intent(in)  :: x
+      double precision, intent(out) :: pw(0:npolyphi)
+      integer :: i,n,k
+      double precision :: sq(0:bit_size(npolyphi)-1)
+      sq(0)=x
+      do k=1,bit_size(npolyphi)-1
+        if(ishft(npolyphi,-k).eq.0) exit
+        sq(k)=sq(k-1)*sq(k-1)
+      enddo
+      do i=0,npolyphi
+        if(mod(i,2).eq.1) then
+          pw(i)=x
+        else
+          pw(i)=1.d0
+        endif
+        n=i
+        k=0
+        do
+          n=ishft(n,-1)
+          if(n.eq.0) exit
+          k=k+1
+          if(mod(n,2).eq.1) pw(i)=pw(i)*sq(k)
+        enddo
+      enddo
+    end subroutine int_powers
   end module phielec_of_psi_mod
 !
   module cc_mod

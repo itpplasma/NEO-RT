@@ -437,20 +437,23 @@ end subroutine test_prfs
   integer, parameter :: next=0
   double precision, parameter :: pi=3.14159265358979d0
 !
-  integer :: ierr,i,nperpinv,iunit
+  integer :: ierr,i,isig,nperpinv,iunit
   double precision :: psipol,Rst,bmod,phi_elec,sigma
   double precision :: enkin,perpinv_max,toten,perpinv,h_perpinv,v0
   double precision :: dens,temp,ddens,dtemp,psiast,dpsiast_dRst,taub,delphi
-  double precision :: eta,omega_b,omega_tor
   double precision, dimension(neqm) :: z
   double precision, dimension(next) :: extraset
+  logical,          dimension(:), allocatable :: ok
+  double precision, dimension(:), allocatable :: eta,omega_b,omega_tor
+  character(len=*), dimension(2), parameter :: fname = &
+    ['canonical_freqs_vs_eta_posvpar.dat','canonical_freqs_vs_eta_negvpar.dat']
+  character(len=*), dimension(2), parameter :: vparsign = ['> 0','< 0']
 !
   external :: velo
 !
   psipol=psi_axis+rho_pol**2*(psi_sep-psi_axis)
 !
   nperpinv=1000
-  iunit=871
 !
   call crude_outer_startpoint(psipol,Rst,bmod,phi_elec,ierr)
 !
@@ -462,46 +465,39 @@ end subroutine test_prfs
   perpinv_max=enkin/bmod
   h_perpinv=perpinv_max/dble(nperpinv+1)
 !
-  open(iunit,file='canonical_freqs_vs_eta_posvpar.dat',status='replace',action='write')
-  write(iunit,*) '# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] for starting v_par > 0'
-  sigma=1.d0
+  allocate(ok(nperpinv),eta(nperpinv),omega_b(nperpinv),omega_tor(nperpinv))
 !
-  do i=1,nperpinv
-    perpinv=h_perpinv*dble(i)
+  do isig=1,2
+    sigma=3.d0-2.d0*dble(isig)
 !
-    call starter_doublecount(toten,perpinv,sigma,Rst,   &
-                             psiast,dpsiast_dRst,z,ierr)
+! The orbits are independent, so trace them in parallel and write afterwards
+! in perpinv order.  dtau is threadprivate.
+    !$omp parallel do default(shared) schedule(dynamic) &
+    !$omp   private(i,perpinv,psiast,dpsiast_dRst,z,taub,delphi,extraset,ierr) &
+    !$omp   copyin(dtau)
+    do i=1,nperpinv
+      perpinv=h_perpinv*dble(i)
 !
-    call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) cycle
+      call starter_doublecount(toten,perpinv,sigma,Rst,   &
+                               psiast,dpsiast_dRst,z,ierr)
 !
-    eta=perpinv/enkin
-    omega_b=2.d0*pi*v0/taub
-    omega_tor=delphi*v0/taub
-    write(iunit,*) eta,omega_b,omega_tor
+      call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
+      ok(i)=ierr.eq.0
+      if(.not.ok(i)) cycle
+!
+      eta(i)=perpinv/enkin
+      omega_b(i)=2.d0*pi*v0/taub
+      omega_tor(i)=delphi*v0/taub
+    enddo
+    !$omp end parallel do
+!
+    open(newunit=iunit,file=fname(isig),status='replace',action='write')
+    write(iunit,*) '# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] for starting v_par ' &
+                   //vparsign(isig)
+    do i=1,nperpinv
+      if(ok(i)) write(iunit,*) eta(i),omega_b(i),omega_tor(i)
+    enddo
+    close(iunit)
   enddo
-!
-  close(iunit)
-!
-  open(iunit,file='canonical_freqs_vs_eta_negvpar.dat',status='replace',action='write')
-  write(iunit,*) '# eta [1/G], omega_b [rad/s], Omega_tor [rad/s] for starting v_par < 0'
-  sigma=-1.d0
-!
-  do i=1,nperpinv
-    perpinv=h_perpinv*dble(i)
-!
-    call starter_doublecount(toten,perpinv,sigma,Rst,   &
-                             psiast,dpsiast_dRst,z,ierr)
-!
-    call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) cycle
-!
-    eta=perpinv/enkin
-    omega_b=2.d0*pi*v0/taub
-    omega_tor=delphi*v0/taub
-    write(iunit,*) eta,omega_b,omega_tor
-  enddo
-!
-  close(iunit)
 !
   end subroutine plot_canfreqs
