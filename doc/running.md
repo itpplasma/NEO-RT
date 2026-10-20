@@ -162,3 +162,24 @@ Detailed column descriptions are provided in [`doc/file_formats.md`](file_format
 ## Diagnostics program
 
 `neo_rt_diag.x` links the solver library with visualisation helpers. The drivers in `src/diag` expose additional CLI programs for debugging orbit trajectories, inspecting harmonic contributions, and plotting attenuation maps. Refer to the comments in `src/diag/*.f90` for usage examples.
+
+Set `NEORT_RESONANCE_LEDGER=/path/to/roots.txt` with `comptorque=.true.` to
+append one row per collisionless resonance root. The header names every column:
+`species` is the one-based mixture index (1 for a single species), `branch` is
+`cop`, `ctr`, or `trap`, and `dres_deta` is the derivative of
+`mth*Omth + mph*Omph` at the root. `sample_weight` is the actual energy weight
+(midpoint Maxwellian weight or 1 for a monoenergetic sample). `dTds` includes
+that weight and nonlinear attenuation: sum it by surface, species, harmonic,
+and branch to reconstruct native `_torque_integral.out` values. No extra
+velocity step or attenuation factor is needed. Frequencies, bounce time,
+perturbation weight, attenuation, and integrator status are also recorded.
+
+OpenMP workers buffer rows and serialize each complete append transaction.
+Use a separate pathname for each process; cross-process appends are unsupported.
+Finite-width Krook transport has no discrete root ledger and rejects an enabled
+ledger request. With the variable unset, no ledger is written.
+
+`neo_rt_diag.x bounce_debug <runname> [mth] [all|cop|ctr|trap]` filters the bounce
+probe by harmonic and branch and reports both frequencies, their resonance
+residual, and its eta derivative. The speed scan now uses the configured
+`vmax_over_vth` (default 4), replacing the former fixed upper limit of 3.

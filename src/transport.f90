@@ -120,14 +120,16 @@ contains
         integer, intent(in) :: vsteps
         real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T
+        character(len=4096) :: ledger_path
+        call resonance_ledger_path(ledger_path)
         if (finite_krook_active()) then
             call compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
         else
-            call compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T)
+            call compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T, ledger_path)
         end if
     end subroutine compute_transport_integral
 
-    subroutine compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T)
+    subroutine compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T, ledger_path)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
@@ -141,11 +143,30 @@ contains
         real(dp) :: Hmn2, attenuation_factor
         real(dp) :: roots(nlev, 3)
         integer :: nroots, kr, ku, sample_count
+        character(len=*), intent(in) :: ledger_path
+        character(len=4) :: orbit_branch
+        character(len=1024), allocatable :: ledger_rows(:)
+        integer :: ledger_count
+        logical :: ledger_enabled
+        real(dp) :: Omph, dOmphdv, dOmphdeta, resonance_residual
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         D = 0.0_dp
         T = 0.0_dp
+        ledger_enabled = len_trim(ledger_path) > 0
+        if (ledger_enabled) then
+            allocate(ledger_rows(nlev))
+            if (etamax < etatp) then
+                if (sign_vpar > 0.0_dp) then
+                    orbit_branch = 'cop'
+                else
+                    orbit_branch = 'ctr'
+                end if
+            else
+                orbit_branch = 'trap'
+            end if
+        end if
         if (energy_ratio > 0.0_dp) then
             du = 0.0_dp
         else
@@ -154,6 +175,7 @@ contains
         sample_count = energy_sample_count(energy_ratio, vsteps)
 
         do ku = 1, sample_count
+            ledger_count = 0
             ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
             sample_weight = energy_sample_weight(energy_ratio, ux, du)
             v = ux * vth
@@ -192,7 +214,18 @@ contains
                     dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
                     T = T + dT * attenuation_factor
                 end if
+                if (ledger_enabled) then
+                    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+                    resonance_residual = real(mth, dp) * Omth + real(mph, dp) * Omph
+                    ledger_count = ledger_count + 1
+                    write(ledger_rows(ledger_count), *) &
+                        s, selected_species, mth, mph, trim(orbit_branch), ux, eta, &
+                        Omth, Omph, resonance_residual, eta_res(2), taub, Hmn2, &
+                        attenuation_factor, sample_weight, dT*attenuation_factor, istate_dv
+                end if
             end do
+            if (ledger_enabled) &
+                call append_resonance_ledger(ledger_path, ledger_rows(:ledger_count))
         end do
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
@@ -202,6 +235,43 @@ contains
         call debug("compute_transport_integral complete")
 
     end subroutine compute_transport_collisionless
+
+    subroutine resonance_ledger_path(path)
+        character(len=*), intent(out) :: path
+        integer :: env_length, env_status
+        path = ''
+        call get_environment_variable('NEORT_RESONANCE_LEDGER', path, &
+            length=env_length, status=env_status)
+        if (env_status == -1) error stop 'NEORT_RESONANCE_LEDGER path is too long'
+        if (env_status /= 0 .or. env_length == 0) then
+            path = ''
+            return
+        end if
+        if (.not. comptorque) error stop 'NEORT_RESONANCE_LEDGER requires comptorque=.true.'
+        if (finite_krook_active()) &
+            error stop 'NEORT_RESONANCE_LEDGER requires collisionless transport'
+    end subroutine resonance_ledger_path
+
+    subroutine append_resonance_ledger(path, rows)
+        character(len=*), intent(in) :: path, rows(:)
+        integer :: unit, k, file_size
+        logical :: exists
+        ! Each worker buffers one speed sample. Separate append units must never
+        ! overlap: locking just WRITE would leave independent file positions stale.
+        !$omp critical(neort_resonance_ledger_io)
+        inquire(file=trim(path), exist=exists, size=file_size)
+        open(newunit=unit, file=trim(path), status='unknown', &
+            position='append', action='write')
+        if (.not. exists .or. file_size == 0) then
+            write(unit, '(A)') '# s species mth mph branch ux eta Omth Omph residual ' &
+                //'dres_deta taub Hmn2 attenuation sample_weight dTds istate'
+        end if
+        do k = 1, size(rows)
+            write(unit, '(A)') trim(rows(k))
+        end do
+        close(unit)
+        !$omp end critical(neort_resonance_ledger_io)
+    end subroutine append_resonance_ledger
 
     subroutine compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
         real(dp), intent(in) :: vmin, vmax
