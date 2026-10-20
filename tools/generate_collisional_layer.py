@@ -9,6 +9,8 @@ integrated exactly.  No old table entries enter the solve.  Run from any cwd:
 The independent CTest oracle uses a finite-difference matrix instead.
 """
 import argparse
+import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import numpy as np
@@ -39,9 +41,15 @@ def layer_ratio(a, b):
 
 def generated_table():
     nodes = np.r_[0.0, 2.0**np.arange(-4, 6.01, 0.25)]
+    # Each boundary-value problem is independent; preserve row-major result order.
+    cpu_count = getattr(os, "process_cpu_count", os.cpu_count)() or 1
+    with ProcessPoolExecutor(max_workers=min(8, cpu_count)) as pool:
+        values = list(pool.map(layer_ratio, np.repeat(nodes, len(nodes)),
+                               np.tile(nodes, len(nodes)), chunksize=8))
     lines = [BEGIN, "    real(dp), parameter :: R_TABLE(NGRID, NGRID) = reshape([ &\n"]
-    for a in nodes:
-        row = [f"{layer_ratio(a, b):.12e}_dp" for b in nodes]
+    for row_index, a in enumerate(nodes):
+        row = [f"{value:.12e}_dp" for value in
+               values[row_index*len(nodes):(row_index+1)*len(nodes)]]
         for i in range(0, len(row), 3):
             last = i + 3 >= len(row)
             tail = "], &" if last and a == nodes[-1] else ", &"
