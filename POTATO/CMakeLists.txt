@@ -240,6 +240,19 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 150
     )
+    foreach(_behavior signed_harmonic kinetic_floor equal_floor excess_floor legacy_grid monoenergetic)
+        add_test(NAME potato_torque_${_behavior}
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test/torque_representation/test_torque_representation.py
+                $<TARGET_FILE:potato.x> TorqueRepresentation.test_${_behavior})
+        set_tests_properties(potato_torque_${_behavior} PROPERTIES PROCESSORS 2 TIMEOUT 650)
+    endforeach()
+    add_test(NAME resonance_golden
+        COMMAND ${Python3_EXECUTABLE} -m pytest -q
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance/test_resonance_golden.py)
+    set_tests_properties(resonance_golden PROPERTIES
+        ENVIRONMENT "POTATO_EXE=$<TARGET_FILE:potato.x>"
+        PROCESSORS 4 TIMEOUT 650)
     add_test(NAME potato_fixed_energy_contour
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/fixed_energy_contour/test_fixed_energy_contour.py

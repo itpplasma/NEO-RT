@@ -568,14 +568,16 @@ subroutine resonant_torque
     ! its skipped first midpoint.  An explicitly positive minimum instead starts
     ! above the maximum potential so every sampled orbit has at least the
     ! requested kinetic energy throughout the field domain.
-    if(enkin_min_over_temp.gt.0.d0) then
+    toten_max=thermen_max+phi_elec_max
+    if(enkin_min_over_temp.gt.0.d0 .and. monoenergetic_x.le.0.d0) then
         toten_min=phi_elec_max+enkin_min_over_temp*temp
+        if(toten_min.ge.toten_max) &
+            error stop 'enkin_min_over_temp must be less than thermen_max'
         ienerg_begin=1
     else
         toten_min=phi_elec_min
         ienerg_begin=2
     endif
-    toten_max=thermen_max+phi_elec_max
     toten_range=toten_max-toten_min
     !
     write(msg, '(A,ES14.6)') &
