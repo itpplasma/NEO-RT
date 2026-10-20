@@ -15,4 +15,3 @@ subroutine drive_weight_leaf(etab, lagrangian, curvature)
     lagrangian = etab
     curvature = t7
 end subroutine drive_weight_leaf
-
