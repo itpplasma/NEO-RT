@@ -36,13 +36,14 @@ program test_separatrix_limit
     ! invariant, direct integration is still trustworthy, so the extrapolated
     ! model must reproduce it there.
     use, intrinsic :: iso_fortran_env, only: dp => real64
+    use, intrinsic :: ieee_arithmetic, only: ieee_next_after
     use do_magfie_mod, only: s, do_magfie, psi_pr, q, sign_theta
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
     use neort_freq, only: separatrix_trapped, separatrix_passing, Om_th, Om_tB
     use neort_orbit, only: bounce_time, bounce_fast, timestep, nvar
     use neort_orbit_classes, only: find_periodic_extrema
     use neort_profiles, only: vth
-    use driftorbit, only: etatp, sign_vpar
+    use driftorbit, only: etatp, sign_vpar, epst_spl, epsp_spl
     use util, only: files_exist, pi, mi, qi, c
     implicit none
 
@@ -106,16 +107,35 @@ program test_separatrix_limit
         end if
     end if
 
+    call check_join(.true.)
+    call check_join(.false.)
+
     call check_window_invariance(1.0e-5_dp)
     call check_window_invariance(1.0e-4_dp)
     call check_window_invariance(1.0e-2_dp)
 
-    call check_against_direct_orbit(0.1_dp*separatrix_trapped%xscale, .true.)
-    call check_against_direct_orbit(0.1_dp*separatrix_passing%xscale, .false.)
+    call check_against_direct_orbit(0.1_dp*epst_spl, .true.)
+    call check_against_direct_orbit(0.1_dp*epsp_spl, .false.)
 
     write (*, '(A)') "PASS separatrix limit"
 
 contains
+
+    subroutine check_join(trapped)
+        logical, intent(in) :: trapped
+        real(dp) :: join, eta, w(2), drift(2), dv, de
+        integer :: side, k
+        join = etatp*(1 + merge(epst_spl, -epsp_spl, trapped))
+        do k = 1, 2
+            side = 2*k-3
+            eta = ieee_next_after(join, join + real(side, dp)*etatp)
+            call Om_th(v, eta, w(k), dv, de)
+            call Om_tB(v, eta, drift(k), dv, de)
+        end do
+        print *, 'spline join relative jumps:', w(2)/w(1)-1, drift(2)/drift(1)-1
+        if (abs(w(2)/w(1)-1) > 1.0e-8_dp) error stop 'frequency jump at spline join'
+        if (abs(drift(2)/drift(1)-1) > 1.0e-8_dp) error stop 'drift jump at spline join'
+    end subroutine check_join
 
     subroutine barrier_drift(theta_out, g_out, nmax_out)
         ! Locate the barrier top of the selected orbit class by bisecting

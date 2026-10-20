@@ -161,11 +161,9 @@
 !
   implicit none
 !
-! nousecut - way to close the orbit during primary search:
-! .true. - without using Poincare cut, can be used for general Phi distributions
-! .false. - with using the cut, valid for Phi=Phi(psi) only
-!  logical, parameter :: nousecut=.true.
-  logical, parameter :: nousecut=.false.
+! Cut crossings count a full bounce only when the initial point is on the cut.
+! For arbitrary single-orbit starts, use the existing return-to-start search.
+  logical :: nousecut
 !
 ! maximum number of Newton iterations for closing the orbit:
   integer, parameter :: niter=20
@@ -205,6 +203,9 @@
 ! Primary search:
 !
   z_start=z
+!
+  call get_poicut(z(1),Z_tmp,dZ_dR)
+  nousecut=abs(z(3)-Z_tmp).gt.max(1.d0,abs(z(1)))*relerr
 !
   call velo_ext(dtau,z,vz)
 !
@@ -263,7 +264,12 @@
 ! sqrt(2) of the poloidal length of the step:
       dL2_pol=2.d0*((z(1)-r_prev)**2+(z(3)-z_prev)**2)
       dL2_pol_start=(z(1)-z_start(1))**2+(z(3)-z_start(3))**2
-      if(dL2_pol_start.lt.dL2_pol) exit
+      if(dL2_pol_start.lt.dL2_pol) then
+! A trapped orbit can revisit this RZ point with reversed parallel velocity.
+! Accept only a return on the initial direction of the poloidal motion.
+        call velo_ext(dtau,z,vz)
+        if(vz(1)*RNorm+vz(3)*ZNorm.gt.0.d0) exit
+      endif
     else
 ! check if Poincare cut has been crossed
 !
@@ -910,20 +916,21 @@
   double precision, parameter :: relerr=1d-12
   integer :: iter
   integer, dimension(2) :: iext
-  double precision :: R,Z,bmod,phi_elec,sigpsi
+  double precision :: R,Z,bmod,sqrtg,sigpsi
   double precision :: errdist2,del_R,del_Z,det
-  double precision,dimension(3) :: x
+  double precision,dimension(3) :: x,bder,hcovar,hctrvr,hcurl
 !
 ! First field evaluation of the run - it reads the equilibrium and so allocates
 ! rad, zet, psi and sets rtf, all used below. No machine dimension is known
-! before it, hence the probe at R = 1 cm: the flux there is clamped to the grid
-! edge and the returned values are discarded. Probing at rtf instead divides by
-! an rtf that is still zero inside magfie.
+! before it, hence the bootstrap probe at R = 1 cm outside the physical grid.
+! Its returned magnetic values are discarded. Probing at rtf instead divides by
+! an rtf that is still zero inside magfie. Only the magnetic field is needed:
+! the bootstrap point and Newton iterates need not lie in profile support.
   x(1)=1.d0
   x(2)=0.d0
   x(3)=0.d0
 !
-  call get_bmod_and_Phi(x,bmod,phi_elec)
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
   sigpsi=sign(1.d0,psi_sep-psi_axis)
   iext=minloc(sigpsi*psi)
@@ -935,7 +942,7 @@
     x(1)=R
     x(3)=Z
 !
-    call get_bmod_and_Phi(x,bmod,phi_elec)
+    call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
     det=d2psidr2*d2psidz2-d2psidrdz**2
     del_R=(d2psidrdz*dpsidz-d2psidz2*dpsidr)/det
@@ -950,7 +957,7 @@
   x(1)=R
   x(3)=Z
 !
-  call get_bmod_and_Phi(x,bmod,phi_elec)
+  call magfie(x,bmod,sqrtg,bder,hcovar,hctrvr,hcurl)
 !
   rmagaxis=R
   zmagaxis=Z
@@ -2475,7 +2482,7 @@
 ! toroidal displacement per bounce time and bounce integrals as functions
 ! of class parameter x for adaptive refinement of interpolation grid over x
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,ierr_get_matrix
   use orbit_dim_mod,     only : neqm,next
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
@@ -2492,6 +2499,8 @@
 !
   external :: velo,velo_pphint
 !
+  ierr_get_matrix=0
+!
   sigma=sigma_class(iclass)
   delta_R=R_class_end(iclass)-R_class_beg(iclass)
 !
@@ -2504,6 +2513,10 @@
 !
   if(ierr.ne.0) then
     print *,'get_matrix: error in starter'
+! Orbit failed (left the field domain or crossed the wall): flag it and clear
+! amat, so callers read the status instead of the previous node's values.
+    ierr_get_matrix=1
+    amat=0.d0
     return
   endif
 !
@@ -2514,7 +2527,13 @@
     if(fullbounce) then
 !
       call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-      if(ierr.ne.0) return
+      if(ierr.ne.0) then
+! Orbit failed (left the field domain or crossed the wall): flag it and clear
+! amat, so callers read the status instead of the previous node's values.
+        ierr_get_matrix=1
+        amat=0.d0
+        return
+      endif
 !
     else
 !
@@ -2528,7 +2547,13 @@
     extraset=0.d0
 !
     call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) return
+    if(ierr.ne.0) then
+! Orbit failed (left the field domain or crossed the wall): flag it and clear
+! amat, so callers read the status instead of the previous node's values.
+      ierr_get_matrix=1
+      amat=0.d0
+      return
+    endif
 !
   endif
 !
@@ -2619,7 +2644,7 @@
 ! the root search with non-physical dense roots.  The endpoint is located by
 ! bisection on |delphi_b(x)| using get_matrix_doublecount as the orbit evaluator.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,ierr_get_matrix
   use get_matrix_mod,    only : delphi_max
 !
   implicit none
@@ -2675,12 +2700,15 @@
 !
   double precision function eval_delphi(xval)
   double precision :: xval
-! huge sentinel: get_matrix_doublecount leaves amat untouched on orbit failure,
-! so a failed evaluation reads as "beyond delphi_max" and pulls the search in.
-  amat(3,1)=huge(1.d0)
   x=xval
   call get_matrix_doublecount
-  eval_delphi=amat(3,1)
+! A failed orbit has no delphi_b; report it as beyond the bound so the search
+! trims towards the part of the class that does close.
+  if(ierr_get_matrix.ne.0) then
+    eval_delphi=huge(1.d0)
+  else
+    eval_delphi=amat(3,1)
+  endif
   end function eval_delphi
 !
   end subroutine bound_class_delphi
@@ -2690,13 +2718,13 @@
   subroutine bound_class_wall(xb,xe)
 !
 ! Trim the class interval to where the orbit closes inside the limiter wall.
-! A wall-crossing orbit fails in get_matrix_doublecount (amat(3,1) left at the
-! huge sentinel); without this trim a single lost sample makes sample_matrix
-! exceed itermax and the whole class is dropped (ierr=2) instead of only the
-! lost orbits.  Trims both endpoints by bisection on orbit validity, so the
-! inside-wall part of the class is still sampled and its resonances kept.
+! A wall-crossing orbit is reported by get_matrix_doublecount through
+! ierr_get_matrix; without this trim the lost samples drag the refinement into
+! itermax instead of costing only the lost orbits.  Trims both endpoints by
+! bisection on orbit validity, so the inside-wall part of the class is still
+! sampled and its resonances kept.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,ierr_get_matrix
   use wall_loss_mod,     only : wall_loaded
 !
   implicit none
@@ -2743,12 +2771,9 @@
 !
   logical function orbit_lost(xval)
   double precision :: xval
-! huge sentinel: get_matrix_doublecount leaves amat untouched when the orbit
-! fails (e.g. crosses the wall), so an untouched entry reads as a lost orbit.
-  amat(3,1)=huge(1.d0)
   x=xval
   call get_matrix_doublecount
-  orbit_lost = (amat(3,1).eq.huge(1.d0))
+  orbit_lost = (ierr_get_matrix.ne.0)
   end function orbit_lost
 !
   end subroutine bound_class_wall
@@ -2761,7 +2786,8 @@
 ! moment, normalizaed bounce time, toroidal displacement per bounce time and bounce
 ! integrals (vec) and their derivatives (dvec)
 !
-  use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr
+  use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr, &
+                               sample_window_valid,ierr_interpolate
   use get_matrix_mod,    only : iclass
   use form_classes_doublecount_mod, only : ifuntype
   use interp_cache_mod,  only : ncache,xcache,veccache,dveccache
@@ -2775,6 +2801,16 @@
   double precision, dimension(n1)             :: vec,dvec
   double precision, dimension(0:nder,nlagr+1) :: coef
 !
+! Reject failed stencils before consulting the cache or using their values.
+  ierr_interpolate=0
+  call binsrc(xarr,1,npoi,x,k)
+  if(.not.sample_window_valid(k)) then
+    ierr_interpolate=1
+    vec=0.d0
+    dvec=0.d0
+    return
+  endif
+!
 ! Exact memoization (see interp_cache_mod): a hit at this x returns the stored
 ! vec,dvec bit-for-bit; the scan is far cheaper than the plag_coeff/matmul work.
   do ic=1,ncache
@@ -2787,8 +2823,6 @@
 !
   npoilag=nlagr+1
   nshift=nlagr/2
-!
-  call binsrc(xarr,1,npoi,x,k)
 !
   ibeg=max(1,k-nshift)
   iend=min(npoi,ibeg+nlagr)
@@ -2994,7 +3028,7 @@
 ! Computes integrals over x in Eq.(74) using adaptive polynomial interpolation
 ! of bounce integrals.
 !
-  use sample_matrix_mod, only : n1
+  use sample_matrix_mod, only : n1,ierr_interpolate
   use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relmargin,iclass
   use form_classes_doublecount_mod, only : ifuntype
@@ -3061,7 +3095,8 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  call equilmaxw(vec(1),fmaxw)
+  fmaxw=0.d0
+  if(ierr_interpolate.eq.0) call equilmaxw(vec(1),fmaxw)
 !
   resint(:,1)=abs(dvec(1))*vec(ib1:ie1)*fmaxw
   resint(:,2)=abs(dvec(1))*vec(ib2:ie2)*fmaxw
@@ -3070,7 +3105,8 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  call equilmaxw(vec(1),fmaxw)
+  fmaxw=0.d0
+  if(ierr_interpolate.eq.0) call equilmaxw(vec(1),fmaxw)
 !
   resint(:,1)=resint(:,1)+abs(dvec(1))*vec(ib1:ie1)*fmaxw
   resint(:,2)=resint(:,2)+abs(dvec(1))*vec(ib2:ie2)*fmaxw
@@ -3082,6 +3118,7 @@
 !
     call interpolate_class_doublecount(x,vec,dvec)
 !
+    if(ierr_interpolate.ne.0) cycle
     call equilmaxw(vec(1),fmaxw)
 !
     resint(:,1)=resint(:,1)+abs(dvec(1))*vec(ib1:ie1)*fmaxw

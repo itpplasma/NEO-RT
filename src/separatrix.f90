@@ -41,10 +41,9 @@ module neort_separatrix
     ! The leading coefficient A is resolved only through the contrast of the
     ! log column across the window, so with relative sampling noise sigma and
     ! I/A of order ten the relative error of A is roughly 10*sigma/span.  The
-    ! competing model error is the neglected O(x**2 log(1/x)) term, which is
-    ! O(x_max**2) relative and stays below 1e-9 out to x_max = 1e-4, so the
-    ! window can be widened freely.  A span of two e-folds keeps an order of
-    ! margin over the measured sampling noise without approaching that limit.
+    ! competing model error is the neglected O(x**2 log(1/x)) term, whose
+    ! coefficient depends on the geometry. A span of two e-folds resolves the
+    ! leading logarithmic contrast; it does not certify the truncation error.
     ! A fixed sample count cannot do this: it inherits whatever spacing the
     ! caller's pitch grid happens to have.
     real(dp), parameter, public :: SEPARATRIX_FIT_LOG_SPAN = 2.0_dp
@@ -133,6 +132,20 @@ contains
                         tau_leading(1) <= 0.0_dp) cycle
                 tau_coeff = [tau_leading(1), tau_leading(2), 0.0_dp, 0.0_dp]
                 num_coeff = [num_leading(1), num_leading(2), 0.0_dp, 0.0_dp]
+            end if
+
+            ! The nearest resolved sample is the spline boundary. Anchor both
+            ! integrals there so the fit cannot introduce a frequency jump,
+            ! while preserving the logarithmic coefficients and their limit.
+            tau_coeff(2) = tau_coeff(2) + selected_tau(1) - &
+                dot_product(design(1, :), tau_coeff)
+            num_coeff(2) = num_coeff(2) + selected_numerator(1) - &
+                dot_product(design(1, :), num_coeff)
+            tau_rms = sqrt(sum((matmul(design(1:nfit, :), tau_coeff) - &
+                selected_tau(1:nfit))**2)/sum(selected_tau(1:nfit)**2))
+            if (maxval(abs(selected_numerator(1:nfit))) > tiny(1.0_dp)) then
+                num_rms = sqrt(sum((matmul(design(1:nfit, :), num_coeff) - &
+                    selected_numerator(1:nfit))**2)/sum(selected_numerator(1:nfit)**2))
             end if
 
             model%xscale = xscale
@@ -236,7 +249,7 @@ contains
             if (.not. ieee_is_finite(x(order(i))) .or. &
                     .not. ieee_is_finite(tau_values(order(i))) .or. &
                     .not. ieee_is_finite(drift_values(order(i)))) cycle
-            if (x(order(i)) <= 0.0_dp) cycle
+            if (x(order(i)) <= 0.0_dp .or. tau_values(order(i)) <= 0.0_dp) cycle
             candidate = candidate + 1
             selected_x(candidate) = x(order(i))
             selected_tau(candidate) = tau_values(order(i))

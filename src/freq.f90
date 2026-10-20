@@ -80,8 +80,7 @@ contains
         etamax = etatp + (etadt - etatp) * (1.0_dp - epsst_spl)
         Om_tB_v = 0.0_dp
         taub_v = 0.0_dp
-        ! Allocate coefficient arrays for trapped region splines (safe for
-        ! undefined allocation status).
+     ! Allocate coefficient arrays for trapped region splines (safe for undefined allocation status)
         if (.not. freq_trapped_initialized) then
             if (allocated(Omth_spl_coeff)) deallocate(Omth_spl_coeff)
             if (allocated(OmtB_spl_coeff)) deallocate(OmtB_spl_coeff)
@@ -103,10 +102,10 @@ contains
 
         ! logspace for eta
         b = log(epst_spl)
-        aa = 1.0_dp / (netaspl - 1.0_dp) * (log(etamax / etamin - 1.0_dp) - b)
+        aa = 1.0_dp / (netaspl - 1.0_dp) * (log(etamax / etatp - 1.0_dp) - b)
 
         do k = netaspl - 1, 0, -1
-            eta = etamin * (1.0_dp + exp(aa * k + b))
+            eta = etatp * (1.0_dp + exp(aa * k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta
@@ -232,7 +231,7 @@ contains
         if (eta > etatp) then
             if (.not. magdrift) return
             x = (eta - etatp)/etatp
-            if (x <= separatrix_trapped%xscale) then
+            if (eta <= etatp*(1.0_dp + epst_spl)) then
                 call evaluate_separatrix_model(separatrix_trapped, x, tau_model, &
                     dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
                 if (.not. fit_ok) error stop "trapped separatrix drift evaluation failed"
@@ -249,7 +248,7 @@ contains
             splineval = 0.0_dp
         else
             x = (etatp - eta)/etatp
-            if (x <= separatrix_passing%xscale) then
+            if (eta >= etatp*(1.0_dp - epsp_spl)) then
                 call evaluate_separatrix_model(separatrix_passing, x, tau_model, &
                     dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
                 if (.not. fit_ok) error stop "passing separatrix drift evaluation failed"
@@ -302,27 +301,17 @@ contains
             end if
         else
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-            Omph = Om_tE + Omth/iota
-            dOmphdv = dOmthdv/iota
-            dOmphdeta = dOmthdeta/iota
-            ! Passing orbits have their own magnetic-drift switch, and Om_tB
-            ! honours it. Gating this branch on magdrift instead would drop
-            ! the passing drift whenever the two switches are set apart.
-            if (magdrift_passing > 0) then
-                call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
-                Omph = Omph + OmtB
-                dOmphdv = dOmphdv + dOmtBdv
-                dOmphdeta = dOmphdeta + dOmtBdeta
-            end if
+            call Om_ph_passing_from_omth(v, eta, Omth, dOmthdv, dOmthdeta, &
+                Omph, dOmphdv, dOmphdeta)
         end if
     end subroutine Om_ph
 
     subroutine Om_ph_passing_from_omth(v, eta, Omth, dOmthdv, dOmthdeta, &
             Omph, dOmphdv, dOmphdeta)
         ! Complete the passing canonical toroidal frequency from one already
-        ! evaluated poloidal frequency.  This keeps the optimized resonance
-        ! residual consistent with Om_ph while preserving the independent
-        ! passing magnetic-drift switch.
+        ! evaluated poloidal frequency.  Keeping this operation in one
+        ! procedure makes the optimized resonance residual bitwise-consistent
+        ! with Om_ph, while avoiding a second expensive Om_th call.
         real(dp), intent(in) :: v, eta, Omth, dOmthdv, dOmthdeta
         real(dp), intent(out) :: Omph, dOmphdv, dOmphdeta
         real(dp) :: OmtB, dOmtBdv, dOmtBdeta
@@ -350,7 +339,7 @@ contains
 
         if (eta > etatp) then
             x = (eta - etatp)/etatp
-            if (x <= separatrix_trapped%xscale) then
+            if (eta <= etatp*(1.0_dp + epst_spl)) then
                 call evaluate_separatrix_model(separatrix_trapped, x, tau_model, &
                     dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
                 if (.not. fit_ok) error stop "trapped separatrix frequency evaluation failed"
@@ -363,7 +352,7 @@ contains
             end if
         else
             x = (etatp - eta)/etatp
-            if (x <= separatrix_passing%xscale) then
+            if (eta >= etatp*(1.0_dp - epsp_spl)) then
                 call evaluate_separatrix_model(separatrix_passing, x, tau_model, &
                     dtau_dx, omega_model, domega_dx, drift_model, ddrift_dx, fit_ok)
                 if (.not. fit_ok) error stop "passing separatrix frequency evaluation failed"

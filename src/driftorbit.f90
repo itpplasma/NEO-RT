@@ -8,7 +8,8 @@ module driftorbit
     use do_magfie_mod
     use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
     use spline
-    use neort_profiles, only: vth, M_t, ni1, Om_tE, A1, A2, dM_tds, dni1ds, dOm_tEds
+    use neort_profiles, only: vth, M_t, ni1, Om_tE, A1, A2, dM_tds, dni1ds, dOm_tEds, &
+        nonlin
     use collis_alp, only: coleff
 
     implicit none
@@ -29,6 +30,12 @@ module driftorbit
     logical :: pertfile = .false.     ! read perturbation from file with neo_magfie_pert
     logical :: comptorque = .true.    ! compute torque
     logical :: supban = .false.       ! Shaing superbanana-plateau (trapped ell=0) only
+    ! Keep the oscillating part of the toroidal drift phase in the orbit
+    ! integral of the perturbation (needed when n*Om_d is comparable to Om_th)
+    logical :: drift_phase = .false.
+    ! Sample the perturbation at the first-order guiding-centre radius
+    ! s + Delta s (finite radial orbit width), Delta s from p_phi conservation
+    logical :: fow_radial = .false.
 
     ! Flux surface TODO: make a dynamic, multiple flux surfaces support
     real(dp) :: dVds = 0.0_dp, etadt = 0.0_dp, etatp = 0.0_dp
@@ -40,6 +47,7 @@ module driftorbit
 
     real(dp), parameter :: epst_spl = 1.0e-6_dp, epsp_spl = 1.0e-6_dp   ! dist to tpb for spline
     real(dp), parameter :: epsst_spl = 1.0e-3_dp, epssp_spl = 1.0e-3_dp ! dist to deep for spline
+    real(dp), parameter :: epst = 1.0e-8_dp, epsp = 1.0e-8_dp ! smallest eta distance to tp bound
 
 
 
@@ -47,15 +55,12 @@ module driftorbit
     integer, parameter :: nlev = 100
     real(dp) :: sign_vpar = 1.0_dp, sign_vpar_htheta = 1.0_dp
 
-    ! Nonlinear calculation switch
-    logical :: nonlin = .false.
-
     ! Flux-surface dependent and working variables (computed/modified per-thread)
     !$omp threadprivate (mth, dVds, etadt, etatp, etamin, etamax)
     !$omp threadprivate (B0, Bmin, Bmax, sign_vpar, sign_vpar_htheta)
 
     ! Shared read-only configuration (NOT threadprivate): efac, epsmn,
     ! pertfile_scale, m0,
-    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban
+    ! magdrift, nopassing, pertfile, comptorque, nonlin, supban, fow_radial
 
 end module driftorbit

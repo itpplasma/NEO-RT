@@ -3,7 +3,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(neort_symbolics LANGUAGES Fortran)
 endif()
 
-if(NOT TARGET fortsym)
+if(NOT TARGET fortsym AND NOT TARGET fortsym::fortsym)
     if(FORTSYM_SOURCE_DIR)
         add_subdirectory("${FORTSYM_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/fortsym")
     else()
@@ -13,4 +13,8 @@ endif()
 
 add_executable(gen_neort_separatrix_frequency
     gen_neort_separatrix_frequency.f90)
-target_link_libraries(gen_neort_separatrix_frequency PRIVATE fortsym)
+if(TARGET fortsym::fortsym)
+    target_link_libraries(gen_neort_separatrix_frequency PRIVATE fortsym::fortsym)
+else()
+    target_link_libraries(gen_neort_separatrix_frequency PRIVATE fortsym)
+endif()

@@ -6,8 +6,8 @@ module neort
                               dni1ds, Ti1, dTi1ds, qi, mi, mu, qe
     use neort_magfie, only: init_flux_surface_average
     use neort_freq, only: init_canon_freq_trapped_spline, init_canon_freq_passing_spline
-    use neort_transport, only: compute_transport_integral
-    use neort_orbit_classes, only: select_global_passing, select_orbit_class
+    use neort_transport, only: compute_transport_integral, velocity_sample_t, &
+        velocity_sample_count, compute_velocity_sample, assemble_velocity_samples
     use do_magfie_mod, only: s
 
     implicit none
@@ -23,6 +23,13 @@ module neort
     ! captures the far-tail resonance; the historical hard-coded 3.0 bound
     ! truncated it. Set vmax_over_vth = 3.0 to reproduce pre-2026-07-20 results.
     real(dp) :: vmax_over_vth = 4.0_dp
+
+    ! Negative selects the Maxwellian velocity integral; positive selects x=E/T.
+    real(dp) :: monoenergetic_x = -1.0_dp
+
+    ! Resonance components of a harmonic: co-passing, counter-passing, trapped
+    integer, parameter :: component_co = 1, component_ctr = 2, component_trapped = 3
+    integer, parameter :: ncomponent = 3
 
 contains
 
@@ -46,11 +53,8 @@ contains
 
         call debug('init')
         call init_flux_surface_average(s)
-        call select_global_passing()
-        sign_vpar = 1
-        if (.not. nopassing) call init_canon_freq_passing_spline
-        call select_orbit_class(1)
         call init_canon_freq_trapped_spline
+        if (.not. nopassing) call init_canon_freq_passing_spline
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
@@ -58,31 +62,21 @@ contains
     end subroutine init
 
     pure subroutine set_to_trapped_region(eta_min, eta_max)
-        use, intrinsic :: ieee_arithmetic, only: ieee_next_after
-        use driftorbit, only: etatp, etadt
+        use driftorbit, only: epst, etatp, etadt
 
         real(dp), intent(out) :: eta_min, eta_max
 
-        ! The trapped-passing endpoint is open, but it has no physical
-        ! exclusion layer.  Use the adjacent representable values so the
-        ! asymptotic frequency model can search all the way to the boundary
-        ! without ever evaluating its logarithmic singularity at x=0.
-        eta_min = ieee_next_after(etatp, huge(etatp))
-        eta_max = ieee_next_after(etadt, etatp)
+        eta_min = (1 + epst)*etatp
+        eta_max = (1 - epst)*etadt
     end subroutine set_to_trapped_region
 
     pure subroutine set_to_passing_region(eta_min, eta_max)
-        use, intrinsic :: ieee_arithmetic, only: ieee_next_after
-        use driftorbit, only: etatp
+        use driftorbit, only: epsp, etatp
 
         real(dp), intent(out) :: eta_min, eta_max
 
-        ! eta=0 and eta=etatp are both open endpoints.  Use the smallest
-        ! normal positive pitch at the unrelated eta=0 end so IEEE underflow
-        ! trapping is not triggered; the upper endpoint is the adjacent value
-        ! below the trapped-passing boundary.
-        eta_min = ieee_next_after(tiny(1.0_dp), etatp)
-        eta_max = ieee_next_after(etatp, 0.0_dp)
+        eta_min = epsp*etatp
+        eta_max = (1 - epsp)*etatp
     end subroutine set_to_passing_region
 
     subroutine check_magfie(data)
@@ -170,32 +164,15 @@ contains
         end do
     end subroutine check_magfie
 
-    subroutine compute_transport(result_)
-        use driftorbit, only: M_t, R0, comptorque, dVds, mph, dOm_tEds, dM_tds, supban
+    subroutine prepare_transport(mthmin, mthmax)
+        ! Per-species state shared by all harmonics and the harmonic range.
+        ! Every thread computing a resonance component of this species must
+        ! hold it (see compute_transport_component).
+        use driftorbit, only: M_t, R0, mph, dOm_tEds, dM_tds, supban
         use neort_profiles, only: Om_tE
         use do_magfie_mod, only: q
 
-        type(transport_data_t), intent(out) :: result_
-
-        integer :: j, idx
-
-        ! Transport coefficients D11, D12 in approximate effective radius r=2.0_dp/a*sqrt(s)
-        real(dp) :: Dco(2), Dctr(2), Dt(2)
-
-        ! Torque density dTphi_int/ds for integration over normalized toroidal flux s
-        real(dp) :: Tco, Tctr, Tt
-        integer :: mthmin, mthmax
-
-        call debug('compute_transport')
-
-        if (allocated(result_%harmonics)) deallocate(result_%harmonics)
-
-        Dco = 0.0_dp
-        Dctr = 0.0_dp
-        Dt = 0.0_dp
-        Tco = 0.0_dp
-        Tctr = 0.0_dp
-        Tt = 0.0_dp
+        integer, intent(out) :: mthmin, mthmax
 
         Om_tE = vth*M_t/R0
         dOm_tEds = vth*dM_tds/R0 + M_t*dvthds/R0
@@ -207,6 +184,175 @@ contains
             mthmin = 0
             mthmax = 0
         end if
+    end subroutine prepare_transport
+
+    logical function component_active(component)
+        ! Superbanana plateau and nopassing runs only have the trapped component.
+        use driftorbit, only: nopassing, supban
+        integer, intent(in) :: component
+        if (component == component_trapped) then
+            component_active = .true.
+        else
+            component_active = .not. (supban .or. nopassing)
+        end if
+    end function component_active
+
+    subroutine compute_transport(result_)
+        type(transport_data_t), intent(out) :: result_
+
+        integer :: j, component, mthmin, mthmax
+        real(dp), allocatable :: Dres(:, :, :), Tres(:, :)
+
+        call debug('compute_transport')
+
+        call prepare_transport(mthmin, mthmax)
+        allocate(Dres(2, ncomponent, mthmin:mthmax), Tres(ncomponent, mthmin:mthmax))
+        do j = mthmin, mthmax
+            do component = 1, ncomponent
+                call compute_transport_component(j, component, Dres(:, component, j), &
+                    Tres(component, j))
+            end do
+        end do
+        call assemble_transport(mthmin, mthmax, Dres, Tres, result_)
+
+        call debug('compute_transport complete')
+    end subroutine compute_transport
+
+    subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
+        ! All components of harmonic j, added to the running sums.
+        integer, intent(in) :: j
+        real(dp), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
+        type(transport_harmonic_t), intent(out) :: harmonic
+
+        real(dp) :: Dres(2, ncomponent), Tres(ncomponent)
+        integer :: component
+
+        do component = 1, ncomponent
+            call compute_transport_component(j, component, Dres(:, component), &
+                Tres(component))
+        end do
+        call assemble_harmonic(j, Dres, Tres, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
+    end subroutine compute_transport_harmonic
+
+    subroutine compute_transport_component(j, component, D, T)
+        ! Resonance integral of harmonic j for one orbit class. Depends only on
+        ! the per-species state of prepare_transport, so the components of all
+        ! harmonics may be computed in any order or on any thread holding it.
+        integer, intent(in) :: j, component
+        real(dp), intent(out) :: D(2), T
+
+        real(dp) :: vmin, vmax
+        character(len=256) :: buffer
+
+        D = 0.0_dp
+        T = 0.0_dp
+        if (.not. component_active(component)) return
+
+        write(buffer, '(A,I0,A,I0)') "compute_transport_component: mth = ", j, &
+            ", component = ", component
+        call debug(buffer)
+
+        call select_component(j, component, vmin, vmax)
+        call compute_transport_integral(vmin, vmax, vsteps, monoenergetic_x, D, T)
+    end subroutine compute_transport_component
+
+    integer function component_sample_count()
+        ! Velocity nodes of every resonance component.
+        component_sample_count = velocity_sample_count(vsteps, monoenergetic_x)
+    end function component_sample_count
+
+    subroutine compute_component_sample(j, component, ku, sample)
+        ! Velocity node ku of compute_transport_component(j, component); the
+        ! nodes of all components are independent on threads holding the
+        ! per-species state.
+        integer, intent(in) :: j, component, ku
+        type(velocity_sample_t), intent(inout) :: sample
+
+        real(dp) :: vmin, vmax
+
+        call select_component(j, component, vmin, vmax)
+        call compute_velocity_sample(ku, vmin, vmax, vsteps, monoenergetic_x, sample)
+    end subroutine compute_component_sample
+
+    subroutine assemble_component(j, component, samples, D, T)
+        ! compute_transport_component(j, component) from its velocity nodes.
+        integer, intent(in) :: j, component
+        type(velocity_sample_t), intent(in) :: samples(:)
+        real(dp), intent(out) :: D(2), T
+
+        real(dp) :: vmin, vmax
+
+        D = 0.0_dp
+        T = 0.0_dp
+        if (.not. component_active(component)) return
+        call select_component(j, component, vmin, vmax)
+        call assemble_velocity_samples(vmin, vmax, vsteps, monoenergetic_x, samples, D, T)
+    end subroutine assemble_component
+
+    subroutine select_component(j, component, vmin, vmax)
+        ! Harmonic, orbit class and velocity range of a resonance component.
+        use driftorbit, only: mth, etamin, etamax, sign_vpar
+
+        integer, intent(in) :: j, component
+        real(dp), intent(out) :: vmin, vmax
+
+        mth = j
+        call velocity_bounds(component, vmin, vmax)
+        select case (component)
+        case (component_co)
+            sign_vpar = 1
+            call set_to_passing_region(etamin, etamax)
+        case (component_ctr)
+            sign_vpar = -1
+            call set_to_passing_region(etamin, etamax)
+        case default
+            sign_vpar = 1
+            call set_to_trapped_region(etamin, etamax)
+        end select
+    end subroutine select_component
+
+    subroutine velocity_bounds(component, vmin, vmax)
+        use driftorbit, only: supban
+
+        integer, intent(in) :: component
+        real(dp), intent(out) :: vmin, vmax
+
+        vmin = 1.0e-6_dp * vth
+        vmax = vmax_over_vth * vth
+        if (supban .and. component == component_trapped) then
+            ! Shaing superbanana plateau: trapped ell=0 resonance only, with a
+            ! wide velocity bracket so the analytic Omph = 0 resonance is
+            ! captured across the thermal range.
+            vmin = 0.01_dp * vth
+            vmax = 5.0_dp * vth
+        end if
+    end subroutine velocity_bounds
+
+    subroutine assemble_transport(mthmin, mthmax, Dres, Tres, result_)
+        ! Sums the component integrals of all harmonics in harmonic order and
+        ! leaves the state where the harmonic loop historically ended.
+        use driftorbit, only: mth, etamin, etamax, sign_vpar, comptorque, dVds, M_t
+
+        integer, intent(in) :: mthmin, mthmax
+        real(dp), contiguous, intent(in) :: Dres(:, :, mthmin:), Tres(:, mthmin:)
+        type(transport_data_t), intent(out) :: result_
+
+        integer :: j, idx
+
+        ! Transport coefficients D11, D12 in approximate effective radius r=2.0_dp/a*sqrt(s)
+        real(dp) :: Dco(2), Dctr(2), Dt(2)
+
+        ! Torque density dTphi_int/ds for integration over normalized toroidal flux s
+        real(dp) :: Tco, Tctr, Tt
+
+        if (allocated(result_%harmonics)) deallocate(result_%harmonics)
+
+        Dco = 0.0_dp
+        Dctr = 0.0_dp
+        Dt = 0.0_dp
+        Tco = 0.0_dp
+        Tctr = 0.0_dp
+        Tt = 0.0_dp
 
         if (mthmax < mthmin) then
             ! Edge case: no valid harmonics (upper bound below lower bound).
@@ -219,8 +365,14 @@ contains
         idx = 0
         do j = mthmin, mthmax
             idx = idx + 1
-            call compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, result_%harmonics(idx))
+            call assemble_harmonic(j, Dres(:, :, j), Tres(:, j), Dco, Dctr, Dt, &
+                Tco, Tctr, Tt, result_%harmonics(idx))
         end do
+        if (mthmax >= mthmin) then
+            mth = mthmax
+            sign_vpar = 1
+            call set_to_trapped_region(etamin, etamax)
+        end if
 
         result_%summary%M_t = M_t
         result_%summary%Dco = Dco
@@ -243,145 +395,67 @@ contains
             result_%torque%Tctr = 0.0_dp
             result_%torque%Tt = 0.0_dp
         end if
-        call debug('compute_transport complete')
-    end subroutine compute_transport
+    end subroutine assemble_transport
 
-    subroutine compute_transport_harmonic(j, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
-        use driftorbit, only: mth, M_t, etamin, etamax, sign_vpar, nopassing, supban
-        use neort_orbit_classes, only: orbit_class_count, select_global_passing, select_orbit_class
+    subroutine assemble_harmonic(j, Dres, Tres, Dco, Dctr, Dt, Tco, Tctr, Tt, harmonic)
+        use driftorbit, only: M_t, supban
 
         integer, intent(in) :: j
+        real(dp), intent(in) :: Dres(2, ncomponent), Tres(ncomponent)
         real(dp), intent(inout) :: Dco(2), Dctr(2), Dt(2), Tco, Tctr, Tt
         type(transport_harmonic_t), intent(out) :: harmonic
 
-        real(dp) :: Dresco(2), Dresctr(2), Drest(2), Tresco, Tresctr, Trest
-        real(dp) :: Dclass(2), Tclass
         real(dp) :: vminp, vmaxp, vmint, vmaxt
-        integer :: class_index, class_count
         character(len=256) :: buffer
 
-        write(buffer, '(A,ES12.5,A,I0)') "compute_transport_harmonic: M_t = ", M_t, ", mth = ", j
-        call debug(buffer)
+        call velocity_bounds(component_co, vminp, vmaxp)
+        call velocity_bounds(component_trapped, vmint, vmaxt)
 
-        mth = j
-
-        Drest = 0.0_dp
-        Dresco = 0.0_dp
-        Dresctr = 0.0_dp
-        Tresco = 0.0_dp
-        Tresctr = 0.0_dp
-        Trest = 0.0_dp
-
-        vminp = 1.0e-6_dp * vth
-        vmaxp = vmax_over_vth * vth
-        vmint = vminp
-        vmaxt = vmaxp
-
-        if (supban) then
-            ! Shaing superbanana plateau: trapped ell=0 resonance only, with a
-            ! wide velocity bracket so the analytic Omph = 0 resonance is
-            ! captured across the thermal range.
-            vmint = 0.01_dp * vth
-            vmaxt = 5.0_dp * vth
-            class_count = orbit_class_count()
-            if (class_count < 1) error stop "orbit classes are not initialized"
-            do class_index = 1, class_count
-                call select_orbit_class(class_index)
-                call init_canon_freq_trapped_spline()
-                sign_vpar = 1
-                call set_to_trapped_region(etamin, etamax)
-                call compute_transport_integral(vmint, vmaxt, vsteps, Dclass, Tclass)
-                Drest = Drest + Dclass
-                Trest = Trest + Tclass
-            end do
-            call select_orbit_class(1)
-            Dt = Dt + Drest
-            Tt = Tt + Trest
-
-            harmonic%mth = mth
-            harmonic%Dresco = Dresco
-            harmonic%Dresctr = Dresctr
-            harmonic%Drest = Drest
-            harmonic%Tresco = Tresco
-            harmonic%Tresctr = Tresctr
-            harmonic%Trest = Trest
-            harmonic%vminp_over_vth = vminp/vth
-            harmonic%vmaxp_over_vth = vmaxp/vth
-            harmonic%vmint_over_vth = vmint/vth
-            harmonic%vmaxt_over_vth = vmaxt/vth
-
-            call debug('compute_transport_harmonic complete (supban)')
-            return
+        if (component_active(component_co)) then
+            Dco = Dco + Dres(:, component_co)
+            Tco = Tco + Tres(component_co)
         end if
-
-        ! Passing resonance (co-passing)
-        call select_global_passing()
-        if (.not. nopassing) then
-            sign_vpar = 1
-            call set_to_passing_region(etamin, etamax)
-            call compute_transport_integral(vminp, vmaxp, vsteps, Dresco, Tresco)
-            Dco = Dco + Dresco
-            Tco = Tco + Tresco
+        if (component_active(component_ctr)) then
+            Dctr = Dctr + Dres(:, component_ctr)
+            Tctr = Tctr + Tres(component_ctr)
         end if
+        Dt = Dt + Dres(:, component_trapped)
+        Tt = Tt + Tres(component_trapped)
 
-        ! Passing resonance (counter-passing)
-        if (.not. nopassing) then
-            sign_vpar = -1
-            call set_to_passing_region(etamin, etamax)
-            call compute_transport_integral(vminp, vmaxp, vsteps, Dresctr, Tresctr)
-            Dctr = Dctr + Dresctr
-            Tctr = Tctr + Tresctr
-        end if
-
-        ! Trapped resonance (trapped)
-        class_count = orbit_class_count()
-        if (class_count < 1) error stop "orbit classes are not initialized"
-        call select_global_passing()
-        do class_index = 1, class_count
-            call select_orbit_class(class_index)
-            call init_canon_freq_trapped_spline()
-            sign_vpar = 1
-            call set_to_trapped_region(etamin, etamax)
-            call compute_transport_integral(vmint, vmaxt, vsteps, Dclass, Tclass)
-            Drest = Drest + Dclass
-            Trest = Trest + Tclass
-        end do
-        call select_orbit_class(1)
-        Dt = Dt + Drest
-        Tt = Tt + Trest
-
-        call log_result("")
-        write(buffer, '(A,ES12.5,A,I0)') "test_flux: Mt = ", M_t, ", mth = ", mth
-        call log_result(buffer)
-        write(buffer, '(4ES12.2,2F12.2)') Dresco(1), Dresctr(1), &
-            Drest(1), Dresco(1) + Dresctr(1) + Drest(1), &
-            vminp/vth, vmint/vth
-        call log_result(buffer)
-        write(buffer, '(4ES12.2,2F12.2)') Dresco(2), Dresctr(2), &
-            Drest(2), Dresco(2) + Dresctr(2) + Drest(2), &
-            vmaxp/vth, vmaxt/vth
-        call log_result(buffer)
-
-        call log_result("")
-        write(buffer, '(A,ES12.5,A,I0)') "compute_torque: Mt = ", M_t, ", mth = ", mth
-        call log_result(buffer)
-        write(buffer, '(4ES12.2)') Tresco, Tresctr, Trest, Tresco + Tresctr + Trest
-        call log_result(buffer)
-
-        harmonic%mth = mth
-        harmonic%Dresco = Dresco
-        harmonic%Dresctr = Dresctr
-        harmonic%Drest = Drest
-        harmonic%Tresco = Tresco
-        harmonic%Tresctr = Tresctr
-        harmonic%Trest = Trest
+        harmonic%mth = j
+        harmonic%Dresco = Dres(:, component_co)
+        harmonic%Dresctr = Dres(:, component_ctr)
+        harmonic%Drest = Dres(:, component_trapped)
+        harmonic%Tresco = Tres(component_co)
+        harmonic%Tresctr = Tres(component_ctr)
+        harmonic%Trest = Tres(component_trapped)
         harmonic%vminp_over_vth = vminp/vth
         harmonic%vmaxp_over_vth = vmaxp/vth
         harmonic%vmint_over_vth = vmint/vth
         harmonic%vmaxt_over_vth = vmaxt/vth
 
-        call debug('compute_transport_harmonic complete')
-    end subroutine compute_transport_harmonic
+        if (supban) return
+
+        call log_result("")
+        write(buffer, '(A,ES12.5,A,I0)') "test_flux: Mt = ", M_t, ", mth = ", j
+        call log_result(buffer)
+        write(buffer, '(4ES12.2,2F12.2)') Dres(1, :), &
+            Dres(1, component_co) + Dres(1, component_ctr) &
+            + Dres(1, component_trapped), vminp/vth, vmint/vth
+        call log_result(buffer)
+        write(buffer, '(4ES12.2,2F12.2)') Dres(2, :), &
+            Dres(2, component_co) + Dres(2, component_ctr) &
+            + Dres(2, component_trapped), vmaxp/vth, vmaxt/vth
+        call log_result(buffer)
+
+        call log_result("")
+        write(buffer, '(A,ES12.5,A,I0)') "compute_torque: Mt = ", M_t, ", mth = ", j
+        call log_result(buffer)
+        write(buffer, '(4ES12.2)') Tres(component_co), Tres(component_ctr), &
+            Tres(component_trapped), &
+            Tres(component_co) + Tres(component_ctr) + Tres(component_trapped)
+        call log_result(buffer)
+    end subroutine assemble_harmonic
 
     subroutine write_magfie_data_to_files(data, base_path)
         type(magfie_data_t), intent(in) :: data

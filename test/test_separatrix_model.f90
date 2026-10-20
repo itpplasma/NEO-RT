@@ -23,7 +23,7 @@ program test_separatrix_model
         6.4e-5_dp, 1.28e-4_dp, 2.56e-4_dp, 5.12e-4_dp, 1.024e-3_dp, &
         2.048e-3_dp]
     real(dp) :: tau_values(size(sample_x)), drift_values(size(sample_x))
-    real(dp) :: filtered_x(size(sample_x))
+    real(dp) :: filtered_x(size(sample_x)), filtered_tau(size(sample_x))
     real(dp) :: narrow_x(8), narrow_tau(8), narrow_drift(8)
     real(dp) :: adaptive_x(20), adaptive_tau(20), adaptive_drift(20)
     real(dp) :: tau, dtau_dx, omega, domega_dx, drift, ddrift_dx
@@ -44,6 +44,13 @@ program test_separatrix_model
     call fit_separatrix_model(filtered_x, tau_values, drift_values, model, ok)
     if (.not. ok) error stop "finite separatrix samples were not selected"
     if (model%tau(1) <= 0.0_dp) error stop "filtered fit lost positive log coefficient"
+
+    filtered_tau = tau_values
+    filtered_tau(1) = -1.0_dp
+    call fit_separatrix_model(sample_x, filtered_tau, drift_values, model, ok)
+    if (.not. ok) error stop "nonpositive period poisoned the boundary fit"
+    if (abs(model%numerator(1)/model%tau(1)-separatrix_limit) > 1.0e-9_dp) &
+        error stop "nonpositive period was included in the fit"
 
     call fit_separatrix_model(sample_x, tau_values, drift_values, model, ok)
     if (.not. ok) error stop "manufactured separatrix fit was rejected"

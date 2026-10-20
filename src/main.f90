@@ -11,8 +11,11 @@ contains
         use neort, only: check_magfie
         use neort_config, only: output_format
         use neort_datatypes, only: magfie_data_t
-        use neort_lib
-        use neort_output, only: write_output
+        use neort_lib, only: transport_data_t, mixture_result_t, neort_init, &
+            neort_prepare_splines, neort_compute_at_s, neort_compute_no_splines, &
+            neort_compute_mixture_at_s
+        use neort_output, only: write_output, write_mixture_output
+        use neort_species, only: mixture_enabled
         use util, only: files_exist
 
         character(len=*), parameter :: boozer_file = "in_file"
@@ -22,10 +25,17 @@ contains
 
         type(magfie_data_t) :: magfie_data
         type(transport_data_t) :: transport_data
+        type(mixture_result_t) :: mixture_result
 
         call get_command_argument(1, runname)
 
         call neort_init(trim(runname)//".in", boozer_file, boozer_pert_file)
+
+        if (mixture_enabled) then
+            call neort_compute_mixture_at_s(s, mixture_result)
+            call write_mixture_output(mixture_result, trim(runname), output_format)
+            return
+        end if
 
         if (files_exist(plasma_file, profile_file)) then
             call neort_prepare_splines(plasma_file, profile_file)

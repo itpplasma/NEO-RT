@@ -3,18 +3,19 @@ program test_reslines
     use util
     use do_magfie_mod, only: s, R0, inp_swi, do_magfie_init
     use do_magfie_pert_mod, only: mph
-    use neort, only: init, set_to_trapped_region, set_to_passing_region
+    use neort, only: init
     use driftorbit, only: mth, M_t, vth, &
-        etadt, etatp, Om_tE, sign_vpar, etamin, etamax, nlev
+        etadt, etatp, Om_tE, sign_vpar, epst, epsp, etamin, etamax, nlev
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
     implicit none
 
     real(dp), parameter  :: vnorm = sqrt(0.15_dp)
 
-    integer :: fid, ios, ns
+    integer :: fid
+
+    integer, parameter :: ns = 250
     integer :: ks
-    real(dp) :: row(3)
-    real(dp), allocatable :: profile(:,:)
+    real(dp) :: profile(ns, 3)
 
     integer, parameter :: nm2 = 11, nm3 = 2
     integer :: km2, km3
@@ -24,21 +25,9 @@ program test_reslines
     inp_swi = 9 ! ASDEX Upgrade format
     call do_magfie_init("in_file")
 
-    open(newunit=fid, file='profile.in', action='read', status='old', iostat=ios)
-    if (ios /= 0) error stop 'could not open profile.in'
-    ns = 0
-    do
-        read(fid,*,iostat=ios) row
-        if (ios > 0) error stop 'invalid row in profile.in'
-        if (ios /= 0) exit
-        ns = ns + 1
-    end do
-    if (ns < 1) error stop 'profile.in has no rows'
-    rewind(fid)
-    allocate(profile(ns, 3))
+    open(newunit=fid, file='profile.in', action='read')
     do ks=1,ns
-        read(fid,*,iostat=ios) profile(ks,:)
-        if (ios /= 0) error stop 'profile.in ended before all rows were read'
+        read(fid,*) profile(ks,:)
     end do
     close(fid)
 
@@ -75,7 +64,8 @@ contains
 
         ! Trapped
         sign_vpar = 1.0_dp
-        call set_to_trapped_region(etamin, etamax)
+        etamin = (1+epst)*etatp
+        etamax = (1-epst)*etadt
         call driftorbit_coarse(v, etamin, etamax, roots, nroots)
         if(nroots == 0) return
         do kr = 1,nroots
@@ -84,7 +74,8 @@ contains
         end do
         ! Co-passing
         sign_vpar = 1.0_dp
-        call set_to_passing_region(etamin, etamax)
+        etamin = epsp*etatp
+        etamax = (1-epsp)*etatp
         call driftorbit_coarse(v, etamin, etamax, roots, nroots)
         if(nroots == 0) return
         do kr = 1,nroots
@@ -93,7 +84,8 @@ contains
         end do
         ! Ctr-passing
         sign_vpar = -1.0_dp
-        call set_to_passing_region(etamin, etamax)
+        etamin = epsp*etatp
+        etamax = (1-epsp)*etatp
         call driftorbit_coarse(v, etamin, etamax, roots, nroots)
         if(nroots == 0) return
         do kr = 1,nroots

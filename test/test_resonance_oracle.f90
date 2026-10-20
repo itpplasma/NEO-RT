@@ -7,9 +7,8 @@ program test_resonance_oracle
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
     use neort_freq, only: Om_ph, Om_th
     use neort_profiles, only: vth, Om_tE
-    use driftorbit, only: mth, mph, nlev, sign_vpar, etatp
+    use driftorbit, only: mth, mph, nlev, sign_vpar, etatp, etadt, epst, epsp
     use neort_resonance, only: driftorbit_coarse, driftorbit_root
-    use neort, only: set_to_passing_region, set_to_trapped_region
     implicit none
 
     real(dp) :: roots(nlev, 3), eta_res(2), eta_ref
@@ -35,10 +34,8 @@ program test_resonance_oracle
                     if (trial_mth == 0) cycle
                     mth = trial_mth
                     mph = 3
-                    call set_to_passing_region(eta_min, eta_max)
-                    call check_region(v, eta_min, eta_max)
-                    call set_to_trapped_region(eta_min, eta_max)
-                    call check_region(v, eta_min, eta_max)
+                    call check_region(v, etatp * epsp, etatp * (1.0_dp - epsp))
+                    call check_region(v, etatp * (1.0_dp + epst), etadt * (1.0_dp - epst))
                 end do
             end do
         end do
