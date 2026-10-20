@@ -2,14 +2,15 @@ program test_krook_reference
     ! Retain the sensitive T co-passing m=4, velocity node 3 of the MARS L5/8
     ! reproducer. The fixture keeps 64 original equilibrium surfaces around
     ! s=.25 and a three-surface linear snapshot of all 641 perturbation modes.
-    ! Reference: four-e-fold fit, native Debug (GNU 16.2.1), rtol=1e-8.
+    ! Reference: invariant-preserving passing samples, native Debug
+    ! (GNU 16.2.1), rtol=1e-8.
     ! Qualified by independent angular period/drift integrals:
     ! sinh-graded trapezoidal quadrature, 16384/32768 nodes with Richardson
     ! extrapolation, fitted on x=1e-6*exp(0:.1:2). Independent 65536-node
     ! evaluations at x=1e-8..1e-6 agree within 1.6e-8. Transport at rtol=1e-8
     ! agrees with rtol=1e-7 within 2e-8. Main's old two-point extrapolation
-    ! overestimates the near-separatrix torque by 5.2e-6; this fit differs by
-    ! 1.2e-6 there (0.9e-6 for the whole node). Main is not the oracle.
+    ! overestimates the near-separatrix torque by 5.2e-6. The independent
+    ! field-line calculation, rather than main, qualifies this reference.
     use iso_fortran_env, only: dp => real64
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use neort_lib, only: neort_init, neort_setup_at_s
@@ -27,8 +28,8 @@ program test_krook_reference
     use util, only: pi
     implicit none
     real(dp), parameter :: expected(3) = [ &
-        -2.5567971962675721e-9_dp, -8.9887467348721568e-9_dp, &
-        3.5936152209399515e4_dp]
+        -2.5567993930219084e-9_dp, -8.9887544578422849e-9_dp, &
+        3.5936183085097517e4_dp]
     real(dp) :: values(3), ux
 
     call neort_init('r0p50000.in', 'in_file', 'in_file_pert')

@@ -3,9 +3,10 @@ module neort_freq
     use logger, only: debug, trace, get_log_level, LOG_TRACE
     use util, only: pi
     use spline, only: spline_coeff, spline_val_0
-    use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep
+    use neort_orbit, only: nvar, bounce_fast, bounce_time, timestep, &
+        passing_frequency_integrals
     use neort_separatrix, only: separatrix_model_t, fit_separatrix_model, &
-        evaluate_separatrix_model
+        evaluate_separatrix_model, SEPARATRIX_FIT_LOG_SPAN
     use neort_profiles, only: vth, Om_tE, dOm_tEds
     use driftorbit, only: etamin, etamax, etatp, etadt, epsst_spl, epst_spl, magdrift, &
         magdrift_passing, &
@@ -199,6 +200,12 @@ contains
             call bounce_fast(v, eta, taub, bounceavg, timestep)
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5,A,ES12.5)') '[TRACE] init_canon_freq_passing_spline k=', k, ' eta=', eta, ' taub=', taub
+            end if
+            ! Include the first grid point beyond the fit's minimum span.
+            ! Only the boundary samples need the invariant-preserving path.
+            if ((etatp - eta)/etatp <= &
+                    epsp_spl*exp(SEPARATRIX_FIT_LOG_SPAN + abs(aa))) then
+                call passing_frequency_integrals(v, eta, taub, bounceavg(3))
             end if
             if (magdrift_passing > 0) Om_tB_v(k + 1) = bounceavg(3)
             taub_v(k + 1) = v*taub
