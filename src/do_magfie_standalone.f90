@@ -1177,16 +1177,26 @@ contains
         s_prev_k = x1
     end subroutine do_magfie_pert_kappa_amp
 
-    subroutine perturbation_amplitude_bound(x, amplitude)
+    subroutine perturbation_amplitude_bound(x, amplitude, curvature_amplitude)
         ! Triangle bound over all theta of the dimensional Fourier table.
         real(dp), intent(in) :: x(3)
         real(dp), intent(out) :: amplitude
+        real(dp), intent(out), optional :: curvature_amplitude
         complex(dp) :: unused
         call do_magfie_pert_amp(x, unused)
         if (ncol2 < 8) then
             amplitude = sum(abs(Bmnc))
         else
             amplitude = sum(sqrt(Bmnc**2 + Bmns**2))
+        end if
+        if (present(curvature_amplitude)) then
+            call do_magfie_pert_kappa_amp(x, unused)
+            if (ncol2 < 8) then
+                curvature_amplitude = 1.0e4_dp*abs(bfac)*sum(abs(spl_val_ck(1, :)))
+            else
+                curvature_amplitude = 1.0e4_dp*abs(bfac)* &
+                    sum(sqrt(spl_val_ck(1, :)**2 + spl_val_sk(1, :)**2))
+            end if
         end if
     end subroutine perturbation_amplitude_bound
 

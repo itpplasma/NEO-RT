@@ -608,3 +608,10 @@ add_test(NAME test_krook_c12_cancellation
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_c12_main.tar.xz)
 set_tests_properties(test_krook_c12_cancellation PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 90)
+
+add_test(NAME test_krook_c12_curvature_cancellation
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_c12_curvature_cancellation.py
+        $<TARGET_FILE:test_krook_c12_curvature_cancellation.x>
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_c12_curvature_cancellation.tar.xz)
+set_tests_properties(test_krook_c12_curvature_cancellation PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 90)

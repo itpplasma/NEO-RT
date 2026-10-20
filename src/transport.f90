@@ -406,7 +406,7 @@ contains
         real(dp), intent(out) :: values(3)
         real(dp) :: effective_harmonic, geometry, nu
         real(dp) :: natural(3), absolute_tolerance(3), amplitude_scale, amplitude
-        real(dp) :: amplitude_error
+        real(dp) :: amplitude_error, curvature_amplitude
         integer :: status
         effective_harmonic = real(mth, dp)
         geometry = krook_geometry_trapped
@@ -423,7 +423,12 @@ contains
             ! gives 2e*S*|H| <= rtol*|H|^2 + e^2*S^2/rtol.
             ! The phase sensitivity is 2*pi*|mth+nq| times the period error.
             if (pertfile) then
-                call perturbation_amplitude_bound([s, 0.0_dp, th0], amplitude)
+                if (curvature_drive) then
+                    call perturbation_amplitude_bound([s, 0.0_dp, th0], &
+                        amplitude, curvature_amplitude)
+                else
+                    call perturbation_amplitude_bound([s, 0.0_dp, th0], amplitude)
+                end if
                 amplitude_scale = abs(pertfile_scale)*amplitude/Bmin
             else
                 amplitude_scale = abs(epsmn)
@@ -459,6 +464,8 @@ contains
             call Om_th(ux*vth, eta, Omth, dOmthdv, dOmthdeta)
             taub = 2.0_dp*pi/abs(Omth)
             drive_bound = (2.0_dp - eta*Bmin)*amplitude_scale
+            if (curvature_drive) call general_drive_bound(eta, amplitude, &
+                curvature_amplitude, drive_bound)
             energy_squared = (mi*(ux*vth)**2/2.0_dp*drive_bound)**2
             mono = .false.
             if (present(energy_ratio)) mono = energy_ratio > 0.0_dp
@@ -989,6 +996,16 @@ contains
         ydot(7) = Om_osc
         ydot(8:) = 0.0_dp
     end subroutine transport_rates
+
+    subroutine general_drive_bound(eta, lagrangian, curvature, bound)
+        ! Triangle bound using the same generated weights as the ideal drive.
+        real(dp), intent(in) :: eta, lagrangian, curvature
+        real(dp), intent(out) :: bound
+        real(dp) :: w_lagrangian, w_curvature
+        call drive_weight_leaf(eta*Bmin, w_lagrangian, w_curvature)
+        bound = abs(pertfile_scale)* &
+            (w_lagrangian*lagrangian + w_curvature*curvature)/Bmin
+    end subroutine general_drive_bound
 
     subroutine general_drive(eta, t, theta, phase_drift, x, bmod, epsn, Hn)
         ! General ideal drive in the u=0 representation (doc/hamiltonian_drive.md).
