@@ -166,11 +166,12 @@ subroutine integrate_class_resonances
         resline_unit_is_private,resline_diag_unit
     use orbit_dim_mod,      only : neqm
     use global_invariants,  only : dtau,toten,perpinv,cE_ref,Phi_eff
-    use sample_matrix_mod,  only : npoi,xarr
+    use sample_matrix_mod,  only : npoi,xarr,find_valid_class_roots
     use logging_mod,        only : tee_message
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
-    use field_eq_mod,       only : psi_sep
+    use field_eq_mod,       only : psi_axis,psi_sep
+    use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
     implicit none
@@ -225,7 +226,7 @@ subroutine integrate_class_resonances
         rm3=dble(narr(mode))
         delint_mode(mode)=0.d0
         !
-        call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
+        call find_valid_class_roots(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
             !$omp critical (reslines_log)
@@ -286,15 +287,13 @@ subroutine integrate_class_resonances
             !
             dpsiastdx=dpsiast_dRst*delta_R*dxi_dx !$\difp{\psi^\ast}{x}$
             !
-            if(psiast_res/psi_sep.gt.1.d0) then
+            if(canonical_flux_outside_lcfs(psiast_res,psi_axis,psi_sep)) then
                 ! SOL resonance (rho_pol > 1): the orbit leaves the field domain,
                 ! so pertham/find_bounce cannot close it and would only grind to
                 ! the integrator cap before returning zero.  It is also outside
                 ! the comparison domain, so weight it zero without the integration.
-                ! Compared as normalized flux - psif is splined with the axis at
-                ! zero, but psi_sep is negative for AUG and positive for the ITER
-                ! CHEASE files, so a bare psiast_res < psi_sep test is inverted
-                ! for one of them and zeroes the whole torque.
+                ! psiast_res, psi_axis and psi_sep share the field flux gauge.
+                ! Use the axis-to-edge direction rather than assuming a zero axis.
                 absHn2=0.d0
             else
                 call pertham(z,absHn2)
@@ -323,7 +322,7 @@ subroutine integrate_class_resonances
             !
             ! multiply expression under summation over modes with toroidal mode number, with factor $-\pi^{3/2}/4$
             ! and with reference energy:
-            one_res=one_res*rm3*pi32_over4m*cE_ref
+            one_res=one_res*abs(rm3)*pi32_over4m*cE_ref
             !
             ! A near-tangent root (dresconddx -> 0) gives an infinite
             ! dpsiastdx/dresconddx; for a wall-crossing resonance absHn2=0, so the
@@ -495,6 +494,7 @@ subroutine resonant_torque
     use get_matrix_mod,    only : iclass,delphi_max
     use form_classes_doublecount_mod, only : nclasses
     use orbit_dim_mod,     only : numbasef
+    use resonance_mode_bounds_mod, only : resonant_delphi_bound
     use resint_mod,        only : nmodes,marr,narr,delint_mode,respoints_jp,respoints_all,nperp_max, &
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
         resline_unit_is_private,resline_diag_unit_is_private
@@ -502,23 +502,26 @@ subroutine resonant_torque
         ind_hist,xarr,amat_arr
     use potato_input_mod,  only : nbox, unif_rho_pol, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
+        enkin_min_over_temp, monoenergetic_x, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
         eps_sampling, itermax_sampling
+    use kinetic_energy_selection, only: energy_sample_count, total_energy_sample, &
+        total_energy_measure
     use logging_mod,       only : tee_message
     !$ use omp_lib, only : omp_set_max_active_levels, omp_set_num_threads
 
     implicit none
     !
-    double precision, parameter :: pi=3.14159265358979d0
     integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
     integer :: omp_threads_env_len
     integer :: nrespoints,unit1901,unit1902
     double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
     double precision :: bmod,phi_elec,phi_elec_min,phi_elec_max
+    double precision :: phi_elec_ref
     double precision :: toten_min,toten_max,thermen_max,toten_range
     double precision :: omdens,trapez_fac,perpinv_max
     double precision :: torque_int,torque_int_loc
-    double precision :: xjperp,xenerg,totxint,step_energ
+    double precision :: xjperp,totxint,step_energ
     double precision :: time_beg,time_end
     double precision :: dens, temp, ddens, dtemp
     character(len=256) :: msg
@@ -542,10 +545,10 @@ subroutine resonant_torque
     numbasef=0 !no extra integrals sampled, pure orbit integration
     call set_radial_boxes(nbox, unif_rho_pol, sbox)
     !
-    ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
-    ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin
+    ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m/n|
+    ! at a resonance, so nothing past max|m/n| can resonate. One |n|-step margin
     ! keeps the extreme-m root safely inside the trimmed domain.
-    delphi_max=2.d0*pi*(maxval(abs(dble(marr))/dble(narr))+1.d0/dble(minval(narr)))
+    delphi_max=resonant_delphi_bound(marr,narr)
     write(msg, '(A,ES14.6)') &
         'class root search bounded to |delphi_b| <= ', delphi_max
     call tee_message(trim(msg))
@@ -557,12 +560,22 @@ subroutine resonant_torque
     thermen_max=thermen_max_input
     !
     call denstemp_of_psi(psimagaxis, dens, temp, ddens, dtemp)
+    call phielec_of_psi(psimagaxis,phi_elec_ref,dtemp)
     !
     thermen_max=thermen_max*temp !maximum kinetic energy in units of reference energy
     !
-    ! Energy integration limits:
-    toten_min=phi_elec_min
+    ! Energy integration limits.  Preserve the default all-midpoint grid.
+    ! An explicitly positive minimum instead starts
+    ! above the maximum potential so every sampled orbit has at least the
+    ! requested kinetic energy throughout the field domain.
     toten_max=thermen_max+phi_elec_max
+    if(enkin_min_over_temp.gt.0.d0 .and. monoenergetic_x.le.0.d0) then
+        toten_min=phi_elec_max+enkin_min_over_temp*temp
+        if(toten_min.ge.toten_max) &
+            error stop 'enkin_min_over_temp must be less than thermen_max'
+    else
+        toten_min=phi_elec_min
+    endif
     toten_range=toten_max-toten_min
     !
     write(msg, '(A,ES14.6)') &
@@ -581,7 +594,7 @@ subroutine resonant_torque
         'maximum total energy = ', toten_max
     call tee_message(trim(msg))
     !
-    nenerg=nenerg_input
+    nenerg=energy_sample_count(monoenergetic_x,nenerg_input)
     !
     torque_int=0.d0
     allocate(torque_int_modes(nmodes))
@@ -594,7 +607,7 @@ subroutine resonant_torque
     !
     torquebox=0.d0
     !
-    step_energ=toten_range/dble(nenerg) !integration step over total energy
+    step_energ=total_energy_measure(monoenergetic_x,nenerg_input,toten_range,temp)
     !step_energ=0.22521463755624047d0
     !
     omp_threads_env_len=0
@@ -602,13 +615,14 @@ subroutine resonant_torque
     !$ if(omp_threads_env_len.eq.0) call omp_set_num_threads(16)
     !$ call omp_set_max_active_levels(1)
     !$omp parallel do default(shared) schedule(dynamic) &
-    !$omp   private(xenerg,perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
+    !$omp   private(perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   copyin(dtau)
+    ! Cell 1 is an interior thermal midpoint, or the sole fixed-energy sample.
     do ienerg=1,nenerg
-        xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
-        toten=toten_min+toten_range*xenerg
+        toten=total_energy_sample(monoenergetic_x,ienerg,nenerg_input, &
+            toten_min,toten_range,temp,phi_elec_ref)
         ! size of result matrix in get_matrix_res:
         n1=nmodes
         n2=1

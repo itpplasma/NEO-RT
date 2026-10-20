@@ -17,6 +17,14 @@ add_compile_options(-fPIC -g)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp -fmax-errors=1")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wimplicit-interface -Wimplicit-procedure")
 
+# gfortran on Apple silicon rejects -march=native next to the -mcpu=native that
+# dependencies add ("unknown value 'apple-m3' for '-march'"); use -mcpu there.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    set(APPLE_NATIVE_CPU_FLAG -mcpu=native)
+else()
+    set(APPLE_NATIVE_CPU_FLAG -march=native)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-Og -Wextra)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbounds-check -finit-real=nan -fcheck=all")
@@ -25,20 +33,16 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-O2)
 
-    if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-        add_compile_options(-mcpu=native)
-    elseif(APPLE)
-        add_compile_options(-march=native)
+    if(APPLE)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=x86-64-v2 -mtune=generic)
     endif()
 elseif(CMAKE_BUILD_TYPE STREQUAL "Fast")
     add_compile_options(-O3 -ffast-math)
 
-    if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-        add_compile_options(-mcpu=native)
-    elseif(APPLE)
-        add_compile_options(-march=native)
+    if(APPLE)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=native -mtune=native)
     endif()
@@ -102,12 +106,14 @@ add_executable(${PROJECT_EXE_NAME} src/program.f90)
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/collis_nbi.f90
+    src/collisional_layer.f90
     src/config.f90
     src/krook.f90
     src/collision_rates.f90
     src/mixture_collisions.f90
     src/datatypes.f90
     src/driftorbit.f90
+    src/kinetic_energy_selection.f90
     src/freq.f90
     src/lib.f90
     src/logging.f90
@@ -127,7 +133,7 @@ set(NEO_RT_SOURCES
 )
 
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
-set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 PROPERTIES
+set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
@@ -208,3 +214,10 @@ target_link_libraries(neo_rt_diag.x PRIVATE
     neo_rt
     fortplot::fortplot
 )
+
+# Field-only readback; does not initialize profiles, orbits or transport.
+add_executable(neo_rt_field_probe.x src/diag/neort_field_probe.f90)
+target_link_libraries(neo_rt_field_probe.x PRIVATE neo_rt)
+
+add_executable(neo_rt_profile_probe.x src/diag/neort_profile_probe.f90)
+target_link_libraries(neo_rt_profile_probe.x PRIVATE neo_rt)

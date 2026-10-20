@@ -89,7 +89,7 @@ contains
         use driftorbit, only: epsmn, m0, comptorque, magdrift, magdrift_passing, &
                               nopassing, pertfile, nonlin, efac, supban, drift_phase, &
                               fow_radial, pertfile_curvature
-        use neort, only: vsteps, mth_max_abs, vmax_over_vth
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
         use neort_orbit, only: noshear
         use util, only: qe, mu, qi, mi
 
@@ -133,6 +133,8 @@ contains
         call h5_add(group_id, "vmax_over_vth", vmax_over_vth, unit="1", &
                     comment="upper velocity cutoff / thermal velocity")
         call write_krook_config_group(group_id)
+        call h5_add(group_id, "monoenergetic_x", monoenergetic_x, unit="1", &
+                    comment="E/T; -1 selects Maxwellian integration")
     end subroutine write_config_group
 
     subroutine write_krook_config_group(group_id)

@@ -57,12 +57,12 @@ program test_krook_transport
     Om_tE = 1.0e6_dp
     krook_collisions = .false.
     krook_nu = 0.0_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, baseline(1:2), baseline(3))
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, baseline(1:2), baseline(3))
     krook_nu = 1.0e7_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, disabled(1:2), disabled(3))
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, disabled(1:2), disabled(3))
     krook_collisions = .true.
     krook_nu = 0.0_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, &
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, &
         zero_width(1:2), zero_width(3))
     if (any(disabled /= baseline)) &
         error stop 'disabled Krook path changed collisionless transport'
@@ -70,7 +70,7 @@ program test_krook_transport
     krook_nu = 1.0e7_dp
     krook_model = 0
     krook_rtol = 1.0e-5_dp
-    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, broadened(1:2), broadened(3))
+    call compute_transport_integral(0.9_dp*vth, 1.1_dp*vth, 1, -1.0_dp, broadened(1:2), broadened(3))
     call gauss_legendre(96, x, w)
     expected = 0.0_dp
     do k = 1, size(x)

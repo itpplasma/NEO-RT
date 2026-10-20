@@ -9,6 +9,8 @@ module neort_transport
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
+    use neort_collisional_layer, only: collisional_layer, collisional_layer_factor, &
+        deflection_frequency
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2, &
@@ -17,6 +19,8 @@ module neort_transport
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
         krook_max_depth, krook_rtol, krook_atol, krook_rate, integrate_krook
+    use kinetic_energy_selection, only: maxwellian_speed_density, &
+        energy_sample_count, energy_sample_speed, energy_sample_weight
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
@@ -73,9 +77,16 @@ contains
         real(dp) :: D11int
         real(dp), intent(in) :: ux, taub, Hmn2
 
-        D11int = pi**(3.0_dp / 2.0_dp) * mph**2 * c**2 * q * vth &
-                 / (qi**2 * dVds * abs(psi_pr)) * ux**3 * exp(-ux**2) * taub * Hmn2
+        D11int = maxwellian_speed_density(ux)*D11mono(ux, taub, Hmn2)
     end function D11int
+
+    pure function D11mono(ux, taub, Hmn2)
+        real(dp) :: D11mono
+        real(dp), intent(in) :: ux, taub, Hmn2
+
+        D11mono = pi**2/4.0_dp*mph**2*c**2*q*vth &
+                  /(qi**2*dVds*abs(psi_pr))*ux*taub*Hmn2
+    end function D11mono
 
     pure function D12int(ux, taub, Hmn2)
         real(dp) :: D12int
@@ -84,49 +95,96 @@ contains
         D12int = D11int(ux, taub, Hmn2) * ux**2
     end function D12int
 
+    pure function D12mono(ux, taub, Hmn2)
+        real(dp) :: D12mono
+        real(dp), intent(in) :: ux, taub, Hmn2
+
+        D12mono = D11mono(ux, taub, Hmn2)*ux**2
+    end function D12mono
+
     pure function Tphi_int(ux, taub, Hmn2)
         real(dp) :: Tphi_int
         real(dp), intent(in) :: ux, taub, Hmn2
 
-        Tphi_int = sign(1.0_dp, psi_pr * q * sign_theta) * pi**(3.0_dp / 2.0_dp) * mph**2 * ns * &
-                   c * vth / qi &
-                   * ux**3 * exp(-ux**2) * taub * Hmn2 * (A1 + A2 * ux**2)
+        Tphi_int = maxwellian_speed_density(ux)*Tphi_mono(ux, taub, Hmn2)
     end function Tphi_int
 
-    subroutine compute_transport_integral(vmin, vmax, vsteps, D, T)
+    pure function Tphi_mono(ux, taub, Hmn2)
+        real(dp) :: Tphi_mono
+        real(dp), intent(in) :: ux, taub, Hmn2
+
+        Tphi_mono = sign(1.0_dp, psi_pr*q*sign_theta)*pi**2/4.0_dp*mph**2 &
+                    *ns*c*vth/qi*ux*taub*Hmn2*(A1 + A2*ux**2)
+    end function Tphi_mono
+
+    subroutine compute_transport_integral(vmin, vmax, vsteps, energy_ratio, D, T)
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T
+        character(len=4096) :: ledger_path
+        call resonance_ledger_path(ledger_path)
+        if (collisional_layer .and. finite_krook_active()) &
+            error stop 'collisional_layer and finite Krook broadening cannot be combined'
         if (finite_krook_active()) then
-            call compute_transport_krook(vmin, vmax, vsteps, D, T)
+            call compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
         else
-            call compute_transport_collisionless(vmin, vmax, vsteps, D, T)
+            call compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T, ledger_path)
         end if
     end subroutine compute_transport_integral
 
-    subroutine compute_transport_collisionless(vmin, vmax, vsteps, D, T)
+    subroutine compute_transport_collisionless(vmin, vmax, vsteps, energy_ratio, D, T, ledger_path)
         ! compute transport integral via midpoint rule
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T  ! Transport coefficients D and torque density T
         real(dp) :: D_plateau, dsdreff  ! Plateau diffusion coefficient and ds/dreff=<|grad s|>
-        real(dp) :: ux, du, dD11, dD12, dT, v, eta
+        real(dp) :: ux, du, dD11, dD12, dT, v, eta, sample_weight
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
-        real(dp) :: Hmn2, attenuation_factor
+        real(dp) :: Hmn2, attenuation_factor, layer_factor, layer_nu
         real(dp) :: roots(nlev, 3)
-        integer :: nroots, kr, ku
+        integer :: nroots, kr, ku, sample_count
+        character(len=*), intent(in) :: ledger_path
+        character(len=4) :: orbit_branch
+        character(len=1024), allocatable :: ledger_rows(:)
+        integer :: ledger_count
+        logical :: ledger_enabled
+        real(dp) :: Omph, dOmphdv, dOmphdeta, resonance_residual
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
 
         D = 0.0_dp
         T = 0.0_dp
-        du = (vmax - vmin) / (vsteps * vth)
-        ux = vmin / vth + du / 2.0_dp
+        ledger_enabled = len_trim(ledger_path) > 0
+        if (ledger_enabled) then
+            allocate(ledger_rows(nlev))
+            if (etamax < etatp) then
+                if (sign_vpar > 0.0_dp) then
+                    orbit_branch = 'cop'
+                else
+                    orbit_branch = 'ctr'
+                end if
+            else
+                orbit_branch = 'trap'
+            end if
+        end if
+        if (energy_ratio > 0.0_dp) then
+            du = 0.0_dp
+        else
+            du = (vmax - vmin)/(vsteps*vth)
+        end if
+        sample_count = energy_sample_count(energy_ratio, vsteps)
 
-        do ku = 1, vsteps
+        do ku = 1, sample_count
+            ledger_count = 0
+            ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
+            sample_weight = energy_sample_weight(energy_ratio, ux, du)
             v = ux * vth
+            if (collisional_layer .and. etamax > etatp) &
+                layer_nu = deflection_frequency(v)
             call driftorbit_coarse(v, etamin, etamax, roots, nroots)
             ! No explicit nroots==0 guard: the do-loop below is empty when
             ! nroots==0, and a bare `cycle` here would skip the trailing
@@ -153,17 +211,35 @@ contains
                 attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                            dOmthdv, dOmthdeta, Hmn2)
 
-                dD11 = du * D11int(ux, taub, Hmn2) / abs(eta_res(2))
-                dD12 = du * D12int(ux, taub, Hmn2) / abs(eta_res(2))
+                dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
+                dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
+                if (collisional_layer) then
+                    layer_factor = 1.0_dp
+                    if (eta > etatp) layer_factor = collisional_layer_factor( &
+                        layer_nu, eta, eps, etatp, etadt, abs(eta_res(2)))
+                    dD11 = dD11 * layer_factor
+                    dD12 = dD12 * layer_factor
+                end if
                 D(1) = D(1) + dD11 * attenuation_factor
                 D(2) = D(2) + dD12 * attenuation_factor
 
                 if (comptorque) then
-                    dT = du * Tphi_int(ux, taub, Hmn2) / abs(eta_res(2))
+                    dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
+                    if (collisional_layer) dT = dT * layer_factor
                     T = T + dT * attenuation_factor
                 end if
+                if (ledger_enabled) then
+                    call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+                    resonance_residual = real(mth, dp) * Omth + real(mph, dp) * Omph
+                    ledger_count = ledger_count + 1
+                    write(ledger_rows(ledger_count), *) &
+                        s, selected_species, mth, mph, trim(orbit_branch), ux, eta, &
+                        Omth, Omph, resonance_residual, eta_res(2), taub, Hmn2, &
+                        attenuation_factor, sample_weight, dT*attenuation_factor, istate_dv
+                end if
             end do
-            ux = ux + du
+            if (ledger_enabled) &
+                call append_resonance_ledger(ledger_path, ledger_rows(:ledger_count))
         end do
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
@@ -174,19 +250,67 @@ contains
 
     end subroutine compute_transport_collisionless
 
-    subroutine compute_transport_krook(vmin, vmax, vsteps, D, T)
+    subroutine resonance_ledger_path(path)
+        character(len=*), intent(out) :: path
+        integer :: env_length, env_status
+        path = ''
+        call get_environment_variable('NEORT_RESONANCE_LEDGER', path, &
+            length=env_length, status=env_status)
+        if (env_status == -1) error stop 'NEORT_RESONANCE_LEDGER path is too long'
+        if (env_status /= 0 .or. env_length == 0) then
+            path = ''
+            return
+        end if
+        if (.not. comptorque) error stop 'NEORT_RESONANCE_LEDGER requires comptorque=.true.'
+        if (finite_krook_active()) &
+            error stop 'NEORT_RESONANCE_LEDGER requires collisionless transport'
+    end subroutine resonance_ledger_path
+
+    subroutine append_resonance_ledger(path, rows)
+        character(len=*), intent(in) :: path, rows(:)
+        integer :: unit, k, file_size
+        logical :: exists
+        ! Each worker buffers one speed sample. Separate append units must never
+        ! overlap: locking just WRITE would leave independent file positions stale.
+        !$omp critical(neort_resonance_ledger_io)
+        inquire(file=trim(path), exist=exists, size=file_size)
+        open(newunit=unit, file=trim(path), status='unknown', &
+            position='append', action='write')
+        if (.not. exists .or. file_size == 0) then
+            write(unit, '(A)') '# s species mth mph branch ux eta Omth Omph residual ' &
+                //'dres_deta taub Hmn2 attenuation sample_weight dTds istate'
+        end if
+        do k = 1, size(rows)
+            write(unit, '(A)') trim(rows(k))
+        end do
+        close(unit)
+        !$omp end critical(neort_resonance_ledger_io)
+    end subroutine append_resonance_ledger
+
+    subroutine compute_transport_krook(vmin, vmax, vsteps, energy_ratio, D, T)
         real(dp), intent(in) :: vmin, vmax
         integer, intent(in) :: vsteps
+        real(dp), intent(in) :: energy_ratio
         real(dp), intent(out) :: D(2), T
         real(dp) :: du, ux, values(3), integral(3), D_plateau, dsdreff
-        integer :: ku
+        integer :: ku, sample_count
         integral = 0.0_dp
-        du = (vmax-vmin)/(vsteps*vth)
-        ux = vmin/vth + du/2.0_dp
-        do ku = 1, vsteps
-            call compute_krook_velocity(ux, values)
-            integral = integral + du*values
-            ux = ux + du
+        if (energy_ratio > 0.0_dp) then
+            du = 0.0_dp
+        else
+            du = (vmax-vmin)/(vsteps*vth)
+        end if
+        sample_count = energy_sample_count(energy_ratio, vsteps)
+        do ku = 1, sample_count
+            ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
+            call compute_krook_velocity(ux, values, energy_ratio)
+            ! thermal weights from compute_transport_weight already carry the
+            ! Maxwellian speed density; monoenergetic ones are weight 1.
+            if (energy_ratio > 0.0_dp) then
+                integral = integral + values
+            else
+                integral = integral + du*values
+            end if
         end do
         D_plateau = pi*vth**3/(16.0_dp*R0*iota*(qi*B0/(mi*c))**2)
         dsdreff = 2.0_dp/a*sqrt(s)
@@ -194,8 +318,9 @@ contains
         T = integral(3)
     end subroutine compute_transport_krook
 
-    subroutine compute_krook_velocity(ux, values)
+    subroutine compute_krook_velocity(ux, values, energy_ratio)
         real(dp), intent(in) :: ux
+        real(dp), intent(in), optional :: energy_ratio
         real(dp), intent(out) :: values(3)
         real(dp) :: effective_harmonic, geometry, nu
         integer :: status
@@ -219,7 +344,7 @@ contains
         subroutine weight(eta, result_)
             real(dp), intent(in) :: eta
             real(dp), intent(out) :: result_(:)
-            call compute_transport_weight(ux, eta, result_)
+            call compute_transport_weight(ux, eta, result_, energy_ratio)
         end subroutine weight
     end subroutine compute_krook_velocity
 
@@ -245,8 +370,12 @@ contains
         error stop 'finite-width Krook quadrature did not converge'
     end subroutine report_krook_failure
 
-    subroutine compute_transport_weight(ux, eta, values)
+    subroutine compute_transport_weight(ux, eta, values, energy_ratio)
+        ! With energy_ratio > 0 the weights omit the Maxwellian speed density
+        ! (monoenergetic mode, sample weight 1); otherwise thermal weights.
         real(dp), intent(in) :: ux, eta
+        real(dp), intent(in), optional :: energy_ratio
+        logical :: mono
         real(dp), intent(out) :: values(:)
         real(dp) :: taub, bounceavg(nvar), Hmn2
         integer :: istate
@@ -255,10 +384,18 @@ contains
         call transport_bounce(ux*vth, eta, taub, bounceavg, istate)
         if (istate /= 2) error stop 'orbit integration failed in Krook quadrature'
         Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2.0_dp)**2
-        values(1) = D11int(ux, taub, Hmn2)
-        values(2) = D12int(ux, taub, Hmn2)
+        mono = .false.
+        if (present(energy_ratio)) mono = energy_ratio > 0.0_dp
         values(3) = 0.0_dp
-        if (comptorque) values(3) = Tphi_int(ux, taub, Hmn2)
+        if (mono) then
+            values(1) = D11mono(ux, taub, Hmn2)
+            values(2) = D12mono(ux, taub, Hmn2)
+            if (comptorque) values(3) = Tphi_mono(ux, taub, Hmn2)
+        else
+            values(1) = D11int(ux, taub, Hmn2)
+            values(2) = D12int(ux, taub, Hmn2)
+            if (comptorque) values(3) = Tphi_int(ux, taub, Hmn2)
+        end if
     end subroutine compute_transport_weight
 
     subroutine transport_bounce(v, eta, taub, bounceavg, istate)
@@ -290,9 +427,114 @@ contains
         if (eta > etatp) then
             call trapped_bounce(v, eta, taub, bounceavg, istate, atol)
         else
-            call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate, atol)
+            call passing_bounce(v, eta, taub, bounceavg, istate, atol)
         end if
     end subroutine transport_bounce
+
+    subroutine passing_bounce(v, eta, taub, bounceavg, istate, atol_in)
+        ! Bounce averages of a passing orbit over its closed transit.
+        ! The supplied taub and the module Omth come from the interpolated
+        ! frequency Om_th, which differs from the orbit period by the spline
+        ! error. A time integration over [0, taub] with the phase
+        ! -(mth + q*mph)*Omth*t then neither closes theta nor the phase, and
+        ! the strongly cancelling harmonic picks up an error of that relative
+        ! size times max|H_n|; for ITER C12 at m = -11 this changed its squared
+        ! weight by a factor of about 200, and its noise in eta stopped
+        ! the Krook pitch quadrature. Here the orbit is parametrised by the
+        ! poloidal angle travelled, theta = th0 + direction*phi with
+        ! dt/dphi = 1/|v_parallel*h^theta|, over exactly one transit. A first
+        ! pass gives the period, whose frequency replaces Omth in the phase
+        ! during the second pass, as in trapped_bounce. The two passes take
+        ! different steps, and their periods differ by the ODE error (about
+        ! 1e-11 for ITER C12 at s = 0.09). The phase then did not close on the
+        ! second pass by (mth + q*mph)*2*pi times that, which for harmonics
+        ! cancelling to |<H_n>| ~ 1e-7*max|H_n| made the weight noisy by 1e-4
+        ! in eta and exhausted the Krook piece budget. The second pass
+        ! therefore also integrates d/dOmth of the harmonic and moves it to
+        ! the frequency of its own period, to first order in the difference.
+        use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
+        use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
+            FORTNUM_CONVERGENCE_ERROR
+        real(dp), intent(in) :: v, eta, taub, atol_in(nvar)
+        real(dp), intent(out) :: bounceavg(nvar)
+        integer, intent(out) :: istate
+        integer, parameter :: neq = nvar + 2
+        real(dp) :: direction, sign_vparallel, saved_omth, y0(neq), atol(neq)
+        real(dp) :: position(3), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+        real(dp) :: harmonic, period_omth
+        real(dp), allocatable :: yend(:)
+        integer :: pass
+        logical :: averages
+        type(vode_state_t) :: vstate
+        type(fortnum_status_t) :: status
+
+        ! Same orientation as bounce_fast: v_parallel = sign(h^theta)*sign_vpar*|v_par|
+        ! at th0, so theta moves in the direction of sign_vpar.
+        position = [s, 0.0_dp, th0]
+        call do_magfie(position, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+        sign_vparallel = sign(1.0_dp, hctrvr(3))*sign(1.0_dp, sign_vpar)
+        direction = sign(1.0_dp, sign_vparallel*hctrvr(3))
+        atol(:nvar) = atol_in
+        atol(1) = bounce_rtol*taub
+        atol(nvar + 1:) = atol(3:4)*taub
+        harmonic = real(mth, dp) + q*mph
+        bounceavg = 0.0_dp
+        saved_omth = Omth
+        do pass = 1, 2
+            averages = pass == 2
+            y0 = 0.0_dp
+            call vode_init(vstate, neq, 0.0_dp, y0)
+            call vode_integrate_to(phi_rhs, vstate, 2.0_dp*pi, bounce_rtol, atol, &
+                                   yend, status)
+            if (status%code == FORTNUM_OK) then
+                istate = 2
+            else if (status%code == FORTNUM_CONVERGENCE_ERROR) then
+                istate = -1
+            else
+                istate = 0
+            end if
+            if (istate /= 2) exit
+            period_omth = sign(2.0_dp*pi/yend(1), saved_omth)
+            if (pass == 2) then
+                yend(3) = yend(3) + (period_omth - Omth)*yend(nvar + 1)
+                yend(4) = yend(4) + (period_omth - Omth)*yend(nvar + 2)
+            end if
+            Omth = period_omth
+        end do
+        Omth = saved_omth
+        if (istate /= 2) return
+        bounceavg(3:) = yend(3:nvar)/yend(1)
+
+    contains
+
+        subroutine phi_rhs(phi, y, dydphi, rhs_ctx)
+            real(dp), intent(in) :: phi
+            real(dp), intent(in) :: y(:)
+            real(dp), intent(out) :: dydphi(:)
+            class(*), intent(in), optional :: rhs_ctx
+            real(dp) :: dtdphi, vparallel, orbit(nvar), rate(nvar), x(3)
+            real(dp) :: bmod_, sqrtg_, hder_(3), hcovar_(3), hctrvr_(3), hcurl_(3)
+            associate (dummy => rhs_ctx)
+            end associate
+            x = [s, 0.0_dp, th0 + direction*phi]
+            call do_magfie(x, bmod_, sqrtg_, hder_, hcovar_, hctrvr_, hcurl_)
+            vparallel = vpar(v, eta, bmod_)
+            dtdphi = 1.0_dp/(vparallel*abs(hctrvr_(3)))
+            dydphi = 0.0_dp
+            dydphi(1) = dtdphi
+            if (.not. averages) return
+            orbit = 0.0_dp
+            orbit(1) = x(3)
+            orbit(2) = sign(vparallel, sign_vparallel)
+            orbit(3:) = y(3:nvar)
+            call transport_rates(v, eta, nvar, y(1), orbit, bmod_, hder_, hcovar_, &
+                                 hctrvr_, rate)
+            dydphi(3:nvar) = rate(3:)*dtdphi
+            ! d/dOmth of the harmonic exp(-i*harmonic*Omth*t)*H_n.
+            dydphi(nvar + 1) = harmonic*y(1)*rate(4)*dtdphi
+            dydphi(nvar + 2) = -harmonic*y(1)*rate(3)*dtdphi
+        end subroutine phi_rhs
+    end subroutine passing_bounce
 
     subroutine trapped_bounce(v, eta, taub, bounceavg, istate, atol_in)
         ! Bounce averages of a trapped orbit over its closed orbit.

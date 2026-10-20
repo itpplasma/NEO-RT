@@ -8,7 +8,8 @@ module driftorbit
     use do_magfie_mod
     use do_magfie_pert_mod, only: do_magfie_pert_amp, mph
     use spline
-    use neort_profiles, only: vth, M_t, ni1, Om_tE, A1, A2, dM_tds, dni1ds, dOm_tEds
+    use neort_profiles, only: vth, M_t, ni1, Om_tE, A1, A2, dM_tds, dni1ds, dOm_tEds, &
+        nonlin
     use collis_alp, only: coleff
 
     implicit none
@@ -55,9 +56,6 @@ module driftorbit
     ! Number of levels for coarse root finding
     integer, parameter :: nlev = 100
     real(dp) :: sign_vpar = 1.0_dp, sign_vpar_htheta = 1.0_dp
-
-    ! Nonlinear calculation switch
-    logical :: nonlin = .false.
 
     ! Flux-surface dependent and working variables (computed/modified per-thread)
     !$omp threadprivate (mth, dVds, etadt, etatp, etamin, etamax)

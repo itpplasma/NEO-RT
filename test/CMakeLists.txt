@@ -1,6 +1,23 @@
 find_package(Python REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME test_profile_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_profile_probe.py
+            $<TARGET_FILE:neo_rt_profile_probe.x>
+            ${CMAKE_SOURCE_DIR}/tools/run_profile_probe.py)
+    set_tests_properties(test_profile_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+    add_test(NAME test_field_probe
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_field_probe.py
+            $<TARGET_FILE:neo_rt_field_probe.x>
+            --wrapper ${CMAKE_SOURCE_DIR}/tools/run_field_probe.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}/field_probe_oracle)
+    set_tests_properties(test_field_probe PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+endif()
+
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})
@@ -94,19 +111,46 @@ set_tests_properties(test_parallel_transport PROPERTIES
     TIMEOUT 600
 )
 
+add_test(NAME test_circular_offset_rotation
+    COMMAND ${CMAKE_BINARY_DIR}/test_circular_offset_rotation.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+set_tests_properties(test_circular_offset_rotation PROPERTIES
+    ENVIRONMENT
+        "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
+    PROCESSORS 4
+    TIMEOUT 600
+)
+
 # test_chartmap_input: Boozer chartmap field I/O test (inp_swi=10).
 #
 # The reference chartmap fixture (test/fixtures/circ_chartmap.nc) was generated
 # once from examples/circ.bc via the libneo converters (bc_to_booz_xform +
-# booz_xform_to_boozer_chartmap, nrho=50 ntheta=64 nzeta=4) and committed into
-# the repo.  No converter toolchain is required at test time.
+# booz_xform_to_boozer_chartmap, nrho=200 ntheta=64 nzeta=4) and committed into
+# the repo.  No converter toolchain is required at test time.  After the
+# circ.bc header flux sign fix (#180) torflux and A_phi change sign together.
+# Bmod samples NEO-RT's natural cubic spline in s on a resolved rho grid;
+# this preserves its radial derivative for the trapped-precession cross-check.
 #
-# Phase 1: sign/sanity check (bmod>0, sqrtg>0, iota>0, Bthcov>0, Bphcov>0).
+# Phase 1: sign/sanity check (bmod>0, sqrtg<0, iota>0, Bthcov>0, Bphcov>0).
 # Phase 2: cross-check vs the .bc path (relative tolerance 1e-4).
 # Both phases run unconditionally in CI.
 add_test(NAME test_chartmap_input
     COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_input.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+
+# test_chartmap_transport: D11 from the chartmap fixture (inp_swi=10) against
+# the .bc route (inp_swi=8) for the same field and analytic perturbation.
+add_test(NAME test_chartmap_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_transport.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_chartmap_transport PROPERTIES
+    ENVIRONMENT
+        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc;OMP_NUM_THREADS=4"
+    TIMEOUT 600
 )
 
 add_test(NAME test_s_outside_data
@@ -132,6 +176,44 @@ add_test(NAME test_hcurl_axisymmetric
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+# Load-time Boozer orientation guard (#180): the consistent circular file and the
+# ASDEX-type golden-record file load; flux-flipped copies of both are rejected.
+function(add_boozer_orientation_tests name file swi)
+    add_test(NAME test_boozer_orientation_accept_${name}
+        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x accept ${file} ${swi}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    add_test(NAME test_boozer_orientation_reject_${name}
+        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x flip ${file} ${swi}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    set_tests_properties(test_boozer_orientation_reject_${name} PROPERTIES
+        PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation"
+    )
+    add_test(NAME test_boozer_orientation_magnitude_${name}
+        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x scale ${file} ${swi}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_scale_${name}
+    )
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_scale_${name})
+    set_tests_properties(test_boozer_orientation_magnitude_${name} PROPERTIES
+        PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation"
+    )
+endfunction()
+add_boozer_orientation_tests(circ ${CMAKE_SOURCE_DIR}/examples/circ.bc 8)
+add_boozer_orientation_tests(golden ${CMAKE_SOURCE_DIR}/test/golden_record/input/in_file 9)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
+add_test(NAME test_boozer_orientation_nan_flux
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x nan_flux
+        ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
+set_tests_properties(test_boozer_orientation_nan_flux PROPERTIES
+    PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation")
+add_test(NAME test_boozer_orientation_drift_circ
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x drift
+        ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -146,6 +228,21 @@ add_test(NAME test_krook_passing_weight
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 set_tests_properties(test_krook_passing_weight PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_magfie_bmax
+    COMMAND ${CMAKE_BINARY_DIR}/test_magfie_bmax.x
+        ${CMAKE_CURRENT_BINARY_DIR}/test_magfie_bmax.in
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/golden_record/input
+)
+set_tests_properties(test_magfie_bmax PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_krook_passing_harmonic
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_passing_harmonic.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_krook_passing_harmonic PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_trapped_weight
@@ -195,6 +292,21 @@ foreach(invalid density temperature)
     set_tests_properties(test_profile_invalid_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME test_linear_carbon_background COMMAND test_linear_carbon_background.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_carbon_background PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+
+add_test(NAME test_linear_electron COMMAND test_linear_electron.x)
+add_test(NAME test_nonlinear_electron_rejects
+    COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:test_linear_electron.x>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_nonlinear_electron_rejection.cmake)
+add_test(NAME test_linear_electron_transport COMMAND test_linear_electron.x transport
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_electron test_nonlinear_electron_rejects
+    test_linear_electron_transport PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+
 add_test(NAME test_drift_phase
     COMMAND ${CMAKE_BINARY_DIR}/test_drift_phase.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
@@ -225,6 +337,30 @@ add_test(NAME test_harmonic_bounds
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_collisional_layer_parallel
+    COMMAND test_parallel.x collisional-layer
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_collisional_layer_parallel PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=3;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 3 TIMEOUT 120)
+
+add_test(NAME test_collisional_layer_config_reset
+    COMMAND test_collisional_layer.x config-reset
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/ripple_plateau)
+
+add_test(NAME test_collisional_layer_table
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_collisional_layer_table.py
+        $<TARGET_FILE:test_collisional_layer.x>)
+add_test(NAME test_collisional_layer_generator
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate_collisional_layer.py --check)
+set_tests_properties(test_collisional_layer_table test_collisional_layer_generator
+    PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1" TIMEOUT 120)
+
+add_test(NAME test_collisional_layer
+    COMMAND test_collisional_layer.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_passing_drift_derivative
     COMMAND test_passing_drift_derivative.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
@@ -232,6 +368,11 @@ add_test(NAME test_passing_drift_derivative
 
 add_test(NAME test_vmax_over_vth
     COMMAND test_vmax_over_vth.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_energy_distribution
+    COMMAND test_energy_distribution.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -249,9 +390,23 @@ add_test(NAME test_curvature_drive
 )
 set_tests_properties(test_curvature_drive PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_bounce_counter_passing
+    COMMAND ${CMAKE_BINARY_DIR}/test_bounce_counter_passing.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+add_test(NAME test_transport_branch_state
+    COMMAND ${CMAKE_BINARY_DIR}/test_transport_branch_state.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_transport_branch_state PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME test_shaing_drift_cylindrical
+    COMMAND ${CMAKE_BINARY_DIR}/test_shaing_drift_cylindrical.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
@@ -365,4 +520,23 @@ endforeach()
 
 add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
 set_tests_properties(test_krook_work_oracle PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+foreach(ledger_case IN ITEMS thermal mono parallel species krook no-torque)
+    add_test(NAME test_resonance_ledger_${ledger_case}
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_resonance_ledger.py
+            $<TARGET_FILE:test_resonance_ledger.x> ${CMAKE_SOURCE_DIR}/examples/base
+            ${ledger_case})
+    set_tests_properties(test_resonance_ledger_${ledger_case} PROPERTIES
+        PROCESSORS 2 TIMEOUT 180)
+endforeach()
+# Manufactured fold: a resonance root pair inside one coarse eta interval.
+add_test(NAME test_resonance_fold_pairs
+    COMMAND test_resonance_fold_pairs.x)
+set_tests_properties(test_resonance_fold_pairs PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+# A fold pair fills storage before a later ordinary sign-change bracket.
+add_test(NAME test_resonance_root_capacity COMMAND test_resonance_root_capacity.x)
+set_tests_properties(test_resonance_root_capacity PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)

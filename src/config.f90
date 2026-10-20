@@ -20,6 +20,7 @@ module neort_config
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
+        logical :: collisional_layer = .false.  ! optional boundary-layer closure
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: drift_phase = .false.  ! keep oscillating drift phase in orbit integral
         logical :: fow_radial = .false.  ! first-order radial orbit width in amplitude
@@ -52,6 +53,7 @@ module neort_config
         integer :: vsteps = 0  ! integration steps in velocity space
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
+        real(dp) :: monoenergetic_x = -1.0_dp  ! -1: thermal; positive: E/T
         integer :: log_level = 0  ! how much to log
         character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
         !*! will be overwritten if using splines from plasma.in and profile.in files
@@ -70,8 +72,10 @@ contains
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, pertfile_curvature, &
             nonlin, efac, supban, drift_phase, fow_radial
+        use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
-        use neort, only: vsteps, mth_max_abs, vmax_over_vth
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
+        use kinetic_energy_selection, only: validate_energy_ratio
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
@@ -91,6 +95,7 @@ contains
         m0 = config%m0
         mph = config%mph
         comptorque = config%comptorque
+        collisional_layer = config%collisional_layer
         supban = config%supban
         drift_phase = config%drift_phase
         fow_radial = config%fow_radial
@@ -115,6 +120,8 @@ contains
         mth_max_abs = config%mth_max_abs
         if (config%vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         vmax_over_vth = config%vmax_over_vth
+        call validate_energy_ratio(config%monoenergetic_x)
+        monoenergetic_x = config%monoenergetic_x
         output_format = config%output_format
         call validate_output_format(output_format)
 
@@ -131,8 +138,10 @@ contains
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, pertfile_curvature, &
             nonlin, efac, supban, drift_phase, fow_radial
+        use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
-        use neort, only: vsteps, mth_max_abs, vmax_over_vth
+        use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
+        use kinetic_energy_selection, only: validate_energy_ratio
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
@@ -143,15 +152,17 @@ contains
         integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
-            supban, drift_phase, fow_radial, &
+            supban, collisional_layer, drift_phase, fow_radial, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, pertfile_curvature, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format, &
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, log_level, output_format, &
             profile_species, species_file, krook_collisions, krook_nu, krook_model, krook_harmonic, &
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
             krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale
 
+        collisional_layer = .false.
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
+        monoenergetic_x = -1.0_dp
         inp_swi_pert = -1
         pertfile_curvature = .false.
         output_format = "both"
@@ -176,6 +187,7 @@ contains
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
+        call validate_energy_ratio(monoenergetic_x)
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)

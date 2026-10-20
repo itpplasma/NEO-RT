@@ -74,6 +74,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `vsteps` | Number of velocity grid points. | Set to `0` for adaptive quadrature. |
 | `mth_max_abs` | Maximum absolute orbit-resonance harmonic. | Default `-1` keeps the historical `±ceil(2\|mph q\|)` range; `0` selects only `mth=0`. |
 | `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
+| `monoenergetic_x` | Select one normalized kinetic energy, `x=E/T`. | Default `-1` performs the Maxwellian velocity integral; a positive value returns the delta-normalized monoenergetic kernel at `u=v/vth=sqrt(x)`. |
 | `inp_swi_pert` | Input format for `in_file_pert` with the standalone field reader. | Default `-1` inherits `inp_swi`; set `9` to combine an axisymmetric chartmap (`inp_swi=10`) with a Strumberger perturbation `.bc`. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
 
@@ -162,3 +163,24 @@ Detailed column descriptions are provided in [`doc/file_formats.md`](file_format
 ## Diagnostics program
 
 `neo_rt_diag.x` links the solver library with visualisation helpers. The drivers in `src/diag` expose additional CLI programs for debugging orbit trajectories, inspecting harmonic contributions, and plotting attenuation maps. Refer to the comments in `src/diag/*.f90` for usage examples.
+
+Set `NEORT_RESONANCE_LEDGER=/path/to/roots.txt` with `comptorque=.true.` to
+append one row per collisionless resonance root. The header names every column:
+`species` is the one-based mixture index (1 for a single species), `branch` is
+`cop`, `ctr`, or `trap`, and `dres_deta` is the derivative of
+`mth*Omth + mph*Omph` at the root. `sample_weight` is the actual energy weight
+(midpoint Maxwellian weight or 1 for a monoenergetic sample). `dTds` includes
+that weight and nonlinear attenuation: sum it by surface, species, harmonic,
+and branch to reconstruct native `_torque_integral.out` values. No extra
+velocity step or attenuation factor is needed. Frequencies, bounce time,
+perturbation weight, attenuation, and integrator status are also recorded.
+
+OpenMP workers buffer rows and serialize each complete append transaction.
+Use a separate pathname for each process; cross-process appends are unsupported.
+Finite-width Krook transport has no discrete root ledger and rejects an enabled
+ledger request. With the variable unset, no ledger is written.
+
+`neo_rt_diag.x bounce_debug <runname> [mth] [all|cop|ctr|trap]` filters the bounce
+probe by harmonic and branch and reports both frequencies, their resonance
+residual, and its eta derivative. The speed scan now uses the configured
+`vmax_over_vth` (default 4), replacing the former fixed upper limit of 3.
