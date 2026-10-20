@@ -12,7 +12,7 @@ module neort_transport
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2, &
-        bounce_rtol, bounce_atol, th0, vpar, sync_parallel_direction
+        bounce_rtol, bounce_atol, th0, vpar
     use neort_resonance, only: driftorbit_coarse, driftorbit_root, resonance_value
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
@@ -143,11 +143,6 @@ contains
         integer :: nroots, kr, ku, sample_count
 
         call debug(fmt_dbg('compute_transport_integral: vmin=', vmin, ' vmax=', vmax, ' vsteps=', dble(vsteps)))
-
-        ! compute_transport_harmonic changes sign_vpar between orbit classes.
-        ! Root search uses sign_vpar_htheta before bounce_fast has a chance to
-        ! initialize it, so synchronize the cached coordinate-aware sign here.
-        call sync_parallel_direction()
 
         D = 0.0_dp
         T = 0.0_dp

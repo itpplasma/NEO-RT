@@ -364,6 +364,8 @@ add_test(NAME test_transport_branch_state
     COMMAND ${CMAKE_BINARY_DIR}/test_transport_branch_state.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+set_tests_properties(test_transport_branch_state PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

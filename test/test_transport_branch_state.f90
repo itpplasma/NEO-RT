@@ -13,6 +13,7 @@ program test_transport_branch_state
 
     real(dp) :: D_from_negative_cache(2), D_from_positive_cache(2)
     real(dp) :: T_from_negative_cache, T_from_positive_cache
+    integer :: direction
     real(dp) :: scale
 
     call set_log_level(-1)
@@ -21,39 +22,45 @@ program test_transport_branch_state
     call neort_setup_at_s(0.5_dp)
     Om_tE = 0.0_dp
 
-    ! This base-fixture branch has a nonzero passing resonance.  On the old
-    ! implementation its D differs by an order of magnitude between the two
-    ! injected cache states (about 4.64e-10 versus 4.65e-9).
-    mth = -3
     mph = 3
-    sign_vpar = 1.0_dp
     call set_to_passing_region(etamin, etamax)
 
-    sign_vpar_htheta = -1.0_dp
-    call compute_transport_integral(1.0e-6_dp*vth, 4.0_dp*vth, 32, &
-        D_from_negative_cache, T_from_negative_cache)
+    ! Different harmonics provide nonzero resonances in the two directions
+    ! for the base equilibrium at s=0.5 and zero electric precession.
+    do direction = 1, -1, -2
+        mth = merge(-4, -3, direction == 1)
+        sign_vpar = real(direction, dp)
 
-    sign_vpar_htheta = 1.0_dp
-    call compute_transport_integral(1.0e-6_dp*vth, 4.0_dp*vth, 32, &
-        D_from_positive_cache, T_from_positive_cache)
+        sign_vpar_htheta = -1.0_dp
+        call compute_transport_integral(1.0e-6_dp*vth, 4.0_dp*vth, 32, -1.0_dp, &
+            D_from_negative_cache, T_from_negative_cache)
 
-    if (maxval(abs(D_from_negative_cache)) <= tiny(1.0_dp)) then
-        error stop 'branch-state fixture no longer has a transport signal'
-    end if
+        sign_vpar_htheta = 1.0_dp
+        call compute_transport_integral(1.0e-6_dp*vth, 4.0_dp*vth, 32, -1.0_dp, &
+            D_from_positive_cache, T_from_positive_cache)
 
-    scale = max(maxval(abs(D_from_negative_cache)), &
-        maxval(abs(D_from_positive_cache)), tiny(1.0_dp))
-    if (maxval(abs(D_from_negative_cache-D_from_positive_cache)) > &
-        1.0e-12_dp*scale) then
-        error stop 'transport depends on stale parallel-direction cache'
-    end if
+        if (any(D_from_negative_cache <= 1.0e-14_dp) .or. &
+            abs(T_from_negative_cache) <= 1.0e-2_dp) then
+            error stop 'branch-state fixture no longer has a transport signal'
+        end if
 
-    scale = max(abs(T_from_negative_cache), abs(T_from_positive_cache), &
-        tiny(1.0_dp))
-    if (abs(T_from_negative_cache-T_from_positive_cache) > &
-        1.0e-12_dp*scale) then
-        error stop 'torque depends on stale parallel-direction cache'
-    end if
+        scale = max(maxval(abs(D_from_negative_cache)), &
+            maxval(abs(D_from_positive_cache)), tiny(1.0_dp))
+        if (maxval(abs(D_from_negative_cache-D_from_positive_cache)) > &
+            1.0e-12_dp*scale) then
+            error stop 'transport depends on stale parallel-direction cache'
+        end if
 
+        scale = max(abs(T_from_negative_cache), abs(T_from_positive_cache), &
+            tiny(1.0_dp))
+        if (abs(T_from_negative_cache-T_from_positive_cache) > &
+            1.0e-12_dp*scale) then
+            error stop 'torque depends on stale parallel-direction cache'
+        end if
+
+        print *, 'direction, mth, D(-cache), D(+cache), T(-cache), T(+cache):', &
+            direction, mth, D_from_negative_cache, D_from_positive_cache, &
+            T_from_negative_cache, T_from_positive_cache
+    end do
     print *, 'test_transport_branch_state PASSED'
 end program test_transport_branch_state
