@@ -17,28 +17,35 @@ SKIP = 77
 DEFAULT_CASE = Path("potato_benchmarks/rung4_torque_30835/run/potato_zero_mid")
 
 
-# The outputs agree across platforms only to rounding (macOS arm64 gives a
-# relative integral-torque difference of 6e-8 against the Linux baseline), so
-# compare with a relative tolerance rather than bitwise. 1e-6 leaves a factor
-# of about 15 above that spread and still catches any physics change.
+# The observed cross-platform integral-torque spread is 6e-8. Keep margin
+# for rounding while checking every output value and its row association.
 RTOL = 1.0e-6
 
 
-def column_stats(path):
-    """Shape and per-column sum and sum of |x|; independent of row order."""
-    data = np.loadtxt(path)
-    if data.ndim == 1:
-        data = data.reshape(1, -1)
-    return list(data.shape), data.sum(axis=0), np.abs(data).sum(axis=0)
-
-
-def column_scale(abs_sum, groups):
-    """Tolerance scale per column: its own sum of |x|, or the summed sum of |x|
-    of its group for columns that share a physical unit (torque per mode)."""
-    scale = np.array(abs_sum, dtype=float)
-    for group in groups:
-        scale[group] = scale[group].sum()
-    return scale
+def compare_rows(data, reference, key_columns, scale_groups=()):
+    """Compare canonical rows, preserving coordinates and mode associations."""
+    if data.shape != reference.shape:
+        return f"shape {data.shape} != {reference.shape}"
+    if not np.all(np.isfinite(data)):
+        return "nonfinite output"
+    order = lambda rows: np.lexsort(tuple(rows[:, i] for i in reversed(key_columns)))
+    data = data[order(data)]
+    reference = reference[order(reference)]
+    scale = np.abs(reference)
+    for group in scale_groups:
+        # High torque modes approach roundoff. Use the largest torque in the
+        # same row, rather than a sum over unrelated rows or physical units.
+        scale[:, group] = np.max(scale[:, group], axis=1, keepdims=True)
+    error = np.abs(data - reference)
+    mismatch = error > RTOL * scale
+    if np.any(mismatch):
+        row, col = np.argwhere(mismatch)[0]
+        return (
+            f"row {row} column {col}: {data[row, col]!r} vs "
+            f"{reference[row, col]!r} (error {error[row, col]:.2e} > "
+            f"tolerance {RTOL * scale[row, col]:.2e})"
+        )
+    return None
 
 
 def copy_case(src, dst):
@@ -95,22 +102,15 @@ def main():
             )
             return 1
 
-        for name, expected in golden["files"].items():
-            shape, col_sum, abs_sum = column_stats(work / name)
-            if shape != expected["shape"]:
-                print(f"{name} shape {shape} != {expected['shape']}")
-                return 1
-            scale = column_scale(expected["abs_sum"], expected.get("scale_groups", []))
-            dev = np.abs(col_sum - np.array(expected["sum"])) / np.where(
-                scale > 0.0, scale, 1.0
-            )
-            if not np.all(dev <= RTOL):
-                col = int(np.argmax(dev))
-                print(
-                    f"{name} column {col} sum {col_sum[col]!r} vs "
-                    f"{expected['sum'][col]!r} (relative {dev[col]:.2e} > {RTOL:.0e})"
+        with np.load(golden_path.parent / golden["rows_file"]) as references:
+            for name, expected in golden["files"].items():
+                error = compare_rows(
+                    np.loadtxt(work / name, ndmin=2), references[name],
+                    expected["key_columns"], expected.get("scale_groups", []),
                 )
-                return 1
+                if error:
+                    print(f"{name} mismatch: {error}")
+                    return 1
 
     return 0
 

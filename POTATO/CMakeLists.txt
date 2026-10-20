@@ -258,6 +258,10 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 240
     )
+    add_test(NAME potato_golden_comparison
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_golden_comparison.py
+    )
     add_test(NAME potato_resonance_probe_clip
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/resonance_probe_clip/test_probe_clip.py
