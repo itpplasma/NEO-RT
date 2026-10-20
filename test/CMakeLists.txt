@@ -566,3 +566,10 @@ set_tests_properties(test_separatrix_limit PROPERTIES
 add_test(NAME test_resonance_acceptance COMMAND test_resonance_acceptance.x)
 
 add_test(NAME test_separatrix_cosine COMMAND test_separatrix_cosine.x)
+
+add_test(NAME test_krook_c12_cancellation
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_c12_cancellation.py
+        $<TARGET_FILE:test_krook_c12_cancellation.x>
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_c12_main.tar.xz)
+set_tests_properties(test_krook_c12_cancellation PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 90)
