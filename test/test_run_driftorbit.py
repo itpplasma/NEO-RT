@@ -24,20 +24,25 @@ def write_template(path: Path) -> Path:
     return path
 
 
-def test_absolute_executable_receives_runname(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("absolute", [True, False])
+def test_executable_receives_literal_runname(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, absolute: bool,
+):
     marker = tmp_path / "argv.txt"
     executable = make_executable(
-        tmp_path / "fake-success",
-        f'printf "%s" "$1" > "{marker}"\n',
+        tmp_path / "fake success",
+        f'printf "%s\\n" "$#" "$1" > "{marker}"\n',
     )
     monkeypatch.chdir(tmp_path)
 
+    runname = "surface 0; touch injected"
     run_driftorbit.run_single_flux_surface(
-        str(executable), str(write_template(tmp_path / "template.in")),
-        "surface0", 0.1, 0.2, 0.3, 1.0,
+        str(executable) if absolute else "./fake success",
+        str(write_template(tmp_path / "template.in")),
+        runname, 0.1, 0.2, 0.3, 1.0,
     )
 
-    assert marker.read_text() == "surface0"
+    assert marker.read_text() == f"1\n{runname}\n"
 
 
 def test_single_failure_is_propagated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -72,6 +77,7 @@ def test_multi_surface_failure_is_propagated(tmp_path: Path, monkeypatch: pytest
         )
 
     assert error.value.returncode == 7
+    assert not (tmp_path / "surface1.in").exists()
 
 
 @pytest.mark.parametrize("local_executable", [True, False])
