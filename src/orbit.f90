@@ -14,6 +14,13 @@ module neort_orbit
     implicit none
 
     integer, parameter :: nvar = 7
+    ! Orbit integration tolerances: relative, and per-component absolute.
+    ! Near the trapped-passing boundary the bounce time and the bounce
+    ! averages are ill-conditioned: at rtol 1e-9 the frequency-spline data
+    ! there were noisy enough to make the interpolated resonance residual
+    ! non-monotone within 1e-5*etatp of the boundary, and the transport weight
+    ! noisy by ~1e-3.  At 1e-13 both are smooth, for about twice the cost.
+    real(dp), parameter :: bounce_rtol = 1.0e-13_dp, bounce_atol = 1.0e-10_dp
     real(dp) :: th0 = 0.0_dp
 
     logical :: noshear = .false. ! neglect magnetic shear
@@ -152,7 +159,7 @@ contains
         end if
     end function vperp
 
-    subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out)
+    subroutine bounce_fast(v, eta, taub, bounceavg, ts, istate_out, atol_in)
         use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
         use fortnum_status, only: fortnum_status_t, FORTNUM_OK, &
             FORTNUM_CONVERGENCE_ERROR
@@ -161,15 +168,17 @@ contains
         real(dp), intent(out) :: bounceavg(nvar)
         procedure(timestep_i) :: ts
         integer, intent(out), optional :: istate_out
+        ! Per-component absolute tolerances replacing bounce_atol, for
+        ! integrands whose natural scale is far from the default's.
+        real(dp), intent(in), optional :: atol_in(nvar)
 
         ! Nonstiff variable-order Adams (fortnum vode, DVODE MF=10) integrated
-        ! over the single bounce span [0, taub], relative tolerance 1e-9 and a
-        ! per-component absolute tolerance 1e-10 (DVODE ITOL=2). This is the
-        ! same method NEO-RT drove through DVODE before the migration, so the
+        ! over the single bounce span [0, taub], relative tolerance bounce_rtol
+        ! and per-component absolute tolerance bounce_atol (DVODE ITOL=2). This
+        ! is the same method NEO-RT drove through DVODE before the migration, so the
         ! variable-order controller resolves the oscillatory bounceavg(3:4)
         ! Hamiltonian integrands without an artificial step cap.
-        real(dp), parameter :: rtol = 1.0e-9_dp
-        real(dp), parameter :: atol_val = 1.0e-10_dp
+        real(dp), parameter :: rtol = bounce_rtol
 
         real(dp) :: t1, t2, bmod, htheta
         real(dp) :: y0(nvar), atol(nvar)
@@ -190,7 +199,8 @@ contains
         y0(2) = sign_vpar_htheta * vpar(v, eta, bmod)
         y0(3:6) = 0.0_dp
 
-        atol = atol_val
+        atol = bounce_atol
+        if (present(atol_in)) atol = atol_in
         call vode_init(vstate, nvar, t1, y0)
         call vode_integrate_to(bounce_rhs, vstate, t2, rtol, atol, yend, status)
 
@@ -296,8 +306,8 @@ contains
         ! Number of dt-sized chunks the search window spans, matching the old
         ! chunked DVODE search that advanced in dt steps up to this many turns.
         integer, parameter :: n_turns = 500
-        real(dp), parameter :: rtol = 1.0e-9_dp
-        real(dp), parameter :: atol_val = 1.0e-10_dp
+        real(dp), parameter :: rtol = bounce_rtol
+        real(dp), parameter :: atol_val = bounce_atol
 
         type(vode_state_t) :: vstate
         type(fortnum_status_t) :: status
@@ -317,10 +327,10 @@ contains
         ! Reproduce the DVODE bounceroots search: two event functions monitored
         ! with NEVENTS=2, advancing in dt-sized chunks, stop at the first root
         ! of either that satisfies the turn acceptance test. fortnum vode
-        ! locates the root on its own Nordsieck interpolant (relerr 1e-9,
-        ! per-component abserr 1e-10, ITOL=2), so taub is the located root.
+        ! locates the root on its own Nordsieck interpolant (relerr bounce_rtol,
+        ! per-component abserr bounce_atol, ITOL=2), so taub is the located root.
         !   g1 = theta - th0          (trapped: return to th0)
-        !   g2 = 2*pi - (theta - th0) (passing: full +2*pi turn)
+        !   g2 = 2*pi - abs(theta - th0) (passing: one full turn either way)
         ! DVODE accepted a root when passing, or when theta entered from below
         ! th0 (the old (yold(1)-th0) < 0 filter); otherwise it kept integrating.
         call vode_init(vstate, neq, 0.0_dp, y0)
@@ -398,7 +408,7 @@ contains
             g = y_(1) - th0
         end function root_theta
 
-        ! DVODE bounceroots GOUT(2): theta advances by 2*pi (passing turn).
+        ! A passing orbit advances by one full turn in either poloidal direction.
         function root_turn(t_, y_, ctx_) result(g)
             real(dp), intent(in) :: t_
             real(dp), intent(in) :: y_(:)
@@ -406,9 +416,26 @@ contains
             real(dp) :: g
             associate (dummy_t => t_, dummy_c => ctx_)
             end associate
-            g = 2.0_dp * pi - (y_(1) - th0)
+            g = 2.0_dp * pi - abs(y_(1) - th0)
         end function root_turn
     end function bounce_integral
+
+    function Om_tB_local_v2(eta, bmod, hder1, hctrvr3) result(Om_tB_v)
+        ! Local toroidal magnetic drift frequency divided by v**2
+        real(dp), intent(in) :: eta, bmod, hder1, hctrvr3
+        real(dp) :: Om_tB_v
+        real(dp) :: shearterm
+
+        shearterm = Bphcov * dqds
+        if (noshear) then
+            shearterm = 0
+        end if
+
+        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
+            -(2.0_dp - eta * bmod) * bmod * hder1 &
+            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr3 * &
+            (dBthcovds + q * dBphcovds + shearterm))
+    end function Om_tB_local_v2
 
     subroutine timestep(v, eta, neq, t, y, ydot)
         !
@@ -425,22 +452,13 @@ contains
 
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         real(dp) :: Om_tB_v
-        real(dp) :: shearterm
 
         x(1) = s
         x(2) = 0.0_dp
         x(3) = y(1)
         call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
 
-        shearterm = Bphcov * dqds
-        if (noshear) then
-            shearterm = 0
-        end if
-
-        Om_tB_v = mi * c * q / (2.0_dp * qi * sign_theta * psi_pr * bmod) * ( & ! Om_tB/v**2
-            -(2.0_dp - eta * bmod) * bmod * hder(1) &
-            + 2.0_dp * (1.0_dp - eta * bmod) * hctrvr(3) * &
-            (dBthcovds + q * dBphcovds + shearterm))
+        Om_tB_v = Om_tB_local_v2(eta, bmod, hder(1), hctrvr(3))
 
         ydot(1) = y(2) * hctrvr(3) ! theta
         ydot(2) = -0.5_dp * v**2 * eta * hctrvr(3) * hder(3) * bmod ! v_par

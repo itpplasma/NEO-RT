@@ -67,6 +67,18 @@ def main() -> int:
         if not np.array_equal(zero_coefficients, np.zeros(4)):
             raise AssertionError("zero-frequency control produced a nonzero potential")
 
+        tabulated = root / "profile_table.in"
+        table_metadata = MODULE.convert(
+            profile, plasma, geometry, tabulated, r0_cm=100.0,
+            psi_span_tm2=2.0, relation_sign=-1, output_format="table",
+        )
+        values = np.loadtxt(tabulated, skiprows=2)
+        np.testing.assert_allclose(values[:, 1], (1-.4*values[:, 0])*1e14, rtol=1e-15)
+        np.testing.assert_allclose(values[:, 2], (1-.4*values[:, 0])*1e4, rtol=1e-15)
+        np.testing.assert_allclose(values[-1, 3], minus, rtol=1e-15)
+        assert table_metadata["profile_format"] == "table"
+        assert values[-1, 2] == 6000, "tabulated edge temperature changed"
+
         profile_with_vth = root / "profile_with_vth.in"
         temperatures = (1.0-0.4*plasma_grid)*1.0e4
         vth = np.sqrt(
