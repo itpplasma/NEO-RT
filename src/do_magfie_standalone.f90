@@ -891,7 +891,9 @@ contains
 
         ! Allocate shared spline coefficient arrays
         if (allocated(spl_coeff1)) then
-            if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
+            if (size(spl_coeff1, 1) /= nflux - 1 .or. &
+                size(spl_coeff2, 3) /= ncol2 .or. &
+                size(spl_coeff2, 4) /= nmode) deallocate(spl_coeff1, spl_coeff2)
         end if
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
@@ -922,6 +924,16 @@ contains
             magfie_pert_thread_init_state = MAGFIE_PERT_INIT_SENTINEL
         end if
 
+        if (magfie_pert_arrays_initialized) then
+            if (size(Bmnc) /= nmode) magfie_pert_arrays_initialized = .false.
+            if (ncol2 >= 8) then
+                if (allocated(Bmns)) then
+                    if (size(Bmns) /= nmode) magfie_pert_arrays_initialized = .false.
+                else
+                    magfie_pert_arrays_initialized = .false.
+                end if
+            end if
+        end if
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
         if (.not. magfie_pert_arrays_initialized) then
             if (allocated(Bmnc)) deallocate(Bmnc)
@@ -1040,7 +1052,8 @@ contains
 
         ! Allocate params and modes (deallocate first if size changed)
         if (allocated(params_)) then
-            if (size(params_, 1) /= nflux_ .or. size(modes_, 2) /= nmode_) &
+            if (size(params_, 1) /= nflux_ .or. size(modes_, 2) /= nmode_ .or. &
+                size(modes_, 3) /= ncol2 + 2) &
                 deallocate(params_, modes_)
         end if
         if (.not. allocated(params_)) then

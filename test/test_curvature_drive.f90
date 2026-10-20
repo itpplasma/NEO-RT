@@ -28,6 +28,8 @@ program test_curvature_drive
     complex(dp) :: base(nsample), h(nsample), expect
     real(dp) :: theta(nsample), etab(nsample), worst
     integer :: k
+    character(len=32) :: mode
+    type(config_t) :: invalid_config
 
     call write_equilibrium(eq_file)
     call write_table(pert_file, pert_c, pert_s)
@@ -36,6 +38,25 @@ program test_curvature_drive
     do k = 1, nsample
         theta(k) = -3.0_dp + 6.0_dp*real(k - 1, dp)/real(nsample - 1, dp)
     end do
+
+    call get_command_argument(1, mode)
+    if (len_trim(mode) > 0) then
+        invalid_config%inp_swi = 9
+        invalid_config%pertfile = .true.
+        invalid_config%pertfile_curvature = .true.
+        select case (trim(mode))
+        case ('missing-argument')
+            call neort_init(invalid_config, eq_file, pert_file)
+        case ('missing-file')
+            call neort_init(invalid_config, eq_file, pert_file, 'absent_curvature.bc')
+        case ('without-pertfile')
+            invalid_config%pertfile = .false.
+            call neort_init(invalid_config, eq_file)
+        case default
+            error stop 'unknown rejection mode'
+        end select
+        error stop 'invalid curvature configuration accepted'
+    end if
 
     call evaluate(.false., pert_file, base)
     if (curvature_drive) error stop 'curvature drive active without pertfile_curvature'
@@ -127,6 +148,9 @@ contains
         character(len=*), intent(in) :: path
         integer :: unit, surface
         real(dp), parameter :: surfaces(3) = [0.2_dp, 0.5_dp, 0.8_dp]
+        ! Analytic <1/B**2> = B00/(B00**2 - B10**2)**(3/2), in SI.
+        real(dp), parameter :: dvds = 4.0_dp*acos(-1.0_dp)*1.0e-7_dp &
+            *(100.0_dp + 0.4_dp*10.0_dp)*2.0_dp/(4.0_dp - 0.04_dp)**1.5_dp
 
         open (newunit=unit, file=path, status='replace', action='write')
         write (unit, '(a)') 'CC manufactured equilibrium field'
@@ -138,7 +162,7 @@ contains
         do surface = 1, size(surfaces)
             write (unit, '(a)') 's iota Jpol Itor pprime sqrtg00'
             write (unit, '(a)') 'units A A Pa m3'
-            write (unit, '(*(g0,1x))') surfaces(surface), 0.4_dp, 100.0_dp, 10.0_dp, 0.0_dp, 1.0_dp
+            write (unit, '(*(g0,1x))') surfaces(surface), 0.4_dp, 100.0_dp, 10.0_dp, 0.0_dp, dvds
             write (unit, '(a)') 'm n rmnc rmns zmnc zmns vmnc vmns bmnc bmns'
             write (unit, '(*(g0,1x))') 0, 0, 5.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, 2.0_dp, 0.0_dp
             write (unit, '(*(g0,1x))') 1, 0, 0.5_dp, 0.0_dp, 0.0_dp, 0.5_dp, 0.0_dp, 0.0_dp, -0.2_dp, 0.0_dp

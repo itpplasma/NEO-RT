@@ -770,8 +770,6 @@ contains
                     hctrvr1(3), hcurl1(3)
         complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
         ! and Hamiltonian Hn = (H - H0)_n
-        complex(dp) :: kappan, phase_factor  ! kappa.xi_perp and the phase of Hn
-        real(dp) :: w_lagrangian, w_curvature
 
         x(1) = s
         x(2) = 0.0_dp
@@ -827,28 +825,20 @@ contains
         if (abs(t) <= 0.0_dp) then
             ! Local Hamiltonian samples have no bounce-time phase and need no
             ! frequency installed by a previous orbit integration.
-            phase_factor = exp(imun * (q * mph * y(1) + phase_drift))
+            Hn = (2.0_dp - eta * bmod1) * epsn * &
+                 exp(imun * (q * mph * y(1) + phase_drift))
         else if (eta > etatp) then
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
-            phase_factor = exp(imun * (q * mph * (y(1)) - mth * (t - t0) * Omth + phase_drift))
+            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
+                                                                                       t0) * Omth + phase_drift))
         else
-            phase_factor = exp(imun * (q * mph * (y(1)) - (mth + q * mph) * t * Omth + phase_drift))
+            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
+                                                             * t * Omth + phase_drift))
         end if
-
-        ! First-order guiding-centre Hamiltonian per unit energy (doc/hamiltonian_drive.md).
-        ! Default (Boozer form, perturbed field Boozer-representable): (2 - eta B) dB_L/B.
-        ! With a curvature table the general ideal drive for deltaA = xi_perp x B0,
-        !   H/E = eta B dB_L/B + 2 (1 - eta B) kappa.xi_perp,
-        ! which reduces to the default for kappa.xi_perp = dB_L/B.
-        if (curvature_drive) then
-            call do_magfie_pert_kappa_amp(x1, kappan)
-            kappan = pertfile_scale * kappan / bmod1
-            call drive_weight_leaf(eta * bmod1, w_lagrangian, w_curvature)
-            Hn = (w_lagrangian * epsn + w_curvature * kappan) * phase_factor
-        else
-            Hn = (2.0_dp - eta * bmod1) * epsn * phase_factor
-        end if
+        ! Preserve the default arithmetic above for bitwise Fast-build compatibility.
+        if (curvature_drive) &
+            call general_drive(eta, t, y(1), phase_drift, x1, bmod1, epsn, Hn)
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
 
@@ -867,6 +857,27 @@ contains
         ydot(7) = Om_osc
         ydot(8:) = 0.0_dp
     end subroutine transport_rates
+
+    subroutine general_drive(eta, t, theta, phase_drift, x, bmod, epsn, Hn)
+        ! General ideal drive in the u=0 representation (doc/hamiltonian_drive.md).
+        real(dp), intent(in) :: eta, t, theta, phase_drift, x(3), bmod
+        complex(dp), intent(in) :: epsn
+        complex(dp), intent(out) :: Hn
+        complex(dp) :: kappan, phase_factor
+        real(dp) :: w_lagrangian, w_curvature
+
+        if (abs(t) <= 0.0_dp) then
+            phase_factor = exp(imun*(q*mph*theta + phase_drift))
+        else if (eta > etatp) then
+            phase_factor = exp(imun*(q*mph*theta - mth*t*Omth + phase_drift))
+        else
+            phase_factor = exp(imun*(q*mph*theta - (mth + q*mph)*t*Omth + phase_drift))
+        end if
+        call do_magfie_pert_kappa_amp(x, kappan)
+        kappan = pertfile_scale*kappan/bmod
+        call drive_weight_leaf(eta*bmod, w_lagrangian, w_curvature)
+        Hn = (w_lagrangian*epsn + w_curvature*kappan)*phase_factor
+    end subroutine general_drive
 
     function fow_displacement(v_par, hphi) result(ds)
         ! First-order radial guiding-centre displacement s(t) - s from the thin
