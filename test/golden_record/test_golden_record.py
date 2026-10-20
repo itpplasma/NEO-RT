@@ -254,7 +254,8 @@ def test_resonance_ledger_reconstructs_native_harmonic_torque(
 ) -> None:
     """Every serialized root contribution must reconstruct native output."""
 
-    case = get_test_cases()[len(get_test_cases()) // 2]
+    cases = get_test_cases()
+    case = cases[len(cases) // 2]
     work_dir = tmp_path / "resonance_ledger"
     work_dir.mkdir()
     setup_work_dir(work_dir)
@@ -271,32 +272,27 @@ def test_resonance_ledger_reconstructs_native_harmonic_torque(
         extra_env={"NEORT_RESONANCE_LEDGER": str(ledger_path)},
     )
 
-    # Ledger columns after the branch label are:
-    # ux eta Omth Omph residual dF_deta taub Hmn2 attenuation dTds_du istate.
+    # dTds already includes the actual energy weight and attenuation.
     reconstructed: dict[tuple[int, str], float] = {}
     with ledger_path.open(encoding="utf-8") as stream:
+        columns = next(stream).removeprefix("# ").split()
         for line in stream:
-            if line.startswith("#"):
-                continue
-            fields = line.split()
-            mth = int(fields[1])
-            branch = fields[3]
-            attenuation = float(fields[12])
-            torque_density = float(fields[13])
-            key = (mth, branch)
-            reconstructed[key] = (
-                reconstructed.get(key, 0.0) + attenuation * torque_density
-            )
+            fields = dict(zip(columns, line.split(), strict=True))
+            assert int(fields["species"]) == 1
+            key = (int(fields["mth"]), fields["branch"])
+            contribution = float(fields["dTds"])
+            assert np.isfinite(contribution)
+            reconstructed[key] = reconstructed.get(key, 0.0) + contribution
+    assert reconstructed, "ledger must contain resonance roots"
+    assert any(value != 0.0 for value in reconstructed.values())
 
-    params = namelist["params"]
-    du = (float(params["vmax_over_vth"]) - 1.0e-6) / int(params["vsteps"])
     native = np.atleast_2d(load_torque_integral(work_dir, runname))
     branch_column = {"cop": 1, "ctr": 2, "trap": 3}
     for row in native:
         mth = int(row[0])
         for branch, column in branch_column.items():
             np.testing.assert_allclose(
-                du * reconstructed.get((mth, branch), 0.0),
+                reconstructed.get((mth, branch), 0.0),
                 row[column],
                 rtol=2.0e-13,
                 atol=1.0e-280,
