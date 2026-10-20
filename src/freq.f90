@@ -112,10 +112,10 @@ contains
 
         ! logspace for eta
         b = log(epst_spl)
-        aa = 1.0_dp / (netaspl - 1.0_dp) * (log(etamax / etamin - 1.0_dp) - b)
+        aa = 1.0_dp / (netaspl - 1.0_dp) * (log(etamax / etatp - 1.0_dp) - b)
 
         do k = netaspl - 1, 0, -1
-            eta = etamin * (1.0_dp + exp(aa * k + b))
+            eta = etatp * (1.0_dp + exp(aa * k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta
