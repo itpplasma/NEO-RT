@@ -292,10 +292,8 @@ subroutine integrate_class_resonances
                 ! so pertham/find_bounce cannot close it and would only grind to
                 ! the integrator cap before returning zero.  It is also outside
                 ! the comparison domain, so weight it zero without the integration.
-                ! Compared as normalized flux - psif is splined with the axis at
-                ! zero, but psi_sep is negative for AUG and positive for the ITER
-                ! CHEASE files, so a bare psiast_res < psi_sep test is inverted
-                ! for one of them and zeroes the whole torque.
+                ! psiast_res, psi_axis and psi_sep share the field flux gauge.
+                ! Use the axis-to-edge direction rather than assuming a zero axis.
                 absHn2=0.d0
             else
                 call pertham(z,absHn2)
@@ -514,7 +512,6 @@ subroutine resonant_torque
 
     implicit none
     !
-    double precision, parameter :: pi=3.14159265358979d0
     integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
     integer :: omp_threads_env_len
     integer :: nrespoints,unit1901,unit1902,ienerg_begin
@@ -548,8 +545,8 @@ subroutine resonant_torque
     numbasef=0 !no extra integrals sampled, pure orbit integration
     call set_radial_boxes(nbox, unif_rho_pol, sbox)
     !
-    ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m|/n
-    ! at a resonance, so nothing past max|m|/n can resonate.  One n-step margin
+    ! Bound the class root search to the resonant range: |delphi_b| = 2*pi*|m/n|
+    ! at a resonance, so nothing past max|m/n| can resonate. One |n|-step margin
     ! keeps the extreme-m root safely inside the trimmed domain.
     delphi_max=resonant_delphi_bound(marr,narr)
     write(msg, '(A,ES14.6)') &
