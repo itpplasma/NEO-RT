@@ -74,8 +74,11 @@ of picking up a stale system MKL installation.
 CMake exposes `USE_STANDALONE` (enabled by default) for the supported standalone
 magnetic-field reader. That default does not fetch NEO-2 or require an external
 sparse factorizer. The optional `USE_STANDALONE=OFF` dependency is pinned to
-NEO-2 `e9e2877d852a6a29b228cdf7bc8f805ec3a47ee3`, whose default sparse backend is
-native CPU FortSparse. An explicit `NEO-2_REF` still overrides that pin.
+[NEO-2](https://github.com/itpplasma/NEO-2)
+7854749a0a5a94c2b42f67f359ac3d0f8a9b5a6f, whose default sparse backend is
+native CPU [FortSparse](https://github.com/lazy-fortran/fortsparse). An explicit
+`NEO-2_REF` still overrides that pin. The optional build also requires
+CMake 3.24+, MPI and GSL.
 
 The optional adapter delegates field interpolation and perturbation Fourier
 coefficients to NEO-2's explicit provider lifecycle. It supports the existing
@@ -87,20 +90,16 @@ share that state concurrently. This does not add distributed field ownership.
 Chartmap input (`inp_swi=10`) remains a standalone capability.
 
 The existing zero-radial-covariant-field approximation remains explicit, and the
-toroidal component of curl is marked unavailable. The pinned provider fixes the
-laboratory-10 Jacobian orientation and computes the complete CGS covariant curl
-using derivatives of the same cached field-value polynomials. NEO-RT retains its
-declared approximation and does not enable the raw provider's general 3-D field
-capability. The provider's cubic angular interpolation uses 1025
-poloidal and 9 toroidal points; the independent fixtures qualify the stated
-checks, not a rigorous error enclosure for arbitrary input spectra.
+toroidal component of curl is marked unavailable. NEO-RT does not enable the
+provider's general 3-D field capability. Its cubic angular interpolation is
+qualified by the shared numerical fixtures, without a general accuracy guarantee
+for arbitrary input spectra.
 
-Configure `-DUSE_STANDALONE=OFF -DNEORT_BUILD_TESTING=ON`, build `neo_rt.x`, and
-run the focused CTest cases `test_boozer_handedness`, `test_hcurl_axisymmetric`,
-`test_perturbation_fourier_kernel`, `test_neo_provider_parallel` and `test_bounce`.
-The optional test configuration registers checks against the shared field
-interface; standalone chartmap and storage-layout fixtures stay on the default
-path.
+Configure `-DUSE_STANDALONE=OFF -DNEORT_BUILD_TESTING=ON`, build all targets, and
+run `ctest --test-dir <build>/test --output-on-failure`. These checks exercise the
+shared field interface, including signed Fourier modes, reloads, field scaling,
+curl, parallel surface caches and bounce quadrature. Standalone chartmap and
+storage-layout fixtures stay on the default path.
 
 To build against a specific libneo branch, tag, or commit, pass `-DLIBNEO_REF=<ref>` at configure time or `LIBNEO_REF=<ref>` on the make command line:
 

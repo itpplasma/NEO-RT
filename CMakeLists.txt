@@ -144,12 +144,11 @@ if(USE_STANDALONE)
         ${NEO_RT_SOURCES}
         src/do_magfie_standalone.f90
     )
-
 else()
     # Native CPU sparse backend for the optional NEO-2 field provider only.
     # The default standalone path neither fetches NEO-2 nor adds FortSparse.
     if(NOT DEFINED NEO-2_RELEASE)
-        set(NEO-2_RELEASE 8aeb79f65503df58fc986cd59e6c24c3fb0f258c)
+        set(NEO-2_RELEASE 7854749a0a5a94c2b42f67f359ac3d0f8a9b5a6f)
     endif()
     set(NEO2_NATIVE_SPARSE ON CACHE BOOL "Native CPU sparse backend in NEO-2")
     find_or_fetch(NEO-2)

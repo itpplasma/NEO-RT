@@ -3,7 +3,7 @@
 # tests remain on the standalone path.
 if(NOT USE_STANDALONE)
     foreach(test_name IN ITEMS test_profile_collision_species test_boozer_handedness
-            test_bounce test_hcurl_axisymmetric test_neo_provider_parallel
+            test_bounce test_hcurl_axisymmetric test_neo_provider_parallel test_s_outside_data
             probe_neort_perturbation_fourier_kernel)
         add_executable(${test_name}.x ${test_name}.f90)
         target_link_libraries(${test_name}.x PRIVATE neo_rt "util_for_test_${PROJECT_NAME}")
@@ -16,12 +16,20 @@ if(NOT USE_STANDALONE)
             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
             ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
     endforeach()
+    set_tests_properties(test_perturbation_fourier_kernel PROPERTIES
+        PASS_REGULAR_EXPRESSION "perturbation Fourier kernel: PASS")
     set_tests_properties(test_boozer_handedness PROPERTIES
         FIXTURES_SETUP neo_provider_charts)
     set_tests_properties(test_neo_provider_parallel PROPERTIES
         FIXTURES_REQUIRED neo_provider_charts PROCESSORS 2)
     set_tests_properties(test_bounce PROPERTIES
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/examples/base")
+    set_tests_properties(test_s_outside_data PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/examples")
+    add_test(NAME test_s_outside_data_init_rejects COMMAND test_s_outside_data.x init)
+    set_tests_properties(test_s_outside_data_init_rejects PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/examples" WILL_FAIL TRUE
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
     return()
 endif()
 
@@ -392,6 +400,8 @@ add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+set_tests_properties(test_perturbation_fourier_kernel PROPERTIES
+    PASS_REGULAR_EXPRESSION "perturbation Fourier kernel: PASS")
 add_test(NAME test_shaing_drift_cylindrical
     COMMAND ${CMAKE_BINARY_DIR}/test_shaing_drift_cylindrical.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

@@ -132,11 +132,17 @@ contains
     end subroutine init_mph_from_shared
 
     subroutine read_boozer_pert_file(path)
+        use neo_control, only: lab_swi
+        use partpa_mod, only: bmod0
         character(*), intent(in) :: path
         integer :: input_switch
         input_switch = inp_swi_pert
         if (input_switch < 0) input_switch = inp_swi
         !$omp critical(neort_neo_field)
+        ! Match the background provider's chart convention even when the
+        ! perturbation is loaded first (the legacy reader otherwise STOPs).
+        lab_swi = 10
+        bmod0 = 1.0e-4_dp ! same Gauss normalization as the background loader
         call neo_load_pert(path, input_switch)
         mph_shared = m_phi
         perturbation_loaded = .true.
