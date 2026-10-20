@@ -5,7 +5,7 @@ module neort_transport
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
-    use do_magfie_pert_mod, only: do_magfie_pert_amp
+    use do_magfie_pert_mod, only: do_magfie_pert_amp, perturbation_amplitude_bound
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
@@ -404,6 +404,8 @@ contains
         real(dp), intent(in), optional :: energy_ratio
         real(dp), intent(out) :: values(3)
         real(dp) :: effective_harmonic, geometry, nu
+        real(dp) :: natural(3), absolute_tolerance(3), amplitude_scale, amplitude
+        real(dp) :: amplitude_error
         integer :: status
         effective_harmonic = real(mth, dp)
         geometry = krook_geometry_trapped
@@ -412,8 +414,34 @@ contains
             if (krook_harmonic == 1) effective_harmonic = effective_harmonic + q*mph
         end if
         nu = effective_krook_rate(ux, effective_harmonic, geometry, ux*vth*0.01_dp)
-        call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
-            krook_rtol, krook_atol, values, status, krook_max_depth)
+        if (.not. fow_radial .and. etamax < etatp) then
+            ! A nearly vanishing Fourier harmonic cannot be resolved relative
+            ! to itself by an ODE controlled relative to the unaveraged drive.
+            ! Bound that drive by the Fourier triangle inequality, and carry
+            ! its orbit error e*S into the squared weight. Young's inequality
+            ! gives 2e*S*|H| <= rtol*|H|^2 + e^2*S^2/rtol.
+            ! The phase sensitivity is 2*pi*|mth+nq| times the period error.
+            if (pertfile) then
+                call perturbation_amplitude_bound([s, 0.0_dp, th0], amplitude)
+                amplitude_scale = abs(pertfile_scale)*amplitude/Bmin
+            else
+                amplitude_scale = abs(epsmn)
+            end if
+            amplitude_error = (1.0_dp + &
+                2.0_dp*pi*abs(real(mth, dp) + q*mph))*bounce_rtol
+            call integrate_krook(residual, envelope, etamin, etamax, nu, &
+                krook_eta_steps, krook_rtol, 0.0_dp, natural, status, krook_max_depth)
+            if (status /= 0) call report_krook_failure(status, ux, nu, &
+                effective_harmonic, geometry)
+            absolute_tolerance = (1.0_dp + 1.0_dp/krook_rtol)* &
+                amplitude_error**2*abs(natural)
+            call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
+                krook_rtol, krook_atol, values, status, krook_max_depth, &
+                absolute_tolerance)
+        else
+            call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
+                krook_rtol, krook_atol, values, status, krook_max_depth)
+        end if
         if (status /= 0) call report_krook_failure(status, ux, nu, &
             effective_harmonic, geometry)
     contains
@@ -422,6 +450,28 @@ contains
             real(dp), intent(out) :: res, derivative
             call resonance_value(ux*vth, eta, res, derivative)
         end subroutine residual
+        subroutine envelope(eta, result_)
+            real(dp), intent(in) :: eta
+            real(dp), intent(out) :: result_(:)
+            real(dp) :: taub, drive_bound, energy_squared
+            logical :: mono
+            call Om_th(ux*vth, eta, Omth, dOmthdv, dOmthdeta)
+            taub = 2.0_dp*pi/abs(Omth)
+            drive_bound = (2.0_dp - eta*Bmin)*amplitude_scale
+            energy_squared = (mi*(ux*vth)**2/2.0_dp*drive_bound)**2
+            mono = .false.
+            if (present(energy_ratio)) mono = energy_ratio > 0.0_dp
+            result_(3) = 0.0_dp
+            if (mono) then
+                result_(1) = D11mono(ux, taub, energy_squared)
+                result_(2) = D12mono(ux, taub, energy_squared)
+                if (comptorque) result_(3) = Tphi_mono(ux, taub, energy_squared)
+            else
+                result_(1) = D11int(ux, taub, energy_squared)
+                result_(2) = D12int(ux, taub, energy_squared)
+                if (comptorque) result_(3) = Tphi_int(ux, taub, energy_squared)
+            end if
+        end subroutine envelope
         subroutine weight(eta, result_)
             real(dp), intent(in) :: eta
             real(dp), intent(out) :: result_(:)
