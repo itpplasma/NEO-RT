@@ -504,8 +504,11 @@ subroutine resonant_torque
         ind_hist,xarr,amat_arr
     use potato_input_mod,  only : nbox, unif_rho_pol, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
+        monoenergetic_x, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
         eps_sampling, itermax_sampling
+    use kinetic_energy_selection, only: energy_sample_count, total_energy_sample, &
+        total_energy_measure
     use logging_mod,       only : tee_message
     !$ use omp_lib, only : omp_set_max_active_levels, omp_set_num_threads
 
@@ -517,10 +520,11 @@ subroutine resonant_torque
     integer :: nrespoints,unit1901,unit1902,ienerg_begin
     double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
     double precision :: bmod,phi_elec,phi_elec_min,phi_elec_max
+    double precision :: phi_elec_ref
     double precision :: toten_min,toten_max,thermen_max,toten_range
     double precision :: omdens,trapez_fac,perpinv_max
     double precision :: torque_int,torque_int_loc
-    double precision :: xjperp,xenerg,totxint,step_energ
+    double precision :: xjperp,totxint,step_energ
     double precision :: time_beg,time_end
     double precision :: dens, temp, ddens, dtemp
     character(len=256) :: msg
@@ -559,6 +563,7 @@ subroutine resonant_torque
     thermen_max=thermen_max_input
     !
     call denstemp_of_psi(psimagaxis, dens, temp, ddens, dtemp)
+    call phielec_of_psi(psimagaxis,phi_elec_ref,dtemp)
     !
     thermen_max=thermen_max*temp !maximum kinetic energy in units of reference energy
     !
@@ -583,7 +588,7 @@ subroutine resonant_torque
         'maximum total energy = ', toten_max
     call tee_message(trim(msg))
     !
-    nenerg=nenerg_input
+    nenerg=energy_sample_count(monoenergetic_x,nenerg_input)
     !
     torque_int=0.d0
     allocate(torque_int_modes(nmodes))
@@ -596,8 +601,8 @@ subroutine resonant_torque
     !
     torquebox=0.d0
     !
-    step_energ=toten_range/dble(nenerg) !integration step over total energy
-    ienerg_begin=2
+    step_energ=total_energy_measure(monoenergetic_x,nenerg_input,toten_range,temp)
+    ienerg_begin=merge(1,2,monoenergetic_x.gt.0.d0)
     !step_energ=0.22521463755624047d0
     !
     omp_threads_env_len=0
@@ -605,13 +610,13 @@ subroutine resonant_torque
     !$ if(omp_threads_env_len.eq.0) call omp_set_num_threads(16)
     !$ call omp_set_max_active_levels(1)
     !$omp parallel do default(shared) schedule(dynamic) &
-    !$omp   private(xenerg,perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
+    !$omp   private(perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   copyin(dtau)
     do ienerg=ienerg_begin,nenerg
-        xenerg=(dble(ienerg)-0.5d0)/dble(nenerg)
-        toten=toten_min+toten_range*xenerg
+        toten=total_energy_sample(monoenergetic_x,ienerg,nenerg_input, &
+            toten_min,toten_range,temp,phi_elec_ref)
         ! size of result matrix in get_matrix_res:
         n1=nmodes
         n2=1
@@ -926,7 +931,7 @@ contains
         integer :: idx,io,in_unit,out_unit
         !
         open(newunit=out_unit,file=trim(final_name),status='replace',action='write')
-        do idx=ienerg_begin,count
+        do idx=1,count
             call energy_path(prefix,idx,path)
             open(newunit=in_unit,file=trim(path),status='old',action='read',iostat=io)
             if(io.ne.0) then
@@ -961,7 +966,7 @@ contains
         mode_prefix=0.d0
         scalar_prefix=0.d0
         open(newunit=out_unit,file=trim(final_name),status='replace',action='write')
-        do idx=ienerg_begin,count
+        do idx=1,count
             call energy_path(prefix,idx,path)
             open(newunit=in_unit,file=trim(path),status='old',action='read',iostat=io)
             if(io.ne.0) then
