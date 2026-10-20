@@ -32,6 +32,19 @@ def parameters(s, iota_sign):
     return iota_sign * (0.23 + 0.07 * s), 2.5e7 * (1 + 0.2 * s), 3.0e5 * (0.5 + 0.3 * s)
 
 
+def volume_derivative(s, orientation, flux_sign, iota_sign):
+    """Return 4*pi**2*<sqrt(g)> in m^3, the consistent (dV/ds)/nper column.
+
+    Uses <1/(c + r*cos(t - d))**2> = c/(c**2 - r**2)**1.5 for |B| below.
+    """
+    iota, jpol, itor = parameters(s, iota_sign)
+    bph, bth = -0.2 * orientation * jpol, -0.2 * orientation * itor
+    psi = flux_sign * 2.5e7
+    r = s * math.hypot(0.1, 0.03)
+    inv_b2_avg = 1.0e-8 * 2 / (4 - r**2) ** 1.5
+    return 4 * math.pi**2 * (-psi * (bph + iota * bth)) * inv_b2_avg * 1.0e-6
+
+
 def write_fixture(path, orientation, flux_sign, iota_sign):
     flux = flux_sign * math.pi / 2  # Wb: psi_pr = +/-2.5e7 G cm^2.
     lines = ["CC manufactured analytic field", "CC geometry determines orientation",
@@ -40,8 +53,9 @@ def write_fixture(path, orientation, flux_sign, iota_sign):
     for s in SURFACES:
         iota, jpol, itor = parameters(s, iota_sign)
         radius = 0.5 * math.sqrt(s)
+        dvds = volume_derivative(s, orientation, flux_sign, iota_sign)
         lines.extend(("CC s iota Jpol Itor pprime sqrtg00", "CC units A A Pa m3",
-                      f"{s:.17e} {iota:.17e} {jpol:.17e} {itor:.17e} 0 0",
+                      f"{s:.17e} {iota:.17e} {jpol:.17e} {itor:.17e} 0 {dvds:.17e}",
                       "CC m n rmnc rmns zmnc zmns vmnc vmns bmnc bmns",
                       "0 0 5 0 0 0 0 0 2 0",
                       f"1 0 {radius:.17e} 0 0 {orientation * radius:.17e} 0 0 "

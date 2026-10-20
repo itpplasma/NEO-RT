@@ -115,10 +115,13 @@ set_tests_properties(test_parallel_transport PROPERTIES
 #
 # The reference chartmap fixture (test/fixtures/circ_chartmap.nc) was generated
 # once from examples/circ.bc via the libneo converters (bc_to_booz_xform +
-# booz_xform_to_boozer_chartmap, nrho=50 ntheta=64 nzeta=4) and committed into
-# the repo.  No converter toolchain is required at test time.
+# booz_xform_to_boozer_chartmap, nrho=200 ntheta=64 nzeta=4) and committed into
+# the repo.  No converter toolchain is required at test time.  After the
+# circ.bc header flux sign fix (#180) torflux and A_phi change sign together.
+# Bmod samples NEO-RT's natural cubic spline in s on a resolved rho grid;
+# this preserves its radial derivative for the trapped-precession cross-check.
 #
-# Phase 1: sign/sanity check (bmod>0, sqrtg>0, iota>0, Bthcov>0, Bphcov>0).
+# Phase 1: sign/sanity check (bmod>0, sqrtg<0, iota>0, Bthcov>0, Bphcov>0).
 # Phase 2: cross-check vs the .bc path (relative tolerance 1e-4).
 # Both phases run unconditionally in CI.
 add_test(NAME test_chartmap_input
@@ -158,6 +161,44 @@ add_test(NAME test_boozer_handedness
 # do_magfie calls, so it is independent of the analytic formula it checks.
 add_test(NAME test_hcurl_axisymmetric
     COMMAND ${CMAKE_BINARY_DIR}/test_hcurl_axisymmetric.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+# Load-time Boozer orientation guard (#180): the consistent circular file and the
+# ASDEX-type golden-record file load; flux-flipped copies of both are rejected.
+function(add_boozer_orientation_tests name file swi)
+    add_test(NAME test_boozer_orientation_accept_${name}
+        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x accept ${file} ${swi}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    add_test(NAME test_boozer_orientation_reject_${name}
+        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x flip ${file} ${swi}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+    set_tests_properties(test_boozer_orientation_reject_${name} PROPERTIES
+        PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation"
+    )
+    add_test(NAME test_boozer_orientation_magnitude_${name}
+        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x scale ${file} ${swi}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_scale_${name}
+    )
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_scale_${name})
+    set_tests_properties(test_boozer_orientation_magnitude_${name} PROPERTIES
+        PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation"
+    )
+endfunction()
+add_boozer_orientation_tests(circ ${CMAKE_SOURCE_DIR}/examples/circ.bc 8)
+add_boozer_orientation_tests(golden ${CMAKE_SOURCE_DIR}/test/golden_record/input/in_file 9)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
+add_test(NAME test_boozer_orientation_nan_flux
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x nan_flux
+        ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
+set_tests_properties(test_boozer_orientation_nan_flux PROPERTIES
+    PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation")
+add_test(NAME test_boozer_orientation_drift_circ
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x drift
+        ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -310,6 +351,10 @@ add_test(NAME test_resonance_oracle
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+add_test(NAME test_shaing_drift_cylindrical
+    COMMAND ${CMAKE_BINARY_DIR}/test_shaing_drift_cylindrical.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
