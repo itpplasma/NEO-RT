@@ -126,6 +126,18 @@ add_test(NAME test_chartmap_input
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+# test_chartmap_transport: D11 from the chartmap fixture (inp_swi=10) against
+# the .bc route (inp_swi=8) for the same field and analytic perturbation.
+add_test(NAME test_chartmap_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_transport.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_chartmap_transport PROPERTIES
+    ENVIRONMENT
+        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc;OMP_NUM_THREADS=4"
+    TIMEOUT 600
+)
+
 add_test(NAME test_s_outside_data
     COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
