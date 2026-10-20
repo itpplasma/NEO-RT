@@ -18,6 +18,23 @@ permissions:
   contents: read
 
 jobs:
+  standalone-off:
+    name: Reject unsupported native NEO-2 build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v6
+    - name: Check OFF configure diagnostic without fetching dependencies
+      run: |
+        if cmake -S . -B build-off -DUSE_STANDALONE=OFF > configure-off.log 2>&1; then
+          cat configure-off.log
+          echo "Expected USE_STANDALONE=OFF to fail"
+          exit 1
+        fi
+        cat configure-off.log
+        grep -F "USE_STANDALONE=OFF is currently unsupported" configure-off.log
+        test ! -d build-off/OBJS/_deps
+
   build:
     runs-on: ubuntu-24.04
     strategy:

@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
+option(USE_STANDALONE "Use do_magfie_standalone" ON)
+if(NOT USE_STANDALONE)
+    message(FATAL_ERROR
+        "USE_STANDALONE=OFF is currently unsupported: the native NEO-2 adapter "
+        "requires compatible NEO-2 field/perturbation APIs and CMake dependency "
+        "integration that are not available on main. Use -DUSE_STANDALONE=ON "
+        "(the default). See README.md, Building, for details.")
+endif()
+
 project(driftorbit LANGUAGES Fortran C)
 set(PROJECT_EXE_NAME "neo_rt.x")
 
@@ -144,8 +153,6 @@ set(NEO_RT_SOURCES
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
 set_source_files_properties(src/separatrix.f90 src/orbit_classes.f90 src/resonance.f90 src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
-
-option(USE_STANDALONE "Use do_magfie_standalone" ON)
 
 if(USE_STANDALONE)
     find_or_fetch(libneo)

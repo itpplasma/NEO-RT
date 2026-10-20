@@ -5,7 +5,7 @@ NEO-RT computes neoclassical toroidal viscosity (NTV) torque in resonant transpo
 ## Key capabilities
 
 - Modular Fortran implementation with a `neo_rt.x` solver and `neo_rt_diag.x` diagnostics executable.
-- Standalone magnetic-field interface (`do_magfie_standalone`) with optional coupling to NEO-2 through CMake options.
+- Standalone magnetic-field interface (`do_magfie_standalone`).
 - Support for trapped and passing particle contributions, optional torque integration, and nonlinear corrections that depend on thermodynamic profiles.
 - Batch-processing helpers and Python utilities for scanning multiple flux surfaces and plotting output torque profiles.
 
@@ -72,7 +72,25 @@ On GNU/Linux with GNU Fortran, the build now prefers OpenBLAS when it is
 available so standalone NEO-RT builds match the shared benchmark venv instead
 of picking up a stale system MKL installation.
 
-CMake also exposes an option `USE_STANDALONE` (enabled by default) that uses the standalone magnetic-field reader. Set `-DUSE_STANDALONE=OFF` when configuring to link against an external NEO-2 checkout if required.
+CMake uses the standalone magnetic-field reader (`USE_STANDALONE=ON`, the
+default). `-DUSE_STANDALONE=OFF` is currently unsupported and fails immediately
+at configure time. Restoring native coupling requires a compatible
+[NEO-2](https://github.com/itpplasma/NEO-2) field/perturbation API, an updated
+NEO-RT adapter, and CMake integration that provides
+[libneo](https://github.com/itpplasma/libneo)'s `LIBNEO::hdf5_tools` target.
+Fetching libneo alone does not restore the adapter.
+
+Verified against NEO-2 main at 967ca2ef541955589439ad620f48bd0afe9210e1:
+`src/do_magfie_neo.f90:85` imports `neo_magfie_pert_amp`, which NEO-2 does
+not export, and its copied kernel accesses NEO-2's private spline arrays
+(`NEO-2-QL/neo_magfie_perturbation.f90:35-67`). NEO-RT currently resolves
+NEO-2 by branch (normally `main`), rather than pinning a NEO-2 commit.
+The native integration changes in
+[NEO-2 #212](https://github.com/itpplasma/NEO-2/pull/212),
+[#213](https://github.com/itpplasma/NEO-2/pull/213),
+[#232](https://github.com/itpplasma/NEO-2/pull/232) and
+[NEO-RT #198](https://github.com/itpplasma/NEO-RT/pull/198) remain deferred;
+this build guard does not include or depend on them.
 
 To build against a specific libneo branch, tag, or commit, pass `-DLIBNEO_REF=<ref>` at configure time or `LIBNEO_REF=<ref>` on the make command line:
 
