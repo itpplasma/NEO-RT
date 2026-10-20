@@ -16,10 +16,12 @@ end module bmod_pert_mod
   use bmod_pert_mod, only : prop,nrad,nzet,icp,iunit_bn,hrad,hzet,imi,ima,jmi,jma, &
                             ipoint,rad,zet,splbmod_re,splbmod_im
   use, intrinsic :: iso_fortran_env, only : error_unit
+  use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
 !
   implicit none
 !
   integer :: i,ierr
+  logical :: inside_grid
   double precision :: R,Z
   double precision :: bmod_re,bmod_im,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   complex(8)   :: bmod_n
@@ -79,8 +81,12 @@ end module bmod_pert_mod
 ! Fail closed outside the tabulated R-Z grid (or on NaN input): the spline
 ! would otherwise extrapolate, and clamping to the edge would return a wrong
 ! but plausible perturbation amplitude.
-  if (.not. (R >= rad(1) .and. R <= rad(nrad) .and. &
-             Z >= zet(1) .and. Z <= zet(nzet))) then
+  inside_grid = .false.
+  if (ieee_is_finite(R) .and. ieee_is_finite(Z)) then
+    inside_grid = R >= rad(1) .and. R <= rad(nrad) .and. &
+                  Z >= zet(1) .and. Z <= zet(nzet)
+  endif
+  if (.not. inside_grid) then
     write(error_unit, '(a, 2es24.16)') 'bmod_pert: (R, Z) = ', R, Z
     write(error_unit, '(a, 2es24.16, a, 2es24.16)') &
         'bmod_pert: bmod_n.dat grid R in ', rad(1), rad(nrad), &

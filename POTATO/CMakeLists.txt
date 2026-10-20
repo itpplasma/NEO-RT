@@ -105,7 +105,7 @@ target_link_libraries(test_bmod_pert_bounds.x
    potato_base
 )
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run)
-foreach(_mode inside outside_r outside_z)
+foreach(_mode inside outside_r outside_z nan_r nan_z)
    add_test(NAME test_bmod_pert_bounds_${_mode}
       COMMAND test_bmod_pert_bounds.x ${_mode}
    )
@@ -114,7 +114,7 @@ foreach(_mode inside outside_r outside_z)
       RESOURCE_LOCK potato_bmod_pert_bounds_run
    )
 endforeach()
-foreach(_mode outside_r outside_z)
+foreach(_mode outside_r outside_z nan_r nan_z)
    set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
       PASS_REGULAR_EXPRESSION "evaluation outside the bmod_n.dat R-Z grid"
    )

@@ -2,6 +2,7 @@ program test_bmod_pert_bounds
 ! bmod_pert must reproduce a tabulated analytic field inside the bmod_n.dat
 ! R-Z grid and must stop with an error outside it instead of clamping.
   use, intrinsic :: iso_fortran_env, only : dp => real64
+  use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
   implicit none
 
   integer, parameter :: nrad = 101, nzet = 81
@@ -39,6 +40,10 @@ program test_bmod_pert_bounds
     call probe(rmax + 0.5_dp, 0.0_dp)
   case ('outside_z')
     call probe(150.0_dp, zmin - 0.5_dp)
+  case ('nan_r')
+    call probe(ieee_value(0.0_dp, ieee_quiet_nan), 0.0_dp)
+  case ('nan_z')
+    call probe(150.0_dp, ieee_value(0.0_dp, ieee_quiet_nan))
   case default
     error stop 'unknown mode'
   end select
