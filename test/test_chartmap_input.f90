@@ -148,6 +148,7 @@ program test_chartmap_input
         call assert_close("Bthcov", Bth_cm,    Bth_bc,    tol_rel)
         call assert_close("Bphcov", Bph_cm,    Bph_bc,    tol_rel)
         call assert_close("psi_pr", psip_cm,   psip_bc,   tol_rel)
+        call assert_close("d log(B)/ds", bder_cm(1), bder_bc(1), tol_rel)
         ! Legacy chartmaps derive an equal-area edge radius, which differs
         ! slightly from the minor radius stored in the source .bc header.
         call assert_close("minor radius", a_cm, a_bc, tol_radius_rel)

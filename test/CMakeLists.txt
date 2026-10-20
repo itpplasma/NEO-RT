@@ -115,10 +115,11 @@ set_tests_properties(test_parallel_transport PROPERTIES
 #
 # The reference chartmap fixture (test/fixtures/circ_chartmap.nc) was generated
 # once from examples/circ.bc via the libneo converters (bc_to_booz_xform +
-# booz_xform_to_boozer_chartmap, nrho=50 ntheta=64 nzeta=4) and committed into
+# booz_xform_to_boozer_chartmap, nrho=200 ntheta=64 nzeta=4) and committed into
 # the repo.  No converter toolchain is required at test time.  After the
-# circ.bc header flux sign fix (#180) only torflux and A_phi change sign; the
-# fixture was updated accordingly (identical to a regeneration to 1e-15).
+# circ.bc header flux sign fix (#180) torflux and A_phi change sign together.
+# Bmod samples NEO-RT's natural cubic spline in s on a resolved rho grid;
+# this preserves its radial derivative for the trapped-precession cross-check.
 #
 # Phase 1: sign/sanity check (bmod>0, sqrtg<0, iota>0, Bthcov>0, Bphcov>0).
 # Phase 2: cross-check vs the .bc path (relative tolerance 1e-4).
@@ -188,6 +189,13 @@ function(add_boozer_orientation_tests name file swi)
 endfunction()
 add_boozer_orientation_tests(circ ${CMAKE_SOURCE_DIR}/examples/circ.bc 8)
 add_boozer_orientation_tests(golden ${CMAKE_SOURCE_DIR}/test/golden_record/input/in_file 9)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
+add_test(NAME test_boozer_orientation_nan_flux
+    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x nan_flux
+        ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
+set_tests_properties(test_boozer_orientation_nan_flux PROPERTIES
+    PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation")
 add_test(NAME test_boozer_orientation_drift_circ
     COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x drift
         ${CMAKE_SOURCE_DIR}/examples/circ.bc 8

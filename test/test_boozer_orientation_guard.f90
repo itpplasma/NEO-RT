@@ -1,12 +1,12 @@
 program test_boozer_orientation_guard
-    ! Usage: test_boozer_orientation_guard.x accept|flip|scale|drift file inp_swi
+    ! Usage: test_boozer_orientation_guard.x accept|flip|scale|nan_flux|drift file inp_swi
     !   accept: read the file; it must load (prints "accepted").
     !   flip:   write a copy with the header toroidal flux negated and read it;
     !           the loader must stop with "Inconsistent Boozer orientation".
     ! The oracle is the file's own (dV/ds)/nper column, computed by the
     ! equilibrium code independently of NEO-RT's orientation convention.
     use iso_fortran_env, only: dp => real64
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite, ieee_value, ieee_quiet_nan
     use do_magfie_mod, only: Bphcov, bfac, do_magfie, init_magfie_at_s, inp_swi, &
         magfie_thread_init, modes0, nmode, q, read_boozer_file, set_s, spl_coeff2
     use logger, only: set_log_level
@@ -40,11 +40,17 @@ program test_boozer_orientation_guard
         call write_flux_changed_copy(trim(path), trim(flipped_path), 1.2_dp)
         call read_boozer_file(trim(flipped_path))
         error stop "flux-scaled Boozer file was accepted"
+    case ("nan_flux")
+        call write_flux_changed_copy(trim(path), trim(flipped_path), &
+            ieee_value(0.0_dp, ieee_quiet_nan))
+        call read_boozer_file(trim(flipped_path))
+        error stop "nonfinite flux was accepted"
     case ("drift")
         call read_boozer_file(trim(path))
         call check_deeply_trapped_drift()
     case default
-        error stop "usage: test_boozer_orientation_guard.x accept|flip|scale|drift file inp_swi"
+        error stop "usage: test_boozer_orientation_guard.x " &
+            //"accept|flip|scale|nan_flux|drift file inp_swi"
     end select
 
 contains
