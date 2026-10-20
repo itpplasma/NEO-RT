@@ -258,9 +258,13 @@ contains
         ! Orbit integrals call this at fixed s for every theta: the flux
         ! function splines are evaluated again only when s changes.
         if (x1 /= profile_x1) then
-            profile_spl(:, 3) = spline_val_0(spl_coeff1(:, :, 3), x1)
-            profile_spl(:, 2) = spline_val_0(spl_coeff1(:, :, 2), x1)
-            profile_spl(:, 1) = spline_val_0(spl_coeff1(:, :, 1), x1)
+            ! Return into the local vector before storing in the threadprivate cache.
+            spl_val = spline_val_0(spl_coeff1(:, :, 3), x1)
+            profile_spl(:, 3) = spl_val
+            spl_val = spline_val_0(spl_coeff1(:, :, 2), x1)
+            profile_spl(:, 2) = spl_val
+            spl_val = spline_val_0(spl_coeff1(:, :, 1), x1)
+            profile_spl(:, 1) = spl_val
             profile_x1 = x1
         end if
         Bthcov = ItoB * profile_spl(1, 3) * bfac

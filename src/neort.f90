@@ -334,7 +334,7 @@ contains
         use driftorbit, only: mth, etamin, etamax, sign_vpar, comptorque, dVds, M_t
 
         integer, intent(in) :: mthmin, mthmax
-        real(dp), intent(in) :: Dres(:, :, mthmin:), Tres(:, mthmin:)
+        real(dp), contiguous, intent(in) :: Dres(:, :, mthmin:), Tres(:, mthmin:)
         type(transport_data_t), intent(out) :: result_
 
         integer :: j, idx

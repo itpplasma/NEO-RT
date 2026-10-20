@@ -161,11 +161,13 @@ contains
         type(transport_data_t), intent(out) :: transport_data_out
 
         type(transport_data_t) :: transport(1)
+        integer :: state(1)
 
         ! The species selected by the caller is the single state. It is
         ! assembled on the calling thread, which is left holding the surface
         ! as by the serial harmonic loop.
-        call compute_transport_at_s(s_val, [selected_species], transport)
+        state(1) = selected_species
+        call compute_transport_at_s(s_val, state, transport)
         transport_data_out = transport(1)
     end subroutine neort_compute_at_s
 
@@ -212,7 +214,9 @@ contains
                 do c = 1, ncomponent
                     if (.not. component_active(c)) cycle
                     ncomp = ncomp + 1
-                    comp(:, ncomp) = [k, j, c]
+                    comp(1, ncomp) = k
+                    comp(2, ncomp) = j
+                    comp(3, ncomp) = c
                 end do
             end do
         end do
@@ -298,10 +302,14 @@ contains
         integer :: k
         type(transport_data_t), allocatable :: transport(:)
         integer :: nspecies
+        integer, allocatable :: state(:)
         if (.not. mixture_enabled) error stop 'prepare a mixture before computing species'
         nspecies = size(species_mixture%species)
-        allocate(result_%species(nspecies), transport(nspecies))
-        call compute_transport_at_s(s_val, [(k, k = 1, nspecies)], transport, &
+        allocate(result_%species(nspecies), transport(nspecies), state(nspecies))
+        do k = 1, nspecies
+            state(k) = k
+        end do
+        call compute_transport_at_s(s_val, state, transport, &
             result_%species)
         result_%torque_total = 0.0_dp
         do k = 1, size(result_%species)

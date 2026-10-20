@@ -85,37 +85,58 @@ contains
         do k = 1, size(expected%species)
             associate (e => expected%species(k)%transport, &
                        a => actual%species(k)%transport)
-                call check('torque', k, nthreads, [e%torque%Tco, e%torque%Tctr, &
-                    e%torque%Tt], [a%torque%Tco, a%torque%Tctr, a%torque%Tt], failures)
-                call check('D', k, nthreads, [e%summary%Dco, e%summary%Dctr, &
-                    e%summary%Dt], [a%summary%Dco, a%summary%Dctr, a%summary%Dt], &
-                    failures)
+                call check('torque co', k, nthreads, &
+                    e%torque%Tco, a%torque%Tco, failures)
+                call check('torque ctr', k, nthreads, &
+                    e%torque%Tctr, a%torque%Tctr, failures)
+                call check('torque t', k, nthreads, &
+                    e%torque%Tt, a%torque%Tt, failures)
+                call check_values('D co', k, nthreads, &
+                    e%summary%Dco, a%summary%Dco, failures)
+                call check_values('D ctr', k, nthreads, &
+                    e%summary%Dctr, a%summary%Dctr, failures)
+                call check_values('D t', k, nthreads, &
+                    e%summary%Dt, a%summary%Dt, failures)
                 do j = 1, size(e%harmonics)
-                    call check('harmonic D', k, nthreads, &
-                        [e%harmonics(j)%Dresco, e%harmonics(j)%Dresctr, &
-                         e%harmonics(j)%Drest], &
-                        [a%harmonics(j)%Dresco, a%harmonics(j)%Dresctr, &
-                         a%harmonics(j)%Drest], failures)
-                    call check('harmonic', k, nthreads, [e%harmonics(j)%Tresco, &
-                        e%harmonics(j)%Tresctr, e%harmonics(j)%Trest], &
-                        [a%harmonics(j)%Tresco, a%harmonics(j)%Tresctr, &
-                        a%harmonics(j)%Trest], failures)
+                    call check_values('harmonic D co', k, nthreads, &
+                        e%harmonics(j)%Dresco, a%harmonics(j)%Dresco, failures)
+                    call check_values('harmonic D ctr', k, nthreads, &
+                        e%harmonics(j)%Dresctr, a%harmonics(j)%Dresctr, failures)
+                    call check_values('harmonic D t', k, nthreads, &
+                        e%harmonics(j)%Drest, a%harmonics(j)%Drest, failures)
+                    call check('harmonic co', k, nthreads, &
+                        e%harmonics(j)%Tresco, a%harmonics(j)%Tresco, failures)
+                    call check('harmonic ctr', k, nthreads, &
+                        e%harmonics(j)%Tresctr, a%harmonics(j)%Tresctr, failures)
+                    call check('harmonic t', k, nthreads, &
+                        e%harmonics(j)%Trest, a%harmonics(j)%Trest, failures)
                 end do
             end associate
         end do
-        call check('total', 0, nthreads, expected%torque_total, actual%torque_total, &
-            failures)
+        call check_values('total', 0, nthreads, &
+            expected%torque_total, actual%torque_total, failures)
     end subroutine compare
 
-    subroutine check(label, species, nthreads, reference, value, failures)
+    subroutine check_values(label, species, nthreads, reference, value, failures)
         character(len=*), intent(in) :: label
         integer, intent(in) :: species, nthreads
         real(dp), intent(in) :: reference(:), value(:)
         integer, intent(inout) :: failures
-        if (any(.not. ieee_is_finite(reference)) .or. &
-                any(.not. ieee_is_finite(value)) .or. &
-                any(transfer(reference, [0_int64], size(reference)) /= &
-                transfer(value, [0_int64], size(value)))) then
+        integer :: i
+        if (size(reference) /= size(value)) error stop 'comparison shape mismatch'
+        do i = 1, size(reference)
+            call check(label, species, nthreads, reference(i), value(i), failures)
+        end do
+    end subroutine check_values
+
+    subroutine check(label, species, nthreads, reference, value, failures)
+        character(len=*), intent(in) :: label
+        integer, intent(in) :: species, nthreads
+        real(dp), intent(in) :: reference, value
+        integer, intent(inout) :: failures
+        if (.not. ieee_is_finite(reference) .or. &
+                .not. ieee_is_finite(value) .or. &
+                transfer(reference, 0_int64) /= transfer(value, 0_int64)) then
             failures = failures + 1
             print *, label, ' species', species, ' threads', nthreads, reference, value
         end if
