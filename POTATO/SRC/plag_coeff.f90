@@ -19,7 +19,7 @@
     double precision, INTENT(in)                          :: x
     double precision, DIMENSION(npoi), INTENT(in)         :: xp
     double precision, DIMENSION(0:nder,npoi), INTENT(out) :: coef
-    double precision, DIMENSION(:), ALLOCATABLE           :: dummy
+    double precision, DIMENSION(npoi)                     :: dummy
     !
     INTEGER                                            :: i,k,j
     double precision                                      :: fac
@@ -33,8 +33,6 @@
     ENDDO
     !
     IF(nder.EQ.0) RETURN
-    !
-    ALLOCATE(dummy(npoi))
     !
     DO i=1,npoi
        dummy=1.d0
@@ -52,8 +50,6 @@
        ENDDO
        coef(1,i)=SUM(dummy)
     ENDDO
-    !
-    DEALLOCATE(dummy)
     !
     RETURN
   END SUBROUTINE plag_coeff
