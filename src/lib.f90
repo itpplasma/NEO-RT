@@ -1,8 +1,8 @@
 module neort_lib
     use iso_fortran_env, only: dp => real64
     use neort_config, only: config_t
-    use neort_datatypes, only: transport_data_t, mixture_result_t
-    use neort_species, only: species_state_t, mixture_t
+    use neort_datatypes, only: transport_data_t, mixture_result_t, species_result_t
+    use neort_species, only: species_state_t, mixture_t, selected_species
 
     implicit none
 
@@ -17,6 +17,13 @@ module neort_lib
     public :: neort_compute_no_splines
     public :: species_state_t, mixture_t, mixture_result_t
     public :: neort_prepare_mixture, neort_compute_mixture_at_s
+
+    ! A thread holds the per-species surface state of one transport
+    ! computation: transport_epoch counts the computations (each takes its
+    ! own epoch), held_species is the species of the state the thread holds.
+    integer :: transport_epoch = 0
+    integer :: held_epoch = -1, held_species = 0
+    !$omp threadprivate(held_epoch, held_species)
 
     interface neort_init
         module procedure init_from_config_file
@@ -171,14 +178,134 @@ contains
     end subroutine neort_setup_at_s
 
     subroutine neort_compute_at_s(s_val, transport_data_out)
-        use neort, only: compute_transport
-
         real(dp), intent(in) :: s_val
         type(transport_data_t), intent(out) :: transport_data_out
 
-        call neort_setup_at_s(s_val)
-        call compute_transport(transport_data_out)
+        type(transport_data_t) :: transport(1)
+        integer :: state(1)
+
+        ! The species selected by the caller is the single state. It is
+        ! assembled on the calling thread, which is left holding the surface
+        ! as by the serial harmonic loop.
+        state(1) = selected_species
+        call compute_transport_at_s(s_val, state, transport)
+        transport_data_out = transport(1)
     end subroutine neort_compute_at_s
+
+    subroutine compute_transport_at_s(s_val, state, transport, species)
+        ! The velocity nodes of every resonance component of every harmonic
+        ! (and species) are independent once a thread holds the per-species
+        ! state, so they are distributed over the OpenMP threads as one work
+        ! list. Each node is computed exactly as by the serial velocity loop
+        ! and the nodes, components and harmonics are summed in serial order
+        ! afterwards, so the results do not depend on the thread count.
+        use neort, only: compute_component_sample, assemble_component, &
+            assemble_transport, component_active, component_sample_count, ncomponent
+        use neort_transport, only: velocity_sample_t, prepare_velocity_samples
+        real(dp), intent(in) :: s_val
+        integer, intent(in) :: state(:)  ! species index of each state
+        type(transport_data_t), intent(out) :: transport(size(state))
+        type(species_result_t), intent(inout), optional :: species(size(state))
+        integer :: mthmin(size(state)), mthmax(size(state))
+        integer :: nstate, lower, upper, k, j, c, i, n, ku, ncomp, nsample, epoch
+        integer, allocatable :: comp(:, :)
+        real(dp), allocatable :: Dres(:, :, :, :), Tres(:, :, :)
+        type(velocity_sample_t), allocatable :: samples(:, :)
+
+        nstate = size(state)
+        !$omp atomic capture
+        transport_epoch = transport_epoch + 1
+        epoch = transport_epoch
+        !$omp end atomic
+        !$omp parallel do default(shared) private(k) schedule(dynamic, 1)
+        do k = 1, nstate
+            call hold_surface_state(s_val, epoch, state(k), mthmin(k), mthmax(k))
+        end do
+        !$omp end parallel do
+        lower = minval(mthmin)
+        upper = max(maxval(mthmax), lower - 1)
+        allocate(Dres(2, ncomponent, lower:upper, nstate), &
+                 Tres(ncomponent, lower:upper, nstate))
+        Dres = 0.0_dp
+        Tres = 0.0_dp
+        allocate(comp(3, nstate*ncomponent*max(upper - lower + 1, 0)))
+        ncomp = 0
+        do k = 1, nstate
+            do j = mthmin(k), mthmax(k)
+                do c = 1, ncomponent
+                    if (.not. component_active(c)) cycle
+                    ncomp = ncomp + 1
+                    comp(1, ncomp) = k
+                    comp(2, ncomp) = j
+                    comp(3, ncomp) = c
+                end do
+            end do
+        end do
+        nsample = component_sample_count()
+        allocate(samples(nsample, ncomp))
+        call prepare_velocity_samples(samples)
+        ! Species-major order: a thread moves forward through the list, so it
+        ! sets each species up at most once.
+        !$omp parallel do default(shared) private(n, i, ku, k, j, c) &
+        !$omp& schedule(dynamic, 1)
+        do n = 1, ncomp*nsample
+            i = (n - 1)/nsample + 1
+            ku = n - (i - 1)*nsample
+            k = comp(1, i)
+            j = comp(2, i)
+            c = comp(3, i)
+            call hold_surface_state(s_val, epoch, state(k))
+            call compute_component_sample(j, c, ku, samples(ku, i))
+        end do
+        !$omp end parallel do
+        !$omp parallel do default(shared) private(k, i, j, c) schedule(dynamic, 1) &
+        !$omp& if(nstate > 1)
+        do k = 1, nstate
+            call hold_surface_state(s_val, epoch, state(k))
+            do i = 1, ncomp
+                if (comp(1, i) /= k) cycle
+                j = comp(2, i)
+                c = comp(3, i)
+                call assemble_component(j, c, samples(:, i), Dres(:, c, j, k), &
+                    Tres(c, j, k))
+            end do
+            call assemble_transport(mthmin(k), mthmax(k), &
+                Dres(:, :, mthmin(k):mthmax(k), k), Tres(:, mthmin(k):mthmax(k), k), &
+                transport(k))
+            if (present(species)) then
+                species(k)%transport = transport(k)
+                call complete_mixture_species(state(k), species(k))
+            end if
+        end do
+        !$omp end parallel do
+    end subroutine compute_transport_at_s
+
+    subroutine hold_surface_state(s_val, epoch, species_index, mthmin, mthmax)
+        ! Makes the calling thread hold surface s_val for species_index in the
+        ! transport computation epoch and returns its harmonic range. A thread
+        ! sets a species up once per epoch.
+        use neort, only: prepare_transport
+        use neort_species, only: mixture_enabled
+        use driftorbit, only: sign_vpar
+        real(dp), intent(in) :: s_val
+        integer, intent(in) :: epoch, species_index
+        integer, intent(out), optional :: mthmin, mthmax
+        integer :: lower, upper
+        if (held_epoch /= epoch .or. held_species /= species_index) then
+            if (mixture_enabled) selected_species = species_index
+            ! The frequency splines are built for the current sign_vpar. The
+            ! serial harmonic loop always ends, and so the next setup starts,
+            ! with sign_vpar = 1, while this thread may have last computed a
+            ! counter-passing component.
+            sign_vpar = 1
+            call neort_setup_at_s(s_val)
+            held_epoch = epoch
+            held_species = species_index
+        end if
+        call prepare_transport(lower, upper)
+        if (present(mthmin)) mthmin = lower
+        if (present(mthmax)) mthmax = upper
+    end subroutine hold_surface_state
 
     subroutine neort_prepare_mixture(mixture)
         use neort_species, only: configure_mixture
@@ -194,13 +321,17 @@ contains
         real(dp), intent(in) :: s_val
         type(mixture_result_t), intent(out) :: result_
         integer :: k
+        type(transport_data_t), allocatable :: transport(:)
+        integer :: nspecies
+        integer, allocatable :: state(:)
         if (.not. mixture_enabled) error stop 'prepare a mixture before computing species'
-        allocate(result_%species(size(species_mixture%species)))
-        !$omp parallel do default(shared) private(k) schedule(dynamic, 1)
-        do k = 1, size(result_%species)
-            call compute_mixture_species_at_s(s_val, k, result_%species(k))
+        nspecies = size(species_mixture%species)
+        allocate(result_%species(nspecies), transport(nspecies), state(nspecies))
+        do k = 1, nspecies
+            state(k) = k
         end do
-        !$omp end parallel do
+        call compute_transport_at_s(s_val, state, transport, &
+            result_%species)
         result_%torque_total = 0.0_dp
         do k = 1, size(result_%species)
             result_%torque_total = result_%torque_total + &
@@ -210,26 +341,23 @@ contains
         end do
     end subroutine neort_compute_mixture_at_s
 
-    subroutine compute_mixture_species_at_s(s_val, species_index, result_)
-        use neort_species, only: selected_species, mixture_at_s
+    subroutine complete_mixture_species(species_index, result_)
+        ! Species diagnostics; the calling thread holds species_index.
+        use neort_species, only: mixture_at_s
         use neort_profiles, only: A1, A2, dOm_tEds
         use neort_mixture_collisions, only: selected_thermal_deflection_rate, &
             selected_reference_frequency
         use neort_datatypes, only: species_result_t
-        use neort, only: check_magfie, compute_transport
-        real(dp), intent(in) :: s_val
+        use neort, only: check_magfie
         integer, intent(in) :: species_index
-        type(species_result_t), intent(out) :: result_
-        selected_species = species_index
-        call neort_setup_at_s(s_val)
-        call compute_transport(result_%transport)
+        type(species_result_t), intent(inout) :: result_
         call check_magfie(result_%magfie)
         result_%species = mixture_at_s(species_index)
         result_%collision_thermal_deflection_rate = selected_thermal_deflection_rate()
         result_%collision_reference_frequency = selected_reference_frequency()
         result_%domega_e_ds = dOm_tEds
         if (result_%transport%torque%has_torque) result_%force = [A1, A2]
-    end subroutine compute_mixture_species_at_s
+    end subroutine complete_mixture_species
 
     subroutine neort_compute_no_splines(transport_data_out)
         use do_magfie_mod, only: init_magfie_at_s, R0, psi_pr, q, s

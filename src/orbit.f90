@@ -226,6 +226,52 @@ contains
         end subroutine bounce_rhs
     end subroutine bounce_fast
 
+    subroutine passing_frequency_integrals(v, eta, taub, drift_average)
+        ! Sample the thin passing frequencies with the energy invariant
+        ! enforced algebraically. Evolving v_parallel through the barrier
+        ! amplifies its invariant error by 1/(1-eta*B). The normalized drift
+        ! accumulator in timestep is also far below bounce_atol. Integrate
+        ! elapsed time and the physical drift phase in theta instead.
+        use fortnum_ode_vode, only: vode_state_t, vode_init, vode_integrate_to
+        use fortnum_status, only: fortnum_status_t, FORTNUM_OK
+        real(dp), intent(in) :: v, eta
+        real(dp), intent(inout) :: taub
+        real(dp), intent(out) :: drift_average
+        real(dp) :: y0(2), atol(2)
+        real(dp), allocatable :: yend(:)
+        type(vode_state_t) :: state
+        type(fortnum_status_t) :: status
+
+        if (eta >= etatp) error stop 'frequency quadrature requires a passing orbit'
+        y0 = 0.0_dp
+        atol = [bounce_rtol*taub, bounce_rtol]
+        call vode_init(state, 2, 0.0_dp, y0)
+        call vode_integrate_to(angular_rhs, state, 2*pi, bounce_rtol, atol, &
+            yend, status)
+        if (status%code /= FORTNUM_OK) &
+            error stop 'passing frequency angular integration failed'
+        taub = yend(1)
+        drift_average = yend(2)/(v**2*taub)
+    contains
+        subroutine angular_rhs(phi, y, dydphi, rhs_ctx)
+            real(dp), intent(in) :: phi, y(:)
+            real(dp), intent(out) :: dydphi(:)
+            class(*), intent(in), optional :: rhs_ctx
+            real(dp) :: x(3), bmod, sqrtg, hder(3), hcovar(3), hctrvr(3), hcurl(3)
+            real(dp) :: gap, dtdphi
+
+            associate (dummy => rhs_ctx)
+            end associate
+            x = [s, 0.0_dp, th0 + phi]
+            call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+            gap = 1.0_dp - eta*bmod
+            if (gap <= 0.0_dp) error stop 'passing frequency orbit crosses a barrier'
+            dtdphi = 1.0_dp/(v*sqrt(gap)*abs(hctrvr(3)))
+            dydphi(1) = dtdphi
+            dydphi(2) = v**2*Om_tB_local_v2(eta, bmod, hder(1), hctrvr(3))*dtdphi
+        end subroutine angular_rhs
+    end subroutine passing_frequency_integrals
+
     function bounce_time(v, eta, taub_estimate) result(taub)
 
         real(dp), intent(in) :: v, eta

@@ -22,6 +22,9 @@ module util
 
     real(dp), public :: qi = 1.0_dp * qe, mi = 2.014_dp * mu
 
+    ! cached_spline reuses its values while |x - x_prev| stays below this
+    real(dp), parameter, public :: spline_cache_tol = 1.0e-12_dp
+
     ! Flux-surface dependent (set from plasma data at each s)
     !$omp threadprivate (qi, mi)
 
@@ -109,11 +112,10 @@ contains
         real(dp), intent(in) :: spl_coeff(:, :, :)
         real(dp), intent(inout) :: y(:, :)
 
-        real(dp), parameter :: tol = 1.0e-12_dp
         real(dp) :: spl_val(3)
         integer :: j
 
-        if (abs(x - x_prev) < tol) return
+        if (abs(x - x_prev) < spline_cache_tol) return
 
         do j = 1, size(spl_coeff, 3)
             spl_val(:) = spline_val_0(spl_coeff(:, :, j), x)

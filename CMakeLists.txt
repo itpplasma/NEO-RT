@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
+option(USE_STANDALONE "Use do_magfie_standalone" ON)
+if(NOT USE_STANDALONE)
+    message(FATAL_ERROR
+        "USE_STANDALONE=OFF is currently unsupported: the native NEO-2 adapter "
+        "requires compatible NEO-2 field/perturbation APIs and CMake dependency "
+        "integration that are not available on main. Use -DUSE_STANDALONE=ON "
+        "(the default). See README.md, Building, for details.")
+endif()
+
 project(driftorbit LANGUAGES Fortran C)
 set(PROJECT_EXE_NAME "neo_rt.x")
 
@@ -74,6 +83,12 @@ endif()
 
 option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${NEORT_IS_STANDALONE})
 
+# Symbolic generators are consumer-owned and optional.  The generated kernels
+# are committed and are all that a normal NEO-RT build needs.  Set
+# FORTSYM_SOURCE_DIR to the local fortsym checkout when regenerating them.
+option(NEORT_BUILD_SYMBOLICS "Build NEO-RT fortsym generators" OFF)
+set(FORTSYM_SOURCE_DIR "" CACHE PATH "fortsym source tree for NEO-RT generators")
+
 if(DEFINED BUILD_TESTING)
     set(NEORT_BUILD_TESTING ${BUILD_TESTING})
 endif()
@@ -122,10 +137,13 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
+    src/orbit_classes.f90
     src/output.f90
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
+    src/generated/neort_separatrix_frequency_symbolic.f90
+    src/separatrix.f90
     src/shaing.f90
     src/species.f90
     src/transport.f90
@@ -133,10 +151,8 @@ set(NEO_RT_SOURCES
 )
 
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
-set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 PROPERTIES
+set_source_files_properties(src/separatrix.f90 src/orbit_classes.f90 src/resonance.f90 src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
-
-option(USE_STANDALONE "Use do_magfie_standalone" ON)
 
 if(USE_STANDALONE)
     find_or_fetch(libneo)
@@ -204,6 +220,10 @@ endif()
 
 # Diagnostics
 add_subdirectory(src/diag)
+
+if(NEORT_BUILD_SYMBOLICS)
+    add_subdirectory(tools/symbolics)
+endif()
 
 add_executable(neo_rt_diag.x
     src/diag/neort_diag.f90

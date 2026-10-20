@@ -479,7 +479,8 @@ set(frequency_model_dir "${CMAKE_CURRENT_BINARY_DIR}/frequency_model_modules")
 file(MAKE_DIRECTORY "${frequency_model_dir}")
 add_library(frequency_model_fixture STATIC
     fixtures/frequency_models/providers.f90
-    ../src/freq.f90 ../src/resonance.f90)
+    ../src/freq.f90 ../src/resonance.f90
+    ../src/separatrix.f90 ../src/generated/neort_separatrix_frequency_symbolic.f90)
 set_target_properties(frequency_model_fixture PROPERTIES
     Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
 target_include_directories(frequency_model_fixture BEFORE PUBLIC "${frequency_model_dir}")
@@ -517,6 +518,24 @@ foreach(rate_source IN ITEMS 1 2)
     set_tests_properties(test_species_collision_transport_${rate_source} PROPERTIES
         ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
         PROCESSORS 3 TIMEOUT 30)
+endforeach()
+
+add_test(NAME test_krook_reference
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_reference.py
+        $<TARGET_FILE:test_krook_reference.x>
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_mars_reference.tar.xz)
+set_tests_properties(test_krook_reference PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 90)
+set_source_files_properties(test_krook_reference.f90
+    test_mixture_thread_invariance.f90 PROPERTIES
+    COMPILE_OPTIONS "-fno-finite-math-only")
+foreach(mode IN ITEMS krook collisionless)
+    add_test(NAME test_mixture_thread_invariance_${mode}
+        COMMAND test_mixture_thread_invariance.x ${mode}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    set_tests_properties(test_mixture_thread_invariance_${mode} PROPERTIES
+        ENVIRONMENT "OMP_THREAD_LIMIT=8;OPENBLAS_NUM_THREADS=1;OMP_WAIT_POLICY=PASSIVE"
+        PROCESSORS 8 TIMEOUT 300)
 endforeach()
 
 add_test(NAME test_mixture_collisions COMMAND test_mixture_collisions.x)
@@ -570,3 +589,15 @@ foreach(rejection IN ITEMS missing-argument missing-file without-pertfile)
     set_tests_properties(test_curvature_rejects_${rejection} PROPERTIES
         ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
 endforeach()
+add_test(NAME test_separatrix_model COMMAND test_separatrix_model.x)
+add_test(NAME test_separatrix_limit COMMAND test_separatrix_limit.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+add_test(NAME test_orbit_classes COMMAND test_orbit_classes.x)
+add_test(NAME test_orbit_classes_reject_composite COMMAND test_orbit_classes.x composite)
+set_tests_properties(test_orbit_classes_reject_composite PROPERTIES WILL_FAIL TRUE)
+set_tests_properties(test_separatrix_limit PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+
+add_test(NAME test_resonance_acceptance COMMAND test_resonance_acceptance.x)
+
+add_test(NAME test_separatrix_cosine COMMAND test_separatrix_cosine.x)

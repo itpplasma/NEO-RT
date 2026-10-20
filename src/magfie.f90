@@ -3,6 +3,7 @@ module neort_magfie
     use util, only: disp, pi
     use do_magfie_mod, only: do_magfie, eps, iota
     use neort_orbit, only: th0
+    use neort_orbit_classes, only: require_single_well
     use driftorbit, only: B0, Bmin, Bmax, etadt, etatp, dVds
     use logger, only: log_result
 
@@ -16,7 +17,7 @@ contains
         real(dp), intent(in) :: s
         integer, parameter :: nth = 1000
         integer :: k
-        real(dp) :: thrange(nth), dth, thmax
+        real(dp) :: thrange(nth), dth, thmax, sampled_b(nth)
         real(dp) :: bmod, sqrtg, x(3), hder(3), hcovar(3), hctrvr(3), hcurl(3)
         character(len=256) :: buffer
 
@@ -42,6 +43,7 @@ contains
         do k = 1, nth
             x(3) = thrange(k)
             call do_magfie(x, bmod, sqrtg, hder, hcovar, hctrvr, hcurl)
+            sampled_b(k) = bmod
             dVds = dVds + abs(sqrtg)*dth
             B0 = B0 + bmod*dth
             eps = eps - cos(x(3))*bmod*dth
@@ -56,6 +58,7 @@ contains
                 thmax = x(3)
             end if
         end do
+        call require_single_well(sampled_b)
         ! etatp = 1/Bmax bounds the passing orbits: an eta below a grid maximum
         ! that misses the true one by its O(dth**2) error reflects, and the
         ! passing transit integration has no turning point to pass.

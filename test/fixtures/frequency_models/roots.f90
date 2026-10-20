@@ -1,7 +1,7 @@
 program test_resonance_discontinuity
     use iso_fortran_env, only: dp=>real64
     use neort_freq, only: init_canon_freq_trapped_spline, OmtB_spl_coeff, &
-        k_taub_t, d_taub_t, k_OmtB_t, d_OmtB_t
+        separatrix_trapped
     use neort_resonance, only: driftorbit_root, resonance_value
     use neort_profiles, only: Om_tE
     use driftorbit, only: etatp, epst_spl
@@ -11,10 +11,7 @@ program test_resonance_discontinuity
     call init_canon_freq_trapped_spline()
     Om_tE=0
     join=etatp*(1+epst_spl)
-    k_taub_t=-.125_dp
-    d_taub_t=5
-    k_OmtB_t=0
-    d_OmtB_t=-1
+    separatrix_trapped%numerator=-separatrix_trapped%tau
     x=[join,join+.125_dp,join+.25_dp]
     ! Lower branch is strictly negative; upper is >=1: no zero exists.
     y=1+x-join

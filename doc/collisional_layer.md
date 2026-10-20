@@ -1,3 +1,7 @@
+---
+title: Collisional boundary-layer closure
+---
+
 # Collisional boundary-layer closure
 
 `collisional_layer = .true.` enables the local two-boundary closure. Default
