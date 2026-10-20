@@ -137,6 +137,14 @@ contains
 
         integer :: unit, surface
         real(dp), parameter :: surfaces(3) = [0.2_dp, 0.5_dp, 0.8_dp]
+        real(dp), parameter :: two_pi = 8.0_dp*atan(1.0_dp)
+        real(dp) :: dvds
+
+        ! (dV/ds)/nper consistent with the header flux, currents and |B| below:
+        ! 4*pi**2*(flux/(2*pi))*0.2*(Jpol + iota*Itor)*<1/B**2> in SI-cgs units,
+        ! with <1/(2 - 0.2*cos(theta))**2> = 2/(4 - 0.04)**1.5 T**-2.
+        dvds = two_pi**2*(1.0e8_dp/two_pi)*0.2_dp*(100.0_dp + 0.2_dp*10.0_dp) &
+            *2.0_dp/(4.0_dp - 0.04_dp)**1.5_dp*1.0e-8_dp*1.0e-6_dp
 
         open (newunit=unit, file=path, status='replace', action='write')
         write (unit, '(a)') 'CC manufactured equilibrium field'
@@ -149,7 +157,7 @@ contains
             write (unit, '(a)') 'CC s iota Jpol Itor pprime sqrtg00'
             write (unit, '(a)') 'CC units A A Pa m3'
             write (unit, '(*(g0,1x))') surfaces(surface), 0.2_dp, 100.0_dp, &
-                10.0_dp, 0.0_dp, 1.0_dp
+                10.0_dp, 0.0_dp, dvds
             write (unit, '(a)') 'CC m n rmnc rmns zmnc zmns vmnc vmns bmnc bmns'
             write (unit, '(*(g0,1x))') 0, 0, 5.0_dp, 0.0_dp, 0.0_dp, 0.0_dp, &
                 0.0_dp, 0.0_dp, 2.0_dp, 0.0_dp

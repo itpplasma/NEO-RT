@@ -1,4 +1,5 @@
 add_library(potato_base
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/kinetic_energy_selection.f90
   ${LIBNEO_SOURCE_DIR}/src/util/libneo_kinds.f90
   logging_mod.f90
   wall_loss_mod.f90
@@ -35,11 +36,16 @@ add_library(potato_base
   sorting.f90
   binsrc.f90
   bmod_pert.f90
+  resonance_mode_bounds_mod.f90
   resonant_int.f90
   eqmagprofs.f90
   box_counting.f90
   neo2_reader.f90
 )
+# Keep the nonfinite coordinate guard effective under Fast optimization.
+set_source_files_properties(bmod_pert.f90 PROPERTIES
+  COMPILE_OPTIONS "-fno-finite-math-only")
+
 set(VODE_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 if(DEFINED BUILD_TESTING)
   set(_POTATO_BUILD_TESTING_WAS_DEFINED TRUE)

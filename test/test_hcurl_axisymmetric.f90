@@ -215,7 +215,7 @@ contains
 
         integer :: file_unit, surface_index
         real(dp) :: Bph_si, Bth_si, flux, radius_m, s_surface
-        real(dp) :: raw_Jpol, raw_Itor, field_magnitude
+        real(dp) :: raw_Jpol, raw_Itor, field_magnitude, volume_derivative
         real(dp), parameter :: surfaces(5) = &
             [0.2_dp, 0.35_dp, 0.5_dp, 0.65_dp, 0.8_dp]
 
@@ -239,10 +239,14 @@ contains
             raw_Itor = Bth_si*tesla_to_gauss*meter_to_cm/current_to_covar
             field_magnitude = field_t &
                 *sqrt(1.0_dp + (radius_m*iota_abs/major_radius_m)**2)
+            ! The mirror contributes <(1-delta*cos(theta))**(-2)>
+            ! = (1-delta**2)**(-3/2) to the signed Boozer volume derivative.
+            volume_derivative = 2.0_dp*pi**2*major_radius_m*minor_radius_m**2 &
+                /(1.0_dp - mirror_fraction**2*s_surface)**1.5_dp
             write (file_unit, "(a)") "CC s iota Jpol Itor pprime sqrtg00"
             write (file_unit, "(a)") "CC units A A Pa m3"
             write (file_unit, *) s_surface, iota_abs, raw_Jpol, raw_Itor, &
-                0.0_dp, 0.0_dp
+                0.0_dp, volume_derivative
             write (file_unit, "(a)") &
                 "CC m n rmnc rmns zmnc zmns vmnc vmns bmnc bmns"
             write (file_unit, *) 0, 0, major_radius_m, 0.0_dp, 0.0_dp, 0.0_dp, &
