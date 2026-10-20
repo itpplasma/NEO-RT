@@ -9,10 +9,7 @@ module do_magfie_mod
     real(dp), private, allocatable :: spl_val_c(:, :), spl_val_s(:, :)
     ! Work arrays previously automatic on stack (size=nmode)
     real(dp), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
-    ! (B0mnc, dB0dsmnc, m*B0mnc) - i*(B0mns, dB0dsmns, m*B0mns), zero-padded
-    real(dp), private, allocatable :: bmod_coef(:, :, :)
-    complex(dp), private :: bmod_sums(3)
-    integer, parameter :: fourier_chains = 4
+    real(dp), private, allocatable :: costerm(:), sinterm(:)
     ! bfac carried by B0mnc etc.; flux-function spline values at profile_x1
     real(dp), private :: amplitude_bfac = 0.0_dp, profile_x1 = -1.0_dp
     real(dp), private :: profile_spl(3, 3) = 0.0_dp
@@ -58,7 +55,7 @@ module do_magfie_mod
     ! Working buffers (per-thread cache and temporary arrays)
     !$omp threadprivate (magfie_arrays_initialized, magfie_thread_init_state)
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
-    !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, bmod_coef, bmod_sums)
+    !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
     !$omp threadprivate (rmnc, rmns, zmnc, zmns)
     !$omp threadprivate (amplitude_bfac, profile_x1, profile_spl)
 
@@ -187,9 +184,9 @@ contains
                     if (allocated(dB0dsmns)) deallocate(dB0dsmns)
                     allocate(B0mns(nmode), dB0dsmns(nmode))
                 end if
-                if (allocated(bmod_coef)) deallocate(bmod_coef)
-                allocate(bmod_coef(fourier_chains*((nmode - 1)/fourier_chains + 1), &
-                                   2, 3))
+                if (allocated(costerm)) deallocate(costerm)
+                if (allocated(sinterm)) deallocate(sinterm)
+                allocate(costerm(nmode), sinterm(nmode))
 
                 if (allocated(rmnc)) deallocate(rmnc)
                 if (allocated(rmns)) deallocate(rmns)
@@ -295,18 +292,24 @@ contains
                 dB0dsmns(:) = 1.0e4_dp * spl_val_s(2, :) * bfac
             end if
             amplitude_bfac = bfac
-            call set_bmod_coefficients()
         end if
         B0h = B0mnc(1)
 
-        ! bmod = sum(B0mnc*cos(m*th) + B0mns*sin(m*th)), its s derivative and
-        ! its theta derivative, as the real parts of complex Fourier sums.
-        call fourier_sums(bmod_coef, modes0(1, 1, 1), &
-                          modes0(1, 2, 1) - modes0(1, 1, 1), x(3), bmod_sums)
-        bmod = real(bmod_sums(1), dp)
-        bder(1) = real(bmod_sums(2), dp) / bmod
-        bder(2) = 0.0_dp
-        bder(3) = real(imun * bmod_sums(3), dp) / bmod
+        ! Keep the forward phase recurrence: changing the equilibrium rounding
+        ! perturbs bounce trajectories and the nested adaptive Krook quadrature.
+        call fast_sin_cos(modes0(1, :, 1), x(3), sinterm, costerm)
+        if (inp_swi == 8) then
+            bmod = sum(B0mnc * costerm)
+            bder(1) = sum(dB0dsmnc * costerm) / bmod
+            bder(2) = 0.0_dp
+            bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm) / bmod
+        else if (inp_swi == 9) then
+            bmod = sum(B0mnc * costerm + B0mns * sinterm)
+            bder(1) = sum(dB0dsmnc * costerm + dB0dsmns * sinterm) / bmod
+            bder(2) = 0.0_dp
+            bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm &
+                          + modes0(1, :, 1) * B0mns * costerm) / bmod
+        end if
 
         sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
         sqgbmod = sqgbmod2 / bmod
@@ -800,59 +803,27 @@ contains
 
     end subroutine booz_to_cyl
 
-    subroutine set_bmod_coefficients()
-        ! Complex coefficients of bmod, d bmod/ds and d bmod/dtheta (times -i)
-        ! from the current mode amplitudes; B0mns is absent for inp_swi == 8.
-        bmod_coef = 0.0_dp
-        bmod_coef(:nmode, 1, 1) = B0mnc
-        bmod_coef(:nmode, 1, 2) = dB0dsmnc
-        bmod_coef(:nmode, 1, 3) = modes0(1, :, 1) * B0mnc
-        if (inp_swi == 9) then
-            bmod_coef(:nmode, 2, 1) = -B0mns
-            bmod_coef(:nmode, 2, 2) = -dB0dsmns
-            bmod_coef(:nmode, 2, 3) = -modes0(1, :, 1) * B0mns
-        end if
-    end subroutine set_bmod_coefficients
+    subroutine fast_sin_cos(m, x, sinterm_, costerm_)
+        ! Fast sine and cosine that assumes equally spaced ascending mode numbers
+        real(dp), intent(in) :: m(:), x
+        real(dp), intent(out) :: sinterm_(:), costerm_(:)
 
-    subroutine fourier_sums(coef, m1, dm, x, sums)
-        ! sums(k) = sum_j (coef(j, 1, k) + i*coef(j, 2, k))*exp(i*(m1 + (j - 1)*dm)*x)
-        ! for equally spaced ascending mode numbers, by Horner's scheme in
-        ! z = exp(i*dm*x) as fourier_chains interleaved chains in
-        ! z**fourier_chains (independent recurrences that vectorize). The
-        ! coefficients are zero-padded to a multiple of fourier_chains.
-        real(dp), intent(in) :: coef(:, :, :), m1, dm, x
-        complex(dp), intent(out) :: sums(3)
-        real(dp) :: hr(fourier_chains, 3), hi(fourier_chains, 3)
-        real(dp) :: t(fourier_chains), step_re, step_im
-        complex(dp) :: rotation, power, step
-        integer :: base, l, k
+        real(dp) :: dm
+        complex(dp) :: fourier_factor, rotation
+        integer :: j
 
-        rotation = unit_phase(dm*x)
-        step = rotation
-        do l = 2, fourier_chains
-            step = step*rotation
+        dm = m(2) - m(1)
+        fourier_factor  = exp(imun*m(1)*x)
+        rotation = exp(imun*dm*x)
+
+        costerm_ = (0.0_dp, 0.0_dp)
+        sinterm_ = (0.0_dp, 0.0_dp)
+        do j = 1, size(m)
+            costerm_(j) = real(fourier_factor)
+            sinterm_(j) = imag(fourier_factor)
+            fourier_factor = fourier_factor*rotation
         end do
-        step_re = real(step, dp)
-        step_im = aimag(step)
-        hr = 0.0_dp
-        hi = 0.0_dp
-        do base = size(coef, 1) - fourier_chains, 0, -fourier_chains
-            do k = 1, 3
-                t = hr(:, k)*step_re - hi(:, k)*step_im &
-                    + coef(base + 1:base + fourier_chains, 1, k)
-                hi(:, k) = hr(:, k)*step_im + hi(:, k)*step_re &
-                    + coef(base + 1:base + fourier_chains, 2, k)
-                hr(:, k) = t
-            end do
-        end do
-        sums = cmplx(hr(1, :), hi(1, :), dp)
-        power = (1.0_dp, 0.0_dp)
-        do l = 2, fourier_chains
-            power = power*rotation
-            sums = sums + cmplx(hr(l, :), hi(l, :), dp)*power
-        end do
-        if (m1 /= 0.0_dp) sums = sums*exp(imun*m1*x)
-    end subroutine fourier_sums
+    end subroutine fast_sin_cos
 
 end module do_magfie_mod
 
@@ -1143,28 +1114,6 @@ contains
         end if
     end subroutine check_equal
 
-    function fast_fourier_sum(fmnc, fmns, m, x)
-        ! Fast Fourier sum that assumes equally spaced ascending mode numbers
-        real(dp), dimension(:), intent(in) :: fmnc, fmns, m
-        real(dp), intent(in) :: x
-        complex(dp) :: fast_fourier_sum
-
-        real(dp) :: dm
-        complex(dp) :: fourier_factor, rotation
-        integer :: j
-
-        dm = m(2) - m(1)
-        fourier_factor  = exp(imun*m(1)*x)
-        rotation = exp(imun*dm*x)
-
-        fast_fourier_sum = (0.0_dp, 0.0_dp)
-        do j = 1, size(m)
-            fast_fourier_sum = fast_fourier_sum + &
-                (fmnc(j) - imun*fmns(j))*fourier_factor
-            fourier_factor = fourier_factor*rotation
-        end do
-    end function fast_fourier_sum
-
     function horner_fourier_sum(coef_re, coef_im, m1, dm, x) result(total)
         ! sum_j (coef_re(j) + i*coef_im(j))*exp(i*(m1 + (j - 1)*dm)*x) for
         ! equally spaced ascending mode numbers. Horner's scheme in
@@ -1179,7 +1128,7 @@ contains
         complex(dp) :: rotation, power, step
         integer :: base, l
 
-        rotation = unit_phase(dm*x)
+        rotation = exp(imun*dm*x)
         step = rotation
         do l = 2, fourier_chains
             step = step*rotation

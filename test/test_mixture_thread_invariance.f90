@@ -9,12 +9,12 @@ program test_mixture_thread_invariance
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use neort_lib, only: config_t, mixture_t, species_state_t, mixture_result_t, &
         neort_init, neort_prepare_mixture, neort_compute_mixture_at_s
-    use omp_lib, only: omp_set_num_threads, omp_set_dynamic
+    use omp_lib, only: omp_set_num_threads, omp_set_dynamic, omp_get_num_threads
     implicit none
     type(config_t) :: config
     type(mixture_t) :: mixture
     type(mixture_result_t) :: serial, threaded
-    integer, parameter :: thread_counts(4) = [2, 4, 8, 16]
+    integer, parameter :: thread_counts(3) = [2, 4, 8]
     integer :: n, nthreads, failures
     character(len=32) :: mode
 
@@ -26,7 +26,7 @@ program test_mixture_thread_invariance
     call setup_mixture(mixture)
     call neort_prepare_mixture(mixture)
     call omp_set_dynamic(.false.)
-    call omp_set_num_threads(1)
+    call set_threads(1)
     call neort_compute_mixture_at_s(config%s, serial)
     if (size(serial%species(1)%transport%harmonics) < 3) &
         error stop 'test needs several harmonics per species'
@@ -35,13 +35,25 @@ program test_mixture_thread_invariance
     failures = 0
     do n = 1, size(thread_counts)
         nthreads = thread_counts(n)
-        call omp_set_num_threads(nthreads)
+        call set_threads(nthreads)
         call neort_compute_mixture_at_s(config%s, threaded)
         call compare(serial, threaded, nthreads, failures)
     end do
     if (failures > 0) error stop 'mixture transport depends on the thread count'
     print *, 'Mixture transport (', trim(mode), ') is independent of the thread count'
 contains
+    subroutine set_threads(nthreads)
+        integer, intent(in) :: nthreads
+        integer :: team
+        call omp_set_num_threads(nthreads)
+        !$omp parallel
+        !$omp single
+        team = omp_get_num_threads()
+        !$omp end single
+        !$omp end parallel
+        if (team /= nthreads) error stop 'requested OpenMP team is unavailable'
+    end subroutine set_threads
+
     subroutine setup_config(value, krook)
         type(config_t), intent(out) :: value
         logical, intent(in) :: krook

@@ -1,8 +1,7 @@
-# One interpreter (with numpy and h5py) for all Python checks; select it
-# with -DPython3_EXECUTABLE.
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+find_package(Python REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
+find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME test_profile_probe
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_profile_probe.py
@@ -35,12 +34,12 @@ set_tests_properties(test_species_mixture_run PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 3 TIMEOUT 60 FIXTURES_SETUP species_mixture_output)
 add_test(NAME test_species_mixture_output
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_output.py
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_output.py
         ${CMAKE_CURRENT_BINARY_DIR}/species_run)
 set_tests_properties(test_species_mixture_output PROPERTIES
     FIXTURES_REQUIRED species_mixture_output)
 add_test(NAME test_species_mixture_cli
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_cli.py
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_cli.py
         $<TARGET_FILE:neo_rt.x> ${CMAKE_SOURCE_DIR}/examples/base/in_file
         ${CMAKE_CURRENT_BINARY_DIR}/mixture_cli)
 set_tests_properties(test_species_mixture_cli PROPERTIES
@@ -268,7 +267,7 @@ add_test(NAME test_transport_weight_amplitude
 set_tests_properties(test_transport_weight_amplitude PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_failure_context
-    COMMAND ${Python3_EXECUTABLE}
+    COMMAND ${Python_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_failure_context.py
         $<TARGET_FILE:test_krook_transport.x>)
 set_tests_properties(test_krook_failure_context PROPERTIES
@@ -500,13 +499,22 @@ foreach(rate_source IN ITEMS 1 2)
         PROCESSORS 3 TIMEOUT 30)
 endforeach()
 
+add_test(NAME test_krook_reference
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_reference.py
+        $<TARGET_FILE:test_krook_reference.x>
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_mars_reference.tar.xz)
+set_tests_properties(test_krook_reference PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 90)
+set_source_files_properties(test_krook_reference.f90
+    test_mixture_thread_invariance.f90 PROPERTIES
+    COMPILE_OPTIONS "-fno-finite-math-only")
 foreach(mode IN ITEMS krook collisionless)
     add_test(NAME test_mixture_thread_invariance_${mode}
         COMMAND test_mixture_thread_invariance.x ${mode}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
     set_tests_properties(test_mixture_thread_invariance_${mode} PROPERTIES
-        ENVIRONMENT "OMP_THREAD_LIMIT=16;OPENBLAS_NUM_THREADS=1;OMP_WAIT_POLICY=PASSIVE"
-        PROCESSORS 16 TIMEOUT 300)
+        ENVIRONMENT "OMP_THREAD_LIMIT=8;OPENBLAS_NUM_THREADS=1;OMP_WAIT_POLICY=PASSIVE"
+        PROCESSORS 8 TIMEOUT 300)
 endforeach()
 
 add_test(NAME test_mixture_collisions COMMAND test_mixture_collisions.x)

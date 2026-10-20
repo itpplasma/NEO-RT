@@ -25,11 +25,6 @@ module util
     ! cached_spline reuses its values while |x - x_prev| stays below this
     real(dp), parameter, public :: spline_cache_tol = 1.0e-12_dp
 
-    ! Last argument and value of unit_phase
-    real(dp), private :: phase_angle = 0.0_dp
-    complex(dp), private :: phase_value = (0.0_dp, 0.0_dp)
-    !$omp threadprivate (phase_angle, phase_value)
-
     ! Flux-surface dependent (set from plasma data at each s)
     !$omp threadprivate (qi, mi)
 
@@ -109,19 +104,6 @@ contains
         open (unit=newunit(lun), iostat=stat, file=filename, status='old')
         if (stat == 0) close (lun, status='delete')
     end subroutine
-
-    complex(dp) function unit_phase(angle)
-        ! exp(i*angle). The equilibrium and perturbation Fourier sums of one
-        ! orbit right-hand side share the angle, so the last value is reused.
-        ! A value of modulus far from 1 marks the cache as not yet filled.
-        real(dp), intent(in) :: angle
-        if (angle /= phase_angle .or. &
-            real(phase_value)**2 + aimag(phase_value)**2 < 0.5_dp) then
-            phase_value = exp(imun*angle)
-            phase_angle = angle
-        end if
-        unit_phase = phase_value
-    end function unit_phase
 
     subroutine cached_spline(x, x_prev, spl_coeff, y)
         use spline, only: spline_val_0
