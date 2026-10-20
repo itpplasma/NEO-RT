@@ -6,8 +6,8 @@ Covers:
       (default-off back-compatibility on the ripple-plateau case);
   (2) with real (energy-dependent) collisionality and an interior resonance,
       the transport integral approaches the collisionless delta result as
-      collisionality -> 0; large density exercises the table clamping only.
-      The clamped high-collision response is not a validated physics limit.
+      collisionality -> 0; large density exercises the independently validated
+      narrow-domain cubic suppression limit.
 
 The physics tests reuse the ripple-plateau magnetic field but load the real
 plasma/rotation profiles from examples/base so that the deflection frequency is
@@ -125,7 +125,7 @@ def test_collisionless_limit(executable: Path, tmp_path: Path) -> None:
 
 @pytest.mark.fast_only
 def test_high_collisionality_suppression(executable: Path, tmp_path: Path) -> None:
-    """Exercise the clamped table corner, without validating its extrapolation."""
+    """The validated narrow-domain limit suppresses large-density transport."""
     d_off = _run_case(executable, tmp_path / "off", ".false.", 1e9, nopassing=True)
     d_on = _run_case(executable, tmp_path / "on", ".true.", 1e9, nopassing=True)
     ratio = d_on / d_off

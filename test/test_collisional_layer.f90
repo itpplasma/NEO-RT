@@ -1,10 +1,10 @@
 program test_collisional_layer
     ! Unit tests for the collisional boundary-layer factor:
     !   (1) complete elliptic integrals against known values,
-    !   (2) R-table interpolation: grid nodes, clamping, far-limit 1,
+    !   (2) independently checked interpolation, rejection and asymptotic limits,
     !   (3) physics: an interior resonance root approaches the collisionless
     !       (delta) result as collisionality -> 0 and is suppressed as
-    !       the table clamps at high collisionality (not a physical asymptote).
+    !       the narrow-domain asymptote at high collisionality.
     use iso_fortran_env, only: dp => real64
     use neort_config, only: read_and_set_config
     use neort_collisional_layer, only: layer_ratio, layer_delta_eta, &
@@ -13,6 +13,8 @@ program test_collisional_layer
     implicit none
 
     character(len=16) :: mode
+    character(len=64) :: argument
+    real(dp) :: a, b
     integer :: ia, ib
 
     real(dp), parameter :: PI_HALF = 1.5707963267948966_dp
@@ -24,21 +26,70 @@ program test_collisional_layer
         if (collisional_layer) error stop 'absent collisional_layer retained previous true value'
         stop
     end if
-    if (mode == 'table') then
-        do ia = -1, 6
-            do ib = -1, 6
-                print *, 2.0_dp**ia, 2.0_dp**ib, layer_ratio(2.0_dp**ia, 2.0_dp**ib)
+    if (mode == 'ratio') then
+        call get_command_argument(2, argument)
+        read(argument, *) a
+        call get_command_argument(3, argument)
+        read(argument, *) b
+        print *, layer_ratio(a, b)
+        stop
+    end if
+    if (mode == 'edges') then
+        do ia = -16, 23
+            a = 2.0_dp**((real(ia, dp) + 0.5_dp)/4.0_dp)
+            print *, a, 0.0625_dp, layer_ratio(a, 0.0625_dp)
+            print *, 0.0625_dp, a, layer_ratio(0.0625_dp, a)
+            print *, a, 64.0_dp, layer_ratio(a, 64.0_dp)
+            print *, 64.0_dp, a, layer_ratio(64.0_dp, a)
+            print *, 0.0_dp, a, layer_ratio(0.0_dp, a)
+            print *, a, 0.0_dp, layer_ratio(a, 0.0_dp)
+            do ib = 1, 3
+                b = real(ib, dp)/64.0_dp
+                print *, a, b, layer_ratio(a, b)
+                print *, b, a, layer_ratio(b, a)
             end do
         end do
         stop
     end if
+    if (mode == 'table' .or. mode == 'interior') then
+        do ia = -16, 24
+            do ib = -16, 24
+                a = 2.0_dp**(real(ia, dp)/4.0_dp)
+                b = 2.0_dp**(real(ib, dp)/4.0_dp)
+                if (mode == 'interior') then
+                    if (ia == 24 .or. ib == 24) cycle
+                    a = a*2.0_dp**0.125_dp
+                    b = b*2.0_dp**0.125_dp
+                end if
+                print *, a, b, layer_ratio(a, b)
+            end do
+        end do
+        if (mode == 'table') then
+            do ia = -16, 24
+                a = 2.0_dp**(real(ia, dp)/4.0_dp)
+                print *, 0.0_dp, a, layer_ratio(0.0_dp, a)
+                print *, a, 0.0_dp, layer_ratio(a, 0.0_dp)
+            end do
+            print *, 0.0_dp, 0.0_dp, layer_ratio(0.0_dp, 0.0_dp)
+        else
+            do ia = -16, 23
+                a = 2.0_dp**((real(ia, dp) + 0.5_dp)/4.0_dp)
+                print *, 0.03125_dp, a, layer_ratio(0.03125_dp, a)
+                print *, a, 0.03125_dp, layer_ratio(a, 0.03125_dp)
+            end do
+            print *, 0.03125_dp, 0.03125_dp, layer_ratio(0.03125_dp, 0.03125_dp)
+        end if
+        stop
+    end if
 
+    call check('narrow domain independent solver', layer_ratio(0.1_dp, 0.1_dp), &
+        0.00084882598725_dp, 1.0e-9_dp)
     call test_background_rates
     call test_mixture_rates
     call test_root_factor
     call test_bounce_diffusion
     call test_elliptic_integrals
-    call test_table_clamping
+    call test_table_interpolation
     call test_table_far_limit
     call test_interior_root_collisionless_limit
     call test_interior_root_suppression
@@ -171,16 +222,8 @@ contains
         call check("E(0.5)", comp_ellint_e(0.5_dp), 1.3506438810_dp, 1.0e-7_dp)
     end subroutine test_elliptic_integrals
 
-    subroutine test_table_clamping
+    subroutine test_table_interpolation
         real(dp) :: r_lo, r_hi, r_mid
-
-        ! Outside the grid clamps to the nearest node.
-        call check("clamp-high == node(64,64)", &
-                   layer_ratio(1.0e3_dp, 1.0e3_dp), &
-                   layer_ratio(64.0_dp, 64.0_dp), 1.0e-12_dp)
-        call check("clamp-low == node(0.5,0.5)", &
-                   layer_ratio(1.0e-3_dp, 1.0e-3_dp), &
-                   layer_ratio(0.5_dp, 0.5_dp), 1.0e-12_dp)
 
         ! Interpolation between two nodes stays between them (monotone edge).
         r_lo = layer_ratio(0.5_dp, 0.5_dp)
@@ -190,7 +233,7 @@ contains
             print *, "FAIL interpolation not bracketed", r_lo, r_mid, r_hi
             error stop
         end if
-    end subroutine test_table_clamping
+    end subroutine test_table_interpolation
 
     subroutine test_table_far_limit
         ! An interior root many layer widths from both boundaries recovers the
@@ -218,11 +261,11 @@ contains
         real(dp), parameter :: EPS = 0.1_dp, ABS_DOM = 1.0e5_dp
         real(dp), parameter :: NU_HUGE = 1.0e30_dp
 
-        ! Huge collisionality: layer width dwarfs the trapped domain, both scaled
-        ! distances clamp to the near-boundary corner, so R is strongly
-        ! suppressed below the delta result.
+        ! Huge collisionality: the independently validated narrow-domain limit.
         delta_eta = layer_delta_eta(NU_HUGE, ETA, EPS, ETATP, ETADT, ABS_DOM)
         ratio = layer_ratio((ETADT - ETA)/delta_eta, (ETA - ETATP)/delta_eta)
+        call check('narrow-domain cubic suppression', ratio, &
+            ((ETADT - ETATP)/delta_eta)**3/(3.0_dp*2.0_dp*PI_HALF), 1.0e-30_dp)
         if (ratio >= 0.6_dp) then
             print *, "FAIL suppression: R =", ratio, " not < 0.6"
             error stop

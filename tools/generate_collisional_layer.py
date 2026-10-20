@@ -20,6 +20,9 @@ END = "    ! END GENERATED R_TABLE\n"
 
 
 def layer_ratio(a, b):
+    if a + b == 0:
+        return 0.0  # collapsed interval, from the narrow-domain limit
+
     def rhs(z, y):
         return np.array([y[1], -z*y[2] - 1, y[3], z*y[0]])
 
@@ -35,14 +38,15 @@ def layer_ratio(a, b):
 
 
 def generated_table():
-    nodes = 2.0**np.arange(-1, 7)
+    nodes = np.r_[0.0, 2.0**np.arange(-4, 6.01, 0.25)]
     lines = [BEGIN, "    real(dp), parameter :: R_TABLE(NGRID, NGRID) = reshape([ &\n"]
     for a in nodes:
         row = [f"{layer_ratio(a, b):.12e}_dp" for b in nodes]
-        for i in range(0, 6, 3):
-            lines.append("        " + ", ".join(row[i:i+3]) + ", &\n")
-        tail = ", &" if a != nodes[-1] else "], &"
-        lines.append("        " + ", ".join(row[6:]) + tail + f"  ! d_dt/delta = {a:g}\n")
+        for i in range(0, len(row), 3):
+            last = i + 3 >= len(row)
+            tail = "], &" if last and a == nodes[-1] else ", &"
+            comment = f"  ! d_dt/delta = {a:.12g}" if last else ""
+            lines.append("        " + ", ".join(row[i:i+3]) + tail + comment + "\n")
     lines.extend(["        [NGRID, NGRID], order=[2, 1])\n", END])
     return "".join(lines)
 
@@ -58,7 +62,7 @@ def main():
     if args.check:
         if source[start:end] != replacement:
             raise SystemExit("R_TABLE differs; regenerate with tools/generate_collisional_layer.py")
-        print("R_TABLE reproduces all 64 collocation solves")
+        print("R_TABLE reproduces all 1764 entries")
     else:
         SOURCE.write_text(source[:start] + replacement + source[end:])
 
