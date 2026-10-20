@@ -1177,6 +1177,19 @@ contains
         s_prev_k = x1
     end subroutine do_magfie_pert_kappa_amp
 
+    subroutine perturbation_amplitude_bound(x, amplitude)
+        ! Triangle bound over all theta of the dimensional Fourier table.
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: amplitude
+        complex(dp) :: unused
+        call do_magfie_pert_amp(x, unused)
+        if (ncol2 < 8) then
+            amplitude = sum(abs(Bmnc))
+        else
+            amplitude = sum(sqrt(Bmnc**2 + Bmns**2))
+        end if
+    end subroutine perturbation_amplitude_bound
+
     subroutine check_equal_space_ascending(m, kmode)
         real(dp), dimension(:), intent(in) :: m
         integer, intent(in) :: kmode
