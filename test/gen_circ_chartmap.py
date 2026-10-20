@@ -19,6 +19,10 @@ import os
 import sys
 import tempfile
 
+import netCDF4
+import numpy as np
+from scipy.interpolate import CubicSpline
+
 if len(sys.argv) != 2:
     print("usage: gen_circ_chartmap.py <output.nc>", file=sys.stderr)
     sys.exit(1)
@@ -83,6 +87,7 @@ _load_module_from_file(
 )
 
 from libneo.bc_to_booz_xform import convert_bc_to_boozmn  # noqa: E402
+from libneo.boozer import BoozerFile  # noqa: E402
 from libneo.booz_xform_to_boozer_chartmap import convert_boozmn_to_chartmap  # noqa: E402
 
 with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp:
@@ -93,7 +98,23 @@ try:
     # nzeta>=2 required by boozer_chartmap_io (endpoint-excluded grid needs at least
     # 2 points to be valid for a periodic spline).  For an axisymmetric tokamak 4
     # zeta points are sufficient; all phi slices are identical.
-    convert_boozmn_to_chartmap(boozmn_nc, output_nc, nrho=50, ntheta=64, nzeta=4)
+    convert_boozmn_to_chartmap(boozmn_nc, output_nc, nrho=200, ntheta=64, nzeta=4)
+    # NEO-RT uses a natural cubic spline in s for the .bc harmonics. The
+    # converter's spline in rho represents a different radial derivative,
+    # enough to bias trapped precession and D11 after the flux-sign correction.
+    # Resolve the source radial grid and sample the native spline inside it;
+    # retain the converter's near-axis continuation and edge extrapolation.
+    bc = BoozerFile(bc_file)
+    with netCDF4.Dataset(output_nc, "r+") as chart:
+        rho = np.asarray(chart["rho"][:])
+        theta = np.asarray(chart["theta"][:])
+        coeff = CubicSpline(bc.s, bc.bmnc, axis=0, bc_type="natural")(rho**2)
+        basis = np.cos(np.asarray(bc.m[0])[:, None] * theta[None, :])
+        bmod = 1.0e4 * np.einsum("rm,mt->tr", coeff, basis)
+        interior = (rho**2 >= min(bc.s)) & (rho**2 <= max(bc.s))
+        field = chart["Bmod"][:]
+        field[:, :, interior] = bmod[:, interior][None, :, :]
+        chart["Bmod"][:] = field
 finally:
     if os.path.exists(boozmn_nc):
         os.unlink(boozmn_nc)
