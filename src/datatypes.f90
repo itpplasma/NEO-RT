@@ -1,5 +1,6 @@
 module neort_datatypes
     use iso_fortran_env, only: dp => real64
+    use neort_species, only: species_state_t
 
     implicit none
 
@@ -93,5 +94,20 @@ module neort_datatypes
         type(torque_summary_t) :: torque  ! Summed torque density across all harmonics
         type(transport_harmonic_t), allocatable :: harmonics(:)  ! Per-harmonic transport and torque
     end type transport_data_t
+
+    type :: species_result_t
+        type(species_state_t) :: species
+        type(magfie_data_t) :: magfie
+        type(transport_data_t) :: transport
+        real(dp) :: collision_thermal_deflection_rate = 0.0_dp
+        real(dp) :: collision_reference_frequency = 0.0_dp
+        real(dp) :: domega_e_ds = 0.0_dp
+        real(dp) :: force(2) = 0.0_dp
+    end type species_result_t
+
+    type :: mixture_result_t
+        type(species_result_t), allocatable :: species(:)
+        real(dp) :: torque_total(3) = 0.0_dp  ! co/counter/trapped dTphi/ds [erg]
+    end type mixture_result_t
 
 end module neort_datatypes

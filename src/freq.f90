@@ -112,10 +112,10 @@ contains
 
         ! logspace for eta
         b = log(epst_spl)
-        aa = 1.0_dp / (netaspl - 1.0_dp) * (log(etamax / etamin - 1.0_dp) - b)
+        aa = 1.0_dp / (netaspl - 1.0_dp) * (log(etamax / etatp - 1.0_dp) - b)
 
         do k = netaspl - 1, 0, -1
-            eta = etamin * (1.0_dp + exp(aa * k + b))
+            eta = etatp * (1.0_dp + exp(aa * k + b))
             etarange(k + 1) = eta
             if (get_log_level() >= LOG_TRACE) then
                 write(*,'(A,I4,A,ES12.5)') '[TRACE] init_canon_freq_trapped_spline k=', k, ' eta=', eta
@@ -323,17 +323,31 @@ contains
             end if
         else
             call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
-            Omph = Om_tE + Omth/iota
-            dOmphdv = dOmthdv/iota
-            dOmphdeta = dOmthdeta/iota
-            if (magdrift) then
-                call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
-                Omph = Omph + OmtB
-                dOmphdv = dOmphdv + dOmtBdv
-                dOmphdeta = dOmphdeta + dOmtBdeta
-            end if
+            call Om_ph_passing_from_omth(v, eta, Omth, dOmthdv, dOmthdeta, &
+                Omph, dOmphdv, dOmphdeta)
         end if
     end subroutine Om_ph
+
+    subroutine Om_ph_passing_from_omth(v, eta, Omth, dOmthdv, dOmthdeta, &
+            Omph, dOmphdv, dOmphdeta)
+        ! Complete the passing canonical toroidal frequency from one already
+        ! evaluated poloidal frequency.  Keeping this operation in one
+        ! procedure makes the optimized resonance residual bitwise-consistent
+        ! with Om_ph, while avoiding a second expensive Om_th call.
+        real(dp), intent(in) :: v, eta, Omth, dOmthdv, dOmthdeta
+        real(dp), intent(out) :: Omph, dOmphdv, dOmphdeta
+        real(dp) :: OmtB, dOmtBdv, dOmtBdeta
+
+        Omph = Om_tE + Omth / iota
+        dOmphdv = dOmthdv / iota
+        dOmphdeta = dOmthdeta / iota
+        if (magdrift) then
+            call Om_tB(v, eta, OmtB, dOmtBdv, dOmtBdeta)
+            Omph = Omph + OmtB
+            dOmphdv = dOmphdv + dOmtBdv
+            dOmphdeta = dOmphdeta + dOmtBdeta
+        end if
+    end subroutine Om_ph_passing_from_omth
 
     subroutine Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
         ! returns canonical poloidal frequency
@@ -383,7 +397,12 @@ contains
             if (eta > etatp) then
                 Omph_noE = bounceavg(3) * v**2
             else
-                Omph_noE = bounceavg(3) * v**2 + Omth / iota
+                ! With passing magnetic drift disabled, retain only the
+                ! canonical transit contribution.  This must match Om_ph_passing_from_omth.
+                Omph_noE = Omth / iota
+                if (magdrift_passing > 0) then
+                    Omph_noE = bounceavg(3) * v**2 + Omth / iota
+                end if
             end if
         else
             if (eta > etatp) then
@@ -401,8 +420,14 @@ contains
             if (eta > etatp) then
                 dOmphds = dOm_tEds + (bounceavg(3) * v**2 - Omph_noE) / ds
             else
-                dOmphds = dOm_tEds + (bounceavg(3) * v**2 + (2.0_dp * pi / taub) / iota - &
-                                      Omph_noE) / ds
+                if (magdrift_passing > 0) then
+                    dOmphds = dOm_tEds + (bounceavg(3) * v**2 + (2.0_dp * pi / taub) / iota - &
+                                          Omph_noE) / ds
+                else
+                    ! Keep the finite-difference derivative on the same
+                    ! no-passing-drift branch as the frequency above.
+                    dOmphds = dOm_tEds + ((2.0_dp * pi / taub) / iota - Omph_noE) / ds
+                end if
             end if
         else
             if (eta > etatp) then
