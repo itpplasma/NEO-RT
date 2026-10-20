@@ -22,7 +22,7 @@
   DOUBLE PRECISION, DIMENSION(:,:),   ALLOCATABLE :: coef,amat_maxmod
   COMPLEX(8),   DIMENSION(:,:),   ALLOCATABLE :: amat1,amat2
   COMPLEX(8),   DIMENSION(:,:,:), ALLOCATABLE :: amat_old
-  LOGICAL,      DIMENSION(:),     ALLOCATABLE :: valid_old,valid_arr
+  LOGICAL,      DIMENSION(:),     ALLOCATABLE :: valid_old
 !
   external :: get_matrix
 !
@@ -38,12 +38,13 @@
   hh=symm_break*h/npoilag
 !
   if(allocated(amat)) then
-    DEALLOCATE(amat,xarr,amat_arr)
+    DEALLOCATE(amat,xarr,amat_arr,valid_arr)
   endif
 !
   ALLOCATE(amat(n1,n2),xarr(npoi),amat_arr(n1,n2,npoi),valid_arr(npoi))
 !
   x=xbeg
+  ierr_get_matrix=0
   CALL get_matrix
 !
   xarr(1)=x
@@ -51,6 +52,7 @@
   valid_arr(1)=ierr_get_matrix.EQ.0
 !
   x=xend
+  ierr_get_matrix=0
   CALL get_matrix
   xarr(npoi)=x
   amat_arr(:,:,npoi)=amat
@@ -68,6 +70,7 @@
   DO i=2,npoi-1
     if(.not.allocated(amat)) allocate(amat(n1,n2))
     x=xarr(i)
+    ierr_get_matrix=0
     CALL get_matrix
     amat_arr(:,:,i)=amat
     valid_arr(i)=ierr_get_matrix.EQ.0
@@ -162,6 +165,7 @@
     inew=inew+1
     xarr(inew)=xold(npoi_old)
     amat_arr(:,:,inew)=amat_old(:,:,npoi_old)
+    valid_arr(inew)=valid_old(npoi_old)
     DEALLOCATE(isplit)
 !
 ! Fill pass for new nodes. See the initial fill above for why this region stays
@@ -172,6 +176,7 @@
     DO k=1,nnew
       if(.not.allocated(amat)) allocate(amat(n1,n2))
       x=xarr(newslots(k))
+      ierr_get_matrix=0
       CALL get_matrix
       amat_arr(:,:,newslots(k))=amat
       valid_arr(newslots(k))=ierr_get_matrix.EQ.0

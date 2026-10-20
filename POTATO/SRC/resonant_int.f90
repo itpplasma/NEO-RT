@@ -166,7 +166,7 @@ subroutine integrate_class_resonances
         resline_unit_is_private,resline_diag_unit
     use orbit_dim_mod,      only : neqm
     use global_invariants,  only : dtau,toten,perpinv,cE_ref,Phi_eff
-    use sample_matrix_mod,  only : npoi,xarr
+    use sample_matrix_mod,  only : npoi,xarr,find_valid_class_roots
     use logging_mod,        only : tee_message
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
@@ -226,7 +226,7 @@ subroutine integrate_class_resonances
         rm3=dble(narr(mode))
         delint_mode(mode)=0.d0
         !
-        call find_all_roots_bracketed(get_rescond,xbeg,xend,ierr)
+        call find_valid_class_roots(get_rescond,xbeg,xend,ierr)
         !
         if(ierr.ne.0) then
             !$omp critical (reslines_log)

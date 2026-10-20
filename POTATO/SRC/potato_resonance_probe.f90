@@ -7,7 +7,8 @@ program potato_resonance_probe
     use form_classes_doublecount_mod, only : nclasses, ifuntype, sigma_class, &
         R_class_beg, R_class_end
     use get_matrix_mod, only : iclass
-    use sample_matrix_mod, only : n1, npoi, xarr, sample_matrix_grid_usable
+    use sample_matrix_mod, only : n1, npoi, xarr, sample_matrix_grid_usable, &
+        ierr_interpolate
     use potato_profile_data_mod, only : load_potato_profiles
     use potato_input_mod, only : read_potato_input, E_alpha, A_alpha, Z_alpha, &
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, Rmax_orbit, &
@@ -104,6 +105,10 @@ contains
         have_prev = .false.
         do i = 1, npoi
             call probe_residual(xarr(i), residual, dresdx, psiast, taub, delphi)
+            if (ierr_interpolate /= 0) then
+                have_prev = .false.
+                cycle
+            endif
             write(iunit, '(I8,I8,9ES18.9)') iclass, ifuntype(iclass), &
                 sigma_class(iclass), R_class_beg(iclass), R_class_end(iclass), &
                 xarr(i), residual, dresdx, psiast, taub, delphi

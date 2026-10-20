@@ -2786,7 +2786,8 @@
 ! moment, normalizaed bounce time, toroidal displacement per bounce time and bounce
 ! integrals (vec) and their derivatives (dvec)
 !
-  use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr
+  use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr, &
+                               sample_window_valid,ierr_interpolate
   use get_matrix_mod,    only : iclass
   use form_classes_doublecount_mod, only : ifuntype
   use interp_cache_mod,  only : ncache,xcache,veccache,dveccache
@@ -2800,6 +2801,16 @@
   double precision, dimension(n1)             :: vec,dvec
   double precision, dimension(0:nder,nlagr+1) :: coef
 !
+! Reject failed stencils before consulting the cache or using their values.
+  ierr_interpolate=0
+  call binsrc(xarr,1,npoi,x,k)
+  if(.not.sample_window_valid(k)) then
+    ierr_interpolate=1
+    vec=0.d0
+    dvec=0.d0
+    return
+  endif
+!
 ! Exact memoization (see interp_cache_mod): a hit at this x returns the stored
 ! vec,dvec bit-for-bit; the scan is far cheaper than the plag_coeff/matmul work.
   do ic=1,ncache
@@ -2812,8 +2823,6 @@
 !
   npoilag=nlagr+1
   nshift=nlagr/2
-!
-  call binsrc(xarr,1,npoi,x,k)
 !
   ibeg=max(1,k-nshift)
   iend=min(npoi,ibeg+nlagr)
@@ -3019,7 +3028,7 @@
 ! Computes integrals over x in Eq.(74) using adaptive polynomial interpolation
 ! of bounce integrals.
 !
-  use sample_matrix_mod, only : n1
+  use sample_matrix_mod, only : n1,ierr_interpolate
   use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relmargin,iclass
   use form_classes_doublecount_mod, only : ifuntype
@@ -3086,7 +3095,8 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  call equilmaxw(vec(1),fmaxw)
+  fmaxw=0.d0
+  if(ierr_interpolate.eq.0) call equilmaxw(vec(1),fmaxw)
 !
   resint(:,1)=abs(dvec(1))*vec(ib1:ie1)*fmaxw
   resint(:,2)=abs(dvec(1))*vec(ib2:ie2)*fmaxw
@@ -3095,7 +3105,8 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  call equilmaxw(vec(1),fmaxw)
+  fmaxw=0.d0
+  if(ierr_interpolate.eq.0) call equilmaxw(vec(1),fmaxw)
 !
   resint(:,1)=resint(:,1)+abs(dvec(1))*vec(ib1:ie1)*fmaxw
   resint(:,2)=resint(:,2)+abs(dvec(1))*vec(ib2:ie2)*fmaxw
@@ -3107,6 +3118,7 @@
 !
     call interpolate_class_doublecount(x,vec,dvec)
 !
+    if(ierr_interpolate.ne.0) cycle
     call equilmaxw(vec(1),fmaxw)
 !
     resint(:,1)=resint(:,1)+abs(dvec(1))*vec(ib1:ie1)*fmaxw

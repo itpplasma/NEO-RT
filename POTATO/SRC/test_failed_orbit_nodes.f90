@@ -7,7 +7,9 @@ program test_failed_orbit_nodes
 ! used for the split test) outside a failed stretch, so every split the
 ! refinement performs is driven by the failed nodes alone.
   use sample_matrix_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,xarr,xbeg,xend, &
-                                eps
+                                eps,valid_arr,ierr_interpolate,find_valid_class_roots
+  use find_all_roots_mod, only : nroots,roots,customgrid,nsearch_min
+  use interp_cache_mod, only : interp_cache_reset
   implicit none
 
 ! Refinement starts from nlagr+2 nodes.  Bisecting towards the failed stretch
@@ -16,8 +18,9 @@ program test_failed_orbit_nodes
   integer, parameter :: npoi_max_expected = 20
   integer :: ierr,i,nodes_in_gap
   character(len=64) :: msg
+  double precision :: vec(1),dvec(1)
 
-  external :: stub_matrix
+  external :: stub_matrix,stub_quartic
 
   nlagr   = 7
   n1      = 1
@@ -43,9 +46,53 @@ program test_failed_orbit_nodes
   write(msg,'(A,I0)') 'nodes inserted inside failed stretch = ',nodes_in_gap
   call require(nodes_in_gap.le.2,trim(msg))
 
+! The interior failed node survives endpoint trimming. It must be rejected
+! by the production interpolator, including before any cache lookup.
+  call require(count(.not.valid_arr).gt.0,'stub did not fail an interior node')
+  call interp_cache_reset
+  call interpolate_class_doublecount(0.5d0,vec,dvec)
+  call require(ierr_interpolate.ne.0,'interpolator consumed a failed stencil')
+
+! Quadratic interpolation leaves valid windows on both sides of this same grid.
+! Keep the genuine roots at .1 and .9; exclude a third root inside the gap.
+  nlagr=2
+  customgrid=.false.
+  nsearch_min=100
+  call find_valid_class_roots(residual,xbeg,xend,ierr)
+  call require(ierr.eq.0,'valid-window root search failed')
+  call require(nroots.eq.2,'root search bridged the failed interior region')
+  call require(maxval(abs(roots-[0.1d0,0.9d0])).lt.1.d-8, &
+      'valid resonances were lost or moved')
+
+! Exercise rebuilding the mask and retaining the final endpoint through a
+! refinement pass. A quartic requires a completed refinement pass.
+  nlagr=2
+  itermax=1
+  eps=1.d-12
+  call sample_matrix(stub_quartic,ierr)
+  call require(npoi.gt.nlagr+2,'endpoint test did not refine')
+  do i=1,npoi
+    call require(valid_arr(i), &
+        'refinement lost a retained node validity bit')
+  enddo
+
   print *,'test_failed_orbit_nodes: OK  (npoi = ',npoi,')'
 
 contains
+
+  subroutine residual(xval,f,df)
+    double precision, intent(in) :: xval
+    double precision, intent(out) :: f,df
+    double precision :: v(1),dv(1),u
+
+    call interpolate_class_doublecount(xval,v,dv)
+    call require(ierr_interpolate.eq.0,'root search evaluated an invalid window')
+    call require(abs(v(1)-(1.d0+xval)).lt.1.d-12, &
+        'valid interpolation changed the linear oracle')
+    u=xval-0.5d0
+    f=u*(u*u-0.16d0)
+    df=3.d0*u*u-0.16d0
+  end subroutine residual
 
   subroutine require(ok,text)
     logical, intent(in) :: ok
@@ -74,3 +121,11 @@ subroutine stub_matrix
   ierr_get_matrix = 0
   amat(1,1) = 1.d0+x
 end subroutine stub_matrix
+
+subroutine stub_quartic
+  use sample_matrix_mod, only : x,amat,ierr_get_matrix
+  implicit none
+
+  ierr_get_matrix=0
+  amat(1,1)=x**4
+end subroutine stub_quartic
