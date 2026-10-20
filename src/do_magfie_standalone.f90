@@ -1177,6 +1177,24 @@ contains
         s_prev_k = x1
     end subroutine do_magfie_pert_kappa_amp
 
+    subroutine perturbation_amplitude_bounds(x, lagrangian, curvature)
+        ! Triangle bounds over all theta of the two dimensional Fourier tables.
+        ! Refresh the same thread-local coefficients used by the amplitude calls.
+        real(dp), intent(in) :: x(3)
+        real(dp), intent(out) :: lagrangian, curvature
+        complex(dp) :: unused
+        call do_magfie_pert_amp(x, unused)
+        call do_magfie_pert_kappa_amp(x, unused)
+        if (ncol2 < 8) then
+            lagrangian = sum(abs(Bmnc))
+            curvature = 1.0e4_dp*abs(bfac)*sum(abs(spl_val_ck(1, :)))
+        else
+            lagrangian = sum(sqrt(Bmnc**2 + Bmns**2))
+            curvature = 1.0e4_dp*abs(bfac)* &
+                sum(sqrt(spl_val_ck(1, :)**2 + spl_val_sk(1, :)**2))
+        end if
+    end subroutine perturbation_amplitude_bounds
+
     subroutine check_equal_space_ascending(m, kmode)
         real(dp), dimension(:), intent(in) :: m
         integer, intent(in) :: kmode
