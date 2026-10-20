@@ -2482,7 +2482,7 @@
 ! toroidal displacement per bounce time and bounce integrals as functions
 ! of class parameter x for adaptive refinement of interpolation grid over x
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,ierr_get_matrix
   use orbit_dim_mod,     only : neqm,next
   use get_matrix_mod,    only : iclass
   use global_invariants, only : dtau,toten,perpinv
@@ -2499,6 +2499,8 @@
 !
   external :: velo,velo_pphint
 !
+  ierr_get_matrix=0
+!
   sigma=sigma_class(iclass)
   delta_R=R_class_end(iclass)-R_class_beg(iclass)
 !
@@ -2511,6 +2513,10 @@
 !
   if(ierr.ne.0) then
     print *,'get_matrix: error in starter'
+! Orbit failed (left the field domain or crossed the wall): flag it and clear
+! amat, so callers read the status instead of the previous node's values.
+    ierr_get_matrix=1
+    amat=0.d0
     return
   endif
 !
@@ -2521,7 +2527,13 @@
     if(fullbounce) then
 !
       call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-      if(ierr.ne.0) return
+      if(ierr.ne.0) then
+! Orbit failed (left the field domain or crossed the wall): flag it and clear
+! amat, so callers read the status instead of the previous node's values.
+        ierr_get_matrix=1
+        amat=0.d0
+        return
+      endif
 !
     else
 !
@@ -2535,7 +2547,13 @@
     extraset=0.d0
 !
     call find_bounce(next,velo_pphint,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) return
+    if(ierr.ne.0) then
+! Orbit failed (left the field domain or crossed the wall): flag it and clear
+! amat, so callers read the status instead of the previous node's values.
+      ierr_get_matrix=1
+      amat=0.d0
+      return
+    endif
 !
   endif
 !
@@ -2626,7 +2644,7 @@
 ! the root search with non-physical dense roots.  The endpoint is located by
 ! bisection on |delphi_b(x)| using get_matrix_doublecount as the orbit evaluator.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,ierr_get_matrix
   use get_matrix_mod,    only : delphi_max
 !
   implicit none
@@ -2682,12 +2700,15 @@
 !
   double precision function eval_delphi(xval)
   double precision :: xval
-! huge sentinel: get_matrix_doublecount leaves amat untouched on orbit failure,
-! so a failed evaluation reads as "beyond delphi_max" and pulls the search in.
-  amat(3,1)=huge(1.d0)
   x=xval
   call get_matrix_doublecount
-  eval_delphi=amat(3,1)
+! A failed orbit has no delphi_b; report it as beyond the bound so the search
+! trims towards the part of the class that does close.
+  if(ierr_get_matrix.ne.0) then
+    eval_delphi=huge(1.d0)
+  else
+    eval_delphi=amat(3,1)
+  endif
   end function eval_delphi
 !
   end subroutine bound_class_delphi
@@ -2697,13 +2718,13 @@
   subroutine bound_class_wall(xb,xe)
 !
 ! Trim the class interval to where the orbit closes inside the limiter wall.
-! A wall-crossing orbit fails in get_matrix_doublecount (amat(3,1) left at the
-! huge sentinel); without this trim a single lost sample makes sample_matrix
-! exceed itermax and the whole class is dropped (ierr=2) instead of only the
-! lost orbits.  Trims both endpoints by bisection on orbit validity, so the
-! inside-wall part of the class is still sampled and its resonances kept.
+! A wall-crossing orbit is reported by get_matrix_doublecount through
+! ierr_get_matrix; without this trim the lost samples drag the refinement into
+! itermax instead of costing only the lost orbits.  Trims both endpoints by
+! bisection on orbit validity, so the inside-wall part of the class is still
+! sampled and its resonances kept.
 !
-  use sample_matrix_mod, only : n1,n2,x,amat
+  use sample_matrix_mod, only : n1,n2,x,amat,ierr_get_matrix
   use wall_loss_mod,     only : wall_loaded
 !
   implicit none
@@ -2750,12 +2771,9 @@
 !
   logical function orbit_lost(xval)
   double precision :: xval
-! huge sentinel: get_matrix_doublecount leaves amat untouched when the orbit
-! fails (e.g. crosses the wall), so an untouched entry reads as a lost orbit.
-  amat(3,1)=huge(1.d0)
   x=xval
   call get_matrix_doublecount
-  orbit_lost = (amat(3,1).eq.huge(1.d0))
+  orbit_lost = (ierr_get_matrix.ne.0)
   end function orbit_lost
 !
   end subroutine bound_class_wall
@@ -2768,7 +2786,8 @@
 ! moment, normalizaed bounce time, toroidal displacement per bounce time and bounce
 ! integrals (vec) and their derivatives (dvec)
 !
-  use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr
+  use sample_matrix_mod, only : nlagr,n1,npoi,xarr,amat_arr, &
+                               sample_window_valid,ierr_interpolate
   use get_matrix_mod,    only : iclass
   use form_classes_doublecount_mod, only : ifuntype
   use interp_cache_mod,  only : ncache,xcache,veccache,dveccache
@@ -2782,6 +2801,16 @@
   double precision, dimension(n1)             :: vec,dvec
   double precision, dimension(0:nder,nlagr+1) :: coef
 !
+! Reject failed stencils before consulting the cache or using their values.
+  ierr_interpolate=0
+  call binsrc(xarr,1,npoi,x,k)
+  if(.not.sample_window_valid(k)) then
+    ierr_interpolate=1
+    vec=0.d0
+    dvec=0.d0
+    return
+  endif
+!
 ! Exact memoization (see interp_cache_mod): a hit at this x returns the stored
 ! vec,dvec bit-for-bit; the scan is far cheaper than the plag_coeff/matmul work.
   do ic=1,ncache
@@ -2794,8 +2823,6 @@
 !
   npoilag=nlagr+1
   nshift=nlagr/2
-!
-  call binsrc(xarr,1,npoi,x,k)
 !
   ibeg=max(1,k-nshift)
   iend=min(npoi,ibeg+nlagr)
@@ -3001,7 +3028,7 @@
 ! Computes integrals over x in Eq.(74) using adaptive polynomial interpolation
 ! of bounce integrals.
 !
-  use sample_matrix_mod, only : n1
+  use sample_matrix_mod, only : n1,ierr_interpolate
   use orbit_dim_mod,     only : next,numbasef
   use get_matrix_mod,    only : relmargin,iclass
   use form_classes_doublecount_mod, only : ifuntype
@@ -3068,7 +3095,8 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  call equilmaxw(vec(1),fmaxw)
+  fmaxw=0.d0
+  if(ierr_interpolate.eq.0) call equilmaxw(vec(1),fmaxw)
 !
   resint(:,1)=abs(dvec(1))*vec(ib1:ie1)*fmaxw
   resint(:,2)=abs(dvec(1))*vec(ib2:ie2)*fmaxw
@@ -3077,7 +3105,8 @@
 !
   call interpolate_class_doublecount(x,vec,dvec)
 !
-  call equilmaxw(vec(1),fmaxw)
+  fmaxw=0.d0
+  if(ierr_interpolate.eq.0) call equilmaxw(vec(1),fmaxw)
 !
   resint(:,1)=resint(:,1)+abs(dvec(1))*vec(ib1:ie1)*fmaxw
   resint(:,2)=resint(:,2)+abs(dvec(1))*vec(ib2:ie2)*fmaxw
@@ -3089,6 +3118,7 @@
 !
     call interpolate_class_doublecount(x,vec,dvec)
 !
+    if(ierr_interpolate.ne.0) cycle
     call equilmaxw(vec(1),fmaxw)
 !
     resint(:,1)=resint(:,1)+abs(dvec(1))*vec(ib1:ie1)*fmaxw
