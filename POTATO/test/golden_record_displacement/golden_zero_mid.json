@@ -1,8 +1,8 @@
 {
   "case": "rung4_torque_30835/potato_zero_mid",
-  "integral_torque": -15227.499606180565,
-  "integral_torque_note": "2026 baseline from commit c751da6, unchanged",
-  "files_note": "Rows from Linux x86_64 GNU Fortran 16.2.1 Fast per-energy outputs, merged using the original energy-2 start; box torque from the original hash-matching archive. The solver merge defect on main prevents a complete run.",
+  "integral_torque": -60239.9158563448,
+  "integral_torque_note": "Baseline on main 0374103 after upstream fixes #123 and #230; this PR changes no solver sources. Independent cell-1 check: thermal torque = 0.75 times the fixed-energy torque at monoenergetic_x=0.375.",
+  "files_note": "Linux x86_64 GNU Fortran 16.2.1 Fast, eight thermal cells, OMP_NUM_THREADS=8. Solver sources are byte-identical to main 0374103. Verified cell-1 resonance rows and torque/mode prefixes against the fixed-energy path, and total torque against adaptive quadrature, mode sum and radial box sum. Supersedes the historical energy-2-start reference; tolerances unchanged.",
   "files": {
     "fort.31415": {
       "key_columns": [0, 1, 3, 4, 2]

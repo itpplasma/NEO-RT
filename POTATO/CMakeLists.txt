@@ -297,7 +297,8 @@ if(Python3_Interpreter_FOUND)
     )
     set_tests_properties(potato_golden_displacement PROPERTIES
         SKIP_RETURN_CODE 77
-        TIMEOUT 240
+        # The full eight-cell case needs several thousand CPU-seconds.
+        TIMEOUT 1860
     )
     add_test(NAME potato_golden_comparison
         COMMAND ${Python3_EXECUTABLE}

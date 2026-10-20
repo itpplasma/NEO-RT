@@ -17,7 +17,7 @@ SKIP = 77
 DEFAULT_CASE = Path("potato_benchmarks/rung4_torque_30835/run/potato_zero_mid")
 
 
-# The observed cross-platform integral-torque spread is 6e-8. Keep margin
+# The historical cross-platform integral-torque spread was 6e-8. Keep margin
 # for rounding while checking every output value and its row association.
 RTOL = 1.0e-6
 
@@ -86,7 +86,7 @@ def main():
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=int(os.environ.get("POTATO_GOLDEN_TIMEOUT", "180")),
+            timeout=int(os.environ.get("POTATO_GOLDEN_TIMEOUT", "1800")),
         )
         if result.returncode != 0:
             print(result.stdout, file=sys.stdout)
