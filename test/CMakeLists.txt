@@ -360,6 +360,12 @@ add_test(NAME test_resonance_oracle
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_transport_branch_state
+    COMMAND ${CMAKE_BINARY_DIR}/test_transport_branch_state.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_transport_branch_state PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -490,3 +496,13 @@ foreach(ledger_case IN ITEMS thermal mono parallel species krook no-torque)
     set_tests_properties(test_resonance_ledger_${ledger_case} PROPERTIES
         PROCESSORS 2 TIMEOUT 180)
 endforeach()
+# Manufactured fold: a resonance root pair inside one coarse eta interval.
+add_test(NAME test_resonance_fold_pairs
+    COMMAND test_resonance_fold_pairs.x)
+set_tests_properties(test_resonance_fold_pairs PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+# A fold pair fills storage before a later ordinary sign-change bracket.
+add_test(NAME test_resonance_root_capacity COMMAND test_resonance_root_capacity.x)
+set_tests_properties(test_resonance_root_capacity PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
