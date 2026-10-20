@@ -42,11 +42,14 @@ module neort_separatrix
     ! log column across the window, so with relative sampling noise sigma and
     ! I/A of order ten the relative error of A is roughly 10*sigma/span.  The
     ! competing model error is the neglected O(x**2 log(1/x)) term, whose
-    ! coefficient depends on the geometry. A span of two e-folds resolves the
+    ! coefficient depends on the geometry. A span of four e-folds resolves the
     ! leading logarithmic contrast; it does not certify the truncation error.
-    ! A fixed sample count cannot do this: it inherits whatever spacing the
-    ! caller's pitch grid happens to have.
-    real(dp), parameter, public :: SEPARATRIX_FIT_LOG_SPAN = 2.0_dp
+    ! Two e-folds leave the correction columns nearly dependent: in the MARS
+    ! fixture, orbit sampling noise is amplified into a 1.8e-5 drift error.
+    ! Four e-folds reduce that error below 5e-7 against direct angular
+    ! quadrature in both Fast and Debug, while keeping the omitted quadratic
+    ! terms small. A fixed sample count inherits the caller's pitch spacing.
+    real(dp), parameter, public :: SEPARATRIX_FIT_LOG_SPAN = 4.0_dp
     integer, parameter :: SEPARATRIX_FIT_TERMS = 4
 
     type, public :: separatrix_model_t
