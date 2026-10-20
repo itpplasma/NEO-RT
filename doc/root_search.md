@@ -1,3 +1,7 @@
+---
+title: Root-search method and verification
+---
+
 # Root-search method and verification
 
 NEO-RT has two scalar root searches in the orbit/frequency path:

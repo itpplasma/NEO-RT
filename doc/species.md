@@ -1,3 +1,7 @@
+---
+title: Shared species mixtures
+---
+
 # Shared species mixtures
 
 Set `species_file='species.in'` in `&params` to solve every member of a neutral

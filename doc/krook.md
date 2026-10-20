@@ -1,3 +1,7 @@
+---
+title: Linear Krook collisions
+---
+
 # Linear Krook collisions
 
 Set `krook_collisions=.true.` and supply a positive `krook_nu` to broaden the

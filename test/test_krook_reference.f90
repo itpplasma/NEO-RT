@@ -2,7 +2,7 @@ program test_krook_reference
     ! Retain the sensitive T co-passing m=4, velocity node 3 of the MARS L5/8
     ! reproducer. The fixture keeps 64 original equilibrium surfaces around
     ! s=.25 and a three-surface linear snapshot of all 641 perturbation modes.
-    ! Reference: main b501a00, native Debug (GNU 16.2.1), identical input and
+    ! Reference: main a4b0cd0, native Debug (GNU 16.2.1), identical input and
     ! forward equilibrium recurrence. Use strict floating point for the oracle:
     ! main itself differs by 1.17e-6 between GNU 13/16 Fast builds. Both Fast
     ! builds agree with this Debug reference within the unchanged 1e-6 bound.
