@@ -157,14 +157,77 @@
 ! per-thread scratch: the parallel mode loop reads and fills it from every thread,
 ! so each thread keeps its own buffer and calls interp_cache_reset inside the
 ! parallel region to drop the previous class's grid before reusing it.
+! Entries are found through an open-addressing hash index (hslot) instead of a
+! linear scan, which was quadratic in the number of entries (dominant cost at
+! physical mass).  A slot belongs to the current cache only if hgen equals gen,
+! so a reset is O(1).  Matching still uses xcache(i).eq.x, and +-0 hash alike,
+! so every lookup returns the same entry the linear scan returned.
+    use, intrinsic :: iso_fortran_env, only : int64
     integer :: ncache=0, n1cache=0
     double precision, dimension(:),   allocatable :: xcache
     double precision, dimension(:,:), allocatable :: veccache, dveccache
-    !$omp threadprivate(ncache,n1cache,xcache,veccache,dveccache)
+    integer :: hmask=-1, gen=1
+    integer, dimension(:), allocatable :: hslot, hgen
+    !$omp threadprivate(ncache,n1cache,xcache,veccache,dveccache,hmask,gen,hslot,hgen)
   contains
     subroutine interp_cache_reset
       ncache=0
+      gen=gen+1
     end subroutine interp_cache_reset
+!
+    integer function interp_cache_hash(x)
+      double precision, intent(in) :: x
+      integer(int64) :: b
+      if(x.eq.0.d0) then
+        b=0_int64
+      else
+        b=transfer(x,b)
+      endif
+      b=ieor(b,ishft(b,13))
+      b=ieor(b,ishft(b,-7))
+      b=ieor(b,ishft(b,17))
+      interp_cache_hash=int(iand(b,int(hmask,int64)))
+    end function interp_cache_hash
+!
+    integer function interp_cache_find(x)
+! Index of the cached entry with xcache(i).eq.x, or 0.
+      double precision, intent(in) :: x
+      integer :: h
+      interp_cache_find=0
+      if(hmask.lt.0) return
+      h=interp_cache_hash(x)
+      do while(hgen(h).eq.gen)
+        if(xcache(hslot(h)).eq.x) then
+          interp_cache_find=hslot(h)
+          return
+        endif
+        h=iand(h+1,hmask)
+      enddo
+    end function interp_cache_find
+!
+    subroutine interp_cache_index(i)
+! Enter entry i into the hash index (table kept at least twice the entry count).
+      integer, intent(in) :: i
+      integer :: h
+      h=interp_cache_hash(xcache(i))
+      do while(hgen(h).eq.gen)
+        h=iand(h+1,hmask)
+      enddo
+      hslot(h)=i
+      hgen(h)=gen
+    end subroutine interp_cache_index
+!
+    subroutine interp_cache_rehash(nslots)
+      integer, intent(in) :: nslots
+      integer :: i
+      if(allocated(hslot)) deallocate(hslot,hgen)
+      allocate(hslot(0:nslots-1),hgen(0:nslots-1))
+      hgen=0
+      hmask=nslots-1
+      do i=1,ncache
+        call interp_cache_index(i)
+      enddo
+    end subroutine interp_cache_rehash
   end module interp_cache_mod
 !
 !
@@ -2822,7 +2885,7 @@
                                sample_window_valid,ierr_interpolate
   use get_matrix_mod,    only : iclass
   use form_classes_doublecount_mod, only : ifuntype
-  use interp_cache_mod,  only : ncache,xcache,veccache,dveccache
+  use interp_cache_mod,  only : xcache,veccache,dveccache,interp_cache_find
 !
   implicit none
 !
@@ -2844,14 +2907,13 @@
   endif
 !
 ! Exact memoization (see interp_cache_mod): a hit at this x returns the stored
-! vec,dvec bit-for-bit; the scan is far cheaper than the plag_coeff/matmul work.
-  do ic=1,ncache
-    if(xcache(ic).eq.x) then
-      vec=veccache(1:n1,ic)
-      dvec=dveccache(1:n1,ic)
-      return
-    endif
-  enddo
+! vec,dvec bit-for-bit.
+  ic=interp_cache_find(x)
+  if(ic.gt.0) then
+    vec=veccache(1:n1,ic)
+    dvec=dveccache(1:n1,ic)
+    return
+  endif
 !
   npoilag=nlagr+1
   nshift=nlagr/2
@@ -3009,7 +3071,8 @@
   subroutine interp_cache_store(x,vec,dvec)
 !
   use sample_matrix_mod, only : n1
-  use interp_cache_mod,  only : ncache,n1cache,xcache,veccache,dveccache
+  use interp_cache_mod,  only : ncache,n1cache,xcache,veccache,dveccache, &
+                                interp_cache_index,interp_cache_rehash
 !
   implicit none
 !
@@ -3032,6 +3095,7 @@
     allocate(xcache(newcap),veccache(n1,newcap),dveccache(n1,newcap))
     n1cache=n1
     ncache=0
+    call interp_cache_rehash(2*newcap)
   endif
 !
   ncap=size(xcache)
@@ -3044,12 +3108,14 @@
     call move_alloc(xtmp,xcache)
     call move_alloc(vectmp,veccache)
     call move_alloc(dvectmp,dveccache)
+    call interp_cache_rehash(2*newcap)
   endif
 !
   ncache=ncache+1
   xcache(ncache)=x
   veccache(1:n1,ncache)=vec
   dveccache(1:n1,ncache)=dvec
+  call interp_cache_index(ncache)
 !
   end subroutine interp_cache_store
 !
