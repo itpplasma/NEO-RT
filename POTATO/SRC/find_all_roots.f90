@@ -118,6 +118,8 @@
     if(ncustom_inside.gt.1) then
       hx=0.5d0*min(hx,minval(xcustom(kxc_first+1:kxc_last) &
                              -xcustom(kxc_first:kxc_last-1)))
+    else
+      hx=0.5d0*hx
     endif
     nsearch=0
 !
@@ -346,6 +348,8 @@
     if(ncustom_inside.gt.1) then
       hx=0.5d0*min(hx,minval(xcustom(kxc_first+1:kxc_last) &
                              -xcustom(kxc_first:kxc_last-1)))
+    else
+      hx=0.5d0*hx
     endif
     nsearch=0
 !
