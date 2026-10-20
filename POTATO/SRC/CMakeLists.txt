@@ -42,6 +42,10 @@ add_library(potato_base
   box_counting.f90
   neo2_reader.f90
 )
+# Keep the nonfinite coordinate guard effective under Fast optimization.
+set_source_files_properties(bmod_pert.f90 PROPERTIES
+  COMPILE_OPTIONS "-fno-finite-math-only")
+
 set(VODE_BUILD_TESTING OFF CACHE BOOL "" FORCE)
 if(DEFINED BUILD_TESTING)
   set(_POTATO_BUILD_TESTING_WAS_DEFINED TRUE)

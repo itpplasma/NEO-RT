@@ -98,6 +98,41 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_failed_orbit_nodes.x
+   SRC/test_failed_orbit_nodes.f90
+)
+# sample_matrix pulls sub_potato (module state), which calls into a
+# profile_input implementation.  potato_base is intentionally incomplete there,
+# so the two archives must be rescanned as a group rather than linked in order.
+target_link_libraries(test_failed_orbit_nodes.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_failed_orbit_nodes
+   COMMAND test_failed_orbit_nodes.x
+)
+
+add_executable(test_bmod_pert_bounds.x
+   SRC/test_bmod_pert_bounds.f90
+)
+target_link_libraries(test_bmod_pert_bounds.x
+   potato_base
+)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run)
+foreach(_mode inside outside_r outside_z nan_r nan_z)
+   add_test(NAME test_bmod_pert_bounds_${_mode}
+      COMMAND test_bmod_pert_bounds.x ${_mode}
+   )
+   set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run
+      RESOURCE_LOCK potato_bmod_pert_bounds_run
+   )
+endforeach()
+foreach(_mode outside_r outside_z nan_r nan_z)
+   set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
+      PASS_REGULAR_EXPRESSION "evaluation outside the bmod_n.dat R-Z grid"
+   )
+endforeach()
+
 add_executable(test_signed_toroidal_bound.x
    SRC/test_signed_toroidal_bound.f90
 )
@@ -240,6 +275,12 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 150
     )
+    add_test(NAME potato_first_energy_cell
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/energy_cells/test_first_energy_cell.py
+            $<TARGET_FILE:potato.x>
+    )
+    set_tests_properties(potato_first_energy_cell PROPERTIES TIMEOUT 240)
     add_test(NAME potato_fixed_energy_contour
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/fixed_energy_contour/test_fixed_energy_contour.py

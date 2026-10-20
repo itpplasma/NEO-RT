@@ -4,7 +4,10 @@ program test_chartmap_input
     !
     ! Phase 1 (always): verify that read_boozer_file dispatches to
     !   read_boozer_chartmap_file and that do_magfie returns finite, physically
-    !   sane values (bmod>0, sqrtg>0, iota>0) at a reference point.
+    !   sane values (bmod>0, sqrtg<0, iota>0) at a reference point.  The
+    !   fixture chart is left-handed (theta counter-clockwise in (R, Z), zeta
+    !   along the geometric phi): det d(x,y,z)/d(rho,theta,zeta) < 0 on the
+    !   whole grid, and the source file's dV/ds column is negative (#180).
     !
     ! Phase 2 (when both CHARTMAP_FILE and BC_FILE env vars are set): compare
     !   bmod, iota, sqrtg, Bthcov, Bphcov, and minor radius between the chartmap
@@ -83,8 +86,8 @@ program test_chartmap_input
         print *, "ERROR: chartmap minor radius <= 0, got", a_cm
         error stop "test_chartmap_input phase 1 failed: minor radius"
     end if
-    if (.not. (sqrtg_cm > 0.0_dp)) then
-        print *, "ERROR: chartmap sqrtg <= 0, got", sqrtg_cm
+    if (.not. (sqrtg_cm < 0.0_dp)) then
+        print *, "ERROR: chartmap sqrtg >= 0 for a left-handed chart, got", sqrtg_cm
         error stop "test_chartmap_input phase 1 failed: sqrtg"
     end if
     if (.not. (iota_cm > 0.0_dp)) then
@@ -145,6 +148,7 @@ program test_chartmap_input
         call assert_close("Bthcov", Bth_cm,    Bth_bc,    tol_rel)
         call assert_close("Bphcov", Bph_cm,    Bph_bc,    tol_rel)
         call assert_close("psi_pr", psip_cm,   psip_bc,   tol_rel)
+        call assert_close("d log(B)/ds", bder_cm(1), bder_bc(1), tol_rel)
         ! Legacy chartmaps derive an equal-area edge radius, which differs
         ! slightly from the minor radius stored in the source .bc header.
         call assert_close("minor radius", a_cm, a_bc, tol_radius_rel)
