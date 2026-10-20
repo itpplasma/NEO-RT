@@ -70,6 +70,7 @@ subroutine velo_res(dtau,z,vz)
     !
     use orbit_dim_mod,     only : neqm,next,numbasef
     use resint_mod,        only : twopim2,rm3,taub_new,delphi_new,toten_orb,perpinv_orb
+    use velo_last_mod,     only : velo_last_ok,bmod_last,phi_elec_last
     !
     implicit none
     !
@@ -80,7 +81,13 @@ subroutine velo_res(dtau,z,vz)
     complex(8) :: bmod_n,comfac
     !
     call velo(dtau,z(1:neqm),vz(1:neqm))
-    call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
+    if(velo_last_ok) then
+        ! velo has just evaluated |B| and Phi at this same point
+        bmod=bmod_last
+        phi_elec=phi_elec_last
+    else
+        call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
+    endif
     call bmod_pert(z(1),z(3),bmod_n)
     !
     comfac=(2.d0*(toten_orb-phi_elec)/bmod-perpinv_orb)*bmod_n &
