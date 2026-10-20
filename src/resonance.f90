@@ -209,7 +209,8 @@ contains
                 eta = 0.5_dp * (a + b)
                 call resonance_value(v, eta, res, dresdeta)
                 driftorbit_root = [eta, dresdeta]
-                converged = ieee_is_finite(res) .and. ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp
+                converged = ieee_is_finite(res) .and. abs(res) <= tol_eff .and. &
+                    ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp
                 exit
             end if
 

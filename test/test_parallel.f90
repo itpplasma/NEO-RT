@@ -39,16 +39,18 @@ contains
         real(dp) :: am1, am2, Z1, Z2
         real(dp), allocatable :: plasma(:, :), profile_data(:, :)
         real(dp) :: test_s
-        integer :: i, thread_id
+        integer :: i, thread_id, requested_workers, actual_workers
         logical :: all_match
         real(dp) :: x(3), bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
 
+        requested_workers = min(N_THREADS, omp_get_max_threads(), omp_get_thread_limit())
+        actual_workers = 0
         print *, "============================================"
-        print *, "Parallel test with", N_THREADS, "threads"
+        print *, "Parallel test with", requested_workers, "requested threads"
         print *, "============================================"
         print *
 
-        call omp_set_num_threads(N_THREADS)
+        call omp_set_num_threads(requested_workers)
         call set_log_level(-1)
 
         print *, "Reading input files..."
@@ -67,6 +69,9 @@ contains
 
         !$omp parallel private(thread_id, x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
         thread_id = omp_get_thread_num() + 1
+        !$omp single
+        actual_workers = omp_get_num_threads()
+        !$omp end single
 
         s = test_s
         call init_magfie_at_s()
@@ -106,19 +111,20 @@ contains
 
         !$omp end parallel
 
+        if (actual_workers < 2) error stop "Parallel test requires at least two workers"
         print *, "All threads completed. Comparing results..."
         print *
 
         all_match = .true.
 
         print *, "=== Initialization results ==="
-        do i = 2, N_THREADS
+        do i = 2, actual_workers
             call compare_init_results(init_results(1), init_results(i), i, all_match)
         end do
 
         print *
         print *, "=== Transport results ==="
-        do i = 2, N_THREADS
+        do i = 2, actual_workers
             call compare_transport_results(transport_results(1), transport_results(i), i, all_match)
         end do
 
