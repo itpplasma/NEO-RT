@@ -5,6 +5,10 @@ module collis_alp
     implicit none
 
     integer, parameter :: nsorts = 3, ns = 10000
+    real(dp), parameter :: collision_ion_mass_g = 1.6726e-24_dp
+    real(dp), parameter :: collision_electron_mass_g = 9.1094e-28_dp
+    real(dp), parameter :: collision_charge_statcoulomb = 4.8032e-10_dp
+    real(dp), parameter :: collision_ev_erg = 1.6022e-12_dp
     logical :: swcoll = .false.
     real(dp), dimension(nsorts) :: efcolf, velrat, enrat
 
@@ -133,10 +137,10 @@ contains
         real(dp) :: pi, pmass, emass, e, ev, alame, frecol_base, alami1, alami2
 
         pi = 3.14159265358979_dp
-        pmass = 1.6726e-24_dp
-        emass = 9.1094e-28_dp
-        e = 4.8032e-10_dp
-        ev = 1.6022e-12_dp
+        pmass = collision_ion_mass_g
+        emass = collision_electron_mass_g
+        e = collision_charge_statcoulomb
+        ev = collision_ev_erg
 
         enrat(1) = ebeam / tempi1
         enrat(2) = ebeam / tempi2
