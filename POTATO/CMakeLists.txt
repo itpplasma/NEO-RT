@@ -186,6 +186,26 @@ add_executable(test_canonical_axis_closure.x SRC/test_canonical_axis_closure.f90
 target_link_libraries(test_canonical_axis_closure.x PRIVATE potato_base)
 add_test(NAME test_canonical_axis_closure COMMAND test_canonical_axis_closure.x)
 
+add_executable(test_interp_cache.x
+   SRC/test_interp_cache.f90
+)
+target_link_libraries(test_interp_cache.x
+   ${POTATO_ARCHIVE_GROUP}
+)
+add_test(NAME test_interp_cache
+   COMMAND test_interp_cache.x
+)
+
+add_executable(test_int_powers.x
+   SRC/test_int_powers.f90
+)
+target_link_libraries(test_int_powers.x
+   ${POTATO_ARCHIVE_GROUP}
+)
+add_test(NAME test_int_powers
+   COMMAND test_int_powers.x
+)
+
 add_executable(test_energy_selection.x
    SRC/test_energy_selection.f90
 )
