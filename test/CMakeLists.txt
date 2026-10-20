@@ -1,3 +1,4 @@
+find_package(Python REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
 find_package(Python3 COMPONENTS Interpreter)
@@ -21,6 +22,39 @@ foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
+endforeach()
+add_test(NAME test_species_mixture
+    COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME test_species_mixture_run
+    COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture_run.x
+        ${CMAKE_CURRENT_BINARY_DIR}/species_run
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_species_mixture_run PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 3 TIMEOUT 60 FIXTURES_SETUP species_mixture_output)
+add_test(NAME test_species_mixture_output
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_output.py
+        ${CMAKE_CURRENT_BINARY_DIR}/species_run)
+set_tests_properties(test_species_mixture_output PROPERTIES
+    FIXTURES_REQUIRED species_mixture_output)
+add_test(NAME test_species_mixture_cli
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_cli.py
+        $<TARGET_FILE:neo_rt.x> ${CMAKE_SOURCE_DIR}/examples/base/in_file
+        ${CMAKE_CURRENT_BINARY_DIR}/mixture_cli)
+set_tests_properties(test_species_mixture_cli PROPERTIES
+    PROCESSORS 3 TIMEOUT 60)
+foreach(invalid charge-imbalance gradient-imbalance negative-mass)
+    add_test(NAME test_species_mixture_rejects_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x ${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_species_mixture_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+foreach(invalid nan-density nan-temperature infinite-mass infinite-charge)
+    add_test(NAME test_profile_rejects_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x ${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_profile_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
 add_executable(probe_neort_perturbation_fourier_kernel.x
@@ -94,6 +128,18 @@ add_test(NAME test_chartmap_input
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
 
+# test_chartmap_transport: D11 from the chartmap fixture (inp_swi=10) against
+# the .bc route (inp_swi=8) for the same field and analytic perturbation.
+add_test(NAME test_chartmap_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_transport.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_chartmap_transport PROPERTIES
+    ENVIRONMENT
+        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc;OMP_NUM_THREADS=4"
+    TIMEOUT 600
+)
+
 add_test(NAME test_s_outside_data
     COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
@@ -153,6 +199,79 @@ add_test(NAME test_profile_collision_species
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_krook
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_krook_passing_weight
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_passing_weight.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_krook_passing_weight PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_magfie_bmax
+    COMMAND ${CMAKE_BINARY_DIR}/test_magfie_bmax.x
+        ${CMAKE_CURRENT_BINARY_DIR}/test_magfie_bmax.in
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/golden_record/input
+)
+set_tests_properties(test_magfie_bmax PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_krook_passing_harmonic
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_passing_harmonic.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_krook_passing_harmonic PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_krook_trapped_weight
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_trapped_weight.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_krook_trapped_weight PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_krook_config
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_config.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+add_test(NAME test_krook_transport
+    COMMAND ${CMAKE_BINARY_DIR}/test_krook_transport.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+add_test(NAME test_transport_weight_amplitude
+    COMMAND ${CMAKE_BINARY_DIR}/test_transport_weight_amplitude.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_transport_weight_amplitude PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
+add_test(NAME test_krook_failure_context
+    COMMAND ${Python_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_failure_context.py
+        $<TARGET_FILE:test_krook_transport.x>)
+set_tests_properties(test_krook_failure_context PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 1 TIMEOUT 10)
+set_tests_properties(test_krook_transport PROPERTIES
+    ENVIRONMENT "OMP_DYNAMIC=FALSE;OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4"
+    PROCESSORS 4
+    TIMEOUT 180)
+foreach(invalid negative-rate invalid-model invalid-harmonic invalid-geometry
+        invalid-steps invalid-tolerance electron-nonlinear krook-nonlinear
+        nan-rate infinite-rate nan-geometry infinite-tolerance)
+    add_test(NAME test_krook_rejects_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_krook_config.x ${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_krook_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+foreach(invalid density temperature)
+    add_test(NAME test_profile_invalid_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x invalid-${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_profile_invalid_${invalid} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME test_linear_carbon_background COMMAND test_linear_carbon_background.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
 set_tests_properties(test_linear_carbon_background PROPERTIES
@@ -205,6 +324,11 @@ add_test(NAME test_passing_drift_derivative
 
 add_test(NAME test_vmax_over_vth
     COMMAND test_vmax_over_vth.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
+add_test(NAME test_energy_distribution
+    COMMAND test_energy_distribution.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -308,4 +432,32 @@ endforeach()
 add_test(NAME test_passing_bounce_direction
     COMMAND test_passing_bounce_direction.x)
 set_tests_properties(test_passing_bounce_direction PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+# Actual shared-background dispatch, compared to isolated species transport.
+foreach(rate_source IN ITEMS 1 2)
+    add_test(NAME test_species_collision_transport_${rate_source}
+        COMMAND test_species_mixture_run.x
+            ${CMAKE_CURRENT_BINARY_DIR}/species_rate_${rate_source} ${rate_source}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    set_tests_properties(test_species_collision_transport_${rate_source} PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+        PROCESSORS 3 TIMEOUT 30)
+endforeach()
+
+add_test(NAME test_mixture_collisions COMMAND test_mixture_collisions.x)
+foreach(mode IN ITEMS missing_background nonfinite_scale duplicate_shape)
+    add_test(NAME test_mixture_collisions_reject_${mode}
+        COMMAND test_mixture_collisions.x ${mode})
+    set_tests_properties(test_mixture_collisions_reject_${mode} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_test(NAME test_collision_rates COMMAND test_collision_rates.x)
+foreach(mode IN ITEMS zero-mass negative-mass nan-mass zero-charge infinite-charge negative-density nan-density zero-temperature nan-temperature zero-log nan-log zero-speed negative-speed nan-speed infinite-speed invalid-index uninitialized shape-mismatch)
+    add_test(NAME test_collision_rates_reject_${mode} COMMAND test_collision_rates.x ${mode})
+    set_tests_properties(test_collision_rates_reject_${mode} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
+add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
+set_tests_properties(test_krook_work_oracle PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)

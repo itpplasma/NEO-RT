@@ -98,6 +98,36 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+add_executable(test_signed_toroidal_bound.x
+   SRC/test_signed_toroidal_bound.f90
+)
+target_link_libraries(test_signed_toroidal_bound.x
+   potato_base
+)
+add_test(NAME test_signed_toroidal_bound
+   COMMAND test_signed_toroidal_bound.x
+)
+
+add_executable(test_radial_boxes.x
+   SRC/test_radial_boxes.f90
+)
+target_link_libraries(test_radial_boxes.x
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+)
+add_test(NAME test_radial_boxes
+   COMMAND test_radial_boxes.x
+)
+
+add_executable(test_energy_selection.x
+   SRC/test_energy_selection.f90
+)
+target_link_libraries(test_energy_selection.x
+   potato_base
+)
+add_test(NAME test_energy_selection
+   COMMAND test_energy_selection.x
+)
+
 add_executable(test_bounce_offcut.x SRC/test_bounce_offcut.f90)
 target_link_libraries(test_bounce_offcut.x PRIVATE potato_base potato)
 add_test(NAME test_bounce_offcut COMMAND test_bounce_offcut.x)

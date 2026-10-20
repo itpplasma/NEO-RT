@@ -2,6 +2,7 @@ module potato_input_mod
     use field_sub, only: read_field_input
     use input_files, only: convexfile
     use iso_fortran_env, only: output_unit
+    use kinetic_energy_selection, only: validate_energy_ratio
     use wall_loss_mod, only: load_wall
     implicit none
 
@@ -38,6 +39,7 @@ module potato_input_mod
     double precision :: thermen_max = 6d0 ! Max kinetic energy [T units]
     ! Lowest slice starts at this kinetic energy [T units] when set.
     double precision :: enkin_min_over_temp = 0d0
+    double precision :: monoenergetic_x = -1d0 ! -1: thermal; positive: E/T_ref
 
     ! Box counting
     integer :: nbox = 100
@@ -113,7 +115,7 @@ module potato_input_mod
         rho_pol, rho_pol_max, scalfac_energy, scalfac_efield, &
         Rmax_orbit, ntimstep, npoicut, plot_poicut, plot_equilibrium, &
         m_min, m_max, n_tor, &
-        nenerg, thermen_max, enkin_min_over_temp, nbox, unif_rho_pol, &
+        nenerg, thermen_max, enkin_min_over_temp, monoenergetic_x, nbox, unif_rho_pol, &
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
@@ -154,6 +156,7 @@ contains
         endif
 
         close(iunit)
+        call validate_energy_ratio(monoenergetic_x)
 
         inquire(file='field_divB0.inp', exist=field_input_exists)
         if (field_input_exists) then
@@ -185,6 +188,7 @@ contains
         write(iunit, '(A,I0)') '  nenerg           = ', nenerg
         write(iunit, '(A,ES12.5)') '  thermen_max      = ', thermen_max
         write(iunit, '(A,ES12.5)') '  enkin_min_over_temp = ', enkin_min_over_temp
+        write(iunit, '(A,ES12.5)') '  monoenergetic_x  = ', monoenergetic_x
         write(iunit, '(A,I0)') '  nbox             = ', nbox
         write(iunit, '(A,L1)') '  unif_rho_pol     = ', unif_rho_pol
         write(iunit, '(A,L1)') '  adaptive_jperp   = ', adaptive_jperp

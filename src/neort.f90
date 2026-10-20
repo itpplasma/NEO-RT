@@ -23,6 +23,9 @@ module neort
     ! truncated it. Set vmax_over_vth = 3.0 to reproduce pre-2026-07-20 results.
     real(dp) :: vmax_over_vth = 4.0_dp
 
+    ! Negative selects the Maxwellian velocity integral; positive selects x=E/T.
+    real(dp) :: monoenergetic_x = -1.0_dp
+
 contains
 
     pure subroutine harmonic_bounds(mph_value, q_value, max_abs, mth_min, mth_max)
@@ -269,7 +272,8 @@ contains
             vmaxt = 5.0_dp * vth
             sign_vpar = 1
             call set_to_trapped_region(etamin, etamax)
-            call compute_transport_integral(vmint, vmaxt, vsteps, Drest, Trest)
+            call compute_transport_integral(vmint, vmaxt, vsteps, monoenergetic_x, &
+                                            Drest, Trest)
             Dt = Dt + Drest
             Tt = Tt + Trest
 
@@ -293,7 +297,8 @@ contains
         if (.not. nopassing) then
             sign_vpar = 1
             call set_to_passing_region(etamin, etamax)
-            call compute_transport_integral(vminp, vmaxp, vsteps, Dresco, Tresco)
+            call compute_transport_integral(vminp, vmaxp, vsteps, monoenergetic_x, &
+                                            Dresco, Tresco)
             Dco = Dco + Dresco
             Tco = Tco + Tresco
         end if
@@ -302,7 +307,8 @@ contains
         if (.not. nopassing) then
             sign_vpar = -1
             call set_to_passing_region(etamin, etamax)
-            call compute_transport_integral(vminp, vmaxp, vsteps, Dresctr, Tresctr)
+            call compute_transport_integral(vminp, vmaxp, vsteps, monoenergetic_x, &
+                                            Dresctr, Tresctr)
             Dctr = Dctr + Dresctr
             Tctr = Tctr + Tresctr
         end if
@@ -310,7 +316,8 @@ contains
         ! Trapped resonance (trapped)
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax)
-        call compute_transport_integral(vmint, vmaxt, vsteps, Drest, Trest)
+        call compute_transport_integral(vmint, vmaxt, vsteps, monoenergetic_x, &
+                                        Drest, Trest)
         Dt = Dt + Drest
         Tt = Tt + Trest
 
