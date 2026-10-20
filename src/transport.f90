@@ -9,6 +9,8 @@ module neort_transport
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
+    use neort_collisional_layer, only: collisional_layer, collisional_layer_factor, &
+        deflection_frequency
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2, &
@@ -162,7 +164,13 @@ contains
         real(dp), intent(in) :: energy_ratio
         type(velocity_sample_t), intent(inout) :: sample
 
+        if (collisional_layer .and. finite_krook_active()) &
+            error stop 'collisional_layer and finite Krook broadening cannot be combined'
         if (finite_krook_active()) then
+            block
+                character(len=4096) :: ledger_path
+                call resonance_ledger_path(ledger_path)
+            end block
             call compute_krook_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
         else
             call compute_collisionless_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
@@ -246,9 +254,31 @@ contains
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
-        real(dp) :: Hmn2, attenuation_factor
+        real(dp) :: Hmn2, attenuation_factor, layer_factor, layer_nu
         real(dp) :: roots(nlev, 3), terms(3, nlev)
         integer :: nroots, kr, nterm
+        character(len=4096) :: ledger_path
+        character(len=4) :: orbit_branch
+        character(len=1024), allocatable :: ledger_rows(:)
+        integer :: ledger_count
+        logical :: ledger_enabled
+        real(dp) :: Omph, dOmphdv, dOmphdeta, resonance_residual
+
+        call resonance_ledger_path(ledger_path)
+        ledger_enabled = len_trim(ledger_path) > 0
+        ledger_count = 0
+        if (ledger_enabled) then
+            allocate(ledger_rows(nlev))
+            if (etamax < etatp) then
+                if (sign_vpar > 0.0_dp) then
+                    orbit_branch = 'cop'
+                else
+                    orbit_branch = 'ctr'
+                end if
+            else
+                orbit_branch = 'trap'
+            end if
+        end if
 
         if (energy_ratio > 0.0_dp) then
             du = 0.0_dp
@@ -260,6 +290,8 @@ contains
         ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
         sample_weight = energy_sample_weight(energy_ratio, ux, du)
         v = ux * vth
+        if (collisional_layer .and. etamax > etatp) &
+            layer_nu = deflection_frequency(v)
         call driftorbit_coarse(v, etamin, etamax, roots, nroots)
         do kr = 1, nroots
             eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
@@ -285,17 +317,73 @@ contains
 
             dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
             dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
+            if (collisional_layer) then
+                layer_factor = 1.0_dp
+                if (eta > etatp) layer_factor = collisional_layer_factor( &
+                    layer_nu, eta, eps, etatp, etadt, abs(eta_res(2)))
+                dD11 = dD11 * layer_factor
+                dD12 = dD12 * layer_factor
+            end if
             nterm = nterm + 1
             terms(1, nterm) = dD11 * attenuation_factor
             terms(2, nterm) = dD12 * attenuation_factor
             terms(3, nterm) = 0.0_dp
             if (comptorque) then
                 dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
+                if (collisional_layer) dT = dT * layer_factor
                 terms(3, nterm) = dT * attenuation_factor
             end if
+            if (ledger_enabled) then
+                call Om_ph(v, eta, Omph, dOmphdv, dOmphdeta)
+                resonance_residual = real(mth, dp) * Omth + real(mph, dp) * Omph
+                ledger_count = ledger_count + 1
+                write(ledger_rows(ledger_count), *) &
+                    s, selected_species, mth, mph, trim(orbit_branch), ux, eta, &
+                    Omth, Omph, resonance_residual, eta_res(2), taub, Hmn2, &
+                    attenuation_factor, sample_weight, dT*attenuation_factor, istate_dv
+            end if
         end do
+        if (ledger_enabled) &
+            call append_resonance_ledger(ledger_path, ledger_rows(:ledger_count))
         call store_sample_terms(terms(:, 1:nterm), sample)
     end subroutine compute_collisionless_sample
+
+    subroutine resonance_ledger_path(path)
+        character(len=*), intent(out) :: path
+        integer :: env_length, env_status
+        path = ''
+        call get_environment_variable('NEORT_RESONANCE_LEDGER', path, &
+            length=env_length, status=env_status)
+        if (env_status == -1) error stop 'NEORT_RESONANCE_LEDGER path is too long'
+        if (env_status /= 0 .or. env_length == 0) then
+            path = ''
+            return
+        end if
+        if (.not. comptorque) error stop 'NEORT_RESONANCE_LEDGER requires comptorque=.true.'
+        if (finite_krook_active()) &
+            error stop 'NEORT_RESONANCE_LEDGER requires collisionless transport'
+    end subroutine resonance_ledger_path
+
+    subroutine append_resonance_ledger(path, rows)
+        character(len=*), intent(in) :: path, rows(:)
+        integer :: unit, k, file_size
+        logical :: exists
+        ! Each worker buffers one speed sample. Separate append units must never
+        ! overlap: locking just WRITE would leave independent file positions stale.
+        !$omp critical(neort_resonance_ledger_io)
+        inquire(file=trim(path), exist=exists, size=file_size)
+        open(newunit=unit, file=trim(path), status='unknown', &
+            position='append', action='write')
+        if (.not. exists .or. file_size == 0) then
+            write(unit, '(A)') '# s species mth mph branch ux eta Omth Omph residual ' &
+                //'dres_deta taub Hmn2 attenuation sample_weight dTds istate'
+        end if
+        do k = 1, size(rows)
+            write(unit, '(A)') trim(rows(k))
+        end do
+        close(unit)
+        !$omp end critical(neort_resonance_ledger_io)
+    end subroutine append_resonance_ledger
 
     subroutine compute_krook_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
         ! Node ku: its finite-width pitch integral as the single term.
