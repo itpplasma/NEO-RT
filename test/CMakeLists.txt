@@ -337,6 +337,30 @@ add_test(NAME test_harmonic_bounds
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_collisional_layer_parallel
+    COMMAND test_parallel.x collisional-layer
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_collisional_layer_parallel PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=3;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 3 TIMEOUT 120)
+
+add_test(NAME test_collisional_layer_config_reset
+    COMMAND test_collisional_layer.x config-reset
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/ripple_plateau)
+
+add_test(NAME test_collisional_layer_table
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_collisional_layer_table.py
+        $<TARGET_FILE:test_collisional_layer.x>)
+add_test(NAME test_collisional_layer_generator
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate_collisional_layer.py --check)
+set_tests_properties(test_collisional_layer_table test_collisional_layer_generator
+    PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1" TIMEOUT 120)
+
+add_test(NAME test_collisional_layer
+    COMMAND test_collisional_layer.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_passing_drift_derivative
     COMMAND test_passing_drift_derivative.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
