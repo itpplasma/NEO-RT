@@ -268,7 +268,7 @@ contains
             driftorbit_root(2) = dresdeta
 
             if (abs(res) <= tol_eff .and. abs(b - a) <= eta_relative_tolerance * eta_scale .and. &
-                ieee_is_finite(dresdeta)) then
+                ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp) then
                 converged = .true.
                 exit
             end if
@@ -286,8 +286,14 @@ contains
                 eta = 0.5_dp * (a + b)
                 call resonance_value(v, eta, res, dresdeta)
                 driftorbit_root = [eta, dresdeta]
-                converged = ieee_is_finite(res) .and. abs(res) <= tol_eff .and. &
-                    ieee_is_finite(dresdeta) .and. dresdeta /= 0.0_dp
+                ! At machine width the residual is limited by eta rounding.
+                ! Use only the local Jacobian, and still reject a discontinuity
+                ! or a zero/invalid Jacobian rather than accepting width alone.
+                converged = .false.
+                if (ieee_is_finite(res) .and. ieee_is_finite(dresdeta)) then
+                    if (dresdeta /= 0.0_dp) converged = abs(res) <= &
+                        max(tol_eff, 8.0_dp*abs(dresdeta)*spacing(eta))
+                end if
                 exit
             end if
 

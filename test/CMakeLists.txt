@@ -459,7 +459,8 @@ set(frequency_model_dir "${CMAKE_CURRENT_BINARY_DIR}/frequency_model_modules")
 file(MAKE_DIRECTORY "${frequency_model_dir}")
 add_library(frequency_model_fixture STATIC
     fixtures/frequency_models/providers.f90
-    ../src/freq.f90 ../src/resonance.f90)
+    ../src/freq.f90 ../src/resonance.f90
+    ../src/separatrix.f90 ../src/generated/neort_separatrix_frequency_symbolic.f90)
 set_target_properties(frequency_model_fixture PROPERTIES
     Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
 target_include_directories(frequency_model_fixture BEFORE PUBLIC "${frequency_model_dir}")
@@ -552,3 +553,16 @@ set_tests_properties(test_resonance_fold_pairs PROPERTIES
 add_test(NAME test_resonance_root_capacity COMMAND test_resonance_root_capacity.x)
 set_tests_properties(test_resonance_root_capacity PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+add_test(NAME test_separatrix_model COMMAND test_separatrix_model.x)
+add_test(NAME test_separatrix_limit COMMAND test_separatrix_limit.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+add_test(NAME test_orbit_classes COMMAND test_orbit_classes.x)
+add_test(NAME test_orbit_classes_reject_composite COMMAND test_orbit_classes.x composite)
+set_tests_properties(test_orbit_classes_reject_composite PROPERTIES WILL_FAIL TRUE)
+set_tests_properties(test_separatrix_limit PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+
+add_test(NAME test_resonance_acceptance COMMAND test_resonance_acceptance.x)
+
+add_test(NAME test_separatrix_cosine COMMAND test_separatrix_cosine.x)

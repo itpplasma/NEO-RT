@@ -86,4 +86,11 @@ contains
         real(dp), intent(out) :: ydot(neq)
         ydot=0
     end subroutine
+    subroutine passing_frequency_integrals(v,eta,taub,drift_average)
+        real(dp), intent(in) :: v,eta
+        real(dp), intent(inout) :: taub
+        real(dp), intent(out) :: drift_average
+        taub=bounce_time(v,eta)
+        drift_average=(1.25_dp+.05_dp*log(abs(eta-etatp)))*2*pi/(v*taub)
+    end subroutine
 end module
