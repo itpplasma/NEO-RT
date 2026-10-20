@@ -120,13 +120,23 @@ def setup_work_dir(work_dir: Path) -> None:
             dst.symlink_to(src)
 
 
-def run_neort(executable: Path, work_dir: Path, case: str) -> None:
+def run_neort(
+    executable: Path,
+    work_dir: Path,
+    case: str,
+    *,
+    extra_env: dict[str, str] | None = None,
+) -> None:
     """Run neo_rt.x for a test case."""
+    env = os.environ.copy()
+    if extra_env is not None:
+        env.update(extra_env)
     result = subprocess.run(
         [str(executable), case],
         cwd=work_dir,
         capture_output=True,
         text=True,
+        env=env,
     )
     if result.returncode != 0:
         pytest.fail(
@@ -236,6 +246,58 @@ def test_passing_magdrift_control_reproduces_the_two_run_class_sum(
         rtol=2.0e-14,
         atol=0.0,
     )
+
+
+@pytest.mark.fast_only
+def test_resonance_ledger_reconstructs_native_harmonic_torque(
+    executable: Path, tmp_path: Path
+) -> None:
+    """Every serialized root contribution must reconstruct native output."""
+
+    cases = get_test_cases()
+    case = cases[len(cases) // 2]
+    work_dir = tmp_path / "resonance_ledger"
+    work_dir.mkdir()
+    setup_work_dir(work_dir)
+
+    namelist = f90nml.read(INPUT_DIR / "template.in")
+    namelist["params"]["s"] = s_from_case_name(case)
+    runname = "ledger"
+    namelist.write(work_dir / f"{runname}.in", force=True)
+    ledger_path = work_dir / "roots.txt"
+    run_neort(
+        executable,
+        work_dir,
+        runname,
+        extra_env={"NEORT_RESONANCE_LEDGER": str(ledger_path)},
+    )
+
+    # dTds already includes the actual energy weight and attenuation.
+    reconstructed: dict[tuple[int, str], float] = {}
+    with ledger_path.open(encoding="utf-8") as stream:
+        columns = next(stream).removeprefix("# ").split()
+        for line in stream:
+            fields = dict(zip(columns, line.split(), strict=True))
+            assert int(fields["species"]) == 1
+            key = (int(fields["mth"]), fields["branch"])
+            contribution = float(fields["dTds"])
+            assert np.isfinite(contribution)
+            reconstructed[key] = reconstructed.get(key, 0.0) + contribution
+    assert reconstructed, "ledger must contain resonance roots"
+    assert any(value != 0.0 for value in reconstructed.values())
+
+    native = np.atleast_2d(load_torque_integral(work_dir, runname))
+    branch_column = {"cop": 1, "ctr": 2, "trap": 3}
+    for row in native:
+        mth = int(row[0])
+        for branch, column in branch_column.items():
+            np.testing.assert_allclose(
+                reconstructed.get((mth, branch), 0.0),
+                row[column],
+                rtol=2.0e-13,
+                atol=1.0e-280,
+                err_msg=f"ledger mismatch for mth={mth}, branch={branch}",
+            )
 
 
 if __name__ == "__main__":

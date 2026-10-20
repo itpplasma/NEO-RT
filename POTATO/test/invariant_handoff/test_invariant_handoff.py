@@ -63,6 +63,33 @@ def zero_electric_potential(path: Path) -> None:
     path.write_text("\n".join(lines) + "\n")
 
 
+def continue_circular_flux_outside_lcfs(path: Path) -> None:
+    """Give the synthetic circular field a monotone exterior flux continuation.
+
+    The stored fixture clamps psi at its r=.5m LCFS. An exterior field is
+    legitimate, while its plasma profile remains supported only on s=0..1.
+    Keep every interior grid value and the LCFS/profile unchanged.
+    """
+    lines = path.read_text().splitlines()
+    nr, nz = map(int, lines[0].split()[-2:])
+    header = [float(value) for line in lines[1:5] for value in line.split()]
+    first = 1 + (20 + 4*nr)//5
+    flux = [float(value) for line in lines[first:first+nr*nz//5]
+            for value in line.split()]
+    for j in range(nz):
+        z = header[4] - header[1]/2 + j*header[1]/(nz-1)
+        for i in range(nr):
+            r = header[3] + i*header[0]/(nr-1)
+            radius = math.hypot(r-header[5], z-header[6])
+            if radius > .5:
+                flux[j*nr+i] = header[8] + .4*(radius-.5)
+    lines[first:first+nr*nz//5] = [
+        "".join(f"{value:16.8E}" for value in flux[k:k+5])
+        for k in range(0, len(flux), 5)
+    ]
+    path.write_text("\n".join(lines)+"\n")
+
+
 def read_handoff(path: Path) -> tuple[list[str], list[list[float]]]:
     lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
     if lines[0] != "# potato-simple-invariants-v1":
@@ -128,6 +155,20 @@ def main() -> int:
         if [row[0] for row in rows] != [1.0, 2.0, 3.0]:
             raise AssertionError("frequency handoff identifiers changed")
         require_frequency_output(work / "freq_scan.dat", 3)
+
+        continue_circular_flux_outside_lcfs(work / "circ.eqdsk")
+        # Axis initialization first probes R=1 cm outside this circular grid.
+        # It needs only B and must not evaluate the strictly supported profile.
+        (work / "profile_poly.in").write_text(
+            "POTATO_PROFILE_TABLE_V1\n5\n"
+            + "".join(f"{s} 2e13 5000 0\n" for s in (0, .25, .5, .75, 1))
+        )
+        write_input(work / "potato.in")
+        subprocess.run([executable], cwd=work, check=True, timeout=120)
+        columns, rows = read_handoff(work / "potato_invariants.dat")
+        require_valid_rows(columns, rows)
+        if len(rows) != 1:
+            raise AssertionError("tabulated-profile orbit handoff is missing")
     return 0
 
 

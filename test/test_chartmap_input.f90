@@ -4,11 +4,14 @@ program test_chartmap_input
     !
     ! Phase 1 (always): verify that read_boozer_file dispatches to
     !   read_boozer_chartmap_file and that do_magfie returns finite, physically
-    !   sane values (bmod>0, sqrtg>0, iota>0) at a reference point.
+    !   sane values (bmod>0, sqrtg<0, iota>0) at a reference point.  The
+    !   fixture chart is left-handed (theta counter-clockwise in (R, Z), zeta
+    !   along the geometric phi): det d(x,y,z)/d(rho,theta,zeta) < 0 on the
+    !   whole grid, and the source file's dV/ds column is negative (#180).
     !
     ! Phase 2 (when both CHARTMAP_FILE and BC_FILE env vars are set): compare
-    !   bmod, iota, sqrtg, Bthcov, Bphcov between the chartmap and .bc paths at
-    !   the same point.  Tolerances account for the interpolation difference
+    !   bmod, iota, sqrtg, Bthcov, Bphcov, and minor radius between the chartmap
+    !   and .bc paths at the same point.  Tolerances account for interpolation
     !   between the Fourier-series .bc representation and the chartmap rho grid.
     !
     ! The CMake fixture gen_circ_chartmap generates circ_chartmap.nc from circ.bc
@@ -17,7 +20,7 @@ program test_chartmap_input
     use iso_fortran_env, only: dp => real64
     use do_magfie_mod, only: inp_swi, bfac, read_boozer_file, set_s, &
                              init_magfie_at_s, magfie_thread_init, do_magfie, &
-                             iota, Bthcov, Bphcov, psi_pr, dBthcovds, dBphcovds
+                             iota, Bthcov, Bphcov, psi_pr, a, dBthcovds, dBphcovds
     use util, only: pi
     use logger, only: set_log_level
 
@@ -27,11 +30,12 @@ program test_chartmap_input
     integer :: stat
     real(dp) :: x(3), bmod_cm, sqrtg_cm
     real(dp) :: bder_cm(3), hcovar_cm(3), hctrvr_cm(3), hcurl_cm(3)
-    real(dp) :: iota_cm, Bth_cm, Bph_cm, psip_cm
+    real(dp) :: iota_cm, Bth_cm, Bph_cm, psip_cm, a_cm
     real(dp) :: bmod_bc, sqrtg_bc
     real(dp) :: bder_bc(3), hcovar_bc(3), hctrvr_bc(3), hcurl_bc(3)
-    real(dp) :: iota_bc, Bth_bc, Bph_bc, psip_bc
+    real(dp) :: iota_bc, Bth_bc, Bph_bc, psip_bc, a_bc
     real(dp), parameter :: tol_rel = 1.0e-4_dp  ! tightened: FP-accurate fixture from libneo #347
+    real(dp), parameter :: tol_radius_rel = 2.0e-3_dp
     logical :: run_crosscheck
 
     call set_log_level(-1)
@@ -63,6 +67,7 @@ program test_chartmap_input
     Bth_cm  = Bthcov
     Bph_cm  = Bphcov
     psip_cm = psi_pr
+    a_cm = a
 
     print *, "Phase 1: chartmap bmod   =", bmod_cm
     print *, "         chartmap sqrtg  =", sqrtg_cm
@@ -70,14 +75,19 @@ program test_chartmap_input
     print *, "         chartmap Bthcov =", Bth_cm
     print *, "         chartmap Bphcov =", Bph_cm
     print *, "         chartmap psi_pr =", psip_cm
+    print *, "         chartmap a      =", a_cm
     print *, "         chartmap hctrvr =", hctrvr_cm
 
     if (.not. (bmod_cm > 0.0_dp)) then
         print *, "ERROR: chartmap bmod <= 0, got", bmod_cm
         error stop "test_chartmap_input phase 1 failed: bmod"
     end if
-    if (.not. (sqrtg_cm > 0.0_dp)) then
-        print *, "ERROR: chartmap sqrtg <= 0, got", sqrtg_cm
+    if (.not. (a_cm > 0.0_dp)) then
+        print *, "ERROR: chartmap minor radius <= 0, got", a_cm
+        error stop "test_chartmap_input phase 1 failed: minor radius"
+    end if
+    if (.not. (sqrtg_cm < 0.0_dp)) then
+        print *, "ERROR: chartmap sqrtg >= 0 for a left-handed chart, got", sqrtg_cm
         error stop "test_chartmap_input phase 1 failed: sqrtg"
     end if
     if (.not. (iota_cm > 0.0_dp)) then
@@ -122,6 +132,7 @@ program test_chartmap_input
         Bth_bc  = Bthcov
         Bph_bc  = Bphcov
         psip_bc = psi_pr
+        a_bc = a
 
         print *, "Phase 2: bc bmod   =", bmod_bc, " chartmap bmod  =", bmod_cm
         print *, "         bc iota   =", iota_bc, " chartmap iota  =", iota_cm
@@ -129,6 +140,7 @@ program test_chartmap_input
         print *, "         bc Bthcov =", Bth_bc,  " chartmap Bth   =", Bth_cm
         print *, "         bc Bphcov =", Bph_bc,  " chartmap Bph   =", Bph_cm
         print *, "         bc psi_pr =", psip_bc, " chartmap psi_pr=", psip_cm
+        print *, "         bc a      =", a_bc,    " chartmap a     =", a_cm
 
         call assert_close("bmod",   bmod_cm,   bmod_bc,   tol_rel)
         call assert_close("iota",   iota_cm,   iota_bc,   tol_rel)
@@ -136,6 +148,10 @@ program test_chartmap_input
         call assert_close("Bthcov", Bth_cm,    Bth_bc,    tol_rel)
         call assert_close("Bphcov", Bph_cm,    Bph_bc,    tol_rel)
         call assert_close("psi_pr", psip_cm,   psip_bc,   tol_rel)
+        call assert_close("d log(B)/ds", bder_cm(1), bder_bc(1), tol_rel)
+        ! Legacy chartmaps derive an equal-area edge radius, which differs
+        ! slightly from the minor radius stored in the source .bc header.
+        call assert_close("minor radius", a_cm, a_bc, tol_radius_rel)
 
         print *, "Phase 2 OK: all quantities agree to relative tol", tol_rel
     end if

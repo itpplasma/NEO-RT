@@ -27,6 +27,7 @@ Invoke directly with pytest, or via ctest (POTATO/CMakeLists.txt registers it as
 the test `resonance_golden` when Python + numpy are available).
 """
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -38,7 +39,7 @@ HERE = Path(__file__).resolve().parent
 GOLDEN = json.loads((HERE / "golden_reslines.json").read_text())
 
 # Counts are small integers; allow cross-platform root jitter but stay far below
-# the correct-vs-buggy gap (golden ~133/200 vs buggy ~82/120).
+# the large count changes caused by corrupted resonance weights.
 REL_TOL = 0.02
 ABS_FLOOR = 3  # tolerate at least +-3 lines on the smallest slices
 
@@ -154,6 +155,9 @@ def test_resonance_counts_match_golden(reslines_runs) -> None:
         f"{[s['count'] for s in golden]}"
     )
     for (toten, count), ref in zip(actual, golden):
+        assert math.isclose(toten, ref["toten"], rel_tol=1e-10, abs_tol=1e-12), (
+            f"energy midpoint mismatch: got {toten}, expected {ref['toten']}"
+        )
         tol = max(ABS_FLOOR, REL_TOL * ref["count"])
         assert abs(count - ref["count"]) <= tol, (
             f"resonance-line count for slice toten~{toten:.6g}: "
