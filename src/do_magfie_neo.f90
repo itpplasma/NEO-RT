@@ -8,12 +8,12 @@ module do_magfie_mod
         field_minor_radius_m, field_s_min, field_s_max
     use magfie_mod, only: magfie
     use neo_magfie, only: boozer_curr_tor_hat, boozer_curr_pol_hat, &
-        boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat, &
+                              boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat, &
         boozer_iota, boozer_iota_s
     use neo_exchange, only: rt0
-    use partpa_mod, only: bmod0
+    use partpa_mod, ONLY: bmod0
     implicit none
-    real(dp), parameter :: sign_theta = -1.0_dp
+    real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
     real(dp), parameter, private :: tesla_to_gauss = 1.0e4_dp
     real(dp), parameter, private :: metre_to_cm = 100.0_dp
     real(dp), parameter, private :: reference_bmod_t = 1.0e-4_dp
@@ -26,7 +26,7 @@ module do_magfie_mod
     integer :: inp_swi = 0
     real(dp), private :: prepared_s = -huge(1.0_dp)
     logical, private :: field_loaded = .false.
-    !$omp threadprivate(s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
+    !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
     !$omp threadprivate(q, dqds, iota, eps)
 contains
     subroutine set_s(value)
