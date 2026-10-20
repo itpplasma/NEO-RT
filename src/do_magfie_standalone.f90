@@ -907,7 +907,10 @@ contains
 
         ! Allocate shared spline coefficient arrays
         if (allocated(spl_coeff1)) then
-            if (size(spl_coeff1, 1) /= nflux - 1) deallocate(spl_coeff1, spl_coeff2)
+            if (size(spl_coeff1, 1) /= nflux - 1 .or. &
+                size(spl_coeff2, 3) /= ncol2 .or. size(spl_coeff2, 4) /= nmode) then
+                deallocate(spl_coeff1, spl_coeff2)
+            end if
         end if
         if (.not. allocated(spl_coeff1)) then
             allocate (spl_coeff1(nflux - 1, 5, ncol1))
@@ -938,6 +941,18 @@ contains
             magfie_pert_thread_init_state = MAGFIE_PERT_INIT_SENTINEL
         end if
 
+        ! A main-thread reload can change format or harmonic count while a
+        ! worker retains its previously initialized private buffers.
+        if (magfie_pert_arrays_initialized) then
+            if (size(Bmnc) /= nmode) magfie_pert_arrays_initialized = .false.
+            if (ncol2 >= 8) then
+                if (.not. allocated(Bmns)) then
+                    magfie_pert_arrays_initialized = .false.
+                else if (size(Bmns) /= nmode) then
+                    magfie_pert_arrays_initialized = .false.
+                end if
+            end if
+        end if
         ! Allocate threadprivate working buffers (safe for undefined allocation status)
         if (.not. magfie_pert_arrays_initialized) then
             if (allocated(Bmnc)) deallocate(Bmnc)
@@ -1066,7 +1081,8 @@ contains
 
         ! Allocate params and modes (deallocate first if size changed)
         if (allocated(params)) then
-            if (size(params, 1) /= nflux) deallocate(params, modes)
+            if (size(params, 1) /= nflux .or. size(modes, 2) /= nmode .or. &
+                size(modes, 3) /= ncol2 + 2) deallocate(params, modes)
         end if
         if (.not. allocated(params)) then
             allocate (params(nflux, ncol1 + 1))

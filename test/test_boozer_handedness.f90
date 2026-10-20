@@ -30,17 +30,22 @@ program test_boozer_handedness
     call check_chart("manufactured_left.bc", 1, -1, -1)
     call check_chart("manufactured_left_positive_iota.bc", 1, 1, -1)
     call check_chart("manufactured_right.bc", -1, 1, 1)
+    call check_chart("manufactured_left.bc", 1, -1, -1, 1.7_dp)
 
 contains
 
-    subroutine check_chart(path, orientation, iota_sign, handedness)
+    subroutine check_chart(path, orientation, iota_sign, handedness, field_scale)
         character(len=*), intent(in) :: path
         integer, intent(in) :: orientation, iota_sign, handedness
 
+        real(dp), intent(in), optional :: field_scale
+        real(dp) :: scale
         real(dp) :: bder(3), bmod, hcovar(3), hctrvr(3), hcurl(3)
         real(dp) :: expected_Bphcov, expected_Bthcov, expected_sqrtg
         real(dp) :: iota_chart, radius_cm, sigma_phi, sqrtg, x(3)
 
+        scale = 1.0_dp
+        if (present(field_scale)) scale = field_scale
         sigma_phi = -real(handedness, dp)/real(orientation, dp)
         iota_chart = real(iota_sign, dp)*iota_abs
         radius_cm = minor_radius_m*meter_to_cm*sqrt(evaluation_s)
@@ -51,7 +56,9 @@ contains
             *(minor_radius_m*meter_to_cm)**2/2.0_dp
 
         inp_swi = 9
-        bfac = 1.0_dp
+        expected_Bphcov = expected_Bphcov*scale
+        expected_Bthcov = expected_Bthcov*scale
+        bfac = scale
         call magfie_thread_init()
         call read_boozer_file(path)
         call set_s(evaluation_s)

@@ -45,7 +45,6 @@ The project is developed with GNU Fortran and CMake. The following dependencies 
 - GNU Fortran (gfortran) and a C/C++ toolchain (`build-essential`).
 - CMake 3.22+ and Ninja.
 - BLAS and LAPACK implementations.
-- SuiteSparse (used by the magnetic-field routines).
 - NetCDF (Fortran interface, provides `nf-config`).
 - Python 3 with NumPy (for the regression tests and helper scripts).
 - Optional: [FORD](https://github.com/Fortran-FOSS-Programmers/ford) and Graphviz for documentation generation.
@@ -72,7 +71,35 @@ On GNU/Linux with GNU Fortran, the build now prefers OpenBLAS when it is
 available so standalone NEO-RT builds match the shared benchmark venv instead
 of picking up a stale system MKL installation.
 
-CMake also exposes an option `USE_STANDALONE` (enabled by default) that uses the standalone magnetic-field reader. Set `-DUSE_STANDALONE=OFF` when configuring to link against an external NEO-2 checkout if required.
+CMake exposes `USE_STANDALONE` (enabled by default) for the supported standalone
+magnetic-field reader. That default does not fetch NEO-2 or require an external
+sparse factorizer. The optional `USE_STANDALONE=OFF` dependency is pinned to
+[NEO-2](https://github.com/itpplasma/NEO-2)
+7854749a0a5a94c2b42f67f359ac3d0f8a9b5a6f, whose default sparse backend is
+native CPU [FortSparse](https://github.com/lazy-fortran/fortsparse). An explicit
+`NEO-2_REF` still overrides that pin. The optional build also requires
+CMake 3.24+, MPI and GSL.
+
+The optional adapter delegates field interpolation and perturbation Fourier
+coefficients to NEO-2's explicit provider lifecycle. It supports the existing
+axisymmetric Boozer formats 8/9, independent perturbation-file format selection,
+CGS field scaling and file-header minor radius. Provider calls are serialized
+because NEO-2 retains one global field instance; different flux surfaces may be
+evaluated by NEO-RT worker threads, but independent NEO-2 calculations cannot
+share that state concurrently. This does not add distributed field ownership.
+Chartmap input (`inp_swi=10`) remains a standalone capability.
+
+The existing zero-radial-covariant-field approximation remains explicit, and the
+toroidal component of curl is marked unavailable. NEO-RT does not enable the
+provider's general 3-D field capability. Its cubic angular interpolation is
+qualified by the shared numerical fixtures, without a general accuracy guarantee
+for arbitrary input spectra.
+
+Configure `-DUSE_STANDALONE=OFF -DNEORT_BUILD_TESTING=ON`, build all targets, and
+run `ctest --test-dir <build>/test --output-on-failure`. These checks exercise the
+shared field interface, including signed Fourier modes, reloads, field scaling,
+curl, parallel surface caches and bounce quadrature. Standalone chartmap and
+storage-layout fixtures stay on the default path.
 
 To build against a specific libneo branch, tag, or commit, pass `-DLIBNEO_REF=<ref>` at configure time or `LIBNEO_REF=<ref>` on the make command line:
 

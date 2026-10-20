@@ -17,7 +17,9 @@ program probe_neort_perturbation_fourier_kernel
     real(dp), parameter :: theta = 0.6_dp, phi = -0.4_dp
     real(dp), parameter :: cosine_amplitude_t = 2.0e-4_dp
     real(dp), parameter :: sine_amplitude_t = 0.7e-4_dp
-    complex(dp) :: amplitude_g, expected_consumer
+    real(dp), parameter :: cosine_negative_amplitude_t = 0.9e-4_dp
+    real(dp), parameter :: sine_negative_amplitude_t = -0.4e-4_dp
+    complex(dp) :: amplitude_g, expected_amplitude_g, expected_consumer
     real(dp) :: bmod, sqrtg, bder(3), hcovar(3), hctrvr(3), hcurl(3)
     real(dp) :: full_field_g, expected_g, wrong_sign_g, x(3), theta_sample
     integer :: sample
@@ -79,11 +81,69 @@ program probe_neort_perturbation_fourier_kernel
         error stop 'epsmn does not control analytic perturbations independently'
     end if
 
+    call check_cosine_envelope(3)
+    call check_cosine_envelope(5)
+
     call delete_file(fixture)
     call delete_file(equilibrium_fixture)
     call delete_file("mixed_readers.in")
+    print *, "perturbation Fourier kernel: PASS"
 
 contains
+
+    subroutine check_cosine_envelope(mode_count)
+        ! Type 8 intentionally carries the real cosine envelope, rather than
+        ! the full signed-m complex coefficient used by type 9.
+        integer, intent(in) :: mode_count
+        real(dp), parameter :: coefficients(3) = [0.3e-4_dp, 0.1e-4_dp, 0.2e-4_dp]
+        real(dp) :: expected, value
+        complex(dp) :: envelope
+        config%inp_swi_pert = 8
+        config%bfac = 1.7_dp
+        call set_config(config)
+        call write_cosine_fixture(coefficients, mode_count)
+        call read_boozer_pert_file('manufactured_cosine.bc')
+        call init_magfie_pert_at_s()
+        x = [0.5_dp, phi, theta]
+        call do_magfie_pert_amp(x, envelope)
+        expected = config%bfac*1.0e4_dp*( &
+            (coefficients(1)+coefficients(3))*cos(theta)+coefficients(2))
+        if (abs(envelope-cmplx(expected,0.0_dp,dp)) > 1.0e-12_dp) &
+            error stop 'type8 signed-m cosine envelope or field scaling'
+        call do_magfie_pert(x, value)
+        if (abs(value-expected*cos(3.0_dp*phi)) > 1.0e-12_dp) &
+            error stop 'type8 toroidal phase'
+        config%inp_swi_pert = 9
+        config%bfac = 1.0_dp
+        call set_config(config)
+        call check_manufactured_field('type9 reload after type8')
+        call delete_file('manufactured_cosine.bc')
+    end subroutine check_cosine_envelope
+
+    subroutine write_cosine_fixture(coefficients, mode_count)
+        real(dp), intent(in) :: coefficients(3)
+        integer, intent(in) :: mode_count
+        real(dp), parameter :: radial_grid(3) = [0.2_dp, 0.5_dp, 0.8_dp]
+        integer :: unit, j, k
+        real(dp) :: coefficient
+        open(newunit=unit, file='manufactured_cosine.bc', status='replace')
+        do j = 1, 5
+            write(unit, '(a)') 'CC signed-m cosine envelope'
+        end do
+        write(unit, *) mode_count-1, 0, 3, 1, 1.0_dp, 0.5_dp, 5.0_dp
+        do j = 1, 3
+            write(unit, '(a)') 'CC surface'
+            write(unit, '(a)') 'CC units'
+            write(unit, *) radial_grid(j), 0.2_dp, 0.0_dp, 0.0_dp, 0.0_dp, 1.0_dp
+            write(unit, '(a)') 'CC m n R Z v B'
+            do k = -(mode_count/2), mode_count/2
+                coefficient = 0.0_dp
+                if (abs(k) <= 1) coefficient = coefficients(k+2)
+                write(unit, *) k, 3, 0.0_dp, 0.0_dp, 0.0_dp, coefficient
+            end do
+        end do
+        close(unit)
+    end subroutine write_cosine_fixture
 
     subroutine check_manufactured_field(label)
         character(len=*), intent(in) :: label
@@ -94,23 +154,34 @@ contains
         x = [0.5_dp, phi, theta]
         call do_magfie_pert_amp(x, amplitude_g)
         call do_magfie_pert(x, full_field_g)
-        expected_g = expected_value(theta + 3.0_dp*phi)
-        wrong_sign_g = expected_value(theta - 3.0_dp*phi)
+        expected_amplitude_g = 1.0e4_dp*( &
+            cmplx(cosine_negative_amplitude_t, -sine_negative_amplitude_t, dp) &
+                * exp((0.0_dp, 1.0_dp)*(-theta)) &
+            + cmplx(cosine_amplitude_t, -sine_amplitude_t, dp) &
+                * exp((0.0_dp, 1.0_dp)*theta))
+        expected_g = expected_value(theta, phi)
+        wrong_sign_g = expected_value(theta, -phi)
 
         write (*, '(*(g0,1x))') 'NEORT_PERT_KERNEL', 'case', trim(label), &
             'theta', theta, 'phi_ccw', phi, 'amplitude_real_g', real(amplitude_g), &
             'amplitude_imag_g', aimag(amplitude_g), 'full_field_g', full_field_g, &
             'expected_plus_n_g', expected_g, 'wrong_minus_n_g', wrong_sign_g
+        if (abs(amplitude_g - expected_amplitude_g) > 1.0e-12_dp) then
+            error stop 'perturbation amplitude loses a poloidal Fourier mode'
+        end if
         if (abs(full_field_g - expected_g) > 1.0e-12_dp) then
             error stop 'perturbation reader does not reproduce the manufactured field'
         end if
     end subroutine check_manufactured_field
 
-    real(dp) function expected_value(phase)
-        real(dp), intent(in) :: phase
+    real(dp) function expected_value(theta_value, phi_value)
+        real(dp), intent(in) :: theta_value, phi_value
 
-        expected_value = 1.0e4_dp*(cosine_amplitude_t*cos(phase) &
-            + sine_amplitude_t*sin(phase))
+        expected_value = 1.0e4_dp*( &
+            cosine_negative_amplitude_t*cos(-theta_value + 3.0_dp*phi_value) &
+            + sine_negative_amplitude_t*sin(-theta_value + 3.0_dp*phi_value) &
+            + cosine_amplitude_t*cos(theta_value + 3.0_dp*phi_value) &
+            + sine_amplitude_t*sin(theta_value + 3.0_dp*phi_value))
     end function expected_value
 
     subroutine write_fixture(path)
@@ -203,7 +274,8 @@ contains
         write (unit, '(*(es24.16e3,1x))') radial_coordinate, 1.0_dp, &
             0.0_dp, 0.0_dp, 0.0_dp, 0.0_dp
         write (unit, '(a)') 'm n rmnc rmns zmnc zmns vmnc vmns bmnc bmns'
-        call write_mode(unit, -1, 0.0_dp, 0.0_dp)
+        call write_mode(unit, -1, cosine_negative_amplitude_t, &
+            sine_negative_amplitude_t)
         call write_mode(unit, 0, 0.0_dp, 0.0_dp)
         call write_mode(unit, 1, cosine_amplitude_t, sine_amplitude_t)
     end subroutine write_surface

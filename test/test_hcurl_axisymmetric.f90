@@ -94,12 +94,21 @@ contains
         real(dp), intent(in) :: theta
 
         real(dp) :: bmod, sqrtg, hcovar(3), hcurl(3)
-        real(dp) :: derivative, expected
+        real(dp) :: derivative, expected, roundoff_bound
 
         call evaluate(evaluation_s(), theta, bmod, sqrtg, hcovar, hcurl)
         derivative = richardson_derivative(evaluation_s(), theta, 3, theta_step)
         expected = -derivative/sqrtg
-        call assert_close("hcurl(1)", theta, hcurl(1), expected, tolerance)
+        if (abs(theta) < tiny(1.0_dp)) then
+            ! Symmetry makes the exact curl zero here, so relative error is
+            ! undefined. Bound cancellation at the finite-difference scale;
+            ! keep the relative gate unchanged at every nonzero sample.
+            roundoff_bound = 8.0_dp*epsilon(1.0_dp)*abs(hcovar(2)/sqrtg)/theta_step
+            if (max(abs(hcurl(1)), abs(expected)) > roundoff_bound) &
+                error stop "nonzero radial curl at the symmetry plane"
+        else
+            call assert_close("hcurl(1)", theta, hcurl(1), expected, tolerance)
+        end if
     end subroutine check_radial_component
 
     subroutine check_poloidal_component(theta)

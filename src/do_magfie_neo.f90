@@ -1,159 +1,191 @@
+! The optional provider shares NEO-RT's public field interface. NEO-2 owns
+! Fourier interpolation and field equations; this module owns unit conversion,
+! lifecycle and serialization of the provider's single retained global state.
 module do_magfie_mod
-    use util
-    use neo_exchange, only: nper, b_min, b_max, &
-                            theta_bmin, theta_bmax, phi_bmin, phi_bmax, rt0
-    use magfie_mod, only: magfie, stevvo, magfie_deallocate
-    use neo_magfie, only: magfie_spline, magfie_sarray, boozer_curr_tor_hat, &
-                              boozer_curr_pol_hat, boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, &
-                              boozer_psi_pr_hat, boozer_sqrtg11, boozer_isqrg, boozer_iota, &
-                              boozer_iota_s, inp_swi
-    use nrtype, only: twopi
-    use partpa_mod, ONLY: bmod0
+    use iso_fortran_env, only: dp => real64
+    use util, only: pi
+    use neo_field_provider, only: neo_field_load, neo_field_prepare, &
+        field_minor_radius_m, field_s_min, field_s_max
+    use magfie_mod, only: magfie
     use neo_magfie, only: boozer_curr_tor_hat, boozer_curr_pol_hat, &
                               boozer_curr_tor_hat_s, boozer_curr_pol_hat_s, boozer_psi_pr_hat, &
-                              boozer_sqrtg11, boozer_isqrg
-    use neo_input, only: bmnc
-
+        boozer_iota, boozer_iota_s
+    use neo_exchange, only: rt0
+    use partpa_mod, ONLY: bmod0
     implicit none
-
     real(8), parameter :: sign_theta = -1.0d0  ! negative for left-handed
-
-    real(8) :: s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds, q, dqds, &
-               iota, R0, eps, bfac ! TODO: implement bfac
-    ! B0h is the 0th theta harmonic of bmod on current flux surface
-    ! and B00 the 0th theta harmonic of bmod on the innermost flux surface
-
-    real(8), parameter :: a = 4.6d1 ! TODO 1: make minor radius changeable
-
+    real(dp), parameter, private :: tesla_to_gauss = 1.0e4_dp
+    real(dp), parameter, private :: metre_to_cm = 100.0_dp
+    real(dp), parameter, private :: reference_bmod_t = 1.0e-4_dp
+    private :: copy_field_metadata
+    logical, parameter :: hcurl_toroidal_is_available = .false.
+    real(dp) :: s = 0.0_dp, psi_pr = 0.0_dp, Bthcov = 0.0_dp, Bphcov = 0.0_dp
+    real(dp) :: dBthcovds = 0.0_dp, dBphcovds = 0.0_dp
+    real(dp) :: q = 0.0_dp, dqds = 0.0_dp, iota = 0.0_dp
+    real(dp) :: R0 = 0.0_dp, a = 0.0_dp, eps = 0.0_dp, bfac = 1.0_dp
+    integer :: inp_swi = 0
+    real(dp), private :: prepared_s = -huge(1.0_dp)
+    logical, private :: field_loaded = .false.
     !$omp threadprivate (s, psi_pr, Bthcov, Bphcov, dBthcovds, dBphcovds)
-    !$omp threadprivate (q, dqds, iota, R0, eps, bfac)
-
+    !$omp threadprivate(q, dqds, iota, eps)
 contains
+    subroutine set_s(value)
+        real(dp), intent(in) :: value
+        s = value
+    end subroutine set_s
 
-    subroutine do_magfie_init
-        real(8) :: bmod, bmod1, sqrtg, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
+    subroutine magfie_thread_init()
+        ! NEO-2's retained state is serialized below; no per-thread allocation.
+    end subroutine magfie_thread_init
 
-        print *, "start do_magfie_init"
+    subroutine read_boozer_file(path)
+        use neo_input, only: ixn
+        character(*), intent(in) :: path
+        !$omp critical(neort_neo_field)
+        call neo_field_load(path, inp_swi)
+        if (any(ixn /= 0)) error stop "NEO-RT requires an axisymmetric background"
+        bmod0 = reference_bmod_t ! provider hats -> Gauss, as in the historic adapter
+        a = metre_to_cm*field_minor_radius_m
+        R0 = metre_to_cm*rt0
+        prepared_s = -huge(1.0_dp)
+        field_loaded = .true.
+        !$omp end critical(neort_neo_field)
+    end subroutine read_boozer_file
 
-        bmod0 = 1d-4
-        magfie_spline = 1
+    logical function s_outside_data(value)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+        real(dp), intent(in) :: value
+        s_outside_data = .true.
+        if (.not. ieee_is_finite(value)) return
+        s_outside_data = value < field_s_min .or. value > field_s_max
+    end function s_outside_data
 
-        if (.not. allocated(magfie_sarray)) then
-            allocate (magfie_sarray(1))
-            magfie_sarray = s
-        end if
-
-        x(1) = s
-        x(2:3) = 0.0d0
-        call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-        R0 = 1d2*rt0
-        print *, R0
+    subroutine init_magfie_at_s()
+        real(dp) :: bmin, bmax, jacobian, x(3), bder(3), hcovar(3), hctrvr(3), hcurl(3)
+        if (s_outside_data(s)) error stop "s outside Boozer file radial range"
+        x = [s, 0.0_dp, 0.0_dp]
+        call do_magfie(x, bmin, jacobian, bder, hcovar, hctrvr, hcurl)
         x(3) = pi
-        call do_magfie(x, bmod1, sqrtg, bder, hcovar, hctrvr, hcurl)
-        eps = (bmod1/bmod - 1d0)/(bmod1/bmod + 1d0) ! TODO: make this correct
+        call do_magfie(x, bmax, jacobian, bder, hcovar, hctrvr, hcurl)
+        eps = (bmax - bmin)/(bmax + bmin)
+    end subroutine init_magfie_at_s
 
+    subroutine do_magfie_init(path)
+        character(*), intent(in) :: path
+        call read_boozer_file(path)
+        call init_magfie_at_s()
     end subroutine do_magfie_init
 
     subroutine do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-        real(8), dimension(:), intent(in) :: x
-        real(8), intent(out) :: bmod
-        real(8), intent(out) :: sqrtg
-        real(8), dimension(size(x)), intent(out) :: bder
-        real(8), dimension(size(x)), intent(out) :: hcovar
-        real(8), dimension(size(x)), intent(out) :: hctrvr
-        real(8), dimension(size(x)), intent(out) :: hcurl
-        call magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
-        bmod = 1d4*bmod
-        psi_pr = boozer_psi_pr_hat
-        Bthcov = boozer_curr_tor_hat
-        Bphcov = boozer_curr_pol_hat
-        dBthcovds = boozer_curr_tor_hat_s
-        dBphcovds = boozer_curr_pol_hat_s
-        iota = boozer_iota
-        q = 1d0/iota
-        dqds = -boozer_iota_s/iota**2
-        R0 = 1d2*rt0
-        ! set B_r to zero for now
-        hcovar(1) = 0
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(out) :: bmod, sqrtg
+        real(dp), intent(out) :: bder(size(x)), hcovar(size(x))
+        real(dp), intent(out) :: hctrvr(size(x)), hcurl(size(x))
+        real(dp) :: position(3)
+        position = x(1:3)
+        position(1) = max(field_s_min, min(field_s_max, position(1)))
+        !$omp critical(neort_neo_field)
+        if (.not. field_loaded) error stop "NEO-2 field evaluation before read"
+        if (position(1) /= prepared_s) then
+            call neo_field_prepare(position(1))
+            prepared_s = position(1)
+        end if
+        call magfie(position, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
+        bmod = tesla_to_gauss*bmod*bfac
+        call copy_field_metadata()
+        ! Keep the same explicit radial-field approximation as standalone.
+        hcovar(1) = 0.0_dp
+        hcurl(2) = 0.0_dp
+        !$omp end critical(neort_neo_field)
     end subroutine do_magfie
-
+    subroutine copy_field_metadata()
+        psi_pr = boozer_psi_pr_hat*bfac
+        Bthcov = boozer_curr_tor_hat*bfac
+        Bphcov = boozer_curr_pol_hat*bfac
+        dBthcovds = boozer_curr_tor_hat_s*bfac
+        dBphcovds = boozer_curr_pol_hat_s*bfac
+        iota = boozer_iota
+        q = 1.0_dp/iota
+        dqds = -boozer_iota_s/iota**2
+    end subroutine copy_field_metadata
 end module do_magfie_mod
 
 module do_magfie_pert_mod
-    use neo_magfie_perturbation, only: neo_read_pert, &
-                                       neo_init_spline_pert, m_phi, &
-                                       neo_magfie_pert_amp
-    use neo2_ql, only: read_in_namelists, set_default_values, init
-
-    integer :: mph
-    ! The external NEO-2 reader owns its input format; this keeps the config API compatible.
-    integer :: inp_swi_pert = -1
-
+    use iso_fortran_env, only: dp => real64
+    use neo_magfie_perturbation, only: neo_load_pert, neo_magfie_pert_amplitude
+    use ntv_mod, only: m_phi
+    use do_magfie_mod, only: s, bfac, inp_swi
+    implicit none
+    integer :: inp_swi_pert = -1, mph = 0
+    integer, private :: mph_shared = 0
+    logical, private :: perturbation_loaded = .false.
+    !$omp threadprivate(mph)
 contains
+    subroutine set_mph(value)
+        integer, intent(in) :: value
+        mph_shared = value
+        mph = value
+    end subroutine set_mph
 
-    subroutine do_magfie_pert_init
-        integer :: iunit
+    subroutine init_mph_from_shared()
+        mph = mph_shared
+    end subroutine init_mph_from_shared
 
-        call init
-        open(newunit=iunit,file='neo2.in',status='old')
-        call read_in_namelists(iunit)
-        close(iunit)
+    subroutine read_boozer_pert_file(path)
+        use neo_control, only: lab_swi
+        use partpa_mod, only: bmod0
+        character(*), intent(in) :: path
+        integer :: input_switch
+        input_switch = inp_swi_pert
+        if (input_switch < 0) input_switch = inp_swi
+        !$omp critical(neort_neo_field)
+        ! Match the background provider's chart convention even when the
+        ! perturbation is loaded first (the legacy reader otherwise STOPs).
+        lab_swi = 10
+        bmod0 = 1.0e-4_dp ! same Gauss normalization as the background loader
+        call neo_load_pert(path, input_switch)
+        mph_shared = m_phi
+        perturbation_loaded = .true.
+        !$omp end critical(neort_neo_field)
+        call init_mph_from_shared()
+    end subroutine read_boozer_pert_file
 
-        call neo_read_pert
-        call neo_init_spline_pert
-        mph = nint(m_phi)
+    subroutine init_magfie_pert_at_s()
+        real(dp) :: x(3)
+        complex(dp) :: amplitude
+        call init_mph_from_shared()
+        x = [s, 0.0_dp, 0.0_dp]
+        call do_magfie_pert_amp(x, amplitude)
+    end subroutine init_magfie_pert_at_s
+
+    subroutine do_magfie_pert_init(path)
+        character(*), intent(in) :: path
+        call read_boozer_pert_file(path)
+        call init_magfie_pert_at_s()
     end subroutine do_magfie_pert_init
 
-    !
-  ! Compute the perturbation field amplitude
-  ! for constant toroidal modenumber n = ixm_pert(1)
-  SUBROUTINE neo_magfie_pert_amp( x, bn_hat_pert )
-    !
-    ! input / output
-    !
-    REAL(8), DIMENSION(:), INTENT(in) :: x
-    COMPLEX(8), INTENT(out) :: bn_hat_pert
-    !
-    ! local definitions
-    !
-    COMPLEX(8), PARAMETER :: imun=(0.0_dp,1.0_dp)
-    INTEGER :: swd
-    INTEGER :: i, m
-    REAL(8) :: yp, ypp, yppp
-    REAL(8) :: bmnc_pert_val, bmns_pert_val
-    COMPLEX(8) :: expv
-    !
-    ! read Boozer file and prepare spline routines (1st call)
-    !
-    IF (.NOT. ALLOCATED(es_pert)) THEN
-       CALL neo_read_pert()
-       CALL neo_init_spline_pert()
-    END IF
+    subroutine do_magfie_pert_amp(x, amplitude)
+        real(dp), intent(in) :: x(:)
+        complex(dp), intent(out) :: amplitude
+        integer :: input_switch
+        input_switch = inp_swi_pert
+        if (input_switch < 0) input_switch = inp_swi
+        !$omp critical(neort_neo_field)
+        if (.not. perturbation_loaded) error stop "NEO-2 perturbation before read"
+        call neo_magfie_pert_amplitude(x, amplitude)
+        !$omp end critical(neort_neo_field)
+        ! Type 8 is NEO-RT's cosine envelope. Type 9 retains the signed-m
+        ! complex Fourier coefficient. NEO-2 uses bmod0=1e-4, hence Gauss.
+        if (input_switch == 8) amplitude = cmplx(real(amplitude, dp), 0.0_dp, dp)
+        amplitude = amplitude*bfac
+    end subroutine do_magfie_pert_amp
 
-    bn_hat_pert = (0.0_dp,0.0_dp)
-    DO i = 1, mnmax_pert
-       swd = 1
-       CALL splint_horner3(es_pert, a_bmnc_pert(:,i), b_bmnc_pert(:,i),&
-            c_bmnc_pert(:,i), d_bmnc_pert(:,i), swd, r_mhalf_pert(i),&
-            x(1), tf, tfp, tfpp, tfppp, bmnc_pert_val, yp, ypp, yppp)
-
-       ! Additional data from Boozer files without Stellarator symmetry
-       IF (inp_swi .EQ. 9) THEN ! ASDEX-U (E. Strumberger)
-          CALL splint_horner3(es_pert, a_bmns_pert(:,i), b_bmns_pert(:,i),&
-               c_bmns_pert(:,i), d_bmns_pert(:,i), swd, r_mhalf_pert(i),&
-               x(1), tf, tfp, tfpp, tfppp, bmns_pert_val, yp, ypp, yppp)
-       END IF
-
-       IF (inp_swi .EQ. 8) THEN ! NEW IPP TOKAMAK
-          m = (-1)*ixm_pert(i)
-             expv = EXP(imun*m*x(3))
-             bn_hat_pert = bn_hat_pert + bmnc_pert_val * expv
-       ELSEIF (inp_swi .EQ. 9) THEN ! ASDEX-U (E. Strumberger)
-             expv = EXP(imun*m*x(3))
-             bn_hat_pert = bn_hat_pert + (bmnc_pert_val-imun*bmns_pert_val)*expv
-       END IF
-
-    END DO
-    bn_hat_pert = bn_hat_pert / bmod0
-  END SUBROUTINE neo_magfie_pert_amp
+    subroutine do_magfie_pert(x, bmod)
+        use util, only: imun
+        real(dp), intent(in) :: x(:)
+        real(dp), intent(out) :: bmod
+        complex(dp) :: amplitude
+        call do_magfie_pert_amp(x, amplitude)
+        bmod = real(amplitude*exp(imun*mph*x(2)), dp)
+    end subroutine do_magfie_pert
 end module do_magfie_pert_mod
