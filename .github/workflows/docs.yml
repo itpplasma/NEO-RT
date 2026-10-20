@@ -3,20 +3,22 @@ name: Deploy documentation
 on:
   push:
     branches: ["main"]
+  pull_request:
+  merge_group:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: docs-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
+    name: docs-build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -24,26 +26,33 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.x'
+          python-version: '3.14'
 
       - name: Install documentation tooling
         run: |
           sudo apt-get update
           sudo apt-get install -y graphviz
-          pip install ford
+          pip install -r requirements-docs.txt
 
       - name: Generate FORD documentation
-        run: make doc
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v6
+        run: |
+          python -m unittest discover -s test -p test_docs_config.py
+          make doc
 
       - name: Upload artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v5
         with:
           path: build/doc
 
   deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
