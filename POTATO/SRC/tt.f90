@@ -11,7 +11,7 @@
   use cc_mod,                       only : wrbounds,dowrite
   use resint_mod,                   only : nmodes,marr,narr,delint_mode
   use poicut_mod,                   only : npc,rpc_arr,zpc_arr
-  use phielec_of_psi_mod,           only : npolyphi, polyphi, polydens, polytemp
+  use potato_profile_data_mod,     only : load_potato_profiles
   use logging_mod,                  only : init_logging, close_logging, get_log_unit, &
                                           is_logging_enabled, tee_message
   use potato_input_mod,             only : read_potato_input, print_potato_input, &
@@ -127,21 +127,8 @@
 
 ! Load profiles
   call tee_message('Loading profiles from '//trim(profile_file))
-  open(iunit,file=trim(profile_file),status='old',action='read')
-  read(iunit,*)  ! dummy
-  read(iunit,*)  ! dummy
-  read(iunit,*) polydens
-  read(iunit,*) polytemp  ! dummy
-  read(iunit,*) polytemp
-  read(iunit,*) polyphi
-  close(iunit)
-!
-  polytemp = polytemp/scalfac_energy
-  polyphi = polyphi/scalfac_efield
-!  polyphi = polyphi/scalfac_banana
-!
-  polytemp = polytemp/E_alpha
-  polyphi = polyphi*Z_alpha*e_charge/(E_alpha*ev)
+  call load_potato_profiles(trim(profile_file),E_alpha,Z_alpha,scalfac_energy, &
+                           scalfac_efield,e_charge,ev)
 !
 ! Find Poincare cut:
   call tee_message('Computing Poincare cut')

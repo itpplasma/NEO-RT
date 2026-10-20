@@ -48,11 +48,13 @@ def fit_descending(x: np.ndarray, y: np.ndarray, degree: int) -> tuple[np.ndarra
 
 def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
             r0_cm: float, psi_span_tm2: float, relation_sign: int,
-            degree: int = 9) -> dict:
+            degree: int = 9, output_format: str = "polynomial") -> dict:
     if r0_cm <= 0.0 or psi_span_tm2 <= 0.0:
         raise ValueError("r0_cm and psi_span_tm2 must be positive")
     if relation_sign not in (-1, 0, 1):
         raise ValueError("relation_sign must be -1, 0, or +1")
+    if output_format not in ("polynomial", "table"):
+        raise ValueError("output_format must be polynomial or table")
 
     rotation = np.asarray(numeric_rows(profile), dtype=float)
     plasma_rows = numeric_rows(plasma)
@@ -119,11 +121,17 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
     potential_coef, potential_error = fit_descending(s_pol, potential_statv, degree)
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w") as stream:
-        stream.write("% NEO-RT profiles mapped from s_tor to s_pol\n")
-        stream.write("% density, dummy, ion temperature, potential; descending powers\n")
-        for values in (density_coef, np.zeros(degree+1),
-                       temperature_coef, potential_coef):
-            stream.write(" ".join(f"{value:.16e}" for value in values) + "\n")
+        if output_format == "table":
+            stream.write("POTATO_PROFILE_TABLE_V1\n")
+            stream.write(f"{len(s_pol)}\n")
+            np.savetxt(stream, np.column_stack((s_pol, density, temperature_ev,
+                                               potential_statv)), fmt="%.16e")
+        else:
+            stream.write("% NEO-RT profiles mapped from s_tor to s_pol\n")
+            stream.write("% density, dummy, ion temperature, potential; descending powers\n")
+            for values in (density_coef, np.zeros(degree+1),
+                           temperature_coef, potential_coef):
+                stream.write(" ".join(f"{value:.16e}" for value in values) + "\n")
 
     metadata = {
         "inputs": {
@@ -149,6 +157,10 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
         "potential_units": "statvolt",
         "omega_e_s_range": [float(np.min(omega_e_s)), float(np.max(omega_e_s))],
         "potential_statv_edge": float(potential_statv[-1]),
+        "profile_format": output_format,
+        "table_columns": "s_pol,n_cm3,Ti_eV,Phi_statvolt" if output_format == "table" else None,
+        "table_rows": len(s_pol) if output_format == "table" else None,
+        "table_interpolation": "native natural cubic spline; no global fit" if output_format == "table" else None,
         "polynomial_degree": degree,
         "relative_l2_fit": {
             "density": density_error,
@@ -156,6 +168,9 @@ def convert(profile: Path, plasma: Path, geometry: Path, output: Path, *,
             "potential": potential_error,
         },
     }
+    if output_format == "table":
+        metadata["unused_polynomial_fit_diagnostic"] = metadata.pop("relative_l2_fit")
+        metadata["polynomial_degree"] = None
     output.with_suffix(output.suffix + ".json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n"
     )
@@ -172,11 +187,13 @@ def main() -> None:
     parser.add_argument("--psi-span-tm2", type=float, required=True)
     parser.add_argument("--relation-sign", type=int, choices=(-1, 0, 1), required=True)
     parser.add_argument("--degree", type=int, default=9)
+    parser.add_argument("--format", dest="output_format", choices=("polynomial", "table"), default="polynomial")
     args = parser.parse_args()
     print(json.dumps(convert(
         args.profile, args.plasma, args.geometry, args.output,
         r0_cm=args.r0_cm, psi_span_tm2=args.psi_span_tm2,
         relation_sign=args.relation_sign, degree=args.degree,
+        output_format=args.output_format,
     ), indent=2, sort_keys=True))
 
 

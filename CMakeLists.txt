@@ -17,6 +17,14 @@ add_compile_options(-fPIC -g)
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbacktrace -fopenmp -fmax-errors=1")
 set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wimplicit-interface -Wimplicit-procedure")
 
+# gfortran on Apple silicon rejects -march=native next to the -mcpu=native that
+# dependencies add ("unknown value 'apple-m3' for '-march'"); use -mcpu there.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    set(APPLE_NATIVE_CPU_FLAG -mcpu=native)
+else()
+    set(APPLE_NATIVE_CPU_FLAG -march=native)
+endif()
+
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-Og -Wextra)
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -fbounds-check -finit-real=nan -fcheck=all")
@@ -26,7 +34,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     add_compile_options(-O2)
 
     if(APPLE)
-        add_compile_options(-march=native)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=x86-64-v2 -mtune=generic)
     endif()
@@ -34,7 +42,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Fast")
     add_compile_options(-O3 -ffast-math)
 
     if(APPLE)
-        add_compile_options(-march=native)
+        add_compile_options(${APPLE_NATIVE_CPU_FLAG})
     else()
         add_compile_options(-march=native -mtune=native)
     endif()
@@ -43,7 +51,7 @@ endif()
 include(Util)
 
 if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF a4620f8075698dabafd774859e28e0ae92e8f339)
+    set(LIBNEO_REF d30174fb9a9c6520301463ef2406bd2cbfbcd55b)
 endif()
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
@@ -66,6 +74,12 @@ endif()
 
 option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${NEORT_IS_STANDALONE})
 
+# Symbolic generators are consumer-owned and optional.  The generated kernels
+# are committed and are all that a normal NEO-RT build needs.  Set
+# FORTSYM_SOURCE_DIR to the local fortsym checkout when regenerating them.
+option(NEORT_BUILD_SYMBOLICS "Build NEO-RT fortsym generators" OFF)
+set(FORTSYM_SOURCE_DIR "" CACHE PATH "fortsym source tree for NEO-RT generators")
+
 if(DEFINED BUILD_TESTING)
     set(NEORT_BUILD_TESTING ${BUILD_TESTING})
 endif()
@@ -81,7 +95,7 @@ if(NOT TARGET fortnum)
     FetchContent_Declare(
         fortnum
         GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-        GIT_TAG 92de6e949a772cfffc73bb5295fe5e2b056b9c18
+        GIT_TAG 48f6f9bf0d4d523c3677bb686f5892f6e1329a24
     )
     FetchContent_MakeAvailable(fortnum)
 endif()
@@ -98,9 +112,14 @@ add_executable(${PROJECT_EXE_NAME} src/program.f90)
 set(NEO_RT_SOURCES
     src/attenuation_factor.f90
     src/collis_nbi.f90
+    src/collisional_layer.f90
     src/config.f90
+    src/krook.f90
+    src/collision_rates.f90
+    src/mixture_collisions.f90
     src/datatypes.f90
     src/driftorbit.f90
+    src/kinetic_energy_selection.f90
     src/freq.f90
     src/lib.f90
     src/logging.f90
@@ -109,14 +128,22 @@ set(NEO_RT_SOURCES
     src/neort.f90
     src/nonlin.f90
     src/orbit.f90
+    src/orbit_classes.f90
     src/output.f90
     src/polylag_3.f
     src/profiles.f90
     src/resonance.f90
+    src/generated/neort_separatrix_frequency_symbolic.f90
+    src/separatrix.f90
     src/shaing.f90
+    src/species.f90
     src/transport.f90
     src/util.f90
 )
+
+# Fast builds must retain explicit rejection of nonfinite scientific inputs.
+set_source_files_properties(src/separatrix.f90 src/orbit_classes.f90 src/resonance.f90 src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 PROPERTIES
+    COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
 
@@ -187,6 +214,10 @@ endif()
 # Diagnostics
 add_subdirectory(src/diag)
 
+if(NEORT_BUILD_SYMBOLICS)
+    add_subdirectory(tools/symbolics)
+endif()
+
 add_executable(neo_rt_diag.x
     src/diag/neort_diag.f90
 )
@@ -196,3 +227,10 @@ target_link_libraries(neo_rt_diag.x PRIVATE
     neo_rt
     fortplot::fortplot
 )
+
+# Field-only readback; does not initialize profiles, orbits or transport.
+add_executable(neo_rt_field_probe.x src/diag/neort_field_probe.f90)
+target_link_libraries(neo_rt_field_probe.x PRIVATE neo_rt)
+
+add_executable(neo_rt_profile_probe.x src/diag/neort_profile_probe.f90)
+target_link_libraries(neo_rt_profile_probe.x PRIVATE neo_rt)

@@ -96,7 +96,7 @@ contains
         print *, "sqrtgBth = ", sqrtgBth
 
         D_plateau = pi * vth**3 / (16.0_dp * R0 * iota * (qi * B0 / (mi * c))**2)
-        Tphi = (sqrtgBth / c) * qe * (-ni1 * D_plateau * (D(1) * A1 + D(2) * A2)) * AVG_NABLA_S
+        Tphi = (sqrtgBth / c) * qi * (-ni1 * D_plateau * (D(1) * A1 + D(2) * A2)) * AVG_NABLA_S
         Tphi = Tphi
     end function torque_from_transport
 

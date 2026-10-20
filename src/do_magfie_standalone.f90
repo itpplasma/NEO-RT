@@ -10,6 +10,9 @@ module do_magfie_mod
     ! Work arrays previously automatic on stack (size=nmode)
     real(dp), private, allocatable :: B0mnc(:), dB0dsmnc(:), B0mns(:), dB0dsmns(:)
     real(dp), private, allocatable :: costerm(:), sinterm(:)
+    ! bfac carried by B0mnc etc.; flux-function spline values at profile_x1
+    real(dp), private :: amplitude_bfac = 0.0_dp, profile_x1 = -1.0_dp
+    real(dp), private :: profile_spl(3, 3) = 0.0_dp
 
     real(dp), parameter :: sign_theta = -1.0_dp  ! negative for left-handed
 
@@ -36,6 +39,11 @@ module do_magfie_mod
 
     integer :: inp_swi = 0 ! type of input file
 
+    ! The toroidal component of curl h needs the covariant radial component of
+    ! the field, which a Boozer file does not store. The radial and poloidal
+    ! components are exact; a consumer of hcurl(2) must check this first.
+    logical, parameter :: hcurl_toroidal_is_available = .false.
+
     ! Initialization flag for threadprivate allocatable arrays
     logical, save :: magfie_arrays_initialized = .false.
 
@@ -49,6 +57,7 @@ module do_magfie_mod
     !$omp threadprivate (s_prev, spl_val_c, spl_val_s)
     !$omp threadprivate (B0mnc, dB0dsmnc, B0mns, dB0dsmns, costerm, sinterm)
     !$omp threadprivate (rmnc, rmns, zmnc, zmns)
+    !$omp threadprivate (amplitude_bfac, profile_x1, profile_spl)
 
     ! Flux-surface dependent quantities (computed per-thread for each s)
     !$omp threadprivate (s, Bthcov, Bphcov, dBthcovds, dBphcovds)
@@ -68,8 +77,12 @@ module do_magfie_mod
     real(dp), allocatable, protected :: cm_spl_aphi(:, :)   ! spline of A_phi(s)
     real(dp), allocatable, protected :: cm_spl_Bth(:, :)    ! spline of B_theta(rho)
     real(dp), allocatable, protected :: cm_spl_Bph(:, :)    ! spline of B_phi(rho)
-    ! (n_rho-1, 5, n_theta): for each theta grid index, spline of Bmod vs rho
-    real(dp), allocatable, protected :: cm_spl_bmod(:, :, :)
+    ! Bmod(rho, theta) as a theta Fourier series (trigonometric interpolant of
+    ! the endpoint-excluded theta grid), each harmonic splined in rho:
+    ! (n_rho-1, 5, 0:cm_m_max) for the cosine and sine amplitudes.
+    integer :: cm_m_max = 0
+    real(dp), allocatable, protected :: cm_spl_bmod_c(:, :, :)
+    real(dp), allocatable, protected :: cm_spl_bmod_s(:, :, :)
 
 contains
 
@@ -84,6 +97,7 @@ contains
         ! Must be called once per thread before using magfie routines
         magfie_arrays_initialized = .false.
         s_prev = -1.0_dp
+        profile_x1 = -1.0_dp
     end subroutine magfie_thread_init
 
     subroutine read_boozer_file(path)
@@ -125,7 +139,25 @@ contains
 
         ! Set B00 from first mode
         B00 = 1.0e4_dp * modes0(1, 1, 6) * bfac
+        profile_x1 = -1.0_dp
     end subroutine read_boozer_file
+
+    logical function s_outside_data(s_)
+        ! True if s_ lies outside the radial range tabulated in the Boozer file.
+        ! do_magfie clamps to this range instead of extrapolating, so such a
+        ! flux surface would silently carry the field of the nearest data surface.
+        real(dp), intent(in) :: s_
+        real(dp), parameter :: rel_tol = 1.0e-12_dp
+
+        s_outside_data = .false.
+        if (inp_swi == 10) return
+        if (.not. allocated(params0)) return
+        if (s_ < params0(1, 1)*(1.0_dp - rel_tol)) then
+            s_outside_data = .true.
+        else if (s_ > params0(nflux, 1)*(1.0_dp + rel_tol)) then
+            s_outside_data = .true.
+        end if
+    end function s_outside_data
 
     subroutine init_magfie_at_s()
         ! Per-thread: Initialize magnetic field at current s value
@@ -170,8 +202,16 @@ contains
             magfie_arrays_initialized = .true.
         end if
 
+        if (s_outside_data(s)) then
+            write (0, '(A,ES12.5,A,ES12.5,A,ES12.5,A)') &
+                "init_magfie_at_s: s = ", s, " is outside the Boozer file range [", &
+                params0(1, 1), ",", params0(nflux, 1), "]; refusing to clamp"
+            error stop "s outside Boozer file radial range"
+        end if
+
         ! Initialize cache
         s_prev = -1.0_dp
+        profile_x1 = -1.0_dp
 
         x(1) = s
         x(2) = 0.0
@@ -216,39 +256,54 @@ contains
         x1 = max(params0(1, 1), x(1))
         x1 = min(params0(nflux, 1), x1)
 
-        spl_val = spline_val_0(spl_coeff1(:, :, 3), x1)
-        Bthcov = ItoB * spl_val(1) * bfac
-        dBthcovds = ItoB * spl_val(2) * bfac
-        spl_val = spline_val_0(spl_coeff1(:, :, 2), x1)
-        Bphcov = ItoB * spl_val(1) * bfac
-        dBphcovds = ItoB * spl_val(2) * bfac
-        spl_val = spline_val_0(spl_coeff1(:, :, 1), x1)
-        iota = spl_val(1)
+        ! Orbit integrals call this at fixed s for every theta: the flux
+        ! function splines are evaluated again only when s changes.
+        if (x1 /= profile_x1) then
+            ! Return into the local vector before storing in the threadprivate cache.
+            spl_val = spline_val_0(spl_coeff1(:, :, 3), x1)
+            profile_spl(:, 3) = spl_val
+            spl_val = spline_val_0(spl_coeff1(:, :, 2), x1)
+            profile_spl(:, 2) = spl_val
+            spl_val = spline_val_0(spl_coeff1(:, :, 1), x1)
+            profile_spl(:, 1) = spl_val
+            profile_x1 = x1
+        end if
+        Bthcov = ItoB * profile_spl(1, 3) * bfac
+        dBthcovds = ItoB * profile_spl(2, 3) * bfac
+        Bphcov = ItoB * profile_spl(1, 2) * bfac
+        dBphcovds = ItoB * profile_spl(2, 2) * bfac
+        iota = profile_spl(1, 1)
         q = 1 / iota
-        dqds = -spl_val(2) / iota**2
+        dqds = -profile_spl(2, 1) / iota**2
 
+        ! calculate B-field from modes; the scaled amplitudes are refreshed
+        ! only when cached_spline would refresh them (or bfac changes).
+        if (abs(x1 - s_prev) >= spline_cache_tol .or. bfac /= amplitude_bfac) then
+            if (inp_swi == 8) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
+                B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
+            else if (inp_swi == 9) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+                B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+                B0mns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
+                dB0dsmns(:) = 1.0e4_dp * spl_val_s(2, :) * bfac
+            end if
+            amplitude_bfac = bfac
+        end if
+        B0h = B0mnc(1)
+
+        ! Keep the forward phase recurrence: changing the equilibrium rounding
+        ! perturbs bounce trajectories and the nested adaptive Krook quadrature.
         call fast_sin_cos(modes0(1, :, 1), x(3), sinterm, costerm)
-
-        ! calculate B-field from modes
         if (inp_swi == 8) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
-            dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
-            B0h = B0mnc(1)
-
             bmod = sum(B0mnc * costerm)
             bder(1) = sum(dB0dsmnc * costerm) / bmod
             bder(2) = 0.0_dp
             bder(3) = sum(-modes0(1, :, 1) * B0mnc * sinterm) / bmod
         else if (inp_swi == 9) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
-            B0mnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
-            dB0dsmnc(:) = 1.0e4_dp * spl_val_c(2, :) * bfac
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            B0mns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
-            dB0dsmns(:) = 1.0e4_dp * spl_val_s(2, :) * bfac
-            B0h = B0mnc(1)
-
             bmod = sum(B0mnc * costerm + B0mns * sinterm)
             bder(1) = sum(dB0dsmnc * costerm + dB0dsmns * sinterm) / bmod
             bder(2) = 0.0_dp
@@ -260,7 +315,21 @@ contains
         sqgbmod = sqgbmod2 / bmod
         sqrtg = sqgbmod / bmod
 
-        hcovar(1) = 0.0_dp  ! TODO
+        ! hcovar(1) = B_s/|B| is not computed here, and the zero is an
+        ! approximation rather than an identity. For an axisymmetric field it is
+        ! determined by geometry the .bc does store, via
+        !
+        !   B_s = (psi'/R) * (R_s*R_th + Z_s*Z_th)/J_pol
+        !         + F * (2*pi/nper) * dv/ds
+        !
+        ! with J_pol = R_s*Z_th - R_th*Z_s the poloidal Jacobian and F the
+        ! toroidal field function. Computing it needs the s-derivatives of the
+        ! R, Z and v harmonics, which this module currently splines only for B,
+        ! and it inherits the sign convention of the stored shift v. That
+        ! convention is the one under audit for the ITER TC24 canonical file, so
+        ! implementing this before it is settled would bake the disputed choice
+        ! into a field component. Left explicit rather than silently zero.
+        hcovar(1) = 0.0_dp
         hcovar(2) = Bphcov / bmod
         hcovar(3) = Bthcov / bmod
 
@@ -268,9 +337,7 @@ contains
         hctrvr(2) = sign_theta * psi_pr / sqgbmod
         hctrvr(3) = sign_theta * iota * psi_pr / sqgbmod
 
-        hcurl(1) = 0.0_dp  ! TODO
-        hcurl(3) = 0.0_dp  ! TODO
-        hcurl(2) = 0.0_dp  ! TODO
+        call axisymmetric_hcurl(bmod, sqrtg, bder, hcovar, hcurl)
 
         s_prev = x1
 
@@ -288,10 +355,10 @@ contains
         real(dp), dimension(size(x)), intent(out) :: hcurl
 
         real(dp) :: spl_val(3), rho1, s1, dAphi_ds
-        real(dp) :: bmod0, bmod1, dBmod_drho, dBmod_dth
+        real(dp) :: dBmod_drho, dBmod_dth, cos_m, sin_m
+        real(dp) :: spl_c(3), spl_s(3)
         real(dp) :: sqgbmod, sqgbmod2
-        real(dp) :: alpha, th_shift
-        integer :: k_th, k_th1
+        integer :: m
 
         s1 = max(cm_s_aphi(1), x(1))
         s1 = min(cm_s_aphi(size(cm_s_aphi)), s1)
@@ -324,36 +391,32 @@ contains
         ! Set psi_pr = -cm_torflux so sign_theta*psi_pr has the same sign in both paths.
         psi_pr = -cm_torflux * bfac
 
-        ! Bmod on (rho, theta) grid: wrap theta to [0, 2*pi) then interpolate.
-        th_shift = x(3) - floor(x(3) / (2.0_dp * pi)) * 2.0_dp * pi
-        k_th = max(0, min(cm_n_theta - 1, int(th_shift / cm_h_theta)))
-        k_th1 = mod(k_th + 1, cm_n_theta)
-        alpha = (th_shift - real(k_th, dp) * cm_h_theta) / cm_h_theta
-
-        ! Spline in rho at k_th grid point (1-based index k_th+1).
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
-        bmod0 = spl_val(1) * bfac
-        dBmod_drho = spl_val(2) * bfac
-
-        ! Spline in rho at next theta grid point (periodic wrap).
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
-        bmod1 = spl_val(1) * bfac
-
-        bmod = (1.0_dp - alpha) * bmod0 + alpha * bmod1
+        ! Bmod from its theta Fourier series. Unlike linear interpolation on the
+        ! theta grid, this gives a continuous dBmod/dtheta that matches the .bc
+        ! path; a piecewise-constant derivative biases the bounce integrals.
+        bmod = 0.0_dp
+        dBmod_drho = 0.0_dp
+        dBmod_dth = 0.0_dp
+        do m = 0, cm_m_max
+            spl_c = spline_val_0(cm_spl_bmod_c(:, :, m), rho1)
+            spl_s = spline_val_0(cm_spl_bmod_s(:, :, m), rho1)
+            cos_m = cos(real(m, dp) * x(3))
+            sin_m = sin(real(m, dp) * x(3))
+            bmod = bmod + spl_c(1) * cos_m + spl_s(1) * sin_m
+            dBmod_drho = dBmod_drho + spl_c(2) * cos_m + spl_s(2) * sin_m
+            dBmod_dth = dBmod_dth + real(m, dp) * (spl_s(1) * cos_m - spl_c(1) * sin_m)
+        end do
+        bmod = bmod * bfac
+        dBmod_drho = dBmod_drho * bfac
+        dBmod_dth = dBmod_dth * bfac
         B0h = bmod
 
         ! dBmod/ds via chain rule through rho.
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th + 1), rho1)
-        dBmod_drho = (1.0_dp - alpha) * spl_val(2) * bfac
-        spl_val = spline_val_0(cm_spl_bmod(:, :, k_th1 + 1), rho1)
-        dBmod_drho = dBmod_drho + alpha * spl_val(2) * bfac
         bder(1) = dBmod_drho / (2.0_dp * rho1 * bmod)
         ! x(2) is the toroidal angle phi; Bmod has no phi dependence in axisymmetric
         ! (nfp=1, phi=0 slice) Boozer coordinates, so bder(2)=0 is exact.
         bder(2) = 0.0_dp
-        ! dBmod/dtheta by finite difference across the theta grid cell.
-        dBmod_dth = (bmod1 - bmod0) / (cm_h_theta * bmod)
-        bder(3) = dBmod_dth
+        bder(3) = dBmod_dth / bmod
 
         sqgbmod2 = sign_theta * psi_pr * (Bphcov + iota * Bthcov)
         sqgbmod = sqgbmod2 / bmod
@@ -367,9 +430,7 @@ contains
         hctrvr(2) = sign_theta * psi_pr / sqgbmod
         hctrvr(3) = sign_theta * iota * psi_pr / sqgbmod
 
-        hcurl(1) = 0.0_dp
-        hcurl(3) = 0.0_dp
-        hcurl(2) = 0.0_dp
+        call axisymmetric_hcurl(bmod, sqrtg, bder, hcovar, hcurl)
 
     end subroutine do_magfie_chartmap
 
@@ -382,18 +443,26 @@ contains
         character(len=*), intent(in) :: path
 
         type(boozer_chartmap_data_t) :: d
-        integer :: j, n_s_aphi
+        integer :: j, m, n_s_aphi
+        real(dp) :: theta_j
+        real(dp), allocatable :: bmod_c(:), bmod_s(:)
 
         call read_boozer_chartmap(path, d)
 
         cm_n_rho = d%n_rho
-        cm_n_theta = d%n_theta
+        ! The libneo reader appends the periodic theta = 2*pi node to the file
+        ! grid; keep only the distinct nodes for the Fourier transform below.
+        cm_n_theta = d%n_theta - 1
         cm_torflux = d%torflux
         cm_h_theta = d%h_theta
         cm_rho_min = d%rho(1)
         cm_rho_max = d%rho(d%n_rho)
         n_s_aphi = d%n_s
         R0 = d%rmajor * 100.0_dp  ! m -> cm
+        a = d%aminor * 100.0_dp  ! m -> cm
+        if (a <= 0.0_dp) then
+            error stop "Boozer chartmap has no usable minor radius"
+        end if
         ! psi_pr stored globally; negate torflux to match the .bc sign convention
         ! (chartmap torflux > 0, .bc psi_pr = flux*1e8/(2*pi) < 0 for typical orientation).
         psi_pr = -d%torflux * bfac
@@ -403,7 +472,8 @@ contains
         if (allocated(cm_spl_aphi)) deallocate(cm_spl_aphi)
         if (allocated(cm_spl_Bth)) deallocate(cm_spl_Bth)
         if (allocated(cm_spl_Bph)) deallocate(cm_spl_Bph)
-        if (allocated(cm_spl_bmod)) deallocate(cm_spl_bmod)
+        if (allocated(cm_spl_bmod_c)) deallocate(cm_spl_bmod_c)
+        if (allocated(cm_spl_bmod_s)) deallocate(cm_spl_bmod_s)
 
         allocate(cm_rho(cm_n_rho))
         cm_rho = d%rho
@@ -423,9 +493,30 @@ contains
         ! Bmod grid: (n_rho, n_theta, n_phi). For the do_magfie evaluation we
         ! use the phi=0 slice (index 1), which equals the phi=2pi/nfp plane
         ! for a field with nfp-fold symmetry; works for axisymmetric too.
-        allocate(cm_spl_bmod(cm_n_rho - 1, 5, cm_n_theta))
-        do j = 1, cm_n_theta
-            cm_spl_bmod(:, :, j) = spline_coeff(d%rho, d%Bmod(:, j, 1))
+        ! Discrete Fourier transform in theta of the phi=0 slice. The theta grid
+        ! starts at 0 and excludes 2*pi. Harmonics above n_theta/2 alias; the
+        ! Nyquist harmonic (even n_theta) gets half weight and no sine part.
+        cm_m_max = cm_n_theta / 2
+        allocate(cm_spl_bmod_c(cm_n_rho - 1, 5, 0:cm_m_max))
+        allocate(cm_spl_bmod_s(cm_n_rho - 1, 5, 0:cm_m_max))
+        allocate(bmod_c(cm_n_rho), bmod_s(cm_n_rho))
+        do m = 0, cm_m_max
+            bmod_c = 0.0_dp
+            bmod_s = 0.0_dp
+            do j = 1, cm_n_theta
+                theta_j = real(j - 1, dp) * cm_h_theta
+                bmod_c = bmod_c + d%Bmod(:, j, 1) * cos(real(m, dp) * theta_j)
+                bmod_s = bmod_s + d%Bmod(:, j, 1) * sin(real(m, dp) * theta_j)
+            end do
+            if (m == 0 .or. 2 * m == cm_n_theta) then
+                bmod_c = bmod_c / real(cm_n_theta, dp)
+                bmod_s = 0.0_dp
+            else
+                bmod_c = 2.0_dp * bmod_c / real(cm_n_theta, dp)
+                bmod_s = 2.0_dp * bmod_s / real(cm_n_theta, dp)
+            end if
+            cm_spl_bmod_c(:, :, m) = spline_coeff(d%rho, bmod_c)
+            cm_spl_bmod_s(:, :, m) = spline_coeff(d%rho, bmod_s)
         end do
 
         ! B00: (0,0) mode of Bmod = rho=0 surface average; approximate with rho=rho_min.
@@ -467,6 +558,7 @@ contains
         end do
         close (unit=18)
         call set_bc_current_factor(filename)
+        call check_bc_volume_derivative(filename, flux)
         ! Set R0 to first harmonic
         R0 = modes0(1, 1, 3)*100
     end subroutine boozer_read
@@ -496,6 +588,90 @@ contains
         end do
         ItoB = current_to_covar*real(handedness, dp)
     end subroutine set_bc_current_factor
+
+    subroutine check_bc_volume_derivative(filename, flux)
+        ! Fail closed when the header flux sign (or the current columns) contradict
+        ! the file's own dV/ds column. In Boozer coordinates sqrt(g)*B**2 is a flux
+        ! function, so the surface average of the Jacobian used in do_magfie is
+        ! sign_theta*psi_pr*(Bphcov + iota*Bthcov)*<1/B**2>, and
+        ! 4*pi**2*<sqrt(g)> must equal the (dV/ds)/nper column.
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+
+        character(len=*), intent(in) :: filename
+        real(dp), intent(in) :: flux  ! header toroidal flux in T m^2 (unscaled)
+
+        real(dp), parameter :: rel_tolerance = 5.0e-2_dp
+        real(dp), parameter :: cm3_to_m3 = 1.0e-6_dp
+        integer :: ksurf
+        real(dp) :: dvds_file, dvds_neort, inv_b2_avg, psi_pr_raw
+
+        psi_pr_raw = 1.0e8_dp*flux/(2*pi)
+        do ksurf = 1, nflux
+            dvds_file = params0(ksurf, 6)
+            inv_b2_avg = surface_average_inverse_b2(ksurf)
+            dvds_neort = 4*pi**2*sign_theta*psi_pr_raw*ItoB &
+                *(params0(ksurf, 3) + params0(ksurf, 2)*params0(ksurf, 4)) &
+                *inv_b2_avg*cm3_to_m3
+            if (.not. ieee_is_finite(dvds_file)) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+            if (.not. ieee_is_finite(dvds_neort)) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+            if (dvds_file == 0.0_dp) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+            if (abs(dvds_neort - dvds_file) > rel_tolerance*abs(dvds_file)) then
+                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            end if
+        end do
+    end subroutine check_bc_volume_derivative
+
+    function surface_average_inverse_b2(ksurf) result(inv_b2_avg)
+        ! <1/B**2> over theta from the axisymmetric |B| harmonics (in Gauss).
+        integer, intent(in) :: ksurf
+        real(dp) :: inv_b2_avg
+
+        integer :: icos, isin, j, ktheta, ntheta
+        real(dp) :: bmod, m, theta
+
+        icos = 6
+        isin = 0
+        if (inp_swi /= 8) then
+            icos = 9
+            isin = 10
+        end if
+        ntheta = max(64, 8*m0b)
+        inv_b2_avg = 0.0_dp
+        do ktheta = 0, ntheta - 1
+            theta = 2*pi*real(ktheta, dp)/real(ntheta, dp)
+            bmod = 0.0_dp
+            do j = 1, nmode
+                if (nint(modes0(ksurf, j, 2)) /= 0) cycle
+                m = modes0(ksurf, j, 1)
+                bmod = bmod + modes0(ksurf, j, icos)*cos(m*theta)
+                if (isin > 0) bmod = bmod + modes0(ksurf, j, isin)*sin(m*theta)
+            end do
+            if (.not. (bmod > 0.0_dp)) error stop "Invalid Boozer |B| in volume derivative"
+            inv_b2_avg = inv_b2_avg + 1.0_dp/(1.0e4_dp*bmod)**2
+        end do
+        inv_b2_avg = inv_b2_avg/real(ntheta, dp)
+    end function surface_average_inverse_b2
+
+    subroutine fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+        character(len=*), intent(in) :: filename
+        integer, intent(in) :: ksurf
+        real(dp), intent(in) :: dvds_neort, dvds_file
+
+        character(len=1024) :: message
+
+        write (message, "(a,a,a,i0,a,es12.4,a,es12.4,a)") &
+            "Inconsistent Boozer orientation in '", trim(filename), &
+            "' at surface ", ksurf, ": 4*pi**2*<sqrt(g)> from flux and currents=", &
+            dvds_neort, " m^3, but (dV/ds)/nper column=", dvds_file, &
+            " m^3. Check the sign of the header toroidal flux and the currents."
+        error stop trim(message)
+    end subroutine fail_volume_derivative
 
     function signed_poloidal_area(ksurf) result(area)
         integer, intent(in) :: ksurf
@@ -554,6 +730,47 @@ contains
             ", iota sign=", int(sign(1.0_dp, params0(ksurf, 2)))
         error stop trim(message)
     end subroutine fail_inconsistent_handedness
+
+    subroutine axisymmetric_hcurl(bmod, sqrtg, bder, hcovar, hcurl)
+        ! Curl of the unit field direction h = B/|B| in Boozer (s, ph, th).
+        !
+        ! With e^{123} = +1 in this coordinate order,
+        !     (curl h)^i = (1/sqrtg) e^{ijk} d_j h_k
+        ! and d_ph = 0 for an axisymmetric field, so
+        !     (curl h)^s  = -(1/sqrtg) d_th h_ph
+        !     (curl h)^ph =  (1/sqrtg) (d_th h_s - d_s h_th)
+        !     (curl h)^th =  (1/sqrtg) d_s h_ph
+        !
+        ! B_ph and B_th are flux functions here, so h_ph = Bphcov/bmod and
+        ! h_th = Bthcov/bmod depend on theta only through bmod. Both the radial
+        ! and the poloidal component are therefore fully determined by
+        ! quantities this routine already has, using
+        !     bder(1) = (d_s bmod)/bmod,  bder(3) = (d_th bmod)/bmod.
+        !
+        ! The toroidal component needs d_th h_s, and h_s = hcovar(1) is not
+        ! determined by a Boozer file: the covariant radial component carries
+        ! the Boozer stream function, which the .bc format does not store. It is
+        ! left at zero, and `hcurl_toroidal_is_available` says so, so that a
+        ! consumer can reject it instead of silently integrating a zero. Before
+        ! this routine existed all three components were zero with TODO markers,
+        ! and an independent axisymmetric identity in
+        ! results/neort_x3_drift_vector_20260905 rejected the radial one as a
+        ! physical curl.
+        real(dp), intent(in) :: bmod, sqrtg
+        real(dp), dimension(:), intent(in) :: bder
+        real(dp), dimension(:), intent(in) :: hcovar
+        real(dp), dimension(:), intent(out) :: hcurl
+
+        ! d_th h_ph = Bphcov * d_th (1/bmod) = -h_ph * bder(3)
+        hcurl(1) = hcovar(2) * bder(3) / sqrtg
+
+        ! d_s h_ph = dBphcovds/bmod - h_ph * bder(1)
+        hcurl(3) = (dBphcovds / bmod - hcovar(2) * bder(1)) / sqrtg
+
+        ! Undetermined without the covariant radial component; see above.
+        hcurl(2) = 0.0_dp
+
+    end subroutine axisymmetric_hcurl
 
     subroutine booz_to_cyl(x, r)
 
@@ -626,8 +843,13 @@ module do_magfie_pert_mod
 
     real(dp), allocatable, protected :: spl_coeff1(:, :, :), spl_coeff2(:, :, :, :)
 
-    ! Work arrays (size=nmode)
+    ! Scaled mode amplitudes at s_prev (size=nmode) and the bfac they carry
     real(dp), private, allocatable :: Bmnc(:), Bmns(:)
+    ! Bmnc - i*Bmns, zero-padded to a multiple of fourier_chains
+    real(dp), private, allocatable :: coef_re(:), coef_im(:)
+    integer, parameter :: fourier_chains = 8
+    real(dp), private :: amplitude_bfac = 0.0_dp
+    !$omp threadprivate (amplitude_bfac, coef_re, coef_im)
 
     integer :: ncol1, ncol2  ! number of columns in input file
     integer :: inp_swi_pert = -1  ! negative inherits the axisymmetric switch
@@ -723,6 +945,10 @@ contains
             if (ncol2 >= 8) then
                 if (allocated(Bmns)) deallocate(Bmns)
                 allocate(Bmns(nmode))
+                if (allocated(coef_re)) deallocate(coef_re)
+                if (allocated(coef_im)) deallocate(coef_im)
+                allocate(coef_re(fourier_chains*((nmode - 1)/fourier_chains + 1)))
+                allocate(coef_im(size(coef_re)))
             end if
 
             if (allocated(spl_val_c)) deallocate(spl_val_c)
@@ -773,22 +999,43 @@ contains
         x1 = max(params(1, 1), x(1))
         x1 = min(params(nflux, 1), x1)
 
-        ! calculate B-field from modes
+        ! calculate B-field from modes. The orbit integrals evaluate this at a
+        ! fixed s for every theta, so the scaled mode amplitudes are refreshed
+        ! only when cached_spline would refresh them (or bfac changes).
         input_switch = resolved_perturbation_switch()
         if (input_switch == 8) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
-            Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+            if (amplitudes_stale(x1)) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 4, :), spl_val_c)
+                Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                amplitude_bfac = bfac
+            end if
             bamp = sum(Bmnc * cos(modes(1, :, 1) * x(3)))
         else if (input_switch == 9) then
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
-            call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
-            Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
-            Bmns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
-            bamp = fast_fourier_sum(Bmnc, Bmns, modes(1, :, 1), x(3))
+            if (amplitudes_stale(x1)) then
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 7, :), spl_val_c)
+                call cached_spline(x1, s_prev, spl_coeff2(:, :, 8, :), spl_val_s)
+                Bmnc(:) = 1.0e4_dp * spl_val_c(1, :) * bfac
+                Bmns(:) = 1.0e4_dp * spl_val_s(1, :) * bfac
+                amplitude_bfac = bfac
+                coef_re = 0.0_dp
+                coef_im = 0.0_dp
+                coef_re(:nmode) = Bmnc
+                coef_im(:nmode) = -Bmns
+            end if
+            bamp = horner_fourier_sum(coef_re, coef_im, modes(1, 1, 1), &
+                                      modes(1, 2, 1) - modes(1, 1, 1), x(3))
         end if
 
         s_prev = x1
     end subroutine do_magfie_pert_amp
+
+    logical function amplitudes_stale(x1)
+        ! Mirrors the refresh test of cached_spline, whose spline values the
+        ! cached amplitudes are scaled from.
+        real(dp), intent(in) :: x1
+        amplitudes_stale = abs(x1 - s_prev) >= spline_cache_tol .or. &
+                           bfac /= amplitude_bfac
+    end function amplitudes_stale
 
     integer function resolved_perturbation_switch()
         if (inp_swi_pert < 0) then
@@ -867,25 +1114,40 @@ contains
         end if
     end subroutine check_equal
 
-    function fast_fourier_sum(fmnc, fmns, m, x)
-        ! Fast Fourier sum that assumes equally spaced ascending mode numbers
-        real(dp), dimension(:), intent(in) :: fmnc, fmns, m
-        real(dp), intent(in) :: x
-        complex(dp) :: fast_fourier_sum
+    function horner_fourier_sum(coef_re, coef_im, m1, dm, x) result(total)
+        ! sum_j (coef_re(j) + i*coef_im(j))*exp(i*(m1 + (j - 1)*dm)*x) for
+        ! equally spaced ascending mode numbers. Horner's scheme in
+        ! z = exp(i*dm*x) runs as fourier_chains interleaved chains in
+        ! z**fourier_chains: their recurrences are independent, so the sum
+        ! is throughput- rather than latency-bound and vectorizes. The
+        ! coefficients are zero-padded to a multiple of fourier_chains.
+        real(dp), intent(in) :: coef_re(:), coef_im(:), m1, dm, x
+        complex(dp) :: total
+        real(dp) :: hr(fourier_chains), hi(fourier_chains), t(fourier_chains)
+        real(dp) :: step_re, step_im
+        complex(dp) :: rotation, power, step
+        integer :: base, l
 
-        real(dp) :: dm
-        complex(dp) :: fourier_factor, rotation
-        integer :: j
-
-        dm = m(2) - m(1)
-        fourier_factor  = exp(imun*m(1)*x)
         rotation = exp(imun*dm*x)
-
-        fast_fourier_sum = (0.0_dp, 0.0_dp)
-        do j = 1, size(m)
-            fast_fourier_sum = fast_fourier_sum + &
-                (fmnc(j) - imun*fmns(j))*fourier_factor
-            fourier_factor = fourier_factor*rotation
+        step = rotation
+        do l = 2, fourier_chains
+            step = step*rotation
         end do
-    end function fast_fourier_sum
+        step_re = real(step, dp)
+        step_im = aimag(step)
+        hr = 0.0_dp
+        hi = 0.0_dp
+        do base = size(coef_re) - fourier_chains, 0, -fourier_chains
+            t = hr*step_re - hi*step_im + coef_re(base + 1:base + fourier_chains)
+            hi = hr*step_im + hi*step_re + coef_im(base + 1:base + fourier_chains)
+            hr = t
+        end do
+        total = cmplx(hr(1), hi(1), dp)
+        power = (1.0_dp, 0.0_dp)
+        do l = 2, fourier_chains
+            power = power*rotation
+            total = total + cmplx(hr(l), hi(l), dp)*power
+        end do
+        if (m1 /= 0.0_dp) total = total*exp(imun*m1*x)
+    end function horner_fourier_sum
 end module do_magfie_pert_mod

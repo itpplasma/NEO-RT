@@ -2,27 +2,16 @@ project: NEO-RT
 summary: Neoclassical toroidal viscosity solver for resonant transport regimes
 author: NEO-RT Developers
 output_dir: build/doc
-src_dir:
-  - src
-  - src/diag
-exclude:
-  - doc/driftorbit.lyx
-  - **/POTATO/**
-  - build
-  - build/**
-exclude_dir:
-  - POTATO
-  - build
-  - test
-  - examples
-  - python
-md_extensions:
-  - markdown.extensions.toc
-  - markdown.extensions.tables
+src_dir: src
+exclude: src/do_magfie_neo.f90
+page_dir: doc
+md_extensions: markdown.extensions.toc
+    markdown.extensions.tables
 graph: true
+parallel: 8
 warn: false
-pages:
-  doc/index.md: index
-  doc/running.md: Running NEO-RT
-  doc/file_formats.md: Output file formats
-  doc/differentiation.md: Differentiation Plan
+
+API documentation uses the default standalone field backend, matching
+`USE_STANDALONE=ON` in CMake. The alternative NEO-2 backend defines the same
+module names and is excluded from this source set. FORD searches `src`
+recursively, including diagnostics, without collecting tests or build dependencies.
