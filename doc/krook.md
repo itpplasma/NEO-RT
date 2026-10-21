@@ -81,12 +81,28 @@ operands, retaining tiny same-sign tail spans. Geometric residual bands and a
 relative sine/cosine map avoid losing tails or narrow resonances through
 absolute-angle rounding. A sine-squared angle map regularizes simple quadratic
 fold endpoints. When the residual variation is at most `nu`, a direct pitch
-rule integrates the same finite Lorentzian. Both routes use adaptive
-Gauss-Legendre quadrature and sum their error estimates before checking the
-requested total tolerance.
+rule integrates the same finite Lorentzian. Both routes share one globally
+adaptive Gauss-Legendre quadrature: every piece carries a 16/32-node error
+estimate, and the piece with the largest error relative to the requested
+tolerance of the whole integral is bisected until the summed estimate meets
+`krook_atol + krook_rtol*|integral|` in every component. Pieces whose
+contribution is negligible are therefore not refined, and refinement grades
+geometrically into endpoint layers. The passing and trapped pitch ranges end
+`1e-8*etatp` from the trapped-passing boundary, where the bounce weight varies
+on that scale; resolving it needs about 27 bisections, so `krook_max_depth`
+(maximum bisections of one piece) defaults to 40. A piece budget of `2**14`
+bounds the work for an unresolvable integrand.
+
+The quadrature can only converge if the weight is smooth to its tolerance.
+The bounce integral of `H_n` uses an absolute tolerance relative to
+`taub*max|H_n|`, so the weight is quadratic in the perturbation amplitude
+(`test_transport_weight_amplitude`), and orbit integrations use relative
+tolerance `1e-13`: at `1e-9` the weight was noisy by about `1e-3`, and the
+frequency splines non-monotone, within `1e-5*etatp` of the trapped-passing
+boundary.
 
 `krook_rtol` defaults to `1e-5`, `krook_atol` to zero and
-`krook_max_depth` to 20. Nonconvergence, a detected wrong-sign inverse
+`krook_max_depth` to 40. Nonconvergence, a detected wrong-sign inverse
 derivative or an unresolved stationary weight terminates the calculation.
 The monotonicity probes cover the native frequency-spline use case and simple
 folds; finite sampling cannot certify an arbitrary oscillatory callback.
@@ -97,7 +113,9 @@ tolerance, velocity steps and harmonic cutoff independently.
 amplitudes against analytic angle and logarithmic moments for both slope
 signs, interior/boundary/exterior roots and widths from `1e-12` to `1e3`.
 Quadratic and hidden cubic folds use high-precision analytic oracles checked
-against independently split quadrature. `test_krook_transport` checks actual
+against independently split quadrature. A `1e-8` endpoint layer is checked
+against its closed form, and a jittered tail below `1e-21` of the peak must
+converge without refinement to the depth limit. `test_krook_transport` checks actual
 field transport against a direct pitch quadrature and verifies exact equality
 of disabled and zero-width dispatches. Configuration and selected-profile
 tests reject invalid and nonfinite inputs, including in Fast builds.

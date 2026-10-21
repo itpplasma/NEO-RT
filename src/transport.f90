@@ -11,7 +11,8 @@ module neort_transport
     use neort_species, only: selected_species
     use neort_nonlin, only: nonlinear_attenuation
     use neort_freq, only: Om_th, Om_ph, Om_tB
-    use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2
+    use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2, &
+        bounce_rtol, bounce_atol, th0
     use neort_resonance, only: driftorbit_coarse, driftorbit_root, resonance_value
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
@@ -138,7 +139,7 @@ contains
                 call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
 
                 taub = 2.0_dp * pi / abs(Omth)
-                call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate_dv)
+                call transport_bounce(v, eta, taub, bounceavg, istate_dv)
                 if (istate_dv == -1) then
                     call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, ' taub=', taub))
                 else if (istate_dv /= 2) then
@@ -251,7 +252,7 @@ contains
         integer :: istate
         call Om_th(ux*vth, eta, Omth, dOmthdv, dOmthdeta)
         taub = 2.0_dp*pi/abs(Omth)
-        call bounce_fast(ux*vth, eta, taub, bounceavg, timestep_transport, istate)
+        call transport_bounce(ux*vth, eta, taub, bounceavg, istate)
         if (istate /= 2) error stop 'orbit integration failed in Krook quadrature'
         Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2.0_dp)**2
         values(1) = D11int(ux, taub, Hmn2)
@@ -259,6 +260,35 @@ contains
         values(3) = 0.0_dp
         if (comptorque) values(3) = Tphi_int(ux, taub, Hmn2)
     end subroutine compute_transport_weight
+
+    subroutine transport_bounce(v, eta, taub, bounceavg, istate)
+        ! Bounce averages of the transport weight, H_mn**2 = |<H_n>|**2.
+        ! int H_n dt, with the dimensionless H_n = (2 - eta*B)*eps_n*exp(i*phase),
+        ! is an oscillatory, often strongly cancelling integral of size up to
+        ! taub*max|H_n|. The fixed bounce_atol = 1e-10 can exceed that scale
+        ! (small eps_n, short taub) and then leaves these components without
+        ! error control: H_mn**2 jumped by O(1) between neighbouring eta as the
+        ! DVODE step sequence changed. Their absolute tolerance is therefore
+        ! bounce_rtol relative to taub*max|H_n|, which makes the weight (to rounding)
+        ! quadratic in the perturbation amplitude.
+        integer, parameter :: samples = 8
+        real(dp), intent(in) :: v, eta, taub
+        real(dp), intent(out) :: bounceavg(nvar)
+        integer, intent(out) :: istate
+        real(dp) :: atol(nvar), y(nvar), ydot(nvar), scale
+        integer :: k
+        atol = bounce_atol
+        scale = 0.0_dp
+        y = 0.0_dp
+        do k = 0, samples - 1
+            y(1) = th0 + 2.0_dp*pi*real(k, dp)/real(samples, dp)
+            call timestep_transport(v, eta, nvar, 0.0_dp, y, ydot)
+            scale = max(scale, abs(cmplx(ydot(3), ydot(4), dp)))
+        end do
+        scale = bounce_rtol*taub*scale
+        if (scale > 0.0_dp) atol(3:4) = min(bounce_atol, scale)
+        call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate, atol)
+    end subroutine transport_bounce
 
     subroutine timestep_transport(v, eta, neq, t, y, ydot)
         !

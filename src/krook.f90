@@ -15,7 +15,7 @@ module neort_krook
     real(dp) :: krook_nu = 0.0_dp
     integer :: krook_model = 0, krook_harmonic = 0
     real(dp) :: krook_geometry_trapped = 1.0_dp, krook_geometry_passing = 1.0_dp
-    integer :: krook_eta_steps = 32, krook_max_depth = 20
+    integer :: krook_eta_steps = 32, krook_max_depth = 40
     real(dp) :: krook_rtol = 1.0e-5_dp, krook_atol = 0.0_dp
 
     type :: resonance_interval_t
@@ -96,13 +96,21 @@ contains
         krook_geometry_trapped = 1.0_dp
         krook_geometry_passing = 1.0_dp
         krook_eta_steps = 32
-        krook_max_depth = 20
+        krook_max_depth = 40
         krook_rtol = 1.0e-5_dp
         krook_atol = 0.0_dp
     end subroutine reset_krook
 
     subroutine integrate_krook(residual, weight, a, b, nu, nseed, rtol, atol, &
                                value, status, max_depth)
+        ! Globally adaptive quadrature of weight(eta)*L(R(eta), nu) on [a, b].
+        ! The domain is split into monotonic branches of R and, away from the
+        ! direct regime, into Lorentzian residual bands mapped by the angle
+        ! substitution.  Pieces are bisected in order of their error relative
+        ! to the requested tolerance of the whole integral, until the summed
+        ! error estimate satisfies atol + rtol*|value| in every component.
+        ! status: 0 converged, 1 invalid input, 2 not converged within
+        ! max_depth bisections (or the piece budget), 3 invalid residual.
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
         real(dp), intent(in) :: a, b, nu, rtol, atol
@@ -110,74 +118,255 @@ contains
         real(dp), intent(out) :: value(:)
         integer, intent(out) :: status
         integer, intent(in), optional :: max_depth
-        real(dp) :: knots(4*nseed + 2), x(16), w(16), total_error(size(value))
-        integer :: count, depth_limit
+        real(dp) :: knots(4*nseed + 2), x(16), w(16)
+        type(resonance_interval_t), allocatable :: regions(:)
+        integer :: count, depth_limit, nregion
         value = 0.0_dp
-        total_error = 0.0_dp
         status = 0
         if (nu <= 0.0_dp .or. b <= a .or. nseed < 2) then
             status = 1
             return
         end if
-        depth_limit = 20
+        depth_limit = 40
         if (present(max_depth)) depth_limit = max_depth
         call gauss_legendre(16, x, w)
         call monotonic_knots(residual, a, b, nseed, knots, count)
-        call integrate_monotonic_branches(residual, weight, knots(:count), nu, &
-                              rtol, atol, x, w, depth_limit, value, total_error, status)
-        if (status == 0) then
-            if (any(total_error > atol + rtol*abs(value))) status = 2
-        end if
+        call collect_regions(residual, knots(:count), nu, regions, nregion)
+        call integrate_regions(residual, weight, regions(:nregion), rtol, atol, &
+                               x, w, depth_limit, value, status)
     end subroutine integrate_krook
 
-    subroutine integrate_monotonic_branches(residual, weight, knots, nu, rtol, &
-                                            atol, x, w, depth, value, errors, status)
+    subroutine collect_regions(residual, knots, nu, regions, nregion)
         procedure(residual_i) :: residual
-        procedure(weight_i) :: weight
-        real(dp), intent(in) :: knots(:), nu, rtol, atol, x(:), w(:)
-        integer, intent(in) :: depth
-        real(dp), intent(inout) :: value(:), errors(:)
-        integer, intent(inout) :: status
+        real(dp), intent(in) :: knots(:), nu
+        type(resonance_interval_t), allocatable, intent(out) :: regions(:)
+        integer, intent(out) :: nregion
         type(resonance_interval_t) :: interval
-        real(dp) :: piece(size(value)), piece_error(size(value))
-        integer :: k
+        type(resonance_interval_t), allocatable :: copy(:)
+        real(dp) :: limits(1100)
+        integer :: k, j, count
+        allocate(regions(2*size(knots)))
+        nregion = 0
         do k = 1, size(knots) - 1
             call make_interval(residual, knots(k), knots(k + 1), nu, interval)
-            call integrate_branch(residual, weight, interval, rtol, &
-                atol/real(size(knots) - 1, dp), x, w, depth, piece, piece_error, status)
-            value = value + piece
-            errors = errors + piece_error
+            count = 2
+            if (.not. interval%direct) call residual_limits(interval, limits, count)
+            if (nregion + count > size(regions)) then
+                allocate(copy(2*(nregion + count)))
+                copy(:nregion) = regions(:nregion)
+                call move_alloc(copy, regions)
+            end if
+            if (interval%direct) then
+                nregion = nregion + 1
+                regions(nregion) = interval
+                cycle
+            end if
+            do j = 1, count - 1
+                nregion = nregion + 1
+                call make_band(interval, limits(j:j + 1), regions(nregion))
+            end do
         end do
-    end subroutine integrate_monotonic_branches
+    end subroutine collect_regions
 
-    subroutine integrate_branch(residual, weight, interval, rtol, atol, x, w, &
-                                depth, value, error_estimate, status)
+    subroutine integrate_regions(residual, weight, regions, rtol, atol, x, w, &
+                                 depth_limit, value, status)
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
-        type(resonance_interval_t), intent(in) :: interval
+        type(resonance_interval_t), intent(in) :: regions(:)
         real(dp), intent(in) :: rtol, atol, x(:), w(:)
-        integer, intent(in) :: depth
-        real(dp), intent(out) :: value(:), error_estimate(:)
+        integer, intent(in) :: depth_limit
+        real(dp), intent(out) :: value(:)
         integer, intent(inout) :: status
-        type(resonance_interval_t) :: band
-        real(dp) :: limits(1100), piece(size(value)), piece_error(size(value))
-        integer :: count, k
-        if (interval%direct) then
-            call adaptive_interval(residual, weight, interval, 0.0_dp, 1.0_dp, &
-                                 rtol, atol, x, w, depth, value, error_estimate, status)
-            return
-        end if
-        call residual_limits(interval, limits, count)
-        value = 0.0_dp
-        error_estimate = 0.0_dp
-        do k = 1, count - 1
-            call make_band(interval, limits(k:k + 1), band)
-            call adaptive_interval(residual, weight, band, 0.0_dp, 1.0_dp, &
-                rtol, atol/real(count - 1, dp), x, w, depth, piece, piece_error, status)
-            value = value + piece
-            error_estimate = error_estimate + piece_error
+        ! A budget of pieces bounds the work when the integrand is not
+        ! resolvable (e.g. noisy) to the requested tolerance.
+        integer, parameter :: max_pieces = 2**14
+        integer, allocatable :: owner(:), depth(:), heap(:)
+        real(dp), allocatable :: lower(:), upper(:), left(:, :), right(:, :), &
+                                 error(:, :), priority(:)
+        real(dp) :: scale(size(value)), total_error(size(value)), &
+                    frozen_error(size(value)), coarse(size(value)), mid
+        integer :: n, k, piece, child, nheap, capacity
+        n = size(value)
+        capacity = max(64, 2*size(regions))
+        allocate(owner(capacity), depth(capacity), lower(capacity), &
+                 upper(capacity), left(n, capacity), right(n, capacity), &
+                 error(n, capacity), priority(capacity), heap(capacity))
+        do k = 1, size(regions)
+            owner(k) = k
+            depth(k) = 0
+            lower(k) = 0.0_dp
+            upper(k) = 1.0_dp
+            call fixed_interval(residual, weight, regions(k), 0.0_dp, 1.0_dp, &
+                                x, w, coarse, status)
+            if (status /= 0) return
+            call refine_piece(k, coarse)
+            if (status /= 0) return
         end do
-    end subroutine integrate_branch
+        piece = size(regions)
+        value = sum(left(:, :piece) + right(:, :piece), dim=2)
+        total_error = sum(error(:, :piece), dim=2)
+        scale = atol + rtol*abs(value)
+        nheap = 0
+        do k = 1, piece
+            call heap_push(k)
+        end do
+        frozen_error = 0.0_dp
+        do
+            if (all(total_error <= atol + rtol*abs(value))) then
+                ! Confirm the running sums with an exact summation.
+                value = sum(left(:, :piece) + right(:, :piece), dim=2)
+                total_error = sum(error(:, :piece), dim=2)
+                if (all(total_error <= atol + rtol*abs(value))) return
+            end if
+            if (any(frozen_error > atol + rtol*abs(value)) .or. nheap == 0 &
+                .or. piece + 2 > max_pieces) then
+                status = 2
+                return
+            end if
+            k = heap_pop()
+            if (depth(k) >= depth_limit) then
+                frozen_error = frozen_error + error(:, k)
+                cycle
+            end if
+            if (piece + 2 > capacity) call grow()
+            mid = (lower(k) + upper(k))/2.0_dp
+            do child = 1, 2
+                piece = piece + 1
+                owner(piece) = owner(k)
+                depth(piece) = depth(k) + 1
+                if (child == 1) then
+                    lower(piece) = lower(k)
+                    upper(piece) = mid
+                    coarse = left(:, k)
+                else
+                    lower(piece) = mid
+                    upper(piece) = upper(k)
+                    coarse = right(:, k)
+                end if
+                call refine_piece(piece, coarse)
+                if (status /= 0) return
+                value = value + left(:, piece) + right(:, piece)
+                total_error = total_error + error(:, piece)
+                call heap_push(piece)
+            end do
+            ! The parent is replaced by its children.
+            value = value - left(:, k) - right(:, k)
+            total_error = total_error - error(:, k)
+            left(:, k) = 0.0_dp
+            right(:, k) = 0.0_dp
+            error(:, k) = 0.0_dp
+        end do
+    contains
+        subroutine refine_piece(index, coarse_value)
+            integer, intent(in) :: index
+            real(dp), intent(in) :: coarse_value(:)
+            real(dp) :: half
+            half = (lower(index) + upper(index))/2.0_dp
+            call fixed_interval(residual, weight, regions(owner(index)), &
+                lower(index), half, x, w, left(:, index), status)
+            if (status /= 0) return
+            call fixed_interval(residual, weight, regions(owner(index)), &
+                half, upper(index), x, w, right(:, index), status)
+            if (status /= 0) return
+            error(:, index) = abs(left(:, index) + right(:, index) - coarse_value)
+        end subroutine refine_piece
+
+        real(dp) function piece_priority(index) result(p)
+            integer, intent(in) :: index
+            integer :: c
+            p = 0.0_dp
+            do c = 1, n
+                if (error(c, index) == 0.0_dp) cycle
+                if (scale(c) > 0.0_dp) then
+                    p = max(p, error(c, index)/scale(c))
+                else
+                    p = huge(1.0_dp)
+                end if
+            end do
+        end function piece_priority
+
+        subroutine heap_push(index)
+            integer, intent(in) :: index
+            integer :: i, parent
+            priority(index) = piece_priority(index)
+            nheap = nheap + 1
+            i = nheap
+            heap(i) = index
+            do while (i > 1)
+                parent = i/2
+                if (priority(heap(parent)) >= priority(heap(i))) exit
+                call swap(i, parent)
+                i = parent
+            end do
+        end subroutine heap_push
+
+        integer function heap_pop() result(index)
+            integer :: i, largest, c
+            index = heap(1)
+            heap(1) = heap(nheap)
+            nheap = nheap - 1
+            i = 1
+            do
+                largest = i
+                do c = 2*i, min(2*i + 1, nheap)
+                    if (priority(heap(c)) > priority(heap(largest))) largest = c
+                end do
+                if (largest == i) exit
+                call swap(i, largest)
+                i = largest
+            end do
+        end function heap_pop
+
+        subroutine swap(i, j)
+            integer, intent(in) :: i, j
+            integer :: t
+            t = heap(i)
+            heap(i) = heap(j)
+            heap(j) = t
+        end subroutine swap
+
+        subroutine grow()
+            integer :: new_capacity
+            new_capacity = 2*capacity
+            call grow_int(owner, new_capacity)
+            call grow_int(depth, new_capacity)
+            call grow_int(heap, new_capacity)
+            call grow_real(lower, new_capacity)
+            call grow_real(upper, new_capacity)
+            call grow_real(priority, new_capacity)
+            call grow_matrix(left, new_capacity)
+            call grow_matrix(right, new_capacity)
+            call grow_matrix(error, new_capacity)
+            capacity = new_capacity
+        end subroutine grow
+    end subroutine integrate_regions
+
+    subroutine grow_int(array, capacity)
+        integer, allocatable, intent(inout) :: array(:)
+        integer, intent(in) :: capacity
+        integer, allocatable :: copy(:)
+        allocate(copy(capacity))
+        copy(:size(array)) = array
+        call move_alloc(copy, array)
+    end subroutine grow_int
+
+    subroutine grow_real(array, capacity)
+        real(dp), allocatable, intent(inout) :: array(:)
+        integer, intent(in) :: capacity
+        real(dp), allocatable :: copy(:)
+        allocate(copy(capacity))
+        copy(:size(array)) = array
+        call move_alloc(copy, array)
+    end subroutine grow_real
+
+    subroutine grow_matrix(array, capacity)
+        real(dp), allocatable, intent(inout) :: array(:, :)
+        integer, intent(in) :: capacity
+        real(dp), allocatable :: copy(:, :)
+        allocate(copy(size(array, 1), capacity))
+        copy(:, :size(array, 2)) = array
+        call move_alloc(copy, array)
+    end subroutine grow_matrix
 
     subroutine make_band(interval, limits, band)
         type(resonance_interval_t), intent(in) :: interval
@@ -346,35 +535,6 @@ contains
         width = interval%nu/scale
         interval%angle = atan2(width*(rb - ra), width**2 + ra*rb)
     end subroutine set_angle
-
-    recursive subroutine adaptive_interval(residual, weight, interval, a, b, &
-                                 rtol, atol, x, w, depth, value, error_estimate, status)
-        procedure(residual_i) :: residual
-        procedure(weight_i) :: weight
-        type(resonance_interval_t), intent(in) :: interval
-        real(dp), intent(in) :: a, b, rtol, atol, x(:), w(:)
-        integer, intent(in) :: depth
-        real(dp), intent(out) :: value(:)
-        real(dp), intent(out) :: error_estimate(:)
-        integer, intent(inout) :: status
-        real(dp) :: coarse(size(value)), fine(size(value)), other(size(value)), mid
-        real(dp) :: left_error(size(value)), right_error(size(value))
-        mid = (a + b)/2.0_dp
-        call fixed_interval(residual, weight, interval, a, b, x, w, coarse, status)
-        call fixed_interval(residual, weight, interval, a, mid, x, w, fine, status)
-        call fixed_interval(residual, weight, interval, mid, b, x, w, other, status)
-        value = fine + other
-        error_estimate = abs(value - coarse)
-        if (status /= 0) return
-        if (all(abs(value - coarse) <= atol + rtol*abs(value))) return
-        if (depth <= 0) return
-        call adaptive_interval(residual, weight, interval, a, mid, rtol, atol/2, &
-                               x, w, depth - 1, fine, left_error, status)
-        call adaptive_interval(residual, weight, interval, mid, b, rtol, atol/2, &
-                               x, w, depth - 1, other, right_error, status)
-        value = fine + other
-        error_estimate = left_error + right_error
-    end subroutine adaptive_interval
 
     subroutine fixed_interval(residual, weight, interval, a, b, x, w, value, status)
         procedure(residual_i) :: residual
