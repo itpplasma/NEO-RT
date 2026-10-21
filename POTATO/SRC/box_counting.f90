@@ -32,6 +32,7 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
   use field_sub, only: psif
   use field_eq_mod, only: psi_axis, psi_sep
   use orbit_dim_mod, only: neqm
+  use potato_profile_data_mod, only: reset_profile_support, profile_support_left
 
   implicit none
 
@@ -56,6 +57,7 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
 
   external timestep_vode
 
+  call reset_profile_support()
   tau = 0d0
 
   ! taub<=0 is an interpolant overshoot through zero (unintegrable); skip it.
@@ -79,6 +81,7 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
   ti = 0d0
 
   call get_bmod_and_Phi(z(1:3), bmod, phi_elec)
+  if (profile_support_left) return
 
   s = abs((psif-psi_axis)/(psi_sep-psi_axis))
   sold = s
@@ -87,6 +90,10 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
     tout = taub*dble(k)/dble(nsample)
     call dvode_f90( &
         timestep_vode, neqm, y, ti, tout, itask, istate, options)
+    if (profile_support_left) then
+      tau = 0d0
+      return
+    endif
     if (istate == -1) then
       print *, 'time_in_box: VODE exceeded mxstep at k =', k, &
         ' ti =', ti, ' taub =', taub
@@ -101,6 +108,10 @@ subroutine time_in_box(z, cnt, sbox, taub, tau)
     end if
 
     call get_bmod_and_Phi(y(1:3), bmod, phi_elec)
+    if (profile_support_left) then
+      tau = 0d0
+      return
+    endif
 
     s = abs((psif-psi_axis)/(psi_sep-psi_axis))
     smid = 0.5d0*(sold+s)

@@ -7,6 +7,7 @@ module resint_mod
     !
     type respoints_fix_jperp_mode_class
     integer :: nrespoi
+    integer :: nprofile_absorbed = 0
     double precision :: toten_res,perpinv_res
     double precision, dimension(:),   allocatable :: w_res
     double precision, dimension(:,:), allocatable :: z_res
@@ -100,6 +101,7 @@ subroutine pertham(z,absHn2,orbit_admitted)
     ! Hamiltoninan, $|\hat H_\bm|^2$, with $\hat H_\bm$ defined by Eq.(102) (former Eq.(93)).
     !
     use potato_input_mod, only : bounce_period_admitted
+    use potato_profile_data_mod, only: reset_profile_support, profile_support_left
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     use orbit_dim_mod,     only : neqm,next     ,write_orb,iunit1
     use global_invariants, only : dtau
@@ -112,14 +114,18 @@ subroutine pertham(z,absHn2,orbit_admitted)
     !
     logical, intent(out) :: orbit_admitted
     integer :: ierr
-    double precision :: absHn2,bmod,phi_elec,taub,delphi
-    double precision, dimension(neqm) :: z
+    double precision, intent(out) :: absHn2
+    double precision :: bmod,phi_elec,taub,delphi
+    double precision, intent(in) :: z(neqm)
     double precision, dimension(:), allocatable :: extraset
     !
     external :: velo,velo_res
     !
     orbit_admitted=.false.
+    absHn2=0.d0
+    call reset_profile_support()
     call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
+    if (profile_support_left) return
     !
     toten_orb=z(4)**2+phi_elec
     perpinv_orb=z(4)**2*(1.d0-z(5)**2)/bmod
@@ -128,7 +134,7 @@ subroutine pertham(z,absHn2,orbit_admitted)
     allocate(extraset(next))
     !
     call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) then
+    if(ierr.ne.0 .or. profile_support_left) then
         absHn2 = 0.d0
         deallocate(extraset)
         return
@@ -149,7 +155,7 @@ subroutine pertham(z,absHn2,orbit_admitted)
     extraset=0.d0
     !
     call find_bounce(next,velo_res,dtau,z,taub,delphi,extraset,ierr)
-    if(ierr.ne.0) then
+    if(ierr.ne.0 .or. profile_support_left) then
         absHn2 = 0.d0
         deallocate(extraset)
         return
@@ -188,7 +194,8 @@ subroutine integrate_class_resonances
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_axis,psi_sep
-    use potato_input_mod,   only : zero_canonical_axis_drive
+    use potato_profile_data_mod, only: profile_support_left, reset_profile_support
+    use potato_input_mod,   only : zero_canonical_axis_drive, profile_exit_absorb
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
@@ -265,9 +272,13 @@ subroutine integrate_class_resonances
         allocate(respoints_jp(mode,iclass)%w_res(nroots), &
             respoints_jp(mode,iclass)%z_res(5,nroots), &
             respoints_jp(mode,iclass)%taub(nroots))
-        !
+        if (profile_exit_absorb) then
+            ! Failed starters in this mode cannot leave an undefined weight.
+            respoints_jp(mode,iclass)%w_res=0.d0
+            respoints_jp(mode,iclass)%taub=0.d0
+        endif
         do iroot=1,nroots
-            !
+            call reset_profile_support()
             call get_rescond(roots(iroot),rescond,dresconddx)
             call xi_func(ifuntype(iclass),roots(iroot),xi,dxi_dx)
             !
@@ -318,6 +329,12 @@ subroutine integrate_class_resonances
                 cycle
             endif
             call pertham(z,absHn2,orbit_admitted)
+            if (profile_support_left) then
+                respoints_jp(mode,iclass)%nprofile_absorbed = &
+                    respoints_jp(mode,iclass)%nprofile_absorbed+1
+                respoints_jp(mode,iclass)%taub(iroot)=taub_res
+                cycle
+            endif
             ! This optional closure concerns the canonical F0 derivative only.
             ! Both physical bounce traces must have passed before applying it.
             if (zero_canonical_axis_drive(psiast_res,psi_axis,psi_sep, &
@@ -329,6 +346,12 @@ subroutine integrate_class_resonances
             call equilmaxw(psiast_res,fmaxw)
             call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
             call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
+            if (profile_support_left) then
+                respoints_jp(mode,iclass)%nprofile_absorbed = &
+                    respoints_jp(mode,iclass)%nprofile_absorbed+1
+                respoints_jp(mode,iclass)%taub(iroot)=taub_res
+                cycle
+            endif
             !
             ! toten,perpinv are never written in this loop (pertham writes toten_orb,
             ! perpinv_orb instead), so they still hold the class invariants set on entry --
@@ -532,7 +555,8 @@ subroutine resonant_torque
         thermen_max_input => thermen_max, &
         enkin_min_over_temp, monoenergetic_x, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
-        eps_sampling, itermax_sampling
+        eps_sampling, itermax_sampling, profile_exit_absorb
+    use potato_profile_data_mod, only: profile_support_left
     use kinetic_energy_selection, only: energy_sample_count, total_energy_sample, &
         total_energy_measure
     use logging_mod,       only : tee_message
@@ -543,6 +567,7 @@ subroutine resonant_torque
     integer :: nr,nz,ir,iz,i,k,iperp,nperp,ierr,nprof,ienerg,nenerg
     integer :: omp_threads_env_len
     integer :: nrespoints,unit1901,unit1902
+    integer :: absorbed_count, resonance_count, box_absorbed_count
     double precision :: rbeg,hr,zbeg,hz,weight,psi,psipow
     double precision :: bmod,phi_elec,phi_elec_min,phi_elec_max
     double precision :: phi_elec_ref
@@ -646,11 +671,15 @@ subroutine resonant_torque
     !$omp   private(perpinv_max,trapez_fac,nrespoints,i,k,iperp,ierr,nperp) &
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
+    !$omp   private(absorbed_count,resonance_count,box_absorbed_count) &
     !$omp   copyin(dtau)
     ! Cell 1 is an interior thermal midpoint, or the sole fixed-energy sample.
     do ienerg=1,nenerg
         toten=total_energy_sample(monoenergetic_x,ienerg,nenerg_input, &
             toten_min,toten_range,temp,phi_elec_ref)
+        absorbed_count=0
+        resonance_count=0
+        box_absorbed_count=0
         ! size of result matrix in get_matrix_res:
         n1=nmodes
         n2=1
@@ -725,6 +754,7 @@ subroutine resonant_torque
                 enddo
             enddo
             !
+            call count_profile_absorptions(npoi, absorbed_count, resonance_count)
             allocate(respoint(nrespoints))
             !
             ! extract separate resonant points and update their weight in accorance with
@@ -759,7 +789,8 @@ subroutine resonant_torque
             ! dvode_f90_m is threadprivate/thread-safe, so run them in parallel into the
             ! per-point taubox_all.  z_res(1:5) is the orbit start at the Poincare cut.
             allocate(taubox_all(nbox,nrespoints))
-            !$omp parallel do default(shared) private(i) schedule(dynamic)
+            !$omp parallel do default(shared) private(i) schedule(dynamic) &
+            !$omp   reduction(+:box_absorbed_count)
             do i=1,nrespoints
                 if(respoint(i)%w_res.eq.0.d0) then
                     ! Zero-weight (SOL / unintegrable) point: no torque to deposit,
@@ -768,6 +799,7 @@ subroutine resonant_torque
                 else
                     call time_in_box(respoint(i)%z_res(1:5), nbox, sbox, &
                         respoint(i)%taub, taubox_all(:,i))
+                    if (profile_support_left) box_absorbed_count=box_absorbed_count+1
                 endif
             enddo
             !$omp end parallel do
@@ -853,8 +885,15 @@ subroutine resonant_torque
                     ' toten:', ienerg, '/', nenerg
                 call tee_message(trim(msg))
             enddo
+            call count_profile_absorptions(icount, absorbed_count, resonance_count)
             torque_int_energy(ienerg)=torque_int_loc
             torque_int_modes_energy(:,ienerg)=torque_int_modes_loc
+        endif
+        if (profile_exit_absorb) then
+            write(msg, '(A,I0,A,I0,A,I0,A,I0)') &
+                'profile absorption energy=', ienerg, ' absorbed=', absorbed_count, &
+                ' total=', resonance_count, ' box_trace_absorbed=', box_absorbed_count
+            call tee_message(trim(msg))
         endif
         !
         call cpu_time(time_end)
@@ -913,6 +952,26 @@ subroutine resonant_torque
     endif
     !
 contains
+    !
+    subroutine count_profile_absorptions(points, absorbed, total)
+        integer, intent(in) :: points
+        integer, intent(out) :: absorbed, total
+        integer :: jp, cls, mode
+
+        ! Count retained grid resonances, not adaptive trial evaluations. Each
+        ! energy worker owns respoints_all, including the non-adaptive path.
+        absorbed=0
+        total=0
+        do jp=1,points
+            do cls=1,respoints_all(jp)%nclasses
+                do mode=1,nmodes
+                    absorbed=absorbed &
+                        +respoints_all(jp)%respoints_jp(mode,cls)%nprofile_absorbed
+                    total=total+respoints_all(jp)%respoints_jp(mode,cls)%nrespoi
+                enddo
+            enddo
+        enddo
+    end subroutine count_profile_absorptions
     !
     subroutine energy_path(prefix, idx, path)
         !

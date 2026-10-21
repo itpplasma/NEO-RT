@@ -2,16 +2,28 @@ module potato_profile_data_mod
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use phielec_of_psi_mod, only: polydens, polytemp, polyphi
+    use potato_input_mod, only: profile_exit_absorb
     use spline, only: spline_coeff, spline_val_0
     implicit none
     private
     public :: load_potato_profiles, tabulated_profiles, evaluate_profile_table
+
+    public :: reset_profile_support, profile_support_left
+
+    ! Sticky within one physical orbit, private to each OpenMP worker. The
+    ! option and loaded table are shared read-only during energy/class loops.
+    logical :: profile_support_left = .false.
+    !$omp threadprivate(profile_support_left)
 
     logical :: tabulated_profiles = .false.
     real(dp), allocatable :: coefficients(:, :, :)
     real(dp) :: lower_s, upper_s
 
 contains
+
+    subroutine reset_profile_support()
+        profile_support_left = .false.
+    end subroutine reset_profile_support
 
     subroutine load_potato_profiles(filename, energy_ev, charge, energy_scale, &
                                    field_scale, e_charge, ev)
@@ -97,18 +109,27 @@ contains
         real(dp), intent(in) :: s_pol
         integer, intent(in) :: column
         real(dp), intent(out) :: value, derivative
-        real(dp) :: evaluated(3)
+        real(dp) :: evaluated(3), coordinate
+        logical :: outside
 
         if (.not. tabulated_profiles) error stop 'POTATO tabulated profiles not loaded'
         if (.not. ieee_is_finite(s_pol)) error stop 'nonfinite POTATO profile coordinate'
-        ! No silent extrapolation into an undefined edge/SOL profile. Only permit
-        ! the roundoff margin in normalizing the dimensional poloidal flux.
-        if (s_pol < lower_s-1d-12 .or. s_pol > upper_s+1d-12) &
-            error stop 'POTATO orbit is outside tabulated profile support'
+        ! Preserve the strict default and its roundoff margin. In absorbing
+        ! mode only, finite edge values let the integrator return to its caller;
+        ! the sticky loss flag then suppresses the entire orbit contribution.
+        outside = s_pol < lower_s-1d-12 .or. s_pol > upper_s+1d-12
+        coordinate = s_pol
+        if (outside) then
+            if (.not. profile_exit_absorb) &
+                error stop 'POTATO orbit is outside tabulated profile support'
+            profile_support_left = .true.
+            coordinate = max(lower_s, min(upper_s, s_pol))
+        end if
         if (column < 1 .or. column > 3) error stop 'invalid POTATO profile column'
-        evaluated = spline_val_0(coefficients(:, :, column), s_pol)
+        evaluated = spline_val_0(coefficients(:, :, column), coordinate)
         value = evaluated(1)
         derivative = evaluated(2)
+        if (outside) derivative = 0.0_dp
         if (column <= 2 .and. value <= 0) &
             error stop 'POTATO interpolated density or temperature is nonpositive'
     end subroutine evaluate_profile_table
