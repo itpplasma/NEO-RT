@@ -43,7 +43,45 @@ contains
             call write_lorentz_text_metadata(transport_data, base_path)
         if (tp_fp_collisions .and. trim(output_format) /= 'hdf5') &
             call write_fp_text_metadata(transport_data, base_path)
+        if (transport_data%conserving_active .and. trim(output_format) /= 'hdf5') &
+            call write_conserving_text_metadata(transport_data, base_path)
     end subroutine write_output
+
+    subroutine write_conserving_text_metadata(data, base_path)
+        type(transport_data_t), intent(in) :: data
+        character(*), intent(in) :: base_path
+        integer :: unit, driver
+        open(newunit=unit, file=trim(base_path)//'_collision_model.out', &
+            status='replace')
+        write(unit, '(a)') '# source_feature=all-pair-linearized-Landau-commonT-v1'
+        write(unit, '(a)') '# susceptibility_valid=F; all D columns are undefined placeholders'
+        write(unit, '(a)') '# joint common-T enriched response; direct electromagnetic work'
+        write(unit, '(a)') '# work branch order: trapped, co-passing, counter-passing'
+        write(unit, '(a,i0)') '# conserving_rank=', data%conserving_rank
+        write(unit, '(a,i0)') '# conserving_nullity=', data%conserving_nullity
+        write(unit, '(a,es24.16)') '# conserving_singular_cutoff=', &
+            data%conserving_singular_cutoff
+        write(unit, '(a,es24.16)') '# conserving_residual=', data%conserving_residual
+        write(unit, '(a,es24.16)') '# conserving_compatibility=', &
+            data%conserving_compatibility
+        write(unit, '(a,es24.16)') '# conserving_mass_condition=', &
+            data%conserving_mass_condition
+        write(unit, '(a,es24.16)') '# conserving_entropy=', data%conserving_entropy
+        write(unit, '(a,6es24.16)') '# conserving_work=', data%conserving_work
+        if (allocated(data%conserving_cross_work)) then
+            do driver = 1, size(data%conserving_cross_work, 2)
+                write(unit, '(a,i0,6es24.16)') '# driver_work ', driver, &
+                    data%conserving_cross_work(:, driver)
+            end do
+        end if
+        if (allocated(data%conserving_cross_work_qualified)) then
+            do driver = 1, size(data%conserving_cross_work_qualified)
+                write(unit, '(a,i0,1x,l1)') '# driver_work_qualified ', driver, &
+                    data%conserving_cross_work_qualified(driver)
+            end do
+        end if
+        close(unit)
+    end subroutine write_conserving_text_metadata
 
     subroutine write_fp_text_metadata(data, base_path)
         type(transport_data_t), intent(in) :: data
@@ -172,6 +210,7 @@ contains
         call write_krook_config_group(group_id)
         call write_lorentz_config_group(group_id)
         call write_fp_config_group(group_id)
+        call write_conserving_config_group(group_id)
     end subroutine write_config_group
 
     subroutine write_krook_config_group(group_id)
@@ -245,8 +284,85 @@ contains
         call h5_add(group_id, 'fp_conservation', 'test_particle_number_only')
     end subroutine write_fp_config_group
 
+    subroutine write_conserving_config_group(group_id)
+        use hdf5_tools, only: HID_T, h5_add
+        use neort_fp_controls, only: conserving_fp_collisions, &
+            conserving_speed_steps, conserving_pitch_steps, conserving_umax, &
+            conserving_rate_scale, &
+            conserving_theta_order, conserving_velocity_order, conserving_cm_order, &
+            conserving_rel_order, conserving_polar_order, conserving_azimuth_order, &
+            conserving_rank_rtol, conserving_compatibility_rtol
+        integer(HID_T), intent(in) :: group_id
+        if (.not. conserving_fp_collisions) return
+        call h5_add(group_id, 'conserving_fp_collisions', conserving_fp_collisions)
+        call h5_add(group_id, 'conserving_speed_steps', conserving_speed_steps)
+        call h5_add(group_id, 'conserving_pitch_steps', conserving_pitch_steps)
+        call h5_add(group_id, 'conserving_umax', conserving_umax)
+        call h5_add(group_id, 'conserving_rate_scale', conserving_rate_scale, &
+            comment='one positive global multiplier on the entire all-pair operator')
+        call h5_add(group_id, 'conserving_theta_order', conserving_theta_order)
+        call h5_add(group_id, 'conserving_velocity_order', conserving_velocity_order)
+        call h5_add(group_id, 'conserving_cm_order', conserving_cm_order)
+        call h5_add(group_id, 'conserving_rel_order', conserving_rel_order)
+        call h5_add(group_id, 'conserving_polar_order', conserving_polar_order)
+        call h5_add(group_id, 'conserving_azimuth_order', conserving_azimuth_order)
+        call h5_add(group_id, 'conserving_rank_rtol', conserving_rank_rtol)
+        call h5_add(group_id, 'conserving_compatibility_rtol', &
+            conserving_compatibility_rtol)
+        call h5_add(group_id, 'conserving_basis', 'joined_pitch_speed_plus_flow_energy')
+        call h5_add(group_id, 'conserving_speed_tail', &
+            'constant_graph_analytic_moments')
+        call h5_add(group_id, 'conserving_ordering', 'common_phase_thin_orbit_common_T')
+        call h5_add(group_id, 'conserving_conservation', &
+            'species_number_total_parallel_momentum_total_energy')
+    end subroutine write_conserving_config_group
+
+    subroutine write_conserving_transport(group_id, data)
+        use hdf5_tools, only: HID_T, h5_add
+        integer(HID_T), intent(in) :: group_id
+        type(transport_data_t), intent(in) :: data
+        integer :: drivers
+        call h5_add(group_id, 'conserving_active', .true.)
+        call h5_add(group_id, 'source_feature', &
+            'all-pair-linearized-Landau-commonT-v1')
+        call h5_add(group_id, 'susceptibility_valid', .false., &
+            comment='all legacy D weights are undefined placeholders')
+        call h5_add(group_id, 'conserving_work_real', &
+            real(data%conserving_work, dp), [1], [3], unit='erg', &
+            comment='integral J F0 conj(Herg) g dtheta d3v; trapped,co,counter')
+        call h5_add(group_id, 'conserving_work_imag', &
+            aimag(data%conserving_work), [1], [3], unit='erg', &
+            comment='physical torque by branch is -n*pi times this integral')
+        if (allocated(data%conserving_cross_work)) then
+            drivers = size(data%conserving_cross_work, 2)
+            call h5_add(group_id, 'conserving_cross_work_real', &
+                real(data%conserving_cross_work, dp), [1, 1], [3, drivers], &
+                unit='erg', &
+                comment='receiving branch by physical source species')
+            call h5_add(group_id, 'conserving_cross_work_imag', &
+                aimag(data%conserving_cross_work), [1, 1], [3, drivers], unit='erg', &
+                comment='unqualified driver columns are undefined placeholders')
+        end if
+        if (allocated(data%conserving_cross_work_qualified)) then
+            drivers = size(data%conserving_cross_work_qualified)
+            call h5_add(group_id, 'conserving_cross_work_qualified', &
+                merge(1, 0, data%conserving_cross_work_qualified), [1], [drivers], &
+                comment='1: independently compatible physical source-species response')
+        end if
+        call h5_add(group_id, 'conserving_rank', data%conserving_rank)
+        call h5_add(group_id, 'conserving_nullity', data%conserving_nullity)
+        call h5_add(group_id, 'conserving_singular_cutoff', &
+            data%conserving_singular_cutoff)
+        call h5_add(group_id, 'conserving_residual', data%conserving_residual)
+        call h5_add(group_id, 'conserving_compatibility', data%conserving_compatibility)
+        call h5_add(group_id, 'conserving_mass_condition', &
+            data%conserving_mass_condition)
+        call h5_add(group_id, 'conserving_entropy', data%conserving_entropy, &
+            comment='nonnegative physical collision quadratic form')
+    end subroutine write_conserving_transport
+
     subroutine write_magfie_group(group_id, data)
-        use neort_fp_mode, only: tp_fp_collisions
+        use neort_fp_mode, only: fp_physical_mode
         use hdf5_tools, only: HID_T, h5_add
 
         integer(HID_T), intent(in) :: group_id
@@ -279,7 +395,7 @@ contains
                     comment="reference magnetic drift frequency")
         call h5_add(group_id, "vth", data%params%vth, unit="cm/s", comment="thermal velocity")
         call h5_add(group_id, "T", data%params%T_in_eV, unit="eV", comment="temperature")
-        if (tp_fp_collisions) then
+        if (fp_physical_mode()) then
             call h5_add(group_id, 'fp_thermal_energy_J', &
                 data%params%fp_thermal_energy_j, unit='J')
             call h5_add(group_id, 'fp_vth_m_s', data%params%vth/100.0_dp, unit='m/s')
@@ -337,7 +453,7 @@ contains
     subroutine write_transport_group(group_id, data)
         use hdf5_tools, only: HID_T, h5_add
         use neort_lorentz_controls, only: lorentz_pitch_collisions
-        use neort_fp_mode, only: tp_fp_collisions
+        use neort_fp_mode, only: tp_fp_collisions, fp_physical_mode
 
         integer(HID_T), intent(in) :: group_id
         type(transport_data_t), intent(in) :: data
@@ -360,11 +476,12 @@ contains
                 aimag(data%fp_source_work), [1, 1], [2, 3], &
                 comment='Im integral W conj(H) response; original H receiving dual')
         end if
+        if (data%conserving_active) call write_conserving_transport(group_id, data)
         call h5_add(group_id, "M_t", data%summary%M_t, unit="1", comment="toroidal Mach number")
         call h5_add(group_id, "D11co", data%summary%Dco(1), comment="co-passing D11")
         call h5_add(group_id, "D11ctr", data%summary%Dctr(1), comment="counter-passing D11")
         call h5_add(group_id, "D11t", data%summary%Dt(1), comment="trapped D11")
-        if (tp_fp_collisions) then
+        if (fp_physical_mode()) then
             call h5_add(group_id, 'D11', 0.0_dp, &
                 comment='undefined placeholder; use direct electromagnetic torque')
         else if (lorentz_pitch_collisions) then
@@ -380,7 +497,7 @@ contains
         call h5_add(group_id, "D12co", data%summary%Dco(2), comment="co-passing D12")
         call h5_add(group_id, "D12ctr", data%summary%Dctr(2), comment="counter-passing D12")
         call h5_add(group_id, "D12t", data%summary%Dt(2), comment="trapped D12")
-        if (tp_fp_collisions) then
+        if (fp_physical_mode()) then
             call h5_add(group_id, 'D12', 0.0_dp, &
                 comment='undefined placeholder; use direct electromagnetic torque')
         else if (lorentz_pitch_collisions) then
@@ -523,7 +640,7 @@ contains
         use hdf5_tools, only: HID_T, h5_add, h5_define_group, h5_close_group
         use neort_species, only: species_mixture
         use neort_lorentz_controls, only: lorentz_pitch_collisions
-        use neort_fp_mode, only: tp_fp_collisions
+        use neort_fp_mode, only: tp_fp_collisions, conserving_fp_collisions
         integer(HID_T), intent(in) :: file_id
         type(mixture_result_t), intent(in) :: result_
         integer(HID_T) :: group_id
@@ -531,7 +648,11 @@ contains
         call h5_add(group_id, 'reference_s', species_mixture%reference_s, unit='1')
         call h5_add(group_id, 'reference_omega_e', species_mixture%omega_e, unit='s^-1')
         call h5_add(group_id, 'reference_domega_e_ds', species_mixture%domega_e_ds, unit='s^-1')
-        if (tp_fp_collisions) then
+        if (conserving_fp_collisions) then
+            call h5_add(group_id, 'torque_observable', &
+                'electromagnetic_perturbation_work', &
+                comment='joint all-pair Landau projected common-phase response')
+        else if (tp_fp_collisions) then
             call h5_add(group_id, 'torque_observable', &
                 'electromagnetic_perturbation_work', &
                 comment='nonadiabatic-g two-dimensional test-particle FP response')

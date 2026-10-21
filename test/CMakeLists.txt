@@ -6,6 +6,14 @@ foreach(test_src ${TEST_SOURCES})
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
+add_test(NAME test_conserving_config COMMAND test_conserving_config.x)
+add_test(NAME test_conserving_controls
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_conserving_controls.py
+        $<TARGET_FILE:neo_rt.x> $<TARGET_FILE:test_conserving_config.x>
+        ${CMAKE_CURRENT_BINARY_DIR}/lorentz_circle.bc
+        ${CMAKE_CURRENT_BINARY_DIR}/conserving_controls)
+set_tests_properties(test_conserving_controls PROPERTIES
+    FIXTURES_REQUIRED lorentz_geometry PROCESSORS 3 TIMEOUT 90)
 add_test(NAME test_fp_tensor COMMAND test_fp_tensor.x)
 add_test(NAME test_fp_native COMMAND test_fp_native.x)
 add_test(NAME test_fp_cli
