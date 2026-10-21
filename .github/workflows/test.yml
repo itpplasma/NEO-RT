@@ -2,7 +2,11 @@ name: NEO-RT
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
   merge_group:
 
   # Allows you to run this workflow manually, and lets an upstream libneo
@@ -14,62 +18,172 @@ on:
         required: false
         default: ''
 
+  push:
+    branches:
+      - main
 permissions:
   contents: read
 
 jobs:
   standalone-off:
     name: Reject unsupported native NEO-2 build
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build"]') }}
     timeout-minutes: 2
     steps:
-    - uses: actions/checkout@v6
-    - name: Check OFF configure diagnostic without fetching dependencies
-      run: |
-        if cmake -S . -B build-off -DUSE_STANDALONE=OFF > configure-off.log 2>&1; then
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run native checks in the build container
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          SCI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          SCI_LIBNEO_REF: ${{ inputs.libneo_ref }}
+          SCI_RUN_GOLDEN: ${{ github.event_name != 'workflow_dispatch' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
+        run: |-
+          ci/run.sh test-standalone-off
+      - name: Check OFF configure diagnostic without fetching dependencies
+        run: |
+          if cmake -S . -B build-off -DUSE_STANDALONE=OFF > configure-off.log 2>&1; then
+            cat configure-off.log
+            echo "Expected USE_STANDALONE=OFF to fail"
+            exit 1
+          fi
           cat configure-off.log
-          echo "Expected USE_STANDALONE=OFF to fail"
-          exit 1
-        fi
-        cat configure-off.log
-        grep -F "USE_STANDALONE=OFF is currently unsupported" configure-off.log
-        test ! -d build-off/OBJS/_deps
+          grep -F "USE_STANDALONE=OFF is currently unsupported" configure-off.log
+          test ! -d build-off/OBJS/_deps
 
-  build:
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        config: [Fast, Debug]
+        if: ${{ github.event.pull_request.head.repo.fork }}
+    if: >-
+      github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]')
+  build_Fast:
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-dispatch"]') }}
 
     steps:
-    - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
-    - name: Install build dependencies
-      run: |
-        make deps
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run native checks in the build container
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          SCI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          SCI_LIBNEO_REF: ${{ inputs.libneo_ref }}
+          SCI_MATRIX_CONFIG: Fast
+          SCI_RUN_GOLDEN: ${{ github.event_name != 'workflow_dispatch' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
+        run: |-
+          export TMPDIR=$RUNNER_TEMP
+          SCI_TIER=test-build ci/bundle.sh "$RUNNER_TEMP/native.tar.zst"
+          sci-dispatch native "$RUNNER_TEMP/native.tar.zst"
+      - name: Install build dependencies
+        run: |
+          make deps
 
-    - name: Install Python test dependencies
-      run: |
-        pip install pytest numpy h5py f90nml scipy
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Install Python test dependencies
+        run: |
+          pip install pytest numpy h5py f90nml scipy
 
-    - name: Build code
-      run: |
-        make CONFIG=${{ matrix.config }}${{ inputs.libneo_ref && format(' LIBNEO_REF={0}', inputs.libneo_ref) || '' }}
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Build code
+        run: |
+          make CONFIG=Fast${{ inputs.libneo_ref && format(' LIBNEO_REF={0}', inputs.libneo_ref) || '' }}
 
-    - name: Run ctest
-      run: |
-        make ctest
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Run ctest
+        run: |
+          make ctest
 
     # The libneo gate dispatches this workflow (report-only) and wants only the
     # fast ctest tier; the golden-record pytest is the slow suite and stays on
     # NEO-RT's merge-queue runs (full tier). Pull requests, including stacked
     # layers, skip it unless labeled full-ci.
-    - name: Run pytest (all tests for Fast)
-      if: github.event_name != 'workflow_dispatch' && matrix.config == 'Fast' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
-      run: |
-        make pytest
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Run pytest (all tests for Fast)
+        if: ${{ github.event.pull_request.head.repo.fork && (github.event_name != 'workflow_dispatch' && 'Fast' == 'Fast' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))) }}
+        run: |
+          make pytest
 
-    - name: Run pytest (skip golden record for Debug)
-      if: github.event_name != 'workflow_dispatch' && matrix.config != 'Fast' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))
-      run: |
-        pytest -m "not fast_only"
+      - name: Run pytest (skip golden record for Debug)
+        if: ${{ github.event.pull_request.head.repo.fork && (github.event_name != 'workflow_dispatch' && 'Fast' != 'Fast' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))) }}
+        run: |
+          pytest -m "not fast_only"
+    if: >-
+      github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]')
+    name: build (Fast)
+  build_Debug:
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-dispatch"]') }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Run native checks in the build container
+        if: ${{ !github.event.pull_request.head.repo.fork }}
+        env:
+          SCI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          SCI_LIBNEO_REF: ${{ inputs.libneo_ref }}
+          SCI_MATRIX_CONFIG: Debug
+          SCI_RUN_GOLDEN: ${{ github.event_name != 'workflow_dispatch' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
+        run: |-
+          export TMPDIR=$RUNNER_TEMP
+          SCI_TIER=test-build ci/bundle.sh "$RUNNER_TEMP/native.tar.zst"
+          sci-dispatch native "$RUNNER_TEMP/native.tar.zst"
+      - name: Install build dependencies
+        run: |
+          make deps
+
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Install Python test dependencies
+        run: |
+          pip install pytest numpy h5py f90nml scipy
+
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Build code
+        run: |
+          make CONFIG=Debug${{ inputs.libneo_ref && format(' LIBNEO_REF={0}', inputs.libneo_ref) || '' }}
+
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Run ctest
+        run: |
+          make ctest
+
+    # The libneo gate dispatches this workflow (report-only) and wants only the
+    # fast ctest tier; the golden-record pytest is the slow suite and stays on
+    # NEO-RT's merge-queue runs (full tier). Pull requests, including stacked
+    # layers, skip it unless labeled full-ci.
+        if: ${{ github.event.pull_request.head.repo.fork }}
+      - name: Run pytest (all tests for Fast)
+        if: ${{ github.event.pull_request.head.repo.fork && (github.event_name != 'workflow_dispatch' && 'Debug' == 'Fast' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))) }}
+        run: |
+          make pytest
+
+      - name: Run pytest (skip golden record for Debug)
+        if: ${{ github.event.pull_request.head.repo.fork && (github.event_name != 'workflow_dispatch' && 'Debug' != 'Fast' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci'))) }}
+        run: |
+          pytest -m "not fast_only"
+    if: >-
+      github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]')
+    name: build (Debug)
+  build-result:
+    name: build
+    needs: [build_Fast, build_Debug, standalone-off]
+    if: >-
+      always() && (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.actor != 'github-merge-queue[bot]'))
+    runs-on: [self-hosted, itp-light]
+    steps:
+      - env:
+          FAST: ${{ needs.build_Fast.result }}
+          DEBUG: ${{ needs.build_Debug.result }}
+          OFF: ${{ needs.standalone-off.result }}
+        run: test "$FAST" = success && test "$DEBUG" = success && test "$OFF" = success
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
