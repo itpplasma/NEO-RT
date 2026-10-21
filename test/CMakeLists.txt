@@ -350,6 +350,15 @@ foreach(mode IN ITEMS zero-mass negative-mass nan-mass zero-charge infinite-char
     set_tests_properties(test_collision_rates_reject_${mode} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME test_collision_diffusion COMMAND test_collision_diffusion.x)
+foreach(mode IN ITEMS negative-speed nan-speed infinite-speed pair-shape)
+    add_test(NAME test_collision_diffusion_reject_${mode}
+        COMMAND test_collision_diffusion.x ${mode})
+    set_tests_properties(test_collision_diffusion_reject_${mode} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+set_tests_properties(test_collision_diffusion PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4" PROCESSORS 4 TIMEOUT 30)
+
 add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
 set_tests_properties(test_krook_work_oracle PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
