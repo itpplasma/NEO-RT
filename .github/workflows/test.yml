@@ -27,7 +27,7 @@ permissions:
 jobs:
   standalone-off:
     name: Reject unsupported native NEO-2 build
-    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build","itp-slurm"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-light"]') }}
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v6
@@ -58,7 +58,7 @@ jobs:
     if: >-
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
   build_Fast:
-    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build","itp-slurm"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-dispatch"]') }}
 
     steps:
       - uses: actions/checkout@v6
@@ -115,7 +115,7 @@ jobs:
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
     name: build (Fast)
   build_Debug:
-    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build","itp-slurm"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-dispatch"]') }}
 
     steps:
       - uses: actions/checkout@v6

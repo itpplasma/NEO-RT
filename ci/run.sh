@@ -38,7 +38,7 @@ export CMAKE_BUILD_PARALLEL_LEVEL=$SCI_CPUS CTEST_PARALLEL_LEVEL=$SCI_CPUS
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-2}
 export RUNNER_TEMP=$root/tmp
 mkdir -p "$RUNNER_TEMP" ci-out
-{ hostname; /usr/bin/gfortran --version | head -1; git rev-parse HEAD; } | tee ci-out/toolchain.txt
+{ hostname; if [ "$tier" != test-standalone-off ]; then /usr/bin/gfortran --version | head -1; fi; git rev-parse HEAD; } | tee ci-out/toolchain.txt
 load_job_environment() {
     while IFS='=' read -r key value; do
         [[ $key =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key=$value"
