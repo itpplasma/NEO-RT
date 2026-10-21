@@ -28,6 +28,7 @@ module neort_config
         logical :: pertfile = .false.  ! read perturbation from file
         logical :: nonlin = .false.  ! do nonlinear calculation
         integer :: profile_species = 1  ! 0 electrons, 1 first ion, 2 second ion
+        character(len=1024) :: species_file = ''  ! SI mixture at a reference surface
         logical :: krook_collisions = .false.
         real(dp) :: krook_nu = 0.0_dp  ! supplied Krook damping rate [s^-1]
         integer :: krook_model = 0  ! 0 constant, 1 energy+harmonic, 2 energy
@@ -52,6 +53,7 @@ module neort_config
 
     ! Resolved output format, read by neort_output at write time.
     character(len=8) :: output_format = "hdf5"
+    character(len=1024) :: species_file = ''
 
 contains
 
@@ -67,9 +69,14 @@ contains
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
+        use neort_species, only: reset_mixture, read_species_input
 
         type(config_t), intent(in) :: config
 
+        call reset_mixture()
+        species_file = config%species_file
+        if (len_trim(species_file) > 0) call read_species_input(trim(species_file))
+        call validate_mixture_mode(config%nonlin)
         s = config%s
         M_t = config%M_t * config%efac / config%bfac
         vth = config%vth
@@ -121,6 +128,7 @@ contains
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
+        use neort_species, only: reset_mixture, read_species_input
 
         character(len=*), intent(in) :: config_file
         real(dp) :: qs, ms
@@ -130,7 +138,7 @@ contains
             supban, drift_phase, fow_radial, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, log_level, output_format, &
-            profile_species, krook_collisions, krook_nu, krook_model, krook_harmonic, &
+            profile_species, species_file, krook_collisions, krook_nu, krook_model, krook_harmonic, &
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
             krook_max_depth, krook_rtol, krook_atol
 
@@ -139,11 +147,17 @@ contains
         inp_swi_pert = -1
         output_format = "both"
         profile_species = 1
+        species_file = ''
+        qs = 0.0_dp
+        ms = 0.0_dp
+        call reset_mixture()
         call reset_krook()
         open (unit=9, file=config_file, status="old", form="formatted")
         read (9, nml=params)
         close (unit=9)
 
+        if (len_trim(species_file) > 0) call read_species_input(trim(species_file))
+        call validate_mixture_mode(nonlin)
         call validate_krook()
         call validate_selected_physics(profile_species, nonlin)
 
@@ -160,6 +174,13 @@ contains
         call set_mph(mph)
         call set_log_level(log_level)
     end subroutine read_and_set_config
+
+    subroutine validate_mixture_mode(nonlinear)
+        use neort_species, only: mixture_enabled
+        logical, intent(in) :: nonlinear
+        if (mixture_enabled .and. nonlinear) &
+            error stop 'general mixtures require linear transport; legacy nonlin is ion-only'
+    end subroutine validate_mixture_mode
 
     subroutine set_krook_config(config)
         type(config_t), intent(in) :: config

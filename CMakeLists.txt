@@ -119,12 +119,13 @@ set(NEO_RT_SOURCES
     src/profiles.f90
     src/resonance.f90
     src/shaing.f90
+    src/species.f90
     src/transport.f90
     src/util.f90
 )
 
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
-set_source_files_properties(src/krook.f90 src/profiles.f90 PROPERTIES
+set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)

@@ -4,12 +4,13 @@ module neort_output
     ! resolved run configuration, and the harmonic- and theta-resolved data
     ! that the text pipeline used to drop on the floor.
     use iso_fortran_env, only: dp => real64
-    use neort_datatypes, only: magfie_data_t, transport_data_t
+    use neort_datatypes, only: magfie_data_t, transport_data_t, mixture_result_t, species_result_t
+    use neort_species, only: species_state_t
 
     implicit none
 
     private
-    public :: write_output, FORMAT_VERSION
+    public :: write_output, write_mixture_output, FORMAT_VERSION
 
     ! Bump when the group/dataset layout changes incompatibly.
     integer, parameter :: FORMAT_VERSION = 1
@@ -79,7 +80,7 @@ contains
         call h5_deinit()
     end subroutine write_hdf5
 
-    subroutine write_config_group(group_id)
+    subroutine write_config_group(group_id, species)
         ! Resolved run settings, i.e. what the solver actually used after
         ! defaults and efac/bfac scaling were applied.
         use hdf5_tools, only: HID_T, h5_add
@@ -93,12 +94,20 @@ contains
         use util, only: qe, mu, qi, mi
 
         integer(HID_T), intent(in) :: group_id
+        type(species_state_t), intent(in), optional :: species
 
         call h5_add(group_id, "epsmn", epsmn, comment="perturbation amplitude B1/B0")
         call h5_add(group_id, "m0", m0, comment="poloidal perturbation mode")
         call h5_add(group_id, "mph", mph, comment="toroidal perturbation mode")
-        call h5_add(group_id, "qs", qi/qe, unit="1", comment="charge / elementary charge")
-        call h5_add(group_id, "ms", mi/mu, unit="1", comment="mass / atomic mass unit")
+        if (present(species)) then
+            call h5_add(group_id, "qs", species%charge_e, unit="1", &
+                comment="charge / elementary charge")
+            call h5_add(group_id, "ms", species%mass_kg*1.0e3_dp/mu, unit="1", &
+                comment="mass / atomic mass unit")
+        else
+            call h5_add(group_id, "qs", qi/qe, unit="1", comment="charge / elementary charge")
+            call h5_add(group_id, "ms", mi/mu, unit="1", comment="mass / atomic mass unit")
+        end if
         call h5_add(group_id, "comptorque", comptorque)
         call h5_add(group_id, "supban", supban, comment="Shaing superbanana plateau only")
         call h5_add(group_id, "drift_phase", drift_phase, &
@@ -327,6 +336,139 @@ contains
         call h5_add(group_id, "vmint_over_vth", vmint, [1], [n], unit="1")
         call h5_add(group_id, "vmaxt_over_vth", vmaxt, [1], [n], unit="1")
     end subroutine write_harmonics_group
+
+    subroutine write_mixture_output(result_, base_path, output_format)
+        type(mixture_result_t), intent(in) :: result_
+        character(len=*), intent(in) :: base_path, output_format
+        integer :: k
+        select case (trim(output_format))
+        case ('hdf5', 'both')
+            call write_mixture_hdf5(result_, base_path)
+        case ('text')
+        case default
+            error stop "output_format must be 'hdf5', 'text' or 'both'"
+        end select
+        if (trim(output_format) == 'hdf5') return
+        do k = 1, size(result_%species)
+            call write_output(result_%species(k)%magfie, result_%species(k)%transport, &
+                trim(base_path)//'_'//trim(result_%species(k)%species%name), 'text')
+        end do
+        call write_mixture_text(result_, base_path)
+    end subroutine write_mixture_output
+
+    subroutine write_mixture_hdf5(result_, base_path)
+        use hdf5_tools, only: HID_T, h5_init, h5_deinit, h5_create, h5_close, &
+            h5_add, h5_define_group, h5_close_group
+        type(mixture_result_t), intent(in) :: result_
+        character(len=*), intent(in) :: base_path
+        integer(HID_T) :: file_id, group_id, species_id
+        integer :: k
+        call h5_init()
+        call h5_create(trim(adjustl(base_path))//'.h5', file_id)
+        call h5_add(file_id, 'format_version', 2, comment='NEO-RT multispecies output layout')
+        call h5_add(file_id, 'created', timestamp(), comment='ISO 8601 local time')
+        call h5_add(file_id, 'n_species', size(result_%species))
+        call write_mixture_metadata(file_id, result_)
+        call h5_define_group(file_id, 'species', group_id)
+        do k = 1, size(result_%species)
+            call h5_define_group(group_id, trim(result_%species(k)%species%name), species_id)
+            call write_species_result_group(species_id, result_%species(k))
+            call h5_close_group(species_id)
+        end do
+        call h5_close_group(group_id)
+        call h5_close(file_id)
+        call h5_deinit()
+    end subroutine write_mixture_hdf5
+
+    subroutine write_mixture_metadata(file_id, result_)
+        use hdf5_tools, only: HID_T, h5_add, h5_define_group, h5_close_group
+        use neort_species, only: species_mixture
+        integer(HID_T), intent(in) :: file_id
+        type(mixture_result_t), intent(in) :: result_
+        integer(HID_T) :: group_id
+        call h5_define_group(file_id, 'mixture', group_id)
+        call h5_add(group_id, 'reference_s', species_mixture%reference_s, unit='1')
+        call h5_add(group_id, 'reference_omega_e', species_mixture%omega_e, unit='s^-1')
+        call h5_add(group_id, 'reference_domega_e_ds', species_mixture%domega_e_ds, unit='s^-1')
+        call h5_add(group_id, 'coulomb_log', species_mixture%coulomb_log, unit='1', &
+            comment='explicit common Coulomb logarithm for pairwise rate models')
+        call h5_add(group_id, 'profile_model', 'affine local expansion in normalized toroidal flux')
+        call h5_add(group_id, 'torque_total', sum(result_%torque_total), unit='erg', &
+            comment='sum of species co+counter+trapped dTphi_int/ds')
+        call h5_add(group_id, 'torque_by_population', result_%torque_total, [1], [3], unit='erg', &
+            comment='species sum: co-passing, counter-passing, trapped dTphi_int/ds')
+        call h5_close_group(group_id)
+    end subroutine write_mixture_metadata
+
+    subroutine write_species_result_group(species_id, result_)
+        use hdf5_tools, only: HID_T, h5_define_group, h5_close_group
+        integer(HID_T), intent(in) :: species_id
+        type(species_result_t), intent(in) :: result_
+        integer(HID_T) :: group_id
+        call write_species_metadata(species_id, result_)
+        call h5_define_group(species_id, 'config', group_id)
+        call write_config_group(group_id, result_%species)
+        call h5_close_group(group_id)
+        call h5_define_group(species_id, 'magfie', group_id)
+        call write_magfie_group(group_id, result_%magfie)
+        call h5_close_group(group_id)
+        call h5_define_group(species_id, 'transport', group_id)
+        call write_transport_group(group_id, result_%transport)
+        call h5_close_group(group_id)
+        call h5_define_group(species_id, 'torque', group_id)
+        call write_torque_group(group_id, result_%transport)
+        call h5_close_group(group_id)
+        call h5_define_group(species_id, 'harmonics', group_id)
+        call write_harmonics_group(group_id, result_%transport)
+        call h5_close_group(group_id)
+    end subroutine write_species_result_group
+
+    subroutine write_species_metadata(species_id, result_)
+        use hdf5_tools, only: HID_T, h5_add
+        integer(HID_T), intent(in) :: species_id
+        type(species_result_t), intent(in) :: result_
+        call h5_add(species_id, 'mass_kg', result_%species%mass_kg, unit='kg')
+        call h5_add(species_id, 'charge_e', result_%species%charge_e, unit='1')
+        call h5_add(species_id, 'density_m3', result_%species%density_m3, unit='m^-3')
+        call h5_add(species_id, 'temperature_ev', result_%species%temperature_ev, unit='eV')
+        call h5_add(species_id, 'density_gradient_m3', &
+            result_%species%density_gradient_m3, unit='m^-3', comment='dn/ds')
+        call h5_add(species_id, 'temperature_gradient_ev', &
+            result_%species%temperature_gradient_ev, unit='eV', comment='dT/ds')
+        call h5_add(species_id, 'domega_e_ds', result_%domega_e_ds, unit='s^-1')
+        call h5_add(species_id, 'thermodynamic_forces', result_%force, [1], [2], unit='1')
+    end subroutine write_species_metadata
+
+    subroutine write_mixture_text(result_, base_path)
+        type(mixture_result_t), intent(in) :: result_
+        character(len=*), intent(in) :: base_path
+        integer :: unit, k
+        open(newunit=unit, file=trim(base_path)//'_species.out', status='replace')
+        write(unit, '(a)') '# species mass[kg] Z n[m^-3] T[eV] dn/ds[m^-3] dT/ds[eV]'// &
+            ' OmegaE[s^-1] dOmegaE/ds[s^-1] Mach Tco[erg] Tctr[erg] Tt[erg] Ttotal[erg]'
+        do k = 1, size(result_%species)
+            call write_species_text_row(unit, result_%species(k))
+        end do
+        close(unit)
+        open(newunit=unit, file=trim(base_path)//'_mixture_torque.out', status='replace')
+        write(unit, '(a)') '# s Tco[erg] Tctr[erg] Tt[erg] Ttotal[erg]; sum of species dTphi/ds'
+        write(unit, '(5(es24.16e3,1x))') result_%species(1)%magfie%params%s, &
+            result_%torque_total, sum(result_%torque_total)
+        close(unit)
+    end subroutine write_mixture_text
+
+    subroutine write_species_text_row(unit, result_)
+        integer, intent(in) :: unit
+        type(species_result_t), intent(in) :: result_
+        write(unit, '(a,1x,13(es24.16e3,1x))') trim(result_%species%name), &
+            result_%species%mass_kg, result_%species%charge_e, result_%species%density_m3, &
+            result_%species%temperature_ev, result_%species%density_gradient_m3, &
+            result_%species%temperature_gradient_ev, result_%magfie%params%Om_tE, &
+            result_%domega_e_ds, result_%magfie%params%M_t, result_%transport%torque%Tco, &
+            result_%transport%torque%Tctr, result_%transport%torque%Tt, &
+            result_%transport%torque%Tco + result_%transport%torque%Tctr + &
+            result_%transport%torque%Tt
+    end subroutine write_species_text_row
 
     function timestamp() result(stamp)
         character(len=19) :: stamp

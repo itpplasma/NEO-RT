@@ -1,9 +1,37 @@
+find_package(Python REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name}.x ${test_src})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
+endforeach()
+add_test(NAME test_species_mixture
+    COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+add_test(NAME test_species_mixture_run
+    COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture_run.x
+        ${CMAKE_CURRENT_BINARY_DIR}/species_run
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_species_mixture_run PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 3 TIMEOUT 60 FIXTURES_SETUP species_mixture_output)
+add_test(NAME test_species_mixture_output
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_output.py
+        ${CMAKE_CURRENT_BINARY_DIR}/species_run)
+set_tests_properties(test_species_mixture_output PROPERTIES
+    FIXTURES_REQUIRED species_mixture_output)
+add_test(NAME test_species_mixture_cli
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_cli.py
+        $<TARGET_FILE:neo_rt.x> ${CMAKE_SOURCE_DIR}/examples/base/in_file
+        ${CMAKE_CURRENT_BINARY_DIR}/mixture_cli)
+set_tests_properties(test_species_mixture_cli PROPERTIES
+    PROCESSORS 3 TIMEOUT 60)
+foreach(invalid charge-imbalance gradient-imbalance negative-mass)
+    add_test(NAME test_species_mixture_rejects_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x ${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_species_mixture_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 foreach(invalid nan-density nan-temperature infinite-mass infinite-charge)
     add_test(NAME test_profile_rejects_${invalid}

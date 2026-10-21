@@ -62,6 +62,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `fow_radial` | Sample the perturbation amplitude (`B_n` and `B`) at the first-order guiding-centre radius `s + Delta s` (`.false.` default). | `Delta s = m c q v_par h_phi / (e sign_theta psi_pr)` from conservation of `p_phi`. `s` is the `p_phi` label of the orbit, `(e/c) A_phi(s) = p_phi`, which is also the label of NEO-RT's frequencies (the shear term of `Om_tB` is `q' <Delta s dtheta/dt>`), so the orbit mean of `Delta s` is kept: it vanishes for trapped orbits and is `O(+-rho_pol)` for co/counter-passing orbits. Frequencies and the resonance stay those of the label `s`. For passing contributions combine it with `drift_phase` (and `noshear = .false.`): sampling at `s + Delta s` also shifts the toroidal phase by `mph q' Delta s theta`, whose oscillating part `mph q' int(Delta s dtheta/dt - <.>)dt` is of the same first order as the amplitude correction and enters only through the shear term of the `drift_phase` integrand. Still omitted at first order: the poloidal timing shift (the change of `dtheta/dt` at `s + Delta s` and the poloidal drift), so the orbit phase uses the thin-orbit `theta(t)`. Sign, size and labelling are checked against the full guiding-centre orbit in `test_fow_gc_orbit`. Needs a radially resolved perturbation (`pertfile`) to matter. |
 | `nonlin` | Enable nonlinear corrections. | Requires `plasma.in` and `profile.in`. |
 | `profile_species` | Select profiles from `plasma.in`. | `1` first ion (default), `2` second ion, `0` electrons. |
+| `species_file` | General neutral mixture with shared physical rotation. | Empty by default; an explicit SI species file computes every member in one invocation. See [shared species mixtures](species.md). |
 | `krook_collisions` | Enable linear finite-width collision broadening. | Default `.false.`; requires `nonlin=.false.` for positive width. |
 | `krook_nu` | Supplied Krook damping rate `[s^-1]`. | Default zero; no `2*pi` conversion. |
 | `krook_model` | Rate model. | `0` constant, `1` energy and harmonic, `2` energy only; see [Krook collisions](krook.md) for harmonics, geometry factors and quadrature controls. |
@@ -93,7 +94,9 @@ Example Boozer files are provided in `examples/base`.
 
 ### Thermodynamic profiles (`plasma.in`)
 
-Required when `nonlin=.true.` or `comptorque=.true.`. The file format matches the expectations of `neort_profiles:read_plasma_input`:
+For isolated-species runs, required when `nonlin=.true.` or `comptorque=.true.`.
+General mixtures use [the explicit SI species file](species.md). The legacy file
+format matches the expectations of `neort_profiles:read_plasma_input`:
 
 1. Comment line (ignored).
 2. `nflux  am1  am2  Z1  Z2` – number of flux surfaces, ion masses (amu), and charges.
