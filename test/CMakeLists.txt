@@ -374,3 +374,9 @@ set_tests_properties(test_collision_diffusion PROPERTIES
 add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
 set_tests_properties(test_krook_work_oracle PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+add_test(NAME test_conserving_basis COMMAND test_conserving_basis.x)
+add_test(NAME test_conserving_native COMMAND test_conserving_native.x)
+set_tests_properties(test_conserving_basis test_conserving_native PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 90)
