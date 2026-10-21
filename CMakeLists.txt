@@ -109,6 +109,8 @@ set(NEO_RT_SOURCES
     src/freq.f90
     src/lib.f90
     src/logging.f90
+    src/lorentz_graph.f90
+    src/lorentz_native.f90
     src/magfie.f90
     src/main.f90
     src/neort.f90
@@ -124,7 +126,8 @@ set(NEO_RT_SOURCES
 )
 
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
-set_source_files_properties(src/krook.f90 src/profiles.f90 PROPERTIES
+set_source_files_properties(src/krook.f90 src/profiles.f90 src/lorentz_graph.f90
+    src/lorentz_native.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
