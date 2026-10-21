@@ -1,11 +1,16 @@
 module neort_profiles
     use iso_fortran_env, only: dp => real64
+    use ieee_arithmetic, only: ieee_is_finite
     use spline, only: spline_coeff, spline_val_0
     use util, only: readdata, ev, qi, mi, mu, qe, c
     use collis_alp, only: loacol_nbi
     use do_magfie_mod, only: sign_theta
 
     implicit none
+
+    ! Shared input selector: first ion (default), second ion, or electrons.
+    integer :: profile_species = 1
+    real(dp), parameter :: electron_mass = 9.109382e-28_dp
 
     ! Thermal velocity, Mach number, and their derivatives over s_tor
     real(dp) :: vth = 0.0_dp, dvthds = 0.0_dp, M_t = 0.0_dp, dM_tds = 0.0_dp
@@ -16,6 +21,7 @@ module neort_profiles
     ! density and temperature profiles and their derivatives over s_tor
     real(dp) :: ni1 = 0.0_dp, ni2 = 0.0_dp, Ti1 = 0.0_dp, Ti2 = 0.0_dp, Te = 0.0_dp, dni1ds = 0.0_dp, &
         dni2ds = 0.0_dp, dTi1ds = 0.0_dp, dTi2ds = 0.0_dp, dTeds = 0.0_dp
+    real(dp) :: ns = 0.0_dp, ts = 0.0_dp, dnsds = 0.0_dp, dtsds = 0.0_dp
 
     ! Thermodynamic forces in radial variable s_tor
     real(dp) :: A1 = 0.0_dp, A2 = 0.0_dp
@@ -30,6 +36,7 @@ module neort_profiles
     ! Flux-surface dependent quantities (interpolated per-thread at each s)
     !$omp threadprivate (vth, dvthds, M_t, dM_tds, Om_tE, dOm_tEds)
     !$omp threadprivate (ni1, ni2, Ti1, Ti2, Te, dni1ds, dni2ds, dTi1ds, dTi2ds, dTeds)
+    !$omp threadprivate (ns, ts, dnsds, dtsds)
     !$omp threadprivate (A1, A2)
 
 contains
@@ -69,50 +76,99 @@ contains
     subroutine init_plasma_at_s()
         ! Per-thread: Interpolate plasma profiles at current s value
         ! Assumes s is already set via set_s() and prepare_plasma_splines() was called
+
+        call interpolate_plasma_at_s()
+        call select_thermodynamic_profiles()
+        call select_particle_species()
+        vth = sqrt(2.0_dp * ts * ev / mi)
+        dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * ts)) * dtsds
+        call init_ion_collision_at_s()
+    end subroutine init_plasma_at_s
+
+    subroutine interpolate_plasma_at_s()
         use do_magfie_mod, only: s
         real(dp) :: spl_val(3)
-        real(dp), parameter :: pmass = 1.6726e-24_dp
-        real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
-        real(dp) :: v0, ebeam
 
         spl_val = spline_val_0(plasma_spl_coeff(:, :, 1), s)
         ni1 = spl_val(1)
         dni1ds = spl_val(2)
-
         spl_val = spline_val_0(plasma_spl_coeff(:, :, 2), s)
         ni2 = spl_val(1)
         dni2ds = spl_val(2)
-
         spl_val = spline_val_0(plasma_spl_coeff(:, :, 3), s)
         Ti1 = spl_val(1)
         dTi1ds = spl_val(2)
-
         spl_val = spline_val_0(plasma_spl_coeff(:, :, 4), s)
         Ti2 = spl_val(1)
         dTi2ds = spl_val(2)
-
         spl_val = spline_val_0(plasma_spl_coeff(:, :, 5), s)
         Te = spl_val(1)
         dTeds = spl_val(2)
+    end subroutine interpolate_plasma_at_s
 
-        ! Compute derived quantities
-        qi = Z1_global * qe
-        mi = am1_global * mu
-        vth = sqrt(2.0_dp * Ti1 * ev / mi)
-        dvthds = 0.5_dp * sqrt(2.0_dp * ev / (mi * Ti1)) * dTi1ds
+    subroutine select_thermodynamic_profiles()
+        select case (profile_species)
+        case (0)
+            ns = Z1_global * ni1 + Z2_global * ni2
+            dnsds = Z1_global * dni1ds + Z2_global * dni2ds
+            ts = Te
+            dtsds = dTeds
+        case (1)
+            ns = ni1
+            dnsds = dni1ds
+            ts = Ti1
+            dtsds = dTi1ds
+        case (2)
+            ns = ni2
+            dnsds = dni2ds
+            ts = Ti2
+            dtsds = dTi2ds
+        case default
+            error stop "profile_species must be 0 (electron), 1 or 2 (ion)"
+        end select
+        if (.not. all(ieee_is_finite([ns, ts, dnsds, dtsds]))) &
+            error stop "selected plasma profiles and derivatives must be finite"
+        if (ns <= 0.0_dp) error stop "selected plasma density must be positive"
+        if (ts <= 0.0_dp) error stop "selected plasma temperature must be positive"
+    end subroutine select_thermodynamic_profiles
 
-        ! Call collision routine
+    subroutine select_particle_species()
+        select case (profile_species)
+        case (0)
+            qi = -qe
+            mi = electron_mass
+        case (1)
+            qi = Z1_global * qe
+            mi = am1_global * mu
+        case (2)
+            qi = Z2_global * qe
+            mi = am2_global * mu
+        end select
+        if (.not. all(ieee_is_finite([mi, qi]))) &
+            error stop "selected particle mass and charge must be finite"
+        if (mi <= 0.0_dp) error stop "selected particle mass must be positive"
+        if (qi == 0.0_dp) error stop "selected particle charge must be nonzero"
+    end subroutine select_particle_species
+
+    subroutine init_ion_collision_at_s()
+        real(dp), parameter :: pmass = 1.6726e-24_dp
+        real(dp) :: amb, Zb, dchichi, slowrate, dchichi_norm, slowrate_norm
+        real(dp) :: v0, ebeam
+
+        ! The legacy nonlinear kernel has no electron test-particle branch.
+        if (profile_species == 0) return
         v0 = vth
-        ! The Hamiltonian and torque paths use the first configured ion species.
-        ! Use the same species for the collision tensor entering nonlinear
-        ! decorrelation, rather than silently assuming a deuteron.
         amb = am1_global
         Zb = Z1_global
+        if (profile_species == 2) then
+            amb = am2_global
+            Zb = Z2_global
+        end if
         ebeam = amb * pmass * v0**2 / (2.0_dp * ev)
         call loacol_nbi(amb, am1_global, am2_global, Zb, Z1_global, Z2_global, &
             ni1, ni2, Ti1, Ti2, Te, ebeam, v0, &
             dchichi, slowrate, dchichi_norm, slowrate_norm)
-    end subroutine init_plasma_at_s
+    end subroutine init_ion_collision_at_s
 
     subroutine read_plasma_input(path, nplasma, am1, am2, Z1, Z2, plasma)
         character(len=*), intent(in) :: path
@@ -213,9 +269,10 @@ contains
         real(dp), intent(in) :: psi_pr ! toroidal flux at plasma boundary == dpsi_tor/ds
         real(dp), intent(in) :: q ! safety factor
 
-        A1 = dni1ds / ni1 - qi / (Ti1 * ev) * sign_theta * psi_pr / (q * c) * Om_tE - 3.0_dp / &
-            2.0_dp * dTi1ds / Ti1
-        A2 = dTi1ds / Ti1
+        call select_thermodynamic_profiles()
+        A1 = dnsds / ns - qi / (ts * ev) * sign_theta * psi_pr / (q * c) * Om_tE &
+            - 3.0_dp / 2.0_dp * dtsds / ts
+        A2 = dtsds / ts
     end subroutine init_thermodynamic_forces
 
 end module neort_profiles
