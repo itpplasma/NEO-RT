@@ -81,9 +81,9 @@ contains
         complex(dp), allocatable :: band(:, :), rhs(:, :)
         real(dp), allocatable :: mass(:)
         integer, allocatable :: offsets(:), pivots(:)
-        real(dp) :: nodes(3), weights(3), source_scale(2), scale
+        real(dp) :: nodes(3), weights(3), source_scale(2), scale, moment_norm
         integer :: branch, npitch, n, k, colour, slab, column, index
-        logical :: parallel, has_reaction, physical, zero_source
+        logical :: parallel, has_reaction, physical, zero_source, incompatible
 
         info = 0
         physical = .false.
@@ -177,9 +177,23 @@ contains
                 return
             end if
             do column = 1, 2
-                source_scale(column) = sum(abs(rhs(:, column)))
-                if (abs(sum(rhs(:, column))) > &
-                        1.0e-11_dp*max(source_scale(column), tiny(1.0_dp))) then
+                source_scale(column) = sum(hypot(real(rhs(:, column), dp), &
+                    aimag(rhs(:, column))))
+                moment_norm = hypot(real(sum(rhs(:, column)), dp), &
+                    aimag(sum(rhs(:, column))))
+                incompatible = moment_norm > source_scale(column)
+                if (moment_norm > 0.0_dp .and. source_scale(column) > 0.0_dp) then
+                    if (moment_norm <= source_scale(column)) then
+                        ! A larger exponent gap implies a ratio below 2**(-40),
+                        ! safely below 1e-11. Otherwise division stays normal,
+                        ! including for subnormal source norms.
+                        if (exponent(moment_norm) >= &
+                                exponent(source_scale(column)) - 40) then
+                            incompatible = moment_norm/source_scale(column) > 1.0e-11_dp
+                        end if
+                    end if
+                end if
+                if (incompatible) then
                     info = 2
                     if (present(diagnostics)) diagnostics = diagnostic
                     return
@@ -192,7 +206,8 @@ contains
             if (present(diagnostics)) diagnostics = diagnostic
             return
         end if
-        zero_source = all(abs(rhs) <= 0.0_dp)
+        zero_source = all(abs(real(rhs, dp)) <= 0.0_dp) .and. &
+            all(abs(aimag(rhs)) <= 0.0_dp)
         if (.not. zero_source) then
             if (scale <= tiny(1.0_dp)) then
                 info = -5

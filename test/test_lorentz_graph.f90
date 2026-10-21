@@ -83,6 +83,8 @@ contains
             diffusion = -1.0_dp
         case (4)
             drive = (1.0_dp, 0.0_dp)
+        case (8)
+            drive = cmplx(1.0e-300_dp, -1.0e-300_dp, dp)
         case (6)
             drive = cmplx(eta, 0.0_dp, dp)
         case (7)
@@ -226,6 +228,9 @@ contains
         mode = 4
         call solve_lorentz_graph(graph, sample, info, parallel_samples=.false.)
         call require(info == 2, 'Undamped isotropic source must be unsolvable')
+        mode = 8
+        call solve_lorentz_graph(graph, sample, info, parallel_samples=.false.)
+        call require(info == 2, 'Tiny isotropic source must remain incompatible')
         mode = 5
         call solve_lorentz_graph(graph, sample, info, parallel_samples=.false.)
         call require(info == 0, 'Compatible zero source must solve without a floor')

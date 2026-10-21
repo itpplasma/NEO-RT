@@ -60,9 +60,9 @@ contains
         real(dp) :: nodes(3), weights(3)
         complex(dp) :: junction_diagonal, junction_rhs, junction
         complex(dp) :: compatibility, moment, mean_response
-        real(dp) :: source_scale, volume, total_volume
+        real(dp) :: source_scale, volume, total_volume, moment_norm
         integer :: branch
-        logical :: parallel, has_reaction
+        logical :: parallel, has_reaction, incompatible
 
         info = 0
         parallel = .true.
@@ -93,7 +93,8 @@ contains
         do branch = 1, size(branches)
             associate(system => systems(branch))
                 compatibility = compatibility + sum(system%rhs)
-                source_scale = source_scale + sum(abs(system%rhs))
+                source_scale = source_scale + &
+                    sum(hypot(real(system%rhs, dp), aimag(system%rhs)))
                 has_reaction = has_reaction .or. system%has_reaction
                 junction_diagonal = junction_diagonal + system%diagonal(1) + &
                     system%off_diagonal(1)*system%interior(1, 2)
@@ -105,7 +106,19 @@ contains
             ! The constant null mode has no artificial damping. A compatible
             ! source permits a gauge f(junction)=0; otherwise no stationary
             ! response exists in this projected model.
-            if (abs(compatibility) > 1.0e-11_dp*max(source_scale, tiny(1.0_dp))) then
+            moment_norm = hypot(real(compatibility, dp), aimag(compatibility))
+            incompatible = moment_norm > source_scale
+            if (moment_norm > 0.0_dp .and. source_scale > 0.0_dp) then
+                if (moment_norm <= source_scale) then
+                    ! A larger exponent gap implies a ratio below 2**(-40),
+                    ! safely below 1e-11. Otherwise division stays normal,
+                    ! including for subnormal source norms.
+                    if (exponent(moment_norm) >= exponent(source_scale) - 40) then
+                        incompatible = moment_norm/source_scale > 1.0e-11_dp
+                    end if
+                end if
+            end if
+            if (incompatible) then
                 info = 2
                 return
             end if
