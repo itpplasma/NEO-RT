@@ -102,13 +102,14 @@ contains
     end subroutine reset_krook
 
     subroutine integrate_krook(residual, weight, a, b, nu, nseed, rtol, atol, &
-                               value, status, max_depth)
+                               value, status, max_depth, component_atol)
         ! Globally adaptive quadrature of weight(eta)*L(R(eta), nu) on [a, b].
         ! The domain is split into monotonic branches of R and, away from the
         ! direct regime, into Lorentzian residual bands mapped by the angle
         ! substitution.  Pieces are bisected in order of their error relative
         ! to the requested tolerance of the whole integral, until the summed
         ! error estimate satisfies atol + rtol*|value| in every component.
+        ! component_atol optionally supplies absolute error budgets per component.
         ! status: 0 converged, 1 invalid input, 2 not converged within
         ! max_depth bisections (or the piece budget), 3 invalid residual.
         ! The seed scan can miss a stationary point of R between two samples
@@ -124,6 +125,8 @@ contains
         real(dp), intent(out) :: value(:)
         integer, intent(out) :: status
         integer, intent(in), optional :: max_depth
+        real(dp), intent(in), optional :: component_atol(:)
+        real(dp) :: absolute_tolerance(size(value))
         real(dp) :: x(16), w(16), turn
         real(dp), allocatable :: knots(:)
         type(resonance_interval_t), allocatable :: regions(:)
@@ -136,14 +139,22 @@ contains
         end if
         depth_limit = 40
         if (present(max_depth)) depth_limit = max_depth
+        absolute_tolerance = atol
+        if (present(component_atol)) then
+            if (size(component_atol) /= size(value)) then
+                status = 1
+                return
+            end if
+            absolute_tolerance = max(atol, component_atol)
+        end if
         call gauss_legendre(16, x, w)
         allocate(knots(4*nseed + 2))
         call monotonic_knots(residual, a, b, nseed, knots, count)
         do repair = 0, max_repairs
             status = 0
             call collect_regions(residual, knots(:count), nu, regions, nregion)
-            call integrate_regions(residual, weight, regions(:nregion), rtol, atol, &
-                                   x, w, depth_limit, value, status, turn)
+            call integrate_regions(residual, weight, regions(:nregion), rtol, &
+                absolute_tolerance, x, w, depth_limit, value, status, turn)
             if (status /= 4) return
             ! Non-monotonic branch: split it at the extrema around turn.
             value = 0.0_dp
@@ -254,7 +265,7 @@ contains
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
         type(resonance_interval_t), intent(in) :: regions(:)
-        real(dp), intent(in) :: rtol, atol, x(:), w(:)
+        real(dp), intent(in) :: rtol, atol(:), x(:), w(:)
         integer, intent(in) :: depth_limit
         real(dp), intent(out) :: value(:)
         integer, intent(inout) :: status

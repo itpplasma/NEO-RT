@@ -1,3 +1,7 @@
+---
+title: Linear Krook collisions
+---
+
 # Linear Krook collisions
 
 Set `krook_collisions=.true.` and supply a positive `krook_nu` to broaden the
@@ -198,3 +202,21 @@ For a general mixture, [set `species_file`](species.md) to supply D, T and
 electrons together with a common physical rotation and explicit profiles.
 NEO-RT then derives each species' Mach number and returns all species results
 in one native invocation.
+
+
+For passing transport without radial orbit width, a Fourier harmonic can be
+smaller than the error of the orbit integral. Its squared weight then cannot
+meet a purely relative pitch tolerance. NEO-RT integrates a nonoscillating
+envelope `S = (2-eta Bmin) |pertfile_scale| sum|dB_m|/Bmin` with the same
+Lorentzian and transport prefactors. For an analytic perturbation, its amplitude
+is `|epsmn|`. The amplitude error estimate is `e S`, where
+`e = [1+2 pi |mth+nq|] bounce_rtol`. Young's inequality gives
+`2 e S |H| + e^2 S^2 <= rtol |H|^2 + (1+1/rtol) e^2 S^2`.
+The resulting component-wise absolute error budgets scale quadratically with
+the perturbation. They are numerical error estimates, not rigorous ODE
+enclosures. The requested relative tolerance and quadrature work limits are
+unchanged; unresolved quadrature errors beyond this budget still abort.
+`test_krook_c12_cancellation` retains the exact opposite-rotation, constant-Krook,
+multiplier-0.01 deck and its failing T counter-passing mth=+6 velocity node.
+It checks termination, the bounded tiny-channel reference and amplitude scaling;
+the separate MARS reference retains its strict 1e-6 bound.

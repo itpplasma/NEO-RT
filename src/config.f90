@@ -20,6 +20,7 @@ module neort_config
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
+        logical :: collisional_layer = .false.  ! optional boundary-layer closure
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: drift_phase = .false.  ! keep oscillating drift phase in orbit integral
         logical :: fow_radial = .false.  ! first-order radial orbit width in amplitude
@@ -70,6 +71,7 @@ contains
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban, drift_phase, fow_radial
+        use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
         use kinetic_energy_selection, only: validate_energy_ratio
@@ -92,6 +94,7 @@ contains
         m0 = config%m0
         mph = config%mph
         comptorque = config%comptorque
+        collisional_layer = config%collisional_layer
         supban = config%supban
         drift_phase = config%drift_phase
         fow_radial = config%fow_radial
@@ -132,6 +135,7 @@ contains
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
             magdrift_passing, nopassing, pertfile, &
             nonlin, efac, supban, drift_phase, fow_radial
+        use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
         use kinetic_energy_selection, only: validate_energy_ratio
@@ -145,13 +149,14 @@ contains
         integer :: log_level = 0
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
-            supban, drift_phase, fow_radial, &
+            supban, collisional_layer, drift_phase, fow_radial, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, log_level, output_format, &
             profile_species, species_file, krook_collisions, krook_nu, krook_model, krook_harmonic, &
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
             krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale
 
+        collisional_layer = .false.
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         monoenergetic_x = -1.0_dp

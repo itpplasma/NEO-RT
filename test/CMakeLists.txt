@@ -337,6 +337,30 @@ add_test(NAME test_harmonic_bounds
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_collisional_layer_parallel
+    COMMAND test_parallel.x collisional-layer
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_collisional_layer_parallel PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=3;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 3 TIMEOUT 120)
+
+add_test(NAME test_collisional_layer_config_reset
+    COMMAND test_collisional_layer.x config-reset
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/ripple_plateau)
+
+add_test(NAME test_collisional_layer_table
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_collisional_layer_table.py
+        $<TARGET_FILE:test_collisional_layer.x>)
+add_test(NAME test_collisional_layer_generator
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate_collisional_layer.py --check)
+set_tests_properties(test_collisional_layer_table test_collisional_layer_generator
+    PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1" TIMEOUT 120)
+
+add_test(NAME test_collisional_layer
+    COMMAND test_collisional_layer.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+
 add_test(NAME test_passing_drift_derivative
     COMMAND test_passing_drift_derivative.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
@@ -360,6 +384,16 @@ add_test(NAME test_resonance_oracle
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+add_test(NAME test_bounce_counter_passing
+    COMMAND ${CMAKE_BINARY_DIR}/test_bounce_counter_passing.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+add_test(NAME test_transport_branch_state
+    COMMAND ${CMAKE_BINARY_DIR}/test_transport_branch_state.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+)
+set_tests_properties(test_transport_branch_state PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
 add_test(NAME test_perturbation_fourier_kernel
     COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -425,7 +459,8 @@ set(frequency_model_dir "${CMAKE_CURRENT_BINARY_DIR}/frequency_model_modules")
 file(MAKE_DIRECTORY "${frequency_model_dir}")
 add_library(frequency_model_fixture STATIC
     fixtures/frequency_models/providers.f90
-    ../src/freq.f90 ../src/resonance.f90)
+    ../src/freq.f90 ../src/resonance.f90
+    ../src/separatrix.f90 ../src/generated/neort_separatrix_frequency_symbolic.f90)
 set_target_properties(frequency_model_fixture PROPERTIES
     Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
 target_include_directories(frequency_model_fixture BEFORE PUBLIC "${frequency_model_dir}")
@@ -465,6 +500,24 @@ foreach(rate_source IN ITEMS 1 2)
         PROCESSORS 3 TIMEOUT 30)
 endforeach()
 
+add_test(NAME test_krook_reference
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_reference.py
+        $<TARGET_FILE:test_krook_reference.x>
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_mars_reference.tar.xz)
+set_tests_properties(test_krook_reference PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 90)
+set_source_files_properties(test_krook_reference.f90
+    test_mixture_thread_invariance.f90 PROPERTIES
+    COMPILE_OPTIONS "-fno-finite-math-only")
+foreach(mode IN ITEMS krook collisionless)
+    add_test(NAME test_mixture_thread_invariance_${mode}
+        COMMAND test_mixture_thread_invariance.x ${mode}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    set_tests_properties(test_mixture_thread_invariance_${mode} PROPERTIES
+        ENVIRONMENT "OMP_THREAD_LIMIT=8;OPENBLAS_NUM_THREADS=1;OMP_WAIT_POLICY=PASSIVE"
+        PROCESSORS 8 TIMEOUT 300)
+endforeach()
+
 add_test(NAME test_mixture_collisions COMMAND test_mixture_collisions.x)
 foreach(mode IN ITEMS missing_background nonfinite_scale duplicate_shape)
     add_test(NAME test_mixture_collisions_reject_${mode}
@@ -481,3 +534,42 @@ endforeach()
 add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
 set_tests_properties(test_krook_work_oracle PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+foreach(ledger_case IN ITEMS thermal mono parallel species krook no-torque)
+    add_test(NAME test_resonance_ledger_${ledger_case}
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_resonance_ledger.py
+            $<TARGET_FILE:test_resonance_ledger.x> ${CMAKE_SOURCE_DIR}/examples/base
+            ${ledger_case})
+    set_tests_properties(test_resonance_ledger_${ledger_case} PROPERTIES
+        PROCESSORS 2 TIMEOUT 180)
+endforeach()
+# Manufactured fold: a resonance root pair inside one coarse eta interval.
+add_test(NAME test_resonance_fold_pairs
+    COMMAND test_resonance_fold_pairs.x)
+set_tests_properties(test_resonance_fold_pairs PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+# A fold pair fills storage before a later ordinary sign-change bracket.
+add_test(NAME test_resonance_root_capacity COMMAND test_resonance_root_capacity.x)
+set_tests_properties(test_resonance_root_capacity PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+
+add_test(NAME test_separatrix_model COMMAND test_separatrix_model.x)
+add_test(NAME test_separatrix_limit COMMAND test_separatrix_limit.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+add_test(NAME test_orbit_classes COMMAND test_orbit_classes.x)
+add_test(NAME test_orbit_classes_reject_composite COMMAND test_orbit_classes.x composite)
+set_tests_properties(test_orbit_classes_reject_composite PROPERTIES WILL_FAIL TRUE)
+set_tests_properties(test_separatrix_limit PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+
+add_test(NAME test_resonance_acceptance COMMAND test_resonance_acceptance.x)
+
+add_test(NAME test_separatrix_cosine COMMAND test_separatrix_cosine.x)
+
+add_test(NAME test_krook_c12_cancellation
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_c12_cancellation.py
+        $<TARGET_FILE:test_krook_c12_cancellation.x>
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_c12_main.tar.xz)
+set_tests_properties(test_krook_c12_cancellation PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 90)

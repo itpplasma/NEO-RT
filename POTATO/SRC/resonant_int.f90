@@ -329,7 +329,7 @@ subroutine integrate_class_resonances
             !
             ! multiply expression under summation over modes with toroidal mode number, with factor $-\pi^{3/2}/4$
             ! and with reference energy:
-            one_res=one_res*rm3*pi32_over4m*cE_ref
+            one_res=one_res*abs(rm3)*pi32_over4m*cE_ref
             !
             ! A near-tangent root (dresconddx -> 0) gives an infinite
             ! dpsiastdx/dresconddx; for a wall-crossing resonance absHn2=0, so the
@@ -509,7 +509,7 @@ subroutine resonant_torque
         ind_hist,xarr,amat_arr
     use potato_input_mod,  only : nbox, unif_rho_pol, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
-        monoenergetic_x, &
+        enkin_min_over_temp, monoenergetic_x, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
         eps_sampling, itermax_sampling
     use kinetic_energy_selection, only: energy_sample_count, total_energy_sample, &
@@ -571,9 +571,18 @@ subroutine resonant_torque
     !
     thermen_max=thermen_max*temp !maximum kinetic energy in units of reference energy
     !
-    ! Energy integration limits:
-    toten_min=phi_elec_min
+    ! Energy integration limits.  Preserve the default all-midpoint grid.
+    ! An explicitly positive minimum instead starts
+    ! above the maximum potential so every sampled orbit has at least the
+    ! requested kinetic energy throughout the field domain.
     toten_max=thermen_max+phi_elec_max
+    if(enkin_min_over_temp.gt.0.d0 .and. monoenergetic_x.le.0.d0) then
+        toten_min=phi_elec_max+enkin_min_over_temp*temp
+        if(toten_min.ge.toten_max) &
+            error stop 'enkin_min_over_temp must be less than thermen_max'
+    else
+        toten_min=phi_elec_min
+    endif
     toten_range=toten_max-toten_min
     !
     write(msg, '(A,ES14.6)') &
