@@ -294,10 +294,11 @@ subroutine integrate_class_resonances
                 ! the comparison domain, so weight it zero without the integration.
                 ! psiast_res, psi_axis and psi_sep share the field flux gauge.
                 ! Use the axis-to-edge direction rather than assuming a zero axis.
-                absHn2=0.d0
-            else
-                call pertham(z,absHn2)
+                respoints_jp(mode,iclass)%w_res(iroot)=0.d0
+                respoints_jp(mode,iclass)%taub(iroot)=taub_res
+                cycle
             endif
+            call pertham(z,absHn2)
             call equilmaxw(psiast_res,fmaxw)
             call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
             call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)
