@@ -27,7 +27,7 @@ permissions:
 jobs:
   standalone-off:
     name: Reject unsupported native NEO-2 build
-    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-light"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build"]') }}
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v6
