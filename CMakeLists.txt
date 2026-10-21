@@ -105,6 +105,8 @@ set(NEO_RT_SOURCES
     src/config.f90
     src/krook.f90
     src/collision_rates.f90
+    src/landau_pair_quadrature.f90
+    src/landau_projection.f90
     src/mixture_collisions.f90
     src/lorentz_controls.f90
     src/lorentz_graph.f90
@@ -132,7 +134,8 @@ set(NEO_RT_SOURCES
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
 set_source_files_properties(src/krook.f90 src/profiles.f90 src/species.f90
     src/collision_rates.f90 src/mixture_collisions.f90 src/lorentz_controls.f90
-    src/lorentz_graph.f90 src/lorentz_native.f90 PROPERTIES
+    src/lorentz_graph.f90 src/lorentz_native.f90
+    src/landau_pair_quadrature.f90 src/landau_projection.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)

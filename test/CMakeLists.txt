@@ -350,6 +350,17 @@ foreach(mode IN ITEMS zero-mass negative-mass nan-mass zero-charge infinite-char
     set_tests_properties(test_collision_rates_reject_${mode} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
+add_test(NAME test_landau_projection COMMAND test_landau_projection.x)
+set_tests_properties(test_landau_projection PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=4;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
+    PROCESSORS 4 TIMEOUT 60)
+foreach(mode IN ITEMS small-order nan-node zero-relative-node negative-weight nan-mass
+        zero-temperature negative-density zero-charge nan-temperature nan-gradient)
+    add_test(NAME test_landau_projection_reject_${mode}
+        COMMAND test_landau_projection.x ${mode})
+    set_tests_properties(test_landau_projection_reject_${mode} PROPERTIES WILL_FAIL TRUE)
+endforeach()
+
 add_test(NAME test_krook_work_oracle COMMAND test_krook_work_oracle.x)
 set_tests_properties(test_krook_work_oracle PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
