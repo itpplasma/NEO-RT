@@ -304,7 +304,12 @@ contains
             phase_drift = mph * y(7)
         end if
 
-        if (eta > etatp) then
+        if (abs(t) <= 0.0_dp) then
+            ! Local Hamiltonian samples have no bounce-time phase and need no
+            ! frequency installed by a previous orbit integration.
+            Hn = (2.0_dp - eta * bmod1) * epsn * &
+                 exp(imun * (q * mph * y(1) + phase_drift))
+        else if (eta > etatp) then
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
             Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &

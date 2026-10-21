@@ -1,5 +1,7 @@
 program test_conserving_native
-    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use, intrinsic :: iso_fortran_env, only: dp => real64, int64
+    use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan, &
+                                             ieee_is_finite
     use neort_lib, only: config_t, mixture_t, neort_init, &
                          neort_prepare_mixture, neort_setup_at_s
     use neort_species, only: selected_species
@@ -9,6 +11,9 @@ program test_conserving_native
     use neort_landau_pair_quadrature, only: landau_quadrature_t, &
                                             initialize_landau_quadrature
     use neort_lorentz_native, only: sample_lorentz_orbit
+    use neort_transport, only: transport_omth => Omth, timestep_transport
+    use neort_orbit, only: nvar
+    use driftorbit, only: native_mth => mth, native_sign => sign_vpar, etatp
     use fortnum_quadrature, only: gauss_legendre
     use do_magfie_mod, only: psi_pr, q
     use neort_profiles, only: vth, Om_tE
@@ -26,7 +31,7 @@ program test_conserving_native
     type(mixture_t) :: mixture
     type(conserving_species_t) :: cache(3)
     type(landau_quadrature_t) :: quadrature
-    complex(dp) :: collision(51, 51), vector(51), work, hamiltonian, expected_h
+    complex(dp) :: collision(51, 51), vector(51), work
     real(dp) :: omega
     real(dp) :: scale, residual, density_mass, expected_mass, theta, xi, u
     real(dp) :: x(128), weights(128), orb_mass, orb_precession, local_mass
@@ -34,6 +39,7 @@ program test_conserving_native
     real(dp) :: kpair, energy_j, vrel, friction, heat, volume, flow_coeff(3), observed
     complex(dp) :: drive, orb_h, local_h
     integer :: species, info, n, i, offset, point, arm, order, refinement
+    real(dp), parameter :: sample_pitch(3) = [0.05_dp, 0.9_dp, -0.9_dp]
 
     call write_chart('conserving_circle.bc')
     mixture%reference_s = 0.5_dp
@@ -63,12 +69,23 @@ program test_conserving_native
     config%tp_fp_collisions = .true.
     call neort_init(config, 'conserving_circle.bc')
     call neort_prepare_mixture(mixture)
+    ! A local Hamiltonian at t=0 has no bounce-time phase. It must not depend
+    ! on a frequency installed by an earlier orbit integration.
+    transport_omth = ieee_value(0.0_dp, ieee_quiet_nan)
     do species = 1, 3
         selected_species = species
         call neort_setup_at_s(config%s)
         call prepare_conserving_species(2, 2, 3.0_dp, 48, 8, cache(species), info)
         if (info /= 0) then
             print *, 'native preparation status:', info
+            if (info == -32) print *, 'finite M/S/P/ReH/ImH/ReH2/ImH2:', &
+                all(ieee_is_finite(cache(species)%mass)), &
+                all(ieee_is_finite(cache(species)%streaming)), &
+                all(ieee_is_finite(cache(species)%precession)), &
+                all(ieee_is_finite(real(cache(species)%hamiltonian, dp))), &
+                all(ieee_is_finite(aimag(cache(species)%hamiltonian))), &
+                all(ieee_is_finite(real(cache(species)%hamiltonian2, dp))), &
+                all(ieee_is_finite(aimag(cache(species)%hamiltonian2)))
             error stop 'native preparation rejected'
         end if
         n = cache(species)%basis%ngraph
@@ -88,14 +105,11 @@ program test_conserving_native
             error stop 'passing/flow precession cross blocks omitted'
         do point = 1, 8
             theta = 0.13_dp + 0.7_dp*point
-            xi = 0.11_dp + 0.04_dp*point
-            if (mod(point, 2) == 0) xi = -xi
             u = 0.4_dp + 0.13_dp*point
-            call conserving_native_point(theta, u, xi, omega, hamiltonian)
-            expected_h = temperature*elementary_charge*1.0e7_dp*u**2* &
-                         (1 + xi**2)*config%epsmn*exp(cmplx(0.0_dp, theta, dp))
-            if (abs(hamiltonian - expected_h) > 5.0e-14_dp*abs(expected_h)) &
-                error stop 'native local Hamiltonian phase/normalization'
+            do arm = 1, 3
+                xi = sample_pitch(arm)
+                call check_local_phase(theta, u, xi)
+            end do
         end do
        print *, 'physical mass and streaming residual:', species, density_mass, residual
     end do
@@ -195,6 +209,71 @@ program test_conserving_native
     print *, 'native collision null residual and entropy:', residual, real(work, dp)
     print *, 'test_conserving_native PASSED'
 contains
+    subroutine check_local_phase(theta_, u_, xi_)
+        real(dp), intent(in) :: theta_, u_, xi_
+        real(dp) :: state(nvar), derivative(nvar), field, eta_, time, harmonic
+        real(dp) :: saved_sign, saved_frequency
+        complex(dp) :: local_h, expected, finite_time_h
+        integer :: saved_mth, direction
+        integer(int64) :: poisoned_frequency
+
+        saved_mth = native_mth
+        saved_sign = native_sign
+        saved_frequency = transport_omth
+        transport_omth = ieee_value(0.0_dp, ieee_quiet_nan)
+        poisoned_frequency = transfer(transport_omth, poisoned_frequency)
+        call conserving_native_point(theta_, u_, xi_, omega, local_h)
+        expected = temperature*elementary_charge*1.0e7_dp*u_**2* &
+                   (1 + xi_**2)*config%epsmn*exp(cmplx(0.0_dp, theta_, dp))
+        if (.not. all(ieee_is_finite([real(local_h, dp), aimag(local_h)]))) &
+            error stop 'local Hamiltonian depends on unset bounce frequency'
+        if (abs(local_h - expected) > 5.0e-14_dp*abs(expected)) &
+            error stop 'native local Hamiltonian phase/normalization'
+        if (native_mth /= saved_mth .or. &
+            transfer(native_sign, 0_int64) /= transfer(saved_sign, 0_int64)) &
+            error stop 'local Hamiltonian changed orbit context'
+        if (transfer(transport_omth, poisoned_frequency) /= poisoned_frequency) &
+            error stop 'local Hamiltonian changed bounce frequency'
+
+        ! Independent finite-time partner: preserve the actual orbit phase for
+        ! nonzero harmonics on trapped and both passing branches.
+        field = field_t*1.0e4_dp*(1.0_dp - &
+                    minor_m*sqrt(config%s)/major_m*cos(theta_))
+        eta_ = (1.0_dp - xi_**2)/field
+        native_mth = 2
+        if (eta_ <= etatp) native_mth = -4
+        harmonic = real(native_mth, dp)
+        if (eta_ <= etatp) harmonic = harmonic + q*config%mph
+        state = 0.0_dp
+        state(1) = theta_
+        state(2) = u_*vth*xi_
+        call timestep_transport(u_*vth, eta_, nvar, 0.0_dp, state, derivative)
+        finite_time_h = temperature*elementary_charge*1.0e7_dp*u_**2* &
+                        cmplx(derivative(3), derivative(4), dp)
+        if (.not. all(ieee_is_finite([real(finite_time_h, dp), &
+                                      aimag(finite_time_h)]))) &
+            error stop 'zero-time nonzero harmonic read bounce frequency'
+        if (abs(finite_time_h - expected) > 5.0e-14_dp*abs(expected)) &
+            error stop 'native zero-time Hamiltonian phase changed'
+        transport_omth = 1700.0_dp
+        do direction = -1, 1, 2
+            time = direction*0.00073_dp
+            call timestep_transport(u_*vth, eta_, nvar, time, state, derivative)
+            finite_time_h = temperature*elementary_charge*1.0e7_dp*u_**2* &
+                            cmplx(derivative(3), derivative(4), dp)
+            finite_time_h = finite_time_h/ &
+                exp(cmplx(0.0_dp, -harmonic*time*transport_omth, dp))
+            if (.not. all(ieee_is_finite([real(finite_time_h, dp), &
+                                          aimag(finite_time_h)]))) &
+                error stop 'native finite-time Hamiltonian is not finite'
+            if (abs(finite_time_h - expected) > 5.0e-14_dp*abs(expected)) &
+                error stop 'native finite-time Hamiltonian phase changed'
+        end do
+        native_mth = saved_mth
+        native_sign = saved_sign
+        transport_omth = saved_frequency
+    end subroutine check_local_phase
+
     subroutine close (actual, expected, tolerance, label)
         real(dp), intent(in) :: actual, expected, tolerance
         character(*), intent(in) :: label
