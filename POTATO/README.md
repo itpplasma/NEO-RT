@@ -58,6 +58,23 @@ python tools/neo_rt_profiles_to_potato.py profile.in plasma.in components.npz \
     --relation-sign=1
 ```
 
+For profiles whose edge cannot be represented by a global polynomial, add
+`--format=table` and point `profile_file` at that output. The native table starts
+with `POTATO_PROFILE_TABLE_V1`, then a row count and four columns:
+`s_pol, n[cm^-3], Ti[eV], Phi[statvolt]`. POTATO interpolates these physical
+samples with the same natural cubic spline library used by NEO-RT and computes
+the derivatives from that interpolation. Table coordinates must increase and
+cover `s_pol=0..1`; density and temperature must be positive. A query beyond
+table support stops with an explicit error. The existing polynomial format
+remains the default. Validate values and gradients over the orbit domain;
+a small global polynomial residual can hide a large relative edge error.
+
+`potato_profile_readback.x FILE Ealpha Z escale fscale psi_axis psi_sep QUERIES`
+reads either profile format and writes `s_pol,n,T_hat,Phi_hat,dn/dpsi,
+dT_hat/dpsi,dPhi_hat/dpsi`. The query file contains a count followed by one
+`s_pol` per row. This provides a native value/derivative check with the actual
+energy, charge, scale factors and signed poloidal-flux span.
+
 It selects the physical ion using charge and nonzero density, maps
 `s_tor -> s_pol=rho_pol^2`, and records the polynomial residuals. The JSON
 sidecar also records the signed relation

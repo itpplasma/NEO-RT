@@ -8,10 +8,11 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 add_compile_options(-g -fbacktrace)
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-    add_compile_options(-O3 -mcpu=native)
+    set(POTATO_ARCH_FLAGS "-mcpu=native" CACHE STRING "CPU architecture flags for POTATO")
 else ()
-    add_compile_options(-O3 -march=native -mtune=native)
+    set(POTATO_ARCH_FLAGS "-march=native;-mtune=native" CACHE STRING "CPU architecture flags for POTATO")
 endif ()
+add_compile_options(-O3 ${POTATO_ARCH_FLAGS})
 
 include(Util)
 if(NOT DEFINED LIBNEO_REF)
@@ -34,6 +35,12 @@ find_package(LAPACK REQUIRED)
 # (SRC/resonant_int.f90).  Linked to potato_base so -fopenmp reaches POTATO's own
 # sources and the runtime is linked.
 find_package(OpenMP REQUIRED)
+if(NOT DEFINED SPLINE_REF)
+    set(SPLINE_REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e)
+endif()
+find_or_fetch(spline)
+# spline_val_0 has a threadprivate interval cache used by parallel orbits.
+target_link_libraries(spline OpenMP::OpenMP_Fortran)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -62,6 +69,9 @@ add_executable (potato.x
 target_link_libraries(potato.x
 potato
 )
+
+add_executable(potato_profile_readback.x SRC/profile_readback.f90)
+target_link_libraries(potato_profile_readback.x PRIVATE potato)
 
 
 add_executable (test_profile.x
@@ -174,6 +184,11 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_profile_converter.py
     )
     set_tests_properties(potato_profile_converter PROPERTIES TIMEOUT 60)
+    add_test(NAME potato_tabulated_profiles
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/test_tabulated_profiles.py
+            $<TARGET_FILE:potato_profile_readback.x>)
+    set_tests_properties(potato_tabulated_profiles PROPERTIES TIMEOUT 60)
     add_test(NAME potato_invariant_handoff
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/invariant_handoff/test_invariant_handoff.py
