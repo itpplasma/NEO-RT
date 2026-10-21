@@ -34,7 +34,8 @@ export GITHUB_ENV=$root/github-env GITHUB_PATH=$root/github-path GITHUB_OUTPUT=$
 : > "$GITHUB_ENV"; : > "$GITHUB_PATH"; : > "$GITHUB_OUTPUT"
 export SCI_CPUS=${SCI_CPUS:-8}
 export CMAKE_BUILD_PARALLEL_LEVEL=$SCI_CPUS CTEST_PARALLEL_LEVEL=$SCI_CPUS
-export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
+# The native parallel oracle requires at least two OpenMP workers.
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-2}
 export RUNNER_TEMP=$root/tmp
 mkdir -p "$RUNNER_TEMP" ci-out
 { hostname; /usr/bin/gfortran --version | head -1; git rev-parse HEAD; } | tee ci-out/toolchain.txt
