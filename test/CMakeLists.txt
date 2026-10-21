@@ -103,6 +103,16 @@ add_test(NAME test_profile_collision_species
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_test(NAME test_linear_electron COMMAND test_linear_electron.x)
+add_test(NAME test_nonlinear_electron_rejects
+    COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:test_linear_electron.x>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_nonlinear_electron_rejection.cmake)
+add_test(NAME test_linear_electron_transport COMMAND test_linear_electron.x transport
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_linear_electron test_nonlinear_electron_rejects
+    test_linear_electron_transport PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+
 add_test(NAME test_drift_phase
     COMMAND ${CMAKE_BINARY_DIR}/test_drift_phase.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
