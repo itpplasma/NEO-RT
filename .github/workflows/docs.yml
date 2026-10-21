@@ -2,7 +2,8 @@ name: Deploy documentation
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
   pull_request:
   merge_group:
   workflow_dispatch:
@@ -45,8 +46,11 @@ jobs:
         with:
           path: build/doc
 
+    if: >-
+      github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))) && (github.event_name == 'push' && github.ref == 'refs/heads/main')
     permissions:
       pages: write
       id-token: write
