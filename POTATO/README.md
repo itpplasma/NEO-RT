@@ -73,6 +73,11 @@ The displayed `n=+3` is the current TC24 MARS-to-CCW result:
 `phi_CCW=-phi_MARS` and `n_CCW=-RNTOR=+3`. It is not a universal MARS
 default; another field must supply its own signed laboratory-coordinate map.
 
+The perturbation converter accepts both NetCDF3 and HDF5 chartmaps. Geometry
+and magnetic harmonics use the `rho` nodes, with `s_tor=rho**2`; the separate
+`s` array belongs to the covariant vector potential. Legacy HDF5 maps without
+`rho` retain their explicitly supplied `s` geometry axis.
+
 The matching profile converter also keeps the coordinate and electric-field
 conventions explicit:
 

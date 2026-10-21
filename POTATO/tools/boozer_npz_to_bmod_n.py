@@ -20,6 +20,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 from scipy.interpolate import CubicSpline, LinearNDInterpolator, RegularGridInterpolator
+from scipy.io import netcdf_file
 
 
 def _sha256(path: Path) -> str:
@@ -108,16 +109,25 @@ def convert(chartmap: Path, components: Path, output: Path, *, component: str,
     if margin_fraction <= 0.0:
         raise ValueError("margin_fraction must be positive")
 
-    with h5py.File(chartmap, "r") as handle:
-        s_geometry = np.asarray(handle["s"], dtype=float)
-        theta = np.asarray(handle["theta"], dtype=float)
-        zeta = np.asarray(handle["zeta"], dtype=float)
-        x = np.asarray(handle["x"], dtype=float)
-        y = np.asarray(handle["y"], dtype=float)
-        z = np.asarray(handle["z"], dtype=float)
-        if "zeta_convention" not in handle.attrs:
+    hdf5 = h5py.is_hdf5(chartmap)
+    context = h5py.File(chartmap, "r") if hdf5 else netcdf_file(chartmap, "r", mmap=False)
+    with context as handle:
+        variables = handle if hdf5 else handle.variables
+        attributes = handle.attrs if hdf5 else handle._attributes
+        # Geometry and B harmonics are sampled on rho, whereas A_phi uses the
+        # separate s grid. Their lengths can agree without their nodes agreeing.
+        if "rho" in variables:
+            s_geometry = np.asarray(variables["rho"][:], dtype=float)**2
+        else:
+            s_geometry = np.asarray(variables["s"][:], dtype=float)
+        theta = np.asarray(variables["theta"][:], dtype=float)
+        zeta = np.asarray(variables["zeta"][:], dtype=float)
+        x = np.asarray(variables["x"][:], dtype=float)
+        y = np.asarray(variables["y"][:], dtype=float)
+        z = np.asarray(variables["z"][:], dtype=float)
+        if "zeta_convention" not in attributes:
             raise ValueError("chartmap lacks the required zeta_convention attribute")
-        zeta_convention = _text_attribute(handle.attrs["zeta_convention"])
+        zeta_convention = _text_attribute(attributes["zeta_convention"])
     if zeta_convention != "boozer":
         raise ValueError(
             f"chartmap zeta_convention must be 'boozer', got {zeta_convention!r}"

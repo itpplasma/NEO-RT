@@ -12,6 +12,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
+from scipy.io import netcdf_file
 
 
 TOOL = Path(__file__).parents[2] / "tools" / "boozer_npz_to_bmod_n.py"
@@ -47,7 +48,8 @@ def main() -> int:
             z[index] = z_plane.T
         with h5py.File(chartmap, "w") as handle:
             handle.attrs["zeta_convention"] = "boozer"
-            handle["s"] = s
+            # Geometry is on rho; the separate A_phi flux grid need not coincide.
+            handle["s"] = np.linspace(0.0, 1.0, s.size)
             handle["rho"] = np.sqrt(s)
             handle["theta"] = theta
             handle["zeta"] = zeta
@@ -63,7 +65,7 @@ def main() -> int:
         )
         metadata = MODULE.convert(
             chartmap, components, output, component="total", n_tor=-3,
-            s_max=0.81, nrad=257, nzet=257, ntheta=256,
+            s_max=1.0, nrad=257, nzet=257, ntheta=256,
             margin_fraction=0.1,
         )
         rad, zet, values = MODULE.read_bmod_n(output)
@@ -74,15 +76,7 @@ def main() -> int:
         if values.shape != (257, 257) or not np.all(np.isfinite(values)):
             raise AssertionError("invalid POTATO output grid")
         surface_errors = metadata["gridding_relative_l2_by_surface"]
-        if not np.array_equal(surface_errors["s_tor"], s):
-            raise AssertionError("surface-error provenance lost the mapped radial grid")
-        if (
-            len(surface_errors["relative_l2"]) != s.size
-            or not np.all(np.isfinite(surface_errors["relative_l2"]))
-            or len(surface_errors["absolute_l2_tesla"]) != s.size
-            or len(surface_errors["reference_l2_tesla"]) != s.size
-        ):
-            raise AssertionError("invalid per-surface gridding-error provenance")
+
 
         # Check the resolved interior surfaces after the R-Z gridding step.
         sample = RegularGridInterpolator((rad, zet), values)
@@ -107,6 +101,15 @@ def main() -> int:
         )
         if relative_l2 > 2.0e-2:
             raise AssertionError(f"R-Z reconstruction error is {relative_l2:.3e}")
+        if not np.allclose(surface_errors["s_tor"], s, rtol=0.0, atol=1e-15):
+            raise AssertionError("surface-error provenance lost the mapped radial grid")
+        if (
+            len(surface_errors["relative_l2"]) != s.size
+            or not np.all(np.isfinite(surface_errors["relative_l2"]))
+            or len(surface_errors["absolute_l2_tesla"]) != s.size
+            or len(surface_errors["reference_l2_tesla"]) != s.size
+        ):
+            raise AssertionError("invalid per-surface gridding-error provenance")
         if metadata["toroidal_angle_transform"] != (
                 "A_RZ=A_B*exp(i*n*(phi_B-phi_geom))"):
             raise AssertionError("missing Boozer-to-geometric toroidal-angle provenance")
@@ -114,6 +117,22 @@ def main() -> int:
             raise AssertionError("manufactured toroidal shift was not recorded")
         if values[0, 0] != 0.0j or values[-1, -1] != 0.0j:
             raise AssertionError("outside-map grid margin must be zero")
+        # The same dual-grid chartmap in NetCDF3 (the native AUG artifact).
+        classic = root / "chartmap-classic.nc"
+        with h5py.File(chartmap, "r") as source, netcdf_file(classic, "w", version=2) as dest:
+            dest.zeta_convention = b"boozer"
+            for name in ("s", "rho", "theta", "zeta"):
+                dest.createDimension(name, source[name].size)
+                dest.createVariable(name, "d", (name,))[:] = source[name][:]
+            for name in ("x", "y", "z"):
+                dest.createVariable(name, "d", ("zeta", "theta", "rho"))[:] = source[name][:]
+        classic_output = root / "classic-bmod.dat"
+        MODULE.convert(classic, components, classic_output, component="total", n_tor=-3,
+                       s_max=1.0, nrad=257, nzet=257, ntheta=256, margin_fraction=0.1)
+        classic_rad, classic_zet, classic_values = MODULE.read_bmod_n(classic_output)
+        if not (np.array_equal(classic_rad, rad) and np.array_equal(classic_zet, zet)
+                and np.allclose(classic_values, values, rtol=1e-13, atol=1e-15)):
+            raise AssertionError("NetCDF3 and HDF5 reconstruction differ")
     return 0
 
 
