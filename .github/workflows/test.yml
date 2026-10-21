@@ -27,7 +27,7 @@ permissions:
 jobs:
   standalone-off:
     name: Reject unsupported native NEO-2 build
-    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build","itp-slurm"]') }}
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v6
@@ -58,7 +58,7 @@ jobs:
     if: >-
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
   build_Fast:
-    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build","itp-slurm"]') }}
 
     steps:
       - uses: actions/checkout@v6
@@ -75,7 +75,9 @@ jobs:
           SCI_MATRIX_CONFIG: Fast
           SCI_RUN_GOLDEN: ${{ github.event_name != 'workflow_dispatch' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
         run: |-
-          ci/run.sh test-build
+          export TMPDIR=$RUNNER_TEMP
+          SCI_TIER=test-build ci/bundle.sh "$RUNNER_TEMP/native.tar.zst"
+          sci-dispatch native "$RUNNER_TEMP/native.tar.zst"
       - name: Install build dependencies
         run: |
           make deps
@@ -113,7 +115,7 @@ jobs:
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
     name: build (Fast)
   build_Debug:
-    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build"]') }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build","itp-slurm"]') }}
 
     steps:
       - uses: actions/checkout@v6
@@ -130,7 +132,9 @@ jobs:
           SCI_MATRIX_CONFIG: Debug
           SCI_RUN_GOLDEN: ${{ github.event_name != 'workflow_dispatch' && (github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
         run: |-
-          ci/run.sh test-build
+          export TMPDIR=$RUNNER_TEMP
+          SCI_TIER=test-build ci/bundle.sh "$RUNNER_TEMP/native.tar.zst"
+          sci-dispatch native "$RUNNER_TEMP/native.tar.zst"
       - name: Install build dependencies
         run: |
           make deps
@@ -167,6 +171,19 @@ jobs:
     if: >-
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci'))
     name: build (Debug)
+  build-result:
+    name: build
+    needs: [build_Fast, build_Debug, standalone-off]
+    if: >-
+      always() && (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.actor != 'github-merge-queue[bot]') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'full-ci')))
+    runs-on: [self-hosted, itp-light]
+    steps:
+      - env:
+          FAST: ${{ needs.build_Fast.result }}
+          DEBUG: ${{ needs.build_Debug.result }}
+          OFF: ${{ needs.standalone-off.result }}
+        run: test "$FAST" = success && test "$DEBUG" = success && test "$OFF" = success
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

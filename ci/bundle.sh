@@ -30,6 +30,6 @@ printf '%s\n' "${SCI_TIER:?SCI_TIER missing}" > "$stage/tier.txt"
 : > "$stage/task.env"
 while IFS= read -r key; do
     printf 'export %s=%q\n' "$key" "${!key}" >> "$stage/task.env"
-done < <(compgen -A variable SCI_MATRIX_)
+done < <(compgen -A variable SCI_MATRIX_; printf '%s\n' SCI_LIBNEO_REF SCI_RUN_GOLDEN)
 tar -C "$stage" -cf - src mirrors revision.txt tier.txt task.env | zstd -q -T2 -o "$out"
 sha256sum "$out"
