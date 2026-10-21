@@ -153,6 +153,10 @@ add_test(NAME test_radial_boxes
    COMMAND test_radial_boxes.x
 )
 
+add_executable(test_canonical_axis_closure.x SRC/test_canonical_axis_closure.f90)
+target_link_libraries(test_canonical_axis_closure.x PRIVATE potato_base)
+add_test(NAME test_canonical_axis_closure COMMAND test_canonical_axis_closure.x)
+
 add_executable(test_energy_selection.x
    SRC/test_energy_selection.f90
 )

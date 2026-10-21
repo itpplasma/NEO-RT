@@ -1,4 +1,5 @@
 module potato_input_mod
+    use, intrinsic :: iso_fortran_env, only: dp => real64
     use field_sub, only: read_field_input
     use input_files, only: convexfile
     use iso_fortran_env, only: output_unit
@@ -106,6 +107,11 @@ module potato_input_mod
     ! .false. explicitly for closed-flux-only runs.
     logical :: edge_extension = .true.
 
+    ! Model match: constant n,T,Phi below the canonical magnetic-axis label.
+    ! The resulting derivative of F0(H,psi*) at fixed H is exactly zero there.
+    ! Physical-orbit profile queries retain their strict support checks.
+    logical :: canonical_axis_constant_extension = .false.
+
     ! Accepted for old case files.
     logical :: plot_poicut = .false.
     logical :: plot_equilibrium = .false.
@@ -119,7 +125,7 @@ module potato_input_mod
         adaptive_jperp, npoi_init, nlagr_sampling, eps_sampling, &
         itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
-        profile_file, edge_extension, &
+        profile_file, edge_extension, canonical_axis_constant_extension, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
         contour_rho_min, contour_rho_max, contour_nrho, &
@@ -128,6 +134,31 @@ module potato_input_mod
         probe_rho_pol, probe_ux, probe_eta, probe_m, probe_n
 
 contains
+
+    pure logical function bounce_period_admitted(period) result(admitted)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+        real(dp), intent(in) :: period
+
+        admitted = .false.
+        if (.not. ieee_is_finite(period)) return
+        admitted = period > 0.0_dp
+    end function bounce_period_admitted
+
+    logical function zero_canonical_axis_drive(psi_star, psi_axis, psi_edge, &
+                                               orbit_admitted) result(zero_drive)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+        real(dp), intent(in) :: psi_star, psi_axis, psi_edge
+        logical, intent(in) :: orbit_admitted
+
+        zero_drive = .false.
+        if (.not. canonical_axis_constant_extension) return
+        if (.not. orbit_admitted) return
+        if (.not. ieee_is_finite(psi_star)) return
+        if (.not. ieee_is_finite(psi_axis)) return
+        if (.not. ieee_is_finite(psi_edge)) return
+        if (psi_edge == psi_axis) return
+        zero_drive = (psi_star-psi_axis)/(psi_edge-psi_axis) < 0.0_dp
+    end function zero_canonical_axis_drive
 
     subroutine read_potato_input(filename)
         character(len=*), intent(in) :: filename
@@ -201,6 +232,8 @@ contains
         write(iunit, '(A,ES12.5)') '  perpinv_plot     = ', perpinv_plot
         write(iunit, '(A,ES12.5)') '  enkin_over_temp  = ', enkin_over_temp
         write(iunit, '(A,A)') '  profile_file     = ', trim(profile_file)
+        write(iunit, '(A,L1)') '  canonical_axis_constant_extension = ', &
+            canonical_axis_constant_extension
         write(iunit, '(A,L1)') '  edge_extension   = ', edge_extension
         write(iunit, '(A,ES12.5)') '  orbit_Rstart     = ', orbit_Rstart
         write(iunit, '(A,ES12.5)') '  orbit_Zstart     = ', orbit_Zstart

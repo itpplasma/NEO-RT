@@ -94,11 +94,13 @@ end subroutine velo_res
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-subroutine pertham(z,absHn2)
+subroutine pertham(z,absHn2,orbit_admitted)
     !
     ! Computes modulus squared of the Fourier amplitude of the normalized perturbed
     ! Hamiltoninan, $|\hat H_\bm|^2$, with $\hat H_\bm$ defined by Eq.(102) (former Eq.(93)).
     !
+    use potato_input_mod, only : bounce_period_admitted
+    use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     use orbit_dim_mod,     only : neqm,next     ,write_orb,iunit1
     use global_invariants, only : dtau
     use resint_mod,        only : taub_new,delphi_new,toten_orb,perpinv_orb
@@ -108,6 +110,7 @@ subroutine pertham(z,absHn2)
     !
     complex(8), parameter :: imun=(0.d0,1.d0)
     !
+    logical, intent(out) :: orbit_admitted
     integer :: ierr
     double precision :: absHn2,bmod,phi_elec,taub,delphi
     double precision, dimension(neqm) :: z
@@ -115,6 +118,7 @@ subroutine pertham(z,absHn2)
     !
     external :: velo,velo_res
     !
+    orbit_admitted=.false.
     call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
     !
     toten_orb=z(4)**2+phi_elec
@@ -125,6 +129,12 @@ subroutine pertham(z,absHn2)
     !
     call find_bounce(next,velo,dtau,z,taub,delphi,extraset,ierr)
     if(ierr.ne.0) then
+        absHn2 = 0.d0
+        deallocate(extraset)
+        return
+    endif
+    !
+    if (.not. bounce_period_admitted(taub)) then
         absHn2 = 0.d0
         deallocate(extraset)
         return
@@ -145,7 +155,14 @@ subroutine pertham(z,absHn2)
         return
     endif
     !
+    if (.not. bounce_period_admitted(taub)) then
+        absHn2 = 0.d0
+        deallocate(extraset)
+        return
+    endif
+    !
     absHn2=(extraset(2)/taub)**2+(extraset(3)/taub)**2
+    orbit_admitted=ieee_is_finite(absHn2).and.taub.gt.0.d0
     !
     deallocate(extraset)
     !
@@ -171,6 +188,7 @@ subroutine integrate_class_resonances
     use interp_cache_mod,   only : interp_cache_reset
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_axis,psi_sep
+    use potato_input_mod,   only : zero_canonical_axis_drive
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
@@ -179,6 +197,7 @@ subroutine integrate_class_resonances
     double precision, parameter :: pi=3.14159265358979d0, twopi=2.d0*pi, &
         pi32_over4m=-0.25d0*pi**1.5d0
     !
+    logical          :: orbit_admitted
     integer          :: mode,iroot,ierr
     double precision :: relmargin_loc,widthclass,xbeg,xend
     double precision :: rescond,dresconddx,dpsiastdx
@@ -214,7 +233,7 @@ subroutine integrate_class_resonances
     ! write(31415) and tee_message go in a critical section.  Each thread resets its
     ! interp cache at entry so it drops the previous class's grid before reusing it.
     !$omp parallel if(.false.) default(shared) &
-    !$omp   private(mode,iroot,ierr,rescond,dresconddx,dpsiastdx) &
+    !$omp   private(mode,iroot,ierr,rescond,dresconddx,dpsiastdx,orbit_admitted) &
     !$omp   private(one_res,Rst,xi,dxi_dx,dpsiast_dRst,absHn2,fmaxw,A1ast,A2ast) &
     !$omp   private(dens,temp,ddens,dtemp,phi_elec,dPhi_dpsi,z) &
     !$omp   copyin(ifuntype,R_class_beg,R_class_end,sigma_class,dtau,toten,perpinv, &
@@ -298,7 +317,15 @@ subroutine integrate_class_resonances
                 respoints_jp(mode,iclass)%taub(iroot)=taub_res
                 cycle
             endif
-            call pertham(z,absHn2)
+            call pertham(z,absHn2,orbit_admitted)
+            ! This optional closure concerns the canonical F0 derivative only.
+            ! Both physical bounce traces must have passed before applying it.
+            if (zero_canonical_axis_drive(psiast_res,psi_axis,psi_sep, &
+                                           orbit_admitted)) then
+                respoints_jp(mode,iclass)%w_res(iroot)=0.d0
+                respoints_jp(mode,iclass)%taub(iroot)=taub_res
+                cycle
+            endif
             call equilmaxw(psiast_res,fmaxw)
             call denstemp_of_psi(psiast_res,dens,temp,ddens,dtemp)
             call phielec_of_psi(psiast_res,phi_elec,dPhi_dpsi)

@@ -120,6 +120,21 @@ profile schema needs only `s_tor,M_t`; the converter derives
 legacy third `v_th` column is present, it is checked against that source rather
 than used as an independent temperature profile.
 
+## Optional canonical-axis distribution closure
+
+`canonical_axis_constant_extension = .true.` selects a model in which the
+canonical profiles n(psi*), T(psi*) and Phi(psi*) are continuous constants
+below the magnetic-axis label. At fixed total energy H this gives
+`d ln F0(H,psi*)/d psi* = 0`, so those canonical resonances have zero drive.
+The signed normalized label `(psi*-psi_axis)/(psi_edge-psi_axis)` determines
+this region for either flux orientation. Both physical bounce traces must
+pass before the closure is applied. Physical-orbit profile support checks,
+in-domain weights and the separate SOL exclusion remain unchanged.
+
+The option defaults to false: undefined canonical profile queries still fail.
+This is an explicit distribution-model boundary condition, not a collision
+operator, finite-orbit convergence result or normalization adjustment.
+
 ## Running with OpenMP
 
 The grid build and the per-mode root search run in parallel with OpenMP. Use one
