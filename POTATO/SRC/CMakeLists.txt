@@ -1,9 +1,23 @@
+# Compile the same reader sources as NEO-RT, with OpenMP enabled for its caches.
+add_library(potato_boozer_reader STATIC
+  ../../src/logging.f90
+  ../../src/util.f90
+  ../../src/do_magfie_standalone.f90
+)
+target_link_libraries(potato_boozer_reader PUBLIC
+  spline LIBNEO::boozer LIBNEO::coordinates OpenMP::OpenMP_Fortran
+)
+target_include_directories(potato_boozer_reader PUBLIC
+  "${PROJECT_BINARY_DIR}" "${PROJECT_BINARY_DIR}/spline"
+)
+
 add_library(potato_base
   ${CMAKE_CURRENT_SOURCE_DIR}/../../src/kinetic_energy_selection.f90
   ${LIBNEO_SOURCE_DIR}/src/util/libneo_kinds.f90
   logging_mod.f90
   wall_loss_mod.f90
   potato_input_mod.f90
+  boozer_perturbation_mod.f90
   potato_invariants_mod.f90
   ${LIBNEO_SOURCE_DIR}/src/util/math_constants.f90
   alpha_lifetime_mod.f90
@@ -62,6 +76,7 @@ endif()
 # the permissive legacy standard rather than POTATO's f2018.
 target_compile_options(vode PRIVATE -std=legacy)
 target_link_libraries(potato_base PUBLIC
+potato_boozer_reader
 spline
 vode
 BLAS::BLAS
