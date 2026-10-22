@@ -39,6 +39,8 @@ program test_boozer_orientation_guard
     case ("scale")
         call write_flux_changed_copy(trim(path), trim(flipped_path), 1.2_dp)
         call read_boozer_file(trim(flipped_path))
+        call set_s(0.3_dp)
+        call init_magfie_at_s()
         error stop "flux-scaled Boozer file was accepted"
     case ("nan_flux")
         call write_flux_changed_copy(trim(path), trim(flipped_path), &

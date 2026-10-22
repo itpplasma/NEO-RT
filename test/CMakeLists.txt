@@ -196,7 +196,7 @@ function(add_boozer_orientation_tests name file swi)
     )
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_scale_${name})
     set_tests_properties(test_boozer_orientation_magnitude_${name} PROPERTIES
-        PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation"
+        PASS_REGULAR_EXPRESSION "Boozer volume magnitude mismatch"
     )
 endfunction()
 add_boozer_orientation_tests(circ ${CMAKE_SOURCE_DIR}/examples/circ.bc 8)
@@ -213,6 +213,24 @@ add_test(NAME test_boozer_orientation_drift_circ
         ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+
+# Analytic synthetic file: the last surface has a 20% dV/ds mismatch.
+foreach(mode outside inside support later sign)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/volume_${mode})
+    add_test(NAME test_boozer_volume_${mode}
+        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_volume_support.x ${mode}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/volume_${mode})
+    if(mode STREQUAL "outside")
+        set_tests_properties(test_boozer_volume_${mode} PROPERTIES
+            PASS_REGULAR_EXPRESSION "accepted outside mismatch")
+    elseif(mode STREQUAL "sign")
+        set_tests_properties(test_boozer_volume_${mode} PROPERTIES
+            PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation.*s=.*sign mismatch")
+    else()
+        set_tests_properties(test_boozer_volume_${mode} PROPERTIES
+            PASS_REGULAR_EXPRESSION "Boozer volume magnitude mismatch.*s=.*relative error=.*limit=")
+    endif()
+endforeach()
 
 add_test(NAME test_profile_collision_species
     COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
