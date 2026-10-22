@@ -5,7 +5,9 @@ module neort_transport
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
-    use do_magfie_pert_mod, only: do_magfie_pert_amp, perturbation_amplitude_bound
+    use do_magfie_pert_mod, only: do_magfie_pert_amp, &
+        magnetic_amplitude_bound => perturbation_amplitude_bound
+    use neort_phi1, only: phi1, do_elec_pert_amp, phi1_amplitude_bound
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
@@ -422,7 +424,7 @@ contains
             ! gives 2e*S*|H| <= rtol*|H|^2 + e^2*S^2/rtol.
             ! The phase sensitivity is 2*pi*|mth+nq| times the period error.
             if (pertfile) then
-                call perturbation_amplitude_bound([s, 0.0_dp, th0], amplitude)
+                call magnetic_amplitude_bound([s, 0.0_dp, th0], amplitude)
                 amplitude_scale = abs(pertfile_scale)*amplitude/Bmin
             else
                 amplitude_scale = abs(epsmn)
@@ -458,6 +460,8 @@ contains
             call Om_th(ux*vth, eta, Omth, dOmthdv, dOmthdeta)
             taub = 2.0_dp*pi/abs(Omth)
             drive_bound = (2.0_dp - eta*Bmin)*amplitude_scale
+            if (phi1) call perturbation_amplitude_bound( &
+                [s, 0.0_dp, th0], ux*vth, eta, drive_bound)
             energy_squared = (mi*(ux*vth)**2/2.0_dp*drive_bound)**2
             mono = .false.
             if (present(energy_ratio)) mono = energy_ratio > 0.0_dp
@@ -478,6 +482,21 @@ contains
             call compute_transport_weight(ux, eta, result_, energy_ratio)
         end subroutine weight
     end subroutine compute_krook_velocity
+
+    subroutine perturbation_amplitude_bound(x, v, eta, amplitude)
+        real(dp), intent(in) :: x(3), v, eta
+        real(dp), intent(out) :: amplitude
+        real(dp) :: magnetic, electric
+        magnetic = abs(epsmn)
+        if (pertfile) then
+            call magnetic_amplitude_bound(x, magnetic)
+            magnetic = abs(pertfile_scale)*magnetic/Bmin
+        end if
+        amplitude = (2.0_dp - eta*Bmin)*magnetic
+        if (.not. phi1) return
+        call phi1_amplitude_bound(x, electric)
+        amplitude = amplitude + abs(qi)*electric/(mi*v**2/2.0_dp)
+    end subroutine perturbation_amplitude_bound
 
     subroutine report_krook_failure(status, ux, nu, effective_harmonic, geometry)
         integer, intent(in) :: status
@@ -899,8 +918,8 @@ contains
         real(dp) :: dOmphdv, dOmphdeta
         real(dp) :: phase_drift, bmod1, vparallel, x1(3), sqrtg1, hder1(3), hcovar1(3), &
                     hctrvr1(3), hcurl1(3)
-        complex(dp) :: epsn, Hn  ! relative amplitude of perturbation field epsn=Bn/B0
-        ! and Hamiltonian Hn = (H - H0)_n
+        complex(dp) :: epsn, Hn, electric, drive
+        ! epsn = Bn/B0; drive and Hn are normalized by mi*v**2/2.
 
         x(1) = s
         x(2) = 0.0_dp
@@ -953,18 +972,24 @@ contains
             phase_drift = mph * y(7)
         end if
 
+        drive = (2.0_dp - eta*bmod1)*epsn
+        if (phi1) then
+            call do_elec_pert_amp(x1, electric)
+            drive = drive + qi*electric/(mi*v**2/2.0_dp)
+        end if
+
         if (abs(t) <= 0.0_dp) then
             ! Local Hamiltonian samples have no bounce-time phase and need no
             ! frequency installed by a previous orbit integration.
-            Hn = (2.0_dp - eta * bmod1) * epsn * &
+            Hn = drive * &
                  exp(imun * (q * mph * y(1) + phase_drift))
         else if (eta > etatp) then
             !t0 = 0.25*2*pi/Omth ! Different starting position in orbit
             t0 = 0.0_dp
-            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - mth * (t - &
+            Hn = drive * exp(imun * (q * mph * (y(1)) - mth * (t - &
                                                                                        t0) * Omth + phase_drift))
         else
-            Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
+            Hn = drive * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
                                                              * t * Omth + phase_drift))
         end if
         ydot(3) = real(Hn)

@@ -40,6 +40,7 @@ contains
     subroutine init_from_config_file(config_file, boozer_file, boozer_pert_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
+        use neort_phi1, only: read_phi1_file
         use driftorbit, only: pertfile, nonlin
         use neort_config, only: read_and_set_config
         use thetadata_mod, only: init_attenuation_data
@@ -60,12 +61,14 @@ contains
             call read_boozer_pert_file(boozer_pert_file)
         end if
 
+        call read_phi1_file()
         if (nonlin) call init_attenuation_data()
     end subroutine init_from_config_file
 
     subroutine init_from_config_struct(config, boozer_file, boozer_pert_file)
         use do_magfie_mod, only: read_boozer_file
         use do_magfie_pert_mod, only: read_boozer_pert_file
+        use neort_phi1, only: read_phi1_file
         use driftorbit, only: pertfile, nonlin
         use neort_config, only: set_config
         use thetadata_mod, only: init_attenuation_data
@@ -85,6 +88,7 @@ contains
             call read_boozer_pert_file(boozer_pert_file)
         end if
 
+        call read_phi1_file()
         if (nonlin) call init_attenuation_data()
     end subroutine init_from_config_struct
 

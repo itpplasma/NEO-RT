@@ -1,6 +1,20 @@
 find_package(Python REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
+add_test(NAME test_phi1 COMMAND test_phi1.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_phi1 PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+foreach(mode IN ITEMS spline single two one-mode quantity n mixed-n)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/phi1_${mode})
+    add_test(NAME test_phi1_reader_${mode} COMMAND test_phi1_reader.x ${mode}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/phi1_${mode})
+    set_tests_properties(test_phi1_reader_${mode} PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=3;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
+endforeach()
+set_tests_properties(test_phi1_reader_quantity test_phi1_reader_n
+    test_phi1_reader_mixed-n PROPERTIES WILL_FAIL TRUE)
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
     add_test(NAME test_profile_probe
