@@ -15,13 +15,20 @@ program test_bmod_boozer
     worst = 0.0_dp
     !$omp parallel do private(s,theta,nu,r,z,x,got,amp,expected,field,err) &
     !$omp reduction(max:worst)
-    do j = 0, 191
+    do j = 0, 383
         s = 0.15_dp + 0.7_dp*real(mod(j, 23), dp)/22.0_dp
         theta = 2*pi*real(mod(j, 64), dp)/64.0_dp
+        ! Query the uncharted core and exterior, including the singular axis.
+        if (j >= 192) s = 1.0e-5_dp*mod(j, 19)
+        if (j >= 288) s = 1.1_dp
         nu = 0.13_dp + 0.02_dp*sin(theta)
         r = 300.0_dp + 100.0_dp*s*cos(theta)
         z = 100.0_dp*s*sin(theta)
         call bmod_pert(r, z, got)
+        if (j >= 192) then
+            if (abs(got) /= 0.0_dp) error stop 'outside BC geometry must be zero'
+            cycle
+        end if
         call init_magfie_pert_at_s()
         x = [s, phi + nu, theta]
         call do_magfie_pert_amp(x, amp)

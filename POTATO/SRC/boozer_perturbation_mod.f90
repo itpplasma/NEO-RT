@@ -1,6 +1,8 @@
 module boozer_perturbation_mod
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
+    use netcdf, only: nf90_open, nf90_nowrite, nf90_get_att, nf90_global, &
+        nf90_close, nf90_noerr
     use libneo_coordinates_base, only: coordinate_system_t, PSI_TOR_NORM, BOOZER
     use libneo_coordinates_chartmap, only: make_chartmap_coordinate_system, &
         chartmap_coordinate_system_t
@@ -16,6 +18,7 @@ module boozer_perturbation_mod
     character(len=256) :: boozer_perturbation_file = 'in_file_pert'
     class(coordinate_system_t), allocatable :: geometry
     logical :: initialized = .false.
+    real(dp) :: support_s(2), zero_disks(6)
     logical :: thread_initialized = .false.
     real(dp) :: previous_u(3) = 0.0_dp
     logical :: have_previous_u = .false.
@@ -26,12 +29,27 @@ contains
     subroutine initialize_boozer_perturbation(n_tor)
         integer, intent(in) :: n_tor
         logical :: ready
+        integer :: ncid, status
 
         !$omp atomic read
         ready = initialized
         if (ready) return
         !$omp critical (potato_boozer_init)
         if (.not. initialized) then
+            status = nf90_open(trim(boozer_geometry_file), nf90_nowrite, ncid)
+            if (status /= nf90_noerr) error stop 'POTATO Boozer geometry open failed'
+            status = nf90_get_att(ncid, nf90_global, 'support_s', support_s)
+            if (status /= nf90_noerr) error stop 'Boozer geometry needs support_s'
+            status = nf90_get_att(ncid, nf90_global, 'zero_disks', zero_disks)
+            if (status /= nf90_noerr) error stop 'Boozer geometry needs zero_disks'
+            status = nf90_close(ncid)
+            if (status /= nf90_noerr) error stop 'POTATO Boozer geometry close failed'
+            if (.not. all(ieee_is_finite(support_s)) .or. &
+                .not. all(ieee_is_finite(zero_disks))) &
+                error stop 'POTATO Boozer geometry support must be finite'
+            if (support_s(1) >= support_s(2) .or. &
+                minval(zero_disks([3, 6])) < 0.0_dp) &
+                error stop 'POTATO Boozer geometry support is invalid'
             call make_chartmap_coordinate_system(geometry, trim(boozer_geometry_file))
             select type (g => geometry)
             type is (chartmap_coordinate_system_t)
@@ -59,6 +77,11 @@ contains
         if (.not. all(ieee_is_finite([r, z]))) &
             error stop 'POTATO Boozer inverse: nonfinite R,Z'
         call initialize_boozer_perturbation(n_tor)
+        amplitude = cmplx(0.0_dp, 0.0_dp, dp)
+        ! Certified disks from native BC Fourier contours avoid inversion in the
+        ! uncharted core and far exterior. There the opt-in field is zero.
+        if (sum(([r, z] - zero_disks(1:2))**2) < zero_disks(3)) return
+        if (sum(([r, z] - zero_disks(4:5))**2) > zero_disks(6)) return
         if (.not. thread_initialized) then
             call init_magfie_pert_at_s()
             thread_initialized = .true.
@@ -77,15 +100,25 @@ contains
         else
             call geometry%from_cyl([r, 0.0_dp, z], u, ierr)
         end if
+        roundtrip = huge(1.0_dp)
+        if (ierr == 0) call geometry%evaluate_cart(u, roundtrip)
+        ! The warm solver's LOCATED status allows a fraction of a radial cell.
+        ! Near the axis that can exceed our field-coordinate accuracy contract.
+        ! Retry from independent seeds rather than accept a displaced BC surface.
+        if (ierr /= 0 .or. &
+            maxval(abs(roundtrip - [r, 0.0_dp, z])) > 1.0e-8_dp) then
+            call geometry%from_cyl([r, 0.0_dp, z], u, ierr)
+            if (ierr == 0) call geometry%evaluate_cart(u, roundtrip)
+        end if
         if (ierr /= 0) then
             print *, 'POTATO Boozer inverse failed at R,Z/status:', r, z, ierr
             error stop 'POTATO Boozer coordinate inverse failed'
         end if
-        call geometry%evaluate_cart(u, roundtrip)
         if (maxval(abs(roundtrip - [r, 0.0_dp, z])) > 1.0e-8_dp) &
             error stop 'POTATO Boozer inverse residual exceeds 1e-8 cm'
         previous_u = u
         have_previous_u = .true.
+        if (u(1) < support_s(1) .or. u(1) > support_s(2)) return
         x = [u(1), 0.0_dp, u(2)]
         call do_magfie_pert_amp(x, amplitude)
         amplitude = amplitude*exp(cmplx(0.0_dp, n_tor*u(3), dp))

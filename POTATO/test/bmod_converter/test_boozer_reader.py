@@ -17,7 +17,12 @@ def main():
     ss, tt = np.meshgrid(s, theta, indexing="ij")
     geometry = np.stack((300 + 100*ss*np.cos(tt), 100*ss*np.sin(tt),
                          -0.13 - 0.02*np.sin(tt)), axis=-1)
-    module.write_chart(work/"geometry.nc", s, theta, geometry)
+    modes = np.array([0, 1])
+    inner = module.support_disk(modes, np.array([[300, 0], [1, -1j]]), True)
+    outer = module.support_disk(modes, np.array([[300, 0], [99, -99j]]), False)
+    assert 0 < inner[2] < 1 and outer[2] > 99**2
+    module.write_chart(work/"geometry.nc", s, theta, geometry, [0.01, 0.99],
+                       np.r_[inner, outer])
     for n in (3, -3):
         lines = ["CC synthetic analytic spectrum"]*4
         lines += ["m n ns nfp flux a R", "2 0 9 1 0 0 0"]

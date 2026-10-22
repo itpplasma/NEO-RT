@@ -204,8 +204,20 @@ metadata must be `rho_convention=psi_tor_norm`. POTATO evaluates the unchanged
 NEO-RT BC spline/Fourier sum at `(s,theta_B)` and multiplies by
 `exp(i*n_tor*(phi_B-phi_geom))`. The result is in Gauss, with no conjugation or
 factor two. The signed BC toroidal mode must equal `n_tor`. NEO-RT's radial
-clamping at the perturbation file endpoints is retained. Coordinates outside the
-geometry chart fail explicitly.
+clamping at the perturbation file endpoints is retained inside the original
+equilibrium BC geometry support. Outside that support the opt-in perturbation is
+zero: an extrapolated equilibrium does not define trustworthy Boozer angles.
+The chart records the original radial limits and conservative inner/outer disks
+from native Fourier contours and a global angular-derivative bound. These disks
+avoid singular inverse queries in the uncharted core and far exterior. Other
+inverse failures still stop explicitly. Regenerate older charts with the tool
+above to include the support metadata.
+
+Every inverse must reproduce the requested Cartesian position within `1e-8 cm`.
+Near the axis libneo's warm solver can report a located root at a looser,
+cell-relative tolerance. Such roots are retried with its cold multi-seed inverse;
+the residual check and BC endpoint clamping still apply. This changes only the
+opt-in reader and does not assume that a failed inverse means zero perturbation.
 
 The inverse uses the equilibrium BC flux label rather than deriving it from
 POTATO's EQDSK psi. A single psi-to-s table requires the two equilibria to have

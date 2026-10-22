@@ -37,7 +37,28 @@ def read_geometry(path):
     return surfaces[:, 0], blocks[0, :, 0], coeff
 
 
-def write_chart(path, s, theta, geometry):
+def support_disk(modes, coeff, inner):
+    """Bound a native Fourier contour using its global angular derivative."""
+    center = coeff[modes == 0].real.sum(axis=0)
+    theta = np.arange(1024)*2*np.pi/1024
+    xy = np.real(np.exp(1j*np.outer(theta, modes)) @ coeff) - center
+    radius = np.linalg.norm(xy, axis=1)
+    derivative = np.sum(abs(modes)*(np.linalg.norm(coeff.real, axis=1)
+                                   + np.linalg.norm(coeff.imag, axis=1)))
+    # The nearest sample is at most pi/N away, also between Fourier samples.
+    gap = derivative*np.pi/len(theta) + 1e-8
+    if inner:
+        bound = max(0.0, float(min(radius) - gap))
+        angle = np.angle(xy[:, 0] + 1j*xy[:, 1])
+        winding = np.sum(np.angle(np.exp(1j*(np.roll(angle, -1) - angle))))/(2*np.pi)
+        if abs(abs(winding) - 1) > 1e-8:
+            bound = 0.0
+    else:
+        bound = float(max(radius) + gap)
+    return np.r_[center, bound**2]
+
+
+def write_chart(path, s, theta, geometry, support_s, zero_disks):
     """geometry=(R [cm], Z [cm], phi_geom-phi_B [rad])."""
     zeta = np.arange(4)*2*np.pi/4
     with netcdf_file(path, "w", version=2) as nc:
@@ -47,6 +68,8 @@ def write_chart(path, s, theta, geometry):
         nc.zeta_convention = "boozer"
         nc.rho_convention = "psi_tor_norm"
         nc.num_field_periods = np.int32(1)
+        nc.support_s = np.asarray(support_s, dtype='f8')
+        nc.zero_disks = np.asarray(zero_disks, dtype='f8')
         for k, name in enumerate(("x", "y", "z")):
             v = nc.createVariable(name, "d", ("zeta", "theta", "rho"))
             v.units = "cm"
@@ -70,10 +93,16 @@ def convert(source, output, ns=4001, ntheta=768):
     c = CubicSpline(np.sqrt(native_s), coeff, axis=0)(np.sqrt(s))
     geometry = np.real(np.einsum("smk,mt->stk", c, np.exp(1j*modes[:, None]*theta)))
     geometry *= [100.0, 100.0, 2*np.pi]
-    write_chart(output, s, theta, geometry)
+    # Keep the interpolation grid unchanged; mark the original BC support.
+    # Outside it no equilibrium coordinates justify evaluating the perturbation.
+    bounds = native_s[[0, -1]]
+    disks = np.r_[support_disk(modes, coeff[0, :, :2]*100, True),
+                  support_disk(modes, coeff[-1, :, :2]*100, False)]
+    write_chart(output, s, theta, geometry, bounds, disks)
     metadata = dict(source_sha256=hashlib.sha256(Path(source).read_bytes()).hexdigest(),
                     ns=ns, ntheta=ntheta, units="cm", radial_coordinate="s=psi_tor_norm",
                     shift="phi_geom-phi_B = 2*pi*BC_v", perturbation="absent",
+                    support_s=bounds.tolist(), zero_disks=disks.tolist(),
                     output_sha256=hashlib.sha256(Path(output).read_bytes()).hexdigest())
     Path(str(output) + ".json").write_text(json.dumps(metadata, indent=2) + "\n")
 
