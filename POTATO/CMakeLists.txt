@@ -117,6 +117,8 @@ add_executable(test_bmod_pert_bounds.x
 
 add_executable(test_bmod_boozer.x SRC/test_bmod_boozer.f90)
 target_link_libraries(test_bmod_boozer.x PRIVATE potato)
+add_executable(test_bmod_boozer_precision.x SRC/test_bmod_boozer_precision.f90)
+target_link_libraries(test_bmod_boozer_precision.x PRIVATE potato)
 add_executable(potato_perturbation_readback.x test/bmod_converter/reader_readback.f90)
 target_link_libraries(potato_perturbation_readback.x PRIVATE potato)
 target_link_libraries(test_bmod_pert_bounds.x
@@ -261,6 +263,16 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/tools/boozer_geometry.py
             ${CMAKE_CURRENT_BINARY_DIR}/test_boozer_reader_run)
     set_tests_properties(potato_boozer_reader PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=8;OPENBLAS_NUM_THREADS=1")
+
+    add_test(NAME potato_boozer_inverse_precision
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_boozer_reader.py
+            $<TARGET_FILE:test_bmod_boozer_precision.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/boozer_geometry.py
+            ${CMAKE_CURRENT_BINARY_DIR}/test_boozer_precision_run precision)
+    set_tests_properties(potato_boozer_inverse_precision PROPERTIES
+        PROCESSORS 8 TIMEOUT 120
         ENVIRONMENT "OMP_NUM_THREADS=8;OPENBLAS_NUM_THREADS=1")
     set(_neo2_reader_fixture "${CMAKE_CURRENT_BINARY_DIR}/neo2-reader-oracle.h5")
     add_test(NAME generate_neo2_reader_oracle
