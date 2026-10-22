@@ -5,6 +5,8 @@ module potato_input_mod
     use iso_fortran_env, only: output_unit
     use kinetic_energy_selection, only: validate_energy_ratio
     use wall_loss_mod, only: load_wall
+    use boozer_perturbation_mod, only: use_boozer_perturbation, &
+        boozer_geometry_file, boozer_perturbation_file
     implicit none
 
     ! Calculation type: 1=orbits, 2=equilibrium profiles, 3=resonant torque
@@ -130,7 +132,8 @@ module potato_input_mod
         itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, canonical_axis_constant_extension, &
-        profile_exit_absorb, &
+        profile_exit_absorb, use_boozer_perturbation, &
+        boozer_geometry_file, boozer_perturbation_file, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
         contour_rho_min, contour_rho_max, contour_nrho, &
@@ -240,6 +243,13 @@ contains
         write(iunit, '(A,L1)') '  canonical_axis_constant_extension = ', &
             canonical_axis_constant_extension
         write(iunit, '(A,L1)') '  profile_exit_absorb = ', profile_exit_absorb
+        if (use_boozer_perturbation) then
+            write(iunit, '(A)') '  use_boozer_perturbation = T'
+            write(iunit, '(A,A)') '  boozer_geometry_file = ', &
+                trim(boozer_geometry_file)
+            write(iunit, '(A,A)') '  boozer_perturbation_file = ', &
+                trim(boozer_perturbation_file)
+        end if
         write(iunit, '(A,L1)') '  edge_extension   = ', edge_extension
         write(iunit, '(A,ES12.5)') '  orbit_Rstart     = ', orbit_Rstart
         write(iunit, '(A,ES12.5)') '  orbit_Zstart     = ', orbit_Zstart

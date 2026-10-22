@@ -17,6 +17,8 @@ end module bmod_pert_mod
                             ipoint,rad,zet,splbmod_re,splbmod_im
   use, intrinsic :: iso_fortran_env, only : error_unit
   use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
+  use boozer_perturbation_mod, only : use_boozer_perturbation, boozer_perturbation
+  use potato_input_mod, only : n_tor
 !
   implicit none
 !
@@ -26,6 +28,11 @@ end module bmod_pert_mod
   double precision :: bmod_re,bmod_im,dpsidr,dpsidz,d2psidr2,d2psidrdz,d2psidz2
   complex(8)   :: bmod_n
   double precision, dimension(:,:), allocatable :: bmod_n_re,bmod_n_im
+!
+  if (use_boozer_perturbation) then
+    call boozer_perturbation(R,Z,n_tor,bmod_n)
+    return
+  endif
 !
 ! Lazy one-time load of the perturbation spline. bmod_pert is called only from
 ! velo_res inside the OpenMP resonance loop (integrate_class_resonances), so the

@@ -856,7 +856,7 @@ contains
         sinterm_ = (0.0_dp, 0.0_dp)
         do j = 1, size(m)
             costerm_(j) = real(fourier_factor)
-            sinterm_(j) = imag(fourier_factor)
+            sinterm_(j) = aimag(fourier_factor)
             fourier_factor = fourier_factor*rotation
         end do
     end subroutine fast_sin_cos

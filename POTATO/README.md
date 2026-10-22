@@ -179,6 +179,60 @@ oversubscribe the 16 cores.
 
 The reslines output is identical for every thread count.
 
+## Perturbation in Boozer coordinates
+
+The default perturbation reader uses `bmod_n.dat`. To evaluate the original BC
+spectrum with [NEO-RT](https://github.com/itpplasma/NEO-RT)'s reader instead, add
+these entries to `potato_nml`:
+
+```fortran
+use_boozer_perturbation = .true.
+boozer_geometry_file = 'boozer_geometry.nc'
+boozer_perturbation_file = 'in_file_pert'
+```
+
+Create the geometry chart once from the corresponding axisymmetric equilibrium
+BC file (requires NumPy and SciPy):
+
+```bash
+python3 tools/boozer_geometry.py equilibrium.bc boozer_geometry.nc
+```
+
+The chart samples only smooth equilibrium geometry. libneo's inverse returns
+normalized toroidal flux `s`, `theta_B`, and `phi_B` at geometric phi=0; its radial
+metadata must be `rho_convention=psi_tor_norm`. POTATO evaluates the unchanged
+NEO-RT BC spline/Fourier sum at `(s,theta_B)` and multiplies by
+`exp(i*n_tor*(phi_B-phi_geom))`. The result is in Gauss, with no conjugation or
+factor two. The signed BC toroidal mode must equal `n_tor`. NEO-RT's radial
+clamping at the perturbation file endpoints is retained inside the original
+equilibrium BC geometry support. Outside that support the opt-in perturbation is
+zero: an extrapolated equilibrium does not define trustworthy Boozer angles.
+The chart records the original radial limits and conservative inner/outer disks
+from native Fourier contours and a global angular-derivative bound. These disks
+avoid singular inverse queries in the uncharted core and far exterior. Other
+inverse failures still stop explicitly. Regenerate older charts with the tool
+above to include the support metadata.
+
+Every inverse must reproduce the requested Cartesian position within `1e-8 cm`.
+Near the axis libneo's warm solver can report a located root at a looser,
+cell-relative tolerance. Such roots are retried with its cold multi-seed inverse;
+the residual check and BC endpoint clamping still apply. This changes only the
+opt-in reader and does not assume that a failed inverse means zero perturbation.
+
+The inverse uses the equilibrium BC flux label rather than deriving it from
+POTATO's EQDSK psi. A single psi-to-s table requires the two equilibria to have
+identical surfaces; a mismatch can displace narrow perturbation layers. Geometry
+interpolation accuracy must also be checked against the original BC at those
+layers. The chart grid controls geometry accuracy, without resampling the
+perturbation. Shared splines load once; each OpenMP worker owns its reader cache
+and previous inverse coordinates.
+
+`potato_perturbation_readback.x query.bin result.bin` compares the selected POTATO
+reader with NEO-RT at supplied flux coordinates. Input is a native-endian int32
+point count followed by six float64 columns (Fortran order): R, Z [cm], s,
+theta_B, real and imaginary parts of the toroidal phase. Output contains two
+complex128 arrays: POTATO amplitudes and NEO-RT reference amplitudes, in Gauss.
+
 ## SIMPLE-compatible invariant handoff
 
 Single-orbit (`itest_type=4`) and radial-frequency-scan (`itest_type=5`) runs
