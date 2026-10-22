@@ -171,9 +171,29 @@ jobs:
     if: >-
       github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]')
     name: build (Debug)
+  build_POTATO:
+    name: build (POTATO)
+    runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-dispatch"]') }}
+    if: >-
+      github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.actor != 'github-merge-queue[bot]')
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build POTATO and run its native CTest suite
+        env:
+          SCI_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+          SCI_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          SCI_LIBNEO_REF: ${{ inputs.libneo_ref }}
+          SCI_RUN_GOLDEN: 'false'
+        run: |-
+          export TMPDIR=$RUNNER_TEMP
+          SCI_TIER=test-potato ci/bundle.sh "$RUNNER_TEMP/native.tar.zst"
+          sci-dispatch native "$RUNNER_TEMP/native.tar.zst"
   build-result:
     name: build
-    needs: [build_Fast, build_Debug, standalone-off]
+    needs: [build_Fast, build_Debug, build_POTATO, standalone-off]
     if: >-
       always() && (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.actor != 'github-merge-queue[bot]'))
     runs-on: [self-hosted, itp-light]
@@ -181,8 +201,9 @@ jobs:
       - env:
           FAST: ${{ needs.build_Fast.result }}
           DEBUG: ${{ needs.build_Debug.result }}
+          POTATO: ${{ needs.build_POTATO.result }}
           OFF: ${{ needs.standalone-off.result }}
-        run: test "$FAST" = success && test "$DEBUG" = success && test "$OFF" = success
+        run: test "$FAST" = success && test "$DEBUG" = success && test "$POTATO" = success && test "$OFF" = success
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || format('{0}-{1}', github.ref, github.run_id) }}

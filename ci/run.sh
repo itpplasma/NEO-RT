@@ -101,5 +101,21 @@ pytest -m "not fast_only"
     fi
     load_job_environment
     ;;
+  test-potato)
+    python3 -m venv "$root/venv"
+    . "$root/venv/bin/activate"
+    pip install pytest numpy h5py f90nml scipy
+    args=()
+    if [ -n "${SCI_LIBNEO_REF:-}" ]; then
+        args+=("-DLIBNEO_REF=$SCI_LIBNEO_REF")
+    fi
+    # POTATO is a separate CMake project, not part of the root build.
+    # Match the native Release recipe used for PRs #238-240.
+    cmake -S POTATO -B "$root/build-potato" -G Ninja \
+        -DCMAKE_Fortran_COMPILER=/usr/bin/gfortran -DCMAKE_BUILD_TYPE=Release \
+        '-DPOTATO_ARCH_FLAGS=-march=x86-64-v3;-mtune=generic' "${args[@]}"
+    cmake --build "$root/build-potato" -j"$SCI_CPUS"
+    ctest --test-dir "$root/build-potato" --output-on-failure -j"$SCI_CPUS"
+    ;;
   *) echo "unknown CI tier: $tier" >&2; exit 2 ;;
 esac
