@@ -1,0 +1,8 @@
+# POTATO and its transitive public CMake dependencies (cached by ci/bundle.sh).
+itpplasma/libneo
+itpplasma/spline
+itpplasma/vode
+lazy-fortran/fortarray
+lazy-fortran/fortio
+lazy-fortran/fortnum
+lazy-fortran/fortplot
