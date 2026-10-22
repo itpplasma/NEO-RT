@@ -1,5 +1,6 @@
 module neort_config
     use iso_fortran_env, only: dp => real64
+    use neort_phi1, only: phi1, phi1file, phi1_scale, phi_mn, m0_phi, reset_phi1
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
         krook_max_depth, krook_rtol, krook_atol, validate_krook, reset_krook
@@ -19,6 +20,11 @@ module neort_config
         real(dp) :: pertfile_scale = 1.0_dp  ! scale factor for perturbations read from file
         integer :: m0 = 0  ! poloidal perturbation mode (if pertfile==F)
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
+        logical :: phi1 = .false.  ! prescribed electrostatic perturbation
+        character(1024) :: phi1file = ''  ! empty selects analytic phi_mn
+        real(dp) :: phi1_scale = 1.0_dp
+        complex(dp) :: phi_mn = (0.0_dp, 0.0_dp)  ! statvolt, exp(+i*m0_phi*theta)
+        integer :: m0_phi = 0
         logical :: comptorque = .false.  ! compute torque
         logical :: collisional_layer = .false.  ! optional boundary-layer closure
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
@@ -82,6 +88,12 @@ contains
 
         type(config_t), intent(in) :: config
 
+        call reset_phi1()
+        phi1 = config%phi1
+        phi1file = config%phi1file
+        phi1_scale = config%phi1_scale
+        phi_mn = config%phi_mn
+        m0_phi = config%m0_phi
         call reset_mixture()
         species_file = config%species_file
         if (len_trim(species_file) > 0) call read_species_input(trim(species_file))
@@ -148,7 +160,8 @@ contains
         real(dp) :: qs, ms
         integer :: log_level = 0
 
-        namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
+        namelist /params/ phi1, phi1file, phi1_scale, phi_mn, m0_phi, &
+            s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
             supban, collisional_layer, drift_phase, fow_radial, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, log_level, output_format, &
@@ -156,6 +169,7 @@ contains
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
             krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale
 
+        call reset_phi1()
         collisional_layer = .false.
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
