@@ -39,6 +39,11 @@ module do_magfie_mod
 
     integer :: inp_swi = 0 ! type of input file
 
+    ! Shared, unscaled volume derivatives; checked at load and at radial use.
+    real(dp), private, allocatable :: bc_dvds(:)
+    character(len=:), private, allocatable :: bc_filename
+    real(dp), private, parameter :: bc_volume_tolerance = 5.0e-2_dp
+
     ! The toroidal component of curl h needs the covariant radial component of
     ! the field, which a Boozer file does not store. The radial and poloidal
     ! components are exact; a consumer of hcurl(2) must check this first.
@@ -259,6 +264,7 @@ contains
         ! Orbit integrals call this at fixed s for every theta: the flux
         ! function splines are evaluated again only when s changes.
         if (x1 /= profile_x1) then
+            call check_bc_volume_support(x1)
             ! Return into the local vector before storing in the threadprivate cache.
             spl_val = spline_val_0(spl_coeff1(:, :, 3), x1)
             profile_spl(:, 3) = spl_val
@@ -590,9 +596,11 @@ contains
     end subroutine set_bc_current_factor
 
     subroutine check_bc_volume_derivative(filename, flux)
-        ! Fail closed when the header flux sign (or the current columns) contradict
-        ! the file's own dV/ds column. In Boozer coordinates sqrt(g)*B**2 is a flux
-        ! function, so the surface average of the Jacobian used in do_magfie is
+        ! Check the sign on every surface, including surfaces outside the run.
+        ! Defer magnitude consistency to the radial intervals actually evaluated.
+        ! The header flux and currents must agree with the dV/ds column.
+        ! In Boozer coordinates sqrt(g)*B**2 is a flux function. The surface
+        ! average of the Jacobian used in do_magfie is
         ! sign_theta*psi_pr*(Bphcov + iota*Bthcov)*<1/B**2>, and
         ! 4*pi**2*<sqrt(g)> must equal the (dV/ds)/nper column.
         use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
@@ -600,11 +608,13 @@ contains
         character(len=*), intent(in) :: filename
         real(dp), intent(in) :: flux  ! header toroidal flux in T m^2 (unscaled)
 
-        real(dp), parameter :: rel_tolerance = 5.0e-2_dp
         real(dp), parameter :: cm3_to_m3 = 1.0e-6_dp
         integer :: ksurf
         real(dp) :: dvds_file, dvds_neort, inv_b2_avg, psi_pr_raw
 
+        bc_filename = filename
+        if (allocated(bc_dvds)) deallocate(bc_dvds)
+        allocate(bc_dvds(nflux))
         psi_pr_raw = 1.0e8_dp*flux/(2*pi)
         do ksurf = 1, nflux
             dvds_file = params0(ksurf, 6)
@@ -612,17 +622,21 @@ contains
             dvds_neort = 4*pi**2*sign_theta*psi_pr_raw*ItoB &
                 *(params0(ksurf, 3) + params0(ksurf, 2)*params0(ksurf, 4)) &
                 *inv_b2_avg*cm3_to_m3
+            bc_dvds(ksurf) = dvds_neort
             if (.not. ieee_is_finite(dvds_file)) then
-                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+                call fail_volume_derivative(ksurf, "nonfinite dV/ds")
             end if
             if (.not. ieee_is_finite(dvds_neort)) then
-                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+                call fail_volume_derivative(ksurf, "nonfinite dV/ds")
             end if
             if (dvds_file == 0.0_dp) then
-                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+                call fail_volume_derivative(ksurf, "zero dV/ds")
             end if
-            if (abs(dvds_neort - dvds_file) > rel_tolerance*abs(dvds_file)) then
-                call fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
+            if (dvds_neort == 0.0_dp) then
+                call fail_volume_derivative(ksurf, "zero reconstructed dV/ds")
+            end if
+            if (sign(1.0_dp, dvds_neort) /= sign(1.0_dp, dvds_file)) then
+                call fail_volume_derivative(ksurf, "sign mismatch")
             end if
         end do
     end subroutine check_bc_volume_derivative
@@ -658,18 +672,40 @@ contains
         inv_b2_avg = inv_b2_avg/real(ntheta, dp)
     end function surface_average_inverse_b2
 
-    subroutine fail_volume_derivative(filename, ksurf, dvds_neort, dvds_file)
-        character(len=*), intent(in) :: filename
-        integer, intent(in) :: ksurf
-        real(dp), intent(in) :: dvds_neort, dvds_file
-
+    subroutine check_bc_volume_support(surface)
+        ! Validate both tabulated endpoints of the interval evaluated by spline_val_0.
+        ! The diagnostic dV/ds column itself is not used to construct field splines.
+        real(dp), intent(in) :: surface
+        integer :: lower, ksurf
+        real(dp) :: relative_error
         character(len=1024) :: message
 
-        write (message, "(a,a,a,i0,a,es12.4,a,es12.4,a)") &
-            "Inconsistent Boozer orientation in '", trim(filename), &
-            "' at surface ", ksurf, ": 4*pi**2*<sqrt(g)> from flux and currents=", &
-            dvds_neort, " m^3, but (dV/ds)/nper column=", dvds_file, &
-            " m^3. Check the sign of the header toroidal flux and the currents."
+        lower = max(1, min(nflux - 1, count(params0(:, 1) <= surface)))
+        do ksurf = lower, lower + 1
+            relative_error = abs(bc_dvds(ksurf)/params0(ksurf, 6) - 1.0_dp)
+            if (relative_error <= bc_volume_tolerance) cycle
+            write (message, "(a,a,a,i0,a,es16.8,4(a,es16.8),a)") &
+                "Boozer volume magnitude mismatch in '", bc_filename, &
+                "' at surface ", ksurf, " s=", params0(ksurf, 1), &
+                ": reconstructed dV/ds=", bc_dvds(ksurf), &
+                ", file dV/ds=", params0(ksurf, 6), &
+                ", relative error=", relative_error, ", limit=", bc_volume_tolerance, &
+                " (dV/ds in m^3)."
+            error stop trim(message)
+        end do
+    end subroutine check_bc_volume_support
+
+    subroutine fail_volume_derivative(ksurf, reason)
+        integer, intent(in) :: ksurf
+        character(len=*), intent(in) :: reason
+        character(len=1024) :: message
+
+        write (message, "(a,a,a,i0,a,es16.8,a,a,2(a,es16.8),a)") &
+            "Inconsistent Boozer orientation in '", bc_filename, &
+            "' at surface ", ksurf, " s=", params0(ksurf, 1), ": ", reason, &
+            "; reconstructed dV/ds=", bc_dvds(ksurf), &
+            ", file dV/ds=", params0(ksurf, 6), &
+            " m^3; require finite nonzero values with equal signs."
         error stop trim(message)
     end subroutine fail_volume_derivative
 
