@@ -9,6 +9,7 @@ import numpy as np
 
 def main():
     binary, tool, work = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+    precision = sys.argv[4:] == ["precision"]
     work.mkdir(parents=True, exist_ok=True)
     spec = importlib.util.spec_from_file_location("geometry", tool)
     module = importlib.util.module_from_spec(spec)
@@ -23,6 +24,14 @@ def main():
     assert 0 < inner[2] < 1 and outer[2] > 99**2
     module.write_chart(work/"geometry.nc", s, theta, geometry, [0.01, 0.99],
                        np.r_[inner, outer])
+    if precision:
+        s = np.linspace(0, 1, 4001)
+        ss, tt = np.meshgrid(s, theta, indexing="ij")
+        radius = 200*np.sqrt(ss)
+        geometry = np.stack((650 + radius*np.cos(tt), radius*np.sin(tt),
+                             -0.13 - 0.02*np.sin(tt)), axis=-1)
+        module.write_chart(work/"geometry.nc", s, theta, geometry,
+                           [0.00025, 0.99975], [650, 0, 1, 650, 0, 201**2])
     for n in (3, -3):
         lines = ["CC synthetic analytic spectrum"]*4
         lines += ["m n ns nfp flux a R", "2 0 9 1 0 0 0"]

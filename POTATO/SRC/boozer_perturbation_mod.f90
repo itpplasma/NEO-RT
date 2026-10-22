@@ -8,6 +8,8 @@ module boozer_perturbation_mod
         chartmap_coordinate_system_t
     use do_magfie_pert_mod, only: read_boozer_pert_file, init_magfie_pert_at_s, &
         do_magfie_pert_amp, inp_swi_pert, mph_shared
+    use fortnum_multiroot, only: multiroot_hybrid
+    use fortnum_status, only: fortnum_status_t
     implicit none
     private
     public :: use_boozer_perturbation, boozer_geometry_file, &
@@ -23,6 +25,10 @@ module boozer_perturbation_mod
     real(dp) :: previous_u(3) = 0.0_dp
     logical :: have_previous_u = .false.
     !$omp threadprivate(thread_initialized, previous_u, have_previous_u)
+
+    type :: inverse_target_t
+        real(dp) :: x(3)
+    end type inverse_target_t
 
 contains
 
@@ -73,6 +79,8 @@ contains
         complex(dp), intent(out) :: amplitude
         real(dp) :: u(3), x(3), guess(3), roundtrip(3)
         integer :: ierr
+        type(inverse_target_t) :: target
+        type(fortnum_status_t) :: status
 
         if (.not. all(ieee_is_finite([r, z]))) &
             error stop 'POTATO Boozer inverse: nonfinite R,Z'
@@ -114,6 +122,18 @@ contains
             print *, 'POTATO Boozer inverse failed at R,Z/status:', r, z, ierr
             error stop 'POTATO Boozer coordinate inverse failed'
         end if
+        if (maxval(abs(roundtrip - [r, 0.0_dp, z])) > 1.0e-8_dp) then
+            ! The cold inverse also permits a step-size exit at chart accuracy.
+            ! Refine that located root to POTATO's stricter Cartesian tolerance.
+            ! Keep the final round-trip check independent of solver status.
+            target%x = [r, 0.0_dp, z]
+            guess = u
+            call multiroot_hybrid(inverse_residual, 3, guess, u, status, &
+                xtol=epsilon(1.0_dp), ftol=1.0e-10_dp, max_iter=8, ctx=target)
+            call geometry%evaluate_cart(u, roundtrip)
+        end if
+        if (.not. all(ieee_is_finite(roundtrip))) &
+            error stop 'POTATO Boozer inverse returned nonfinite coordinates'
         if (maxval(abs(roundtrip - [r, 0.0_dp, z])) > 1.0e-8_dp) &
             error stop 'POTATO Boozer inverse residual exceeds 1e-8 cm'
         previous_u = u
@@ -123,4 +143,20 @@ contains
         call do_magfie_pert_amp(x, amplitude)
         amplitude = amplitude*exp(cmplx(0.0_dp, n_tor*u(3), dp))
     end subroutine boozer_perturbation
+
+    subroutine inverse_residual(u, residual, jacobian, ctx)
+        real(dp), intent(in) :: u(:)
+        real(dp), intent(out) :: residual(:), jacobian(:, :)
+        class(*), intent(in), optional :: ctx
+
+        if (.not. present(ctx)) error stop 'missing POTATO inverse target'
+        select type (ctx)
+        type is (inverse_target_t)
+            call geometry%evaluate_cart(u, residual)
+            residual = residual - ctx%x
+            call geometry%covariant_basis(u, jacobian)
+        class default
+            error stop 'invalid POTATO inverse target'
+        end select
+    end subroutine inverse_residual
 end module boozer_perturbation_mod
