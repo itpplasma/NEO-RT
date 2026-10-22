@@ -112,6 +112,10 @@ module potato_input_mod
     ! Physical-orbit profile queries retain their strict support checks.
     logical :: canonical_axis_constant_extension = .false.
 
+    ! Absorb resonant orbits that leave the tabulated profile domain.
+    ! Polynomial profiles have no finite support boundary.
+    logical :: profile_exit_absorb = .false.
+
     ! Accepted for old case files.
     logical :: plot_poicut = .false.
     logical :: plot_equilibrium = .false.
@@ -126,6 +130,7 @@ module potato_input_mod
         itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, canonical_axis_constant_extension, &
+        profile_exit_absorb, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
         contour_rho_min, contour_rho_max, contour_nrho, &
@@ -234,6 +239,7 @@ contains
         write(iunit, '(A,A)') '  profile_file     = ', trim(profile_file)
         write(iunit, '(A,L1)') '  canonical_axis_constant_extension = ', &
             canonical_axis_constant_extension
+        write(iunit, '(A,L1)') '  profile_exit_absorb = ', profile_exit_absorb
         write(iunit, '(A,L1)') '  edge_extension   = ', edge_extension
         write(iunit, '(A,ES12.5)') '  orbit_Rstart     = ', orbit_Rstart
         write(iunit, '(A,ES12.5)') '  orbit_Zstart     = ', orbit_Zstart

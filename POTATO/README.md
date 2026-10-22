@@ -94,7 +94,7 @@ with `POTATO_PROFILE_TABLE_V1`, then a row count and four columns:
 samples with the same natural cubic spline library used by NEO-RT and computes
 the derivatives from that interpolation. Table coordinates must increase and
 cover `s_pol=0..1`; density and temperature must be positive. A query beyond
-table support stops with an explicit error. The existing polynomial format
+table support stops with an explicit error by default. The existing polynomial format
 remains the default. Validate values and gradients over the orbit domain;
 a small global polynomial residual can hide a large relative edge error.
 
@@ -119,6 +119,25 @@ profile schema needs only `s_tor,M_t`; the converter derives
 `v_th=sqrt(2*T_i/m_i)` from the charge-selected `plasma.in` species. If a
 legacy third `v_th` column is present, it is checked against that source rather
 than used as an independent temperature profile.
+
+## Optional absorbing profile boundary
+
+`profile_exit_absorb = .true.` in `potato_nml` assigns zero resonant weight
+when either physical bounce trace leaves the tabulated profile support. The
+profile evaluator returns constant finite edge values while recording the
+excursion; returning inside support does not restore the orbit. Each orbit
+resets this thread-private state. Box counting independently rejects a trace
+that leaves support and deposits zero torque for it. Polynomial profiles are
+unaffected because they have no tabulated support boundary.
+
+The option defaults to false, preserving the existing outside-support error.
+The canonical-axis closure is checked only after physical orbit admission;
+the pre-existing canonical SOL exclusion still skips the orbit with zero
+weight. Undefined canonical queries also receive zero weight in absorbing mode.
+For each energy the log reports `absorbed`, `total` and `box_trace_absorbed`.
+The first two count roots on the retained J_perp sampling grid (including
+zero-weight SOL roots in `total`); they do not measure excluded absolute weight.
+`box_trace_absorbed` counts additional exits during the independent box trace.
 
 ## Optional canonical-axis distribution closure
 

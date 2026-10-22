@@ -153,6 +153,18 @@ add_test(NAME test_radial_boxes
    COMMAND test_radial_boxes.x
 )
 
+add_executable(test_profile_exit.x SRC/test_profile_exit.f90)
+target_link_libraries(test_profile_exit.x PRIVATE
+   "$<LINK_GROUP:RESCAN,potato,potato_base>")
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_profile_exit_run)
+add_test(NAME test_profile_exit_absorb COMMAND test_profile_exit.x absorb)
+add_test(NAME test_profile_exit_default
+   COMMAND ${CMAKE_COMMAND} -DBINARY=$<TARGET_FILE:test_profile_exit.x>
+   -P ${CMAKE_CURRENT_SOURCE_DIR}/test/profile_converter/check_profile_exit_default.cmake)
+set_tests_properties(test_profile_exit_absorb test_profile_exit_default PROPERTIES
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_profile_exit_run
+   RESOURCE_LOCK potato_profile_exit_run TIMEOUT 30)
+
 add_executable(test_canonical_axis_closure.x SRC/test_canonical_axis_closure.f90)
 target_link_libraries(test_canonical_axis_closure.x PRIVATE potato_base)
 add_test(NAME test_canonical_axis_closure COMMAND test_canonical_axis_closure.x)
