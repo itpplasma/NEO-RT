@@ -73,6 +73,9 @@ potato
 add_executable(potato_profile_readback.x SRC/profile_readback.f90)
 target_link_libraries(potato_profile_readback.x PRIVATE potato)
 
+add_executable(potato_field_readback.x SRC/potato_field_readback.f90)
+target_link_libraries(potato_field_readback.x PRIVATE potato)
+
 
 add_executable (test_profile.x
    SRC/test_profile.f90
@@ -249,6 +252,11 @@ target_link_libraries(potato_resonance_probe.x
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_native_perturbation
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_native_perturbation.py
+            $<TARGET_FILE:potato_field_readback.x>)
+    set_tests_properties(potato_native_perturbation PROPERTIES TIMEOUT 120)
     set(_neo2_reader_fixture "${CMAKE_CURRENT_BINARY_DIR}/neo2-reader-oracle.h5")
     add_test(NAME generate_neo2_reader_oracle
         COMMAND ${Python3_EXECUTABLE}

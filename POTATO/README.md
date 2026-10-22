@@ -237,3 +237,33 @@ The resulting `potato_resonance_contour.dat` retains every requested grid point
 and contains `H0`, `J_perp`, `psi_star`, the guiding-centre start, `taub`,
 `delphi`, physical angular frequencies, and `ierr`. Keep failed rows for the
 rectangular grid and mask them using `ierr`; do not interpolate across them.
+
+## Native perturbation spectrum
+
+An optional `bmod_native.dat` selects native flux-coordinate evaluation in
+`bmod_pert`. Prepare it with:
+
+```bash
+python3 POTATO/tools/write_native_perturbation.py \
+  --equilibrium equilibrium.bc --components components.npz \
+  --n-tor 3 --output /path/to/run/bmod_native.dat
+```
+
+The NPZ supplies `boozer_s`, `boozer_m`, and complex `boozer_total` in tesla.
+Every original radial node and mode is retained, with piecewise-linear radial
+interpolation. Geometry uses the original axisymmetric BC Fourier coefficients
+and not-a-knot cubics in rho=sqrt(s). An inverse Newton solve maps cylindrical
+orbit points to that geometry; a failed interior inverse stops the run.
+The reader returns gauss and multiplies by
+`exp(-i*n*(phi_geom-phi_B))`, without conjugation or a factor of two. Values
+outside the supplied spectrum support are exactly zero. Without the optional
+file, the existing `bmod_n.dat` quintic reader is used.
+Conservative disks derived from the native contours and a Fourier derivative
+bound identify zero support before attempting an inverse in the uncharted core.
+
+`potato_field_readback.x` reads stream `query.bin` (int32 count, float64 R array,
+float64 Z array, cm) and writes `readback.bin` (real then imaginary float64
+amplitudes, tesla). It links the same field objects as `potato.x` and supports
+OpenMP readback. Qualify the actual field/binary pair against an independent
+source-spectrum oracle before using it for torque calculations. Small field
+errors alone do not establish kinetic torque convergence.
