@@ -82,7 +82,8 @@ subroutine velo_res(dtau,z,vz)
     !
     call velo(dtau,z(1:neqm),vz(1:neqm))
     call get_bmod_and_Phi(z(1:3),bmod,phi_elec)
-    call bmod_pert(z(1),z(3),bmod_n)
+    ! velo has already evaluated the profiles at z; a lost orbit is discarded.
+    call bmod_pert_confined(z(1),z(3),bmod_n)
     !
     comfac=(2.d0*(toten_orb-phi_elec)/bmod-perpinv_orb)*bmod_n &
         *exp(imun*(rm3*z(2)-(twopim2+delphi_new*rm3)*z(6)/taub_new))
@@ -92,6 +93,35 @@ subroutine velo_res(dtau,z,vz)
     vz(8)=aimag(comfac)
     !
 end subroutine velo_res
+!
+!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+!
+  subroutine bmod_pert_confined(R,Z,bmod_n)
+!
+! Perturbation amplitude along an orbit that may already have been lost.
+!
+! With profile_exit_absorb the profile evaluation (elefie in velo) flags an
+! orbit that crossed the LCFS, and pertham discards the whole orbit afterwards.
+! Such an orbit can continue outside the bmod_n.dat R-Z grid (for example into
+! the central column) before find_bounce closes it, so the perturbation must not
+! be evaluated there: its contribution is zeroed anyway. The fail-closed stop of
+! bmod_pert stays in force for every orbit that has not left the plasma.
+!
+  use potato_profile_data_mod, only : profile_support_left
+!
+  implicit none
+!
+  double precision :: R,Z
+  complex(8)   :: bmod_n
+!
+  if (profile_support_left) then
+    bmod_n=(0.d0,0.d0)
+    return
+  endif
+!
+  call bmod_pert(R,Z,bmod_n)
+!
+  end subroutine bmod_pert_confined
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !

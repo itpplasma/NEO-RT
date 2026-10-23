@@ -3,6 +3,7 @@ program test_bmod_pert_bounds
 ! R-Z grid and must stop with an error outside it instead of clamping.
   use, intrinsic :: iso_fortran_env, only : dp => real64
   use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
+  use potato_profile_data_mod, only : reset_profile_support, profile_support_left
   implicit none
 
   integer, parameter :: nrad = 101, nzet = 81
@@ -15,7 +16,7 @@ program test_bmod_pert_bounds
   real(dp) :: r, z, err, errmax
   integer :: i, j
 
-  external :: bmod_pert
+  external :: bmod_pert, bmod_pert_confined
 
   if (command_argument_count() /= 1) error stop 'usage: test_bmod_pert_bounds.x mode'
   call get_command_argument(1, mode)
@@ -44,6 +45,29 @@ program test_bmod_pert_bounds
     call probe(ieee_value(0.0_dp, ieee_quiet_nan), 0.0_dp)
   case ('nan_z')
     call probe(150.0_dp, ieee_value(0.0_dp, ieee_quiet_nan))
+  case ('lost_outside')
+    ! An orbit that already left the LCFS (sticky flag set by the profile
+    ! evaluation) may sit outside the grid, here the central column of AUG 30835
+    ! (R,Z) = (92.74,-3.92) cm against R >= 100: it is discarded, not a STOP.
+    call reset_profile_support()
+    profile_support_left = .true.
+    bmod_n = (1.0_dp, 1.0_dp)
+    call bmod_pert_confined(92.74_dp, -3.92_dp, bmod_n)
+    if (bmod_n /= (0.0_dp, 0.0_dp)) error stop 'lost orbit got a perturbation'
+    if (.not. profile_support_left) error stop 'loss flag was cleared'
+    print '(a)', 'lost orbit outside the grid: contribution zeroed, no stop'
+  case ('confined_outside')
+    ! Not lost, yet outside the grid: stays fail-closed.
+    call reset_profile_support()
+    call bmod_pert_confined(92.74_dp, -3.92_dp, bmod_n)
+    print '(a, 2es24.16)', 'bmod_pert_confined returned outside the grid: ', bmod_n
+    error stop 1
+  case ('confined_inside')
+    ! Not lost and inside the grid: same value as bmod_pert.
+    call reset_profile_support()
+    call bmod_pert_confined(150.0_dp, 0.0_dp, bmod_n)
+    if (abs(bmod_n - cmplx(f_re(150.0_dp, 0.0_dp), f_im(150.0_dp, 0.0_dp), dp)) &
+        > tol) error stop 'confined orbit lost its perturbation'
   case default
     error stop 'unknown mode'
   end select

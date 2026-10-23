@@ -122,10 +122,11 @@ target_link_libraries(test_bmod_boozer_precision.x PRIVATE potato)
 add_executable(potato_perturbation_readback.x test/bmod_converter/reader_readback.f90)
 target_link_libraries(potato_perturbation_readback.x PRIVATE potato)
 target_link_libraries(test_bmod_pert_bounds.x
-   potato_base
+   "$<LINK_GROUP:RESCAN,potato,potato_base>"
 )
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run)
-foreach(_mode inside outside_r outside_z nan_r nan_z)
+foreach(_mode inside outside_r outside_z nan_r nan_z lost_outside
+        confined_outside confined_inside)
    add_test(NAME test_bmod_pert_bounds_${_mode}
       COMMAND test_bmod_pert_bounds.x ${_mode}
    )
@@ -134,7 +135,7 @@ foreach(_mode inside outside_r outside_z nan_r nan_z)
       RESOURCE_LOCK potato_bmod_pert_bounds_run
    )
 endforeach()
-foreach(_mode outside_r outside_z nan_r nan_z)
+foreach(_mode outside_r outside_z nan_r nan_z confined_outside)
    set_tests_properties(test_bmod_pert_bounds_${_mode} PROPERTIES
       PASS_REGULAR_EXPRESSION "evaluation outside the bmod_n.dat R-Z grid"
    )
