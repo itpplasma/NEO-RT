@@ -16,7 +16,7 @@ add_compile_options(-O3 ${POTATO_ARCH_FLAGS})
 
 include(Util)
 if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF 266f0a3c844315522d8b620fa4b96b69aedfeafc)
+    set(LIBNEO_REF 1280d386c5efdcad8b6e5ce0309be04394292862)
 endif()
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
     find_package(PkgConfig QUIET)
