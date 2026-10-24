@@ -1,0 +1,9 @@
+{
+  "case": "public circular synthetic tokamak (golden_record_resonance/gen_circular_eqdsk.py) with circular_probe.in",
+  "inputs": {
+    "dir": "../golden_record_resonance",
+    "files": ["circ.eqdsk", "bmod_n.dat", "convexwall.dat", "profile_poly.in", "field_divB0.inp"],
+    "potato_in": "circular_probe.in"
+  },
+  "full_classes": [3, 4]
+}

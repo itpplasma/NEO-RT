@@ -48,6 +48,15 @@ def compare_rows(data, reference, key_columns, scale_groups=()):
     return None
 
 
+def stage_inputs(golden_path, inputs, dst):
+    """Stage a committed public case named by the golden record."""
+    src = golden_path.parent / inputs["dir"]
+    dst.mkdir()
+    for name in inputs["files"]:
+        shutil.copy(src / name, dst / name)
+    shutil.copy(golden_path.parent / inputs["potato_in"], dst / "potato.in")
+
+
 def copy_case(src, dst):
     shutil.copytree(src, dst)
     for pattern in (
@@ -67,16 +76,25 @@ def main():
 
     exe = Path(sys.argv[1])
     golden_path = Path(sys.argv[2])
+    golden = json.loads(golden_path.read_text())
+    # A golden record that names committed public inputs always runs. The
+    # private AUG record keeps its skip when its case directory is absent.
+    inputs = golden.get("inputs")
     case_dir = Path(os.environ.get("POTATO_GOLDEN_CASE", DEFAULT_CASE))
     threads = os.environ.get("POTATO_GOLDEN_THREADS", "16")
 
-    if not exe.is_file() or not case_dir.is_dir():
+    if not exe.is_file():
+        print(f"potato.x not found: {exe}", file=sys.stderr)
+        return 1 if inputs else SKIP
+    if inputs is None and not case_dir.is_dir():
         return SKIP
 
-    golden = json.loads(golden_path.read_text())
     with tempfile.TemporaryDirectory(prefix="potato-golden-") as tmp:
         work = Path(tmp) / "case"
-        copy_case(case_dir, work)
+        if inputs:
+            stage_inputs(golden_path, inputs, work)
+        else:
+            copy_case(case_dir, work)
         env = os.environ.copy()
         env["OMP_NUM_THREADS"] = threads
         result = subprocess.run(
