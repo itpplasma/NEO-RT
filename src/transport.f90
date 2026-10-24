@@ -16,6 +16,8 @@ module neort_transport
     use neort_orbit, only: bounce_fast, nvar, poloidal_velocity, Om_tB_local_v2, &
         bounce_rtol, bounce_atol, th0, vpar
     use neort_resonance, only: driftorbit_coarse, driftorbit_root, resonance_value
+    use neort_resonance_cutout, only: resonance_cutout, resonance_cutout_width, &
+        CUTOUT_OFF, bounce_pitch_diffusion, cutout_weight, cutout_curvature
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
         krook_max_depth, krook_rtol, krook_atol, krook_rate, integrate_krook
@@ -255,6 +257,8 @@ contains
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
         real(dp) :: Hmn2, attenuation_factor, layer_factor, layer_nu
+        real(dp) :: cutout_nu, cutout_resonance_weight
+        logical :: cutout_inside_layer
         real(dp) :: roots(nlev, 3), terms(3, nlev)
         integer :: nroots, kr, nterm
         character(len=4096) :: ledger_path
@@ -292,6 +296,7 @@ contains
         v = ux * vth
         if (collisional_layer .and. etamax > etatp) &
             layer_nu = deflection_frequency(v)
+        if (resonance_cutout /= CUTOUT_OFF) cutout_nu = deflection_frequency(v)
         call driftorbit_coarse(v, etamin, etamax, roots, nroots)
         do kr = 1, nroots
             eta_res = driftorbit_root(v, 1.0e-8_dp * abs(Om_tE), roots(kr, 1), roots(kr, 2))
@@ -315,8 +320,17 @@ contains
             attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
                                                        dOmthdv, dOmthdeta, Hmn2)
 
-            dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
-            dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
+            cutout_inside_layer = .false.
+            if (resonance_cutout /= CUTOUT_OFF) &
+                call resonance_cutout_weight(v, eta, abs(eta_res(2)), cutout_nu, &
+                                            cutout_resonance_weight, cutout_inside_layer)
+            if (cutout_inside_layer) then
+                dD11 = sample_weight*D11mono(ux, taub, Hmn2)*cutout_resonance_weight
+                dD12 = sample_weight*D12mono(ux, taub, Hmn2)*cutout_resonance_weight
+            else
+                dD11 = sample_weight*D11mono(ux, taub, Hmn2)/abs(eta_res(2))
+                dD12 = sample_weight*D12mono(ux, taub, Hmn2)/abs(eta_res(2))
+            end if
             if (collisional_layer) then
                 layer_factor = 1.0_dp
                 if (eta > etatp) layer_factor = collisional_layer_factor( &
@@ -329,7 +343,11 @@ contains
             terms(2, nterm) = dD12 * attenuation_factor
             terms(3, nterm) = 0.0_dp
             if (comptorque) then
-                dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
+                if (cutout_inside_layer) then
+                    dT = sample_weight*Tphi_mono(ux, taub, Hmn2)*cutout_resonance_weight
+                else
+                    dT = sample_weight*Tphi_mono(ux, taub, Hmn2)/abs(eta_res(2))
+                end if
                 if (collisional_layer) dT = dT * layer_factor
                 terms(3, nterm) = dT * attenuation_factor
             end if
@@ -347,6 +365,39 @@ contains
             call append_resonance_ledger(ledger_path, ledger_rows(:ledger_count))
         call store_sample_terms(terms(:, 1:nterm), sample)
     end subroutine compute_collisionless_sample
+
+    subroutine resonance_cutout_weight(v, eta, abs_R_eta, nu_d, weight, inside_layer)
+        ! Finite replacement of 1/|R_eta| (doc/resonance_cutout.md).
+        real(dp), intent(in) :: v, eta, abs_R_eta, nu_d
+        real(dp), intent(out) :: weight
+        logical, intent(out) :: inside_layer
+
+        call cutout_weight(resonance_cutout, resonance_cutout_width, abs_R_eta, &
+            resonance_curvature(v, eta), bounce_pitch_diffusion(nu_d, eta, etatp, etadt), &
+            weight, inside_layer)
+    end subroutine resonance_cutout_weight
+
+    function resonance_curvature(v, eta) result(abs_R_eta_eta)
+        ! |d2R/deta2| by central differences of the analytic dR/deta. The
+        ! step stays inside the orbit-class interval and below a quarter of
+        ! the distance to its ends, so it resolves the logarithmic curvature
+        ! next to eta_tp and never crosses it. A root on an interval end gets
+        ! zero (no layer); fold_layer_width maps a nonfinite curvature to no
+        ! layer as well.
+        real(dp), parameter :: RELATIVE_STEP = 1.0e-4_dp, END_FRACTION = 0.25_dp
+        real(dp), intent(in) :: v, eta
+        real(dp) :: abs_R_eta_eta
+        real(dp) :: h, res, dlo, dhi
+
+        abs_R_eta_eta = 0.0_dp
+        h = min(RELATIVE_STEP*(etamax - etamin), &
+                END_FRACTION*min(eta - etamin, etamax - eta))
+        if (.not. h > 0.0_dp) return
+        call resonance_value(v, eta - h, res, dlo)
+        call resonance_value(v, eta + h, res, dhi)
+        call cutout_curvature(dlo, dhi, h, abs_R_eta_eta)
+        abs_R_eta_eta = abs(abs_R_eta_eta)
+    end function resonance_curvature
 
     subroutine resonance_ledger_path(path)
         character(len=*), intent(out) :: path

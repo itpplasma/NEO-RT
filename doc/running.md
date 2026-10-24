@@ -66,6 +66,8 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `krook_collisions` | Enable linear finite-width collision broadening. | Default `.false.`; requires `nonlin=.false.` for positive width. |
 | `krook_nu` | Supplied Krook damping rate `[s^-1]`. | Default zero; no `2*pi` conversion. |
 | `krook_model` | Rate model. | `0` constant, `1` energy and harmonic, `2` energy only; see [Krook collisions](krook.md) for harmonics, geometry factors and quadrature controls. |
+| `resonance_cutout` | Regularize the collisionless weight `1/|R_eta|` at roots inside the collisional fold layer. | `0` off (default), `1` zero, `2` boundary-value fill; rejected with finite Krook broadening or `collisional_layer`. See [resonance cutout](resonance_cutout.md). |
+| `resonance_cutout_width` | Width factor `w` of the cutout layer. | Default `1`; must be finite and at least `1`. |
 | `comptorque` | Write torque diagnostics. | Produces `_torque.out` and `_torque_integral.out`. |
 | `bfac` | Magnetic-field scaling factor. | Multiplies `B`. |
 | `efac` | Electric-field scaling factor. | Multiplies `E`. |
