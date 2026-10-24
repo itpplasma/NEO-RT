@@ -374,6 +374,27 @@ add_test(NAME test_collisional_layer_generator
 set_tests_properties(test_collisional_layer_table test_collisional_layer_generator
     PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1" TIMEOUT 120)
 
+add_test(NAME test_resonance_cutout
+    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_cutout.x
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+set_tests_properties(test_resonance_cutout PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 120)
+foreach(case_and_message
+        "invalid-mode|resonance_cutout must be 0"
+        "narrow-width|resonance_cutout_width must be at least 1"
+        "nan-width|resonance_cutout_width must be finite"
+        "krook-combination|resonance_cutout and finite Krook broadening cannot be combined"
+        "layer-combination|resonance_cutout and collisional_layer cannot be combined")
+    string(REPLACE "|" ";" case_parts "${case_and_message}")
+    list(GET case_parts 0 invalid)
+    list(GET case_parts 1 message)
+    add_test(NAME test_resonance_cutout_rejects_${invalid}
+        COMMAND ${CMAKE_BINARY_DIR}/test_resonance_cutout.x ${invalid}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(test_resonance_cutout_rejects_${invalid} PROPERTIES
+        PASS_REGULAR_EXPRESSION "${message}" TIMEOUT 30)
+endforeach()
+
 add_test(NAME test_collisional_layer
     COMMAND test_collisional_layer.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

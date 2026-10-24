@@ -6,6 +6,8 @@ module neort_config
 
     use neort_mixture_collisions, only: krook_rate_source, krook_rate_scale, &
         validate_collision_background, finite_krook_active
+    use neort_resonance_cutout, only: resonance_cutout, resonance_cutout_width, &
+        validate_resonance_cutout, reset_resonance_cutout, CUTOUT_OFF
 
     implicit none
 
@@ -21,6 +23,8 @@ module neort_config
         integer :: mph = 0  ! toroidal perturbation mode (if pertfile==F, n>0!)
         logical :: comptorque = .false.  ! compute torque
         logical :: collisional_layer = .false.  ! optional boundary-layer closure
+        integer :: resonance_cutout = 0  ! 0 off, 1 zero, 2 boundary fill in the fold layer
+        real(dp) :: resonance_cutout_width = 1.0_dp  ! fold-layer width factor >= 1
         logical :: supban = .false.  ! Shaing superbanana-plateau (trapped ell=0) only
         logical :: drift_phase = .false.  ! keep oscillating drift phase in orbit integral
         logical :: fow_radial = .false.  ! first-order radial orbit width in amplitude
@@ -95,6 +99,8 @@ contains
         mph = config%mph
         comptorque = config%comptorque
         collisional_layer = config%collisional_layer
+        resonance_cutout = config%resonance_cutout
+        resonance_cutout_width = config%resonance_cutout_width
         supban = config%supban
         drift_phase = config%drift_phase
         fow_radial = config%fow_radial
@@ -107,6 +113,8 @@ contains
         nonlin = config%nonlin
         profile_species = config%profile_species
         call set_krook_config(config)
+        call validate_resonance_cutout()
+        call validate_cutout_combination()
         bfac = config%bfac
         efac = config%efac
         inp_swi = config%inp_swi
@@ -154,9 +162,11 @@ contains
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, log_level, output_format, &
             profile_species, species_file, krook_collisions, krook_nu, krook_model, krook_harmonic, &
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
-            krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale
+            krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale, &
+            resonance_cutout, resonance_cutout_width
 
         collisional_layer = .false.
+        call reset_resonance_cutout()
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         monoenergetic_x = -1.0_dp
@@ -178,6 +188,8 @@ contains
         call validate_mixture_mode(nonlin)
         call validate_krook()
         call validate_collision_background(.true.)
+        call validate_resonance_cutout()
+        call validate_cutout_combination()
         call validate_selected_physics(profile_species, nonlin)
 
         if (magdrift_passing < 0) magdrift_passing = merge(1, 0, magdrift)
@@ -194,6 +206,16 @@ contains
         call set_mph(mph)
         call set_log_level(log_level)
     end subroutine read_and_set_config
+
+    subroutine validate_cutout_combination()
+        ! The cutout regularizes the collisionless delta-function weight only,
+        ! and its layer overlaps the boundary-layer closure next to eta_tp.
+        use neort_collisional_layer, only: collisional_layer
+        if (resonance_cutout /= CUTOUT_OFF .and. finite_krook_active()) &
+            error stop 'resonance_cutout and finite Krook broadening cannot be combined'
+        if (resonance_cutout /= CUTOUT_OFF .and. collisional_layer) &
+            error stop 'resonance_cutout and collisional_layer cannot be combined'
+    end subroutine validate_cutout_combination
 
     subroutine validate_mixture_mode(nonlinear)
         use neort_species, only: mixture_enabled
