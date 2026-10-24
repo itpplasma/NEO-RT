@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import os
 import re
 import shutil
@@ -27,9 +28,14 @@ PROBE_FIELDS = (
 )
 
 
-def stage_case(case_dir, dst_dir, extra_lines):
-    for name in INPUT_FILES:
-        shutil.copy(case_dir / name, dst_dir / name)
+def stage_case(case_dir, dst_dir, extra_lines, inputs=None):
+    if inputs is None:
+        for name in INPUT_FILES:
+            shutil.copy(case_dir / name, dst_dir / name)
+    else:
+        for name in inputs["files"]:
+            shutil.copy(case_dir / name, dst_dir / name)
+        shutil.copy(inputs["potato_in"], dst_dir / "potato.in")
     potato_in = dst_dir / "potato.in"
     lines = potato_in.read_text().splitlines()
     out = []
@@ -56,23 +62,40 @@ def bracket_classes(text):
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("usage: test_probe_clip.py <potato_resonance_probe.x>", file=sys.stderr)
+    if len(sys.argv) not in (2, 3):
+        print("usage: test_probe_clip.py <potato_resonance_probe.x> [case.json]",
+              file=sys.stderr)
         return 2
 
     exe = Path(sys.argv[1])
-    case_dir = Path(os.environ.get("POTATO_PROBE_CASE", DEFAULT_CASE))
-    if not exe.is_file() or not case_dir.is_dir():
-        return SKIP
-    if not all((case_dir / name).is_file() for name in INPUT_FILES):
-        return SKIP
+    inputs = None
+    full_expected = {3, 5}
+    if len(sys.argv) == 3:
+        # A committed public case always runs; its potato.in is staged as is.
+        spec_path = Path(sys.argv[2])
+        spec = json.loads(spec_path.read_text())
+        case_dir = spec_path.parent / spec["inputs"]["dir"]
+        inputs = {
+            "files": spec["inputs"]["files"],
+            "potato_in": spec_path.parent / spec["inputs"]["potato_in"],
+        }
+        full_expected = set(spec["full_classes"])
+        if not exe.is_file():
+            print(f"probe executable not found: {exe}", file=sys.stderr)
+            return 1
+    else:
+        case_dir = Path(os.environ.get("POTATO_PROBE_CASE", DEFAULT_CASE))
+        if not exe.is_file() or not case_dir.is_dir():
+            return SKIP
+        if not all((case_dir / name).is_file() for name in INPUT_FILES):
+            return SKIP
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
 
         clipped = tmp / "clipped"
         clipped.mkdir()
-        stage_case(case_dir, clipped, PROBE_FIELDS)
+        stage_case(case_dir, clipped, PROBE_FIELDS, inputs)
         clipped_classes = bracket_classes(run_probe(exe, clipped))
         if clipped_classes:
             print(
@@ -83,12 +106,13 @@ def main():
 
         full = tmp / "full"
         full.mkdir()
-        stage_case(case_dir, full, ("  clip_resonance_classes = .false.", *PROBE_FIELDS))
+        stage_case(case_dir, full, ("  clip_resonance_classes = .false.", *PROBE_FIELDS),
+                   inputs)
         full_classes = bracket_classes(run_probe(exe, full))
-        if not {3, 5}.issubset(full_classes):
+        if not full_expected.issubset(full_classes):
             print(
-                "full domain must report m=0 brackets in classes 3 and 5, "
-                f"got classes {full_classes}",
+                "full domain must report m=0 brackets in classes "
+                f"{sorted(full_expected)}, got classes {full_classes}",
                 file=sys.stderr,
             )
             return 1

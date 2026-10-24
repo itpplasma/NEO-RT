@@ -344,13 +344,23 @@ if(Python3_Interpreter_FOUND)
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_resonance
     )
     set_tests_properties(potato_fixed_energy_contour PROPERTIES TIMEOUT 150)
+    # Public circular synthetic case; always runs.
     add_test(NAME potato_golden_displacement
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py
+            $<TARGET_FILE:potato.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/golden_circular.json
+    )
+    set_tests_properties(potato_golden_displacement PROPERTIES TIMEOUT 600)
+    # The AUG #30835 case is not public; it runs only where POTATO_GOLDEN_CASE
+    # (or the default relative path) provides it and is skipped otherwise.
+    add_test(NAME potato_golden_displacement_aug30835
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/test_potato_golden.py
             $<TARGET_FILE:potato.x>
             ${CMAKE_CURRENT_SOURCE_DIR}/test/golden_record_displacement/golden_zero_mid.json
     )
-    set_tests_properties(potato_golden_displacement PROPERTIES
+    set_tests_properties(potato_golden_displacement_aug30835 PROPERTIES
         SKIP_RETURN_CODE 77
         # The full eight-cell case needs several thousand CPU-seconds.
         TIMEOUT 1860
@@ -363,8 +373,15 @@ if(Python3_Interpreter_FOUND)
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/resonance_probe_clip/test_probe_clip.py
             $<TARGET_FILE:potato_resonance_probe.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/resonance_probe_clip/circular_case.json
     )
-    set_tests_properties(potato_resonance_probe_clip PROPERTIES
+    set_tests_properties(potato_resonance_probe_clip PROPERTIES TIMEOUT 240)
+    add_test(NAME potato_resonance_probe_clip_aug30835
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/resonance_probe_clip/test_probe_clip.py
+            $<TARGET_FILE:potato_resonance_probe.x>
+    )
+    set_tests_properties(potato_resonance_probe_clip_aug30835 PROPERTIES
         SKIP_RETURN_CODE 77
         TIMEOUT 240
     )

@@ -47,8 +47,9 @@
       logical :: within_rhopol
 ! boudary type, .true. - inner boundary where vpar2=0, .false. - outer boundary where vpar2>0:
       logical :: inner_b,inner_e
-! number of O- and X-points:
-      integer :: n_o,n_x,n_sep
+! number of O- and X-points and of separatrix crossings (set only for regions
+! within rho_pol, so regions cut out by the rho_pol domain keep zero):
+      integer :: n_o=0,n_x=0,n_sep=0
 ! cylindrical coordinates of the boundaries of the allowed region vpar2>0:
       double precision :: R_b,Z_b,R_e,Z_e
 ! values of normalized canonical momentum $\psi^\ast$ at the boundaries:
@@ -1413,8 +1414,13 @@
 !...........................
 !
 ! Cut out from the allowed regions the segments occupied by the orbits
-! never visiting rho_pol domain. Segments are cut only at the edges:
+! never visiting rho_pol domain. Segments are cut only at the edges.
+! Without p_phi bounds no allowed region reaches the rho_pol domain, so
+! every region is cut out instead of comparing with undefined bounds:
 !
+  if(start_minmax) then
+    all_regions(:,1:nregions)%within_rhopol=.false.
+  else
   do isig=1,2
 !
     if(isig.eq.1) then
@@ -1542,6 +1548,7 @@
       all_regions(isig,ireg)%within_rhopol=within_rhopol
     enddo
   enddo
+  endif
 !
 ! End cut out from the allowed regions the segments occupied by the orbits
 ! never visiting rho_pol domain.
