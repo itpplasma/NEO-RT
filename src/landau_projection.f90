@@ -33,13 +33,16 @@ contains
     ! Species-contiguous basis functions must be gyrotropic about the local z axis.
     ! A common spatial harmonic phase is permitted and cancels from the pair form.
     subroutine assemble_landau_projection(mass_kg, charge_e, density_m3, &
-        temperature_ev, coulomb_log, ndof_species, quadrature, gradient, matrix)
+        temperature_ev, coulomb_log, ndof_species, quadrature, gradient, matrix, &
+        pair_blocks, pair_species)
         real(dp), intent(in) :: mass_kg(:), charge_e(:), density_m3(:)
         real(dp), intent(in) :: temperature_ev, coulomb_log
         integer, intent(in) :: ndof_species(:)
         type(landau_quadrature_t), intent(in) :: quadrature
         procedure(landau_gradient) :: gradient
         complex(dp), intent(out) :: matrix(:, :)
+        complex(dp), allocatable, intent(out), optional :: pair_blocks(:, :, :)
+        integer, allocatable, intent(out), optional :: pair_species(:, :)
         type(landau_pair_t), allocatable :: pairs(:)
         complex(dp), allocatable :: blocks(:, :, :)
         integer :: k
@@ -56,7 +59,31 @@ contains
         end do
         !$omp end parallel do
         call combine_blocks(blocks, matrix)
+        if (present(pair_species)) then
+            allocate(pair_species(2, size(pairs)))
+            do k = 1, size(pairs)
+                pair_species(:, k) = [pairs(k)%a, pairs(k)%b]
+            end do
+        end if
+        if (present(pair_blocks)) call export_pair_blocks(blocks, pair_blocks)
     end subroutine assemble_landau_projection
+
+    subroutine export_pair_blocks(blocks, pair_blocks)
+        complex(dp), allocatable, intent(inout) :: blocks(:, :, :)
+        complex(dp), allocatable, intent(out) :: pair_blocks(:, :, :)
+        integer :: i, j, k
+        ! Pair accumulation stores only the upper triangle. Complete each
+        ! retained block exactly as combine_blocks completes the total.
+        do k = 1, size(blocks, 3)
+            do j = 1, size(blocks, 2)
+                blocks(j, j, k) = cmplx(real(blocks(j, j, k), dp), 0.0_dp, dp)
+                do i = j + 1, size(blocks, 1)
+                    blocks(i, j, k) = conjg(blocks(j, i, k))
+                end do
+            end do
+        end do
+        call move_alloc(blocks, pair_blocks)
+    end subroutine export_pair_blocks
 
     subroutine validate_inputs(mass, charge, density, temperature, loglam, ndof, matrix)
         real(dp), intent(in) :: mass(:), charge(:), density(:), temperature, loglam

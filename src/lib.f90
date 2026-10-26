@@ -218,7 +218,8 @@ contains
             conserving_velocity_order, conserving_cm_order, &
             conserving_rel_order, conserving_polar_order, &
             conserving_azimuth_order, conserving_rank_rtol, conserving_rate_scale, &
-            conserving_compatibility_rtol, validate_conserving_controls
+            conserving_compatibility_rtol, validate_conserving_controls, &
+            conserving_matrix_receipt
         use driftorbit, only: mph
         use util, only: pi
         real(dp), intent(in) :: s_val
@@ -277,21 +278,37 @@ contains
         call initialize_landau_quadrature(conserving_cm_order, &
             conserving_rel_order, conserving_polar_order, &
             conserving_azimuth_order, quadrature)
-        call assemble_conserving_collisions(cache, conserving_theta_order, &
-            quadrature, collision, info)
+        if (conserving_matrix_receipt) then
+            allocate(result_%conserving_receipt)
+            call assemble_conserving_collisions(cache, conserving_theta_order, &
+                quadrature, collision, info, &
+                result_%conserving_receipt%pair_collision, &
+                result_%conserving_receipt%pair_species)
+        else
+            call assemble_conserving_collisions(cache, conserving_theta_order, &
+                quadrature, collision, info)
+        end if
         if (info /= 0) then
             write(*, '(a,i0)') 'Conserving FP pair assembly failed; status=', info
             error stop 'invalid common-temperature Landau assembly'
         end if
         collision = conserving_rate_scale*collision
-        call solve_conserving_system(mass, collision, streaming, precession, &
-            source, coefficient, cross_coefficient, diagnostic, info, &
-            conserving_rank_rtol, conserving_compatibility_rtol)
+        if (conserving_matrix_receipt) then
+            call solve_conserving_system(mass, collision, streaming, precession, &
+                source, coefficient, cross_coefficient, diagnostic, info, &
+                conserving_rank_rtol, conserving_compatibility_rtol, &
+                result_%conserving_receipt%singular_values)
+        else
+            call solve_conserving_system(mass, collision, streaming, precession, &
+                source, coefficient, cross_coefficient, diagnostic, info, &
+                conserving_rank_rtol, conserving_compatibility_rtol)
+        end if
         if (info /= 0) then
             write(*, '(a,i0,a,es14.6)') 'Conserving FP joint solve failed; status=', &
                 info, ' physical compatibility=', diagnostic%compatibility
             error stop 'incompatible or unresolved conserving FP response'
         end if
+        if (conserving_matrix_receipt) call retain_matrix_receipt()
         result_%torque_total = 0.0_dp
         do species = 1, receivers
             first = offsets(species)
@@ -308,6 +325,33 @@ contains
         end do
 
     contains
+
+        subroutine retain_matrix_receipt()
+            integer :: receiver, start, finish
+            associate(receipt => result_%conserving_receipt)
+                receipt%dof_offsets = offsets
+                receipt%mass = mass
+                receipt%streaming = streaming
+                receipt%precession = precession
+                receipt%collision = collision
+                receipt%pair_collision = conserving_rate_scale*receipt%pair_collision
+                receipt%source = source
+                receipt%coefficient = coefficient
+                receipt%source_coefficient = cross_coefficient
+                receipt%source_qualified = diagnostic%cross_qualified
+                receipt%source_compatibility = diagnostic%cross_compatibility
+                receipt%collision_hermitian_error = diagnostic%collision_hermitian_error
+                receipt%streaming_skew_error = diagnostic%streaming_skew_error
+                allocate(receipt%hamiltonian(ndof, 3*receivers))
+                receipt%hamiltonian = (0.0_dp, 0.0_dp)
+                do receiver = 1, receivers
+                    start = offsets(receiver)
+                    finish = offsets(receiver + 1) - 1
+                    receipt%hamiltonian(start:finish, &
+                        3*receiver - 2:3*receiver) = cache(receiver)%hamiltonian
+                end do
+            end associate
+        end subroutine retain_matrix_receipt
 
         subroutine prepare_species(index)
             use neort_species, only: selected_species, mixture_at_s

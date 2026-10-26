@@ -43,7 +43,7 @@ contains
 
     subroutine solve_conserving_system(mass, collision, streaming, precession, &
             source, coefficient, cross_coefficient, diagnostics, info, &
-            rank_rtol, compatibility_rtol)
+            rank_rtol, compatibility_rtol, singular_values)
         ! Physical Galerkin coefficients: no species row normalization is
         ! discarded. Whiten the positive physical mass Gram, then determine
         ! the nullspace of the ACTUAL complete operator by its SVD. A source
@@ -56,6 +56,7 @@ contains
         type(conserving_solver_diagnostics_t), intent(out) :: diagnostics
         integer, intent(out) :: info
         real(dp), intent(in) :: rank_rtol, compatibility_rtol
+        real(dp), allocatable, intent(out), optional :: singular_values(:)
         real(dp), allocatable :: eigenvectors(:, :), eigenvalues(:)
         real(dp), allocatable :: mass_work(:), inverse_sqrt(:, :), sv(:), rwork(:)
         complex(dp), allocatable :: operator_(:, :), whitened(:, :), saved(:, :)
@@ -155,6 +156,7 @@ contains
         if (.not. finite_complex(reshape(coefficient, [n, 1]))) return
         if (.not. ieee_is_finite(diagnostics%residual)) return
         if (diagnostics%residual > 16.0_dp*compatibility_rtol) return
+        if (present(singular_values)) singular_values = sv
         info = 0
 
     contains

@@ -236,15 +236,18 @@ contains
     end subroutine pitch_edges
 
     subroutine assemble_conserving_collisions(caches, ntheta, quadrature, &
-                                              matrix, info)
+                                              matrix, info, pair_blocks, pair_species)
         type(conserving_species_t), intent(in) :: caches(:)
         integer, intent(in) :: ntheta
         type(landau_quadrature_t), intent(in) :: quadrature
         complex(dp), intent(out) :: matrix(:, :)
         integer, intent(out) :: info
+        complex(dp), allocatable, intent(out), optional :: pair_blocks(:, :, :)
+        integer, allocatable, intent(out), optional :: pair_species(:, :)
         real(dp), allocatable :: mass(:), charge(:), density(:)
         integer, allocatable :: ndof(:)
         complex(dp), allocatable :: local_matrix(:, :)
+        complex(dp), allocatable :: local_pairs(:, :, :)
         real(dp) :: local_b
         integer :: species, theta_index, n
 
@@ -281,13 +284,26 @@ contains
         end do
         if (size(matrix, 1) /= n .or. size(matrix, 2) /= n) return
         allocate (local_matrix(n, n))
+        if (present(pair_blocks)) then
+            allocate(pair_blocks(n, n, size(caches)*(size(caches) + 1)/2))
+            pair_blocks = (0.0_dp, 0.0_dp)
+        end if
         do theta_index = 1, ntheta
             local_b = caches(1)%bmod_native(theta_index)
-            call assemble_landau_projection(mass, charge, density, &
+            if (present(pair_blocks)) then
+                call assemble_landau_projection(mass, charge, density, &
                     caches(1)%temperature_ev, caches(1)%coulomb_log, ndof, quadrature, &
-                                            gradient, local_matrix)
+                    gradient, local_matrix, local_pairs, pair_species)
+            else
+                call assemble_landau_projection(mass, charge, density, &
+                    caches(1)%temperature_ev, caches(1)%coulomb_log, ndof, quadrature, &
+                    gradient, local_matrix, pair_species=pair_species)
+            end if
             matrix = matrix + caches(1)%theta_weight(theta_index)* &
                      caches(1)%jacobian_si(theta_index)*local_matrix
+            if (present(pair_blocks)) pair_blocks = pair_blocks + &
+                caches(1)%theta_weight(theta_index)* &
+                caches(1)%jacobian_si(theta_index)*local_pairs
         end do
         info = 0
     contains
