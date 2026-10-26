@@ -27,4 +27,25 @@ assert fields.keys() == expected.keys(), (fields, expected)
 for key, value in expected.items():
     assert math.isclose(float(fields[key]), value, rel_tol=2e-16, abs_tol=0), (
         key, fields[key], value)
+estimates = [line for line in output.splitlines()
+             if line.startswith("KROOK_QUADRATURE_ESTIMATE ")]
+assert len(estimates) == 1, output
+estimate = dict(re.findall(r"(\S+)=\s*([^\s]+)", estimates[0]))
+assert estimate == {
+    "status": "1", "channels": "3", "accepted_leaves": "0",
+    "exhausted_leaves": "0", "global_finite": "T", "leaf_finite": "T",
+    "sum_abs_saturated": "F",
+}, estimate
+channels = [dict(re.findall(r"(\S+)=\s*([^\s]+)", line))
+            for line in output.splitlines()
+            if line.startswith("KROOK_QUADRATURE_CHANNEL ")]
+assert len(channels) == 3, output
+for index, channel in enumerate(channels, start=1):
+    assert channel.pop("channel") == str(index), channel
+    assert channel.keys() == {
+        "value", "error", "threshold", "exhausted_error", "sum_abs_leaf"}, channel
+    assert all(float(value) == 0 for value in channel.values()), channel
+assert "KROOK_QUADRATURE_WORST recorded=F" in output, output
+assert "KROOK_QUADRATURE_LEAF " not in output, output
+assert "KROOK_QUADRATURE_INVERSE " not in output, output
 print("native Krook rejection preserves status and physical context")

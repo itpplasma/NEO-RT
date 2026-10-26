@@ -15,7 +15,8 @@ module neort_transport
     use neort_resonance, only: driftorbit_coarse, driftorbit_root, resonance_value
     use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_harmonic, &
         krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
-        krook_max_depth, krook_rtol, krook_atol, krook_rate, integrate_krook
+        krook_max_depth, krook_rtol, krook_atol, krook_rate, integrate_krook, &
+        krook_report_t
     use driftorbit, only: vth, mth, mph, mi, B0, Bmin, Bmax, comptorque, epsmn, &
         pertfile_scale, &
         etamin, etamax, A1, A2, nlev, pertfile, nonlin, m0, etatp, etadt, &
@@ -198,6 +199,7 @@ contains
         real(dp), intent(out) :: values(3)
         real(dp) :: effective_harmonic, geometry, nu
         integer :: status
+        type(krook_report_t) :: report
         effective_harmonic = real(mth, dp)
         geometry = krook_geometry_trapped
         if (etamax < etatp) then
@@ -206,9 +208,9 @@ contains
         end if
         nu = effective_krook_rate(ux, effective_harmonic, geometry, ux*vth*0.01_dp)
         call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
-            krook_rtol, krook_atol, values, status, krook_max_depth)
+            krook_rtol, krook_atol, values, status, krook_max_depth, report)
         if (status /= 0) call report_krook_failure(status, ux, nu, &
-            effective_harmonic, geometry)
+            effective_harmonic, geometry, report)
     contains
         subroutine residual(eta, res, derivative)
             real(dp), intent(in) :: eta
@@ -222,9 +224,11 @@ contains
         end subroutine weight
     end subroutine compute_krook_velocity
 
-    subroutine report_krook_failure(status, ux, nu, effective_harmonic, geometry)
+    subroutine report_krook_failure(status, ux, nu, effective_harmonic, &
+                                      geometry, report)
         integer, intent(in) :: status
         real(dp), intent(in) :: ux, nu, effective_harmonic, geometry
+        type(krook_report_t), intent(in), optional :: report
         ! Preserve the returned status and the consuming thread's physical state.
         ! The eta values are integration bounds, not a guessed failing node.
         !$omp critical(krook_failure_context)
@@ -239,10 +243,71 @@ contains
             ' sign_vpar=', sign_vpar, &
             ' effective_harmonic=', effective_harmonic, ' geometry=', geometry, &
             ' rtol=', krook_rtol, ' atol=', krook_atol
+        if (present(report)) call write_krook_report(report)
         flush(error_unit)
         !$omp end critical(krook_failure_context)
         error stop 'finite-width Krook quadrature did not converge'
     end subroutine report_krook_failure
+
+    subroutine write_krook_report(report)
+        type(krook_report_t), intent(in) :: report
+        integer :: j
+        write(error_unit, '(a,4(a,i0),3(a,l1))') &
+            'KROOK_QUADRATURE_ESTIMATE', ' status=', report%status, &
+            ' channels=', size(report%value), &
+            ' accepted_leaves=', report%accepted_leaves, &
+            ' exhausted_leaves=', report%exhausted_leaves, &
+            ' global_finite=', report%global_finite, &
+            ' leaf_finite=', report%leaf_finite, &
+            ' sum_abs_saturated=', report%sum_abs_saturated
+        do j = 1, size(report%value)
+            write(error_unit, '(a,i0,*(a,es25.17e3))') &
+                'KROOK_QUADRATURE_CHANNEL channel=', j, &
+                ' value=', report%value(j), ' error=', report%error(j), &
+                ' threshold=', report%threshold(j), &
+                ' exhausted_error=', report%exhausted_error(j), &
+                ' sum_abs_leaf=', report%sum_abs_leaf(j)
+        end do
+        write(error_unit, '(a,l1)') &
+            'KROOK_QUADRATURE_WORST recorded=', report%worst%recorded
+        if (.not. report%worst%recorded) return
+        write(error_unit, '(a,3(a,i0),2(a,l1),*(a,es25.17e3))') &
+            'KROOK_QUADRATURE_LEAF', ' branch=', report%worst%branch, &
+            ' band=', report%worst%band, ' depth=', report%worst%depth, &
+            ' direct=', report%worst%direct, ' finite=', report%worst%finite, &
+            ' eta_bracket_min=', report%worst%eta_bracket(1), &
+            ' eta_bracket_max=', report%worst%eta_bracket(2), &
+            ' node_min=', report%worst%node_bounds(1), &
+            ' node_max=', report%worst%node_bounds(2), &
+            ' residual_band_min=', report%worst%residual_band(1), &
+            ' residual_band_max=', report%worst%residual_band(2), &
+            ' unmet_fraction=', report%worst%unmet_fraction
+        do j = 1, size(report%value)
+            write(error_unit, '(a,i0,*(a,es25.17e3))') &
+                'KROOK_QUADRATURE_LEAF_CHANNEL channel=', j, &
+                ' coarse=', report%worst%coarse(j), &
+                ' fine=', report%worst%fine(j), ' error=', report%worst%error(j), &
+                ' threshold=', report%worst%threshold(j)
+        end do
+        if (report%worst%direct) return
+        write(error_unit, '(a,4(a,i0),a,l1)') &
+            'KROOK_QUADRATURE_INVERSE scope=all_mapped', &
+            ' calls=', report%inverse_calls, &
+            ' collapses=', report%inverse_collapses, &
+            ' iteration_limits=', report%inverse_iteration_limits, &
+            ' rejections=', report%inverse_rejections, &
+            ' finite=', report%inverse_finite
+        write(error_unit, '(a,3(a,i0),*(a,es25.17e3))') &
+            'KROOK_QUADRATURE_INVERSE_SAMPLE', &
+            ' branch=', report%inverse_branch, ' band=', report%inverse_band, &
+            ' exit=', report%inverse_exit, ' node=', report%inverse_node, &
+            ' sample_eta=', report%inverse_sample_eta, &
+            ' returned_eta=', report%inverse_returned_eta, &
+            ' residual=', report%inverse_residual, &
+            ' target=', report%inverse_target, &
+            ' sample_derivative=', report%inverse_derivative, &
+            ' scaled_residual=', report%inverse_scaled_residual
+    end subroutine write_krook_report
 
     subroutine compute_transport_weight(ux, eta, values)
         real(dp), intent(in) :: ux, eta

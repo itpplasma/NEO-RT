@@ -7,6 +7,10 @@ foreach(test_src ${TEST_SOURCES})
     target_link_libraries(${test_name}.x neo_rt "util_for_test_${PROJECT_NAME}")
 endforeach()
 add_test(NAME test_conserving_config COMMAND test_conserving_config.x)
+add_test(NAME test_krook_witness COMMAND test_krook_witness.x)
+# Retain the witness/oracle finiteness checks in Fast builds.
+set_source_files_properties(test_krook_witness.f90 PROPERTIES
+    COMPILE_OPTIONS "-fno-finite-math-only")
 add_test(NAME test_conserving_basis COMMAND test_conserving_basis.x)
 add_test(NAME test_conserving_native COMMAND test_conserving_native.x)
 # The unset-frequency regression must retain its NaN checks in Fast builds.
