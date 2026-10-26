@@ -7,7 +7,7 @@ program test_krook
     real(dp) :: answer(1), expected, nu, a, b, slope, offset, amplitude(2), root
     real(dp) :: cfold, shift
     integer :: model, harmonic, status, trial, direction, placement, calls
-    logical :: quadratic, cubic, layer, noisy
+    logical :: quadratic, cubic, layer, noisy, jittered
 
     do model = 0, 2
         do harmonic = -4, 4
@@ -28,6 +28,7 @@ program test_krook
     cubic = .false.
     layer = .false.
     noisy = .false.
+    jittered = .false.
     calls = 0
     amplitude = [2.0_dp, 0.2_dp]
     do direction = -1, 1, 2
@@ -102,6 +103,7 @@ program test_krook
     cubic = .false.
     call check_boundary_layer()
     call check_negligible_noise()
+    call check_accuracy_envelope()
     print *, 'test_krook PASSED'
 
 contains
@@ -129,6 +131,14 @@ contains
             ! Integrable endpoint layer of width 1e-8, like the bounce weight
             ! at the trapped-passing boundary eta_tp(1 -+ 1e-8).
             values = 1.0_dp/sqrt(b + 1.0e-8_dp*(b - a) - eta)
+        else if (jittered) then
+            ! Affine weight known only to 1e-4 relative, like a bounce average
+            ! that cancels to 1e-8 of its integrand at an ODE tolerance of
+            ! 1e-13; the second component is that absolute error bound.
+            values(1) = amplitude(1) + amplitude(2)*eta
+            if (size(values) > 1) values(2) = 1.0e-4_dp*abs(values(1))
+            if (modulo(aint(eta*2.0_dp**40), 2.0_dp) == 1.0_dp) &
+                values(1) = (1.0_dp + 1.0e-4_dp)*values(1)
         else if (noisy) then
             ! Decaying weight with 10% deterministic jitter where it is below
             ! 1e-21 of its peak, a stand-in for ODE noise in a region that
@@ -183,6 +193,35 @@ contains
         end if
         noisy = .false.
     end subroutine check_negligible_noise
+
+    subroutine check_accuracy_envelope()
+        ! A narrow resonance whose weight carries noise above the requested
+        ! tolerance. Without its error bound the noise is never resolved and
+        ! the quadrature must report failure; with it, the result is accurate
+        ! to the weight's own error.
+        real(dp) :: bounded(2)
+        jittered = .true.
+        slope = 2.0_dp
+        offset = -0.6_dp
+        amplitude = [2.0_dp, 0.2_dp]
+        a = -0.7_dp
+        b = 1.3_dp
+        nu = 1.0e-6_dp
+        expected = affine_oracle()
+        call integrate_krook(residual, weight, a, b, nu, 8, &
+                             2.5e-6_dp, 0.0_dp, answer, status, 40)
+        if (status /= 2) error stop 'weight noise was mistaken for convergence'
+        call integrate_krook(residual, weight, a, b, nu, 8, &
+                             2.5e-6_dp, 0.0_dp, bounded, status, 40, &
+                             accuracy_envelope=.true.)
+        if (status /= 0) error stop 'quadrature did not converge to the weight accuracy'
+        if (abs(bounded(1) - expected) > bounded(2) + 2.5e-6_dp*abs(expected)) then
+            print *, 'bounded integral, envelope, oracle:', bounded, expected
+            error stop 'integral outside the accuracy envelope of the weight'
+        end if
+        call check(bounded(2), 1.0e-4_dp*expected, 1.0e-6_dp, 'integrated error bound')
+        jittered = .false.
+    end subroutine check_accuracy_envelope
 
     subroutine check(actual, reference, tolerance, message)
         real(dp), intent(in) :: actual, reference, tolerance

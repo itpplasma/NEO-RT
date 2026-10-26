@@ -102,7 +102,7 @@ contains
     end subroutine reset_krook
 
     subroutine integrate_krook(residual, weight, a, b, nu, nseed, rtol, atol, &
-                               value, status, max_depth)
+                               value, status, max_depth, accuracy_envelope)
         ! Globally adaptive quadrature of weight(eta)*L(R(eta), nu) on [a, b].
         ! The domain is split into monotonic branches of R and, away from the
         ! direct regime, into Lorentzian residual bands mapped by the angle
@@ -111,6 +111,11 @@ contains
         ! error estimate satisfies atol + rtol*|value| in every component.
         ! status: 0 converged, 1 invalid input, 2 not converged within
         ! max_depth bisections (or the piece budget), 3 invalid residual.
+        ! With accuracy_envelope, the second half of the weight components are
+        ! absolute error bounds of the first half (e.g. inherited from ODE
+        ! tolerances). Their integral is added to the tolerance of the first
+        ! half: the integral cannot be resolved beyond the weight's own error,
+        ! which otherwise exhausts the piece budget as noise.
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
         real(dp), intent(in) :: a, b, nu, rtol, atol
@@ -118,12 +123,18 @@ contains
         real(dp), intent(out) :: value(:)
         integer, intent(out) :: status
         integer, intent(in), optional :: max_depth
+        logical, intent(in), optional :: accuracy_envelope
         real(dp) :: knots(4*nseed + 2), x(16), w(16)
         type(resonance_interval_t), allocatable :: regions(:)
-        integer :: count, depth_limit, nregion
+        integer :: count, depth_limit, nregion, tested
         value = 0.0_dp
         status = 0
-        if (nu <= 0.0_dp .or. b <= a .or. nseed < 2) then
+        tested = size(value)
+        if (present(accuracy_envelope)) then
+            if (accuracy_envelope) tested = size(value)/2
+        end if
+        if (nu <= 0.0_dp .or. b <= a .or. nseed < 2 .or. &
+            (tested < size(value) .and. 2*tested /= size(value))) then
             status = 1
             return
         end if
@@ -133,7 +144,7 @@ contains
         call monotonic_knots(residual, a, b, nseed, knots, count)
         call collect_regions(residual, knots(:count), nu, regions, nregion)
         call integrate_regions(residual, weight, regions(:nregion), rtol, atol, &
-                               x, w, depth_limit, value, status)
+                               x, w, depth_limit, tested, value, status)
     end subroutine integrate_krook
 
     subroutine collect_regions(residual, knots, nu, regions, nregion)
@@ -169,12 +180,12 @@ contains
     end subroutine collect_regions
 
     subroutine integrate_regions(residual, weight, regions, rtol, atol, x, w, &
-                                 depth_limit, value, status)
+                                 depth_limit, tested, value, status)
         procedure(residual_i) :: residual
         procedure(weight_i) :: weight
         type(resonance_interval_t), intent(in) :: regions(:)
         real(dp), intent(in) :: rtol, atol, x(:), w(:)
-        integer, intent(in) :: depth_limit
+        integer, intent(in) :: depth_limit, tested
         real(dp), intent(out) :: value(:)
         integer, intent(inout) :: status
         ! A budget of pieces bounds the work when the integrand is not
@@ -205,20 +216,20 @@ contains
         piece = size(regions)
         value = sum(left(:, :piece) + right(:, :piece), dim=2)
         total_error = sum(error(:, :piece), dim=2)
-        scale = atol + rtol*abs(value)
+        scale = tolerance(value)
         nheap = 0
         do k = 1, piece
             call heap_push(k)
         end do
         frozen_error = 0.0_dp
         do
-            if (all(total_error <= atol + rtol*abs(value))) then
+            if (all(total_error <= tolerance(value))) then
                 ! Confirm the running sums with an exact summation.
                 value = sum(left(:, :piece) + right(:, :piece), dim=2)
                 total_error = sum(error(:, :piece), dim=2)
-                if (all(total_error <= atol + rtol*abs(value))) return
+                if (all(total_error <= tolerance(value))) return
             end if
-            if (any(frozen_error > atol + rtol*abs(value)) .or. nheap == 0 &
+            if (any(frozen_error > tolerance(value)) .or. nheap == 0 &
                 .or. piece + 2 > max_pieces) then
                 status = 2
                 return
@@ -257,6 +268,16 @@ contains
             error(:, k) = 0.0_dp
         end do
     contains
+        function tolerance(sums) result(bound)
+            ! Envelope components bound errors and are not themselves tested.
+            real(dp), intent(in) :: sums(:)
+            real(dp) :: bound(size(sums))
+            bound = atol + rtol*abs(sums)
+            if (tested == size(sums)) return
+            bound(:tested) = bound(:tested) + abs(sums(tested + 1:))
+            bound(tested + 1:) = huge(1.0_dp)
+        end function tolerance
+
         subroutine refine_piece(index, coarse_value)
             integer, intent(in) :: index
             real(dp), intent(in) :: coarse_value(:)

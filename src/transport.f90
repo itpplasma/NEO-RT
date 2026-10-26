@@ -197,7 +197,7 @@ contains
     subroutine compute_krook_velocity(ux, values)
         real(dp), intent(in) :: ux
         real(dp), intent(out) :: values(3)
-        real(dp) :: effective_harmonic, geometry, nu
+        real(dp) :: effective_harmonic, geometry, nu, integral(6)
         integer :: status
         effective_harmonic = real(mth, dp)
         geometry = krook_geometry_trapped
@@ -206,10 +206,15 @@ contains
             if (krook_harmonic == 1) effective_harmonic = effective_harmonic + q*mph
         end if
         nu = effective_krook_rate(ux, effective_harmonic, geometry, ux*vth*0.01_dp)
+        ! integral(4:6) is the bound on the error of integral(1:3) that is
+        ! inherited from the accuracy of the bounce averages; the pitch
+        ! quadrature cannot resolve the integral beyond it.
         call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
-            krook_rtol, krook_atol, values, status, krook_max_depth)
+            krook_rtol, krook_atol, integral, status, krook_max_depth, &
+            accuracy_envelope=.true.)
         if (status /= 0) call report_krook_failure(status, ux, nu, &
             effective_harmonic, geometry)
+        values = integral(1:3)
     contains
         subroutine residual(eta, res, derivative)
             real(dp), intent(in) :: eta
@@ -219,7 +224,9 @@ contains
         subroutine weight(eta, result_)
             real(dp), intent(in) :: eta
             real(dp), intent(out) :: result_(:)
-            call compute_transport_weight(ux, eta, result_)
+            real(dp) :: accuracy
+            call compute_transport_weight(ux, eta, result_(1:3), accuracy)
+            result_(4:6) = accuracy*abs(result_(1:3))
         end subroutine weight
     end subroutine compute_krook_velocity
 
@@ -245,14 +252,17 @@ contains
         error stop 'finite-width Krook quadrature did not converge'
     end subroutine report_krook_failure
 
-    subroutine compute_transport_weight(ux, eta, values)
+    subroutine compute_transport_weight(ux, eta, values, accuracy)
         real(dp), intent(in) :: ux, eta
         real(dp), intent(out) :: values(:)
-        real(dp) :: taub, bounceavg(nvar), Hmn2
+        ! Relative accuracy of values, all of which are proportional to H_mn**2.
+        real(dp), intent(out), optional :: accuracy
+        real(dp) :: taub, bounceavg(nvar), Hmn2, average_accuracy
         integer :: istate
         call Om_th(ux*vth, eta, Omth, dOmthdv, dOmthdeta)
         taub = 2.0_dp*pi/abs(Omth)
-        call transport_bounce(ux*vth, eta, taub, bounceavg, istate)
+        call transport_bounce(ux*vth, eta, taub, bounceavg, istate, average_accuracy)
+        if (present(accuracy)) accuracy = min(1.0_dp, 2.0_dp*average_accuracy)
         if (istate /= 2) error stop 'orbit integration failed in Krook quadrature'
         Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2.0_dp)**2
         values(1) = D11int(ux, taub, Hmn2)
@@ -261,7 +271,7 @@ contains
         if (comptorque) values(3) = Tphi_int(ux, taub, Hmn2)
     end subroutine compute_transport_weight
 
-    subroutine transport_bounce(v, eta, taub, bounceavg, istate)
+    subroutine transport_bounce(v, eta, taub, bounceavg, istate, accuracy)
         ! Bounce averages of the transport weight, H_mn**2 = |<H_n>|**2.
         ! int H_n dt, with the dimensionless H_n = (2 - eta*B)*eps_n*exp(i*phase),
         ! is an oscillatory, often strongly cancelling integral of size up to
@@ -271,11 +281,17 @@ contains
         ! DVODE step sequence changed. Their absolute tolerance is therefore
         ! bounce_rtol relative to taub*max|H_n|, which makes the weight (to rounding)
         ! quadratic in the perturbation amplitude.
+        ! That tolerance bounds the absolute error of int H_n dt. For a harmonic
+        ! whose bounce average cancels to |<H_n>| << max|H_n| (high |mth| at
+        ! the edge of the harmonic window) the relative error of <H_n> is
+        ! correspondingly large; accuracy returns it, as the absolute
+        ! tolerance divided by |int H_n dt|.
         integer, parameter :: samples = 8
         real(dp), intent(in) :: v, eta, taub
         real(dp), intent(out) :: bounceavg(nvar)
         integer, intent(out) :: istate
-        real(dp) :: atol(nvar), y(nvar), ydot(nvar), scale
+        real(dp), intent(out), optional :: accuracy
+        real(dp) :: atol(nvar), y(nvar), ydot(nvar), scale, magnitude
         integer :: k
         atol = bounce_atol
         scale = 0.0_dp
@@ -291,6 +307,13 @@ contains
             call trapped_bounce(v, eta, taub, bounceavg, istate, atol)
         else
             call bounce_fast(v, eta, taub, bounceavg, timestep_transport, istate, atol)
+        end if
+        if (present(accuracy)) then
+            ! DVODE also controls the error relative to the running integral,
+            ! which reaches about taub*max|H_n| along a cancelling orbit.
+            magnitude = taub*abs(cmplx(bounceavg(3), bounceavg(4), dp))
+            accuracy = 1.0_dp
+            if (magnitude > max(atol(3), scale)) accuracy = max(atol(3), scale)/magnitude
         end if
     end subroutine transport_bounce
 
