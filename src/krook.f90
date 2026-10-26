@@ -10,6 +10,8 @@ module neort_krook
     public :: krook_eta_steps, krook_rtol, krook_atol, krook_max_depth
     public :: validate_krook, reset_krook
 
+    ! Diagnostic-only control, single-threaded reproducer.
+    integer, public :: diagnostic_piece_budget = 2**14
     real(dp), parameter :: pi = acos(-1.0_dp)
     logical :: krook_collisions = .false.
     real(dp) :: krook_nu = 0.0_dp
@@ -179,13 +181,12 @@ contains
         integer, intent(inout) :: status
         ! A budget of pieces bounds the work when the integrand is not
         ! resolvable (e.g. noisy) to the requested tolerance.
-        integer, parameter :: max_pieces = 2**14
         integer, allocatable :: owner(:), depth(:), heap(:)
         real(dp), allocatable :: lower(:), upper(:), left(:, :), right(:, :), &
                                  error(:, :), priority(:)
         real(dp) :: scale(size(value)), total_error(size(value)), &
                     frozen_error(size(value)), coarse(size(value)), mid
-        integer :: n, k, piece, child, nheap, capacity
+        integer :: n, k, piece, child, nheap, capacity, next_snapshot
         n = size(value)
         capacity = max(64, 2*size(regions))
         allocate(owner(capacity), depth(capacity), lower(capacity), &
@@ -211,16 +212,26 @@ contains
             call heap_push(k)
         end do
         frozen_error = 0.0_dp
+        next_snapshot = 1024
+        call snapshot(0)
         do
+            if (piece >= next_snapshot) then
+                call snapshot(0)
+                next_snapshot = 2*next_snapshot
+            end if
             if (all(total_error <= atol + rtol*abs(value))) then
                 ! Confirm the running sums with an exact summation.
                 value = sum(left(:, :piece) + right(:, :piece), dim=2)
                 total_error = sum(error(:, :piece), dim=2)
-                if (all(total_error <= atol + rtol*abs(value))) return
+                if (all(total_error <= atol + rtol*abs(value))) then
+                    call snapshot(1)
+                    return
+                end if
             end if
             if (any(frozen_error > atol + rtol*abs(value)) .or. nheap == 0 &
-                .or. piece + 2 > max_pieces) then
+                .or. piece + 2 > diagnostic_piece_budget) then
                 status = 2
+                call snapshot(2)
                 return
             end if
             k = heap_pop()
@@ -257,6 +268,19 @@ contains
             error(:, k) = 0.0_dp
         end do
     contains
+        subroutine snapshot(reason)
+            integer, intent(in) :: reason
+            integer :: component
+            write (*, '(a,6(1x,i0))') 'DIAG_STATE', reason, piece, nheap, &
+                size(regions), maxval(depth(:piece)), diagnostic_piece_budget
+            do component = 1, n
+                write (*, '(a,1x,i0,4(1x,es26.17))') 'DIAG_COMPONENT', &
+                    component, value(component), total_error(component), &
+                    frozen_error(component), atol + rtol*abs(value(component))
+            end do
+            flush(6)
+        end subroutine snapshot
+
         subroutine refine_piece(index, coarse_value)
             integer, intent(in) :: index
             real(dp), intent(in) :: coarse_value(:)
