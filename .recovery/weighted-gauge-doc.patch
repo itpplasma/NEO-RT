@@ -1,0 +1,98 @@
+diff --git a/monograph/chapters/body_coordinates.tex b/monograph/chapters/body_coordinates.tex
+index b3de3ad..ada813d 100644
+--- a/monograph/chapters/body_coordinates.tex
++++ b/monograph/chapters/body_coordinates.tex
+@@ -23,14 +23,34 @@ integral against the angle harmonic,
+   \qquad\chk{coord}
+   \label{eq:coorddrive}
+ \end{equation}
+-This is gauge invariant on the closed orbit: a gauge shift $\delta\Avec\to\delta\Avec
+-+\grad\chi$ adds $(e/c)\oint\grad\chi\cdot\dd\Xvec=(e/c)\oint\dot\chi\,\dd t=(e/c)[\chi]
+-=0$, since $\grad\chi\cdot\dot\Xvec$ is a total time derivative and the orbit is closed
+-\chk{coord}. It is also reparametrization invariant: the integral does not care which
+-angle coordinate labels the orbit (figure \ref{fig:coord_invariance}). The Boozer
+-reduction \eqref{eq:H1} is one evaluation of \eqref{eq:coorddrive}, off resonance, where
+-$\delta\Avec$ has been gauged into the scalar $\delta|B|$; a non-flux or real-space
+-evaluation keeps the full $\delta\Avec\cdot\dd\Xvec$ (figure \ref{fig:coord_inputs}).
++The gauge term must retain the harmonic weight. Under the paired changes
++$\delta\Avec\to\delta\Avec+\grad\chi$ and
++$\delta\Phi\to\delta\Phi-c^{-1}\partial_t\chi$, the one-form changes by
++$(e/c)\,\dd\chi$ along the actual unperturbed orbit. Choose the canonical angle
++origins at $t=0$. For a source with laboratory frequency $\omega$, use the phase
++$e^{-i(\mvec\cdot\thvec_0-\omega t)}$ and write
++$\kappa=\mvec\cdot\Omvec-\omega$. Integration by parts gives the exact change
++\begin{equation}
++  \Delta H_{\mvec}=\frac{e}{c}\left(
++    \frac{\chi(T)e^{-i\kappa T}-\chi(0)}{T}+i\kappa\chi_{\mvec}\right),
++  \qquad
++  \chi_{\mvec}=\frac{1}{T}\int_0^T\chi(t)e^{-i\kappa t}\,\dd t .
++  \label{eq:coord-gauge-shift}
++\end{equation}
++Here $\chi(t)$ includes any time dependence of the gauge evaluated on the orbit.
++The endpoint term vanishes when the projected gauge function closes; on resonance
++$\kappa=0$, the remaining change vanishes as well. Off resonance the harmonic can
++change even on a closed orbit. For example, with $\omega=0$, $\Omega T=2\pi$,
++$m\in\mathbb{Z}\setminus\{0\}$ and $\chi(t)=\chi_0e^{im\Omega t}$, the weighted
++derivative has coefficient $im\Omega\chi_0$, although $\chi(T)-\chi(0)=0$.
++
++The integral is coordinate independent when the same orbit, physical velocity
++and canonical harmonic phase are expressed in another chart
++(figure \ref{fig:coord_invariance}). The Boozer reduction \eqref{eq:H1} evaluates
++\eqref{eq:coorddrive} in a specified flux-coordinate gauge; another gauge can have
++a different off-resonance spectrum while giving the same resonant amplitude.
++A real-space evaluation retains $\delta\Avec\cdot\dd\Xvec$
++(figure \ref{fig:coord_inputs}).
+ 
+ \begin{remark}[Same canonical angles, different scalars, one resonant amplitude]
+ \label{rem:coord-harmonic}
+@@ -49,20 +69,22 @@ $\chi$ the gauge function of \cref{sec:coord-bookkeeping}. Its angle harmonic
+ integrates by parts to
+ \begin{equation}
+   \frac{1}{T}\oint\frac{\dd\chi}{\dd t}\,e^{-i(\mvec\cdot\thvec_0-\omega t)}\,\dd t
+-  =i(\mvec\cdot\Omvec-\omega)\,\chi_{\mvec},
++  =\frac{\chi(T)e^{-i(\mvec\cdot\Omvec-\omega)T}-\chi(0)}{T}
++   +i(\mvec\cdot\Omvec-\omega)\,\chi_{\mvec},
+   \qquad\chk{coord-harmonic-byparts}
+   \label{eq:coord-harmonic}
+ \end{equation}
+-where the boundary term $\bigl[\chi\,e^{-i(\mvec\cdot\Omvec-\omega)t}\bigr]_0^T/T$ vanishes
+-because $\chi$ is periodic on the closed orbit and $(\mvec\cdot\Omvec-\omega)T\in2\pi\mathbb{Z}$;
+-off resonance and without that commensurability it stays in the result. On the resonance
+-$\mvec\cdot\Omvec=\omega$ the phase is stationary, so \eqref{eq:coord-harmonic} is
+-zero \chk{coord-harmonic-resonant} and the two scalars give the same $H_{\mvec}$
++where the boundary term vanishes when $\chi$ is periodic on the closed orbit and
++$(\mvec\cdot\Omvec-\omega)T\in2\pi\mathbb{Z}$, or more generally when the projected
++gauge function closes. Otherwise it stays in the result. On the resonance
++$\mvec\cdot\Omvec=\omega$ the phase is stationary; under the stated endpoint
++condition, \eqref{eq:coord-harmonic} is zero \chk{coord-harmonic-resonant} and the
++two scalars give the same $H_{\mvec}$
+ there. Off resonance the spectra differ by \eqref{eq:coord-harmonic}, but the flux
+ \eqref{eq:coord-torque} samples $H_{\mvec}$ only on the resonance line, so the
+-Boozer and Hamada routes yield the same torque. The harmonic of $H_1$ alone is
+-gauge dependent off resonance; the harmonic of the full one-form
+-\eqref{eq:coorddrive} is not.
++Boozer and Hamada routes yield the same torque. Both the scalar harmonic and the
++weighted one-form harmonic can depend on gauge off resonance; their resonant
++physical amplitude agrees under the stated endpoint condition.
+ \end{remark}
+ 
+ \begin{figure}[htbp]
+@@ -82,11 +104,13 @@ gauge dependent off resonance; the harmonic of the full one-form
+ \begin{figure}[htbp]
+   \centering
+   \includegraphics[width=0.78\textwidth]{coord_invariance}
+-  \caption{The drive is gauge- and coordinate-free. Left: the gauge term
+-  $(e/c)\grad\chi\cdot\dd\Xvec$ is a total derivative, so its integral round the closed
+-  orbit is $(e/c)[\chi]=0$. Right: the same orbit loop integrated in any coordinate grid
+-  gives the same $\oint\delta\gamma$. NEO-RT does not need flux coordinates to evaluate
+-  the drive.}
++  \caption{Gauge invariance of the resonant drive and coordinate independence.
++  Left: the paired gauge change is $(e/c)\,\dd\chi$; its resonant integral vanishes
++  when the gauge function closes. Off resonance the harmonic weight gives the
++  endpoint and detuning terms in \eqref{eq:coord-gauge-shift}. Right: expressing
++  the same orbit, velocity and canonical phase in another coordinate chart
++  preserves the integral. The drift-kinetic code NEO-RT can evaluate this drive
++  without flux coordinates.}
+   \label{fig:coord_invariance}
+ \end{figure}
+ 

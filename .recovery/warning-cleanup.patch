@@ -1,0 +1,148 @@
+diff --git a/src/raw_drive.f90 b/src/raw_drive.f90
+--- a/src/raw_drive.f90
++++ b/src/raw_drive.f90
+@@ -171,7 +171,10 @@
+         if (.not. source%ready()) return
+         if (size(hmn, 2) /= source%field%n_modes) return
+         if (.not. valid_samples(time, x, velocity, b0, mb, hmn)) return
+-        if (.not. all(ieee_is_finite([moment, charge, omega_b, omega_phi]))) return
++        if (.not. ieee_is_finite(moment)) return
++        if (.not. ieee_is_finite(charge)) return
++        if (.not. ieee_is_finite(omega_b)) return
++        if (.not. ieee_is_finite(omega_phi)) return
+         projection%moment = moment
+         projection%charge = charge
+         projection%omega_b = omega_b
+diff --git a/src/raw_orbit.f90 b/src/raw_orbit.f90
+--- a/src/raw_orbit.f90
++++ b/src/raw_orbit.f90
+@@ -94,8 +94,10 @@
+         if (.not. all(ieee_is_finite(background%curl_bhat))) return
+         if (.not. all(ieee_is_finite(background%grad_phi))) return
+         if (.not. ieee_is_finite(background%potential)) return
+-        if (.not. all(ieee_is_finite([species%mass, species%charge, &
+-            moment, vpar]))) return
++        if (.not. ieee_is_finite(species%mass)) return
++        if (.not. ieee_is_finite(species%charge)) return
++        if (.not. ieee_is_finite(moment)) return
++        if (.not. ieee_is_finite(vpar)) return
+         if (species%mass <= 0.0_dp .or. species%charge == 0.0_dp) return
+         if (moment < 0.0_dp .or. norm2(background%b) <= 0.0_dp) return
+         if (species%units /= UNITS_GAUSSIAN) then
+@@ -210,7 +212,7 @@
+         real(dp), intent(out) :: derivative(:)
+         class(*), intent(in), optional :: data
+         type(raw_background_t) :: background
+-        real(dp) :: velocity(3), acceleration, bstar_parallel
++        real(dp) :: velocity(3), acceleration, bstar_parallel, x(3)
+         integer :: ierr
+ 
+         derivative = 0.0_dp
+@@ -218,7 +220,8 @@
+         select type (data)
+         type is (raw_gc_context_t)
+             if (data%error /= RAW_OK) return
+-            call evaluate_background(data, state(1:3), background, ierr)
++            x = state(1:3)
++            call evaluate_background(data, x, background, ierr)
+             if (ierr == RAW_OK) call raw_gc_point(background, data%species, &
+                 data%moment, state(4), velocity, acceleration, bstar_parallel, ierr)
+             if (ierr /= RAW_OK) then
+diff --git a/test/raw_drive/test_raw_oneform.f90 b/test/raw_drive/test_raw_oneform.f90
+--- a/test/raw_drive/test_raw_oneform.f90
++++ b/test/raw_drive/test_raw_oneform.f90
+@@ -53,12 +53,15 @@
+ contains
+ 
+     subroutine initialize_gauge()
++        real(dp) :: frequencies(1)
++
+         call source%field%init_analytic(radius - 2.0_dp*excursion, &
+             radius + 2.0_dp*excursion, 8, -2.0_dp*excursion, 2.0_dp*excursion, &
+             8, gauge_modes, pure_gauge_amplitude, UNITS_GAUSSIAN, ierr, &
+             with_potential=.true.)
+         if (ierr /= PERTFIELD_OK) error stop "pure-gauge source initialization failed"
+-        call source%set_frequencies([source_omega], ierr)
++        frequencies(1) = source_omega
++        call source%set_frequencies(frequencies, ierr)
+         if (ierr /= RAW_OK) error stop "pure-gauge frequencies rejected"
+     end subroutine initialize_gauge
+ 
+@@ -72,8 +75,9 @@
+         ! it exactly, and curl(grad chi)=0 independent of the sampled orbit.
+         if (n /= 1) error stop "pure gauge has toroidal mode one"
+         if (abs(z_cyl) > 2.0_dp*excursion) error stop "unexpected gauge grid"
+-        a = [cmplx(chi_scale, 0.0_dp, dp), &
+-            cmplx(0.0_dp, chi_scale, dp), cmplx(0.0_dp, 0.0_dp, dp)]
++        a(1) = cmplx(chi_scale, 0.0_dp, dp)
++        a(2) = cmplx(0.0_dp, chi_scale, dp)
++        a(3) = cmplx(0.0_dp, 0.0_dp, dp)
+         potential = cmplx(0.0_dp, source_omega*chi_scale*r_cyl/light, dp)
+     end subroutine pure_gauge_amplitude
+ 
+diff --git a/test/raw_drive/test_raw_gc.f90 b/test/raw_drive/test_raw_gc.f90
+--- a/test/raw_drive/test_raw_gc.f90
++++ b/test/raw_drive/test_raw_gc.f90
+@@ -147,33 +147,49 @@
+     subroutine check_actual_orbit_gauge(mb)
+         integer, intent(in) :: mb
+         complex(dp) :: harmonic(1, 1), values(n), chi_hat, endpoint, oracle
+-        real(dp) :: detuning, period, scale
+-        integer :: k, status
++        real(dp) :: detuning, scale, frequencies(1)
++        integer :: status, modes(1)
+ 
+         gauge_omega = 0.0_dp
+         if (mb == 0) gauge_omega = omega_phi
+         call source%field%init_analytic(0.6_dp, 1.5_dp, 8, -0.5_dp, 0.5_dp, &
+             8, [1], linear_gauge, UNITS_SI, status, with_potential=.true.)
+         if (status /= PERTFIELD_OK) error stop "full-GC pure gauge init failed"
+-        call source%set_frequencies([gauge_omega], status)
++        frequencies(1) = gauge_omega
++        modes(1) = mb
++        call source%set_frequencies(frequencies, status)
+         if (status /= RAW_OK) error stop "full-GC paired time gauge rejected"
+         detuning = mb*omega_b + omega_phi - gauge_omega
+-        do k = 1, n
+-            values(k) = chi_scale*x(1, k)*exp(cmplx(0.0_dp, &
+-                x(2, k) - (gauge_omega + detuning)*time(k), dp))
+-        end do
+-        period = time(n) - time(1)
+-        chi_hat = sum(0.5_dp*(time(2:) - time(:n - 1)) &
+-            *(values(2:) + values(:n - 1)))/period
+-        endpoint = (values(n) - values(1))/period
+-        oracle = -charge_si*endpoint - cmplx(0.0_dp, charge_si*detuning, dp)*chi_hat
+-        call raw_harmonics(source, time, x, velocity, b, moment, charge_si, [mb], &
++        call gauge_oracle(detuning, values, chi_hat, endpoint, oracle)
++        call raw_harmonics(source, time, x, velocity, b, moment, charge_si, modes, &
+             omega_b, omega_phi, harmonic, status)
+         if (status /= RAW_OK) error stop "actual radial-GC gauge projection failed"
+         scale = charge_si*omega_b*chi_scale
+         call check_error("actual radial-GC endpoint plus detuning", &
+             abs(harmonic(1, 1) - oracle)/scale, 2.0e-7_dp)
++        if (mb == 0) call check_error("actual radial-GC resonant pure gauge zero", &
++            abs(harmonic(1, 1))/scale, 2.0e-7_dp)
+     end subroutine check_actual_orbit_gauge
++
++    subroutine gauge_oracle(detuning, values, chi_hat, endpoint, oracle)
++        real(dp), intent(in) :: detuning
++        complex(dp), intent(out) :: values(n), chi_hat, endpoint, oracle
++        real(dp) :: period
++        integer :: k
++
++        do k = 1, n
++            values(k) = chi_scale*x(1, k)*exp(cmplx(0.0_dp, &
++                x(2, k) - (gauge_omega + detuning)*time(k), dp))
++        end do
++        period = time(n) - time(1)
++        chi_hat = cmplx(0.0_dp, 0.0_dp, dp)
++        do k = 2, n
++            chi_hat = chi_hat + 0.5_dp*(time(k) - time(k - 1)) &
++                *(values(k) + values(k - 1))/period
++        end do
++        endpoint = (values(n) - values(1))/period
++        oracle = -charge_si*endpoint - cmplx(0.0_dp, charge_si*detuning, dp)*chi_hat
++    end subroutine gauge_oracle
+ 
+     subroutine check_error(label, error, tolerance)
+         character(len=*), intent(in) :: label

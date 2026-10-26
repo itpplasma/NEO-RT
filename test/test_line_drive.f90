@@ -141,10 +141,13 @@ contains
         om_path = (-mdotom + detune*abs(omth))/mph
         gauge_amp = 0
         call line_bounce(v, eta, taub, omth, om_path, 0.0_dp, res, istat)
+        if (istat /= 2) error stop "line-drive oracle: integration failed"
         om_te = om_path - res%om_drift
         call line_bounce(v, eta, taub, omth, om_path, om_te, res, istat)
+        if (istat /= 2) error stop "line-drive oracle: integration failed"
         gauge_amp = (10.0_dp, 3.0_dp)*epsmn
         call line_bounce(v, eta, taub, omth, om_path, om_te, resg, istat)
+        if (istat /= 2) error stop "line-drive oracle: integration failed"
         gauge_amp = 0
         offres_prediction = imun*(mdotom + mph*om_path)*resg%chi
     end subroutine resonant_harmonics
@@ -195,6 +198,7 @@ contains
         call Om_th(v, eta, omth, d1, d2)
         call exact_orbit_period(v, eta, 2.0_dp*pi/abs(omth), taub, omth)
         call line_bounce(v, eta, taub, omth, 0.0_dp, 0.0_dp, res, istat)
+        if (istat /= 2) error stop "line-drive oracle: integration failed"
         call Om_tB(v, eta, omtb, d1, d2)
         call check('orbit-averaged drift vs NEO-RT Om_tB (spline)', &
             abs(res%om_drift/omtb - 1), 5.0e-3_dp)

@@ -31,6 +31,9 @@ add_executable(probe_neort_perturbation_fourier_kernel.x
     probe_neort_perturbation_fourier_kernel.f90)
 target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)
 
+add_executable(diagnose_line_drive.x diagnose_line_drive.f90)
+target_link_libraries(diagnose_line_drive.x neo_rt)
+
 # test_timestep: runs from test/ripple_plateau so the test can read the
 # same in_file and driftorbit_test.in configuration as the ripple-plateau test.
 add_test(NAME test_timestep
@@ -114,6 +117,14 @@ add_test(NAME test_line_drive
     COMMAND ${CMAKE_BINARY_DIR}/test_line_drive.x
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
 )
+
+# Pre-study circular model; fixture from test/gen_prestudy_circ.py.
+add_test(NAME test_line_prestudy
+    COMMAND ${CMAKE_BINARY_DIR}/test_line_prestudy.x
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(test_line_prestudy PROPERTIES ENVIRONMENT
+    "BOOZER_PRESTUDY_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/prestudy/prestudy_boozer.bc")
 
 add_test(NAME test_resonance_bracket
     COMMAND ${CMAKE_BINARY_DIR}/test_resonance_bracket.x
