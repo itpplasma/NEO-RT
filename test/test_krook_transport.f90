@@ -2,19 +2,51 @@ program test_krook_transport
     use iso_fortran_env, only: dp => real64
     use fortnum_quadrature, only: gauss_legendre
     use neort_lib, only: neort_init, neort_prepare_splines, neort_setup_at_s
-    use neort_transport, only: compute_transport_integral, compute_transport_weight
+    use neort_transport, only: compute_transport_integral, compute_transport_weight, &
+        compute_krook_velocity
     use neort_freq, only: Om_ph, Om_th
-    use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_rtol
-    use neort_profiles, only: vth, Om_tE
+    use neort_krook, only: krook_collisions, krook_nu, krook_model, krook_rtol, &
+        krook_eta_steps, krook_max_depth, krook_atol, krook_geometry_trapped
+    use neort_profiles, only: vth, Om_tE, ns
+    use neort_species, only: selected_species
     use do_magfie_mod, only: q, iota, R0, a, s
-    use driftorbit, only: mth, mph, etamin, etamax, B0, mi, &
-                          comptorque, nopassing
+    use driftorbit, only: mth, mph, etamin, etamax, etatp, B0, mi, &
+                          comptorque, nopassing, sign_vpar
     use util, only: pi, c, qi
     implicit none
     real(dp) :: baseline(3), disabled(3), zero_width(3), broadened(3), expected(3)
     real(dp) :: x(96), w(96), eta, omph, omth, dvdummy, detadummy
     real(dp) :: weight(3), residual, scale, D_plateau, dsdreff
     integer :: k
+    character(len=32) :: mode
+
+    call get_command_argument(1, mode)
+    if (trim(mode) == 'failure-context') then
+        ! Invalid bounds return status 1 before any orbit callbacks. Exercise
+        ! the real transport failure path without geometry or a solver run.
+        s = 0.09_dp
+        selected_species = 3
+        mi = 9.1091e-28_dp
+        qi = -4.803204e-10_dp
+        ns = 1.0e10_dp
+        Om_tE = -708.125_dp
+        vth = 2.6524515369350795e9_dp
+        mth = -2
+        mph = 3
+        etamin = 0.25_dp
+        etamax = 0.25_dp
+        etatp = 0.125_dp
+        sign_vpar = -1.0_dp
+        krook_nu = 3.5_dp
+        krook_model = 0
+        krook_geometry_trapped = 2.0_dp
+        krook_eta_steps = 16
+        krook_max_depth = 20
+        krook_rtol = 1.0e-5_dp
+        krook_atol = 0.0_dp
+        call compute_krook_velocity(0.375_dp, weight)
+        error stop 'invalid bounds unexpectedly accepted'
+    end if
 
     call neort_init('driftorbit.in', 'in_file')
     nopassing = .true.
