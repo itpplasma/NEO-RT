@@ -57,16 +57,20 @@ This exports:
 ### neort_init
 
 ```fortran
-subroutine neort_init(config_file_base, boozer_file, boozer_pert_file)
+subroutine neort_init(config_file_base, boozer_file, boozer_pert_file, boozer_kappa_file)
     character(len=*), intent(in) :: config_file_base   ! Config file without .in extension
     character(len=*), intent(in) :: boozer_file        ! Boozer coordinate file
     character(len=*), intent(in), optional :: boozer_pert_file  ! Perturbation file
+    character(len=*), intent(in), optional :: boozer_kappa_file ! |B0| kappa.xi_perp table,
+                                                                ! read if pertfile_curvature
 end subroutine
 
-subroutine neort_init(config, boozer_file, boozer_pert_file)
+subroutine neort_init(config, boozer_file, boozer_pert_file, boozer_kappa_file)
     type(config_t), intent(in) :: config               ! In-memory config parameters
     character(len=*), intent(in) :: boozer_file        ! Boozer coordinate file
     character(len=*), intent(in), optional :: boozer_pert_file  ! Perturbation file
+    character(len=*), intent(in), optional :: boozer_kappa_file ! |B0| kappa.xi_perp table,
+                                                                ! read if pertfile_curvature
 end subroutine
 ```
 

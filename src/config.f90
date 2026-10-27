@@ -34,6 +34,7 @@ module neort_config
         logical :: nopassing = .false.  ! neglect passing particles
         logical :: noshear = .false.  ! neglect magnetic shear term with dqds
         logical :: pertfile = .false.  ! read perturbation from file
+        logical :: pertfile_curvature = .false.  ! read kappa.xi_perp table (general drive)
         logical :: nonlin = .false.  ! do nonlinear calculation
         integer :: profile_species = 1  ! 0 electrons, 1 first ion, 2 second ion
         character(len=1024) :: species_file = ''  ! SI mixture at a reference surface
@@ -73,7 +74,7 @@ contains
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, perturbation_switch => inp_swi_pert
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
-            magdrift_passing, nopassing, pertfile, &
+            magdrift_passing, nopassing, pertfile, pertfile_curvature, &
             nonlin, efac, supban, drift_phase, fow_radial
         use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
@@ -110,6 +111,8 @@ contains
         nopassing = config%nopassing
         noshear = config%noshear
         pertfile = config%pertfile
+        pertfile_curvature = config%pertfile_curvature
+        call validate_curvature_drive(pertfile, pertfile_curvature)
         nonlin = config%nonlin
         profile_species = config%profile_species
         call set_krook_config(config)
@@ -141,7 +144,7 @@ contains
         use do_magfie_mod, only: s, bfac, inp_swi
         use do_magfie_pert_mod, only: mph, set_mph, inp_swi_pert
         use driftorbit, only: epsmn, pertfile_scale, m0, comptorque, magdrift, &
-            magdrift_passing, nopassing, pertfile, &
+            magdrift_passing, nopassing, pertfile, pertfile_curvature, &
             nonlin, efac, supban, drift_phase, fow_radial
         use neort_collisional_layer, only: collisional_layer
         use logger, only: set_log_level
@@ -158,7 +161,7 @@ contains
 
         namelist /params/ s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
             supban, collisional_layer, drift_phase, fow_radial, &
-            magdrift, magdrift_passing, nopassing, noshear, pertfile, nonlin, bfac, efac, inp_swi, &
+            magdrift, magdrift_passing, nopassing, noshear, pertfile, pertfile_curvature, nonlin, bfac, efac, inp_swi, &
             inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, log_level, output_format, &
             profile_species, species_file, krook_collisions, krook_nu, krook_model, krook_harmonic, &
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
@@ -171,6 +174,7 @@ contains
         vmax_over_vth = 4.0_dp
         monoenergetic_x = -1.0_dp
         inp_swi_pert = -1
+        pertfile_curvature = .false.
         output_format = "both"
         profile_species = 1
         species_file = ''
@@ -199,6 +203,7 @@ contains
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)
+        call validate_curvature_drive(pertfile, pertfile_curvature)
 
         M_t = M_t * efac / bfac
         qi = qs * qe
@@ -271,6 +276,13 @@ contains
             error stop "output_format must be 'hdf5', 'text' or 'both'"
         end if
     end subroutine validate_output_format
+
+    subroutine validate_curvature_drive(has_perturbation_file, has_curvature_file)
+        logical, intent(in) :: has_perturbation_file, has_curvature_file
+
+        if (has_curvature_file .and. .not. has_perturbation_file) &
+            error stop "pertfile_curvature requires pertfile = .true."
+    end subroutine validate_curvature_drive
 
     subroutine validate_perturbation_switch(has_perturbation_file, perturbation_switch)
         logical, intent(in) :: has_perturbation_file
