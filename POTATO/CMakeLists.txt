@@ -403,8 +403,10 @@ add_test(NAME potato_x_links
    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target potato.x
 )
 
-# An analytic circular field whose valid rectangle ends at its LCFS.
-# Isolate test module files from the real field and Poincare-cut modules.
+# An analytic circular field whose valid rectangle ends at its LCFS. Only the
+# tracing module is linked, so no equilibrium provider is needed. Its module
+# files go to a private directory: the shared module directory already holds
+# the potato_base build of the same module.
 add_executable(test_poicut_edge.x SRC/test_poicut_edge.f90 SRC/poicut_tracing.f90)
 set(_poicut_test_modules "${CMAKE_CURRENT_BINARY_DIR}/poicut_test_modules")
 file(MAKE_DIRECTORY "${_poicut_test_modules}")

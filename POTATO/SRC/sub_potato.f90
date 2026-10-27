@@ -28,8 +28,7 @@
 !
   module poicut_mod
 ! number of points for Poincare cut:
-    integer :: npc
-! R value at the LFS Poincare cut boundary, grid step size over R (equidistant):
+    integer :: npc! R value at the LFS Poincare cut boundary, grid step size over R (equidistant):
     double precision :: rpc_beg,h_rpc
 ! coordinates (R,Z) and poloidal flux value at the magnetic axis:
     double precision :: rmagaxis,zmagaxis,psimagaxis
@@ -40,6 +39,30 @@
 ! arrays of R and Z coordinates at the Poincare cut:
     double precision, dimension(:), allocatable :: rpc_arr,zpc_arr
   end module poicut_mod
+!
+  module poicut_field_mod
+! Equilibrium field seen by the Poincare cut tracing. gpsigb_and_ders leaves
+! the flux and its derivatives in the provider module field_sub.
+    implicit none
+    interface
+      subroutine gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+        implicit none
+        double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz
+      end subroutine gpsigb_and_ders
+    end interface
+  contains
+    subroutine field_of_rz(R,Z,psi,dpsi_dr,dpsi_dz,gpgb,dgpgb_dr,dgpgb_dz)
+      use field_sub, only : psif,dpsidr,dpsidz
+      implicit none
+      real(kind(1.d0)), intent(in) :: R,Z
+      real(kind(1.d0)), intent(out) :: psi,dpsi_dr,dpsi_dz,gpgb,dgpgb_dr,dgpgb_dz
+
+      call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+      psi=psif
+      dpsi_dr=dpsidr
+      dpsi_dz=dpsidz
+    end subroutine field_of_rz
+  end module poicut_field_mod
 !
   module bounds_fixpoints_mod
     type allowed_region
@@ -730,6 +753,8 @@
   use field_eq_mod, only : psi_sep,rtf
   use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr, &
                            rmagaxis,zmagaxis,psimagaxis
+  use poicut_tracing_mod, only : trace_poicut_end,poicut_z_of_R
+  use poicut_field_mod, only   : field_of_rz
 !
   implicit none
 !
@@ -757,8 +782,8 @@
   sigpsi=sign(1.d0,psi_sep-psimagaxis)
   psils=psimagaxis+rho_pol**2*(psi_sep-psimagaxis)
 !
-  call trace_poicut_end(-h_R,psils,sigpsi,err_dist,Rb,Zb)
-  call trace_poicut_end( h_R,psils,sigpsi,err_dist,Re,Ze)
+  call trace_poicut_end(rmagaxis,zmagaxis,-h_R,psils,sigpsi,err_dist,field_of_rz,Rb,Zb)
+  call trace_poicut_end(rmagaxis,zmagaxis, h_R,psils,sigpsi,err_dist,field_of_rz,Re,Ze)
 !
   rpc_beg=Rb
   h_rpc=(Re-Rb)/dble(npc)
@@ -773,7 +798,7 @@
   do j=1,npline-1
     R=R+h_rpc
 !
-    call poicut_z_of_R(R,Z,err_dist)
+    call poicut_z_of_R(R,Z,err_dist,field_of_rz)
 !
     rpc_arr(j)=R
     zpc_arr(j)=Z
