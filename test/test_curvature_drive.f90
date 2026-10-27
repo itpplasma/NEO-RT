@@ -9,9 +9,10 @@ program test_curvature_drive
     ! sample; (5) a later initialisation without the flag disables the table.
     use, intrinsic :: iso_fortran_env, only: dp => real64
     use neort_lib, only: config_t, neort_init
-    use do_magfie_mod, only: do_magfie, init_magfie_at_s, magfie_thread_init, set_s
+    use do_magfie_mod, only: do_magfie, init_magfie_at_s, magfie_thread_init, set_s, q
     use do_magfie_pert_mod, only: init_magfie_pert_at_s, curvature_drive
-    use driftorbit, only: etatp
+    use driftorbit, only: etatp, mph
+    use util, only: qi, mi
     use neort_transport, only: timestep_transport
 
     implicit none
@@ -23,9 +24,10 @@ program test_curvature_drive
     real(dp), parameter :: other_c(3) = [-0.4e-4_dp, 0.2e-4_dp, 0.0_dp]
     real(dp), parameter :: other_s(3) = [0.1e-4_dp, -0.3e-4_dp, 0.9e-4_dp]
     real(dp), parameter :: zeros(3) = 0.0_dp
+    complex(dp), parameter :: potential = (0.03_dp, -0.02_dp)
     real(dp), parameter :: v = 1.0e8_dp, eta = 0.2_dp, tol = 1.0e-12_dp
     integer, parameter :: nsample = 7
-    complex(dp) :: base(nsample), h(nsample), expect
+    complex(dp) :: base(nsample), magnetic(nsample), h(nsample), expect
     real(dp) :: theta(nsample), etab(nsample), worst
     integer :: k
     character(len=32) :: mode
@@ -87,6 +89,15 @@ program test_curvature_drive
     print *, 'independent table: max deviation from closed form', worst
     if (worst > tol) error stop 'general drive differs from eta*B*dB_L/B + 2(1-eta*B)kappa.xi'
 
+    magnetic = h
+    call evaluate(.true., other_file, h, use_phi=.true.)
+    do k = 1, nsample
+        expect = magnetic(k) + qi*potential/(mi*v**2/2.0_dp)* &
+            exp((0.0_dp, 1.0_dp)*(1.0_dp + q*mph)*theta(k))
+        if (abs(h(k) - expect) > tol*abs(expect)) &
+            error stop 'curvature drive dropped the prescribed electric potential'
+    end do
+
     call evaluate(.false., other_file, h)
     if (curvature_drive) error stop 'reinitialisation without the flag must disable the table'
     if (maxval(abs(h - base)/abs(base)) > 0.0_dp) error stop 'default drive changed after reset'
@@ -99,8 +110,9 @@ program test_curvature_drive
 
 contains
 
-    subroutine evaluate(use_table, table, values)
+    subroutine evaluate(use_table, table, values, use_phi)
         logical, intent(in) :: use_table
+        logical, intent(in), optional :: use_phi
         character(len=*), intent(in) :: table
         complex(dp), intent(out) :: values(nsample)
         type(config_t) :: config
@@ -114,6 +126,9 @@ contains
         config%inp_swi = 9
         config%pertfile = .true.
         config%pertfile_curvature = use_table
+        if (present(use_phi)) config%phi1 = use_phi
+        config%phi_mn = potential
+        config%m0_phi = 1
         config%log_level = 0
         call neort_init(config, eq_file, pert_file, table)
         call magfie_thread_init()

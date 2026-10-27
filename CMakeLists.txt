@@ -140,6 +140,7 @@ set(NEO_RT_SOURCES
     src/orbit_classes.f90
     src/output.f90
     src/polylag_3.f
+    src/phi1.f90
     src/profiles.f90
     src/resonance.f90
     src/resonance_cutout.f90
@@ -152,7 +153,7 @@ set(NEO_RT_SOURCES
 )
 
 # Fast builds must retain explicit rejection of nonfinite scientific inputs.
-set_source_files_properties(src/separatrix.f90 src/orbit_classes.f90 src/resonance.f90 src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 src/resonance_cutout.f90 PROPERTIES
+set_source_files_properties(src/phi1.f90 src/separatrix.f90 src/orbit_classes.f90 src/resonance.f90 src/krook.f90 src/profiles.f90 src/species.f90 src/collision_rates.f90 src/mixture_collisions.f90 src/do_magfie_standalone.f90 src/collisional_layer.f90 src/resonance_cutout.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 if(USE_STANDALONE)

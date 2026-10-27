@@ -5,8 +5,10 @@ module neort_transport
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
-    use do_magfie_pert_mod, only: do_magfie_pert_amp, perturbation_amplitude_bound, &
+    use do_magfie_pert_mod, only: do_magfie_pert_amp, &
+        magnetic_amplitude_bound => perturbation_amplitude_bound, &
         do_magfie_pert_kappa_amp, curvature_drive
+    use neort_phi1, only: phi1, do_elec_pert_amp, phi1_amplitude_bound
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
@@ -474,7 +476,7 @@ contains
             ! gives 2e*S*|H| <= rtol*|H|^2 + e^2*S^2/rtol.
             ! The phase sensitivity is 2*pi*|mth+nq| times the period error.
             if (pertfile) then
-                call perturbation_amplitude_bound([s, 0.0_dp, th0], amplitude)
+                call magnetic_amplitude_bound([s, 0.0_dp, th0], amplitude)
                 amplitude_scale = abs(pertfile_scale)*amplitude/Bmin
             else
                 amplitude_scale = abs(epsmn)
@@ -510,6 +512,8 @@ contains
             call Om_th(ux*vth, eta, Omth, dOmthdv, dOmthdeta)
             taub = 2.0_dp*pi/abs(Omth)
             drive_bound = (2.0_dp - eta*Bmin)*amplitude_scale
+            if (phi1) call perturbation_amplitude_bound( &
+                [s, 0.0_dp, th0], ux*vth, eta, drive_bound)
             energy_squared = (mi*(ux*vth)**2/2.0_dp*drive_bound)**2
             mono = .false.
             if (present(energy_ratio)) mono = energy_ratio > 0.0_dp
@@ -530,6 +534,23 @@ contains
             call compute_transport_weight(ux, eta, result_, energy_ratio)
         end subroutine weight
     end subroutine compute_krook_velocity
+
+    subroutine perturbation_amplitude_bound(x, v, eta, amplitude)
+        real(dp), intent(in) :: x(3), v, eta
+        real(dp), intent(out) :: amplitude
+        real(dp) :: magnetic, electric
+        magnetic = abs(epsmn)
+        if (pertfile) then
+            call magnetic_amplitude_bound(x, magnetic)
+            magnetic = abs(pertfile_scale)*magnetic/Bmin
+        end if
+        amplitude = (2.0_dp - eta*Bmin)*magnetic
+        if (.not. phi1) return
+        call phi1_amplitude_bound(x, electric)
+        amplitude = amplitude + abs(qi)*electric/(mi*v**2/2.0_dp)
+        ! Round outward so the bound also covers a rounded complex phase/norm.
+        if (amplitude > 0.0_dp) amplitude = nearest(amplitude, 1.0_dp)
+    end subroutine perturbation_amplitude_bound
 
     subroutine report_krook_failure(status, ux, nu, effective_harmonic, geometry)
         integer, intent(in) :: status
@@ -1022,6 +1043,7 @@ contains
         ! Preserve the default arithmetic above for bitwise Fast-build compatibility.
         if (curvature_drive) &
             call general_drive(eta, t, y(1), phase_drift, x1, bmod1, epsn, Hn)
+        if (phi1) call add_electric_drive(v, eta, t, y(1), phase_drift, x1, Hn)
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
 
@@ -1049,6 +1071,26 @@ contains
         complex(dp) :: kappan, phase_factor
         real(dp) :: w_lagrangian, w_curvature
 
+        phase_factor = orbit_phase(eta, t, theta, phase_drift)
+        call do_magfie_pert_kappa_amp(x, kappan)
+        kappan = pertfile_scale*kappan/bmod
+        call drive_weight_leaf(eta*bmod, w_lagrangian, w_curvature)
+        Hn = (w_lagrangian*epsn + w_curvature*kappan)*phase_factor
+    end subroutine general_drive
+
+    subroutine add_electric_drive(v, eta, t, theta, phase_drift, x, Hn)
+        real(dp), intent(in) :: v, eta, t, theta, phase_drift, x(3)
+        complex(dp), intent(inout) :: Hn
+        complex(dp) :: electric
+
+        call do_elec_pert_amp(x, electric)
+        Hn = Hn + qi*electric/(mi*v**2/2.0_dp)*orbit_phase(eta, t, theta, phase_drift)
+    end subroutine add_electric_drive
+
+    function orbit_phase(eta, t, theta, phase_drift) result(phase_factor)
+        real(dp), intent(in) :: eta, t, theta, phase_drift
+        complex(dp) :: phase_factor
+
         if (abs(t) <= 0.0_dp) then
             phase_factor = exp(imun*(q*mph*theta + phase_drift))
         else if (eta > etatp) then
@@ -1056,11 +1098,7 @@ contains
         else
             phase_factor = exp(imun*(q*mph*theta - (mth + q*mph)*t*Omth + phase_drift))
         end if
-        call do_magfie_pert_kappa_amp(x, kappan)
-        kappan = pertfile_scale*kappan/bmod
-        call drive_weight_leaf(eta*bmod, w_lagrangian, w_curvature)
-        Hn = (w_lagrangian*epsn + w_curvature*kappan)*phase_factor
-    end subroutine general_drive
+    end function orbit_phase
 
     function fow_displacement(v_par, hphi) result(ds)
         ! First-order radial guiding-centre displacement s(t) - s from the thin

@@ -51,6 +51,10 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `vth` | Thermal velocity `[cm/s]`. | Used when no `plasma.in` is provided. |
 | `epsmn` | Perturbation amplitude `B₁/B₀`. | Used when `pertfile=.false.`; default `1`. |
 | `pertfile_scale` | Scale factor for the perturbation read from `in_file_pert`. | Used when `pertfile=.true.`; default `1`. |
+| `phi1` | Enable prescribed flux-surface potential. | Default `.false.`. Adds `qi*Phi1` to the Hamiltonian. |
+| `phi1file` | Potential in the Boozer ten-column exchange format. | Empty selects analytic `phi_mn`; see below. |
+| `phi1_scale` | Multiply the prescribed potential. | Default `1`; independent of `bfac` and `efac`. |
+| `phi_mn`, `m0_phi` | Complex analytic amplitude in statvolt and its poloidal harmonic. | `Re[phi_mn*exp(i*(m0_phi*theta+mph*phi))]`; defaults zero. |
 | `m0` | Poloidal perturbation harmonic. | Integer. |
 | `mph` | Toroidal perturbation harmonic. | Positive integer when using analytic perturbations. |
 | `magdrift` | Include magnetic drift (`.true.`/`.false.`). | Controls bounce-averaged drifts. |
@@ -95,6 +99,32 @@ covered by `test/test_passing_drift_derivative.f90`.
 - `thetafun_inp.dat` – Optional data for attenuation-factor diagnostics (`attenuation_factor.f90`).
 
 Example Boozer files are provided in `examples/base`.
+
+### Prescribed electrostatic perturbation
+
+Set `phi1=.true.` and `phi1file='potential.bc'` to read a prescribed Phi_1.
+Use the same Boozer angles and signed toroidal mode as the magnetic input:
+`n*nper` must equal `mph` after the magnetic file is read. The reader requires
+`CC quantity: Phi_1 [statvolt] in bmnc/bmns columns` before the global header.
+The ten-column rows carry cosine/sine potential coefficients in `bmnc/bmns`,
+with `rmnc..vmns` zero, as specified by the
+[NEO-2/Phi_1 exchange format](https://gitlab.tugraz.at/plasma/proj/neo2-phi1/-/blob/main/design/PHI1_FILE_FORMAT.md).
+Poloidal modes must be equally spaced and ascending, identical on every
+surface. The reader uses the magnetic reader's spline/Horner path, clamps s
+to the supplied range, reports a single surface as constant in s, and uses
+linear interpolation for two surfaces.
+
+For an analytic potential, leave `phi1file=''` and set, for example,
+`phi_mn=(0.01,-0.02), m0_phi=3`. To compute Phi-only transport also set
+`epsmn=0, pertfile=.false.`. The Hamiltonian adds `qi*Phi1/(mi*v**2/2)` to
+`(2-eta*B)*epsn` with the existing orbit phase. With a curvature table, this
+electric term is added to the general ideal drive. Fluxes and torque use the
+squared total harmonic, including interference. This is a prescribed input
+for comparison with [NEO-2](https://github.com/itpplasma/NEO-2), with no
+quasineutrality solve. The
+[derivation and references](https://gitlab.tugraz.at/plasma/proj/neo2-phi1/-/blob/main/derivation/NEORT.md)
+record normalization, units, signs and phase checks. The unperturbed orbit
+and resonance are retained, and no separate electric-harmonic output is added.
 
 ### Thermodynamic profiles (`plasma.in`)
 
