@@ -28,8 +28,7 @@
 !
   module poicut_mod
 ! number of points for Poincare cut:
-    integer :: npc
-! R value at the LFS Poincare cut boundary, grid step size over R (equidistant):
+    integer :: npc! R value at the LFS Poincare cut boundary, grid step size over R (equidistant):
     double precision :: rpc_beg,h_rpc
 ! coordinates (R,Z) and poloidal flux value at the magnetic axis:
     double precision :: rmagaxis,zmagaxis,psimagaxis
@@ -40,6 +39,30 @@
 ! arrays of R and Z coordinates at the Poincare cut:
     double precision, dimension(:), allocatable :: rpc_arr,zpc_arr
   end module poicut_mod
+!
+  module poicut_field_mod
+! Equilibrium field seen by the Poincare cut tracing. gpsigb_and_ders leaves
+! the flux and its derivatives in the provider module field_sub.
+    implicit none
+    interface
+      subroutine gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+        implicit none
+        double precision :: R,Z,gpgb,dgpgb_dr,dgpgb_dz
+      end subroutine gpsigb_and_ders
+    end interface
+  contains
+    subroutine field_of_rz(R,Z,psi,dpsi_dr,dpsi_dz,gpgb,dgpgb_dr,dgpgb_dz)
+      use field_sub, only : psif,dpsidr,dpsidz
+      implicit none
+      real(kind(1.d0)), intent(in) :: R,Z
+      real(kind(1.d0)), intent(out) :: psi,dpsi_dr,dpsi_dz,gpgb,dgpgb_dr,dgpgb_dz
+
+      call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
+      psi=psif
+      dpsi_dr=dpsidr
+      dpsi_dz=dpsidz
+    end subroutine field_of_rz
+  end module poicut_field_mod
 !
   module bounds_fixpoints_mod
     type allowed_region
@@ -730,6 +753,8 @@
   use field_eq_mod, only : psi_sep,rtf
   use poicut_mod, only   : npc,rpc_beg,h_rpc,rpc_arr,zpc_arr, &
                            rmagaxis,zmagaxis,psimagaxis
+  use poicut_tracing_mod, only : trace_poicut_end,poicut_z_of_R
+  use poicut_field_mod, only   : field_of_rz
 !
   implicit none
 !
@@ -757,8 +782,8 @@
   sigpsi=sign(1.d0,psi_sep-psimagaxis)
   psils=psimagaxis+rho_pol**2*(psi_sep-psimagaxis)
 !
-  call trace_poicut_end(-h_R,psils,sigpsi,err_dist,Rb,Zb)
-  call trace_poicut_end( h_R,psils,sigpsi,err_dist,Re,Ze)
+  call trace_poicut_end(rmagaxis,zmagaxis,-h_R,psils,sigpsi,err_dist,field_of_rz,Rb,Zb)
+  call trace_poicut_end(rmagaxis,zmagaxis, h_R,psils,sigpsi,err_dist,field_of_rz,Re,Ze)
 !
   rpc_beg=Rb
   h_rpc=(Re-Rb)/dble(npc)
@@ -773,7 +798,7 @@
   do j=1,npline-1
     R=R+h_rpc
 !
-    call poicut_z_of_R(R,Z,err_dist)
+    call poicut_z_of_R(R,Z,err_dist,field_of_rz)
 !
     rpc_arr(j)=R
     zpc_arr(j)=Z
@@ -785,88 +810,7 @@
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !
-  subroutine poicut_z_of_R(R,Z,err_dist)
-!
-! Newton iterations in Z bringing the point (R,Z) onto the line
-! $\nabla \psi \times \nabla B = 0$. Z enters as the starting guess, which must
-! be close enough to stay on the branch through the magnetic axis.
-! On return the field module state belongs to the converged point.
-!
-  implicit none
-!
-  integer, parameter :: niter=100
-  integer :: i
-  double precision :: R,Z,err_dist
-  double precision :: delZ,gpgb,dgpgb_dr,dgpgb_dz
-!
-  do i=1,niter
-!
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-    delZ=gpgb/dgpgb_dz
-    Z=Z-delZ
-    if(abs(delZ).lt.err_dist) exit
-  enddo
-!
-  if(i.gt.niter) error stop 'poicut_z_of_R: Newton iterations did not converge'
-!
-  call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-  end subroutine poicut_z_of_R
-!
-!ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!
-  subroutine trace_poicut_end(h_R,psils,sigpsi,err_dist,Rend,Zend)
-!
-! Traces the line $\nabla \psi \times \nabla B = 0$ from the magnetic axis in
-! steps h_R over R (negative towards the HFS) until the flux surface psils is
-! crossed, and refines that crossing by Newton iterations on both conditions.
-!
-  use field_sub,  only : psif,dpsidr,dpsidz
-  use poicut_mod, only : rmagaxis,zmagaxis
-!
-  implicit none
-!
-  integer, parameter :: nsplit=100,niter=100
-  integer :: i
-  double precision :: h_R,psils,sigpsi,err_dist,Rend,Zend
-  double precision :: R,Z,det,delR,delZ,stepfac,stepmod
-  double precision :: gpgb,dgpgb_dr,dgpgb_dz
-!
-  R=rmagaxis
-  Z=zmagaxis
-!
-  do i=1,nsplit
-    R=R+h_R
-!
-    call poicut_z_of_R(R,Z,err_dist)
-!
-    if((psif-psils)*sigpsi.gt.0.d0) exit
-  enddo
-!
-  if(i.gt.nsplit) error stop 'trace_poicut_end: flux surface rho_pol_max not '// &
-    'reached - check convex wall coverage and equilibrium box size'
-!
-  do i=1,niter
-!
-    call gpsigb_and_ders(R,Z,gpgb,dgpgb_dr,dgpgb_dz)
-!
-    det=dpsidr*dgpgb_dz-dpsidz*dgpgb_dr
-    delR=((psif-psils)*dgpgb_dz-dpsidz*gpgb)/det
-    delZ=(dpsidr*gpgb-(psif-psils)*dgpgb_dr)/det
-    stepmod=sqrt(delR**2+delZ**2)
-    stepfac=abs(h_R)/max(abs(h_R),stepmod)
-    R=R-delR*stepfac
-    Z=Z-delZ*stepfac
-    if(stepmod.lt.err_dist) exit
-  enddo
-!
-  if(i.gt.niter) error stop 'trace_poicut_end: Newton iterations did not converge'
-!
-  Rend=R
-  Zend=Z
-!
-  end subroutine trace_poicut_end
+
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 !

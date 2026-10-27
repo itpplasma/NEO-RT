@@ -44,6 +44,7 @@ add_library(potato_base
   sample_matrix_mod.f90
   sample_matrix.f90
   sample_matrix_out.f90
+  poicut_tracing.f90
   sub_potato.f90
   profile_data_mod.f90
   equimoments.f90
