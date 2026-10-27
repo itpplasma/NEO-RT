@@ -11,3 +11,6 @@ target_link_libraries(gen_collision_rates PRIVATE fortsym::fortsym)
 
 add_executable(gen_resonance_cutout gen_resonance_cutout.f90)
 target_link_libraries(gen_resonance_cutout PRIVATE fortsym::fortsym)
+
+add_executable(gen_drive gen_drive.f90)
+target_link_libraries(gen_drive PRIVATE fortsym::fortsym)

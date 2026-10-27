@@ -5,7 +5,8 @@ module neort_transport
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
         bphcov, dbthcovds, dbphcovds, q, dqds, sign_theta, Bthcov
-    use do_magfie_pert_mod, only: do_magfie_pert_amp, perturbation_amplitude_bound
+    use do_magfie_pert_mod, only: do_magfie_pert_amp, perturbation_amplitude_bound, &
+        do_magfie_pert_kappa_amp, curvature_drive
     use neort_magfie, only: dVds, B0
     use neort_profiles, only: ns, Om_tE
     use neort_species, only: selected_species
@@ -582,7 +583,7 @@ contains
 
     subroutine transport_bounce(v, eta, taub, bounceavg, istate)
         ! Bounce averages of the transport weight, H_mn**2 = |<H_n>|**2.
-        ! int H_n dt, with the dimensionless H_n = (2 - eta*B)*eps_n*exp(i*phase),
+        ! int H_n dt, with the dimensionless H_n = drive*exp(i*phase) (transport_rates),
         ! is an oscillatory, often strongly cancelling integral of size up to
         ! taub*max|H_n|. The fixed bounce_atol = 1e-10 can exceed that scale
         ! (small eps_n, short taub) and then leaves these components without
@@ -1018,6 +1019,9 @@ contains
             Hn = (2.0_dp - eta * bmod1) * epsn * exp(imun * (q * mph * (y(1)) - (mth + q * mph) &
                                                              * t * Omth + phase_drift))
         end if
+        ! Preserve the default arithmetic above for bitwise Fast-build compatibility.
+        if (curvature_drive) &
+            call general_drive(eta, t, y(1), phase_drift, x1, bmod1, epsn, Hn)
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
 
@@ -1036,6 +1040,27 @@ contains
         ydot(7) = Om_osc
         ydot(8:) = 0.0_dp
     end subroutine transport_rates
+
+    subroutine general_drive(eta, t, theta, phase_drift, x, bmod, epsn, Hn)
+        ! General ideal drive in the u=0 representation (doc/hamiltonian_drive.md).
+        real(dp), intent(in) :: eta, t, theta, phase_drift, x(3), bmod
+        complex(dp), intent(in) :: epsn
+        complex(dp), intent(out) :: Hn
+        complex(dp) :: kappan, phase_factor
+        real(dp) :: w_lagrangian, w_curvature
+
+        if (abs(t) <= 0.0_dp) then
+            phase_factor = exp(imun*(q*mph*theta + phase_drift))
+        else if (eta > etatp) then
+            phase_factor = exp(imun*(q*mph*theta - mth*t*Omth + phase_drift))
+        else
+            phase_factor = exp(imun*(q*mph*theta - (mth + q*mph)*t*Omth + phase_drift))
+        end if
+        call do_magfie_pert_kappa_amp(x, kappan)
+        kappan = pertfile_scale*kappan/bmod
+        call drive_weight_leaf(eta*bmod, w_lagrangian, w_curvature)
+        Hn = (w_lagrangian*epsn + w_curvature*kappan)*phase_factor
+    end subroutine general_drive
 
     function fow_displacement(v_par, hphi) result(ds)
         ! First-order radial guiding-centre displacement s(t) - s from the thin
@@ -1072,5 +1097,7 @@ contains
         dqds = saved(6)
         iota = saved(7)
     end subroutine do_magfie_displaced
+
+    include 'generated/drive_leaf.inc'
 
 end module neort_transport
