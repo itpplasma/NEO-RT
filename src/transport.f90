@@ -548,6 +548,8 @@ contains
         if (.not. phi1) return
         call phi1_amplitude_bound(x, electric)
         amplitude = amplitude + abs(qi)*electric/(mi*v**2/2.0_dp)
+        ! Round outward so the bound also covers a rounded complex phase/norm.
+        if (amplitude > 0.0_dp) amplitude = nearest(amplitude, 1.0_dp)
     end subroutine perturbation_amplitude_bound
 
     subroutine report_krook_failure(status, ux, nu, effective_harmonic, geometry)
@@ -1025,9 +1027,11 @@ contains
         end if
 
         drive = (2.0_dp - eta*bmod1)*epsn
+        electric = (0.0_dp, 0.0_dp)
         if (phi1) then
             call do_elec_pert_amp(x1, electric)
-            drive = drive + qi*electric/(mi*v**2/2.0_dp)
+            electric = qi*electric/(mi*v**2/2.0_dp)
+            drive = drive + electric
         end if
 
         if (abs(t) <= 0.0_dp) then
@@ -1046,7 +1050,7 @@ contains
         end if
         ! Preserve the default arithmetic above for bitwise Fast-build compatibility.
         if (curvature_drive) &
-            call general_drive(eta, t, y(1), phase_drift, x1, bmod1, epsn, Hn)
+            call general_drive(eta, t, y(1), phase_drift, x1, bmod1, epsn, electric, Hn)
         ydot(3) = real(Hn)
         ydot(4) = aimag(Hn)
 
@@ -1066,10 +1070,10 @@ contains
         ydot(8:) = 0.0_dp
     end subroutine transport_rates
 
-    subroutine general_drive(eta, t, theta, phase_drift, x, bmod, epsn, Hn)
+    subroutine general_drive(eta, t, theta, phase_drift, x, bmod, epsn, electric, Hn)
         ! General ideal drive in the u=0 representation (doc/hamiltonian_drive.md).
         real(dp), intent(in) :: eta, t, theta, phase_drift, x(3), bmod
-        complex(dp), intent(in) :: epsn
+        complex(dp), intent(in) :: epsn, electric
         complex(dp), intent(out) :: Hn
         complex(dp) :: kappan, phase_factor
         real(dp) :: w_lagrangian, w_curvature
@@ -1085,6 +1089,7 @@ contains
         kappan = pertfile_scale*kappan/bmod
         call drive_weight_leaf(eta*bmod, w_lagrangian, w_curvature)
         Hn = (w_lagrangian*epsn + w_curvature*kappan)*phase_factor
+        if (phi1) Hn = Hn + electric*phase_factor
     end subroutine general_drive
 
     function fow_displacement(v_par, hphi) result(ds)

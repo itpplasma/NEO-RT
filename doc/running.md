@@ -117,7 +117,8 @@ linear interpolation for two surfaces.
 For an analytic potential, leave `phi1file=''` and set, for example,
 `phi_mn=(0.01,-0.02), m0_phi=3`. To compute Phi-only transport also set
 `epsmn=0, pertfile=.false.`. The Hamiltonian adds `qi*Phi1/(mi*v**2/2)` to
-`(2-eta*B)*epsn` with the existing orbit phase. Fluxes and torque use the
+`(2-eta*B)*epsn` with the existing orbit phase. With a curvature table, this
+electric term is added to the general ideal drive. Fluxes and torque use the
 squared total harmonic, including interference. This is a prescribed input
 for comparison with [NEO-2](https://github.com/itpplasma/NEO-2), with no
 quasineutrality solve. The

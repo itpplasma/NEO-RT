@@ -87,8 +87,11 @@ program test_phi1
              - expected) > 2.0e-13_dp*abs(expected)) error stop 'q Phi/E phase or units'
             call perturbation_amplitude_bound([0.5_dp, 0.0_dp, y(1)], &
                                               2.0_dp, eta, bound)
-            if (bound < abs(cmplx(rates(3), rates(4), dp))) &
+            if (bound < abs(cmplx(rates(3), rates(4), dp))) then
+                print *, 'charge, geometry, bound, harmonic:', charge, geometry, &
+                    bound, abs(cmplx(rates(3), rates(4), dp))
                 error stop 'Hamiltonian amplitude bound omits Phi'
+            end if
         end do
     end do
     print *, 'test_phi1 PASSED'
