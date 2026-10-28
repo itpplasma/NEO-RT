@@ -8,7 +8,7 @@ Welcome to the NEO-RT documentation hub. This site accompanies the FORD-generate
 
 ## Quick start
 
-1. Install the build dependencies (`gfortran`, CMake, Ninja, BLAS/LAPACK, SuiteSparse, NetCDF) and optional documentation tools (`ford`, Graphviz).
+1. Install the build dependencies (`gfortran`, CMake, Ninja, BLAS/LAPACK) and optional documentation tools (`ford`, Graphviz); see [Building NEO-RT](building.md).
 2. If you want to use the helper scripts, examples, or Python-based tests on a PEP 668 system, create the local virtual environment:
    ```bash
    ./setup-venv.sh
@@ -52,7 +52,9 @@ Column definitions and units are tabulated in [Output file formats](file_formats
 
 ## Further reading
 
+- [Building NEO-RT](building.md) – Dependencies, build options, Python environment and field backends.
 - [Running NEO-RT](running.md) – Complete workflow for preparing inputs, executing runs, and collecting results.
+- [Diagnostics and probes](diagnostics.md) – `neo_rt_diag.x` and the field and profile probe executables.
 - [Library Interface](library.md) – Using NEO-RT as a library for embedding transport calculations in other codes.
 - [Circular offset rotation](offset_rotation.md) – Kasilov conversion, units, signs, and the restoring-torque showcase.
 - [Differentiation Plan](differentiation.md) – Layered analytical and automatic differentiation roadmap (atomic issues ad-01..ad-10).
