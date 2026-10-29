@@ -475,7 +475,7 @@ contains
             ! Bound that drive by the Fourier triangle inequality, and carry
             ! its orbit error e*S into the squared weight, which errs by at
             ! most 2e*S*|H| + e^2*S^2. The cross term is integrated directly:
-            ! Young.s bound e^2*S^2/rtol can exceed the value itself where the
+            ! Young's bound e^2*S^2/rtol can exceed the value itself where the
             ! harmonic is resolved, and would hide quadrature error there.
             ! The phase sensitivity is 2*pi*|mth+nq| times the period error
             ! on passing orbits. Trapped orbits carry the secular phase
