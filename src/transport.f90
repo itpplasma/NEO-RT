@@ -458,9 +458,10 @@ contains
         real(dp), intent(in), optional :: energy_ratio
         real(dp), intent(out) :: values(3)
         real(dp) :: effective_harmonic, geometry, nu
-        real(dp) :: natural(3), absolute_tolerance(3), amplitude_scale, amplitude
+        real(dp) :: natural(3), cross(3), absolute_tolerance(3), amplitude_scale, amplitude
         real(dp) :: amplitude_error
         integer :: status
+        real(dp), parameter :: cross_rtol = 1.0e-2_dp
         effective_harmonic = real(mth, dp)
         geometry = krook_geometry_trapped
         if (etamax < etatp) then
@@ -468,26 +469,43 @@ contains
             if (krook_harmonic == 1) effective_harmonic = effective_harmonic + q*mph
         end if
         nu = effective_krook_rate(ux, effective_harmonic, geometry, ux*vth*0.01_dp)
-        if (.not. fow_radial .and. etamax < etatp) then
+        if (.not. fow_radial) then
             ! A nearly vanishing Fourier harmonic cannot be resolved relative
             ! to itself by an ODE controlled relative to the unaveraged drive.
             ! Bound that drive by the Fourier triangle inequality, and carry
-            ! its orbit error e*S into the squared weight. Young's inequality
-            ! gives 2e*S*|H| <= rtol*|H|^2 + e^2*S^2/rtol.
-            ! The phase sensitivity is 2*pi*|mth+nq| times the period error.
+            ! its orbit error e*S into the squared weight, which errs by at
+            ! most 2e*S*|H| + e^2*S^2. The cross term is integrated directly:
+            ! Young's bound e^2*S^2/rtol can exceed the value itself where the
+            ! harmonic is resolved, and would hide quadrature error there.
+            ! The phase sensitivity is 2*pi*|mth+nq| times the period error
+            ! on passing orbits. Trapped orbits carry the secular phase
+            ! mth*Omth*t and the bounded nq*theta, hence 2*pi*(|mth|+|nq|);
+            ! their high harmonics fall to this noise floor in the deep well.
             if (pertfile) then
                 call magnetic_amplitude_bound([s, 0.0_dp, th0], amplitude)
                 amplitude_scale = abs(pertfile_scale)*amplitude/Bmin
             else
                 amplitude_scale = abs(epsmn)
             end if
-            amplitude_error = (1.0_dp + &
-                2.0_dp*pi*abs(real(mth, dp) + q*mph))*bounce_rtol
+            if (etamax < etatp) then
+                amplitude_error = (1.0_dp + &
+                    2.0_dp*pi*abs(real(mth, dp) + q*mph))*bounce_rtol
+            else
+                amplitude_error = (1.0_dp + &
+                    2.0_dp*pi*(abs(real(mth, dp)) + abs(q*mph)))*bounce_rtol
+            end if
             call integrate_krook(residual, envelope, etamin, etamax, nu, &
                 krook_eta_steps, krook_rtol, 0.0_dp, natural, status, krook_max_depth)
             if (status /= 0) call report_krook_failure(status, ux, nu, &
                 effective_harmonic, geometry)
-            absolute_tolerance = (1.0_dp + 1.0_dp/krook_rtol)* &
+            ! An error estimate needs only two digits; its own floor is e*S.
+            call integrate_krook(residual, cross_weight, etamin, etamax, nu, &
+                krook_eta_steps, cross_rtol, 0.0_dp, cross, status, krook_max_depth, &
+                amplitude_error*abs(natural))
+            if (status /= 0) call report_krook_failure(status, ux, nu, &
+                effective_harmonic, geometry)
+            absolute_tolerance = 2.0_dp*amplitude_error*((1.0_dp + cross_rtol)* &
+                abs(cross) + amplitude_error*abs(natural)) + &
                 amplitude_error**2*abs(natural)
             call integrate_krook(residual, weight, etamin, etamax, nu, krook_eta_steps, &
                 krook_rtol, krook_atol, values, status, krook_max_depth, &
@@ -533,6 +551,15 @@ contains
             real(dp), intent(out) :: result_(:)
             call compute_transport_weight(ux, eta, result_, energy_ratio)
         end subroutine weight
+        subroutine cross_weight(eta, result_)
+            ! Prefactor*S*|H|: both factors carry the same transport prefactor.
+            real(dp), intent(in) :: eta
+            real(dp), intent(out) :: result_(:)
+            real(dp) :: squared(size(result_)), bound(size(result_))
+            call compute_transport_weight(ux, eta, squared, energy_ratio)
+            call envelope(eta, bound)
+            result_ = sqrt(abs(squared*bound))
+        end subroutine cross_weight
     end subroutine compute_krook_velocity
 
     subroutine perturbation_amplitude_bound(x, v, eta, amplitude)

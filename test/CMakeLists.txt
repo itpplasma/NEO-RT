@@ -647,6 +647,13 @@ add_test(NAME test_krook_c12_cancellation
 set_tests_properties(test_krook_c12_cancellation PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 90)
 
+add_test(NAME test_krook_trapped_harmonic
+    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_trapped_harmonic.py
+        $<TARGET_FILE:test_krook_trapped_harmonic.x>
+        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_trapped_harmonic.tar.xz)
+set_tests_properties(test_krook_trapped_harmonic PROPERTIES
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 150)
+
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_tables)
 add_test(NAME test_curvature_tables COMMAND test_curvature_tables.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_tables)
