@@ -204,19 +204,30 @@ NEO-RT then derives each species' Mach number and returns all species results
 in one native invocation.
 
 
-For passing transport without radial orbit width, a Fourier harmonic can be
+For transport without radial orbit width, a Fourier harmonic can be
 smaller than the error of the orbit integral. Its squared weight then cannot
-meet a purely relative pitch tolerance. NEO-RT integrates a nonoscillating
+meet a purely relative pitch tolerance. This happens for passing orbits and for
+high trapped harmonics, whose `|H|/S` falls to the orbit-integration floor in
+the deep well. NEO-RT integrates a nonoscillating
 envelope `S = (2-eta Bmin) |pertfile_scale| sum|dB_m|/Bmin` with the same
 Lorentzian and transport prefactors. For an analytic perturbation, its amplitude
 is `|epsmn|`. The amplitude error estimate is `e S`, where
-`e = [1+2 pi |mth+nq|] bounce_rtol`. Young's inequality gives
-`2 e S |H| + e^2 S^2 <= rtol |H|^2 + (1+1/rtol) e^2 S^2`.
-The resulting component-wise absolute error budgets scale quadratically with
-the perturbation. They are numerical error estimates, not rigorous ODE
-enclosures. The requested relative tolerance and quadrature work limits are
-unchanged; unresolved quadrature errors beyond this budget still abort.
+`e = [1+2 pi |mth+nq|] bounce_rtol` for passing orbits and
+`e = [1+2 pi (|mth|+|nq|)] bounce_rtol` for trapped orbits, whose phase holds the
+secular `mth Omega_theta t` and the bounded `nq theta`. The squared weight then
+errs by at most `2 e S |H| + e^2 S^2`. Both terms are integrated with the same
+Lorentzian and prefactors: `S^2` to the relative tolerance, the cross term
+`S |H|` to 1 % with its own floor `e S^2` as absolute tolerance. Their sum is the
+component-wise absolute budget of the pitch quadrature, which therefore scales
+quadratically with the perturbation. The earlier Young bound
+`(1+1/rtol) e^2 S^2` exceeded the value itself where the harmonic is resolved
+near the trapped-passing boundary. These are numerical error estimates, not
+rigorous ODE enclosures. The requested relative tolerance and quadrature work
+limits are unchanged; unresolved quadrature errors beyond this budget still abort.
 `test_krook_c12_cancellation` retains the exact opposite-rotation, constant-Krook,
 multiplier-0.01 deck and its failing T counter-passing mth=+6 velocity node.
-It checks termination, the bounded tiny-channel reference and amplitude scaling;
+It checks termination, the bounded tiny-channel reference and amplitude scaling.
+`test_krook_trapped_harmonic` retains the circular large-aspect-ratio field
+and its failing trapped mth=-40 node, and compares it with fixed panels in
+`log(eta-etatp)` within the 2e-3 orbit-error budget of that node;
 the separate MARS reference retains its strict 1e-6 bound.
