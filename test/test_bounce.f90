@@ -15,6 +15,7 @@ program test_bounce_program
     call test_bounce_time
     call test_bounce_fast
     call test_bounce_time_electron_speed
+    call test_bounce_fast_electron_speed
 
 contains
 
@@ -137,6 +138,35 @@ contains
         end if
         print *, 'test_bounce_time_electron_speed OK'
     end subroutine test_bounce_time_electron_speed
+
+
+    !> bounce_fast under v -> c v, t -> t / c with c a power of two: theta
+    !> and the average of Om_tB are unchanged and v_par scales by c, exactly,
+    !> provided the v_par error control scales with v as well.
+    subroutine test_bounce_fast_electron_speed
+        use neort_orbit, only: bounce_time, bounce_fast, nvar, timestep
+        use driftorbit, only: etatp, etadt
+        real(dp), parameter :: speedup = 128.0_dp
+        integer, parameter :: neta = 16
+        real(dp) :: eta_k, taub, ion(nvar), electron(nvar), worst
+        integer :: k
+
+        worst = 0.0_dp
+        do k = 1, neta
+            eta_k = etatp*(1.0_dp + (etadt/etatp - 1.0_dp)*(real(k, dp) - 0.5_dp)/neta)
+            taub = bounce_time(v, eta_k)
+            call bounce_fast(v, eta_k, taub, ion, timestep)
+            call bounce_fast(speedup*v, eta_k, taub/speedup, electron, timestep)
+            worst = max(worst, abs(electron(1)/speedup - ion(1))/(abs(ion(1)) + 1.0_dp/taub), &
+                abs(electron(2)/speedup**2 - ion(2))/abs(ion(2)), &
+                abs(electron(3) - ion(3))/abs(ion(3)))
+        end do
+        if (worst > 1.0e-14_dp) then
+            print *, 'test_bounce_fast_electron_speed failed', worst
+            error stop
+        end if
+        print *, 'test_bounce_fast_electron_speed OK'
+    end subroutine test_bounce_fast_electron_speed
 
 
     !> Check the bounce time against a quadrature of the same orbit.
@@ -310,7 +340,7 @@ contains
             error stop
         end if
         if (maxval(abs((bounceavg(2:) - bounceavg_tmp(2:)) &
-                       /(bounceavg(2:) + 1.0e-6_dp))) > 1.0e-3_dp) then
+            /(bounceavg(2:) + 1.0e-6_dp))) > 1.0e-3_dp) then
             print *, 'test_bounce_fast failed'
             error stop
         end if
