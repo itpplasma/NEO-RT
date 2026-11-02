@@ -190,6 +190,8 @@ contains
         y0(3:6) = 0.0_dp
 
         atol = bounce_atol
+        ! v_par is in cm/s, as in bounce_integral.
+        atol(2) = bounce_atol*v
         if (present(atol_in)) atol = atol_in
         call vode_init(vstate, nvar, t1, y0)
         call vode_integrate_to(bounce_rhs, vstate, t2, rtol, atol, yend, status)
