@@ -354,6 +354,9 @@ contains
 
         passing = (eta < etatp)
         atol = atol_val
+        ! v_par is in cm/s; a tolerance fixed in cm/s falls below its rounding
+        ! error at the turning points of fast species such as electrons.
+        atol(2) = atol_val*v
 
         if (get_log_level() >= LOG_TRACE) then
             write(*,'(A,2ES12.5,2A)') '[TRACE] bounce_integral start v,eta=', v, eta, &
