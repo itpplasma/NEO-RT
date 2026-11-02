@@ -14,6 +14,7 @@ program test_bounce_program
     call test_bounce
     call test_bounce_time
     call test_bounce_fast
+    call test_bounce_time_electron_speed
 
 contains
 
@@ -105,6 +106,37 @@ contains
 
         print *, 'test_bounce_time OK'
     end subroutine test_bounce_time
+
+
+    !> The orbit equations are invariant under v -> c v, t -> t / c. For c a
+    !> power of two every operation of the integration then scales exactly,
+    !> provided its error control scales with v as well, so v * taub must not
+    !> change at all. c = 128 covers the electron-to-deuteron thermal speed
+    !> ratio, about 60 at equal temperature. If the v_par error control does
+    !> not scale, the error test near a turning point asks for less than the
+    !> rounding error of v_par, and an electron orbit whose step lands there
+    !> stalls.
+    subroutine test_bounce_time_electron_speed
+        use neort_orbit, only: bounce_time
+        use driftorbit, only: etatp, etadt
+        real(dp), parameter :: speedup = 128.0_dp
+        integer, parameter :: neta = 16
+        real(dp) :: eta_k, ion, electron, worst
+        integer :: k
+
+        worst = 0.0_dp
+        do k = 1, neta
+            eta_k = etatp*(1.0_dp + (etadt/etatp - 1.0_dp)*(real(k, dp) - 0.5_dp)/neta)
+            ion = v*bounce_time(v, eta_k)
+            electron = speedup*v*bounce_time(speedup*v, eta_k)
+            worst = max(worst, abs(electron - ion)/ion)
+        end do
+        if (worst > 1.0e-14_dp) then
+            print *, 'test_bounce_time_electron_speed failed', worst
+            error stop
+        end if
+        print *, 'test_bounce_time_electron_speed OK'
+    end subroutine test_bounce_time_electron_speed
 
 
     !> Check the bounce time against a quadrature of the same orbit.
