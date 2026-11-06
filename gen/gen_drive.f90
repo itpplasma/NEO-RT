@@ -4,13 +4,11 @@ program gen_drive
     ! i.e. H = mu dB_L + m v_par^2 kappa.xi_perp for deltaA = xi_perp x B0 in the
     ! unperturbed canonical variables (doc/hamiltonian_drive.md).
     use iso_fortran_env, only: output_unit
-    use fortsym_arena, only: arena_t
     use fortsym_expr, only: expr_t, sym, operator(*), operator(-)
     use fortsym_kernel_emit, only: kernel_emit_spec_t, emit_fortran_kernel_ir
     use fortsym_kernel_ir, only: kernel_ir_t, lower_kernel_ir
-    use fortsym_string, only: chars, str, str_t
+    use fortsym_string, only: chars, str, str_t, words
     implicit none
-    type(arena_t), target :: arena
     type(expr_t) :: etab, weights(2)
     type(kernel_ir_t) :: ir
     type(kernel_emit_spec_t) :: spec
@@ -23,15 +21,14 @@ program gen_drive
     call get_command_argument(2, revision)
     if (len_trim(output) == 0 .or. len_trim(revision) == 0) &
         error stop 'usage: gen_drive OUTPUT FORTSYM_REVISION'
-    call arena%init()
-    etab = sym(arena, 'etab')
+    etab = sym('etab')
     weights(1) = etab                      ! mu B / E           (mirror force on dB_L)
     weights(2) = 2*(1 - etab)              ! m v_par^2 / E      (curvature)
     call lower_kernel_ir(weights, ir, ok, message)
     if (.not. ok) error stop message
     spec%name = str('drive_weight_leaf')
     spec%args = [str('etab')]
-    spec%outputs = [str('lagrangian'), str('curvature')]
+    spec%outputs = words('lagrangian curvature')
     spec%generator = str('gen/gen_drive.f90')
     spec%generator_revision = str(trim(revision))
     spec%regenerate_command = str('gen_drive src/generated/drive_leaf.inc FORTSYM_REVISION')

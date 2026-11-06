@@ -1,12 +1,10 @@
 program gen_species
     use iso_fortran_env, only: output_unit
-    use fortsym_arena, only: arena_t
     use fortsym_expr, only: expr_t, sym, operator(*), operator(/), operator(+), operator(-)
     use fortsym_kernel_emit, only: kernel_emit_spec_t, emit_fortran_kernel_ir
     use fortsym_kernel_ir, only: kernel_ir_t, lower_kernel_ir
-    use fortsym_string, only: chars, str, str_t
+    use fortsym_string, only: chars, str, str_t, words
     implicit none
-    type(arena_t), target :: arena
     type(expr_t) :: base, gradient, delta, radius, speed, dspeed, omega, domega
     type(expr_t) :: affine(1), rotation(2)
     type(kernel_ir_t) :: ir
@@ -20,13 +18,12 @@ program gen_species
     call get_command_argument(2, revision)
     if (len_trim(output) == 0 .or. len_trim(revision) == 0) &
         error stop 'usage: gen_species OUTPUT FORTSYM_REVISION'
-    call arena%init()
-    base = sym(arena, 'base'); gradient = sym(arena, 'gradient'); delta = sym(arena, 'delta')
+    base = sym('base'); gradient = sym('gradient'); delta = sym('delta')
     affine(1) = base + gradient*delta
     call lower_kernel_ir(affine, ir, ok, message)
     if (.not. ok) error stop message
     spec%name = str('species_affine_leaf')
-    spec%args = [str('base'), str('gradient'), str('delta')]
+    spec%args = words('base gradient delta')
     spec%outputs = [str('value')]
     spec%generator = str('gen/gen_species.f90')
     spec%generator_revision = str(trim(revision))
@@ -35,15 +32,15 @@ program gen_species
     if (.not. ok) error stop message
     open(newunit=unit, file=trim(output), status='replace')
     write(unit, '(a)') chars(source)
-    radius = sym(arena, 'radius'); speed = sym(arena, 'speed')
-    dspeed = sym(arena, 'dspeed'); omega = sym(arena, 'omega'); domega = sym(arena, 'domega')
+    radius = sym('radius'); speed = sym('speed')
+    dspeed = sym('dspeed'); omega = sym('omega'); domega = sym('domega')
     rotation(1) = radius*omega/speed
     rotation(2) = radius*(domega/speed - omega*dspeed/(speed*speed))
     call lower_kernel_ir(rotation, ir, ok, message)
     if (.not. ok) error stop message
     spec%name = str('species_rotation_leaf')
-    spec%args = [str('radius'), str('speed'), str('dspeed'), str('omega'), str('domega')]
-    spec%outputs = [str('mach'), str('dmach')]
+    spec%args = words('radius speed dspeed omega domega')
+    spec%outputs = words('mach dmach')
     source = emit_fortran_kernel_ir(ir, spec, ok, message)
     if (.not. ok) error stop message
     write(unit, '(a)', advance='no') chars(source)
