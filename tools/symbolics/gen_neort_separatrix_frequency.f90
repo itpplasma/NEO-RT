@@ -25,7 +25,6 @@ program gen_neort_separatrix_frequency
     call get_command_argument(1, output)
     if (len_trim(output) == 0) output = DEFAULT_OUTPUT
 
-    call reset()
     z = "z"
     tau_a = "tau_a"
     tau_b = "tau_b"
@@ -58,7 +57,7 @@ program gen_neort_separatrix_frequency
 
     roots(1) = tau
     roots(2) = simplified_derivative(tau, z)
-    roots(3) = simplified(2*pi_expr(default_arena())/tau)
+    roots(3) = simplified(2*pi_expr()/tau)
     roots(4) = simplified_derivative(roots(3), z)
     roots(5) = simplified(drift)
     roots(6) = simplified_derivative(drift, z)
@@ -72,12 +71,8 @@ program gen_neort_separatrix_frequency
         "build/gen_neort_separatrix_frequency")
     spec%pure_procedure = .true.
     spec%temp_prefix = str("sep_t")
-    allocate (spec%args(9), spec%outputs(6))
-    spec%args = [str("z"), str("tau_a"), str("tau_b"), str("tau_c"), &
-        str("tau_d"), str("num_a"), str("num_b"), str("num_c"), &
-        str("num_d")]
-    spec%outputs = [str("tau"), str("dtau_dz"), str("omega"), &
-        str("domega_dz"), str("drift"), str("ddrift_dz")]
+    spec%args = words("z tau_a tau_b tau_c tau_d num_a num_b num_c num_d")
+    spec%outputs = words("tau dtau_dz omega domega_dz drift ddrift_dz")
 
     source = chars(emit_kernel(roots, spec, ok))
     if (.not. ok) then
