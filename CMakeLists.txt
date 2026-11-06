@@ -96,6 +96,9 @@ endif()
 # Disable tests for dependencies
 set(BUILD_TESTING OFF)
 
+if(NOT DEFINED SPLINE_REF)
+    set(SPLINE_REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e)
+endif()
 find_or_fetch(spline)
 
 include(FetchContent)
@@ -109,12 +112,7 @@ if(NOT TARGET fortnum)
     FetchContent_MakeAvailable(fortnum)
 endif()
 
-FetchContent_Declare(
-    fortplot
-    GIT_REPOSITORY https://github.com/lazy-fortran/fortplot.git
-    GIT_TAG main
-)
-FetchContent_MakeAvailable(fortplot)
+include(Fortplot)
 
 add_executable(${PROJECT_EXE_NAME} src/program.f90)
 
@@ -168,6 +166,9 @@ if(USE_STANDALONE)
         add_library("util_for_test_${PROJECT_NAME}" STATIC test/util_for_test.f90)
     endif()
 else()
+    if(NOT DEFINED NEO-2_REF)
+        set(NEO-2_REF 881c2336bac918d3e3c79ec2b282fc29f67cfaa3)
+    endif()
     find_or_fetch(NEO-2)
     add_library("neo_rt" STATIC
         ${NEO_RT_SOURCES}

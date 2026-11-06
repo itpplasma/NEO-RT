@@ -42,13 +42,7 @@ find_or_fetch(spline)
 # spline_val_0 has a threadprivate interval cache used by parallel orbits.
 target_link_libraries(spline OpenMP::OpenMP_Fortran)
 
-include(FetchContent)
-FetchContent_Declare(
-    fortplot
-    GIT_REPOSITORY https://github.com/lazy-fortran/fortplot.git
-    GIT_TAG main
-)
-FetchContent_MakeAvailable(fortplot)
+include(Fortplot)
 
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
