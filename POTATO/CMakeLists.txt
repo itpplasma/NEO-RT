@@ -92,6 +92,13 @@ add_test(NAME test_find_all_roots_bracketed
    COMMAND test_find_all_roots_bracketed.x
 )
 
+# Apple's linker searches all archives repeatedly and has no RESCAN group.
+if(CMAKE_LINK_GROUP_USING_RESCAN_SUPPORTED)
+   set(POTATO_ARCHIVE_GROUP "$<LINK_GROUP:RESCAN,potato,potato_base>")
+else()
+   set(POTATO_ARCHIVE_GROUP potato potato_base)
+endif()
+
 add_executable(test_failed_orbit_nodes.x
    SRC/test_failed_orbit_nodes.f90
 )
@@ -99,7 +106,7 @@ add_executable(test_failed_orbit_nodes.x
 # profile_input implementation.  potato_base is intentionally incomplete there,
 # so the two archives must be rescanned as a group rather than linked in order.
 target_link_libraries(test_failed_orbit_nodes.x
-   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+   ${POTATO_ARCHIVE_GROUP}
 )
 add_test(NAME test_failed_orbit_nodes
    COMMAND test_failed_orbit_nodes.x
@@ -116,7 +123,7 @@ target_link_libraries(test_bmod_boozer_precision.x PRIVATE potato)
 add_executable(potato_perturbation_readback.x test/bmod_converter/reader_readback.f90)
 target_link_libraries(potato_perturbation_readback.x PRIVATE potato)
 target_link_libraries(test_bmod_pert_bounds.x
-   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+   ${POTATO_ARCHIVE_GROUP}
 )
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run)
 foreach(_mode inside outside_r outside_z nan_r nan_z lost_outside
@@ -149,7 +156,7 @@ add_executable(test_radial_boxes.x
    SRC/test_radial_boxes.f90
 )
 target_link_libraries(test_radial_boxes.x
-   "$<LINK_GROUP:RESCAN,potato,potato_base>"
+   ${POTATO_ARCHIVE_GROUP}
 )
 add_test(NAME test_radial_boxes
    COMMAND test_radial_boxes.x
@@ -157,7 +164,7 @@ add_test(NAME test_radial_boxes
 
 add_executable(test_profile_exit.x SRC/test_profile_exit.f90)
 target_link_libraries(test_profile_exit.x PRIVATE
-   "$<LINK_GROUP:RESCAN,potato,potato_base>")
+   ${POTATO_ARCHIVE_GROUP})
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_profile_exit_run)
 add_test(NAME test_profile_exit_absorb COMMAND test_profile_exit.x absorb)
 add_test(NAME test_profile_exit_default
