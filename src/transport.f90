@@ -361,7 +361,8 @@ contains
         real(dp), intent(in) :: vmin, vmax
         type(velocity_sample_t), intent(inout) :: sample
         logical, intent(out) :: ok
-        integer, parameter :: nscan = 1024, nend = 24, max_panels = 2000
+        integer, parameter :: nscan = 1024, nend = 24, max_panels = 2000, &
+            initial_panels = 4
         real(dp), allocatable :: grid(:), fn(:, :), brk(:), mid(:), half(:), &
             lo(:), hi(:), val(:, :), err(:, :)
         integer, allocatable :: seg(:)
@@ -414,13 +415,18 @@ contains
         do k = 1, ns
             mid(k) = 0.5_dp*(brk(k) + brk(k + 1))
             half(k) = 0.5_dp*(brk(k + 1) - brk(k))
-            if (half(k) <= 0.0_dp .or. np >= max_panels) cycle
-            np = np + 1
-            seg(np) = k
-            lo(np) = 0.0_dp
-            hi(np) = pi
-            call pitch_panel(mid(k), half(k), lo(np), hi(np), ulo, uhi, val(:, np), &
-                err(:, np))
+            if (half(k) <= 0.0_dp) cycle
+            ! Several initial panels, so that one Gauss-Kronrod pair cannot
+            ! miss structure that both rules sample alike.
+            do j = 1, initial_panels
+                if (np >= max_panels) exit
+                np = np + 1
+                seg(np) = k
+                lo(np) = pi*real(j - 1, dp)/initial_panels
+                hi(np) = pi*real(j, dp)/initial_panels
+                call pitch_panel(mid(k), half(k), lo(np), hi(np), ulo, uhi, &
+                    val(:, np), err(:, np))
+            end do
         end do
         do
             total = sum(val(:, 1:np), dim=2)

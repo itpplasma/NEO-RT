@@ -85,3 +85,31 @@ def test_adaptive_velocity_integral_converges(tmp_path):
     for vtol, value in values.items():
         assert abs(value / reference - 1) < 2e-3, (vtol, value, reference)
     assert abs(reference / D11_MIDPOINT_32768 - 1) < 0.04, reference
+
+
+# Ripple-plateau case of test/ripple_plateau with the plasma of examples/base:
+# no magnetic drift, harmonics up to |m| = 41. Pitch and speed adaptive
+# integrals at vtol = 1e-5 agree on D11 to 2e-6; the 256-node midpoint rule
+# is off by 3e-4.
+RIPPLE_DIR = TEST_DIR.parent / "ripple_plateau"
+D11_RIPPLE = 2.1583872e-02
+
+
+def test_adaptive_velocity_shares_error_budget_over_harmonics(tmp_path):
+    """Strongly cancelling high harmonics must not be refined to their own
+    relative tolerance: this case then took minutes instead of seconds."""
+    executable = find_executable()
+    work_dir = tmp_path / "ripple"
+    work_dir.mkdir()
+    text = (RIPPLE_DIR / "driftorbit_test.in").read_text()
+    text = text.replace("log_level = -1", "vtol = 1e-3\n    log_level = -1")
+    (work_dir / "driftorbit_test.in").write_text(text)
+    (work_dir / "in_file").symlink_to((RIPPLE_DIR / "in_file").resolve())
+    for name in ("plasma.in", "profile.in"):
+        (work_dir / name).symlink_to((EXAMPLES / "base" / name).resolve())
+    result = subprocess.run([str(executable), "driftorbit_test"], cwd=work_dir,
+                            capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        pytest.fail(f"neo_rt.x failed:\n{result.stdout}\n{result.stderr}")
+    value = float(np.loadtxt(work_dir / "driftorbit_test.out")[4])
+    assert abs(value / D11_RIPPLE - 1) < 1e-5, value
