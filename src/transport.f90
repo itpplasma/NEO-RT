@@ -41,6 +41,10 @@ module neort_transport
   ! the midpoint rule converges like sqrt(du) and erratically.
   real(dp) :: vtol = 0.0_dp
   integer, parameter :: vtol_initial_panels = 16, vtol_max_panels = 4000
+  ! Error budget of the serial driver (compute_transport), which runs the
+  ! components one by one: coarse sizing pass and per-component share.
+  logical :: serial_coarse = .false.
+  real(dp) :: serial_atol(3) = 0.0_dp, serial_sum(3) = 0.0_dp
 
   ! These values remain live while bounce_fast invokes timestep_transport.
   ! Each transport worker needs an independent callback state.
@@ -156,9 +160,19 @@ contains
 
         allocate(samples(velocity_sample_count(vsteps, energy_ratio)))
         call prepare_velocity_samples(samples)
+        samples%coarse = serial_coarse
+        do ku = 1, size(samples)
+            samples(ku)%atol = serial_atol
+        end do
         do ku = 1, size(samples)
             call compute_velocity_sample(ku, vmin, vmax, vsteps, energy_ratio, samples(ku))
         end do
+        if (serial_coarse) then
+            do ku = 1, size(samples)
+                if (samples(ku)%nterm > 0) serial_sum = serial_sum &
+                    + abs(sum(samples(ku)%term(:, 1:samples(ku)%nterm), dim=2))
+            end do
+        end if
         call assemble_velocity_samples(vmin, vmax, vsteps, energy_ratio, samples, D, T)
 
         call debug("compute_transport_integral complete")
