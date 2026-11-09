@@ -34,6 +34,13 @@ module neort_transport
 
   implicit none
 
+  ! Relative tolerance of the adaptive velocity integral of the collisionless
+  ! resonance components; zero keeps the vsteps-node midpoint rule. Folds of a
+  ! resonance line make the integrand singular like 1/sqrt(u - u_fold), where
+  ! the midpoint rule converges like sqrt(du) and erratically.
+  real(dp) :: vtol = 0.0_dp
+  integer, parameter :: vtol_initial_panels = 16, vtol_max_panels = 4000
+
   ! These values remain live while bounce_fast invokes timestep_transport.
   ! Each transport worker needs an independent callback state.
   real(dp) :: Omth, dOmthdv, dOmthdeta
@@ -152,12 +159,22 @@ contains
         call debug("compute_transport_integral complete")
     end subroutine compute_transport_integral
 
-    pure integer function velocity_sample_count(vsteps, energy_ratio)
+    integer function velocity_sample_count(vsteps, energy_ratio)
         integer, intent(in) :: vsteps
         real(dp), intent(in) :: energy_ratio
 
         velocity_sample_count = energy_sample_count(energy_ratio, vsteps)
+        ! The adaptive integral of a component is one sample.
+        if (adaptive_velocity(energy_ratio)) velocity_sample_count = 1
     end function velocity_sample_count
+
+    logical function adaptive_velocity(energy_ratio)
+        ! Adaptive integration applies to the collisionless thermal integral.
+        real(dp), intent(in) :: energy_ratio
+
+        adaptive_velocity = vtol > 0.0_dp .and. energy_ratio <= 0.0_dp .and. &
+            .not. finite_krook_active()
+    end function adaptive_velocity
 
     subroutine compute_velocity_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
         ! Contributions of velocity node ku. The nodes are independent: each
@@ -177,6 +194,8 @@ contains
                 call resonance_ledger_path(ledger_path)
             end block
             call compute_krook_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
+        else if (adaptive_velocity(energy_ratio)) then
+            call compute_adaptive_sample(vmin, vmax, sample)
         else
             call compute_collisionless_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
         end if
@@ -255,15 +274,134 @@ contains
         integer, intent(in) :: vsteps
         real(dp), intent(in) :: energy_ratio
         type(velocity_sample_t), intent(inout) :: sample
-        real(dp) :: ux, du, dD11, dD12, dT, v, eta, sample_weight
+        real(dp) :: ux, du, terms(3, nlev)
+        integer :: nterm
+
+        if (energy_ratio > 0.0_dp) then
+            du = 0.0_dp
+        else
+            du = (vmax - vmin)/(vsteps*vth)
+        end if
+        ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
+        call collisionless_point(ux, energy_sample_weight(energy_ratio, ux, du), terms, nterm)
+        call store_sample_terms(terms(:, 1:nterm), sample)
+    end subroutine compute_collisionless_sample
+
+    subroutine compute_adaptive_sample(vmin, vmax, sample)
+        ! The velocity integral of one collisionless component as a single
+        ! term: adaptive 7-15 point Gauss-Kronrod in u = v/vth on [vmin, vmax],
+        ! bisecting the panel with the largest relative error estimate until
+        ! the summed estimate of each of D11, D12 and the torque is below vtol
+        ! of its integral. Panels start uniform and are refined in a fixed
+        ! order, so the result does not depend on threads.
+        real(dp), intent(in) :: vmin, vmax
+        type(velocity_sample_t), intent(inout) :: sample
+        real(dp), allocatable :: lo(:), hi(:), val(:, :), err(:, :)
+        real(dp) :: total(3), scale(3), a, b
+        integer :: np, k, worst
+
+        allocate (lo(vtol_max_panels), hi(vtol_max_panels), &
+            val(3, vtol_max_panels), err(3, vtol_max_panels))
+        np = vtol_initial_panels
+        do k = 1, np
+            lo(k) = vmin/vth + (vmax - vmin)/vth*real(k - 1, dp)/np
+            hi(k) = vmin/vth + (vmax - vmin)/vth*real(k, dp)/np
+            call kronrod_panel(lo(k), hi(k), val(:, k), err(:, k))
+        end do
+        do
+            total = sum(val(:, 1:np), dim=2)
+            scale = max(abs(total), tiny(1.0_dp))
+            if (all(sum(err(:, 1:np), dim=2) <= vtol*scale)) exit
+            if (np + 1 > vtol_max_panels) then
+                call warning(fmt_dbg('adaptive velocity integral: panel limit, mth=', &
+                    dble(mth), ' relative error=', &
+                    maxval(sum(err(:, 1:np), dim=2)/scale)))
+                exit
+            end if
+            worst = maxloc(err(1, 1:np)/scale(1) + err(2, 1:np)/scale(2) &
+                + err(3, 1:np)/scale(3), dim=1)
+            a = lo(worst)
+            b = hi(worst)
+            hi(worst) = 0.5_dp*(a + b)
+            np = np + 1
+            lo(np) = 0.5_dp*(a + b)
+            hi(np) = b
+            call kronrod_panel(lo(worst), hi(worst), val(:, worst), err(:, worst))
+            call kronrod_panel(lo(np), hi(np), val(:, np), err(:, np))
+        end do
+        sample%nterm = 1
+        sample%term(:, 1) = total
+    end subroutine compute_adaptive_sample
+
+    subroutine kronrod_panel(a, b, val, err)
+        ! 15-point Kronrod integral of the root sums on [a, b] and its
+        ! difference to the embedded 7-point Gauss rule, per quantity.
+        real(dp), intent(in) :: a, b
+        real(dp), intent(out) :: val(3), err(3)
+        real(dp), parameter :: xk(8) = [0.991455371120812639206854697526329_dp, &
+            0.949107912342758524526189684047851_dp, 0.864864423359769072789712788640926_dp, &
+            0.741531185599394439863864773280788_dp, 0.586087235467691130294144845693013_dp, &
+            0.405845151377397166906606412076961_dp, 0.207784955007898467600689403773245_dp, &
+            0.0_dp]
+        real(dp), parameter :: wk(8) = [0.022935322010529224963732008058970_dp, &
+            0.063092092629978553290700663189204_dp, 0.104790010322250183839876322541518_dp, &
+            0.140653259715525918745189590510238_dp, 0.169004726639267902826583426598550_dp, &
+            0.190350578064785409913256402421014_dp, 0.204432940075298892414161999234649_dp, &
+            0.209482141084727828012999174891714_dp]
+        real(dp), parameter :: wg(4) = [0.129484966168869693270611432679082_dp, &
+            0.279705391489276667901467771423780_dp, 0.381830050505118944950369775488975_dp, &
+            0.417959183673469387755102040816327_dp]
+        real(dp) :: c, h, fk(3), gauss(3), fp(3), fm(3)
+        integer :: k
+
+        c = 0.5_dp*(a + b)
+        h = 0.5_dp*(b - a)
+        val = 0.0_dp
+        gauss = 0.0_dp
+        do k = 1, 8
+            if (k < 8) then
+                fp = root_sum(c + h*xk(k))
+                fm = root_sum(c - h*xk(k))
+                fk = fp + fm
+            else
+                fk = root_sum(c)
+            end if
+            val = val + wk(k)*fk
+            if (mod(k, 2) == 0) gauss = gauss + wg(k/2)*fk
+        end do
+        val = h*val
+        gauss = h*gauss
+        err = abs(val - gauss)
+    end subroutine kronrod_panel
+
+    function root_sum(ux) result(f)
+        ! D11, D12 and torque integrands at speed ux, summed over the roots,
+        ! with the Maxwellian speed density.
+        real(dp), intent(in) :: ux
+        real(dp) :: f(3), terms(3, nlev)
+        integer :: nterm
+
+        f = 0.0_dp
+        if (ux <= 0.0_dp) return
+        call collisionless_point(ux, maxwellian_speed_density(ux), terms, nterm)
+        f = sum(terms(:, 1:nterm), dim=2)
+    end function root_sum
+
+    subroutine collisionless_point(ux, sample_weight, terms, nterm)
+        ! Contributions of the resonant roots at normalised speed ux, each
+        ! weighted by sample_weight: one term per root.
+        real(dp), intent(in) :: ux, sample_weight
+        real(dp), intent(out) :: terms(3, nlev)
+        integer, intent(out) :: nterm
+        real(dp) :: dD11, dD12, dT, v, eta
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
         integer :: istate_dv
         real(dp) :: Hmn2, attenuation_factor, layer_factor, layer_nu
         real(dp) :: cutout_nu, cutout_resonance_weight
         logical :: cutout_inside_layer
-        real(dp) :: roots(nlev, 3), terms(3, nlev)
-        integer :: nroots, kr, nterm
+        real(dp) :: roots(nlev, 3)
+        integer :: nroots, kr
         character(len=4096) :: ledger_path
         character(len=4) :: orbit_branch
         character(len=1024), allocatable :: ledger_rows(:)
@@ -287,15 +425,7 @@ contains
             end if
         end if
 
-        if (energy_ratio > 0.0_dp) then
-            du = 0.0_dp
-        else
-            du = (vmax - vmin)/(vsteps*vth)
-        end if
         nterm = 0
-
-        ux = energy_sample_speed(energy_ratio, ku, vmin/vth, vmax/vth, vsteps)
-        sample_weight = energy_sample_weight(energy_ratio, ux, du)
         v = ux * vth
         if (collisional_layer .and. etamax > etatp) &
             layer_nu = deflection_frequency(v)
@@ -366,8 +496,7 @@ contains
         end do
         if (ledger_enabled) &
             call append_resonance_ledger(ledger_path, ledger_rows(:ledger_count))
-        call store_sample_terms(terms(:, 1:nterm), sample)
-    end subroutine compute_collisionless_sample
+    end subroutine collisionless_point
 
     subroutine resonance_cutout_weight(v, eta, abs_R_eta, nu_d, weight, inside_layer)
         ! Finite replacement of 1/|R_eta| (doc/resonance_cutout.md).
