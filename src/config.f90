@@ -64,6 +64,7 @@ module neort_config
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
         real(dp) :: monoenergetic_x = -1.0_dp  ! -1: thermal; positive: E/T
+        real(dp) :: vtol = 0.0_dp ! >0: adaptive velocity integral to this tolerance
         integer :: log_level = 0  ! how much to log
         character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
         !*! will be overwritten if using splines from plasma.in and profile.in files
@@ -86,6 +87,7 @@ contains
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
         use kinetic_energy_selection, only: validate_energy_ratio
+        use neort_transport, only: vtol
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
@@ -142,6 +144,8 @@ contains
         vmax_over_vth = config%vmax_over_vth
         call validate_energy_ratio(config%monoenergetic_x)
         monoenergetic_x = config%monoenergetic_x
+        if (config%vtol < 0.0_dp) error stop "vtol must be nonnegative"
+        vtol = config%vtol
         output_format = config%output_format
         call validate_output_format(output_format)
 
@@ -162,6 +166,7 @@ contains
         use logger, only: set_log_level
         use neort, only: vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x
         use kinetic_energy_selection, only: validate_energy_ratio
+        use neort_transport, only: vtol
         use neort_orbit, only: noshear
         use neort_profiles, only: M_t, vth, profile_species
         use util, only: qe, mu, qi, mi
@@ -175,7 +180,7 @@ contains
             s, M_t, qs, ms, vth, epsmn, pertfile_scale, m0, mph, comptorque, &
             supban, collisional_layer, drift_phase, fow_radial, &
             magdrift, magdrift_passing, nopassing, noshear, pertfile, pertfile_curvature, nonlin, bfac, efac, inp_swi, &
-            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, log_level, output_format, &
+            inp_swi_pert, vsteps, mth_max_abs, vmax_over_vth, monoenergetic_x, vtol, log_level, output_format, &
             profile_species, species_file, krook_collisions, krook_nu, krook_model, krook_harmonic, &
             krook_geometry_trapped, krook_geometry_passing, krook_eta_steps, &
             krook_max_depth, krook_rtol, krook_atol, krook_rate_source, krook_rate_scale, &
@@ -187,6 +192,7 @@ contains
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         monoenergetic_x = -1.0_dp
+        vtol = 0.0_dp
         inp_swi_pert = -1
         pertfile_curvature = .false.
         output_format = "both"
@@ -214,6 +220,7 @@ contains
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         call validate_energy_ratio(monoenergetic_x)
+        if (vtol < 0.0_dp) error stop "vtol must be nonnegative"
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)

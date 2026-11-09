@@ -81,6 +81,7 @@ The parameter file is a Fortran namelist `&params` with the fields listed below.
 | `mth_max_abs` | Maximum absolute orbit-resonance harmonic. | Default `-1` keeps the historical `±ceil(2\|mph q\|)` range; `0` selects only `mth=0`. |
 | `vmax_over_vth` | Upper velocity-space cutoff in units of `vth`. | Default `4.0` captures the far-tail resonance (the old `3.0` bound truncated it); set `3.0` to reproduce pre-2026-07-20 results; must be positive. |
 | `monoenergetic_x` | Select one normalized kinetic energy, `x=E/T`. | Default `-1` performs the Maxwellian velocity integral; a positive value returns the delta-normalized monoenergetic kernel at `u=v/vth=sqrt(x)`. |
+| `vtol` | Relative tolerance of the velocity integral of collisionless resonance components. | Default `0` keeps the midpoint rule on `vsteps` nodes. A positive value integrates each component by adaptive 7-15 point Gauss-Kronrod in `u=v/vth` to this tolerance on D11, D12 and the torque; folds of a resonance line make the integrand singular like `1/sqrt(u-u_fold)`, where the midpoint rule converges slowly and erratically. Krook and monoenergetic runs keep their rules. |
 | `inp_swi_pert` | Input format for `in_file_pert` with the standalone field reader. | Default `-1` inherits `inp_swi`; set `9` to combine an axisymmetric chartmap (`inp_swi=10`) with a Strumberger perturbation `.bc`. |
 | `log_level` | Verbosity level for the logger. | Defined in `src/logging.f90`. |
 
