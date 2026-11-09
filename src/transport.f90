@@ -297,7 +297,7 @@ contains
         real(dp), intent(in) :: vmin, vmax
         type(velocity_sample_t), intent(inout) :: sample
         real(dp), allocatable :: lo(:), hi(:), val(:, :), err(:, :)
-        real(dp) :: total(3), scale(3), a, b
+        real(dp) :: total(3), scale(3), weight(3), a, b
         integer :: np, k, worst
 
         allocate (lo(vtol_max_panels), hi(vtol_max_panels), &
@@ -310,16 +310,22 @@ contains
         end do
         do
             total = sum(val(:, 1:np), dim=2)
-            scale = max(abs(total), tiny(1.0_dp))
+            scale = abs(total)
             if (all(sum(err(:, 1:np), dim=2) <= vtol*scale)) exit
+            ! A vanishing integral, such as the torque when it is not
+            ! computed, has no relative error and does not steer refinement.
+            weight = 0.0_dp
+            do k = 1, 3
+                if (scale(k) > 0.0_dp) weight(k) = 1.0_dp/scale(k)
+            end do
             if (np + 1 > vtol_max_panels) then
                 call warning(fmt_dbg('adaptive velocity integral: panel limit, mth=', &
                     dble(mth), ' relative error=', &
-                    maxval(sum(err(:, 1:np), dim=2)/scale)))
+                    maxval(sum(err(:, 1:np), dim=2)*weight)))
                 exit
             end if
-            worst = maxloc(err(1, 1:np)/scale(1) + err(2, 1:np)/scale(2) &
-                + err(3, 1:np)/scale(3), dim=1)
+            worst = maxloc(err(1, 1:np)*weight(1) + err(2, 1:np)*weight(2) &
+                + err(3, 1:np)*weight(3), dim=1)
             a = lo(worst)
             b = hi(worst)
             hi(worst) = 0.5_dp*(a + b)
