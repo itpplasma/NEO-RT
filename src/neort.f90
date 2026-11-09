@@ -198,21 +198,39 @@ contains
     end function component_active
 
     subroutine compute_transport(result_)
+        use neort_transport, only: adaptive_velocity, vtol, serial_coarse, serial_atol, &
+            serial_sum
         type(transport_data_t), intent(out) :: result_
 
-        integer :: j, component, mthmin, mthmax
+        integer :: j, component, mthmin, mthmax, npass, pass, ncomp
         real(dp), allocatable :: Dres(:, :, :), Tres(:, :)
 
         call debug('compute_transport')
 
         call prepare_transport(mthmin, mthmax)
         allocate(Dres(2, ncomponent, mthmin:mthmax), Tres(ncomponent, mthmin:mthmax))
-        do j = mthmin, mthmax
-            do component = 1, ncomponent
-                call compute_transport_component(j, component, Dres(:, component, j), &
-                    Tres(component, j))
+        ! Adaptive velocity integrals share the error budget of the sum, as in
+        ! compute_transport_at_s: a coarse pass sizes the components.
+        serial_atol = 0.0_dp
+        serial_sum = 0.0_dp
+        npass = 1
+        if (adaptive_velocity(monoenergetic_x)) npass = 2
+        do pass = 1, npass
+            serial_coarse = pass < npass
+            do j = mthmin, mthmax
+                do component = 1, ncomponent
+                    call compute_transport_component(j, component, Dres(:, component, j), &
+                        Tres(component, j))
+                end do
             end do
+            if (pass < npass) then
+                ncomp = count([(component_active(component), component = 1, ncomponent)]) &
+                    *(mthmax - mthmin + 1)
+                serial_atol = vtol*serial_sum/max(ncomp, 1)
+            end if
         end do
+        serial_coarse = .false.
+        serial_atol = 0.0_dp
         call assemble_transport(mthmin, mthmax, Dres, Tres, result_)
 
         call debug('compute_transport complete')

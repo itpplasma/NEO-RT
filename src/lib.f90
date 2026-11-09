@@ -205,13 +205,16 @@ contains
         ! afterwards, so the results do not depend on the thread count.
         use neort, only: compute_component_sample, assemble_component, &
             assemble_transport, component_active, component_sample_count, ncomponent
-        use neort_transport, only: velocity_sample_t, prepare_velocity_samples
+        use neort_transport, only: velocity_sample_t, prepare_velocity_samples, &
+            adaptive_velocity, vtol
+        use neort, only: monoenergetic_x
         real(dp), intent(in) :: s_val
         integer, intent(in) :: state(:)  ! species index of each state
         type(transport_data_t), intent(out) :: transport(size(state))
         type(species_result_t), intent(inout), optional :: species(size(state))
         integer :: mthmin(size(state)), mthmax(size(state))
         integer :: nstate, lower, upper, k, j, c, i, n, ku, ncomp, nsample, epoch
+        integer :: npass, pass
         integer, allocatable :: comp(:, :)
         real(dp), allocatable :: Dres(:, :, :, :), Tres(:, :, :)
         type(velocity_sample_t), allocatable :: samples(:, :)
@@ -248,20 +251,34 @@ contains
         nsample = component_sample_count()
         allocate(samples(nsample, ncomp))
         call prepare_velocity_samples(samples)
-        ! Species-major order: a thread moves forward through the list, so it
-        ! sets each species up at most once.
-        !$omp parallel do default(shared) private(n, i, ku, k, j, c) &
-        !$omp& schedule(dynamic, 1)
-        do n = 1, ncomp*nsample
-            i = (n - 1)/nsample + 1
-            ku = n - (i - 1)*nsample
-            k = comp(1, i)
-            j = comp(2, i)
-            c = comp(3, i)
-            call hold_surface_state(s_val, epoch, state(k))
-            call compute_component_sample(j, c, ku, samples(ku, i))
+        ! Adaptive velocity integrals share the error budget of each species'
+        ! sum over harmonics and orbit classes: a coarse pass sizes the
+        ! components, and the refining pass grants each one vtol times that
+        ! sum over the component count. Strongly cancelling high harmonics
+        ! then stop at their noise floor instead of refining to their own
+        ! relative tolerance.
+        npass = 1
+        if (adaptive_velocity(monoenergetic_x)) then
+            npass = 2
+            samples%coarse = .true.
+        end if
+        do pass = 1, npass
+            if (pass == 2) call share_error_budget()
+            ! Species-major order: a thread moves forward through the list, so
+            ! it sets each species up at most once.
+            !$omp parallel do default(shared) private(n, i, ku, k, j, c) &
+            !$omp& schedule(dynamic, 1)
+            do n = 1, ncomp*nsample
+                i = (n - 1)/nsample + 1
+                ku = n - (i - 1)*nsample
+                k = comp(1, i)
+                j = comp(2, i)
+                c = comp(3, i)
+                call hold_surface_state(s_val, epoch, state(k))
+                call compute_component_sample(j, c, ku, samples(ku, i))
+            end do
+            !$omp end parallel do
         end do
-        !$omp end parallel do
         !$omp parallel do default(shared) private(k, i, j, c) schedule(dynamic, 1) &
         !$omp& if(nstate > 1)
         do k = 1, nstate
@@ -282,6 +299,28 @@ contains
             end if
         end do
         !$omp end parallel do
+
+    contains
+
+        subroutine share_error_budget()
+            real(dp) :: budget(3)
+            integer :: kk, ii, nk
+
+            do kk = 1, nstate
+                budget = 0.0_dp
+                nk = 0
+                do ii = 1, ncomp
+                    if (comp(1, ii) /= kk) cycle
+                    budget = budget + abs(samples(1, ii)%term(:, 1))
+                    nk = nk + 1
+                end do
+                do ii = 1, ncomp
+                    if (comp(1, ii) /= kk) cycle
+                    samples(1, ii)%atol = vtol*budget/nk
+                    samples(1, ii)%coarse = .false.
+                end do
+            end do
+        end subroutine share_error_budget
     end subroutine compute_transport_at_s
 
     subroutine hold_surface_state(s_val, epoch, species_index, mthmin, mthmax)
