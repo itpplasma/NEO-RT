@@ -6,7 +6,11 @@ enable_testing()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
-add_compile_options(-g -fbacktrace)
+# Position-independent code as in the NEO-RT build: without it, older
+# binutils cannot relax the thread-local access to OpenMP threadprivate
+# variables of libpotato_base when linking potato.x (TLS transition
+# R_X86_64_GOTTPOFF to R_X86_64_TPOFF32 failed).
+add_compile_options(-fPIC -g -fbacktrace)
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
     set(POTATO_ARCH_FLAGS "-mcpu=native" CACHE STRING "CPU architecture flags for POTATO")
 else ()
