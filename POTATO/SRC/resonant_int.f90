@@ -106,15 +106,19 @@ end subroutine velo_res
 ! the central column) before find_bounce closes it, so the perturbation must not
 ! be evaluated there: its contribution is zeroed anyway. The fail-closed stop of
 ! bmod_pert stays in force for every orbit that has not left the plasma.
+      ! The same holds for a trial point where velo already flagged a field error
+      ! (outside the wall or the equilibrium): the integrator step is rejected and
+      ! find_bounce discards the orbit, e.g. after an overshooting Newton step.
 !
   use potato_profile_data_mod, only : profile_support_left
+  use field_eq_mod, only : ierrfield
 !
   implicit none
 !
   double precision :: R,Z
   complex(8)   :: bmod_n
 !
-  if (profile_support_left) then
+  if (profile_support_left .or. ierrfield /= 0) then
     bmod_n=(0.d0,0.d0)
     return
   endif

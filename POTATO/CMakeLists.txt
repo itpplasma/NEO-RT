@@ -131,7 +131,7 @@ target_link_libraries(test_bmod_pert_bounds.x
 )
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_bmod_pert_bounds_run)
 foreach(_mode inside outside_r outside_z nan_r nan_z lost_outside
-        confined_outside confined_inside)
+        field_error_outside confined_outside confined_inside)
    add_test(NAME test_bmod_pert_bounds_${_mode}
       COMMAND test_bmod_pert_bounds.x ${_mode}
    )
