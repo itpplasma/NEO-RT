@@ -573,12 +573,16 @@ foreach(rate_source IN ITEMS 1 2)
         PROCESSORS 3 TIMEOUT 30)
 endforeach()
 
-add_test(NAME test_krook_reference
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_reference.py
-        $<TARGET_FILE:test_krook_reference.x>
-        ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_mars_reference.tar.xz)
-set_tests_properties(test_krook_reference PROPERTIES
-    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 90)
+# The unoptimised Debug build needs over 60 s on the CI build hosts; the
+# optimised configurations check the same reference value.
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_test(NAME test_krook_reference
+        COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_reference.py
+            $<TARGET_FILE:test_krook_reference.x>
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_mars_reference.tar.xz)
+    set_tests_properties(test_krook_reference PROPERTIES
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 90)
+endif()
 set_source_files_properties(test_krook_reference.f90
     test_mixture_thread_invariance.f90 PROPERTIES
     COMPILE_OPTIONS "-fno-finite-math-only")
