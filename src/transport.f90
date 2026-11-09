@@ -1,6 +1,7 @@
 module neort_transport
     use neort_mixture_collisions, only: finite_krook_active, effective_krook_rate
     use iso_fortran_env, only: dp => real64, error_unit
+    use ieee_arithmetic, only: ieee_is_finite
     use util, only: imun, pi, c, qi
     use logger, only: trace, debug, warning, error
     use do_magfie_mod, only: do_magfie, s, a, R0, iota, q, psi_pr, eps, &
@@ -66,6 +67,10 @@ module neort_transport
   type :: velocity_sample_t
       integer :: nterm = 0
       real(dp), allocatable :: term(:, :)  ! (3, capacity); only 1:nterm is used
+      ! Adaptive integrals: coarse = initial panels only; atol is the share of
+      ! the error budget of the summed harmonics granted to this component.
+      logical :: coarse = .false.
+      real(dp) :: atol(3) = 0.0_dp
   end type velocity_sample_t
 
 contains
@@ -185,6 +190,7 @@ contains
         integer, intent(in) :: vsteps
         real(dp), intent(in) :: energy_ratio
         type(velocity_sample_t), intent(inout) :: sample
+        logical :: ok
 
         if (collisional_layer .and. finite_krook_active()) &
             error stop 'collisional_layer and finite Krook broadening cannot be combined'
@@ -195,7 +201,10 @@ contains
             end block
             call compute_krook_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
         else if (adaptive_velocity(energy_ratio)) then
-            call compute_adaptive_sample(vmin, vmax, sample)
+            ok = .false.
+            if (resonance_cutout == CUTOUT_OFF .and. .not. ledger_active()) &
+                call compute_pitch_sample(vmin, vmax, sample, ok)
+            if (.not. ok) call compute_adaptive_sample(vmin, vmax, sample)
         else
             call compute_collisionless_sample(ku, vmin, vmax, vsteps, energy_ratio, sample)
         end if
@@ -310,13 +319,13 @@ contains
         end do
         do
             total = sum(val(:, 1:np), dim=2)
-            scale = abs(total)
-            if (all(sum(err(:, 1:np), dim=2) <= vtol*scale)) exit
+            scale = max(vtol*abs(total), sample%atol)
+            if (sample%coarse .or. all(sum(err(:, 1:np), dim=2) <= scale)) exit
             ! A vanishing integral, such as the torque when it is not
-            ! computed, has no relative error and does not steer refinement.
+            ! computed, has no tolerance and does not steer refinement.
             weight = 0.0_dp
             do k = 1, 3
-                if (scale(k) > 0.0_dp) weight(k) = 1.0_dp/scale(k)
+                if (scale(k) > 0.0_dp) weight(k) = vtol/scale(k)
             end do
             if (np + 1 > vtol_max_panels) then
                 call warning(fmt_dbg('adaptive velocity integral: panel limit, mth=', &
@@ -339,11 +348,316 @@ contains
         sample%term(:, 1) = total
     end subroutine compute_adaptive_sample
 
+    subroutine compute_pitch_sample(vmin, vmax, sample, ok)
+        ! The velocity integral of one collisionless component, taken along
+        ! the resonance line in pitch. At fixed eta the resonance
+        ! R = mph Om_ph + mth Om_th is a quadratic in u = v/vth, so
+        ! int du sum_eta-roots F/|R_eta| = int deta sum_u-roots F/|R_u| with
+        ! closed-form roots. On segments between the double roots and the
+        ! points where a root crosses vmin or vmax the integrand is smooth up
+        ! to 1/sqrt at the double roots, which eta = m - h cos(theta) removes,
+        ! so adaptive Gauss-Kronrod in theta converges fast. ok = .false. when
+        ! R is not quadratic in u (e.g. supban); the caller then integrates in u.
+        real(dp), intent(in) :: vmin, vmax
+        type(velocity_sample_t), intent(inout) :: sample
+        logical, intent(out) :: ok
+        integer, parameter :: nscan = 1024, nend = 24, max_panels = 2000
+        real(dp), allocatable :: grid(:), fn(:, :), brk(:), mid(:), half(:), &
+            lo(:), hi(:), val(:, :), err(:, :)
+        integer, allocatable :: seg(:)
+        real(dp) :: ulo, uhi, coef(3), total(3), scale(3), weight(3), a, b, t, f1(3)
+        integer :: ng, nb, ns, np, k, j, worst
+        logical :: fit_ok
+
+        ok = .false.
+        ulo = vmin/vth
+        uhi = vmax/vth
+        ! Scan in a parameter clustered at both ends, where the separatrix
+        ! and the pitch limits concentrate the structure.
+        ng = nscan - 1 + 2*nend
+        allocate (grid(ng), fn(3, ng))
+        do k = 1, nscan - 1
+            grid(k) = 0.5_dp*(1.0_dp - cos(pi*real(k, dp)/nscan))
+        end do
+        do k = 1, nend
+            t = 0.5_dp*(1.0_dp - cos(pi/nscan))*10.0_dp**(-10.0_dp*real(k, dp)/nend)
+            grid(nscan - 1 + k) = t
+            grid(nscan - 1 + nend + k) = 1.0_dp - t
+        end do
+        call sort_values(grid)
+        grid = etamin + (etamax - etamin)*grid
+        do k = 1, ng
+            call resonance_quadratic(grid(k), coef, fit_ok)
+            if (.not. fit_ok) return
+            fn(:, k) = event_functions(coef, ulo, uhi)
+        end do
+        ! Segment ends: the pitch limits and the sign changes of the double-root
+        ! discriminant and of R at ulo and uhi, refined by bisection.
+        allocate (brk(2 + 3*ng))
+        nb = 1
+        brk(1) = etamin
+        do k = 1, ng - 1
+            do j = 1, 3
+                if (fn(j, k)*fn(j, k + 1) < 0.0_dp) then
+                    nb = nb + 1
+                    brk(nb) = bisect_event(j, grid(k), grid(k + 1), fn(j, k), ulo, uhi)
+                end if
+            end do
+        end do
+        nb = nb + 1
+        brk(nb) = etamax
+        call sort_values(brk(1:nb))
+        ns = nb - 1
+        allocate (mid(ns), half(ns), lo(max_panels), hi(max_panels), &
+            val(3, max_panels), err(3, max_panels), seg(max_panels))
+        np = 0
+        do k = 1, ns
+            mid(k) = 0.5_dp*(brk(k) + brk(k + 1))
+            half(k) = 0.5_dp*(brk(k + 1) - brk(k))
+            if (half(k) <= 0.0_dp .or. np >= max_panels) cycle
+            np = np + 1
+            seg(np) = k
+            lo(np) = 0.0_dp
+            hi(np) = pi
+            call pitch_panel(mid(k), half(k), lo(np), hi(np), ulo, uhi, val(:, np), &
+                err(:, np))
+        end do
+        do
+            total = sum(val(:, 1:np), dim=2)
+            scale = max(vtol*abs(total), sample%atol)
+            if (sample%coarse .or. all(sum(err(:, 1:np), dim=2) <= scale)) exit
+            weight = 0.0_dp
+            do k = 1, 3
+                if (scale(k) > 0.0_dp) weight(k) = vtol/scale(k)
+            end do
+            if (np + 1 > max_panels) then
+                call warning(fmt_dbg('pitch resonance integral: panel limit, mth=', &
+                    dble(mth), ' relative error=', &
+                    maxval(sum(err(:, 1:np), dim=2)*weight)))
+                exit
+            end if
+            worst = maxloc(err(1, 1:np)*weight(1) + err(2, 1:np)*weight(2) &
+                + err(3, 1:np)*weight(3), dim=1)
+            a = lo(worst)
+            b = hi(worst)
+            hi(worst) = 0.5_dp*(a + b)
+            np = np + 1
+            seg(np) = seg(worst)
+            lo(np) = 0.5_dp*(a + b)
+            hi(np) = b
+            k = seg(worst)
+            call pitch_panel(mid(k), half(k), lo(worst), hi(worst), ulo, uhi, &
+                val(:, worst), err(:, worst))
+            call pitch_panel(mid(k), half(k), lo(np), hi(np), ulo, uhi, val(:, np), &
+                err(:, np))
+        end do
+        f1 = 0.0_dp
+        if (np > 0) f1 = sum(val(:, 1:np), dim=2)
+        sample%nterm = 1
+        sample%term(:, 1) = f1
+        ok = .true.
+    end subroutine compute_pitch_sample
+
+    logical function ledger_active()
+        ! The pitch integral keeps no per-root ledger rows.
+        character(len=4096) :: ledger_path
+
+        call resonance_ledger_path(ledger_path)
+        ledger_active = len_trim(ledger_path) > 0
+    end function ledger_active
+
+    subroutine resonance_quadratic(eta, coef, ok)
+        ! R(u vth, eta) = coef(1) + coef(2) u + coef(3) u^2, fitted at u = 1, 2, 3
+        ! and checked at u = 4 and 1/2.
+        real(dp), intent(in) :: eta
+        real(dp), intent(out) :: coef(3)
+        logical, intent(out) :: ok
+        real(dp) :: r(5), dr, size_scale
+        real(dp), parameter :: u(5) = [1.0_dp, 2.0_dp, 3.0_dp, 4.0_dp, 0.5_dp]
+        integer :: k
+
+        do k = 1, 5
+            call resonance_value(u(k)*vth, eta, r(k), dr)
+        end do
+        coef(3) = 0.5_dp*(r(3) - 2.0_dp*r(2) + r(1))
+        coef(2) = r(2) - r(1) - 3.0_dp*coef(3)
+        coef(1) = r(1) - coef(2) - coef(3)
+        size_scale = abs(coef(1)) + 4.0_dp*abs(coef(2)) + 16.0_dp*abs(coef(3))
+        ok = all(ieee_is_finite(r)) .and. size_scale > 0.0_dp
+        if (.not. ok) return
+        ok = abs(coef(1) + 4.0_dp*coef(2) + 16.0_dp*coef(3) - r(4)) <= 1.0e-9_dp*size_scale &
+            .and. abs(coef(1) + 0.5_dp*coef(2) + 0.25_dp*coef(3) - r(5)) <= 1.0e-9_dp*size_scale
+    end subroutine resonance_quadratic
+
+    pure function event_functions(coef, ulo, uhi) result(f)
+        ! Discriminant of R(u) = 0 and R at the speed limits: the number of
+        ! roots in (ulo, uhi) changes only where one of them changes sign.
+        real(dp), intent(in) :: coef(3), ulo, uhi
+        real(dp) :: f(3)
+
+        f(1) = coef(2)**2 - 4.0_dp*coef(1)*coef(3)
+        f(2) = coef(1) + coef(2)*ulo + coef(3)*ulo**2
+        f(3) = coef(1) + coef(2)*uhi + coef(3)*uhi**2
+    end function event_functions
+
+    function bisect_event(j, a0, b0, fa0, ulo, uhi) result(x)
+        integer, intent(in) :: j
+        real(dp), intent(in) :: a0, b0, fa0, ulo, uhi
+        real(dp) :: x, a, b, fa, fx(3), coef(3)
+        integer :: it
+        logical :: fit_ok
+
+        a = a0
+        b = b0
+        fa = fa0
+        do it = 1, 100
+            x = 0.5_dp*(a + b)
+            if (x <= a .or. x >= b) exit
+            call resonance_quadratic(x, coef, fit_ok)
+            fx = event_functions(coef, ulo, uhi)
+            if (fx(j) == 0.0_dp) exit
+            if (fa*fx(j) < 0.0_dp) then
+                b = x
+            else
+                a = x
+                fa = fx(j)
+            end if
+        end do
+    end function bisect_event
+
+    subroutine pitch_panel(m, h, a, b, ulo, uhi, val, err)
+        ! 15-point Kronrod integral in theta on [a, b] of the pitch integrand on
+        ! the segment eta = m - h cos(theta), and its difference to the embedded
+        ! 7-point Gauss rule.
+        real(dp), intent(in) :: m, h, a, b, ulo, uhi
+        real(dp), intent(out) :: val(3), err(3)
+        real(dp) :: x(15), w(15), wg(15), th, f(3)
+        integer :: k
+
+        call kronrod_rule(x, w, wg)
+        val = 0.0_dp
+        err = 0.0_dp
+        do k = 1, 15
+            th = 0.5_dp*(a + b) + 0.5_dp*(b - a)*x(k)
+            f = pitch_sum(m - h*cos(th), ulo, uhi)*h*sin(th)
+            val = val + w(k)*f
+            err = err + wg(k)*f
+        end do
+        val = 0.5_dp*(b - a)*val
+        err = abs(val - 0.5_dp*(b - a)*err)
+    end subroutine pitch_panel
+
+    function pitch_sum(eta, ulo, uhi) result(f)
+        ! Integrand in eta: the resonant speeds at this pitch, each weighted
+        ! by the Maxwellian speed density over |dR/du|.
+        real(dp), intent(in) :: eta, ulo, uhi
+        real(dp) :: f(3), coef(3), disc, qr, u(2), jac
+        integer :: nu, k
+        logical :: fit_ok
+
+        f = 0.0_dp
+        call resonance_quadratic(eta, coef, fit_ok)
+        disc = coef(2)**2 - 4.0_dp*coef(1)*coef(3)
+        if (disc < 0.0_dp) return
+        nu = 0
+        if (coef(3) == 0.0_dp) then
+            if (coef(2) == 0.0_dp) return
+            nu = 1
+            u(1) = -coef(1)/coef(2)
+        else
+            qr = -0.5_dp*(coef(2) + sign(sqrt(disc), coef(2)))
+            nu = 1
+            u(1) = qr/coef(3)
+            if (qr /= 0.0_dp) then
+                nu = 2
+                u(2) = coef(1)/qr
+            end if
+        end if
+        do k = 1, nu
+            if (u(k) <= ulo .or. u(k) >= uhi) cycle
+            jac = abs(coef(2) + 2.0_dp*coef(3)*u(k))
+            if (jac <= 0.0_dp) cycle
+            f = f + pitch_root_terms(u(k), eta, jac)
+        end do
+    end function pitch_sum
+
+    function pitch_root_terms(ux, eta, jac) result(term)
+        ! D11, D12 and torque integrands of one resonant root over |dR/du|,
+        ! with the same orbit physics as collisionless_point.
+        real(dp), intent(in) :: ux, eta, jac
+        real(dp) :: term(3), v, taub, bounceavg(nvar), Hmn2, attenuation_factor, &
+            wt, layer_factor, res, dres_deta
+        integer :: istate_dv
+
+        v = ux*vth
+        call Om_th(v, eta, Omth, dOmthdv, dOmthdeta)
+        taub = 2.0_dp*pi/abs(Omth)
+        call transport_bounce(v, eta, taub, bounceavg, istate_dv)
+        if (istate_dv == -1) then
+            call error(fmt_dbg('VODE MXSTEP: mth=', dble(mth), ' ux=', ux, ' eta=', eta, &
+                ' taub=', taub))
+        else if (istate_dv /= 2) then
+            call warning(fmt_dbg('dvode istate=', dble(istate_dv), ' at mth=', dble(mth), &
+                ' ux=', ux, ' eta=', eta))
+        end if
+        Hmn2 = (bounceavg(3)**2 + bounceavg(4)**2)*(mi*(ux*vth)**2/2.0_dp)**2
+        attenuation_factor = nonlinear_attenuation(ux, eta, bounceavg, Omth, &
+            dOmthdv, dOmthdeta, Hmn2)
+        wt = maxwellian_speed_density(ux)/jac
+        term(1) = wt*D11mono(ux, taub, Hmn2)
+        term(2) = wt*D12mono(ux, taub, Hmn2)
+        term(3) = 0.0_dp
+        if (comptorque) term(3) = wt*Tphi_mono(ux, taub, Hmn2)
+        if (collisional_layer .and. eta > etatp) then
+            call resonance_value(v, eta, res, dres_deta)
+            layer_factor = collisional_layer_factor(deflection_frequency(v), eta, eps, &
+                etatp, etadt, abs(dres_deta))
+            term = term*layer_factor
+        end if
+        term = term*attenuation_factor
+    end function pitch_root_terms
+
+    pure subroutine sort_values(x)
+        real(dp), intent(inout) :: x(:)
+        real(dp) :: t
+        integer :: i, j
+
+        do i = 2, size(x)
+            t = x(i)
+            j = i - 1
+            do while (j >= 1)
+                if (x(j) <= t) exit
+                x(j + 1) = x(j)
+                j = j - 1
+            end do
+            x(j + 1) = t
+        end do
+    end subroutine sort_values
+
     subroutine kronrod_panel(a, b, val, err)
         ! 15-point Kronrod integral of the root sums on [a, b] and its
         ! difference to the embedded 7-point Gauss rule, per quantity.
         real(dp), intent(in) :: a, b
         real(dp), intent(out) :: val(3), err(3)
+        real(dp) :: x(15), w(15), wg(15), f(3), gauss(3)
+        integer :: k
+
+        call kronrod_rule(x, w, wg)
+        val = 0.0_dp
+        gauss = 0.0_dp
+        do k = 1, 15
+            f = root_sum(0.5_dp*(a + b) + 0.5_dp*(b - a)*x(k))
+            val = val + w(k)*f
+            gauss = gauss + wg(k)*f
+        end do
+        val = 0.5_dp*(b - a)*val
+        err = abs(val - 0.5_dp*(b - a)*gauss)
+    end subroutine kronrod_panel
+
+    pure subroutine kronrod_rule(x, w, wg)
+        ! Nodes of the 15-point Kronrod rule on [-1, 1], its weights, and the
+        ! weights of the embedded 7-point Gauss rule (zero at Kronrod-only nodes).
+        real(dp), intent(out) :: x(15), w(15), wg(15)
         real(dp), parameter :: xk(8) = [0.991455371120812639206854697526329_dp, &
             0.949107912342758524526189684047851_dp, 0.864864423359769072789712788640926_dp, &
             0.741531185599394439863864773280788_dp, 0.586087235467691130294144845693013_dp, &
@@ -354,31 +668,26 @@ contains
             0.140653259715525918745189590510238_dp, 0.169004726639267902826583426598550_dp, &
             0.190350578064785409913256402421014_dp, 0.204432940075298892414161999234649_dp, &
             0.209482141084727828012999174891714_dp]
-        real(dp), parameter :: wg(4) = [0.129484966168869693270611432679082_dp, &
+        real(dp), parameter :: wgp(4) = [0.129484966168869693270611432679082_dp, &
             0.279705391489276667901467771423780_dp, 0.381830050505118944950369775488975_dp, &
             0.417959183673469387755102040816327_dp]
-        real(dp) :: c, h, fk(3), gauss(3), fp(3), fm(3)
         integer :: k
 
-        c = 0.5_dp*(a + b)
-        h = 0.5_dp*(b - a)
-        val = 0.0_dp
-        gauss = 0.0_dp
-        do k = 1, 8
-            if (k < 8) then
-                fp = root_sum(c + h*xk(k))
-                fm = root_sum(c - h*xk(k))
-                fk = fp + fm
-            else
-                fk = root_sum(c)
+        wg = 0.0_dp
+        do k = 1, 7
+            x(k) = -xk(k)
+            x(16 - k) = xk(k)
+            w(k) = wk(k)
+            w(16 - k) = wk(k)
+            if (mod(k, 2) == 0) then
+                wg(k) = wgp(k/2)
+                wg(16 - k) = wgp(k/2)
             end if
-            val = val + wk(k)*fk
-            if (mod(k, 2) == 0) gauss = gauss + wg(k/2)*fk
         end do
-        val = h*val
-        gauss = h*gauss
-        err = abs(val - gauss)
-    end subroutine kronrod_panel
+        x(8) = 0.0_dp
+        w(8) = wk(8)
+        wg(8) = wgp(4)
+    end subroutine kronrod_rule
 
     function root_sum(ux) result(f)
         ! D11, D12 and torque integrands at speed ux, summed over the roots,
