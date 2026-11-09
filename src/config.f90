@@ -64,7 +64,7 @@ module neort_config
         integer :: mth_max_abs = -1 ! negative: historical q-dependent range
         real(dp) :: vmax_over_vth = 4.0_dp  ! upper velocity cutoff / vth
         real(dp) :: monoenergetic_x = -1.0_dp  ! -1: thermal; positive: E/T
-        real(dp) :: vtol = 0.0_dp ! >0: adaptive velocity integral to this tolerance
+        real(dp) :: vtol = 1.0e-3_dp ! velocity integral tolerance; 0: deprecated midpoint
         integer :: log_level = 0  ! how much to log
         character(len=8) :: output_format = "both"  ! 'hdf5', 'text' or 'both'
         !*! will be overwritten if using splines from plasma.in and profile.in files
@@ -144,8 +144,8 @@ contains
         vmax_over_vth = config%vmax_over_vth
         call validate_energy_ratio(config%monoenergetic_x)
         monoenergetic_x = config%monoenergetic_x
-        if (config%vtol < 0.0_dp) error stop "vtol must be nonnegative"
         vtol = config%vtol
+        call validate_vtol(vtol, vsteps)
         output_format = config%output_format
         call validate_output_format(output_format)
 
@@ -192,7 +192,7 @@ contains
         mth_max_abs = -1
         vmax_over_vth = 4.0_dp
         monoenergetic_x = -1.0_dp
-        vtol = 0.0_dp
+        vtol = 1.0e-3_dp
         inp_swi_pert = -1
         pertfile_curvature = .false.
         output_format = "both"
@@ -220,7 +220,7 @@ contains
         if (mth_max_abs < -1) error stop "mth_max_abs must be -1 or nonnegative"
         if (vmax_over_vth <= 0.0_dp) error stop "vmax_over_vth must be positive"
         call validate_energy_ratio(monoenergetic_x)
-        if (vtol < 0.0_dp) error stop "vtol must be nonnegative"
+        call validate_vtol(vtol, vsteps)
         call validate_output_format(output_format)
         inp_swi_pert = resolve_perturbation_switch(inp_swi, inp_swi_pert)
         call validate_perturbation_switch(pertfile, inp_swi_pert)
@@ -314,5 +314,20 @@ contains
             error stop "inp_swi_pert must be 8 or 9 for a perturbation .bc file"
         end if
     end subroutine validate_perturbation_switch
+
+    subroutine validate_vtol(tolerance, steps)
+        ! vtol > 0 integrates the collisionless velocity integral adaptively.
+        ! vtol = 0 selects the midpoint rule on vsteps nodes, which converges
+        ! like sqrt(du) at resonance folds; it is deprecated.
+        use iso_fortran_env, only: error_unit
+        real(dp), intent(in) :: tolerance
+        integer, intent(in) :: steps
+
+        if (tolerance < 0.0_dp) error stop "vtol must be nonnegative"
+        if (tolerance > 0.0_dp) return
+        if (steps <= 0) error stop "vtol = 0 (midpoint velocity rule) needs vsteps > 0"
+        write (error_unit, '(a)') "warning: vtol = 0 selects the deprecated midpoint " // &
+            "velocity rule, which converges like sqrt(du) at resonance folds; use vtol > 0"
+    end subroutine validate_vtol
 
 end module neort_config

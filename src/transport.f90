@@ -36,10 +36,11 @@ module neort_transport
   implicit none
 
   ! Relative tolerance of the adaptive velocity integral of the collisionless
-  ! resonance components; zero keeps the vsteps-node midpoint rule. Folds of a
-  ! resonance line make the integrand singular like 1/sqrt(u - u_fold), where
-  ! the midpoint rule converges like sqrt(du) and erratically.
-  real(dp) :: vtol = 0.0_dp
+  ! resonance components; zero selects the deprecated vsteps-node midpoint
+  ! rule. Folds of a resonance line make the integrand singular like
+  ! 1/sqrt(u - u_fold), where the midpoint rule converges like sqrt(du) and
+  ! erratically.
+  real(dp) :: vtol = 1.0e-3_dp
   integer, parameter :: vtol_initial_panels = 16, vtol_max_panels = 4000
   ! Error budget of the serial driver (compute_transport), which runs the
   ! components one by one: coarse sizing pass and per-component share.
@@ -360,7 +361,34 @@ contains
         end do
         sample%nterm = 1
         sample%term(:, 1) = total
+        ! The ledger gets the roots of the final panels with their quadrature
+        ! weights, so that its rows sum to the native integral.
+        block
+            character(len=4096) :: ledger_path
+            call resonance_ledger_path(ledger_path)
+            if (len_trim(ledger_path) > 0 .and. .not. sample%coarse) then
+                do k = 1, np
+                    call record_panel(lo(k), hi(k))
+                end do
+            end if
+        end block
     end subroutine compute_adaptive_sample
+
+    subroutine record_panel(a, b)
+        ! Ledger rows of the 15 Kronrod nodes on [a, b].
+        real(dp), intent(in) :: a, b
+        real(dp) :: c, h, x(15), w(15), wg(15), terms(3, nlev)
+        integer :: k, nterm
+
+        call kronrod_rule(x, w, wg)
+        c = 0.5_dp*(a + b)
+        h = 0.5_dp*(b - a)
+        do k = 1, 15
+            if (c + h*x(k) <= 0.0_dp) cycle
+            call collisionless_point(c + h*x(k), h*w(k)*maxwellian_speed_density(c + h*x(k)), &
+                terms, nterm)
+        end do
+    end subroutine record_panel
 
     subroutine compute_pitch_sample(vmin, vmax, sample, ok)
         ! The velocity integral of one collisionless component, taken along
@@ -718,16 +746,19 @@ contains
 
         f = 0.0_dp
         if (ux <= 0.0_dp) return
-        call collisionless_point(ux, maxwellian_speed_density(ux), terms, nterm)
+        call collisionless_point(ux, maxwellian_speed_density(ux), terms, nterm, &
+            record=.false.)
         f = sum(terms(:, 1:nterm), dim=2)
     end function root_sum
 
-    subroutine collisionless_point(ux, sample_weight, terms, nterm)
+    subroutine collisionless_point(ux, sample_weight, terms, nterm, record)
         ! Contributions of the resonant roots at normalised speed ux, each
-        ! weighted by sample_weight: one term per root.
+        ! weighted by sample_weight: one term per root. record = .false.
+        ! keeps the evaluation out of the resonance ledger.
         real(dp), intent(in) :: ux, sample_weight
         real(dp), intent(out) :: terms(3, nlev)
         integer, intent(out) :: nterm
+        logical, intent(in), optional :: record
         real(dp) :: dD11, dD12, dT, v, eta
         real(dp) :: eta_res(2)
         real(dp) :: taub, bounceavg(nvar)
@@ -746,6 +777,7 @@ contains
 
         call resonance_ledger_path(ledger_path)
         ledger_enabled = len_trim(ledger_path) > 0
+        if (present(record)) ledger_enabled = ledger_enabled .and. record
         ledger_count = 0
         if (ledger_enabled) then
             allocate(ledger_rows(nlev))

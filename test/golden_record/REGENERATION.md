@@ -1,3 +1,12 @@
+# Golden record regeneration: 2026-11-09
+
+The committed `golden.h5` was regenerated after the collisionless velocity
+integral became adaptive by default (`vtol = 1e-3`). The previous record used
+the midpoint rule on `vsteps = 512` nodes, which converges like `sqrt(du)` at
+folds of the resonance lines. The new record differs from it by at most 0.6 %
+(torque harmonics at s = 0.9); the other surfaces were within the existing
+`RTOL = 5e-3`. Tolerances are unchanged.
+
 # Golden record regeneration: 2026-09-06
 
 The committed `golden.h5` was regenerated after bumping fortnum VODE to

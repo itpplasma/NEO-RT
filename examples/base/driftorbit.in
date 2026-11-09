@@ -21,6 +21,7 @@
     bfac = 1.0             ! scale B field by factor
     efac = 1.0             ! scale E field by factor
     inp_swi = 8            ! input switch for Boozer file
-    vsteps = 256           ! integration steps in velocity space
+    vsteps = 256           ! velocity nodes for Krook runs (vtol = 0: deprecated midpoint)
+    vtol = 1.0e-3          ! relative tolerance of the adaptive velocity integral
     log_level = 3          ! log level (0=result, 1=error, 2=warn, 3=info, 4=debug, 5=trace)
 /
