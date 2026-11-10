@@ -17,6 +17,13 @@ else ()
     set(POTATO_ARCH_FLAGS "-march=native;-mtune=native" CACHE STRING "CPU architecture flags for POTATO")
 endif ()
 add_compile_options(-O3 ${POTATO_ARCH_FLAGS})
+# Link-time optimization of POTATO and the libraries fetched below, as in the
+# production builds (about 5 % less CPU). Set before the fetches so they inherit it.
+option(POTATO_ENABLE_LTO "Build POTATO and its dependencies with -flto=auto" OFF)
+if(POTATO_ENABLE_LTO AND CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-flto=auto)
+    add_link_options(-flto=auto -O3 ${POTATO_ARCH_FLAGS})
+endif()
 
 include(Util)
 if(NOT DEFINED LIBNEO_REF)
