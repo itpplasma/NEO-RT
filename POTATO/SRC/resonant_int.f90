@@ -68,9 +68,17 @@ logical :: resline_unit_is_private=.false.,resline_diag_unit_is_private=.false.
 ! Per-energy-slice resonance bookkeeping.  The energy loop may run slices in
 ! parallel; each slice owns its J_perp grid, extracted resonant points, and
 ! temporary resonance-line unit.  nmodes,marr,narr are read-only after setup.
+! resfactor_unit is the slice's debug table of every resonance's torque-weight
+! factors (write_resonance_factors), merged in energy order like fort.31415.
+integer :: resfactor_unit=-1
+character(len=*), parameter :: RESFACTOR_FORMAT='(3ES24.15E3,2I6,14ES24.15E3)'
+character(len=*), parameter :: RESFACTOR_HEADER='# toten perpinv psiast m n'// &
+    ' dpsiastdx dresconddx absHn2 fmaxw taub delphi A1ast A2ast temp dens'// &
+    ' phi_elec Phi_eff cE_ref one_res'
 !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all, &
 !$omp               respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
-!$omp               resline_unit_is_private,resline_diag_unit_is_private)
+!$omp               resline_unit_is_private,resline_diag_unit_is_private, &
+!$omp               resfactor_unit)
 !
 ! Particle-type channels for the box-counted torque.  A trapped orbit reverses
 ! v_par, so its pitch cosine lambda=v_par/v changes sign along the orbit; a
@@ -269,7 +277,7 @@ subroutine integrate_class_resonances
     use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
     use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
         psiast_res,taub_res,delphi_res,resline_unit, &
-        resline_unit_is_private,resline_diag_unit
+        resline_unit_is_private,resline_diag_unit,resfactor_unit,RESFACTOR_FORMAT
     use orbit_dim_mod,      only : neqm,lambda_reversed
     use global_invariants,  only : dtau,toten,perpinv,cE_ref,Phi_eff
     use sample_matrix_mod,  only : npoi,xarr,find_valid_class_roots
@@ -278,7 +286,8 @@ subroutine integrate_class_resonances
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_axis,psi_sep
     use potato_profile_data_mod, only: profile_support_left, reset_profile_support
-    use potato_input_mod,   only : zero_canonical_axis_drive, profile_exit_absorb
+    use potato_input_mod,   only : zero_canonical_axis_drive, profile_exit_absorb, &
+        write_resonance_factors
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
@@ -475,6 +484,11 @@ subroutine integrate_class_resonances
             ! physical weight -- zero it so one bad root cannot poison the torque.
             if (.not. ieee_is_finite(one_res)) one_res=0.d0
             !
+            if (write_resonance_factors) write(resfactor_unit, RESFACTOR_FORMAT) &
+                toten,perpinv,psiast_res,marr(mode),narr(mode), &
+                dpsiastdx,dresconddx,absHn2,fmaxw,taub_res,delphi_res, &
+                A1ast,A2ast,temp,dens,phi_elec,Phi_eff,cE_ref,one_res
+            !
             respoints_jp(mode,iclass)%w_res(iroot)=one_res
             respoints_jp(mode,iclass)%taub(iroot)=taub_res
             delint_mode(mode)=delint_mode(mode)+one_res
@@ -650,14 +664,15 @@ subroutine resonant_torque
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
         resline_unit_is_private,resline_diag_unit_is_private, &
         NCHAN,CHAN_NAME,channel_of, &
-        ICH_TRAPPED,ICH_PASS_VPAR_POS,ICH_PASS_VPAR_NEG
+        ICH_TRAPPED,ICH_PASS_VPAR_POS,ICH_PASS_VPAR_NEG, &
+        resfactor_unit,RESFACTOR_HEADER
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
         ind_hist,xarr,amat_arr
     use potato_input_mod,  only : nbox, unif_rho_pol, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
         enkin_min_over_temp, monoenergetic_x, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
-        eps_sampling, itermax_sampling, profile_exit_absorb
+        eps_sampling, itermax_sampling, profile_exit_absorb, write_resonance_factors
     use potato_profile_data_mod, only: profile_support_left
     use kinetic_energy_selection, only: energy_sample_count, total_energy_sample, &
         total_energy_measure
@@ -1027,6 +1042,7 @@ subroutine resonant_torque
         !
         close(resline_unit)
         close(resline_diag_unit)
+        if(write_resonance_factors) close(resfactor_unit)
         if(adaptive_jperp) close(unit1901)
         close(unit1902)
         deallocate(torque_int_modes_loc,torquebox_loc,torquebox_chan_loc)
@@ -1048,6 +1064,9 @@ subroutine resonant_torque
     call merge_energy_files('fort.31415.energy.', 'fort.31415', nenerg)
     call merge_energy_files('fort.31415.diagnostics.energy.', &
         'fort.31415.diagnostics', nenerg)
+    if(write_resonance_factors) &
+        call merge_energy_files('resonance_factors.dat.energy.', &
+            'resonance_factors.dat', nenerg)
     if(adaptive_jperp) then
         call merge_energy_files('subint_ofH0int_104_vsJperp_fromresp.dat.energy.', &
             'subint_ofH0int_104_vsJperp_fromresp.dat', nenerg)
@@ -1153,6 +1172,12 @@ contains
             call energy_path('subint_ofH0int_104_vsJperp_equi.dat.energy.', idx, path)
         endif
         open(newunit=unit_jperp,file=trim(path),status='replace',action='write')
+        !
+        if(write_resonance_factors) then
+            call energy_path('resonance_factors.dat.energy.', idx, path)
+            open(newunit=resfactor_unit,file=trim(path),status='replace',action='write')
+            if(idx.eq.1) write(resfactor_unit,'(A)') RESFACTOR_HEADER
+        endif
         !
     end subroutine open_energy_outputs
     !

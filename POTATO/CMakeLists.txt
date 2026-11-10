@@ -327,7 +327,7 @@ if(Python3_Interpreter_FOUND)
         TIMEOUT 150
     )
     foreach(_behavior signed_harmonic kinetic_floor equal_floor excess_floor legacy_grid monoenergetic
-            channel_split)
+            channel_split resonance_factors)
         add_test(NAME potato_torque_${_behavior}
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/test/torque_representation/test_torque_representation.py

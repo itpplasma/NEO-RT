@@ -50,7 +50,7 @@ class TorqueRepresentation(unittest.TestCase):
                                     timeout=300, env=dict(os.environ, OMP_NUM_THREADS="2"))
             outputs = {name: (work / name).read_text() for name in
                        ("integral_torque.dat", "boxcounted_torque.dat", "fort.31415",
-                        "boxcounted_torque_channels.dat")
+                        "boxcounted_torque_channels.dat", "resonance_factors.dat")
                        if (work / name).is_file()}
         return result, outputs
 
@@ -103,6 +103,28 @@ class TorqueRepresentation(unittest.TestCase):
                                          rel_tol=1e-10, abs_tol=scale*1e-12))
         self.assertTrue(any(abs(row[2]) > 0.0 for row in rows),
                         "the circular case has trapped resonances")
+
+    def test_resonance_factors(self):
+        # The debug dump is off by default and never changes the torque.
+        options = dict(nenerg=3, m_min=-1, m_max=3)
+        text, plain = self.successful(**options)
+        _, dumped = self.successful(write_resonance_factors=".true.", **options)
+        self.assertNotIn("resonance_factors.dat", plain)
+        for name in ("integral_torque.dat", "boxcounted_torque.dat", "fort.31415"):
+            self.assertEqual(plain[name], dumped[name])
+        lines = dumped["resonance_factors.dat"].splitlines()
+        header = lines[0].lstrip("# ").split()
+        self.assertEqual(header[:5], ["toten", "perpinv", "psiast", "m", "n"])
+        self.assertEqual(header[-1], "one_res")
+        rows = [line.split() for line in lines[1:]]
+        self.assertTrue(rows)
+        self.assertTrue(all(len(row) == len(header) for row in rows))
+        energies = self.samples(text)
+        for row in rows:
+            self.assertTrue(any(math.isclose(float(row[0]), energy, abs_tol=2e-5)
+                                for energy in energies))
+            self.assertTrue(-1 <= int(row[3]) <= 3)
+        self.assertTrue(any(float(row[-1]) != 0.0 for row in rows))
 
     def test_kinetic_floor(self):
         text, outputs = self.successful(enkin_min_over_temp="0.1d0", nenerg=3)
