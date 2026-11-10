@@ -49,7 +49,8 @@ class TorqueRepresentation(unittest.TestCase):
             result = subprocess.run([EXE], cwd=work, capture_output=True, text=True,
                                     timeout=300, env=dict(os.environ, OMP_NUM_THREADS="2"))
             outputs = {name: (work / name).read_text() for name in
-                       ("integral_torque.dat", "boxcounted_torque.dat", "fort.31415")
+                       ("integral_torque.dat", "boxcounted_torque.dat", "fort.31415",
+                        "boxcounted_torque_channels.dat")
                        if (work / name).is_file()}
         return result, outputs
 
@@ -82,6 +83,26 @@ class TorqueRepresentation(unittest.TestCase):
                           tuple(sign*int(x) for x in row.split()[3:])
                           for row in output["fort.31415"].splitlines())
         self.assertEqual(canonical_lines(positive, 1), canonical_lines(negative, -1))
+
+    def test_channel_split(self):
+        # Trapped + co-passing + counter-passing must rebuild the box torque exactly.
+        _, outputs = self.successful(nenerg=3)
+        rows = [list(map(float, line.split()))
+                for line in outputs["boxcounted_torque_channels.dat"].splitlines()
+                if not line.startswith("#")]
+        totals = [float(line.split()[0])
+                  for line in outputs["boxcounted_torque.dat"].splitlines()]
+        self.assertEqual(len(rows), len(totals))
+        scale = max(abs(total) for total in totals)
+        self.assertGreater(scale, 0.0)
+        for (s_lo, s_hi, trapped, co, counter, total), box_total in zip(rows, totals):
+            self.assertLess(s_lo, s_hi)
+            self.assertTrue(math.isclose(total, box_total, rel_tol=1e-12,
+                                         abs_tol=scale*1e-14))
+            self.assertTrue(math.isclose(trapped + co + counter, total,
+                                         rel_tol=1e-10, abs_tol=scale*1e-12))
+        self.assertTrue(any(abs(row[2]) > 0.0 for row in rows),
+                        "the circular case has trapped resonances")
 
     def test_kinetic_floor(self):
         text, outputs = self.successful(enkin_min_over_temp="0.1d0", nenerg=3)

@@ -119,6 +119,7 @@
     logical             :: clip_resonance_classes=.true.
     integer             :: iunit1=100,next,numbasef
     double precision    :: Rorb_max
+    logical             :: lambda_reversed=.false.
 ! Rorb_max is per-orbit scratch: find_bounce sets it to the orbit's maximum R as
 ! it integrates.  next is the extra-integral count: in the parallel resonance
 ! mode loop pertham writes it (next=0 then next=3 for its two find_bounce calls)
@@ -127,7 +128,13 @@
 ! The grid-build regions never write next; they copyin the master value to keep
 ! the prior shared semantics.  numbasef is set before any parallel region and
 ! read only, so it stays shared.
-    !$omp threadprivate(Rorb_max,next)
+! lambda_reversed is per-orbit scratch like Rorb_max: find_bounce sets it when the
+! pitch cosine z(5)=v_par/v changes sign along the orbit.  That sign change IS the
+! definition of a trapped orbit (it reflects), so this is the only sound
+! trapped/passing test.  Class boundary types (ifuntype) do not give it: boundary
+! type 2 is vpar2=0 at the CUT, which on the high-field part of the cut is the
+! trapped-passing boundary itself, so passing classes are bounded by it too.
+    !$omp threadprivate(Rorb_max,next,lambda_reversed)
   end module orbit_dim_mod
 !
 !------------------------------------------------------
@@ -186,7 +193,7 @@
 ! extraset(next) - extra integrals along the orbit (inout)
 ! ierr           - error flag, 0 = success, 1 = orbit left domain (output)
 !
-  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max
+  use orbit_dim_mod, only : neqm,write_orb,iunit1,Rorb_max,lambda_reversed
   use field_eq_mod, only : ierrfield
 !
   implicit none
@@ -226,6 +233,9 @@
     z(neqm+1:ndim)=extraset
   endif
   Rorb_max=z(1)
+! Per-orbit trapped/passing test: a trapped orbit reverses v_par, so the pitch
+! cosine z(5) changes sign somewhere along it.  Cleared here and set below.
+  lambda_reversed=.false.
 !
 !  dtau=dtau_in/max(z(4),1d-3)
   dtau=dtau_in
@@ -324,6 +334,7 @@
       write (iunit1,*) z(1:neqm),vz(5)
     endif
     Rorb_max=max(Rorb_max,z(1))
+    if(z(5)*z_start(5).lt.0.d0) lambda_reversed=.true.
   enddo
 !
 ! End primary search

@@ -178,6 +178,10 @@ set_tests_properties(test_profile_exit_absorb test_profile_exit_default PROPERTI
    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_profile_exit_run
    RESOURCE_LOCK potato_profile_exit_run TIMEOUT 30)
 
+add_executable(test_torque_channels.x SRC/test_torque_channels.f90)
+target_link_libraries(test_torque_channels.x PRIVATE potato_base potato)
+add_test(NAME test_torque_channels COMMAND test_torque_channels.x)
+
 add_executable(test_canonical_axis_closure.x SRC/test_canonical_axis_closure.f90)
 target_link_libraries(test_canonical_axis_closure.x PRIVATE potato_base)
 add_test(NAME test_canonical_axis_closure COMMAND test_canonical_axis_closure.x)
@@ -322,7 +326,8 @@ if(Python3_Interpreter_FOUND)
         SKIP_RETURN_CODE 77
         TIMEOUT 150
     )
-    foreach(_behavior signed_harmonic kinetic_floor equal_floor excess_floor legacy_grid monoenergetic)
+    foreach(_behavior signed_harmonic kinetic_floor equal_floor excess_floor legacy_grid monoenergetic
+            channel_split)
         add_test(NAME potato_torque_${_behavior}
             COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_CURRENT_SOURCE_DIR}/test/torque_representation/test_torque_representation.py
