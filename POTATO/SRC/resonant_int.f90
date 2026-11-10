@@ -468,7 +468,7 @@ subroutine get_matrix_res
         respoints_all,respoints_all_tmp
     use cc_mod,                       only : wrbounds,dowrite
     use orbit_dim_mod,                only : write_orb
-    use logging_mod,                  only : tee_message, close_logging
+    use logging_mod,                  only : tee_message
     use bounds_fixpoints_mod,         only : region_set_t
     !
     logical :: classes_talk
@@ -486,22 +486,28 @@ subroutine get_matrix_res
     !
     call find_bounds_fixpoints(regions,ierr)
     !
+    ! A boundary or class-formation failure belongs to ONE perpinv value, not to
+    ! the run. equimoments.f90 already treats the identical condition as a point
+    ! to skip; only this caller stopped, and it discarded whole campaigns: the
+    ! delivered-IO ITER runs died 26 hours in at toten 78/480 because a sepcross
+    ! Newton solve landed at 1.75e-11 against a 4.51e-13 tolerance. Record the
+    ! point as carrying no resonances, exactly as the dropped-class branch below
+    ! does, and let the sampler continue. nclasses is threadprivate, so this is
+    ! per-thread state.
     if(ierr.ne.0) then
         write(msg, '(A,I0)') &
             'get_matrix_res: find_bounds_fixpoints ierr = ', ierr
         call tee_message(trim(msg))
-        call close_logging()
-        stop
-    endif
-    !
-    call form_classes_doublecount(regions,classes_talk,ierr)
-    !
-    if(ierr.ne.0) then
-        write(msg, '(A,I0)') &
-            'get_matrix_res: form_classes ierr = ', ierr
-        call tee_message(trim(msg))
-        call close_logging()
-        stop
+        nclasses=0
+    else
+        call form_classes_doublecount(regions,classes_talk,ierr)
+        !
+        if(ierr.ne.0) then
+            write(msg, '(A,I0)') &
+                'get_matrix_res: form_classes ierr = ', ierr
+            call tee_message(trim(msg))
+            nclasses=0
+        endif
     endif
     !
     allocate(respoints_jp(nmodes,nclasses))

@@ -20,10 +20,16 @@
     double precision :: dtau,toten,perpinv,sigma
 ! reference energy $\cE_{ref}$, effective potential $\Phi_{eff}$:
     double precision :: cE_ref,Phi_eff
+! Set by sepcross when starter_doublecount cannot place an orbit -- the orbit
+! has left the LCFS and magfie refused it (allow_sol/edge_extension = .false.).
+! sepcross is an internal procedure passed as a dummy root function, so with
+! gfortran's trampoline a host-local flag would not survive privatization; it
+! has to be threadprivate module state, like psiast_res in resint_mod.
+    integer :: sepcross_ierr = 0
 ! Total-energy slices run independently in resonant_torque.  These invariants
 ! are the mutable per-slice/per-orbit state read by the orbit and class builders.
 ! Keep the normalization constants shared; they are set once at startup.
-    !$omp threadprivate(dtau,toten,perpinv,sigma)
+    !$omp threadprivate(dtau,toten,perpinv,sigma,sepcross_ierr)
   end module global_invariants
 !
   module poicut_mod
@@ -1030,7 +1036,7 @@
 !
   subroutine find_bounds_fixpoints(regions,ierr)
 !
-  use global_invariants,    only : toten,perpinv,sigma
+  use global_invariants,    only : toten,perpinv,sigma,sepcross_ierr
   use find_all_roots_mod,   only : nroots,roots,relerr_allroots
   use poicut_mod,           only : npc,rpc_arr,zpc_arr,rmagaxis, &
                                    Rbou_lfs,Zbou_lfs,Rbou_hfs,Zbou_hfs
@@ -1639,7 +1645,12 @@
             if(R_b.lt.R_x_tot(ixp_tot)-delR_marg) then
               relerr_allroots=1.d-12
 !
+              sepcross_ierr=0
               call find_all_roots(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
+              if(sepcross_ierr.ne.0) then
+                ierr=3   ! orbit left the LCFS; drop this class
+                return
+              endif
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 1'
@@ -1650,7 +1661,12 @@
             if(R_x_tot(ixp_tot)+delR_marg.lt.R_e) then
               relerr_allroots=1.d-12
 !
+              sepcross_ierr=0
               call find_all_roots(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
+              if(sepcross_ierr.ne.0) then
+                ierr=3   ! orbit left the LCFS; drop this class
+                return
+              endif
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 2'
@@ -1662,7 +1678,12 @@
 ! X-point belongs to a different region:
             relerr_allroots=1.d-12
 !
+            sepcross_ierr=0
             call find_all_roots(sepcross,R_b,R_e,ierr)
+            if(sepcross_ierr.ne.0) then
+              ierr=3   ! orbit left the LCFS; drop this class
+              return
+            endif
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 3'
@@ -1687,7 +1708,12 @@
             if(R_b.lt.R_x_tot(ixp_tot)-delR_marg) then
               relerr_allroots=1.d-12
 !
+              sepcross_ierr=0
               call find_all_roots(sepcross,R_b,R_x_tot(ixp_tot)-delR_marg,ierr)
+              if(sepcross_ierr.ne.0) then
+                ierr=3   ! orbit left the LCFS; drop this class
+                return
+              endif
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 4'
@@ -1701,7 +1727,12 @@
             if(R_x_tot(ixp_tot)+delR_marg.lt.R_e) then
               relerr_allroots=1.d-12
 !
+              sepcross_ierr=0
               call find_all_roots(sepcross,R_x_tot(ixp_tot)+delR_marg,R_e,ierr)
+              if(sepcross_ierr.ne.0) then
+                ierr=3   ! orbit left the LCFS; drop this class
+                return
+              endif
 !
               if(ierr.ne.0) then
                 print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 5'
@@ -1716,7 +1747,12 @@
 ! X-point belongs to a different region:
             relerr_allroots=1.d-12
 !
+            sepcross_ierr=0
             call find_all_roots(sepcross,R_b,R_e,ierr)
+            if(sepcross_ierr.ne.0) then
+              ierr=3   ! orbit left the LCFS; drop this class
+              return
+            endif
 !
             if(ierr.ne.0) then
               print *,'find_bounds_fixpoints: error in find_all_roots, sepcross 6'
@@ -2126,9 +2162,16 @@
   call starter_doublecount(toten,perpinv,sigma,Rst,   &
                            delpphi,ddelpphi_dRst,z,ierr)
 !
+! An orbit that cannot be started here has left the LCFS, and with
+! edge_extension = .false. that is a lost orbit, not a bug: it is dropped and
+! the caller abandons this class.  Flag it and hand the root finder a smooth
+! function with no root so it terminates at once instead of iterating on
+! whatever starter_doublecount left behind.
   if(ierr.ne.0) then
-    print *,'sepcross: error in starter_doublecount = ',ierr
-    stop !no further processing, debug the code
+    sepcross_ierr=ierr
+    delpphi=1.d0
+    ddelpphi_dRst=0.d0
+    return
   endif
 !
   delpphi=delpphi-psiast_x_tot(ixp_tot)
