@@ -28,31 +28,64 @@
 ! are written at the top of each odeint call before any read, so they need no
 ! copyin.  kmax,kmaxx,dxsav are set-once read-only config and stay shared.
         integer :: kount=0, ialloc
+! Size of the currently held scratch, and whether xp/yp were sized for
+! trajectory storage.  odeint used to allocate all fourteen arrays on entry and
+! deallocate them on every exit, i.e. 28 malloc/free per call for millions of
+! calls -- 21% of runtime by perf.  The arrays are threadprivate, so they can
+! simply be kept and regrown.  -1 means "nothing held yet".
+        integer :: nvar_held=-1
+        logical :: traj_held=.false.
         double precision, dimension(:),   allocatable :: dydx,xp,y,yscal
         double precision, dimension(:,:), allocatable :: yp
         double precision, dimension(:),   allocatable :: ak2,ak3,ak4,ak5
         double precision, dimension(:),   allocatable :: ak6,ytemp
         double precision, dimension(:),   allocatable :: yerr,ytemp1
 !$omp threadprivate(kount,ialloc,dydx,xp,y,yscal,yp,ak2,ak3,ak4,
-!$omp+ak5,ak6,ytemp,yerr,ytemp1)
+!$omp+ak5,ak6,ytemp,yerr,ytemp1,nvar_held,traj_held)
       end module odeint_mod
 !
 !------------------------------------------------------------------------------
       SUBROUTINE alloc_odeint(nvar)
 !
+! Hold the scratch arrays across calls instead of allocating and freeing them
+! every time.  Identical arrays, identical values: odeint writes every element
+! it reads (y from ystart, dydx from derivs, the ak* from rkck) before use, so
+! reusing the storage cannot change a result.
+!
+! xp and yp only exist to record the trajectory, and every use of them is
+! guarded by kmax > 0 (odeint lines 89, 100, 131).  kmax defaults to 0 and is
+! never set anywhere in this tree, so they were being allocated at kmaxx=200 --
+! yp is nvar*200 doubles -- and never written or read.  Size them to zero
+! unless trajectory storage is actually switched on.
+!
       use odeint_mod
 !
-      if(ialloc.eq.1) then
-        allocate(dydx(nvar),xp(kmaxx),y(nvar))
-        allocate(yp(nvar,kmaxx),yscal(nvar))
-        allocate(ak2(nvar),ak3(nvar),ak4(nvar),ak5(nvar))
-        allocate(ak6(nvar),ytemp(nvar))
-        allocate(yerr(nvar),ytemp1(nvar))
-      else
+      logical :: want_traj
+!
+      if(ialloc.ne.1) return          ! keep the scratch for the next call
+!
+      want_traj = kmax.gt.0
+!
+      if(nvar_held.ge.nvar .and. (traj_held.eqv.want_traj)) return
+!
+      if(nvar_held.ge.0) then
         deallocate(dydx,xp,y,yp,yscal)
         deallocate(ak2,ak3,ak4,ak5,ak6,ytemp)
         deallocate(yerr,ytemp1)
       endif
+!
+      if(want_traj) then
+        allocate(xp(kmaxx),yp(nvar,kmaxx))
+      else
+        allocate(xp(0),yp(nvar,0))
+      endif
+      allocate(dydx(nvar),y(nvar),yscal(nvar))
+      allocate(ak2(nvar),ak3(nvar),ak4(nvar),ak5(nvar))
+      allocate(ak6(nvar),ytemp(nvar))
+      allocate(yerr(nvar),ytemp1(nvar))
+!
+      nvar_held=nvar
+      traj_held=want_traj
 !
       END SUBROUTINE alloc_odeint
 !------------------------------------------------------------------------------

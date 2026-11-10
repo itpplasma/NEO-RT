@@ -17,6 +17,13 @@ else ()
     set(POTATO_ARCH_FLAGS "-march=native;-mtune=native" CACHE STRING "CPU architecture flags for POTATO")
 endif ()
 add_compile_options(-O3 ${POTATO_ARCH_FLAGS})
+# Link-time optimization of POTATO and the libraries fetched below, as in the
+# production builds (about 5 % less CPU). Set before the fetches so they inherit it.
+option(POTATO_ENABLE_LTO "Build POTATO and its dependencies with -flto=auto" OFF)
+if(POTATO_ENABLE_LTO AND CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(-flto=auto)
+    add_link_options(-flto=auto -O3 ${POTATO_ARCH_FLAGS})
+endif()
 
 include(Util)
 if(NOT DEFINED LIBNEO_REF)
@@ -186,6 +193,26 @@ add_executable(test_canonical_axis_closure.x SRC/test_canonical_axis_closure.f90
 target_link_libraries(test_canonical_axis_closure.x PRIVATE potato_base)
 add_test(NAME test_canonical_axis_closure COMMAND test_canonical_axis_closure.x)
 
+add_executable(test_interp_cache.x
+   SRC/test_interp_cache.f90
+)
+target_link_libraries(test_interp_cache.x
+   ${POTATO_ARCHIVE_GROUP}
+)
+add_test(NAME test_interp_cache
+   COMMAND test_interp_cache.x
+)
+
+add_executable(test_int_powers.x
+   SRC/test_int_powers.f90
+)
+target_link_libraries(test_int_powers.x
+   ${POTATO_ARCHIVE_GROUP}
+)
+add_test(NAME test_int_powers
+   COMMAND test_int_powers.x
+)
+
 add_executable(test_energy_selection.x
    SRC/test_energy_selection.f90
 )
@@ -266,6 +293,13 @@ target_link_libraries(potato_resonance_probe.x
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_profile_fp_environment
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/fp_environment/test_profile_fp_environment.py
+            $<TARGET_OBJECTS:potato>
+        COMMAND_EXPAND_LISTS)
+    set_tests_properties(potato_profile_fp_environment PROPERTIES SKIP_RETURN_CODE 77)
+
     add_test(NAME potato_boozer_reader
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_boozer_reader.py
