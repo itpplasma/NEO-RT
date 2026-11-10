@@ -8,6 +8,16 @@ module resint_mod
     type respoints_fix_jperp_mode_class
     integer :: nrespoi
     integer :: nprofile_absorbed = 0
+! Class signature, carried so the box-counted torque can be split by particle
+! type.  trapped_res is the lambda-sign-reversal verdict from find_bounce for the
+! orbits of this class (orbit topology is constant within a class, since classes
+! are delimited by the topology changes); sigma is the parallel velocity sign,
+! meaningful for passing classes only.  ifuntype is kept for diagnostics but must
+! not be used to classify - see channel_of.  All are threadprivate module state
+! overwritten at the next J_perp point, so they must be captured here.
+    integer :: ifuntype_res=0
+    logical :: trapped_res=.false.
+    double precision :: sigma_res=0.d0
     double precision :: toten_res,perpinv_res
     double precision, dimension(:),   allocatable :: w_res
     double precision, dimension(:,:), allocatable :: z_res
@@ -16,6 +26,9 @@ end type
 !
 type respoint_single
 double precision :: toten_res,perpinv_res,w_res
+integer :: ifuntype_res=0
+logical :: trapped_res=.false.
+double precision :: sigma_res=0.d0
 double precision, dimension(5) :: z_res
 double precision :: taub
 end type
@@ -55,9 +68,57 @@ logical :: resline_unit_is_private=.false.,resline_diag_unit_is_private=.false.
 ! Per-energy-slice resonance bookkeeping.  The energy loop may run slices in
 ! parallel; each slice owns its J_perp grid, extracted resonant points, and
 ! temporary resonance-line unit.  nmodes,marr,narr are read-only after setup.
+! resfactor_unit is the slice's debug table of every resonance's torque-weight
+! factors (write_resonance_factors), merged in energy order like fort.31415.
+integer :: resfactor_unit=-1
+character(len=*), parameter :: RESFACTOR_FORMAT='(3ES24.15E3,2I6,14ES24.15E3)'
+character(len=*), parameter :: RESFACTOR_HEADER='# toten perpinv psiast m n'// &
+    ' dpsiastdx dresconddx absHn2 fmaxw taub delphi A1ast A2ast temp dens'// &
+    ' phi_elec Phi_eff cE_ref one_res'
 !$omp threadprivate(nperp_max,delint_mode,respoints_jp,respoints_all, &
 !$omp               respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
-!$omp               resline_unit_is_private,resline_diag_unit_is_private)
+!$omp               resline_unit_is_private,resline_diag_unit_is_private, &
+!$omp               resfactor_unit)
+!
+! Particle-type channels for the box-counted torque.  A trapped orbit reverses
+! v_par, so its pitch cosine lambda=v_par/v changes sign along the orbit; a
+! passing orbit keeps one sign.  That sign change is the definition and the only
+! sound test, and find_bounce records it per orbit in orbit_dim_mod::
+! lambda_reversed while it integrates.
+!
+! Class boundary types (ifuntype) must NOT be used for this.  Boundary type 2 is
+! vpar2=0 at the Poincare CUT, i.e. where an orbit stops existing there; on the
+! high-field part of the cut that is the trapped-passing boundary itself, so
+! PASSING classes are bounded by it just as trapped ones are.  Classifying on
+! ifuntype therefore swept passing classes into the trapped channel and left a
+! spurious "neither" channel for separatrix/X-point-bounded classes (types 3,4),
+! which are ordinary trapped or passing orbits on one side of the separatrix.
+!
+! Only passing orbits carry a meaningful sigma (co- vs counter-going).  A trapped
+! orbit visits both signs of v_par and is represented in BOTH sigma class sets by
+! the double-counting scheme, so its two halves are summed into one channel.
+integer, parameter :: NCHAN=3
+integer, parameter :: ICH_TRAPPED=1, ICH_PASS_VPAR_POS=2, &
+                      ICH_PASS_VPAR_NEG=3
+character(len=12), parameter, dimension(NCHAN) :: CHAN_NAME = &
+    [character(len=12) :: 'trapped','pass_vpar>0','pass_vpar<0']
+!
+contains
+!
+integer function channel_of(trapped_in,sigma_in)
+    ! Particle-type channel from the orbit's own lambda-sign-reversal test.
+    implicit none
+    logical, intent(in) :: trapped_in
+    double precision, intent(in) :: sigma_in
+    if(trapped_in) then
+        channel_of=ICH_TRAPPED
+    elseif(sigma_in.gt.0.d0) then
+        channel_of=ICH_PASS_VPAR_POS
+    else
+        channel_of=ICH_PASS_VPAR_NEG
+    endif
+end function channel_of
+!
 end module resint_mod
 !
 !ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -216,8 +277,8 @@ subroutine integrate_class_resonances
     use form_classes_doublecount_mod, only : ifuntype,R_class_beg,R_class_end,sigma_class
     use resint_mod,         only : nmodes,marr,narr,twopim2,rm3,delint_mode,respoints_jp, &
         psiast_res,taub_res,delphi_res,resline_unit, &
-        resline_unit_is_private,resline_diag_unit
-    use orbit_dim_mod,      only : neqm
+        resline_unit_is_private,resline_diag_unit,resfactor_unit,RESFACTOR_FORMAT
+    use orbit_dim_mod,      only : neqm,lambda_reversed
     use global_invariants,  only : dtau,toten,perpinv,cE_ref,Phi_eff
     use sample_matrix_mod,  only : npoi,xarr,find_valid_class_roots
     use logging_mod,        only : tee_message
@@ -225,7 +286,8 @@ subroutine integrate_class_resonances
     use field_sub,          only : psif
     use field_eq_mod,       only : psi_axis,psi_sep
     use potato_profile_data_mod, only: profile_support_left, reset_profile_support
-    use potato_input_mod,   only : zero_canonical_axis_drive, profile_exit_absorb
+    use potato_input_mod,   only : zero_canonical_axis_drive, profile_exit_absorb, &
+        write_resonance_factors
     use resonance_mode_bounds_mod, only : canonical_flux_outside_lcfs
     use, intrinsic :: ieee_arithmetic, only : ieee_is_finite
     !
@@ -292,12 +354,19 @@ subroutine integrate_class_resonances
             respoints_jp(mode,iclass)%nrespoi=0
             respoints_jp(mode,iclass)%toten_res=toten
             respoints_jp(mode,iclass)%perpinv_res=perpinv
+            respoints_jp(mode,iclass)%ifuntype_res=ifuntype(iclass)
+            respoints_jp(mode,iclass)%sigma_res=sigma_class(iclass)
+            respoints_jp(mode,iclass)%trapped_res=.false.
             cycle
         endif
         !
         respoints_jp(mode,iclass)%nrespoi=nroots
         respoints_jp(mode,iclass)%toten_res=toten
         respoints_jp(mode,iclass)%perpinv_res=perpinv
+        respoints_jp(mode,iclass)%ifuntype_res=ifuntype(iclass)
+        respoints_jp(mode,iclass)%sigma_res=sigma_class(iclass)
+! Cleared here and OR-accumulated over this class's resonant orbits below.
+        respoints_jp(mode,iclass)%trapped_res=.false.
         if(nroots.eq.0) cycle
         allocate(respoints_jp(mode,iclass)%w_res(nroots), &
             respoints_jp(mode,iclass)%z_res(5,nroots), &
@@ -359,6 +428,10 @@ subroutine integrate_class_resonances
                 cycle
             endif
             call pertham(z,absHn2,orbit_admitted)
+            ! pertham integrates this resonant orbit through find_bounce, which
+            ! records whether lambda=v_par/v changed sign along it: the trapped test.
+            respoints_jp(mode,iclass)%trapped_res = &
+                respoints_jp(mode,iclass)%trapped_res .or. lambda_reversed
             if (profile_support_left) then
                 respoints_jp(mode,iclass)%nprofile_absorbed = &
                     respoints_jp(mode,iclass)%nprofile_absorbed+1
@@ -410,6 +483,11 @@ subroutine integrate_class_resonances
             ! product is Inf*0 = NaN.  Such a degenerate resonance carries no
             ! physical weight -- zero it so one bad root cannot poison the torque.
             if (.not. ieee_is_finite(one_res)) one_res=0.d0
+            !
+            if (write_resonance_factors) write(resfactor_unit, RESFACTOR_FORMAT) &
+                toten,perpinv,psiast_res,marr(mode),narr(mode), &
+                dpsiastdx,dresconddx,absHn2,fmaxw,taub_res,delphi_res, &
+                A1ast,A2ast,temp,dens,phi_elec,Phi_eff,cE_ref,one_res
             !
             respoints_jp(mode,iclass)%w_res(iroot)=one_res
             respoints_jp(mode,iclass)%taub(iroot)=taub_res
@@ -468,7 +546,7 @@ subroutine get_matrix_res
         respoints_all,respoints_all_tmp
     use cc_mod,                       only : wrbounds,dowrite
     use orbit_dim_mod,                only : write_orb
-    use logging_mod,                  only : tee_message, close_logging
+    use logging_mod,                  only : tee_message
     use bounds_fixpoints_mod,         only : region_set_t
     !
     logical :: classes_talk
@@ -486,22 +564,28 @@ subroutine get_matrix_res
     !
     call find_bounds_fixpoints(regions,ierr)
     !
+    ! A boundary or class-formation failure belongs to ONE perpinv value, not to
+    ! the run. equimoments.f90 already treats the identical condition as a point
+    ! to skip; only this caller stopped, and it discarded whole campaigns: the
+    ! delivered-IO ITER runs died 26 hours in at toten 78/480 because a sepcross
+    ! Newton solve landed at 1.75e-11 against a 4.51e-13 tolerance. Record the
+    ! point as carrying no resonances, exactly as the dropped-class branch below
+    ! does, and let the sampler continue. nclasses is threadprivate, so this is
+    ! per-thread state.
     if(ierr.ne.0) then
         write(msg, '(A,I0)') &
             'get_matrix_res: find_bounds_fixpoints ierr = ', ierr
         call tee_message(trim(msg))
-        call close_logging()
-        stop
-    endif
-    !
-    call form_classes_doublecount(regions,classes_talk,ierr)
-    !
-    if(ierr.ne.0) then
-        write(msg, '(A,I0)') &
-            'get_matrix_res: form_classes ierr = ', ierr
-        call tee_message(trim(msg))
-        call close_logging()
-        stop
+        nclasses=0
+    else
+        call form_classes_doublecount(regions,classes_talk,ierr)
+        !
+        if(ierr.ne.0) then
+            write(msg, '(A,I0)') &
+                'get_matrix_res: form_classes ierr = ', ierr
+            call tee_message(trim(msg))
+            nclasses=0
+        endif
     endif
     !
     allocate(respoints_jp(nmodes,nclasses))
@@ -578,14 +662,17 @@ subroutine resonant_torque
     use resonance_mode_bounds_mod, only : resonant_delphi_bound
     use resint_mod,        only : nmodes,marr,narr,delint_mode,respoints_jp,respoints_all,nperp_max, &
         respoints_all_tmp,respoint,resline_unit,resline_diag_unit, &
-        resline_unit_is_private,resline_diag_unit_is_private
+        resline_unit_is_private,resline_diag_unit_is_private, &
+        NCHAN,CHAN_NAME,channel_of, &
+        ICH_TRAPPED,ICH_PASS_VPAR_POS,ICH_PASS_VPAR_NEG, &
+        resfactor_unit,RESFACTOR_HEADER
     use sample_matrix_out_mod, only : nlagr,n1,n2,npoi,itermax,x,amat,icount,xbeg,xend,eps, &
         ind_hist,xarr,amat_arr
     use potato_input_mod,  only : nbox, unif_rho_pol, nenerg_input => nenerg, &
         thermen_max_input => thermen_max, &
         enkin_min_over_temp, monoenergetic_x, &
         adaptive_jperp, npoi_init, nlagr_sampling, &
-        eps_sampling, itermax_sampling, profile_exit_absorb
+        eps_sampling, itermax_sampling, profile_exit_absorb, write_resonance_factors
     use potato_profile_data_mod, only: profile_support_left
     use kinetic_energy_selection, only: energy_sample_count, total_energy_sample, &
         total_energy_measure
@@ -614,6 +701,11 @@ subroutine resonant_torque
     double precision, dimension(:), allocatable :: taubox
     double precision, dimension(:), allocatable :: torquebox
     double precision, dimension(:), allocatable :: torquebox_loc
+! Same box counting, resolved by particle-type channel (see channel_of).
+    double precision, dimension(:,:),   allocatable :: torquebox_chan
+    double precision, dimension(:,:),   allocatable :: torquebox_chan_loc
+    double precision, dimension(:,:,:), allocatable :: torquebox_chan_energy
+    integer :: ichan
     double precision, dimension(:), allocatable :: torque_int_energy
     double precision, dimension(:,:), allocatable :: torque_int_modes_energy
     double precision, dimension(:,:), allocatable :: torquebox_energy
@@ -623,7 +715,7 @@ subroutine resonant_torque
     !
     external :: get_matrix_res
     !
-    allocate(sbox(nbox), taubox(nbox), torquebox(nbox))
+    allocate(sbox(nbox), taubox(nbox), torquebox(nbox), torquebox_chan(nbox,NCHAN))
     !
     numbasef=0 !no extra integrals sampled, pure orbit integration
     call set_radial_boxes(nbox, unif_rho_pol, sbox)
@@ -683,12 +775,14 @@ subroutine resonant_torque
     allocate(torque_int_modes(nmodes))
     torque_int_modes=0.d0
     allocate(torque_int_energy(nenerg),torque_int_modes_energy(nmodes,nenerg), &
-        torquebox_energy(nbox,nenerg))
+        torquebox_energy(nbox,nenerg),torquebox_chan_energy(nbox,NCHAN,nenerg))
     torque_int_energy=0.d0
     torque_int_modes_energy=0.d0
     torquebox_energy=0.d0
+    torquebox_chan_energy=0.d0
     !
     torquebox=0.d0
+    torquebox_chan=0.d0
     !
     step_energ=total_energy_measure(monoenergetic_x,nenerg_input,toten_range,temp)
     !step_energ=0.22521463755624047d0
@@ -702,6 +796,7 @@ subroutine resonant_torque
     !$omp   private(time_beg,time_end,xjperp,torque_int_loc,msg,taubox_all) &
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   private(absorbed_count,resonance_count,box_absorbed_count) &
+    !$omp   private(torquebox_chan_loc,ichan) &
     !$omp   copyin(dtau)
     ! Cell 1 is an interior thermal midpoint, or the sole fixed-energy sample.
     do ienerg=1,nenerg
@@ -719,9 +814,11 @@ subroutine resonant_torque
         itermax=itermax_sampling
         if(allocated(delint_mode)) deallocate(delint_mode)
         allocate(delint_mode(nmodes))
-        allocate(torque_int_modes_loc(nmodes),torquebox_loc(nbox))
+        allocate(torque_int_modes_loc(nmodes),torquebox_loc(nbox), &
+            torquebox_chan_loc(nbox,NCHAN))
         torque_int_modes_loc=0.d0
         torquebox_loc=0.d0
+        torquebox_chan_loc=0.d0
         resline_unit_is_private=.true.
         resline_diag_unit_is_private=.true.
         call open_energy_outputs(ienerg,adaptive_jperp,unit1901,unit1902)
@@ -806,6 +903,12 @@ subroutine resonant_torque
                                 =respoints_all(iperp)%respoints_jp(i,iclass)%z_res(:,k)
                             respoint(nrespoints)%taub &
                                 =respoints_all(iperp)%respoints_jp(i,iclass)%taub(k)
+                            respoint(nrespoints)%ifuntype_res &
+                                =respoints_all(iperp)%respoints_jp(i,iclass)%ifuntype_res
+                            respoint(nrespoints)%sigma_res &
+                                =respoints_all(iperp)%respoints_jp(i,iclass)%sigma_res
+                            respoint(nrespoints)%trapped_res &
+                                =respoints_all(iperp)%respoints_jp(i,iclass)%trapped_res
                         enddo
                     enddo
                 enddo
@@ -845,6 +948,10 @@ subroutine resonant_torque
                 if(respoint(i)%w_res.ne.0.d0 .and. respoint(i)%taub.gt.0.d0) then
                     torquebox_loc=torquebox_loc &
                         +respoint(i)%w_res*taubox_all(:,i)/respoint(i)%taub
+                    ichan=channel_of(respoint(i)%trapped_res, &
+                                     respoint(i)%sigma_res)
+                    torquebox_chan_loc(:,ichan)=torquebox_chan_loc(:,ichan) &
+                        +respoint(i)%w_res*taubox_all(:,i)/respoint(i)%taub
                 endif
             enddo
             deallocate(taubox_all)
@@ -858,6 +965,7 @@ subroutine resonant_torque
             ! Sum up contributions of energy levels:
             torque_int_energy(ienerg)=torque_int_loc
             torquebox_energy(:,ienerg)=torquebox_loc
+            torquebox_chan_energy(:,:,ienerg)=torquebox_chan_loc
             write(msg, '(A,ES22.14)') &
                 'method 1, torque_int_loc = ', torque_int_loc
             call tee_message(trim(msg))
@@ -934,9 +1042,10 @@ subroutine resonant_torque
         !
         close(resline_unit)
         close(resline_diag_unit)
+        if(write_resonance_factors) close(resfactor_unit)
         if(adaptive_jperp) close(unit1901)
         close(unit1902)
-        deallocate(torque_int_modes_loc,torquebox_loc)
+        deallocate(torque_int_modes_loc,torquebox_loc,torquebox_chan_loc)
         !
     enddo
     !$omp end parallel do
@@ -944,15 +1053,20 @@ subroutine resonant_torque
     torque_int=0.d0
     torque_int_modes=0.d0
     torquebox=0.d0
+    torquebox_chan=0.d0
     do ienerg=1,nenerg
         torque_int=torque_int+torque_int_energy(ienerg)
         torque_int_modes=torque_int_modes+torque_int_modes_energy(:,ienerg)
         torquebox=torquebox+torquebox_energy(:,ienerg)
+        torquebox_chan=torquebox_chan+torquebox_chan_energy(:,:,ienerg)
     enddo
     !
     call merge_energy_files('fort.31415.energy.', 'fort.31415', nenerg)
     call merge_energy_files('fort.31415.diagnostics.energy.', &
         'fort.31415.diagnostics', nenerg)
+    if(write_resonance_factors) &
+        call merge_energy_files('resonance_factors.dat.energy.', &
+            'resonance_factors.dat', nenerg)
     if(adaptive_jperp) then
         call merge_energy_files('subint_ofH0int_104_vsJperp_fromresp.dat.energy.', &
             'subint_ofH0int_104_vsJperp_fromresp.dat', nenerg)
@@ -979,6 +1093,24 @@ subroutine resonant_torque
             write(1,*) torquebox(i), sbox(i-1), sbox(i)
         enddo
         close(1)
+        !
+        ! Same box counting split by particle type.  Trapped orbits reverse v_par
+        ! and are double-counted across both sigma class sets, so their two halves
+        ! are summed into one channel instead of being split by sigma.
+        open(1,file='boxcounted_torque_channels.dat')
+        write(1,'(A)') '# s_lo s_hi '//trim(CHAN_NAME(ICH_TRAPPED))//' '// &
+            trim(CHAN_NAME(ICH_PASS_VPAR_POS))//' '// &
+            trim(CHAN_NAME(ICH_PASS_VPAR_NEG))//' total'
+        write(1,*) 0d0, sbox(1), torquebox_chan(1,:), torquebox(1)
+        do i=2,nbox
+            write(1,*) sbox(i-1), sbox(i), torquebox_chan(i,:), torquebox(i)
+        enddo
+        close(1)
+        do ichan=1,NCHAN
+            write(msg, '(A,A,A,ES22.14)') '  channel ', &
+                trim(CHAN_NAME(ichan)), ' torque = ', sum(torquebox_chan(:,ichan))
+            call tee_message(trim(msg))
+        enddo
     endif
     !
 contains
@@ -1040,6 +1172,12 @@ contains
             call energy_path('subint_ofH0int_104_vsJperp_equi.dat.energy.', idx, path)
         endif
         open(newunit=unit_jperp,file=trim(path),status='replace',action='write')
+        !
+        if(write_resonance_factors) then
+            call energy_path('resonance_factors.dat.energy.', idx, path)
+            open(newunit=resfactor_unit,file=trim(path),status='replace',action='write')
+            if(idx.eq.1) write(resfactor_unit,'(A)') RESFACTOR_HEADER
+        endif
         !
     end subroutine open_energy_outputs
     !

@@ -118,6 +118,10 @@ module potato_input_mod
     ! Polynomial profiles have no finite support boundary.
     logical :: profile_exit_absorb = .false.
 
+    ! Debug: write every resonance's torque-weight factors to
+    ! resonance_factors.dat (one row per root, large for production runs).
+    logical :: write_resonance_factors = .false.
+
     ! Accepted for old case files.
     logical :: plot_poicut = .false.
     logical :: plot_equilibrium = .false.
@@ -132,7 +136,7 @@ module potato_input_mod
         itermax_sampling, clip_resonance_classes, &
         toten_plot, perpinv_plot, enkin_over_temp, &
         profile_file, edge_extension, canonical_axis_constant_extension, &
-        profile_exit_absorb, use_boozer_perturbation, &
+        profile_exit_absorb, write_resonance_factors, use_boozer_perturbation, &
         boozer_geometry_file, boozer_perturbation_file, &
         orbit_Rstart, orbit_Zstart, orbit_lambda, &
         freq_Rmin, freq_Rmax, freq_n, &
@@ -243,6 +247,8 @@ contains
         write(iunit, '(A,L1)') '  canonical_axis_constant_extension = ', &
             canonical_axis_constant_extension
         write(iunit, '(A,L1)') '  profile_exit_absorb = ', profile_exit_absorb
+        write(iunit, '(A,L1)') '  write_resonance_factors = ', &
+            write_resonance_factors
         if (use_boozer_perturbation) then
             write(iunit, '(A)') '  use_boozer_perturbation = T'
             write(iunit, '(A,A)') '  boozer_geometry_file = ', &
