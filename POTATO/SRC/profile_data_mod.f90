@@ -1,6 +1,5 @@
 module potato_profile_data_mod
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use phielec_of_psi_mod, only: polydens, polytemp, polyphi
     use potato_input_mod, only: profile_exit_absorb
     use spline, only: spline_coeff, spline_val_0
@@ -77,6 +76,9 @@ contains
     end subroutine load_profile_table
 
     subroutine validate_profile_table(table)
+        ! IEEE import kept local: at module scope gfortran makes every procedure
+        ! using this module save and restore the FP environment on each call.
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         real(dp), intent(in) :: table(:, :)
         integer :: count
 
@@ -106,6 +108,7 @@ contains
     end subroutine load_profile_polynomial
 
     subroutine evaluate_profile_table(s_pol, column, value, derivative)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         real(dp), intent(in) :: s_pol
         integer, intent(in) :: column
         real(dp), intent(out) :: value, derivative

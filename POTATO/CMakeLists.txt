@@ -286,6 +286,13 @@ target_link_libraries(potato_resonance_probe.x
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME potato_profile_fp_environment
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/fp_environment/test_profile_fp_environment.py
+            $<TARGET_OBJECTS:potato>
+        COMMAND_EXPAND_LISTS)
+    set_tests_properties(potato_profile_fp_environment PROPERTIES SKIP_RETURN_CODE 77)
+
     add_test(NAME potato_boozer_reader
         COMMAND ${Python3_EXECUTABLE}
             ${CMAKE_CURRENT_SOURCE_DIR}/test/bmod_converter/test_boozer_reader.py

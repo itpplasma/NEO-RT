@@ -1,6 +1,5 @@
 module boozer_perturbation_mod
     use, intrinsic :: iso_fortran_env, only: dp => real64
-    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     use netcdf, only: nf90_open, nf90_nowrite, nf90_get_att, nf90_global, &
         nf90_close, nf90_noerr
     use libneo_coordinates_base, only: coordinate_system_t, PSI_TOR_NORM, BOOZER
@@ -33,6 +32,10 @@ module boozer_perturbation_mod
 contains
 
     subroutine initialize_boozer_perturbation(n_tor)
+        ! IEEE import kept local: at module scope every procedure using this module,
+        ! including the profile evaluators via potato_input_mod, saves and restores
+        ! the FP environment on each call.
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         integer, intent(in) :: n_tor
         logical :: ready
         integer :: ncid, status
@@ -74,6 +77,7 @@ contains
     end subroutine initialize_boozer_perturbation
 
     subroutine boozer_perturbation(r, z, n_tor, amplitude)
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
         real(dp), intent(in) :: r, z
         integer, intent(in) :: n_tor
         complex(dp), intent(out) :: amplitude
