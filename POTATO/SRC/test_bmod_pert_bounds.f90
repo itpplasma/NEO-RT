@@ -4,6 +4,7 @@ program test_bmod_pert_bounds
   use, intrinsic :: iso_fortran_env, only : dp => real64
   use, intrinsic :: ieee_arithmetic, only : ieee_value, ieee_quiet_nan
   use potato_profile_data_mod, only : reset_profile_support, profile_support_left
+  use field_eq_mod, only : ierrfield
   implicit none
 
   integer, parameter :: nrad = 101, nzet = 81
@@ -56,9 +57,21 @@ program test_bmod_pert_bounds
     if (bmod_n /= (0.0_dp, 0.0_dp)) error stop 'lost orbit got a perturbation'
     if (.not. profile_support_left) error stop 'loss flag was cleared'
     print '(a)', 'lost orbit outside the grid: contribution zeroed, no stop'
+  case ('field_error_outside')
+    ! A Runge-Kutta trial point after an overshooting Newton step of find_bounce,
+    ! seen in AUG 30835 at (R,Z) = (-1933,-10) cm: velo has flagged the field
+    ! error, the step is discarded, so this is not a STOP either.
+    call reset_profile_support()
+    ierrfield = 1
+    bmod_n = (1.0_dp, 1.0_dp)
+    call bmod_pert_confined(-1933.2_dp, -10.45_dp, bmod_n)
+    if (bmod_n /= (0.0_dp, 0.0_dp)) error stop 'field-error point got a perturbation'
+    ierrfield = 0
+    print '(a)', 'field-error point outside the grid: contribution zeroed, no stop'
   case ('confined_outside')
     ! Not lost, yet outside the grid: stays fail-closed.
     call reset_profile_support()
+    ierrfield = 0
     call bmod_pert_confined(92.74_dp, -3.92_dp, bmod_n)
     print '(a, 2es24.16)', 'bmod_pert_confined returned outside the grid: ', bmod_n
     error stop 1
