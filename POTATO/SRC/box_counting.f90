@@ -16,6 +16,23 @@ subroutine set_radial_boxes(nbox, unif_rho_pol, sbox)
   end do
 end subroutine set_radial_boxes
 
+subroutine canonical_box(psiast, psi_axis, psi_sep, nbox, sbox, ibox)
+    ! Box of the normalised canonical toroidal momentum psi^*, or 0 when it lies
+    ! beyond the last box (an orbit whose psi^* is outside the separatrix).
+    implicit none
+    real(8), intent(in) :: psiast, psi_axis, psi_sep
+    integer, intent(in) :: nbox
+    real(8), intent(in) :: sbox(nbox)
+    integer, intent(out) :: ibox
+    real(8) :: s
+
+    s = abs((psiast - psi_axis)/(psi_sep - psi_axis))
+    do ibox = 1, nbox
+        if (s <= sbox(ibox)) return
+    end do
+    ibox = 0
+end subroutine canonical_box
+
 subroutine timestep_vode(n, tau, z, vz)
   implicit none
   ! See velo for details

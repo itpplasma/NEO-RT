@@ -50,7 +50,8 @@ class TorqueRepresentation(unittest.TestCase):
                                     timeout=300, env=dict(os.environ, OMP_NUM_THREADS="2"))
             outputs = {name: (work / name).read_text() for name in
                        ("integral_torque.dat", "boxcounted_torque.dat", "fort.31415",
-                        "boxcounted_torque_channels.dat", "resonance_factors.dat")
+                        "boxcounted_torque_channels.dat", "resonance_factors.dat",
+                        "boxcounted_torque_canonical.dat")
                        if (work / name).is_file()}
         return result, outputs
 
@@ -103,6 +104,25 @@ class TorqueRepresentation(unittest.TestCase):
                                          rel_tol=1e-10, abs_tol=scale*1e-12))
         self.assertTrue(any(abs(row[2]) > 0.0 for row in rows),
                         "the circular case has trapped resonances")
+
+    def test_canonical_boxes(self):
+        # Each resonant orbit is counted once, in the box of its psi^*: the boxes
+        # and the remainder outside them add up to the integral torque, and the
+        # profile differs from the time-weighted one by the orbit width.
+        _, outputs = self.successful(nenerg=3)
+        lines = outputs["boxcounted_torque_canonical.dat"].splitlines()
+        rows = [list(map(float, line.split())) for line in lines
+                if not line.startswith("#")]
+        outside = float(lines[-1].split(":")[1])
+        timed = [float(line.split()[0])
+                 for line in outputs["boxcounted_torque.dat"].splitlines()]
+        integral = float(outputs["integral_torque.dat"])
+        self.assertEqual(len(rows), len(timed))
+        canonical = [row[2] for row in rows]
+        self.assertTrue(math.isclose(sum(canonical) + outside, integral, rel_tol=1e-10))
+        self.assertTrue(all(lo < hi for lo, hi, _ in rows))
+        scale = max(abs(t) for t in timed)
+        self.assertGreater(max(abs(c - t) for c, t in zip(canonical, timed)), 1e-3*scale)
 
     def test_resonance_factors(self):
         # The debug dump is off by default and never changes the torque.
