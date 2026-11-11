@@ -10,7 +10,7 @@ program test_phi1_reader
     character(32) :: mode
     integer :: unit, ns, k, j, n, rows
     real(dp) :: surface, x(3), bound
-    complex(dp) :: actual, expected
+    complex(dp) :: actual, expected, shifted
     type(config_t) :: config
     call get_command_argument(1, mode)
     ns = 3
@@ -63,6 +63,16 @@ program test_phi1_reader
     call do_elec_pert_amp(x, actual)
     if (abs(actual - expected) > 1.0e-12_dp) error stop 'Phi thread state'
     !$omp end parallel
+    ! The amplitude follows s on every scale: a displacement below the spline cache
+    ! tolerance of the magnetic reader must still change it (finite orbit width).
+    if (ns > 1) then
+        call do_elec_pert_amp(x, actual)
+        x(1) = x(1) + 8.0e-13_dp
+        call do_elec_pert_amp(x, shifted)
+        expected = expected*8.0e-13_dp/(1 + surface)
+        if (abs(shifted - actual - expected) > 0.2_dp*abs(expected)) &
+            error stop 'Phi held constant over a small radial displacement'
+    end if
     ! Both configuration interfaces must reset the default-off switch.
     call set_config(config)
     call do_elec_pert_amp(x, actual)

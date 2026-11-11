@@ -1,7 +1,7 @@
 module neort_phi1
     use iso_fortran_env, only: dp => real64
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use util, only: imun, spline_cache_tol
+    use util, only: imun
     use spline, only: spline_coeff, spline_val_0
     use do_magfie_pert_mod, only: horner_fourier_sum, fourier_chains, mph_shared
     implicit none
@@ -135,7 +135,9 @@ contains
         if (.not. allocated(surfaces)) error stop 'Phi_1 file was not initialized'
         surface = min(max(x(1), surfaces(1)), surfaces(size(surfaces)))
         if (cached_generation == generation) then
-            if (abs(surface - cached_s) < spline_cache_tol) return
+            ! Exact comparison: with fow_radial s varies along the orbit, and values held
+            ! over a tolerance make the drive a staircase that stalls the orbit integrator.
+            if (surface == cached_s) return
         else
             if (allocated(cached_re)) deallocate (cached_re, cached_im)
             padded = fourier_chains*((mode_count - 1)/fourier_chains + 1)
