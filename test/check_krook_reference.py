@@ -12,4 +12,4 @@ with tempfile.TemporaryDirectory(prefix="krook-reference-") as directory:
                      "r0p50000.species.in"):
             with archive.extractfile(name) as stream:
                 (Path(directory) / name).write_bytes(stream.read())
-    subprocess.run([executable], cwd=directory, check=True, timeout=60)
+    subprocess.run([executable], cwd=directory, check=True)

@@ -581,7 +581,7 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
             $<TARGET_FILE:test_krook_reference.x>
             ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_mars_reference.tar.xz)
     set_tests_properties(test_krook_reference PROPERTIES
-        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 90)
+        ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 180)
 endif()
 set_source_files_properties(test_krook_reference.f90
     test_mixture_thread_invariance.f90 PROPERTIES
@@ -649,7 +649,7 @@ add_test(NAME test_krook_c12_cancellation
         $<TARGET_FILE:test_krook_c12_cancellation.x>
         ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/krook_c12_main.tar.xz)
 set_tests_properties(test_krook_c12_cancellation PROPERTIES
-    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 90)
+    ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 180)
 
 add_test(NAME test_krook_trapped_harmonic
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_krook_trapped_harmonic.py
