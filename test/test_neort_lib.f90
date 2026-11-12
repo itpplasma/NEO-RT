@@ -11,6 +11,7 @@ program test_neort_lib
     call test_single_s()
     call test_parallel_loop()
     call test_spline_update()
+    call test_get_equilibrium()
 
     print *, "============================================"
     print *, "ALL NEORT_LIB TESTS PASSED"
@@ -121,5 +122,26 @@ contains
 
         print *, "  OK"
     end subroutine test_spline_update
+
+    subroutine test_get_equilibrium()
+        use do_magfie_mod, only: R0, a, psi_pr
+
+        type(equilibrium_t) :: equil
+
+        print *, "Test: equilibrium accessor..."
+
+        call neort_init("driftorbit.in", "in_file")
+        call neort_get_equilibrium(equil)
+
+        if (equil%major_radius <= 0.0_dp) error stop "test_get_equilibrium: major radius must be positive"
+        if (equil%minor_radius <= 0.0_dp) error stop "test_get_equilibrium: minor radius must be positive"
+        if (equil%major_radius /= R0) error stop "test_get_equilibrium: major radius mismatch"
+        if (equil%minor_radius /= a) error stop "test_get_equilibrium: minor radius mismatch"
+        if (equil%toroidal_flux_boundary /= psi_pr) then
+            error stop "test_get_equilibrium: boundary toroidal flux mismatch"
+        end if
+
+        print *, "  OK"
+    end subroutine test_get_equilibrium
 
 end program test_neort_lib
