@@ -2,7 +2,7 @@ find_package(Python REQUIRED COMPONENTS Interpreter)
 file(GLOB TEST_SOURCES "test_*.f90")
 
 add_test(NAME test_phi1 COMMAND test_phi1.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
 set_tests_properties(test_phi1 PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
 foreach(mode IN ITEMS spline single two one-mode quantity n mixed-n)
@@ -20,13 +20,13 @@ if(Python3_Interpreter_FOUND)
     add_test(NAME test_profile_probe
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_profile_probe.py
             $<TARGET_FILE:neo_rt_profile_probe.x>
-            ${CMAKE_SOURCE_DIR}/tools/run_profile_probe.py)
+            ${PROJECT_SOURCE_DIR}/tools/run_profile_probe.py)
     set_tests_properties(test_profile_probe PROPERTIES
         ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
     add_test(NAME test_field_probe
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_field_probe.py
             $<TARGET_FILE:neo_rt_field_probe.x>
-            --wrapper ${CMAKE_SOURCE_DIR}/tools/run_field_probe.py
+            --wrapper ${PROJECT_SOURCE_DIR}/tools/run_field_probe.py
             --output-dir ${CMAKE_CURRENT_BINARY_DIR}/field_probe_oracle)
     set_tests_properties(test_field_probe PROPERTIES
         ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
@@ -51,12 +51,12 @@ if(NEORT_REFERENCE_EXECUTABLE)
         PROCESSORS 1 TIMEOUT 2400)
 endif()
 add_test(NAME test_species_mixture
-    COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_species_mixture.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME test_species_mixture_run
-    COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture_run.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_species_mixture_run.x
         ${CMAKE_CURRENT_BINARY_DIR}/species_run
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
 set_tests_properties(test_species_mixture_run PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 3 TIMEOUT 60 FIXTURES_SETUP species_mixture_output)
@@ -67,19 +67,19 @@ set_tests_properties(test_species_mixture_output PROPERTIES
     FIXTURES_REQUIRED species_mixture_output)
 add_test(NAME test_species_mixture_cli
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_species_mixture_cli.py
-        $<TARGET_FILE:neo_rt.x> ${CMAKE_SOURCE_DIR}/examples/base/in_file
+        $<TARGET_FILE:neo_rt.x> ${PROJECT_SOURCE_DIR}/examples/base/in_file
         ${CMAKE_CURRENT_BINARY_DIR}/mixture_cli)
 set_tests_properties(test_species_mixture_cli PROPERTIES
     PROCESSORS 3 TIMEOUT 60)
 foreach(invalid charge-imbalance gradient-imbalance negative-mass)
     add_test(NAME test_species_mixture_rejects_${invalid}
-        COMMAND ${CMAKE_BINARY_DIR}/test_species_mixture.x ${invalid}
+        COMMAND ${PROJECT_BINARY_DIR}/test_species_mixture.x ${invalid}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(test_species_mixture_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 foreach(invalid nan-density nan-temperature infinite-mass infinite-charge)
     add_test(NAME test_profile_rejects_${invalid}
-        COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x ${invalid}
+        COMMAND ${PROJECT_BINARY_DIR}/test_profile_collision_species.x ${invalid}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(test_profile_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
@@ -92,17 +92,17 @@ target_link_libraries(probe_neort_perturbation_fourier_kernel.x neo_rt)
 # same in_file and driftorbit_test.in configuration as the ripple-plateau test.
 add_test(NAME test_timestep
     COMMAND test_timestep.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/ripple_plateau
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/test/ripple_plateau
 )
 
 add_test(NAME test_parallel
-    COMMAND ${CMAKE_BINARY_DIR}/test_parallel.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_parallel.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 add_test(NAME test_neort_lib
-    COMMAND ${CMAKE_BINARY_DIR}/test_neort_lib.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_neort_lib.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 # test_multi_init: repeated do_magfie_init calls must not corrupt or change the
@@ -111,8 +111,8 @@ add_test(NAME test_neort_lib
 # nonzero status on any mismatch.  Runs from examples/base, which supplies the
 # driftorbit.in and in_file it reads.
 add_test(NAME test_multi_init
-    COMMAND ${CMAKE_BINARY_DIR}/test_multi_init.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_multi_init.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 # test_bounce: the trapped bounce time, against a Gauss-Legendre quadrature of
@@ -122,13 +122,13 @@ add_test(NAME test_multi_init
 # came to agree with each other to 0.26% while both were 0.4% wrong.  Runs from
 # examples/base, which supplies the driftorbit.in and in_file it reads.
 add_test(NAME test_bounce
-    COMMAND ${CMAKE_BINARY_DIR}/test_bounce.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_bounce.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 add_test(NAME test_parallel_transport
-    COMMAND ${CMAKE_BINARY_DIR}/test_parallel_transport.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_parallel_transport.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 set_tests_properties(test_parallel_transport PROPERTIES
@@ -139,8 +139,8 @@ set_tests_properties(test_parallel_transport PROPERTIES
 )
 
 add_test(NAME test_circular_offset_rotation
-    COMMAND ${CMAKE_BINARY_DIR}/test_circular_offset_rotation.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_circular_offset_rotation.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 set_tests_properties(test_circular_offset_rotation PROPERTIES
@@ -164,34 +164,34 @@ set_tests_properties(test_circular_offset_rotation PROPERTIES
 # Phase 2: cross-check vs the .bc path (relative tolerance 1e-4).
 # Both phases run unconditionally in CI.
 add_test(NAME test_chartmap_input
-    COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_input.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_chartmap_input.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 # test_chartmap_transport: D11 from the chartmap fixture (inp_swi=10) against
 # the .bc route (inp_swi=8) for the same field and analytic perturbation.
 add_test(NAME test_chartmap_transport
-    COMMAND ${CMAKE_BINARY_DIR}/test_chartmap_transport.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_chartmap_transport.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 set_tests_properties(test_chartmap_transport PROPERTIES
     ENVIRONMENT
-        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc;OMP_NUM_THREADS=4"
+        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${PROJECT_SOURCE_DIR}/examples/circ.bc;OMP_NUM_THREADS=4"
     TIMEOUT 600
 )
 
 add_test(NAME test_s_outside_data
-    COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+    COMMAND ${PROJECT_BINARY_DIR}/test_s_outside_data.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples
 )
 add_test(NAME test_s_outside_data_init_rejects
-    COMMAND ${CMAKE_BINARY_DIR}/test_s_outside_data.x init
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
+    COMMAND ${PROJECT_BINARY_DIR}/test_s_outside_data.x init
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples
 )
 set_tests_properties(test_s_outside_data_init_rejects PROPERTIES WILL_FAIL TRUE)
 
 add_test(NAME test_boozer_handedness
-    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_handedness.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_boozer_handedness.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -199,7 +199,7 @@ add_test(NAME test_boozer_handedness
 # Boozer path. The oracle is a central difference of hcovar over separate
 # do_magfie calls, so it is independent of the analytic formula it checks.
 add_test(NAME test_hcurl_axisymmetric
-    COMMAND ${CMAKE_BINARY_DIR}/test_hcurl_axisymmetric.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_hcurl_axisymmetric.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -207,18 +207,18 @@ add_test(NAME test_hcurl_axisymmetric
 # ASDEX-type golden-record file load; flux-flipped copies of both are rejected.
 function(add_boozer_orientation_tests name file swi)
     add_test(NAME test_boozer_orientation_accept_${name}
-        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x accept ${file} ${swi}
+        COMMAND ${PROJECT_BINARY_DIR}/test_boozer_orientation_guard.x accept ${file} ${swi}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
     add_test(NAME test_boozer_orientation_reject_${name}
-        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x flip ${file} ${swi}
+        COMMAND ${PROJECT_BINARY_DIR}/test_boozer_orientation_guard.x flip ${file} ${swi}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
     set_tests_properties(test_boozer_orientation_reject_${name} PROPERTIES
         PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation"
     )
     add_test(NAME test_boozer_orientation_magnitude_${name}
-        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x scale ${file} ${swi}
+        COMMAND ${PROJECT_BINARY_DIR}/test_boozer_orientation_guard.x scale ${file} ${swi}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_scale_${name}
     )
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_scale_${name})
@@ -226,18 +226,18 @@ function(add_boozer_orientation_tests name file swi)
         PASS_REGULAR_EXPRESSION "Boozer volume magnitude mismatch"
     )
 endfunction()
-add_boozer_orientation_tests(circ ${CMAKE_SOURCE_DIR}/examples/circ.bc 8)
-add_boozer_orientation_tests(golden ${CMAKE_SOURCE_DIR}/test/golden_record/input/in_file 9)
+add_boozer_orientation_tests(circ ${PROJECT_SOURCE_DIR}/examples/circ.bc 8)
+add_boozer_orientation_tests(golden ${PROJECT_SOURCE_DIR}/test/golden_record/input/in_file 9)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
 add_test(NAME test_boozer_orientation_nan_flux
-    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x nan_flux
-        ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
+    COMMAND ${PROJECT_BINARY_DIR}/test_boozer_orientation_guard.x nan_flux
+        ${PROJECT_SOURCE_DIR}/examples/circ.bc 8
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/orientation_nan_flux)
 set_tests_properties(test_boozer_orientation_nan_flux PROPERTIES
     PASS_REGULAR_EXPRESSION "Inconsistent Boozer orientation")
 add_test(NAME test_boozer_orientation_drift_circ
-    COMMAND ${CMAKE_BINARY_DIR}/test_boozer_orientation_guard.x drift
-        ${CMAKE_SOURCE_DIR}/examples/circ.bc 8
+    COMMAND ${PROJECT_BINARY_DIR}/test_boozer_orientation_guard.x drift
+        ${PROJECT_SOURCE_DIR}/examples/circ.bc 8
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -245,7 +245,7 @@ add_test(NAME test_boozer_orientation_drift_circ
 foreach(mode outside inside support later sign)
     file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/volume_${mode})
     add_test(NAME test_boozer_volume_${mode}
-        COMMAND ${CMAKE_BINARY_DIR}/test_boozer_volume_support.x ${mode}
+        COMMAND ${PROJECT_BINARY_DIR}/test_boozer_volume_support.x ${mode}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/volume_${mode})
     if(mode STREQUAL "outside")
         set_tests_properties(test_boozer_volume_${mode} PROPERTIES
@@ -260,54 +260,54 @@ foreach(mode outside inside support later sign)
 endforeach()
 
 add_test(NAME test_profile_collision_species
-    COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_profile_collision_species.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_test(NAME test_krook
-    COMMAND ${CMAKE_BINARY_DIR}/test_krook.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_krook.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_krook_passing_weight
-    COMMAND ${CMAKE_BINARY_DIR}/test_krook_passing_weight.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_krook_passing_weight.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 set_tests_properties(test_krook_passing_weight PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_magfie_bmax
-    COMMAND ${CMAKE_BINARY_DIR}/test_magfie_bmax.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_magfie_bmax.x
         ${CMAKE_CURRENT_BINARY_DIR}/test_magfie_bmax.in
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/golden_record/input
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/test/golden_record/input
 )
 set_tests_properties(test_magfie_bmax PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_passing_harmonic
-    COMMAND ${CMAKE_BINARY_DIR}/test_krook_passing_harmonic.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_krook_passing_harmonic.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 set_tests_properties(test_krook_passing_harmonic PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_trapped_weight
-    COMMAND ${CMAKE_BINARY_DIR}/test_krook_trapped_weight.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_krook_trapped_weight.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 set_tests_properties(test_krook_trapped_weight PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OMP_THREAD_LIMIT=1;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_krook_config
-    COMMAND ${CMAKE_BINARY_DIR}/test_krook_config.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_krook_config.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 add_test(NAME test_krook_transport
-    COMMAND ${CMAKE_BINARY_DIR}/test_krook_transport.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_krook_transport.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 add_test(NAME test_transport_weight_amplitude
-    COMMAND ${CMAKE_BINARY_DIR}/test_transport_weight_amplitude.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_transport_weight_amplitude.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 set_tests_properties(test_transport_weight_amplitude PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
@@ -326,19 +326,19 @@ foreach(invalid negative-rate invalid-model invalid-harmonic invalid-geometry
         invalid-steps invalid-tolerance electron-nonlinear krook-nonlinear
         nan-rate infinite-rate nan-geometry infinite-tolerance)
     add_test(NAME test_krook_rejects_${invalid}
-        COMMAND ${CMAKE_BINARY_DIR}/test_krook_config.x ${invalid}
+        COMMAND ${PROJECT_BINARY_DIR}/test_krook_config.x ${invalid}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(test_krook_rejects_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 foreach(invalid density temperature)
     add_test(NAME test_profile_invalid_${invalid}
-        COMMAND ${CMAKE_BINARY_DIR}/test_profile_collision_species.x invalid-${invalid}
+        COMMAND ${PROJECT_BINARY_DIR}/test_profile_collision_species.x invalid-${invalid}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(test_profile_invalid_${invalid} PROPERTIES WILL_FAIL TRUE)
 endforeach()
 
 add_test(NAME test_linear_carbon_background COMMAND test_linear_carbon_background.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
 set_tests_properties(test_linear_carbon_background PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
 
@@ -347,34 +347,34 @@ add_test(NAME test_nonlinear_electron_rejects
     COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:test_linear_electron.x>
         -P ${CMAKE_CURRENT_SOURCE_DIR}/check_nonlinear_electron_rejection.cmake)
 add_test(NAME test_linear_electron_transport COMMAND test_linear_electron.x transport
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
 set_tests_properties(test_linear_electron test_nonlinear_electron_rejects
     test_linear_electron_transport PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
 
 add_test(NAME test_drift_phase
-    COMMAND ${CMAKE_BINARY_DIR}/test_drift_phase.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_drift_phase.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 add_test(NAME test_fow_radial
-    COMMAND ${CMAKE_BINARY_DIR}/test_fow_radial.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_fow_radial.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 add_test(NAME test_fow_gc_orbit
-    COMMAND ${CMAKE_BINARY_DIR}/test_fow_gc_orbit.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_fow_gc_orbit.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 add_test(NAME test_nonlinear_contract
-    COMMAND ${CMAKE_BINARY_DIR}/test_nonlinear_contract.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_nonlinear_contract.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_test(NAME test_attenuation_asymptotes
-    COMMAND ${CMAKE_BINARY_DIR}/test_attenuation_asymptotes.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/nonlin
+    COMMAND ${PROJECT_BINARY_DIR}/test_attenuation_asymptotes.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/nonlin
 )
 
 add_test(NAME test_harmonic_bounds
@@ -384,26 +384,26 @@ add_test(NAME test_harmonic_bounds
 
 add_test(NAME test_collisional_layer_parallel
     COMMAND test_parallel.x collisional-layer
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
 set_tests_properties(test_collisional_layer_parallel PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=3;OPENBLAS_NUM_THREADS=1"
     PROCESSORS 3 TIMEOUT 120)
 
 add_test(NAME test_collisional_layer_config_reset
     COMMAND test_collisional_layer.x config-reset
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test/ripple_plateau)
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/test/ripple_plateau)
 
 add_test(NAME test_collisional_layer_table
     COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_collisional_layer_table.py
         $<TARGET_FILE:test_collisional_layer.x>)
 add_test(NAME test_collisional_layer_generator
-    COMMAND ${Python_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/generate_collisional_layer.py --check)
+    COMMAND ${Python_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_collisional_layer.py --check)
 set_tests_properties(test_collisional_layer_table test_collisional_layer_generator
     PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1;OMP_NUM_THREADS=1" TIMEOUT 120)
 
 add_test(NAME test_resonance_cutout
-    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_cutout.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    COMMAND ${PROJECT_BINARY_DIR}/test_resonance_cutout.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
 set_tests_properties(test_resonance_cutout PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 120)
 foreach(case_and_message
@@ -416,7 +416,7 @@ foreach(case_and_message
     list(GET case_parts 0 invalid)
     list(GET case_parts 1 message)
     add_test(NAME test_resonance_cutout_rejects_${invalid}
-        COMMAND ${CMAKE_BINARY_DIR}/test_resonance_cutout.x ${invalid}
+        COMMAND ${PROJECT_BINARY_DIR}/test_resonance_cutout.x ${invalid}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(test_resonance_cutout_rejects_${invalid} PROPERTIES
         PASS_REGULAR_EXPRESSION "${message}" TIMEOUT 30)
@@ -429,7 +429,7 @@ add_test(NAME test_collisional_layer
 
 add_test(NAME test_passing_drift_derivative
     COMMAND test_passing_drift_derivative.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 
 add_test(NAME test_vmax_over_vth
@@ -443,41 +443,41 @@ add_test(NAME test_energy_distribution
 )
 
 add_test(NAME test_resonance_bracket
-    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_bracket.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_resonance_bracket.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 add_test(NAME test_resonance_oracle
-    COMMAND ${CMAKE_BINARY_DIR}/test_resonance_oracle.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_resonance_oracle.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_drive)
 add_test(NAME test_curvature_drive
-    COMMAND ${CMAKE_BINARY_DIR}/test_curvature_drive.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_curvature_drive.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/curvature_drive
 )
 set_tests_properties(test_curvature_drive PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1" PROCESSORS 1 TIMEOUT 60)
 add_test(NAME test_bounce_counter_passing
-    COMMAND ${CMAKE_BINARY_DIR}/test_bounce_counter_passing.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_bounce_counter_passing.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 add_test(NAME test_transport_branch_state
-    COMMAND ${CMAKE_BINARY_DIR}/test_transport_branch_state.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base
+    COMMAND ${PROJECT_BINARY_DIR}/test_transport_branch_state.x
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base
 )
 set_tests_properties(test_transport_branch_state PROPERTIES
     ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 30)
 add_test(NAME test_perturbation_fourier_kernel
-    COMMAND ${CMAKE_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMAND ${PROJECT_BINARY_DIR}/probe_neort_perturbation_fourier_kernel.x
+    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
 )
 add_test(NAME test_shaing_drift_cylindrical
-    COMMAND ${CMAKE_BINARY_DIR}/test_shaing_drift_cylindrical.x
+    COMMAND ${PROJECT_BINARY_DIR}/test_shaing_drift_cylindrical.x
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(test_chartmap_input PROPERTIES
     ENVIRONMENT
-        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${CMAKE_SOURCE_DIR}/examples/circ.bc"
+        "CHARTMAP_FILE=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/circ_chartmap.nc;BC_FILE=${PROJECT_SOURCE_DIR}/examples/circ.bc"
 )
 
 # ---------------------------------------------------------------------------
@@ -537,7 +537,7 @@ add_library(frequency_model_fixture STATIC
 set_target_properties(frequency_model_fixture PROPERTIES
     Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
 target_include_directories(frequency_model_fixture BEFORE PUBLIC "${frequency_model_dir}")
-target_include_directories(frequency_model_fixture PRIVATE "${PROJECT_BINARY_DIR}/spline")
+target_include_directories(frequency_model_fixture PRIVATE "${_neort_spline_modules}")
 target_link_libraries(frequency_model_fixture PUBLIC spline)
 # Namespace providers: GNU also searches the build working directory for .mod
 # files, where neo_rt's real providers may already exist after an incremental build.
@@ -551,7 +551,7 @@ foreach(model_case IN ITEMS join roots)
     add_executable(test_frequency_model_${model_case}.x fixtures/frequency_models/${model_case}.f90)
     set_target_properties(test_frequency_model_${model_case}.x PROPERTIES
         Fortran_MODULE_DIRECTORY "${frequency_model_dir}")
-    target_include_directories(test_frequency_model_${model_case}.x PRIVATE "${PROJECT_BINARY_DIR}/spline")
+    target_include_directories(test_frequency_model_${model_case}.x PRIVATE "${_neort_spline_modules}")
     target_link_libraries(test_frequency_model_${model_case}.x frequency_model_fixture)
     add_test(NAME test_frequency_model_${model_case} COMMAND test_frequency_model_${model_case}.x)
 endforeach()
@@ -567,7 +567,7 @@ foreach(rate_source IN ITEMS 1 2)
     add_test(NAME test_species_collision_transport_${rate_source}
         COMMAND test_species_mixture_run.x
             ${CMAKE_CURRENT_BINARY_DIR}/species_rate_${rate_source} ${rate_source}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
     set_tests_properties(test_species_collision_transport_${rate_source} PROPERTIES
         ENVIRONMENT "OMP_NUM_THREADS=3;OMP_THREAD_LIMIT=4;OPENBLAS_NUM_THREADS=1"
         PROCESSORS 3 TIMEOUT 30)
@@ -589,7 +589,7 @@ set_source_files_properties(test_krook_reference.f90
 foreach(mode IN ITEMS krook collisionless)
     add_test(NAME test_mixture_thread_invariance_${mode}
         COMMAND test_mixture_thread_invariance.x ${mode}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
     set_tests_properties(test_mixture_thread_invariance_${mode} PROPERTIES
         ENVIRONMENT "OMP_THREAD_LIMIT=8;OPENBLAS_NUM_THREADS=1;OMP_WAIT_POLICY=PASSIVE"
         PROCESSORS 8 TIMEOUT 300)
@@ -615,7 +615,7 @@ set_tests_properties(test_krook_work_oracle PROPERTIES
 foreach(ledger_case IN ITEMS thermal mono parallel species krook no-torque)
     add_test(NAME test_resonance_ledger_${ledger_case}
         COMMAND ${Python_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/check_resonance_ledger.py
-            $<TARGET_FILE:test_resonance_ledger.x> ${CMAKE_SOURCE_DIR}/examples/base
+            $<TARGET_FILE:test_resonance_ledger.x> ${PROJECT_SOURCE_DIR}/examples/base
             ${ledger_case})
     set_tests_properties(test_resonance_ledger_${ledger_case} PROPERTIES
         PROCESSORS 2 TIMEOUT 180)
@@ -633,7 +633,7 @@ set_tests_properties(test_resonance_root_capacity PROPERTIES
 
 add_test(NAME test_separatrix_model COMMAND test_separatrix_model.x)
 add_test(NAME test_separatrix_limit COMMAND test_separatrix_limit.x
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples/base)
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/examples/base)
 add_test(NAME test_orbit_classes COMMAND test_orbit_classes.x)
 add_test(NAME test_orbit_classes_reject_composite COMMAND test_orbit_classes.x composite)
 set_tests_properties(test_orbit_classes_reject_composite PROPERTIES WILL_FAIL TRUE)

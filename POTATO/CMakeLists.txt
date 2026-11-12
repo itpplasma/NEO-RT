@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.22)
 project(POTATO)
 enable_language(Fortran)
 enable_testing()
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/../cmake")
+include(${PROJECT_SOURCE_DIR}/../cmake/ItpDeps.cmake)
 
 set(CMAKE_Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR})
 # Position-independent code as in the NEO-RT build: without it, older
@@ -25,10 +25,6 @@ if(POTATO_ENABLE_LTO AND CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     add_link_options(-flto=auto -O3 ${POTATO_ARCH_FLAGS})
 endif()
 
-include(Util)
-if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF b8f80b23ad8657dd6c60e1bff469335e347b14a8)
-endif()
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
@@ -46,19 +42,19 @@ find_package(LAPACK REQUIRED)
 # (SRC/resonant_int.f90).  Linked to potato_base so -fopenmp reaches POTATO's own
 # sources and the runtime is linked.
 find_package(OpenMP REQUIRED)
-if(NOT DEFINED SPLINE_REF)
-    set(SPLINE_REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e)
-endif()
-find_or_fetch(spline)
+itp_add_dependency(spline REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e
+    TARGET spline)
 # spline_val_0 has a threadprivate interval cache used by parallel orbits.
 target_link_libraries(spline OpenMP::OpenMP_Fortran)
 
-include(Fortplot)
+include(${PROJECT_SOURCE_DIR}/../cmake/Fortplot.cmake)
 
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
 # fixes (e.g. the stretch_coords convex-wall load) propagate instead of drifting.
-find_or_fetch(libneo)
+itp_add_dependency(libneo REF b8f80b23ad8657dd6c60e1bff469335e347b14a8
+    TARGET LIBNEO::boozer)
+FetchContent_GetProperties(libneo)
 
 # Hold POTATO's own sources to f2018, stop at the first diagnostic, and run the C
 # preprocessor. Applied after the dependency fetches above so the upstream

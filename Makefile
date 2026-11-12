@@ -9,7 +9,7 @@ unexport LIBNEO_REF
 # Environment-sourced values are blocked by unexport and never forwarded.
 _LIBNEO_REF_FLAG :=
 ifeq ($(origin LIBNEO_REF), command line)
-_LIBNEO_REF_FLAG := -DLIBNEO_REF=$(LIBNEO_REF)
+_LIBNEO_REF_FLAG := -DITP_LIBNEO_REF=$(LIBNEO_REF)
 endif
 
 .PHONY: all configure reconfigure build test install clean ctest pytest deps-debian deps doc golden

@@ -57,7 +57,7 @@ if cmake -S . -B build-off -DUSE_STANDALONE=OFF > configure-off.log 2>&1; then
 fi
 cat configure-off.log
 grep -F "USE_STANDALONE=OFF is currently unsupported" configure-off.log
-test ! -d build-off/OBJS/_deps
+test ! -d build-off/_deps
 
     )
     load_job_environment
@@ -107,7 +107,7 @@ pytest -m "not fast_only"
     pip install pytest numpy h5py f90nml scipy
     args=()
     if [ -n "${SCI_LIBNEO_REF:-}" ]; then
-        args+=("-DLIBNEO_REF=$SCI_LIBNEO_REF")
+        args+=("-DITP_LIBNEO_REF=$SCI_LIBNEO_REF")
     fi
     # POTATO is a separate CMake project, not part of the root build.
     # Match the native Release recipe used for PRs #238-240.

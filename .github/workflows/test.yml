@@ -25,6 +25,9 @@ permissions:
   contents: read
 
 jobs:
+  itpdeps-copy:
+    uses: itpplasma/cmake-deps/.github/workflows/check-copy.yml@v1
+
   standalone-off:
     name: Reject unsupported native NEO-2 build
     runs-on: ${{ github.event.pull_request.head.repo.fork && fromJSON('["self-hosted","itp-ubuntu24"]') || fromJSON('["self-hosted","itp-build"]') }}
@@ -52,7 +55,7 @@ jobs:
           fi
           cat configure-off.log
           grep -F "USE_STANDALONE=OFF is currently unsupported" configure-off.log
-          test ! -d build-off/OBJS/_deps
+          test ! -d build-off/_deps
 
         if: ${{ github.event.pull_request.head.repo.fork }}
     if: >-
