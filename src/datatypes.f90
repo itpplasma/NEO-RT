@@ -110,4 +110,12 @@ module neort_datatypes
         real(dp) :: torque_total(3) = 0.0_dp  ! co/counter/trapped dTphi/ds [erg]
     end type mixture_result_t
 
+    type :: equilibrium_t
+        real(dp) :: major_radius      ! [cm]
+        real(dp) :: minor_radius      ! [cm]
+        real(dp) :: toroidal_flux_boundary  ! per radian at s = 1 [G cm^2]
+        ! Toroidal flux of the last surface in the Boozer file, signed as NEO-RT
+        ! uses it, includes bfac.
+    end type equilibrium_t
+
 end module neort_datatypes

@@ -1,7 +1,7 @@
 module neort_lib
     use iso_fortran_env, only: dp => real64
     use neort_config, only: config_t
-    use neort_datatypes, only: transport_data_t, mixture_result_t, species_result_t
+    use neort_datatypes, only: transport_data_t, mixture_result_t, species_result_t, equilibrium_t
     use neort_species, only: species_state_t, mixture_t, selected_species
 
     implicit none
@@ -9,14 +9,19 @@ module neort_lib
     private
 
     public :: config_t
-    public :: transport_data_t
+    public :: equilibrium_t
+    public :: mixture_result_t
+    public :: mixture_t
+    public :: neort_compute_at_s
+    public :: neort_compute_mixture_at_s
+    public :: neort_compute_no_splines
+    public :: neort_get_equilibrium
     public :: neort_init
+    public :: neort_prepare_mixture
     public :: neort_prepare_splines
     public :: neort_setup_at_s
-    public :: neort_compute_at_s
-    public :: neort_compute_no_splines
-    public :: species_state_t, mixture_t, mixture_result_t
-    public :: neort_prepare_mixture, neort_compute_mixture_at_s
+    public :: species_state_t
+    public :: transport_data_t
 
     ! A thread holds the per-species surface state of one transport
     ! computation: transport_epoch counts the computations (each takes its
@@ -113,6 +118,17 @@ contains
         call read_boozer_curvature_file(boozer_kappa_file)
     end subroutine init_curvature_drive
 
+    subroutine neort_get_equilibrium(equil)
+        ! Valid after neort_init.
+        use do_magfie_mod, only: R0, a, psi_pr
+
+        type(equilibrium_t), intent(out) :: equil
+
+        equil%major_radius = R0
+        equil%minor_radius = a
+        equil%toroidal_flux_boundary = psi_pr
+    end subroutine neort_get_equilibrium
+
     subroutine prepare_splines_from_files(plasma_file, profile_file)
         use driftorbit, only: nonlin, comptorque
         use neort_profiles, only: read_plasma_input, prepare_plasma_splines, prepare_profile_splines
@@ -176,7 +192,7 @@ contains
         if (.not. nopassing) call init_canon_freq_passing_spline()
         sign_vpar = 1
         call set_to_trapped_region(etamin, etamax) ! overwrites etamin and etamax
-        ! psi_pr is the torodial flux at plasma boundary, fixed for all s
+        ! psi_pr is the toroidal flux at plasma boundary, fixed for all s
         ! psi_pr=const., q is set in do_magfie
         if (comptorque) call init_thermodynamic_forces(psi_pr, q)
     end subroutine neort_setup_at_s
