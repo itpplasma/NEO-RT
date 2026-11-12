@@ -1,3 +1,8 @@
+# spline does not export its Fortran module folder.
+get_target_property(_potato_spline_modules spline Fortran_MODULE_DIRECTORY)
+if(NOT _potato_spline_modules)
+  get_target_property(_potato_spline_modules spline BINARY_DIR)
+endif()
 # Compile the same reader sources as NEO-RT, with OpenMP enabled for its caches.
 add_library(potato_boozer_reader STATIC
   ../../src/logging.f90
@@ -8,35 +13,35 @@ target_link_libraries(potato_boozer_reader PUBLIC
   spline LIBNEO::boozer LIBNEO::coordinates OpenMP::OpenMP_Fortran
 )
 target_include_directories(potato_boozer_reader PUBLIC
-  "${PROJECT_BINARY_DIR}" "${PROJECT_BINARY_DIR}/spline"
+  "${PROJECT_BINARY_DIR}" "${_potato_spline_modules}"
 )
 
 add_library(potato_base
   ${CMAKE_CURRENT_SOURCE_DIR}/../../src/kinetic_energy_selection.f90
-  ${LIBNEO_SOURCE_DIR}/src/util/libneo_kinds.f90
+  ${libneo_SOURCE_DIR}/src/util/libneo_kinds.f90
   logging_mod.f90
   wall_loss_mod.f90
   potato_input_mod.f90
   boozer_perturbation_mod.f90
   potato_invariants_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/util/math_constants.f90
+  ${libneo_SOURCE_DIR}/src/util/math_constants.f90
   alpha_lifetime_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/MC/chamb_divB0.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/magfie_cyl.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/period_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/input_files.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/field_c_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/field_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/inthecore_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/field_eq_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/field_divB0.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/bdivfree_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/amn_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/theta_rz_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/extract_fluxcoord_mod.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/bdivfree.f90
-  ${LIBNEO_SOURCE_DIR}/src/spl_three_to_five.f90
-  ${LIBNEO_SOURCE_DIR}/src/magfie/spline5_RZ.f90
+  ${libneo_SOURCE_DIR}/src/MC/chamb_divB0.f90
+  ${libneo_SOURCE_DIR}/src/magfie/magfie_cyl.f90
+  ${libneo_SOURCE_DIR}/src/magfie/period_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/input_files.f90
+  ${libneo_SOURCE_DIR}/src/magfie/field_c_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/field_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/inthecore_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/field_eq_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/field_divB0.f90
+  ${libneo_SOURCE_DIR}/src/magfie/bdivfree_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/amn_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/theta_rz_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/extract_fluxcoord_mod.f90
+  ${libneo_SOURCE_DIR}/src/magfie/bdivfree.f90
+  ${libneo_SOURCE_DIR}/src/spl_three_to_five.f90
+  ${libneo_SOURCE_DIR}/src/magfie/spline5_RZ.f90
   velo.f90
   odeint_allroutines.f
   plag_coeff.f90
@@ -61,21 +66,8 @@ add_library(potato_base
 set_source_files_properties(bmod_pert.f90 PROPERTIES
   COMPILE_OPTIONS "-fno-finite-math-only")
 
-set(VODE_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-if(DEFINED BUILD_TESTING)
-  set(_POTATO_BUILD_TESTING_WAS_DEFINED TRUE)
-  set(_POTATO_BUILD_TESTING_SAVED ${BUILD_TESTING})
-endif()
-set(BUILD_TESTING OFF)
-if(NOT DEFINED VODE_REF)
-  set(VODE_REF 5797785f0829334e758bcd5fe650b26abbe3db90)
-endif()
-find_or_fetch(vode)
-if(_POTATO_BUILD_TESTING_WAS_DEFINED)
-  set(BUILD_TESTING ${_POTATO_BUILD_TESTING_SAVED})
-else()
-  unset(BUILD_TESTING)
-endif()
+itp_add_dependency(vode REF 5797785f0829334e758bcd5fe650b26abbe3db90
+  TARGET vode)
 # vode (dvode_f90_m) uses labeled DO termination, deleted in f2018; build it with
 # the permissive legacy standard rather than POTATO's f2018.
 target_compile_options(vode PRIVATE -std=legacy)
@@ -89,7 +81,7 @@ LIBNEO::hdf5_tools
 fortplot::fortplot
 OpenMP::OpenMP_Fortran
 )
-target_include_directories(potato_base PUBLIC "${PROJECT_BINARY_DIR}/spline")
+target_include_directories(potato_base PUBLIC "${_potato_spline_modules}")
 
 add_library(potato
   profile_input.f90

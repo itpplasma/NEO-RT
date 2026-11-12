@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 option(USE_STANDALONE "Use do_magfie_standalone" ON)
 if(NOT USE_STANDALONE)
@@ -14,7 +13,9 @@ endif()
 project(driftorbit LANGUAGES Fortran C)
 set(PROJECT_EXE_NAME "neo_rt.x")
 
-set(CMAKE_BINARY_DIR ${PROJECT_BINARY_DIR}/OBJS)
+# Loaded first, so a consumer's copy (if any) stays the active one.
+include(${PROJECT_SOURCE_DIR}/cmake/ItpDeps.cmake)
+
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR})
 
@@ -57,12 +58,6 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Fast")
     endif()
 endif()
 
-include(Util)
-
-if(NOT DEFINED LIBNEO_REF)
-    set(LIBNEO_REF b8f80b23ad8657dd6c60e1bff469335e347b14a8)
-endif()
-
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFINED BLA_VENDOR)
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
@@ -74,14 +69,17 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU" AND UNIX AND NOT APPLE AND NOT DEFIN
     endif()
 endif()
 
-# Testing configuration
-set(NEORT_IS_STANDALONE OFF)
-
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    set(NEORT_IS_STANDALONE ON)
+# Consumers get NEO-RT's tests only on request: -DNEORT_BUILD_TESTING=ON plus
+# include(CTest) in the consumer.
+option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${PROJECT_IS_TOP_LEVEL})
+if(PROJECT_IS_TOP_LEVEL)
+    include(CTest)
 endif()
-
-option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${NEORT_IS_STANDALONE})
+if(NEORT_BUILD_TESTING AND NOT BUILD_TESTING)
+    message(STATUS "NEORT_BUILD_TESTING is ON, but BUILD_TESTING is OFF; "
+        "NEO-RT tests will not be built.")
+    set(NEORT_BUILD_TESTING OFF)
+endif()
 
 # Symbolic generators are consumer-owned and optional.  The generated kernels
 # are committed and are all that a normal NEO-RT build needs.  Set
@@ -89,30 +87,12 @@ option(NEORT_BUILD_TESTING "Build tests for NEO-RT" ${NEORT_IS_STANDALONE})
 option(NEORT_BUILD_SYMBOLICS "Build NEO-RT fortsym generators" OFF)
 set(FORTSYM_SOURCE_DIR "" CACHE PATH "fortsym source tree for NEO-RT generators")
 
-if(DEFINED BUILD_TESTING)
-    set(NEORT_BUILD_TESTING ${BUILD_TESTING})
-endif()
-
-# Disable tests for dependencies
-set(BUILD_TESTING OFF)
-
-if(NOT DEFINED SPLINE_REF)
-    set(SPLINE_REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e)
-endif()
-find_or_fetch(spline)
-
-include(FetchContent)
-
-if(NOT TARGET fortnum)
-    FetchContent_Declare(
-        fortnum
-        GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
-        GIT_TAG 48f6f9bf0d4d523c3677bb686f5892f6e1329a24
-    )
-    FetchContent_MakeAvailable(fortnum)
-endif()
-
-include(Fortplot)
+itp_add_dependency(spline REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e
+    TARGET spline)
+itp_add_dependency(fortnum REF 48f6f9bf0d4d523c3677bb686f5892f6e1329a24
+    GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
+    TARGET fortnum)
+include(${PROJECT_SOURCE_DIR}/cmake/Fortplot.cmake)
 
 add_executable(${PROJECT_EXE_NAME} src/program.f90)
 
@@ -155,7 +135,8 @@ set_source_files_properties(src/phi1.f90 src/separatrix.f90 src/orbit_classes.f9
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 if(USE_STANDALONE)
-    find_or_fetch(libneo)
+    itp_add_dependency(libneo REF b8f80b23ad8657dd6c60e1bff469335e347b14a8
+        TARGET LIBNEO::boozer)
 
     add_library("neo_rt" STATIC
         ${NEO_RT_SOURCES}
@@ -166,24 +147,28 @@ if(USE_STANDALONE)
         add_library("util_for_test_${PROJECT_NAME}" STATIC test/util_for_test.f90)
     endif()
 else()
-    if(NOT DEFINED NEO-2_REF)
-        set(NEO-2_REF 881c2336bac918d3e3c79ec2b282fc29f67cfaa3)
-    endif()
-    find_or_fetch(NEO-2)
+    itp_add_dependency(neo_2 REF 881c2336bac918d3e3c79ec2b282fc29f67cfaa3
+        GIT_REPOSITORY https://github.com/itpplasma/NEO-2.git
+        TARGET neo2_ql)
+    FetchContent_GetProperties(neo_2)
     add_library("neo_rt" STATIC
         ${NEO_RT_SOURCES}
         src/do_magfie_neo.f90
     )
     add_dependencies(neo_rt neo2_ql)
-    target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/NEO-2/NEO-2-QL/OBJS")
+    target_include_directories(neo_rt PUBLIC "${neo_2_BINARY_DIR}/NEO-2-QL/OBJS")
     target_link_libraries(neo_rt PUBLIC
         neo2_ql
     )
 endif()
 
 target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}")
-add_dependencies(neo_rt spline)
-target_include_directories(neo_rt PUBLIC "${PROJECT_BINARY_DIR}/spline")
+# spline does not export its Fortran module folder.
+get_target_property(_neort_spline_modules spline Fortran_MODULE_DIRECTORY)
+if(NOT _neort_spline_modules)
+    get_target_property(_neort_spline_modules spline BINARY_DIR)
+endif()
+target_include_directories(neo_rt PUBLIC "${_neort_spline_modules}")
 
 find_package(BLAS)
 find_package(LAPACK)
@@ -216,8 +201,6 @@ target_link_libraries(neo_rt PUBLIC LIBNEO::hdf5_tools)
 target_link_libraries(${PROJECT_EXE_NAME} neo_rt)
 
 if(NEORT_BUILD_TESTING)
-    set(BUILD_TESTING ON)
-    include(CTest)
     add_subdirectory(test)
 endif()
 
