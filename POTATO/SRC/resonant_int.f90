@@ -663,7 +663,7 @@ subroutine resonant_torque
     !
     !
     use field_sub, only : psif
-    use field_eq_mod, only : nrad,nzet,rad,zet,psi_sep
+    use field_eq_mod, only : nrad,nzet,rad,zet,psi_sep,psi_axis
     use poicut_mod,        only : rmagaxis,zmagaxis,psimagaxis,psi_bou,rhopol_bou
     use global_invariants, only : dtau,toten,perpinv
     use poicut_mod,        only : Rbou_lfs,Zbou_lfs
@@ -723,6 +723,13 @@ subroutine resonant_torque
     ! Per-resonance-point box times, filled by the parallel time_in_box pass and
     ! consumed by the serial accumulate/write pass below.
     double precision, dimension(:,:), allocatable :: taubox_all
+    ! Torque of each resonant orbit in the box of its canonical toroidal momentum
+    ! psi^*, the label a drift-kinetic solution on psi^* surfaces carries.
+    double precision, dimension(:), allocatable :: torquecan, torquecan_loc
+    double precision, dimension(:,:), allocatable :: torquecan_energy
+    double precision, dimension(:), allocatable :: torquecan_out_energy
+    double precision :: psiast, torquecan_out, torquecan_out_loc
+    integer :: ibox
     !
     external :: get_matrix_res
     !
@@ -791,6 +798,9 @@ subroutine resonant_torque
     torque_int_modes_energy=0.d0
     torquebox_energy=0.d0
     torquebox_chan_energy=0.d0
+    allocate(torquecan(nbox),torquecan_energy(nbox,nenerg),torquecan_out_energy(nenerg))
+    torquecan_energy=0.d0
+    torquecan_out_energy=0.d0
     !
     torquebox=0.d0
     torquebox_chan=0.d0
@@ -808,6 +818,7 @@ subroutine resonant_torque
     !$omp   private(unit1901,unit1902,torque_int_modes_loc,torquebox_loc) &
     !$omp   private(absorbed_count,resonance_count,box_absorbed_count) &
     !$omp   private(torquebox_chan_loc,ichan) &
+    !$omp   private(torquecan_loc,torquecan_out_loc,psiast,ibox) &
     !$omp   copyin(dtau)
     ! Cell 1 is an interior thermal midpoint, or the sole fixed-energy sample.
     do ienerg=1,nenerg
@@ -830,6 +841,9 @@ subroutine resonant_torque
         torque_int_modes_loc=0.d0
         torquebox_loc=0.d0
         torquebox_chan_loc=0.d0
+        allocate(torquecan_loc(nbox))
+        torquecan_loc=0.d0
+        torquecan_out_loc=0.d0
         resline_unit_is_private=.true.
         resline_diag_unit_is_private=.true.
         call open_energy_outputs(ienerg,adaptive_jperp,unit1901,unit1902)
@@ -963,6 +977,13 @@ subroutine resonant_torque
                                      respoint(i)%sigma_res)
                     torquebox_chan_loc(:,ichan)=torquebox_chan_loc(:,ichan) &
                         +respoint(i)%w_res*taubox_all(:,i)/respoint(i)%taub
+                    call get_tormom(respoint(i)%z_res,psiast)
+                    call canonical_box(psiast,psi_axis,psi_sep,nbox,sbox,ibox)
+                    if(ibox.gt.0) then
+                        torquecan_loc(ibox)=torquecan_loc(ibox)+respoint(i)%w_res
+                    else
+                        torquecan_out_loc=torquecan_out_loc+respoint(i)%w_res
+                    endif
                 endif
             enddo
             deallocate(taubox_all)
@@ -977,6 +998,8 @@ subroutine resonant_torque
             torque_int_energy(ienerg)=torque_int_loc
             torquebox_energy(:,ienerg)=torquebox_loc
             torquebox_chan_energy(:,:,ienerg)=torquebox_chan_loc
+            torquecan_energy(:,ienerg)=torquecan_loc
+            torquecan_out_energy(ienerg)=torquecan_out_loc
             write(msg, '(A,ES22.14)') &
                 'method 1, torque_int_loc = ', torque_int_loc
             call tee_message(trim(msg))
@@ -1056,7 +1079,7 @@ subroutine resonant_torque
         if(write_resonance_factors) close(resfactor_unit)
         if(adaptive_jperp) close(unit1901)
         close(unit1902)
-        deallocate(torque_int_modes_loc,torquebox_loc,torquebox_chan_loc)
+        deallocate(torque_int_modes_loc,torquebox_loc,torquebox_chan_loc,torquecan_loc)
         !
     enddo
     !$omp end parallel do
@@ -1071,6 +1094,8 @@ subroutine resonant_torque
         torquebox=torquebox+torquebox_energy(:,ienerg)
         torquebox_chan=torquebox_chan+torquebox_chan_energy(:,:,ienerg)
     enddo
+    torquecan=sum(torquecan_energy,2)
+    torquecan_out=sum(torquecan_out_energy)
     !
     call merge_energy_files('fort.31415.energy.', 'fort.31415', nenerg)
     call merge_energy_files('fort.31415.diagnostics.energy.', &
@@ -1116,6 +1141,14 @@ subroutine resonant_torque
         do i=2,nbox
             write(1,*) sbox(i-1), sbox(i), torquebox_chan(i,:), torquebox(i)
         enddo
+        close(1)
+        open(1,file='boxcounted_torque_canonical.dat')
+        write(1,'(A)') '# s_lo s_hi torque of the orbits with psi^* in the box'
+        write(1,*) 0d0, sbox(1), torquecan(1)
+        do i=2,nbox
+            write(1,*) sbox(i-1), sbox(i), torquecan(i)
+        enddo
+        write(1,'(A,ES24.15E3)') '# psi^* outside all boxes: ', torquecan_out
         close(1)
         do ichan=1,NCHAN
             write(msg, '(A,A,A,ES22.14)') '  channel ', &
