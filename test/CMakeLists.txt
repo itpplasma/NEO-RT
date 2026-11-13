@@ -195,6 +195,23 @@ add_test(NAME test_boozer_handedness
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+# Arguments: poloidal orientation, sign of the chart iota, toroidal field sign.
+foreach(orientation 1 -1)
+    foreach(iota_sign 1 -1)
+        foreach(field_sign 1 -1)
+            set(case "o${orientation}_i${iota_sign}_b${field_sign}")
+            set(run_dir ${CMAKE_CURRENT_BINARY_DIR}/trapped_precession_${case})
+            file(MAKE_DIRECTORY ${run_dir})
+            add_test(NAME test_trapped_precession_sign_${case}
+                COMMAND ${CMAKE_BINARY_DIR}/test_trapped_precession_sign.x
+                    ${orientation} ${iota_sign} ${field_sign}
+                WORKING_DIRECTORY ${run_dir})
+            set_tests_properties(test_trapped_precession_sign_${case} PROPERTIES
+                ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+        endforeach()
+    endforeach()
+endforeach()
+
 # test_hcurl_axisymmetric: curl of the unit field direction in the standalone
 # Boozer path. The oracle is a central difference of hcovar over separate
 # do_magfie calls, so it is independent of the analytic formula it checks.
