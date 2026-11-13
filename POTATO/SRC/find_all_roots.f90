@@ -285,6 +285,10 @@
   do i=0,nsearch
     xarr(i)=x1in+hx*dble(i)
   enddo
+! x1in+hx*nsearch can round past x2in. find_valid_class_roots ends a bracket one
+! ulp below a class node with an unusable stencil, where fun jumps to a constant;
+! the sign change to it was refined into a root of a non-resonant orbit.
+  xarr(nsearch)=x2in
 !
   if(customgrid) then
     kxc_first=1

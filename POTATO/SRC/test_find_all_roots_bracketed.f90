@@ -5,6 +5,7 @@ program test_find_all_roots_bracketed
 
   integer :: ierr
   logical :: evaluated_outside_bounds
+  double precision :: xunusable
 
   customgrid=.false.
   niter=100
@@ -49,7 +50,52 @@ program test_find_all_roots_bracketed
   xcustom=[-2.d0,0.35d0,3.d0]
   call check_upper_root('one custom node inside interval')
 
+  call check_bracket_end('uniform grid',.false.)
+  call check_bracket_end('custom grid',.true.)
+
 contains
+
+  subroutine check_bracket_end(label,custom)
+! find_valid_class_roots ends a bracket one ulp below a class node whose
+! interpolation stencil is unusable. The function has no root below that node
+! and jumps to the other sign on it, so any reported root is spurious.
+    character(len=*), intent(in) :: label
+    logical, intent(in) :: custom
+    integer :: k
+    double precision :: x1,x2
+
+    nsearch_min=400
+    customgrid=custom
+    do k=1,200
+      x1=-dble(k)/7.d0
+      xunusable=dble(k)/13.d0
+      x2=nearest(xunusable,-1.d0)
+      if(custom) then
+        xcustom=[x1-1.d0,x1,0.5d0*(x1+x2),xunusable,xunusable+1.d0]
+        ncustom=size(xcustom)
+      endif
+      evaluated_outside_bounds=.false.
+      call find_all_roots_bracketed(jump_at_unusable_node,x1,x2,ierr)
+      call require(ierr.eq.0,label//' bracket end ierr')
+      call require(.not.evaluated_outside_bounds, &
+                   label//' evaluated on the node above the bracket end')
+      call require(nroots.eq.0,label//' spurious root at the bracket end')
+    enddo
+  end subroutine check_bracket_end
+
+  subroutine jump_at_unusable_node(x,f,df)
+    double precision, intent(in) :: x
+    double precision, intent(out) :: f,df
+
+    if(x.ge.xunusable) then
+      evaluated_outside_bounds=.true.
+      f=1.d0
+      df=0.d0
+    else
+      f=-2.d0-sin(x)
+      df=-cos(x)
+    endif
+  end subroutine jump_at_unusable_node
 
   subroutine check_upper_root(label)
     character(len=*), intent(in) :: label
