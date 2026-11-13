@@ -108,7 +108,7 @@ contains
         character(*), intent(in) :: path
         real(dp), allocatable, intent(out) :: data(:, :)
         integer :: n, ios, u
-        real(dp) :: row(3)
+        real(dp) :: row(2)
 
         n = 0
         open(newunit=u, file=path, status="old", action="read")
@@ -118,7 +118,7 @@ contains
             n = n + 1
         end do
         rewind(u)
-        allocate(data(n, 3))
+        allocate(data(n, 2))
         do n = 1, size(data, 1)
             read(u, *) data(n, :)
         end do
