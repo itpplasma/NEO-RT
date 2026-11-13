@@ -141,11 +141,14 @@ type :: config_t
     real(8) :: epsmn, pertfile_scale, mph
     real(8) :: bfac, efac
     real(8) :: M_t, vth
-    real(8) :: vmax_over_vth
+    real(8) :: vmax_over_vth, vtol
     integer :: m0, inp_swi, vsteps, magdrift_passing, mth_max_abs, log_level
     logical :: comptorque, magdrift, nopassing, noshear, pertfile, nonlin
 end type
 ```
+
+`vtol` (default `1e-3`) is the relative tolerance of the adaptive velocity
+integral; `vtol = 0` selects the deprecated midpoint rule on `vsteps` nodes.
 
 `magdrift_passing` is the passing-particle magnetic-drift switch. `0` keeps
 the trapped magnetic-drift path enabled when `magdrift=.true.` but removes the
