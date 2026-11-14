@@ -135,7 +135,7 @@ set_source_files_properties(src/phi1.f90 src/separatrix.f90 src/orbit_classes.f9
     COMPILE_OPTIONS "-fno-finite-math-only")
 
 if(USE_STANDALONE)
-    itp_add_dependency(libneo REF b8f80b23ad8657dd6c60e1bff469335e347b14a8
+    itp_add_dependency(libneo REF 94f59c176714c8598ca1b43607a353b29a2ca2a7
         TARGET LIBNEO::boozer)
 
     add_library("neo_rt" STATIC
