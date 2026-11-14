@@ -89,7 +89,7 @@ set(FORTSYM_SOURCE_DIR "" CACHE PATH "fortsym source tree for NEO-RT generators"
 
 itp_add_dependency(spline REF 1c40553a2cc6c930804cc8ea9cc9393106345a6e
     TARGET spline)
-itp_add_dependency(fortnum REF 48f6f9bf0d4d523c3677bb686f5892f6e1329a24
+itp_add_dependency(fortnum REF bf0b0c5a859d7ed78e4ae17ee3a9011c8de5b088
     GIT_REPOSITORY https://github.com/lazy-fortran/fortnum.git
     TARGET fortnum)
 include(${PROJECT_SOURCE_DIR}/cmake/Fortplot.cmake)
