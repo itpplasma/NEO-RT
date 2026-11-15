@@ -52,7 +52,7 @@ include(${PROJECT_SOURCE_DIR}/../cmake/Fortplot.cmake)
 # libneo supplies the field, magfie and spline code POTATO used to carry as
 # relative symlinks into a sibling libneo checkout. Link the upstream library so
 # fixes (e.g. the stretch_coords convex-wall load) propagate instead of drifting.
-itp_add_dependency(libneo REF b8f80b23ad8657dd6c60e1bff469335e347b14a8
+itp_add_dependency(libneo REF 94f59c176714c8598ca1b43607a353b29a2ca2a7
     TARGET LIBNEO::boozer)
 FetchContent_GetProperties(libneo)
 
