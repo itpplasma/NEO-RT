@@ -12,8 +12,8 @@
     ],
     "potato_in": "circular_potato.in"
   },
-  "integral_torque": 712022416.0494634,
-  "integral_torque_note": "Generated with gen_golden.py from a Release build (gfortran 12.2.0, -march=x86-64-v3) of NEO-RT main aafdbcf plus this change on sCluster. OMP_NUM_THREADS=8 and 2 gave bitwise identical rows files.",
+  "integral_torque": 711969400.110358,
+  "integral_torque_note": "Generated with gen_golden.py from a Release build (gfortran 12.2.0, -march=x86-64-v3) of NEO-RT main plus libneo 94f59c1, in the itp-ci runner image on faepkub3, 8 threads. libneo 936cb97 (#530) builds the fifth-order spline coefficients in libneo itself, without FMA, instead of in POTATO's sources; the coefficients move by about 1e-11 and the adaptive H0 subintegration then picks other subintervals in a few rows, which moves integral_torque by -7.4e-5 (712022416.0494634 before).",
   "files": {
     "fort.31415": {
       "key_columns": [

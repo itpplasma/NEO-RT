@@ -39,6 +39,9 @@ add_library(potato_base
   ${libneo_SOURCE_DIR}/src/magfie/amn_mod.f90
   ${libneo_SOURCE_DIR}/src/magfie/theta_rz_mod.f90
   ${libneo_SOURCE_DIR}/src/magfie/extract_fluxcoord_mod.f90
+  ${libneo_SOURCE_DIR}/src/util/plag_coeff.f90
+  ${libneo_SOURCE_DIR}/src/util/lagrange_point.f90
+  ${libneo_SOURCE_DIR}/src/magfie/polylag_3.f90
   ${libneo_SOURCE_DIR}/src/magfie/bdivfree.f90
   ${libneo_SOURCE_DIR}/src/spl_three_to_five.f90
   ${libneo_SOURCE_DIR}/src/magfie/spline5_RZ.f90
