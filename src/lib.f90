@@ -1,7 +1,8 @@
 module neort_lib
     use iso_fortran_env, only: dp => real64
     use neort_config, only: config_t
-    use neort_datatypes, only: transport_data_t, mixture_result_t, species_result_t, equilibrium_t
+    use neort_datatypes, only: transport_data_t, mixture_result_t, species_result_t, equilibrium_t, &
+                               flux_surface_t
     use neort_species, only: species_state_t, mixture_t, selected_species
 
     implicit none
@@ -10,12 +11,14 @@ module neort_lib
 
     public :: config_t
     public :: equilibrium_t
+    public :: flux_surface_t
     public :: mixture_result_t
     public :: mixture_t
     public :: neort_compute_at_s
     public :: neort_compute_mixture_at_s
     public :: neort_compute_no_splines
     public :: neort_get_equilibrium
+    public :: neort_get_flux_surface
     public :: neort_init
     public :: neort_prepare_mixture
     public :: neort_prepare_splines
@@ -128,6 +131,20 @@ contains
         equil%minor_radius = a
         equil%toroidal_flux_boundary = psi_pr
     end subroutine neort_get_equilibrium
+
+    subroutine neort_get_flux_surface(s, surface)
+        ! Valid after neort_init. Leaves the per-thread surface state untouched.
+        use do_magfie_mod, only: rotational_transform, psi_pr, sign_theta
+
+        real(dp), intent(in) :: s
+        type(flux_surface_t), intent(out) :: surface
+
+        real(dp) :: iota
+
+        call rotational_transform(s, surface%s, iota)
+        surface%safety_factor = 1.0_dp / iota
+        surface%poloidal_flux_derivative = sign_theta * iota * psi_pr
+    end subroutine neort_get_flux_surface
 
     subroutine prepare_splines_from_files(plasma_file, profile_file)
         use driftorbit, only: nonlin, comptorque

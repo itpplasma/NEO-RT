@@ -61,3 +61,4 @@ __pycache__/
 .venv/
 test/golden_record/main_ref/
 .sloptools/artifacts/
+/.worktrees/

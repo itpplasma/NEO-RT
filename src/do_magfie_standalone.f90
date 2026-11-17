@@ -224,6 +224,25 @@ contains
         call do_magfie(x, bmod, sqrtg, bder, hcovar, hctrvr, hcurl)
     end subroutine init_magfie_at_s
 
+    subroutine rotational_transform(s_in, s_used, iota_)
+        ! iota of the axisymmetric field at s_in, without touching the surface
+        ! state. s_used is s_in limited to the tabulated range, as in do_magfie.
+        real(dp), intent(in) :: s_in
+        real(dp), intent(out) :: s_used, iota_
+
+        real(dp) :: spl_val(3)
+
+        if (inp_swi == 10) then
+            s_used = min(cm_s_aphi(size(cm_s_aphi)), max(cm_s_aphi(1), s_in))
+            spl_val = spline_val_0(cm_spl_aphi, s_used)
+            iota_ = -spl_val(2) / cm_torflux
+        else
+            s_used = min(params0(nflux, 1), max(params0(1, 1), s_in))
+            spl_val = spline_val_0(spl_coeff1(:, :, 1), s_used)
+            iota_ = spl_val(1)
+        end if
+    end subroutine rotational_transform
+
     subroutine do_magfie_init(path)
         ! init axisymmetric part of field from infile
         ! Backward compatibility wrapper: calls read_boozer_file + init_magfie_at_s

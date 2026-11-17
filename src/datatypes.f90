@@ -118,4 +118,12 @@ module neort_datatypes
         ! uses it, includes bfac.
     end type equilibrium_t
 
+    type :: flux_surface_t
+        real(dp) :: s  ! normalized toroidal flux, as evaluated
+        real(dp) :: safety_factor
+        real(dp) :: poloidal_flux_derivative  ! per radian, d/ds [G cm^2]
+        ! sign_theta * iota * psi_pr, so that the radial electric field is
+        ! dPhi/ds = -poloidal_flux_derivative / c * Om_tE. Includes bfac.
+    end type flux_surface_t
+
 end module neort_datatypes
